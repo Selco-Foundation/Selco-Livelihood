@@ -83,6 +83,56 @@ Copy `.env.sample` to `.env`:
 
 Runtime config uses `window.globalConfigs.getConfig("KEY")`, same as other DIGIT UIs. Local dev loads `public/sampleGlobalConfig.js` by default.
 
+## Localization
+
+Livelihood UI uses the same DIGIT localization service as micro-ui:
+
+- Backend: `POST /localization/messages/v1/_search`
+- Client: `i18next` + `react-i18next`
+- Default modules loaded at startup: `rainmaker-common` and `rainmaker-{STATE_TENANT}`
+
+### Usage in components
+
+```tsx
+import { useTranslate } from "@/shared";
+
+export function MyPage() {
+  const { t, getTransformedLocale } = useTranslate();
+
+  return (
+    <h1>{t("ACTION_TEST_HOME")}</h1>
+  );
+}
+```
+
+### Changing language at runtime
+
+```tsx
+import { setLocale } from "@/shared";
+
+await setLocale("en_IN");
+```
+
+Locale is persisted in `livelihood-locale` (zustand), `sessionStorage.locale`, and `Employee.locale` / `Citizen.locale` for compatibility with other DIGIT UIs.
+
+### Loading module-specific labels
+
+```tsx
+import { loadModules } from "@/shared";
+
+await loadModules(["rainmaker-pt"]);
+```
+
+### Locale helpers
+
+`useTranslate` also exposes helpers compatible with `Digit.Utils.locale` patterns:
+
+- `getTransformedLocale`
+- `getCityLocale`
+- `getMohallaLocale`
+- `getLocalityCode`
+- `convertToLocale`
+
 ## Adding modules
 
 See [src/modules/MODULE_TEMPLATE.md](src/modules/MODULE_TEMPLATE.md).
