@@ -7,6 +7,7 @@ import org.egov.common.contract.request.RequestInfo;
 import org.egov.im.config.IMConfiguration;
 import org.egov.im.repository.IMRepository;
 import org.egov.im.util.HRMSUtil;
+import org.egov.im.util.LivelihoodTenantUtil;
 import org.egov.im.web.models.*;
 import org.egov.tracer.model.CustomException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,11 +29,15 @@ public class ServiceRequestValidator {
 
     private HRMSUtil hrmsUtil;
 
+    private LivelihoodTenantUtil livelihoodTenantUtil;
+
     @Autowired
-    public ServiceRequestValidator(IMConfiguration config, IMRepository repository, HRMSUtil hrmsUtil) {
+    public ServiceRequestValidator(IMConfiguration config, IMRepository repository, HRMSUtil hrmsUtil,
+                                   LivelihoodTenantUtil livelihoodTenantUtil) {
         this.config = config;
         this.repository = repository;
         this.hrmsUtil = hrmsUtil;
+        this.livelihoodTenantUtil = livelihoodTenantUtil;
     }
 
 
@@ -45,14 +50,35 @@ public class ServiceRequestValidator {
         log.info("serviceRequestValidator::Validating incident create request");
         Map<String,String> errorMap = new HashMap<>();
         validateUserData(request,errorMap);
-        //validateSource(request.getService().getSource());
-        validateMDMS(request, mdmsData);
-        //validateDepartment(request, mdmsData);
-        validateBoundary(request, errorMap);
+        if (livelihoodTenantUtil.isLivelihood(request.getIncident().getTenantId())) {
+            validateLivelihoodCreate(request, mdmsData, errorMap);
+        } else {
+            validateMDMS(request, mdmsData);
+            validateBoundary(request, errorMap);
+        }
         if(!errorMap.isEmpty())
             throw new CustomException(errorMap);
     }
 
+    private void validateLivelihoodCreate(IncidentRequest request, Object mdmsData, Map<String, String> errorMap) {
+        Incident incident = request.getIncident();
+        if (StringUtils.isEmpty(incident.getFacilityId())) {
+            errorMap.put("FACILITY_ID_MISSING", "facilityId is mandatory for Livelihood ticket creation");
+        }
+        if (StringUtils.isEmpty(incident.getAssetId())) {
+            errorMap.put("ASSET_ID_MISSING", "assetId is mandatory for Livelihood ticket creation");
+        }
+        if (StringUtils.isEmpty(incident.getIncidentType())) {
+            errorMap.put("ISSUE_TYPE_MISSING", "incidentType (issue type) is mandatory for Livelihood ticket creation");
+        }
+        if (request.getWorkflow() == null || StringUtils.isEmpty(request.getWorkflow().getAction())) {
+            if (request.getWorkflow() == null) {
+                request.setWorkflow(Workflow.builder().action(LIVELIHOOD_WF_AUTO_ASSIGN).build());
+            } else {
+                request.getWorkflow().setAction(LIVELIHOOD_WF_AUTO_ASSIGN);
+            }
+        }
+    }
 
     /**
      * Validates if the update request is valid
@@ -125,6 +151,9 @@ public class ServiceRequestValidator {
     private void validateMDMS(IncidentRequest request, Object mdmsData){
         log.info("serviceRequestValidator::Validating mdms data");
         String serviceCode = request.getIncident().getIncidentSubType();
+        if (StringUtils.isEmpty(serviceCode)) {
+            throw new CustomException("INVALID_SERVICECODE", "incidentSubType is mandatory for incident creation");
+        }
         String jsonPath = MDMS_SERVICEDEF_SEARCH.replace("{SERVICEDEF}",serviceCode);
 
         List<Object> res = null;

@@ -323,6 +323,28 @@ public class IMConfiguration {
     @Value("${egov.facility.search.path}")
     private String facilitySearchPath;
 
+    // Asset Registry Config
+    @Value("${egov.asset.host}")
+    private String assetRegistryHost;
+
+    @Value("${egov.asset.search.path}")
+    private String assetRegistrySearchPath;
+
+    @Value("${egov.vendor.host:}")
+    private String vendorHost;
+
+    @Value("${egov.vendor.organisation.search.path:/vendor/organisation/v1/_search}")
+    private String vendorOrganisationSearchPath;
+
+    @Value("${egov.vendor.organisation.user.search.path:/vendor/organisation/v1/user/_search}")
+    private String vendorOrganisationUserSearchPath;
+
+    @Value("${im.livelihood.tenant.id:livelihood}")
+    private String livelihoodTenantId;
+
+    @Value("${egov.kafka.notification.email.topic:egov.core.notification.email}")
+    private String notificationEmailTopic;
+
     //Boundary Service Config
     @Value("${egov.boundary.host}")
     private String boundaryHost;

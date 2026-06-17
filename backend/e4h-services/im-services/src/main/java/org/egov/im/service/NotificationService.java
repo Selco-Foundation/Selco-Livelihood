@@ -963,7 +963,10 @@ public class NotificationService {
                 || (PENDINGFORASSIGNMENT_RMS_DEVICE.equalsIgnoreCase(applicationStatus)
                 && APPLY_RMS_DEVICE.equalsIgnoreCase(action))
                 || (PENDINGFORASSIGNMENT_THEFT.equalsIgnoreCase(applicationStatus)
-                && APPLY_THEFT.equalsIgnoreCase(action));
+                && APPLY_THEFT.equalsIgnoreCase(action))
+                || (LIVELIHOOD_PENDING_FOR_RESOLUTION.equalsIgnoreCase(applicationStatus)
+                && (LIVELIHOOD_WF_AUTO_ASSIGN.equalsIgnoreCase(action)
+                || LIVELIHOOD_WF_CREATE.equalsIgnoreCase(action)));
     }
 
 }

@@ -35,6 +35,9 @@ public class AssetSearchCriteria {
     @JsonProperty("facilityID")
     private String facilityID = null;
 
+    @JsonProperty("boundaryCode")
+    private String boundaryCode = null;
+
     @JsonProperty("isOperational")
     private Boolean isOperational = null;
 
@@ -52,5 +55,11 @@ public class AssetSearchCriteria {
 
     @JsonProperty("wfStatus")
     private String wfStatus = null;
+
+    @JsonProperty("vendorId")
+    private String vendorId = null;
+
+    @JsonProperty("itemCode")
+    private String itemCode = null;
 
 }

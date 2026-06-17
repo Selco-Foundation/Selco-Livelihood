@@ -144,16 +144,30 @@ public class V1ApiController {
                 .assetId(criteria.getAssetID())
                 .wfStatus(criteria.getWfStatus())
                 .facilityID(criteria.getFacilityID())
+                .boundaryCode(criteria.getBoundaryCode())
                 .assetTypeSearch(criteria.getAssetType())
                 .activityFacilityID(criteria.getActivityFacilityID())
                 .isOperational(criteria.getIsOperational())
                 .serialNumberSearch(criteria.getSerialNumber())
                 .modelNumber(criteria.getModelNumber())
                 .brandID(criteria.getBrandID())
+                .vendorId(criteria.getVendorId())
+                .itemCode(criteria.getItemCode())
                 .build();
         List<Asset> searchResponse = assetService.fetchAssetsWithDocuments(asset,limit, offset);
         Integer count = assetService.getAssetsCount(asset);
         return new ResponseEntity<>(searchResponse, HttpStatus.OK);
+    }
+
+    @RequestMapping(value = "/v1/asset/{assetID}", method = RequestMethod.GET)
+    public ResponseEntity<Asset> getAssetById(
+            @Parameter(in = ParameterIn.PATH, description = "Unique identifier of the asset", required = true, schema = @Schema())
+            @PathVariable("assetID") String assetID,
+            @Parameter(in = ParameterIn.QUERY, description = "Tenant identifier", required = true, schema = @Schema())
+            @RequestParam("tenantId") String tenantId) {
+        log.info("Received get asset request | assetID={} tenantId={}", assetID, tenantId);
+        Asset asset = assetService.getAssetById(tenantId, assetID);
+        return new ResponseEntity<>(asset, HttpStatus.OK);
     }
 
     @RequestMapping(value = "/v1/asset/amc/visit/{visitID}/_update", method = RequestMethod.POST)

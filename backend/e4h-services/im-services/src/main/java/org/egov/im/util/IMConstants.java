@@ -14,6 +14,43 @@ public class IMConstants {
 
     public static final String IM_BUSINESSSERVICE = "Incident";
 
+    public static final String LIVELIHOOD_BUSINESSSERVICE = "LivelihoodIncident";
+
+    public static final String LIVELIHOOD_TENANT_ID = "livelihood";
+
+    public static final String LIVELIHOOD_WF_AUTO_ASSIGN = "AUTO_ASSIGN";
+
+    public static final String LIVELIHOOD_WF_CREATE = "CREATE";
+
+    public static final String LIVELIHOOD_PENDING_FOR_RESOLUTION = "PENDING_FOR_RESOLUTION";
+
+    public static final String LIVELIHOOD_OUT_OF_SCOPE_PENDING_POC = "OUT_OF_SCOPE_PENDING_POC";
+
+    public static final String LIVELIHOOD_OUT_OF_SCOPE_PENDING_VENDOR = "OUT_OF_SCOPE_PENDING_VENDOR";
+
+    public static final String LIVELIHOOD_OUT_OF_WARRANTY_PENDING_VENDOR = "OUT_OF_WARRANTY_PENDING_VENDOR";
+
+    public static final String ROLE_LIVELIHOOD_VENDOR = "LIVELIHOOD_VENDOR";
+
+    public static final String ROLE_LIVELIHOOD_POC = "LIVELIHOOD_POC";
+
+    public static final String ENTRY_CHANNEL_DIRECT = "DIRECT";
+
+    public static final String ENTRY_CHANNEL_POC_MANUAL = "POC_MANUAL";
+
+    public static final String ENTRY_CHANNEL_IVR_WHATSAPP = "IVR_WHATSAPP";
+
+    public static final String MDMS_SERVICEDEF_LIVELIHOOD_SEARCH =
+            "$.MdmsRes.Incident.ServiceDefs[?(@.serviceCode=='{SERVICEDEF}' && @.menuPath=='{MENUPATH}')]";
+
+    public static final String MDMS_LIVELIHOOD_MODULE = "livelihood";
+
+    public static final String MDMS_ITEM_CODE_MASTER = "ItemCode";
+
+    public static final String LIVELIHOOD_CATCH_ALL_MENU_PATH = "I Cannot Identify The Issue";
+
+    public static final String LIVELIHOOD_ASSET_CATEGORY_DETAIL_KEY = "assetCategory";
+
     public static final String IM_BUSINESSSERVICE_HIGH = "Incident_High";
 
     public static final String IM_BUSINESSSERVICE_MEDIUM = "Incident_Medium";

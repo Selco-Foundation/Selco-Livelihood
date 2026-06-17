@@ -131,6 +131,11 @@ public class AssetService {
             params.add(asset.getFacilityID());
         }
 
+        if (asset.getBoundaryCode() != null && !asset.getBoundaryCode().isBlank()) {
+            query.append(" AND boundary_code = ?");
+            params.add(asset.getBoundaryCode());
+        }
+
         if (asset.getActivityFacilityID() != null && !asset.getActivityFacilityID().isBlank()) {
             query.append(" AND activity_facility_id = ?");
             params.add(asset.getActivityFacilityID());
@@ -154,6 +159,16 @@ public class AssetService {
         if (asset.getBrandID()!= null && !asset.getBrandID().isBlank()) {
             query.append(" AND brand_id = ?");
             params.add(asset.getBrandID());
+        }
+
+        if (asset.getVendorId() != null && !asset.getVendorId().isBlank()) {
+            query.append(" AND vendor_id = ?");
+            params.add(asset.getVendorId());
+        }
+
+        if (asset.getItemCode() != null && !asset.getItemCode().isBlank()) {
+            query.append(" AND item_code = ?");
+            params.add(asset.getItemCode());
         }
 
         query.append(" ORDER BY created_time DESC LIMIT ? OFFSET ?");
@@ -194,6 +209,11 @@ public class AssetService {
             params.add(asset.getFacilityID());
         }
 
+        if (asset.getBoundaryCode() != null && !asset.getBoundaryCode().isBlank()) {
+            query.append(" AND boundary_code = ?");
+            params.add(asset.getBoundaryCode());
+        }
+
         if (asset.getActivityFacilityID() != null && !asset.getActivityFacilityID().isBlank()) {
             query.append(" AND activity_facility_id = ?");
             params.add(asset.getActivityFacilityID());
@@ -212,6 +232,16 @@ public class AssetService {
         if (asset.getBrandID()!= null && !asset.getBrandID().isBlank()) {
             query.append(" AND brand_id = ?");
             params.add(asset.getBrandID());
+        }
+
+        if (asset.getVendorId() != null && !asset.getVendorId().isBlank()) {
+            query.append(" AND vendor_id = ?");
+            params.add(asset.getVendorId());
+        }
+
+        if (asset.getItemCode() != null && !asset.getItemCode().isBlank()) {
+            query.append(" AND item_code = ?");
+            params.add(asset.getItemCode());
         }
 
         log.debug("Executing asset search count={} with params={}", query, params);
@@ -245,6 +275,18 @@ public class AssetService {
             }
             return documentsMap;
         });
+    }
+
+    public Asset getAssetById(String tenantId, String assetId) {
+        List<Asset> assets = fetchAssetsWithDocuments(
+                Asset.builder().tenantId(tenantId).assetId(assetId).build(),
+                1,
+                0
+        );
+        if (assets == null || assets.isEmpty()) {
+            throw new CustomException(ErrorConstants.ASSET_NOT_FOUND_CODE, ErrorConstants.ASSET_NOT_FOUND_MSG);
+        }
+        return assets.get(0);
     }
 
     public Asset updateAsset(String assetId, AssetCreateRequest request) {

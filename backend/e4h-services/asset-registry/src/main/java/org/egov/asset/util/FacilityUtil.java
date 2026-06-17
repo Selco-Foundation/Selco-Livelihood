@@ -77,4 +77,28 @@ public class FacilityUtil {
 
         return Collections.singletonList(response.get("facility"));
     }
+
+    /**
+     * Resolves facility-level boundary code from facility-registry search (same source as facility.boundaryCode).
+     */
+    @SuppressWarnings("unchecked")
+    public String resolveFacilityBoundaryCode(String tenantId, String facilityId) {
+        List<Object> searchResult = searchFacility(tenantId, facilityId);
+        if (searchResult.isEmpty() || searchResult.get(0) == null) {
+            return null;
+        }
+        Object facilitiesObj = searchResult.get(0);
+        if (!(facilitiesObj instanceof List<?> facilities) || facilities.isEmpty()) {
+            return null;
+        }
+        Object facility = facilities.get(0);
+        if (!(facility instanceof Map<?, ?> facilityMap)) {
+            return null;
+        }
+        Object boundaryCode = facilityMap.get("boundaryCode");
+        if (boundaryCode == null) {
+            boundaryCode = facilityMap.get("boundary_code");
+        }
+        return boundaryCode != null ? String.valueOf(boundaryCode).trim() : null;
+    }
 }

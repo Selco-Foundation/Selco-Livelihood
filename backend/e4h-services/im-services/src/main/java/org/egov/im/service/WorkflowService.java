@@ -10,6 +10,7 @@ import org.egov.common.contract.request.User;
 import org.egov.im.config.IMConfiguration;
 import org.egov.im.repository.ServiceRequestRepository;
 import org.egov.im.util.BusinessHoursUtil;
+import org.egov.im.util.LivelihoodTenantUtil;
 import org.egov.im.util.MDMSUtils;
 import org.egov.im.web.models.*;
 import org.egov.im.web.models.workflow.*;
@@ -37,6 +38,8 @@ public class WorkflowService {
 
     private SLAService slaService;
 
+    private LivelihoodTenantUtil livelihoodTenantUtil;
+
     private static final Map<Priority, String> PRIORITY_BUSINESS_SERVICE_MAP = Map.of(
             Priority.HIGH, IM_BUSINESSSERVICE_HIGH,
             Priority.MEDIUM, IM_BUSINESSSERVICE_MEDIUM,
@@ -49,13 +52,15 @@ public class WorkflowService {
     @Autowired
     public WorkflowService(IMConfiguration imConfiguration,
                            ServiceRequestRepository repository,
-                           ObjectMapper mapper, NotificationService notificationService, MDMSUtils mdmsUtils, SLAService slaService) {
+                           ObjectMapper mapper, NotificationService notificationService, MDMSUtils mdmsUtils,
+                           SLAService slaService, LivelihoodTenantUtil livelihoodTenantUtil) {
         this.imConfiguration = imConfiguration;
         this.repository = repository;
         this.mapper = mapper;
         this.notificationService = notificationService;
         this.mdmsUtils = mdmsUtils;
         this.slaService = slaService;
+        this.livelihoodTenantUtil = livelihoodTenantUtil;
     }
 
     /*
@@ -66,7 +71,7 @@ public class WorkflowService {
     public BusinessService getBusinessService(IncidentRequest incidentRequest, Priority priority) {
         log.trace("WorkflowService::getBusinessService method invoked");
         String tenantId = incidentRequest.getIncident().getTenantId();
-        String businessService = PRIORITY_BUSINESS_SERVICE_MAP.getOrDefault(priority, IM_BUSINESSSERVICE);
+        String businessService = resolveBusinessServiceName(incidentRequest, priority);
         log.info("Fetching business service for tenant: {}, priority: {}, businessService: {}",
                 tenantId, priority, businessService);
         log.trace("Building search URL and fetching business service");
@@ -100,8 +105,9 @@ public class WorkflowService {
     public ProcessInstance updateWorkflowStatus(IncidentRequestWrapper wrapper, Object mdmsData) {
         log.trace("WorkflowService::updateWorkflowStatus method invoked");
         IncidentRequest incidentRequest = wrapper.getIncidentRequest();
-        log.trace("Fetching priority from IM priority table");
-        Priority priority = slaService.getPriorityFromIMPriorityTable(incidentRequest.getIncident());
+        Priority priority = livelihoodTenantUtil.isLivelihood(incidentRequest.getIncident().getTenantId())
+                ? slaService.getLivelihoodPriorityFromMDMS(incidentRequest, mdmsData)
+                : slaService.getPriorityFromIMPriorityTable(incidentRequest.getIncident());
         log.trace("Creating process instance for workflow");
         ProcessInstance processInstance = getProcessInstanceForIM(incidentRequest, priority);
         log.info("Updating workflow status for incident: {}, tenant: {}",
@@ -306,6 +312,38 @@ public class WorkflowService {
 
     }
 
+    public void enrichProcessHistory(RequestInfo requestInfo, List<IncidentWrapper> incidentWrappers) {
+        if (CollectionUtils.isEmpty(incidentWrappers)) {
+            return;
+        }
+        for (IncidentWrapper wrapper : incidentWrappers) {
+            String tenantId = wrapper.getIncident().getTenantId();
+            String incidentId = wrapper.getIncident().getIncidentId();
+            RequestInfoWrapper requestInfoWrapper = RequestInfoWrapper.builder().requestInfo(requestInfo).build();
+            StringBuilder searchUrl = getprocessInstanceSearchURL(tenantId, incidentId);
+            searchUrl.append("&history=true");
+            Object result = repository.fetchResult(searchUrl, requestInfoWrapper);
+            ProcessInstanceResponse processInstanceResponse;
+            try {
+                processInstanceResponse = mapper.convertValue(result, ProcessInstanceResponse.class);
+            } catch (IllegalArgumentException e) {
+                log.error("Failed to parse process instance history for incidentId={}", incidentId, e);
+                continue;
+            }
+            if (processInstanceResponse != null
+                    && !CollectionUtils.isEmpty(processInstanceResponse.getProcessInstances())) {
+                wrapper.setProcessHistory(processInstanceResponse.getProcessInstances());
+            }
+        }
+    }
+
+    private String resolveBusinessServiceName(IncidentRequest incidentRequest, Priority priority) {
+        if (livelihoodTenantUtil.isLivelihood(incidentRequest.getIncident().getTenantId())) {
+            return LIVELIHOOD_BUSINESSSERVICE;
+        }
+        return PRIORITY_BUSINESS_SERVICE_MAP.getOrDefault(priority, IM_BUSINESSSERVICE);
+    }
+
     private Map<String, List<IncidentWrapper>> getTenantIdToServiceWrapperMap(List<IncidentWrapper> incidentWrappers) {
         log.trace("WorkflowService::getTenantIdToServiceWrapperMap method invoked");
         Map<String, List<IncidentWrapper>> resultMap = new HashMap<>();
@@ -444,7 +482,9 @@ public class WorkflowService {
         Collections.reverse(processInstances);
         int lastIndex = -1;
         for (int i = processInstances.size() - 1; i >= 0; i--) {
-            if (PENDINGFORASSIGNMENT.equals(processInstances.get(i).getState().getState())) {
+            String state = processInstances.get(i).getState().getState();
+            if (PENDINGFORASSIGNMENT.equals(state)
+                    || LIVELIHOOD_PENDING_FOR_RESOLUTION.equals(state)) {
                 lastIndex = i;
                 break;
             }

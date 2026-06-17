@@ -42,19 +42,83 @@ public class AssetValidator {
                 request.getAssetDetail().getAsset().getTenantId(),
                 request.getAssetDetail().getAsset().getAssetId());
         Map<String, String> errorMap = new HashMap<>();
-        validateExistingDuplicates(request.getAssetDetail().getAsset(), errorMap);
+        Asset asset = request.getAssetDetail().getAsset();
+        if (isLivelihoodTenant(asset.getTenantId())) {
+            validateLivelihoodAsset(asset, errorMap);
+            if (asset.getActivityFacilityID() == null || asset.getActivityFacilityID().isBlank()) {
+                asset.setActivityFacilityID(asset.getFacilityID());
+            }
+        }
+        validateExistingDuplicates(asset, errorMap);
         if (!CollectionUtils.isEmpty(errorMap))
             throw new CustomException(errorMap);
-        Map<String, Object> mdmsData = mdmsUtil.getMDMSData(request.getRequestInfo(), request.getAssetDetail().getAsset().getTenantId());
-        log.debug("Fetched MDMS data keys: {}", mdmsData.keySet());
-        if (!CollectionUtils.isEmpty(mdmsData.keySet())) {
-            validateMdmsData(request, errorMap, mdmsData);
+        if (isLivelihoodTenant(asset.getTenantId())) {
+            validateLivelihoodMdmsData(request, errorMap);
+        } else {
+            Map<String, Object> mdmsData = mdmsUtil.getMDMSData(request.getRequestInfo(), asset.getTenantId());
+            log.debug("Fetched MDMS data keys: {}", mdmsData.keySet());
+            if (!CollectionUtils.isEmpty(mdmsData.keySet())) {
+                validateMdmsData(request, errorMap, mdmsData);
+            }
         }
         if (!CollectionUtils.isEmpty(errorMap.keySet()))
             throw new CustomException(errorMap);
 
         log.info("AssetValidator::validateCreateAsset completed successfully | assetId={}",
-                request.getAssetDetail().getAsset().getAssetId());
+                asset.getAssetId());
+    }
+
+    private boolean isLivelihoodTenant(String tenantId) {
+        return tenantId != null && tenantId.toLowerCase().startsWith("livelihood");
+    }
+
+    private void validateLivelihoodAsset(Asset asset, Map<String, String> errorMap) {
+        if (asset.getFacilityID() == null || asset.getFacilityID().isBlank()) {
+            errorMap.put(ErrorConstants.ASSET_FACILITY_ID_VALIDATION_CODE, "facilityID is required");
+        }
+        if (asset.getVendorId() == null || asset.getVendorId().isBlank()) {
+            errorMap.put("VENDOR_ID_REQUIRED", "vendorId is required for Livelihood assets");
+        }
+        if (asset.getItemCode() == null || asset.getItemCode().isBlank()) {
+            errorMap.put(ErrorConstants.ASSET_ITEM_CODE_REQUIRED_CODE, ErrorConstants.ASSET_ITEM_CODE_REQUIRED_MSG);
+        }
+        if (asset.getAssetTypeID() == null || asset.getAssetTypeID().isBlank()) {
+            errorMap.put(ErrorConstants.ASSET_TYPE_ID_VALIDATION_CODE, "assetTypeID is required");
+        }
+    }
+
+    private void validateLivelihoodMdmsData(AssetCreateRequest request, Map<String, String> errorMap) {
+        Asset asset = request.getAssetDetail().getAsset();
+        validateFacilityId(asset, errorMap);
+        List<Map<String, Object>> itemCodes = mdmsUtil.getLivelihoodItemCodeData(request.getRequestInfo(), asset.getTenantId());
+        validateLivelihoodItemCode(asset, errorMap, itemCodes);
+    }
+
+    private void validateLivelihoodItemCode(Asset asset, Map<String, String> errorMap, List<Map<String, Object>> itemCodeMdmsData) {
+        if (asset.getItemCode() == null || asset.getItemCode().isBlank()) {
+            return;
+        }
+        if (CollectionUtils.isEmpty(itemCodeMdmsData)) {
+            errorMap.put(ErrorConstants.ASSET_ITEM_CODE_MDMS_DATA_CODE, ErrorConstants.ASSET_ITEM_CODE_MDMS_DATA_MSG);
+            return;
+        }
+
+        String itemCode = asset.getItemCode().trim();
+        boolean itemCodeExists = itemCodeMdmsData.stream()
+                .anyMatch(row -> {
+                    Object code = row.get("code");
+                    if (code == null || !itemCode.equalsIgnoreCase(String.valueOf(code).trim())) {
+                        return false;
+                    }
+                    Object active = row.get("active");
+                    return active == null
+                            || Boolean.TRUE.equals(active)
+                            || "true".equalsIgnoreCase(String.valueOf(active));
+                });
+
+        if (!itemCodeExists) {
+            errorMap.put(ErrorConstants.ASSET_ITEM_CODE_VALIDATION_CODE, ErrorConstants.ASSET_ITEM_CODE_VALIDATION_MSG);
+        }
     }
 
     private void validateMdmsData(AssetCreateRequest request, Map<String, String> errorMap, Map<String, Object> mdmsData) {
@@ -402,8 +466,16 @@ public class AssetValidator {
     private void validateFacilityId(Asset asset, Map<String,String> errorMap){
         log.debug("Validating facility for assetId={} facilityId={}", asset.getAssetId(), asset.getFacilityID());
         List<Object> facilities = facilityUtil.searchFacility(asset.getTenantId(), asset.getFacilityID());
-        if(facilities.isEmpty())
+        if(facilities.isEmpty() || facilities.get(0) == null)
             errorMap.put(ErrorConstants.ASSET_FACILITY_ID_VALIDATION_CODE, ErrorConstants.ASSET_FACILITY_ID_VALIDATION_MSG);
+        else if (isLivelihoodTenant(asset.getTenantId())
+                && (asset.getBoundaryCode() == null || asset.getBoundaryCode().isBlank())) {
+            String boundaryCode = facilityUtil.resolveFacilityBoundaryCode(
+                    asset.getTenantId(), asset.getFacilityID());
+            if (boundaryCode != null && !boundaryCode.isBlank()) {
+                asset.setBoundaryCode(boundaryCode);
+            }
+        }
     }
 
     private void validateActivityFacilityId(AssetCreateRequest request, Map<String,String> errorMap){
@@ -430,6 +502,16 @@ public class AssetValidator {
         }
         if (!errorMap.isEmpty()) {
             throw new CustomException(errorMap);
+        }
+        if (isLivelihoodTenant(asset.getTenantId())) {
+            validateLivelihoodAsset(asset, errorMap);
+            if (!errorMap.isEmpty()) {
+                throw new CustomException(errorMap);
+            }
+            validateLivelihoodMdmsData(body, errorMap);
+            if (!errorMap.isEmpty()) {
+                throw new CustomException(errorMap);
+            }
         }
         log.info("AssetValidator::validateAsset completed successfully | assetId={}", assetID);
     }

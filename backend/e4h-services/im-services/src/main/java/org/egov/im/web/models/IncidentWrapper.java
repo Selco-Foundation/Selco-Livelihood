@@ -2,8 +2,10 @@ package org.egov.im.web.models;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
+import org.egov.im.web.models.workflow.ProcessInstance;
 
 import jakarta.validation.Valid;
+import java.util.List;
 
 @Data
 @AllArgsConstructor
@@ -20,5 +22,8 @@ public class IncidentWrapper {
     @Valid
     @JsonProperty("workflow")
     private Workflow workflow = null;
+
+    @JsonProperty("processHistory")
+    private List<ProcessInstance> processHistory = null;
 
 }
