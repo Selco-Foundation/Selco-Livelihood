@@ -1,5 +1,4 @@
 import { getViteEnv } from "../env";
-import type { GlobalConfigs } from "../types/global-config";
 
 export function getConfig(key: string): string | boolean | string[] | undefined {
   return window.globalConfigs?.getConfig(key);
@@ -24,5 +23,3 @@ export function tenantId(envFallback?: string): string {
 export function isGlobalConfigLoaded(): boolean {
   return typeof window.globalConfigs?.getConfig === "function";
 }
-
-export type { GlobalConfigs };

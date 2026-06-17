@@ -1,15 +1,15 @@
 ---
 name: Livelihood UI Scaffold
-overview: Add a new `livelihood-ui/` sibling folder to the frontend monorepo with a pnpm + Vite + TypeScript stack on Node.js 24, a single `web/` app entry (no example/web split), shared packages for UI and infrastructure, a core shell module, and Docker/CI wiring — retaining DIGIT API proxying, global config loading, and Google Analytics patterns from existing UIs.
+overview: Add a new `livelihood-ui/` sibling folder to the frontend monorepo with a pnpm + Vite + TypeScript stack on Node.js 24, a single `web/` app entry (no example/web split), shared packages for UI and infrastructure, a core shell module, and Docker/CI wiring — retaining DIGIT API proxying and global config loading patterns from existing UIs.
 todos:
   - id: scaffold-workspace
     content: Create livelihood-ui/ root with pnpm-workspace.yaml, root package.json, .nvmrc (24), engines.node in package.json, and packages/ui, packages/shared, packages/modules/core skeletons
     status: completed
   - id: vite-app
-    content: Scaffold web/ Vite + TypeScript app with base /livelihood-ui/, path aliases, .env.sample, and DIGIT API proxy from installation-ui setupProxy paths
+    content: Scaffold web/ Vite + TypeScript app with base /livelihood-ui/, path aliases, and DIGIT API proxy from installation-ui setupProxy paths
     status: completed
   - id: shared-infra
-    content: "Implement packages/shared: axios client, react-query setup, zustand stores, globalConfigs wrapper, gtag analytics helpers"
+    content: "Implement packages/shared: axios client, react-query setup, zustand stores, globalConfigs wrapper"
     status: completed
   - id: shadcn-ui
     content: Initialize packages/ui with shadcn + Tailwind v4; add core components (button, input, form, table, sidebar, dialog, toast)
@@ -18,13 +18,13 @@ todos:
     content: "Build packages/modules/core: auth flow, AppShell layout, nav, placeholder employee home; export moduleDefinition contract"
     status: completed
   - id: router-wiring
-    content: Wire TanStack Router in web/src/router.tsx aggregating core routes with auth guards and GA page-view tracking
+    content: Wire TanStack Router in web/src/router.tsx aggregating core routes with auth guards
     status: completed
   - id: docker-ci
     content: Add web/docker/Dockerfile (node:24-alpine build stage) + nginx.conf, livelihood-ui/Jenkinsfile, and entry in build/build-config.yml
     status: completed
   - id: docs
-    content: Write README.md, packages/modules/MODULE_TEMPLATE.md (qc-style folder guide), and sampleGlobalConfig.js
+    content: Write README.md, packages/modules/MODULE_TEMPLATE.md (qc-style folder guide)
     status: completed
 isProject: false
 ---
@@ -33,7 +33,7 @@ isProject: false
 
 ## Goal
 
-Create `[livelihood-ui/](livelihood-ui/)` at the frontend root as a third UI product alongside `[micro-ui/](micro-ui/)` and `[installation-ui/](installation-ui/)`. It uses a **fully custom stack** (no `@egovernments/digit-`* or `@selco/digit-*` packages) while preserving operational patterns: API proxying, `window.globalConfigs`, Google Analytics, modular monorepo layout, and Docker deployment.
+Create `[livelihood-ui/](livelihood-ui/)` at the frontend root as a third UI product alongside `[micro-ui/](micro-ui/)` and `[installation-ui/](installation-ui/)`. It uses a **fully custom stack** (no `@egovernments/digit-`* or `@selco/digit-*` packages) while preserving operational patterns: API proxying, `window.globalConfigs`, modular monorepo layout, and Docker deployment.
 
 **Your choices:** base path `/livelihood-ui`, initial scope = **core shell only** + module template docs, **Node.js 24** (not Node 14 used by `micro-ui/` and `installation-ui/`).
 
@@ -66,7 +66,7 @@ flowchart TB
   subgraph livelihoodUI [livelihood-ui]
     WebApp["web/ — Vite app"]
     UI["packages/ui — shadcn + Tailwind"]
-    Shared["packages/shared — api, stores, config, analytics"]
+    Shared["packages/shared — api, stores, config"]
     Core["packages/modules/core — shell"]
     FutureMods["packages/modules/* — future modules"]
   end
@@ -97,15 +97,13 @@ frontend/livelihood-ui/
 ├── .nvmrc                       # 24
 ├── pnpm-workspace.yaml
 ├── pnpm-lock.yaml
-├── sampleGlobalConfig.js        # local dev fallback (mirrors installation-ui)
 ├── Jenkinsfile                  # same pattern as installation-ui
 ├── README.md
 ├── web/                         # SINGLE Vite app (dev + prod)
 │   ├── package.json
-│   ├── index.html               # globalConfigs script + gtag
+│   ├── index.html
 │   ├── vite.config.ts           # base, proxy, env
 │   ├── tsconfig.json
-│   ├── .env.sample
 │   ├── public/
 │   ├── src/
 │   │   ├── main.tsx
@@ -129,7 +127,6 @@ frontend/livelihood-ui/
     │       ├── query/           # QueryClient + provider
     │       ├── stores/          # zustand (auth, tenant, ui)
     │       ├── config/          # globalConfigs TS wrapper
-    │       └── analytics/       # gtag helpers
     └── modules/
         ├── MODULE_TEMPLATE.md   # documents qc-style layout for new modules
         └── core/
@@ -197,22 +194,20 @@ server: {
 }
 ```
 
-`[web/.env.sample](livelihood-ui/web/.env.sample)`:
+Optional `.env` overrides for local dev:
 
 ```
 VITE_PROXY_API=https://e4h-dev.selcofoundation.org
 VITE_STATE_LEVEL_TENANT_ID=in
-VITE_GLOBAL_CONFIG_URL=https://selco-assets.s3.../globalConfigs.js
-VITE_GA_ID=G-XXXXXXXXXX
+VITE_CONTEXT_PATH=livelihood-ui
 ```
 
 ### 2. Global config loading
 
-Mirror the existing `window.globalConfigs.getConfig("KEY")` contract from `[sampleGlobalConfig.js](installation-ui/web/micro-ui-internals/sampleGlobalConfig.js)`:
+Mirror the existing `window.globalConfigs.getConfig("KEY")` contract from other DIGIT UIs:
 
-- **Dev:** `index.html` loads script from `VITE_GLOBAL_CONFIG_URL`; fall back to local `sampleGlobalConfig.js` when unset
-- **Prod:** inject config script at deploy time (CDN / nginx), same as installation-ui production
-- **TypeScript wrapper** in `packages/shared/src/config/global-config.ts`:
+- **Prod:** inject `globalConfigs.js` at deploy time (CDN / nginx)
+- **Dev:** TypeScript helpers in `packages/shared/src/config/global-config.ts` use fallbacks when `window.globalConfigs` is absent
 
 ```ts
 export function getConfig(key: string): string | undefined {
@@ -222,15 +217,7 @@ export const contextPath = () => getConfig("CONTEXT_PATH") ?? "livelihood-ui";
 export const tenantId = () => getConfig("STATE_LEVEL_TENANT_ID") ?? import.meta.env.VITE_STATE_LEVEL_TENANT_ID;
 ```
 
-### 3. Google Analytics
-
-Port the pattern from `[micro-ui/web/public/index.html](micro-ui/web/public/index.html)` + `[micro-ui/web/webpack.config.js](micro-ui/web/webpack.config.js)`:
-
-- Inject gtag in `index.html` using `import.meta.env.VITE_GA_ID` (Vite `transformIndexHtml` plugin or inline `%VITE_GA_ID%` via `vite-plugin-html`)
-- `packages/shared/src/analytics/track.ts` — `trackPageView(path)`, `trackEvent(name, params)`
-- Subscribe to TanStack Router `onResolved` to fire page views (`send_page_view: false` in config, manual tracking on navigation — same as micro-ui)
-
-### 4. Module composition (replaces Digit `ComponentRegistryService`)
+### 3. Module composition (replaces Digit `ComponentRegistryService`)
 
 Each module exports a small contract from `index.ts`:
 
@@ -310,7 +297,6 @@ cd frontend/livelihood-ui
 nvm use          # reads .nvmrc → Node 24
 node -v          # should print v24.x.x
 pnpm install
-cp web/.env.sample web/.env
 pnpm dev         # → http://localhost:5173/livelihood-ui/
 ```
 
@@ -330,9 +316,9 @@ pnpm dev         # → http://localhost:5173/livelihood-ui/
 1. Scaffold pnpm workspace root (Node 24 pins: `.nvmrc`, `engines`, `packageManager`) + `packages/ui`, `packages/shared`, `packages/modules/core`
 2. Initialize Vite app in `web/` with base path, aliases, proxy, env samples
 3. Set up shadcn + Tailwind in `packages/ui`; wire into app
-4. Implement shared layer: axios, react-query provider, zustand auth store, global config + analytics helpers
+4. Implement shared layer: axios, react-query provider, zustand auth store, global config helpers
 5. Build core module: layout, auth shell, route registration
 6. Wire TanStack Router root aggregating core routes
-7. Add `sampleGlobalConfig.js`, `MODULE_TEMPLATE.md`, README
+7. Add `MODULE_TEMPLATE.md`, README
 8. Add Docker + nginx + `build-config.yml` + Jenkinsfile entry
 

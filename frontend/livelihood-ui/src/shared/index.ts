@@ -22,7 +22,6 @@ export {
   tenantId,
 } from "./config/global-config";
 export { employeeHomePath, employeeLoginPath } from "./config/routes";
-export { trackEvent, trackPageView, isAnalyticsEnabled } from "./analytics/track";
 export { queryClient } from "./query/query-client";
 export { QueryProvider } from "./query/provider";
 export { useBoundary } from "./hooks/use-boundary";

@@ -3,39 +3,26 @@ import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
-import {
-  API_PROXY_PATHS,
-  ASSETS_PROXY_PATHS,
-  MDMS_PROXY_PATHS,
-} from "./src/config/proxy-paths";
+import { API_PROXY_PATHS } from "./src/config/proxy-paths";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const srcDir = path.resolve(rootDir, "src");
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const proxyApi = env.VITE_PROXY_API || "https://e4h-dev.selcofoundation.org";
-  const proxyAssets = env.VITE_PROXY_ASSETS || proxyApi;
-  const proxyMdms = env.VITE_PROXY_MDMS || "http://localhost:8080";
-  const contextPath = env.VITE_CONTEXT_PATH || "livelihood-ui";
+  const proxyApi = env.VITE_PROXY_API;
+  const contextPath = env.VITE_CONTEXT_PATH;
+  const globalConfigUrl = env.VITE_GLOBAL_CONFIG_URL?.trim();
   const base = `/${contextPath}/`;
-  const globalConfigUrl =
-    env.VITE_GLOBAL_CONFIG_URL?.trim() || `${base}sampleGlobalConfig.js`;
 
-  const proxyConfig = Object.fromEntries(
-    API_PROXY_PATHS.map((proxyPath) => [
-      proxyPath,
-      { target: proxyApi, changeOrigin: true, secure: false },
-    ]),
-  );
-
-  for (const proxyPath of ASSETS_PROXY_PATHS) {
-    proxyConfig[proxyPath] = { target: proxyAssets, changeOrigin: true, secure: false };
-  }
-
-  for (const proxyPath of MDMS_PROXY_PATHS) {
-    proxyConfig[proxyPath] = { target: proxyMdms, changeOrigin: true, secure: false };
-  }
+  const proxyConfig = proxyApi
+    ? Object.fromEntries(
+        API_PROXY_PATHS.map((proxyPath) => [
+          proxyPath,
+          { target: proxyApi, changeOrigin: true, secure: false },
+        ]),
+      )
+    : undefined;
 
   return {
     base,
@@ -45,6 +32,7 @@ export default defineConfig(({ mode }) => {
       {
         name: "inject-global-config",
         transformIndexHtml(html) {
+          if (!globalConfigUrl) return html;
           const script = `<script src="${globalConfigUrl}"></script>`;
           return html.replace("<!-- GLOBAL_CONFIG_SCRIPT -->", script);
         },
@@ -58,24 +46,6 @@ export default defineConfig(({ mode }) => {
             }
             next();
           });
-        },
-      },
-      {
-        name: "inject-ga-id",
-        transformIndexHtml(html) {
-          const gaId = env.VITE_GA_ID;
-          if (!gaId) return html;
-
-          const gaScripts = `
-    <script async src="https://www.googletagmanager.com/gtag/js?id=${gaId}"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag("js", new Date());
-      gtag("config", "${gaId}", { send_page_view: false, anonymize_ip: true });
-    </script>`;
-
-          return html.replace("<!-- GA scripts injected when VITE_GA_ID is set -->", gaScripts);
         },
       },
     ],

@@ -39,11 +39,12 @@ export PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH"
 cd frontend/livelihood-ui
 nvm use
 pnpm install
-cp .env.sample .env
 pnpm dev
 ```
 
 Open [http://localhost:5173/livelihood-ui/](http://localhost:5173/livelihood-ui/).
+
+Create a local `.env` file with your environment values (see below). The file is gitignored.
 
 ## UI components (shadcn)
 
@@ -59,7 +60,7 @@ pnpm ui:add select textarea checkbox -y -o
 livelihood-ui/
 ├── src/
 │   ├── main.tsx, App.tsx, router.tsx, modules.ts
-│   ├── shared/          # API, stores, config, analytics
+│   ├── shared/          # API, stores, config
 │   ├── ui/              # shadcn components + Tailwind
 │   └── modules/
 │       ├── core/        # Auth + shell layout
@@ -70,18 +71,18 @@ livelihood-ui/
 
 ## Environment variables
 
-Copy `.env.sample` to `.env`:
+Create a `.env` file in the project root for local development:
 
 | Variable | Purpose |
 |----------|---------|
 | `VITE_PROXY_API` | DIGIT/E4H API proxy target for local dev |
+| `VITE_CONTEXT_PATH` | App base path |
 | `VITE_STATE_LEVEL_TENANT_ID` | Default tenant id |
-| `VITE_GLOBAL_CONFIG_URL` | Remote `globalConfigs.js` script (optional) |
-| `VITE_GA_ID` | Google Analytics measurement id |
+| `VITE_GLOBAL_CONFIG_URL` | Remote `globalConfigs.js` URL (injected into `index.html` at dev/build time) |
 
 ## Global config
 
-Runtime config uses `window.globalConfigs.getConfig("KEY")`, same as other DIGIT UIs. Local dev loads `public/sampleGlobalConfig.js` by default.
+Runtime config uses `window.globalConfigs.getConfig("KEY")`, same as other DIGIT UIs. In local dev, Vite injects the script from `VITE_GLOBAL_CONFIG_URL` in your `.env`. In production, the same script is injected at deploy time (CDN / nginx).
 
 ## Localization
 

@@ -1,6 +1,5 @@
 type ViteEnv = {
   VITE_STATE_LEVEL_TENANT_ID?: string;
-  VITE_GA_ID?: string;
 };
 
 function readViteEnv(): ViteEnv {
