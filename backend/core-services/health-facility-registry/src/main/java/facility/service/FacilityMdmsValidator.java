@@ -24,8 +24,8 @@ public class FacilityMdmsValidator {
     /** MDMS code for optional column that becomes mandatory when category is ANGANWADI (ingestion-aligned). */
     private static final String MDMS_CODE_FACILITY_POC_USERNAME = "facility_poc_username";
 
-    private static final String ERR_POC_USERNAME_REQUIRED_WHEN_ANGANWADI =
-            "PoC Username is required when Facility Category is ANGANWADI.";
+    private static final String ERR_POC_USERNAME_REQUIRED_FOR_MANAGER =
+            "PoC Username is required when Facility Category is ANGANWADI or LIVELIHOOD.";
 
     /** Same semantics as API / ingestion when MDMS row constraint message is absent. */
     private static final String ERR_HFR_OR_NIN_REQUIRED_WHEN_HEALTH =
@@ -133,18 +133,19 @@ public class FacilityMdmsValidator {
     }
 
     /**
-     * MDMS marks {@code facility_poc_username} as optional; it is required when facility category is ANGANWADI.
+     * MDMS marks {@code facility_poc_username} as optional; required when category is ANGANWADI or LIVELIHOOD.
      */
     private void validateAnganwadiRequiresPocUsername(Map<String, Object> col, Map<String, Object> input, Object value) {
         if (!MDMS_CODE_FACILITY_POC_USERNAME.equals(col.get("code"))) {
             return;
         }
-        if (!"ANGANWADI".equals(normalizeFacilityCategoryForValidation(input))) {
+        String category = normalizeFacilityCategoryForValidation(input);
+        if (!FacilityService.usesManagerPocUsername(category)) {
             return;
         }
         if (value == null || value.toString().isBlank()) {
-            log.error("Validation failed: {}", ERR_POC_USERNAME_REQUIRED_WHEN_ANGANWADI);
-            throw new IllegalArgumentException(ERR_POC_USERNAME_REQUIRED_WHEN_ANGANWADI);
+            log.error("Validation failed: {}", ERR_POC_USERNAME_REQUIRED_FOR_MANAGER);
+            throw new IllegalArgumentException(ERR_POC_USERNAME_REQUIRED_FOR_MANAGER);
         }
     }
 

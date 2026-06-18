@@ -27,7 +27,7 @@ import java.util.*;
 import java.nio.charset.StandardCharsets;
 import java.util.stream.Collectors;
 
-import static facility.service.FacilityService.CATEGORY_ANGANWADI;
+import static facility.service.FacilityService.usesManagerPocUsername;
 
 /**
  * Mapper service to transform Facility objects to Kibana index format
@@ -254,10 +254,10 @@ public class FacilityKibanaMapper {
         String normalizedCategory = facility.getFacilityCategory() == null
                 ? ""
                 : facility.getFacilityCategory().trim().toUpperCase(Locale.ROOT);
-        boolean isAnganwadi = CATEGORY_ANGANWADI.equals(normalizedCategory);
+        boolean usesPocUsername = usesManagerPocUsername(normalizedCategory);
 
         String code = "";
-        if (isAnganwadi) {
+        if (usesPocUsername) {
             String username = facility.getFacilityPocUsername();
             if (username != null && !username.isBlank()) {
                 code = username.trim();

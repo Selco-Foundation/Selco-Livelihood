@@ -17,12 +17,13 @@ import java.util.*;
 
 import static org.apache.commons.lang3.StringUtils.firstNonBlank;
 
+import static facility.service.FacilityService.usesManagerPocUsername;
+
 @Component
 @Slf4j
 @RequiredArgsConstructor
 public class HRMSService {
 
-    private static final String CATEGORY_ANGANWADI = "ANGANWADI";
     private static final String MDMS_COMMON_MASTERS_MODULE = "common-masters";
     private static final String MDMS_DESIGNATION_MASTER = "Designation";
 
@@ -146,21 +147,21 @@ public class HRMSService {
         String normalizedCategory = facility.getFacilityCategory() == null
                 ? ""
                 : facility.getFacilityCategory().trim().toUpperCase(Locale.ROOT);
-        boolean isAnganwadi = CATEGORY_ANGANWADI.equals(normalizedCategory);
+        boolean usesPocUsername = usesManagerPocUsername(normalizedCategory);
 
         String employeeCode;
-        if (isAnganwadi) {
+        if (usesPocUsername) {
             if (facilityDetails == null || facilityDetails.getPocContact() == null
                     || facilityDetails.getPocContact().isBlank()
                     || facilityDetails.getPocName() == null || facilityDetails.getPocName().isBlank()) {
-                log.warn("Cannot create POC employee for ANGANWADI facility {}: missing POC contact or name",
-                        sanitizeForLog(facility.getFacilityId()));
+                log.warn("Cannot create POC employee for {} facility {}: missing POC contact or name",
+                        normalizedCategory, sanitizeForLog(facility.getFacilityId()));
                 return false;
             }
             String pocUsername = facility.getFacilityPocUsername();
             if (pocUsername == null || pocUsername.isBlank()) {
-                log.warn("Cannot create POC employee for ANGANWADI facility {}: missing facility POC username",
-                        sanitizeForLog(facility.getFacilityId()));
+                log.warn("Cannot create POC employee for {} facility {}: missing facility POC username",
+                        normalizedCategory, sanitizeForLog(facility.getFacilityId()));
                 return false;
             }
             employeeCode = pocUsername.trim();
