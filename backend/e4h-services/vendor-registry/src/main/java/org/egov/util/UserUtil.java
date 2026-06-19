@@ -5,8 +5,8 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import org.egov.common.contract.request.RequestInfo;
 import org.egov.common.contract.user.UserDetailResponse;
-import org.egov.common.contract.user.enums.UserType;
 import org.egov.config.Configuration;
 import org.egov.repository.ServiceRequestRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -223,6 +223,41 @@ public class UserUtil {
 						.tenantId(r.getTenantId())
 						.build())
 				.collect(Collectors.toSet());
+	}
+
+	/**
+	 * Sets default password after HRMS create. Loads the canonical user record from egov-user
+	 * (with date strings and roles as that service expects) instead of reusing the HRMS response object.
+	 */
+	@SuppressWarnings("unchecked")
+	public void updateDefaultPassword(RequestInfo requestInfo, String tenantId, String uuid, String password) {
+		if (requestInfo == null || tenantId == null || tenantId.isBlank() || uuid == null || uuid.isBlank()) {
+			throw new CustomException("USER_UPDATE", "RequestInfo, tenantId and uuid are required to update password");
+		}
+		String searchUrl = configs.getUserHost() + configs.getUserSearchEndpoint() + "?tenantId=" + tenantId;
+		Map<String, Object> searchRequest = new HashMap<>();
+		searchRequest.put("RequestInfo", requestInfo);
+		searchRequest.put("uuid", Collections.singletonList(uuid));
+		searchRequest.put("tenantId", tenantId);
+		searchRequest.put("type", "EMPLOYEE");
+
+		LinkedHashMap<String, Object> searchResponse = (LinkedHashMap<String, Object>) serviceRequestRepository
+				.fetchResult(new StringBuilder(searchUrl), searchRequest);
+		List<LinkedHashMap<String, Object>> users = (List<LinkedHashMap<String, Object>>) searchResponse.get("user");
+		if (users == null || users.isEmpty()) {
+			throw new CustomException("USER_SEARCH", "User not found in egov-user for uuid " + uuid);
+		}
+
+		LinkedHashMap<String, Object> userForUpdate = new LinkedHashMap<>(users.get(0));
+		userForUpdate.put("password", password);
+
+		Map<String, Object> updateRequest = new HashMap<>();
+		updateRequest.put("RequestInfo", requestInfo);
+		updateRequest.put("user", userForUpdate);
+
+		String updateUrl = configs.getUserHost() + configs.getUserUpdateEndpoint();
+		serviceRequestRepository.fetchResult(new StringBuilder(updateUrl), updateRequest);
+		log.info("Default password updated in egov-user for uuid {}", uuid);
 	}
 
 

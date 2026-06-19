@@ -5,7 +5,6 @@ import com.jayway.jsonpath.JsonPath;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.egov.common.contract.request.RequestInfo;
-import org.egov.common.contract.user.UserDetailResponse;
 import org.egov.common.models.core.URLParams;
 import org.egov.config.Configuration;
 import org.egov.repository.OrganisationRepository;
@@ -61,7 +60,6 @@ public class OrganisationUserServiceValidator {
 
     private static final String EMPLOYEE_ROLE_CODE = "EMPLOYEE";
     private static final String EMPLOYEE_ROLE_NAME = "Employee";
-    private static final String DEFAULT_ROLE_TENANT = "in";
     @Autowired
     public OrganisationUserServiceValidator(MDMSUtil mdmsUtil, Configuration configuration, OrganisationRepository organisationRepository,
                                             OrganisationUtil organisationUtil, HRMSUtils hrmsUtils, UserUtil userUtil,
@@ -178,15 +176,21 @@ public class OrganisationUserServiceValidator {
                     Employee employeeResp = employees.get(0);
                     request.setUser(employeeResp.getUser());
                     request.setUserId(employeeResp.getUser().getUuid());
-                    employeeResp.getUser().setPassword(configuration.getDefaultUserPassword());
-                    String url = configuration.getUserHost() + configuration.getUserUpdateEndpoint();
-                    UserRequest userRequest = userUtil.mapToUserRequest(employeeResp.getUser());
-                    CreateUserRequest createUserRequest = CreateUserRequest.builder()
-                            .requestInfo(request.getRequestInfo())
-                            .user(userRequest)
-                            .build();
-                    UserDetailResponse response = userUtil.updateUserPassword(createUserRequest, new StringBuilder(url));
-                    log.info("New user created and updated");
+                    String hrmsUserUuid = employeeResp.getUser().getUuid();
+                    String passwordTenantId = StringUtils.isNotBlank(employeeResp.getUser().getTenantId())
+                            ? employeeResp.getUser().getTenantId() : user.getTenantId();
+                    try {
+                        userUtil.updateDefaultPassword(
+                                request.getRequestInfo(),
+                                passwordTenantId,
+                                hrmsUserUuid,
+                                configuration.getDefaultUserPassword());
+                        log.info("New user created and default password set for uuid {}", hrmsUserUuid);
+                    } catch (Exception passwordUpdateEx) {
+                        // HRMS/egov-user create already succeeded; do not block org-user link on password reset.
+                        log.warn("HRMS user {} created but default password update failed: {}",
+                                hrmsUserUuid, passwordUpdateEx.getMessage());
+                    }
                 }
                 else{
                     log.error("Error occured while creating the new user");
@@ -799,7 +803,7 @@ public class OrganisationUserServiceValidator {
         if (!hasEmployeeRole) {
             String roleTenantId = StringUtils.isNotBlank(user.getTenantId())
                     ? userUtil.getStateLevelTenant(user.getTenantId())
-                    : DEFAULT_ROLE_TENANT;
+                    : configuration.getStateLevelTenantId();
             user.getRoles().add(Role.builder()
                     .code(EMPLOYEE_ROLE_CODE)
                     .name(EMPLOYEE_ROLE_NAME)
