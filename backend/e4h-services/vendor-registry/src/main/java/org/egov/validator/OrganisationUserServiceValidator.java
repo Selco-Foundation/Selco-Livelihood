@@ -177,13 +177,11 @@ public class OrganisationUserServiceValidator {
                     request.setUser(employeeResp.getUser());
                     request.setUserId(employeeResp.getUser().getUuid());
                     String hrmsUserUuid = employeeResp.getUser().getUuid();
-                    String passwordTenantId = StringUtils.isNotBlank(employeeResp.getUser().getTenantId())
-                            ? employeeResp.getUser().getTenantId() : user.getTenantId();
                     try {
-                        userUtil.updateDefaultPassword(
+                        User hrmsUser = hrmsUtils.resolveUserForPasswordUpdate(request.getRequestInfo(), employeeResp);
+                        userUtil.updatePasswordWithHrmsUser(
                                 request.getRequestInfo(),
-                                passwordTenantId,
-                                hrmsUserUuid,
+                                hrmsUser,
                                 configuration.getDefaultUserPassword());
                         log.info("New user created and default password set for uuid {}", hrmsUserUuid);
                     } catch (Exception passwordUpdateEx) {

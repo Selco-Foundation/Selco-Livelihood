@@ -129,6 +129,26 @@ public class HRMSUtils {
         return employeeResponse.getEmployees();
     }
 
+    /**
+     * Returns the HRMS user record to send to egov-user {@code _updatenovalidate} (re-fetch for full id/dates/roles).
+     */
+    public User resolveUserForPasswordUpdate(RequestInfo requestInfo, Employee employeeFromCreate) {
+        if (employeeFromCreate == null || employeeFromCreate.getUser() == null) {
+            throw new CustomException("HRMS_CREATION", "HRMS user missing after employee create");
+        }
+        String lookupUuid = StringUtils.hasText(employeeFromCreate.getUuid())
+                ? employeeFromCreate.getUuid()
+                : employeeFromCreate.getUser().getUuid();
+        if (StringUtils.hasText(lookupUuid)) {
+            RequestInfoWrapper wrapper = RequestInfoWrapper.builder().requestInfo(requestInfo).build();
+            Employee existing = getUserById(wrapper, lookupUuid);
+            if (existing != null && existing.getUser() != null) {
+                return existing.getUser();
+            }
+        }
+        return employeeFromCreate.getUser();
+    }
+
     public Employee buildEmployee(User user, String orgType) {
         String tenantId = resolveTenantId(user != null ? user.getTenantId() : null);
         Employee employee = Employee.builder()
