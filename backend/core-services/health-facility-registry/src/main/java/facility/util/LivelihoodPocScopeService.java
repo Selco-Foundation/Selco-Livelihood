@@ -142,7 +142,7 @@ public class LivelihoodPocScopeService {
                 && StringUtils.isNotBlank(request.getRequestInfo().getUserInfo().getTenantId())) {
             return request.getRequestInfo().getUserInfo().getTenantId();
         }
-        return "livelihood";
+        return configuration.getHrmsTenantId();
     }
 
     private boolean isStateBoundaryAllowed(String requestedState, List<String> allowedStateBoundaries) {

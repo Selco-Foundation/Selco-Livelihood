@@ -68,10 +68,6 @@ public class FacilityService {
 
     private static final String LOCALIZATION_MODULE = "rainmaker-in";
     private static final String LOCALIZATION_LOCALE = "en_IN";
-    // Existing boundary localization upsert uses tenantId="in" (see ingestion-service / im-service migrations)
-    private static final String LOCALIZATION_TENANT_ID = "in";
-    /** Tenant used for boundary entity and boundary_relationship (all facilities). */
-    private static final String BOUNDARY_TENANT_ID = "in";
 
     public FacilityService(
             FacilityRepository facilityRepository,
@@ -368,7 +364,7 @@ public class FacilityService {
 
         Map<String, Object> payload = new HashMap<>();
         payload.put("RequestInfo", requestInfo);
-        payload.put("tenantId", LOCALIZATION_TENANT_ID);
+        payload.put("tenantId", configs.getLocalizationTenantId());
         payload.put("messages", messages);
 
         try {
@@ -1649,7 +1645,7 @@ public class FacilityService {
 
         List<FacilityBoundaryBackfillRow> rows = loadFacilitiesMissingBoundaryRelationship(hierarchyType);
         log.info("Boundary backfill: boundaryTenantId={}, hierarchyType={}, scanned={}",
-                BOUNDARY_TENANT_ID, hierarchyType, rows.size());
+                configs.getBoundaryTenantId(), hierarchyType, rows.size());
 
         FacilityBoundaryBackfillResponse response = FacilityBoundaryBackfillResponse.builder()
                 .scanned(rows.size())
@@ -1682,7 +1678,7 @@ public class FacilityService {
         for (FacilityBoundaryBackfillRow row : toBackfill) {
             String parent = deriveParentBlockBoundaryCode(row.boundaryCode(), row.facilityId());
             try {
-                ensureFacilityBoundaryExists(row.boundaryCode(), parent, BOUNDARY_TENANT_ID, request.getRequestInfo());
+                ensureFacilityBoundaryExists(row.boundaryCode(), parent, configs.getBoundaryTenantId(), request.getRequestInfo());
                 response.setCreated(response.getCreated() + 1);
             } catch (Exception e) {
                 response.setFailed(response.getFailed() + 1);
@@ -1716,7 +1712,7 @@ public class FacilityService {
                 "    AND br.code = f.boundary_code " +
                 "    AND br.hierarchytype = ? " +
                 ") ORDER BY f.id DESC";
-        List<Object> params = List.of(BOUNDARY_TENANT_ID, hierarchyType);
+        List<Object> params = List.of(configs.getBoundaryTenantId(), hierarchyType);
         return jdbcTemplate.query(
                 sql,
                 params.toArray(),

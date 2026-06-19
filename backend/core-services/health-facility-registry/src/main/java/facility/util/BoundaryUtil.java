@@ -48,13 +48,16 @@ public class BoundaryUtil {
     @Value("${egov.boundary.hierarchy.type}")
     private String boundaryHierarchyType;
 
+    @Value("${egov.boundary.tenant.id:livelihood}")
+    private String boundaryTenantId;
+
     @Autowired
     private ObjectMapper objectMapper;
 
 //    @Cacheable(value="boundaryConfiguration")
     public String getBoundaryData() {
         String jsonString = null;
-        String params = "?boundaryType="+boundaryType+"&includeChildren=true&tenantId=in&hierarchyType="+boundaryHierarchyType;
+        String params = "?boundaryType="+boundaryType+"&includeChildren=true&tenantId="+boundaryTenantId+"&hierarchyType="+boundaryHierarchyType;
         StringBuilder uri = new StringBuilder();
         uri.append(boundaryHost).append(boundaryUrl).append(params);
         RequestInfo requestInfo = new RequestInfo();
@@ -80,7 +83,7 @@ public class BoundaryUtil {
         uri.append(boundaryHost).append(boundaryV2Url);
         RequestInfo requestInfo = new RequestInfo();
         BoundaryRelationshipSearchCriteria searchCriteria = BoundaryRelationshipSearchCriteria.builder()
-                .tenantId("in")
+                .tenantId(boundaryTenantId)
                 .includeChildren(true)
                 .hierarchyType(boundaryHierarchyType)
                 .codes(codes)

@@ -44,8 +44,6 @@ public class FacilityKibanaMapper {
 
     private static final String LOCALIZATION_MODULE = "rainmaker-in";
     private static final String LOCALIZATION_LOCALE = "en_IN";
-    /** Boundary localizations are stored at national tenant (see ingestion-service / FacilityService). */
-    private static final String LOCALIZATION_TENANT_ID = "in";
 
     @Value("${egov.boundary.host}")
     private String boundaryHost;
@@ -312,7 +310,7 @@ public class FacilityKibanaMapper {
         }
 
         String url = UriComponentsBuilder.fromHttpUrl(searchUrl)
-                .queryParam("tenantId", LOCALIZATION_TENANT_ID)
+                .queryParam("tenantId", configs.getLocalizationTenantId())
                 .queryParam("module", LOCALIZATION_MODULE)
                 .queryParam("locale", LOCALIZATION_LOCALE)
                 .queryParam("codes", String.join(",", localizationCodes))
@@ -479,7 +477,7 @@ public class FacilityKibanaMapper {
 
         try {
             BoundaryCodes codes = fetchBoundaryHierarchyForCode(
-                    facility.getTenantId(),
+                    configs.getBoundaryTenantId(),
                     facility.getBoundaryCode(),
                     "Facility",
                     requestInfo
@@ -494,7 +492,7 @@ public class FacilityKibanaMapper {
                             facility.getFacilityId(), blockBoundaryCode
                     );
                     BoundaryCodes blockHierarchy = fetchBoundaryHierarchyForCode(
-                            facility.getTenantId(),
+                            configs.getBoundaryTenantId(),
                             blockBoundaryCode,
                             "Block",
                             requestInfo
