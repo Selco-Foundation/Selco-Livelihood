@@ -43,7 +43,7 @@ export function InboxSearch({ onSearch, initialApplicationNumber = "" }: InboxSe
           <button
             type="button"
             onClick={clearSearch}
-            className="text-sm text-[#7a2829] hover:underline"
+            className="text-sm text-primary hover:underline"
           >
             {t("ES_COMMON_CLEAR_SEARCH")}
           </button>

@@ -82,3 +82,4 @@ export type {
   ModuleHomeCardKpi,
   ModuleHomeCardLink,
 } from "./components/module-home-card";
+export { PageHeader } from "./components/page-header";

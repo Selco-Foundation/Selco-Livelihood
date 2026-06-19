@@ -1,5 +1,13 @@
-import { employeeHomePath, loadModules, useAuthStore, useTranslate } from "@/shared";
-import { Link, useSearch } from "@tanstack/react-router";
+import {
+  contextPath,
+  hasRole,
+  loadModules,
+  useAuthStore,
+  useTranslate,
+} from "@/shared";
+import { Button, PageHeader } from "@/ui";
+import { Link } from "@tanstack/react-router";
+import { Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { DesktopInbox } from "../../components/inbox/DesktopInbox";
 import { buildDefaultInboxRoleFilters } from "../../hooks/inbox-defaults";
@@ -18,15 +26,20 @@ function parseFilterParam(filter?: string): ImInboxFilters | null {
   }
 }
 
+function translateOr(
+  t: (key: string) => string,
+  key: string,
+  fallback: string,
+): string {
+  const value = t(key);
+  return value === key ? fallback : value;
+}
+
 export function InboxPage() {
   const { t } = useTranslate();
   const user = useAuthStore((state) => state.user);
-  const routeSearch = useSearch({ strict: false }) as {
-    filter?: string;
-    pageOffset?: number;
-    pageSize?: number;
-    nearing?: string;
-  };
+  const basePath = `/${contextPath()}/employee/im`;
+  const routeSearch = useSearchParams();
 
   const defaultFilters = buildDefaultInboxRoleFilters(user);
   const parsedFilter = parseFilterParam(routeSearch.filter);
@@ -89,40 +102,55 @@ export function InboxPage() {
 
   const { data: complaints, isLoading } = useImInboxData(inboxParams);
   const totalRecords = complaints?.total ?? 0;
+  const canCreateTicket = hasRole(user?.roles, "COMPLAINANT");
 
   const handleFilterChange = (nextFilters: ImInboxFilters) => {
     setSearchParams((prev) => ({ ...prev, filters: nextFilters }));
   };
 
-  const onSearch = (params: Record<string, string>) => {
-    setSearchParams((prev) => ({ ...prev, search: params }));
-  };
-
-  if (!complaints && isLoading) {
-    return <div className="text-sm text-muted-foreground">{t("CS_COMMON_LOADING")}</div>;
-  }
-
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">{t("ES_COMMON_INBOX")}</h1>
-        <Link to={employeeHomePath()} className="text-sm text-[#9e1b32] hover:underline">
-          {t("CS_COMMON_BACK")}
-        </Link>
-      </div>
+    <div className="mx-auto max-w-[1400px] space-y-6">
+      <PageHeader
+        title={translateOr(t, "ES_IM_ALL_TICKETS", "All Tickets")}
+        description={translateOr(
+          t,
+          "ES_IM_INBOX_DESCRIPTION",
+          "View and track all your service requests.",
+        )}
+        action={
+          canCreateTicket ? (
+            <Button asChild className="gap-2 rounded-md px-5">
+              <Link to={`${basePath}/incident/create`}>
+                <Plus className="size-4" />
+                {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise new ticket")}
+              </Link>
+            </Button>
+          ) : null
+        }
+      />
+
       <DesktopInbox
         data={complaints}
         isLoading={isLoading}
         onFilterChange={handleFilterChange}
-        onSearch={onSearch}
         searchParams={searchParams}
         onNextPage={() => setPageOffset((prev) => prev + pageSize)}
         onPrevPage={() => setPageOffset((prev) => Math.max(0, prev - pageSize))}
-        onPageSizeChange={setPageSize}
+        onPageChange={(page) => setPageOffset(page * pageSize)}
         currentPage={Math.floor(pageOffset / pageSize)}
         totalRecords={totalRecords}
         pageSizeLimit={pageSize}
       />
     </div>
   );
+}
+
+function useSearchParams() {
+  const params = new URLSearchParams(window.location.search);
+  return {
+    filter: params.get("filter") ?? undefined,
+    pageOffset: Number(params.get("pageOffset") ?? 0),
+    pageSize: Number(params.get("pageSize") ?? 10),
+    nearing: params.get("nearing") ?? undefined,
+  };
 }

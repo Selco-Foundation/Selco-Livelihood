@@ -116,8 +116,8 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#225670] p-4">
-      <Card className="w-full max-w-md">
+    <div className="flex min-h-screen items-center justify-center bg-page p-4">
+      <Card className="livelihood-card w-full max-w-md">
         <CardHeader>
           <CardTitle>Livelihood UI</CardTitle>
           <CardDescription>Sign in with your employee credentials</CardDescription>

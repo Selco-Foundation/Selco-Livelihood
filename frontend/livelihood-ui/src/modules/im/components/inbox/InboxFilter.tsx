@@ -1,6 +1,5 @@
 import {
   aggregateBoundaryCodes,
-  hasRole,
   isNonHcrUser,
   isTechPocUser,
   useAuthStore,
@@ -9,20 +8,19 @@ import {
   useJurisdictionStore,
   useTranslate,
 } from "@/shared";
-import { Button, Card, CardContent, Label } from "@/ui";
+import { ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { ImInboxFilters, InboxDataResult } from "../../types/inbox";
-import { buildFilterQueryFromState } from "../../utils/inbox-filters";
+import { ORDERED_INBOX_STATUSES } from "../../constants/routes";
 import { buildDefaultInboxRoleFilters } from "../../hooks/inbox-defaults";
 import { useImComplaintTypes, useImMdms } from "../../hooks/use-im-inbox-summary";
-import { InboxStatus } from "./InboxStatus";
+import type { ImInboxFilters, InboxDataResult } from "../../types/inbox";
+import { buildFilterQueryFromState } from "../../utils/inbox-filters";
 
 interface FilterOption {
   code: string;
   name: string;
   key?: string;
   parentCode?: string;
-  blockCode?: string;
 }
 
 interface InboxFilterProps {
@@ -31,8 +29,47 @@ interface InboxFilterProps {
   onFilterChange: (filters: ImInboxFilters) => void;
 }
 
+function FilterSelect({
+  label,
+  value,
+  options,
+  onChange,
+  disabled,
+  allLabel,
+}: {
+  label: string;
+  value: string;
+  options: FilterOption[];
+  onChange: (code: string) => void;
+  disabled?: boolean;
+  allLabel: string;
+}) {
+  return (
+    <div className="min-w-0 space-y-1.5">
+      <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </label>
+      <div className="relative">
+        <select
+          className="livelihood-filter-select disabled:cursor-not-allowed disabled:opacity-50"
+          value={value}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.value)}
+        >
+          <option value="">{allLabel}</option>
+          {options.map((option) => (
+            <option key={option.code} value={option.code}>
+              {option.name}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" />
+      </div>
+    </div>
+  );
+}
+
 export function InboxFilter({
-  complaints,
   searchParams,
   onFilterChange,
 }: InboxFilterProps) {
@@ -52,8 +89,8 @@ export function InboxFilter({
   );
 
   const defaultFilters = buildDefaultInboxRoleFilters(user);
-  const isResolver = hasRole(roles, "COMPLAINT_RESOLVER");
   const techPoc = isTechPocUser(roles);
+  const showGeoFilters = isNonHcrUser(roles);
 
   const [selectAssigned, setSelectAssigned] = useState(
     searchParams.filters?.wfFilters?.assignee?.[0]?.code === userName
@@ -112,6 +149,15 @@ export function InboxFilter({
     }));
   }, [complaintTypes]);
 
+  const statusMenu = useMemo(
+    () =>
+      ORDERED_INBOX_STATUSES.map((status) => ({
+        code: status.code,
+        name: t(`CS_COMMON_${status.code}`),
+      })),
+    [t],
+  );
+
   useEffect(() => {
     if (boundaryData?.facilities) {
       setFacilityBoundaries(
@@ -153,9 +199,7 @@ export function InboxFilter({
           });
         }
       }
-      setStateMenu(
-        [...unique.values()].sort((a, b) => a.name.localeCompare(b.name)),
-      );
+      setStateMenu([...unique.values()].sort((a, b) => a.name.localeCompare(b.name)));
     }
   }, [boundaryData, t]);
 
@@ -171,6 +215,8 @@ export function InboxFilter({
           }))
           .sort((a, b) => a.name.localeCompare(b.name)),
       );
+    } else if (!selectedState) {
+      setDistrictMenu([]);
     }
   }, [pgrfilters.state, boundaryData, t]);
 
@@ -186,6 +232,8 @@ export function InboxFilter({
           }))
           .sort((a, b) => a.name.localeCompare(b.name)),
       );
+    } else if (!selectedDistrict) {
+      setBlockMenu([]);
     }
   }, [pgrfilters.district, boundaryData, t]);
 
@@ -198,10 +246,11 @@ export function InboxFilter({
           .map((facility) => ({
             code: facility.code,
             name: t(`Boundary_${facility.code}`),
-            blockCode: facility.parentCode,
           }))
           .sort((a, b) => a.name.localeCompare(b.name)),
       );
+    } else {
+      setFacilityMenu([]);
     }
   }, [pgrfilters.block, facilityOptions, t]);
 
@@ -242,215 +291,175 @@ export function InboxFilter({
     onFilterChange({ pgrQuery, wfQuery, wfFilters, pgrfilters });
   }, [pgrfilters, wfFilters]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const clearAll = () => {
-    const resetPgr = { ...emptyPgrFilters };
-    const resetWf = isResolver
-      ? { assignee: [{ code: userName }] }
-      : techPoc
-        ? {
-            assignee: [{ code: userName }],
-            wfStatus: [
-              { code: "RMS_DEVICE_PENDING_TECH_POC" },
-              { code: "OUT_OF_WARRANTY_PENDING_TECH_POC" },
-              { code: "OUT_OF_WARRANTY_PENDING_TECH_POC_ROUND_2" },
-            ],
-          }
-        : { assignee: [{ code: "" }] };
-
-    setDistrictMenu([]);
-    setBlockMenu([]);
-    setFacilityMenu([]);
-    setPgrFilters(resetPgr);
-    setWfFilters(resetWf);
-    setSelectAssigned(isResolver || techPoc ? assignedToOptions[0] : assignedToOptions[1]);
-  };
-
-  const handleAssignmentChange = (
-    checked: boolean,
-    type: { statuses: readonly string[] | string[] },
-  ) => {
-    if (checked) {
-      setPgrFilters((prev) => ({
-        ...prev,
-        applicationStatus: [
-          ...prev.applicationStatus,
-          ...type.statuses.map((status) => ({ code: status })),
-        ],
-      }));
-      return;
-    }
-
-    setPgrFilters((prev) => ({
-      ...prev,
-      applicationStatus: prev.applicationStatus.filter(
-        (value) => !type.statuses.includes(value.code),
-      ),
-    }));
-  };
-
-  const renderSelect = (
-    label: string,
-    options: FilterOption[],
-    onSelect: (value: FilterOption) => void,
-    key: keyof typeof emptyPgrFilters,
-  ) => (
-    <div className="space-y-1">
-      <Label>{label}</Label>
-      <select
-        className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-        defaultValue=""
-        onChange={(event) => {
-          const selected = options.find((option) => option.code === event.target.value);
-          if (selected) {
-            onSelect(selected);
-          }
-        }}
-      >
-        <option value="" disabled>
-          {t("ES_COMMON_SELECT")}
-        </option>
-        {options.map((option) => (
-          <option key={option.code} value={option.code}>
-            {option.name}
-          </option>
-        ))}
-      </select>
-      {pgrfilters[key].length > 0 ? (
-        <div className="flex flex-wrap gap-1">
-          {pgrfilters[key].map((value, index) => (
-            <button
-              key={`${value.code}-${index}`}
-              type="button"
-              className="rounded border px-2 py-0.5 text-xs"
-              onClick={() => {
-                if (key === "state") {
-                  setDistrictMenu([]);
-                  setBlockMenu([]);
-                  setFacilityMenu([]);
-                  setPgrFilters({
-                    ...pgrfilters,
-                    state: [],
-                    district: [],
-                    block: [],
-                    facility: [],
-                  });
-                } else if (key === "district") {
-                  setBlockMenu([]);
-                  setFacilityMenu([]);
-                  setPgrFilters({ ...pgrfilters, district: [], block: [], facility: [] });
-                } else if (key === "block") {
-                  setFacilityMenu([]);
-                  setPgrFilters({ ...pgrfilters, block: [], facility: [] });
-                } else {
-                  setPgrFilters({
-                    ...pgrfilters,
-                    [key]: pgrfilters[key].filter((_, itemIndex) => itemIndex !== index),
-                  });
-                }
-              }}
-            >
-              {("name" in value && value.name) ? value.name : value.code} ×
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
+  const allLabel = t("ES_COMMON_ALL");
 
   return (
-    <Card className="w-full max-w-[270px]">
-      <CardContent className="space-y-4 p-4">
-        <div className="flex items-center justify-between">
-          <Label>{t("ES_COMMON_FILTER_BY")}:</Label>
-          <button
-            type="button"
-            onClick={clearAll}
-            className="text-xs text-[#7a2829] hover:underline"
-          >
-            {t("ES_COMMON_CLEAR_ALL")}
-          </button>
-        </div>
+    <div className="livelihood-card p-5">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {t("ES_COMMON_FILTER_BY")}:
+        </span>
+        {assignedToOptions.map((option) => (
+          <label key={option.code} className="flex cursor-pointer items-center gap-2 text-sm">
+            <input
+              type="radio"
+              name="assignedTo"
+              className="livelihood-radio"
+              checked={selectAssigned.code === option.code}
+              onChange={() => setSelectAssigned(option)}
+            />
+            <span>{option.name}</span>
+          </label>
+        ))}
+      </div>
 
-        <div className="space-y-2">
-          <Label>{t("ASSIGNED_TO_ME")}</Label>
-          {assignedToOptions.map((option) => (
-            <label key={option.code} className="flex items-center gap-2 text-sm">
-              <input
-                type="radio"
-                name="assignedTo"
-                checked={selectAssigned.code === option.code}
-                onChange={() => setSelectAssigned(option)}
-              />
-              <span>{option.name}</span>
-            </label>
-          ))}
-        </div>
+      <div className="my-5 border-t border-border" />
 
-        {renderSelect(t("CS_COMPLAINT_DETAILS_TICKET_TYPE"), sortedMenu, (value) => {
-          setPgrFilters((prev) => {
-            if (prev.incidentType.some((item) => item.code === value.code)) {
-              return prev;
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        <FilterSelect
+          label={t("CS_COMPLAINT_DETAILS_TICKET_TYPE")}
+          value={pgrfilters.incidentType[0]?.code ?? ""}
+          options={sortedMenu}
+          allLabel={allLabel}
+          onChange={(code) => {
+            if (!code) {
+              setPgrFilters((prev) => ({ ...prev, incidentType: [] }));
+              return;
             }
-            return {
+            const option = sortedMenu.find((item) => item.code === code);
+            setPgrFilters((prev) => ({
               ...prev,
-              incidentType: [
-                ...prev.incidentType,
-                { code: value.key ?? value.code, name: value.name },
-              ],
-            };
-          });
-        }, "incidentType")}
+              incidentType: option ? [{ code: option.code, name: option.name }] : [],
+            }));
+          }}
+        />
 
-        {isNonHcrUser(roles) ? (
-          <>
-            {renderSelect(t("CS_STATE"), stateMenu, (value) => {
-              setPgrFilters({
-                ...pgrfilters,
-                state: [value],
+        <FilterSelect
+          label={t("CS_STATE")}
+          value={pgrfilters.state[0]?.code ?? ""}
+          options={stateMenu}
+          allLabel={allLabel}
+          disabled={!showGeoFilters}
+          onChange={(code) => {
+            if (!code) {
+              setPgrFilters((prev) => ({
+                ...prev,
+                state: [],
                 district: [],
                 block: [],
                 facility: [],
-              });
-            }, "state")}
-            {renderSelect(t("CS_DISTRICT"), districtMenu, (value) => {
-              setPgrFilters({
-                ...pgrfilters,
-                district: [value],
-                block: [],
-                facility: [],
-              });
-            }, "district")}
-            {renderSelect(t("CS_BLOCK"), blockMenu, (value) => {
-              setPgrFilters({ ...pgrfilters, block: [value], facility: [] });
-            }, "block")}
-            {renderSelect(t("CS_HEALTH_CARE"), facilityMenu, (value) => {
-              setPgrFilters((prev) => {
-                if (prev.facility.some((item) => item.code === value.code)) {
-                  return prev;
-                }
-                return {
-                  ...prev,
-                  facility: [...prev.facility, value],
-                };
-              });
-            }, "facility")}
-          </>
-        ) : null}
-
-        {renderSelect(t("CS_SYSTEM_FUNCTIONAL"), systemFunctionalityMenu, (value) => {
-          setPgrFilters({ ...pgrfilters, isSystemFunctional: [value] });
-        }, "isSystemFunctional")}
-
-        <InboxStatus
-          statusMap={complaints?.statusArray}
-          selectedStatuses={pgrfilters.applicationStatus}
-          onAssignmentChange={handleAssignmentChange}
+              }));
+              return;
+            }
+            const option = stateMenu.find((item) => item.code === code);
+            setPgrFilters((prev) => ({
+              ...prev,
+              state: option ? [option] : [],
+              district: [],
+              block: [],
+              facility: [],
+            }));
+          }}
         />
 
-        <Button type="button" variant="outline" className="w-full" onClick={clearAll}>
-          {t("ES_COMMON_CLEAR_ALL")}
-        </Button>
-      </CardContent>
-    </Card>
+        <FilterSelect
+          label={t("CS_DISTRICT")}
+          value={pgrfilters.district[0]?.code ?? ""}
+          options={districtMenu}
+          allLabel={allLabel}
+          disabled={!showGeoFilters || !pgrfilters.state.length}
+          onChange={(code) => {
+            if (!code) {
+              setPgrFilters((prev) => ({ ...prev, district: [], block: [], facility: [] }));
+              return;
+            }
+            const option = districtMenu.find((item) => item.code === code);
+            setPgrFilters((prev) => ({
+              ...prev,
+              district: option ? [option] : [],
+              block: [],
+              facility: [],
+            }));
+          }}
+        />
+
+        <FilterSelect
+          label={t("CS_BLOCK")}
+          value={pgrfilters.block[0]?.code ?? ""}
+          options={blockMenu}
+          allLabel={allLabel}
+          disabled={!showGeoFilters || !pgrfilters.district.length}
+          onChange={(code) => {
+            if (!code) {
+              setPgrFilters((prev) => ({ ...prev, block: [], facility: [] }));
+              return;
+            }
+            const option = blockMenu.find((item) => item.code === code);
+            setPgrFilters((prev) => ({
+              ...prev,
+              block: option ? [option] : [],
+              facility: [],
+            }));
+          }}
+        />
+
+        <FilterSelect
+          label={t("CS_HEALTH_CARE")}
+          value={pgrfilters.facility[0]?.code ?? ""}
+          options={facilityMenu}
+          allLabel={allLabel}
+          disabled={!showGeoFilters || !pgrfilters.block.length}
+          onChange={(code) => {
+            if (!code) {
+              setPgrFilters((prev) => ({ ...prev, facility: [] }));
+              return;
+            }
+            const option = facilityMenu.find((item) => item.code === code);
+            setPgrFilters((prev) => ({
+              ...prev,
+              facility: option ? [option] : [],
+            }));
+          }}
+        />
+
+        <FilterSelect
+          label={t("CS_SYSTEM_FUNCTIONAL")}
+          value={pgrfilters.isSystemFunctional[0]?.code ?? ""}
+          options={systemFunctionalityMenu}
+          allLabel={allLabel}
+          onChange={(code) => {
+            if (!code) {
+              setPgrFilters((prev) => ({ ...prev, isSystemFunctional: [] }));
+              return;
+            }
+            const option = systemFunctionalityMenu.find((item) => item.code === code);
+            setPgrFilters((prev) => ({
+              ...prev,
+              isSystemFunctional: option ? [option] : [],
+            }));
+          }}
+        />
+
+        <FilterSelect
+          label={t("ES_IM_FILTER_STATUS")}
+          value={pgrfilters.applicationStatus[0]?.code ?? ""}
+          options={statusMenu}
+          allLabel={allLabel}
+          onChange={(code) => {
+            if (!code) {
+              setPgrFilters((prev) => ({ ...prev, applicationStatus: [] }));
+              return;
+            }
+            const statusGroup = ORDERED_INBOX_STATUSES.find((item) => item.code === code);
+            setPgrFilters((prev) => ({
+              ...prev,
+              applicationStatus: statusGroup
+                ? statusGroup.statuses.map((status) => ({ code: status }))
+                : [{ code }],
+            }));
+          }}
+        />
+      </div>
+    </div>
   );
 }
