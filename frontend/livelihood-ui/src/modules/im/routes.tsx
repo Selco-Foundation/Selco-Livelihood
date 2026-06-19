@@ -5,6 +5,7 @@ import { Inbox } from "lucide-react";
 import { ImHomeCard } from "./components/ImHomeCard";
 import { IM_ROUTES } from "./constants/routes";
 import { CreateIncidentPage } from "./pages/employee/CreateIncidentPage";
+import { CreateIncidentResponsePage } from "./pages/employee/CreateIncidentResponsePage";
 import { InboxPage } from "./pages/employee/InboxPage";
 
 export function createImRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRoute) {
@@ -12,6 +13,7 @@ export function createImRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
   const imRoot = `/${basePath}${IM_ROUTES.imRoot}`;
   const inboxPath = `/${basePath}${IM_ROUTES.inbox}`;
   const createPath = `/${basePath}${IM_ROUTES.createIncident}`;
+  const createResponsePath = `/${basePath}${IM_ROUTES.createResponse}`;
 
   const imIndexRoute = createRoute({
     getParentRoute: () => employeeLayoutRoute,
@@ -39,8 +41,14 @@ export function createImRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
     component: CreateIncidentPage,
   });
 
+  const createIncidentResponseRoute = createRoute({
+    getParentRoute: () => employeeLayoutRoute,
+    path: createResponsePath,
+    component: CreateIncidentResponsePage,
+  });
+
   return {
-    routes: [imIndexRoute, inboxRoute, createIncidentRoute],
+    routes: [imIndexRoute, inboxRoute, createIncidentRoute, createIncidentResponseRoute],
     navItems: [
       {
         id: "im-inbox",

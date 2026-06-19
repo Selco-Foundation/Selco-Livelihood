@@ -2,6 +2,7 @@ export const IM_ROUTES = {
   imRoot: "/employee/im",
   inbox: "/employee/im/inbox",
   createIncident: "/employee/im/incident/create",
+  createResponse: "/employee/im/incident/response",
 } as const;
 
 export const ORDERED_INBOX_STATUSES = [

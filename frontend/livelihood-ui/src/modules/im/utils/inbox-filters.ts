@@ -11,6 +11,7 @@ export interface IncidentFilterInput {
   applicationStatus?: string;
   services?: string[];
   incidentType?: string;
+  incidentSubType?: string;
   facility?: string;
   assignee?: string;
   nearingSLA?: boolean;
@@ -57,6 +58,7 @@ export function buildIncidentInboxFilters(
     applicationStatus,
     services,
     incidentType,
+    incidentSubType,
     facility,
     assignee,
     nearingSLA,
@@ -87,6 +89,10 @@ export function buildIncidentInboxFilters(
 
   if (incidentType) {
     searchFilters.incidentType = splitCsv(incidentType);
+  }
+
+  if (incidentSubType) {
+    searchFilters.incidentSubType = splitCsv(incidentSubType);
   }
 
   if (facility) {
