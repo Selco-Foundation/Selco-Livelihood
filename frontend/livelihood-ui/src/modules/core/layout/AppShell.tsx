@@ -1,3 +1,4 @@
+import { getModuleNavItems } from "@/module-registry";
 import {
   contextPath,
   employeeLoginPath,
@@ -28,11 +29,8 @@ import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-route
 import { Home, LogOut } from "lucide-react";
 import { ChangeCity } from "../components/ChangeCity";
 
-interface AppShellProps {
-  navItems: NavItem[];
-}
-
-export function AppShell({ navItems }: AppShellProps) {
+export function AppShell() {
+  const navItems = getModuleNavItems();
   const basePath = `/${contextPath()}`;
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);

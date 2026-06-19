@@ -77,3 +77,8 @@ export {
 } from "./components/ui/dropdown-menu";
 export { Skeleton } from "./components/ui/skeleton";
 export { DataTable } from "./components/data-table";
+export { ModuleHomeCard } from "./components/module-home-card";
+export type {
+  ModuleHomeCardKpi,
+  ModuleHomeCardLink,
+} from "./components/module-home-card";

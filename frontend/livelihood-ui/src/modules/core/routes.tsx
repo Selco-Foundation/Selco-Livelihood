@@ -46,7 +46,7 @@ export function createCoreRoutes(rootRoute: AnyRoute) {
         });
       }
     },
-    component: () => <AppShell navItems={[]} />,
+    component: () => <AppShell />,
   });
 
   const employeeHomeRoute = createRoute({
@@ -58,5 +58,6 @@ export function createCoreRoutes(rootRoute: AnyRoute) {
   return {
     routes: [indexRoute, employeeLoginRoute, employeeLayoutRoute, employeeHomeRoute],
     navItems: [],
+    employeeLayoutRoute,
   };
 }

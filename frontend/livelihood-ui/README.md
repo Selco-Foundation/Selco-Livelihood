@@ -121,8 +121,10 @@ Locale is persisted in `livelihood-locale` (zustand), `sessionStorage.locale`, a
 ```tsx
 import { loadModules } from "@/shared";
 
-await loadModules(["rainmaker-pt"]);
+await loadModules(["rainmaker-im"]);
 ```
+
+The IM module loads `rainmaker-im` automatically when its routes and home card mount.
 
 ### Locale helpers
 

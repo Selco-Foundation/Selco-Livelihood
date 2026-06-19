@@ -5,4 +5,8 @@ export const API_PROXY_PATHS = [
   "/boundary-service",
   "/facility-service",
   "/localization",
+  "/inbox",
+  "/im-services",
+  "/egov-mdms-service",
+  "/egov-workflow-v2",
 ] as const;

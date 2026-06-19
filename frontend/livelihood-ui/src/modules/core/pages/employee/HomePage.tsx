@@ -1,8 +1,9 @@
+import { getModuleHomeCards } from "@/module-registry";
 import { useTranslate } from "@/shared";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/ui";
 
 export function HomePage() {
   const { t } = useTranslate();
+  const homeCards = getModuleHomeCards();
 
   return (
     <div className="space-y-6">
@@ -13,18 +14,13 @@ export function HomePage() {
         <p className="text-muted-foreground">{t("CORE_COMMON_HOME")}</p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("ES_COMMON_GETTING_STARTED")}</CardTitle>
-          <CardDescription>{t("CORE_COMMON_HOME")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            {t("ES_COMMON_NA")}: register new modules in src/modules.ts and follow
-            MODULE_TEMPLATE.md.
-          </p>
-        </CardContent>
-      </Card>
+      {homeCards.length > 0 ? (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {homeCards.map(({ Card, moduleId }) => (
+            <Card key={moduleId} />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

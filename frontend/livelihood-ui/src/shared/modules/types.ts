@@ -9,6 +9,8 @@ export interface NavItem {
 
 export interface ModuleDefinition<TRoute = unknown> {
   id: string;
+  order?: number;
   routes: TRoute[];
   navItems: NavItem[];
+  homeCards?: ComponentType[];
 }

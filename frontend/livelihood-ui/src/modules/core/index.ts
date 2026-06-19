@@ -9,12 +9,18 @@ export { HomePage } from "./pages/employee/HomePage";
 export { CORE_ROUTES } from "./constants/routes";
 export { createCoreRoutes };
 
-export function createCoreModule(rootRoute: AnyRoute): ModuleDefinition<AnyRoute> {
-  const { routes, navItems } = createCoreRoutes(rootRoute);
+export interface CoreModuleDefinition extends ModuleDefinition<AnyRoute> {
+  employeeLayoutRoute: AnyRoute;
+}
+
+export function createCoreModule(rootRoute: AnyRoute): CoreModuleDefinition {
+  const { routes, navItems, employeeLayoutRoute } = createCoreRoutes(rootRoute);
 
   return {
     id: "core",
+    order: 0,
     routes,
     navItems,
+    employeeLayoutRoute,
   };
 }
