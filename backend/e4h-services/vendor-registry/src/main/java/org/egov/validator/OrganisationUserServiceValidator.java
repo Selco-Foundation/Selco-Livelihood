@@ -136,7 +136,7 @@ public class OrganisationUserServiceValidator {
         if (employee == null || employee.isEmpty()) { //If user doesn't exist
             Organisation organisation = organisations.get(0);
             String orgType = organisation.getOrgType();
-            Map<String, List<Role>> rolesMap =  getOrgRoles(request.getRequestInfo());
+            Map<String, List<Role>> rolesMap =  getOrgRoles(request.getRequestInfo(), orgUser.getTenantId());
             if (rolesMap !=null && !rolesMap.isEmpty() && orgType !=null && !orgType.isBlank()){
                 List<Role> roles = rolesMap.get(orgType);
                 List<String> roleCodesMDMS = roles.stream().map(Role::getCode).filter(Objects::nonNull).toList();
@@ -221,7 +221,7 @@ public class OrganisationUserServiceValidator {
                     Organisation organisation = organisations.get(0);
                     String orgType = organisation.getOrgType();
 
-                    Map<String, List<Role>> rolesMap = getOrgRoles(request.getRequestInfo());
+                    Map<String, List<Role>> rolesMap = getOrgRoles(request.getRequestInfo(), orgUser.getTenantId());
                     if (rolesMap != null && !rolesMap.isEmpty() && orgType != null && !orgType.isBlank()) {
                         List<Role> roles = rolesMap.get(orgType);
                         if (roles != null) {
@@ -463,7 +463,7 @@ public class OrganisationUserServiceValidator {
                 }
                 Organisation organisation = organisations.get(0);
                 String orgType = organisation.getOrgType();
-                Map<String, List<Role>> rolesMap =  getOrgRoles(request.getRequestInfo());
+                Map<String, List<Role>> rolesMap =  getOrgRoles(request.getRequestInfo(), orgUser.getTenantId());
                 if (rolesMap !=null && !rolesMap.isEmpty() && orgType !=null && !orgType.isBlank()){
                     List<Role> roles = rolesMap.get(orgType);
                     List<String> roleCodesMDMS = roles.stream().map(Role::getCode).filter(Objects::nonNull).toList();
@@ -637,21 +637,23 @@ public class OrganisationUserServiceValidator {
         }
     }
 
-    public Map<String, List<Role>> getOrgRoles(RequestInfo requestInfo){
-        Object mdmsData = mdmsUtil.mDMSCall(requestInfo, configuration.getGlobalTenantId());
+    public Map<String, List<Role>> getOrgRoles(RequestInfo requestInfo, String tenantId){
+        Object mdmsData = mdmsUtil.mDMSCall(requestInfo, tenantId);
         final String jsonPathForOrgRoles = MDMS_RES + MDMS_ORGANIZATION_MODULE_NAME + "." + MASTER_ORG_ROLES + "[*]";
-        List<Map<String, Object>> orgRolesRes = null;
         try {
-            orgRolesRes = JsonPath.read(mdmsData, jsonPathForOrgRoles);
+            List<Map<String, Object>> orgRolesRes = JsonPath.read(mdmsData, jsonPathForOrgRoles);
+            if (CollectionUtils.isEmpty(orgRolesRes)) {
+                throw new CustomException("INVALID_ROLES", "Org Roles is not configured in MDMS for tenant " + tenantId);
+            }
             List<Role> orgRolesList = orgRolesRes.stream()
                     .map(item -> mapper.convertValue(item, Role.class))
                     .toList();
-            Map<String, List<Role>> rolesByOrgType = orgRolesList.stream().collect(Collectors.groupingBy(Role::getOrgType));
-            return rolesByOrgType;
+            return orgRolesList.stream().collect(Collectors.groupingBy(Role::getOrgType));
+        } catch (CustomException e) {
+            throw e;
         } catch (Exception e) {
-            e.printStackTrace();
-            log.error(e.getMessage());
-            throw new CustomException("JSONPATH_ERROR", "Failed to parse mdms response");
+            log.error("Failed to parse MDMS OrgRoles for tenant {}", tenantId, e);
+            throw new CustomException("JSONPATH_ERROR", "Failed to parse mdms response for Organisation.OrgRoles (tenant: " + tenantId + ")");
         }
     }
 
