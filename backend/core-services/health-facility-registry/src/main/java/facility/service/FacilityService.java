@@ -1054,7 +1054,13 @@ public class FacilityService {
     public List<Facility> bulkSearchFacilities(FacilityBulkSearchRequest request) {
         log.trace("Entering bulkSearchFacilities method");
         List<Facility> facilityList = loadBulkFacilitiesWithAddressJoin(request);
-        Map<String, Boundary> listBlock = boundaryUtil.getBoundaryByCode();
+        Set<String> boundaryCodesOnRows = facilityList.stream()
+                .map(Facility::getBoundaryCode)
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toSet());
+        Map<String, Boundary> listBlock = boundaryUtil.getBoundaryMapForFacilityCodes(boundaryCodesOnRows);
         enrichFacilitiesWithBoundaries(facilityList, listBlock);
         log.trace("Exiting bulkSearchFacilities method");
         return facilityList;

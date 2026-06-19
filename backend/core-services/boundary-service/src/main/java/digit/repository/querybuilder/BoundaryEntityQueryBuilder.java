@@ -53,15 +53,20 @@ public class BoundaryEntityQueryBuilder {
         if (!Objects.isNull(boundarySearchCriteria.getCodes())) {
             QueryUtil.addClauseIfRequired(builder , preparedStmtList);
             boolean ignoreCase = Boolean.TRUE.equals(boundarySearchCriteria.getIgnoreCase());
-            if (ignoreCase) {
-                builder.append(" LOWER(boundary.code) IN ( ").append(QueryUtil.createQuery(boundarySearchCriteria.getCodes().size())).append(" )");
-            } else {
-                builder.append(" boundary.code IN ( ").append(QueryUtil.createQuery(boundarySearchCriteria.getCodes().size())).append(" )");
-            }
             Set<String> codes = boundarySearchCriteria.getCodes().stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .filter(code -> !code.isEmpty())
                     .map(code -> ignoreCase ? code.toLowerCase(Locale.ROOT) : code)
                     .collect(Collectors.toCollection(HashSet::new));
-            QueryUtil.addToPreparedStatement(preparedStmtList , codes);
+            if (!codes.isEmpty()) {
+                if (ignoreCase) {
+                    builder.append(" LOWER(boundary.code) IN ( ").append(QueryUtil.createQuery(codes.size())).append(" )");
+                } else {
+                    builder.append(" boundary.code IN ( ").append(QueryUtil.createQuery(codes.size())).append(" )");
+                }
+                QueryUtil.addToPreparedStatement(preparedStmtList , codes);
+            }
         }
         return builder.toString();
     }
