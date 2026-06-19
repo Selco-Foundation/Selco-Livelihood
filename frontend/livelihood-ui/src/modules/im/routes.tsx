@@ -4,6 +4,7 @@ import { createRoute, redirect } from "@tanstack/react-router";
 import { Inbox } from "lucide-react";
 import { ImHomeCard } from "./components/ImHomeCard";
 import { IM_ROUTES } from "./constants/routes";
+import { ComplaintDetailsPage } from "./pages/employee/ComplaintDetailsPage";
 import { CreateIncidentPage } from "./pages/employee/CreateIncidentPage";
 import { CreateIncidentResponsePage } from "./pages/employee/CreateIncidentResponsePage";
 import { InboxPage } from "./pages/employee/InboxPage";
@@ -14,6 +15,7 @@ export function createImRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
   const inboxPath = `/${basePath}${IM_ROUTES.inbox}`;
   const createPath = `/${basePath}${IM_ROUTES.createIncident}`;
   const createResponsePath = `/${basePath}${IM_ROUTES.createResponse}`;
+  const complaintDetailsPath = `/${basePath}${IM_ROUTES.complaintDetails}/$incidentId/$tenantId`;
 
   const imIndexRoute = createRoute({
     getParentRoute: () => employeeLayoutRoute,
@@ -47,8 +49,20 @@ export function createImRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
     component: CreateIncidentResponsePage,
   });
 
+  const complaintDetailsRoute = createRoute({
+    getParentRoute: () => employeeLayoutRoute,
+    path: complaintDetailsPath,
+    component: ComplaintDetailsPage,
+  });
+
   return {
-    routes: [imIndexRoute, inboxRoute, createIncidentRoute, createIncidentResponseRoute],
+    routes: [
+      imIndexRoute,
+      inboxRoute,
+      createIncidentRoute,
+      createIncidentResponseRoute,
+      complaintDetailsRoute,
+    ],
     navItems: [
       {
         id: "im-inbox",
