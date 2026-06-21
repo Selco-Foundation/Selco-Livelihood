@@ -440,12 +440,19 @@ public class InboxServiceV2 {
     }
 
     private Long getApplicationServiceSla(Map<String, Long> businessServiceSlaMap, Map<String, Long> stateUuidSlaMap, Object data) {
-        Long currentDate = System.currentTimeMillis(); // current time
-        Map<String, Object> auditDetails = (Map<String, Object>) ((Map<String, Object>) data).get(AUDIT_DETAILS_KEY);
+        Long currentDate = System.currentTimeMillis();
+        Map<String, Object> dataMap = (Map<String, Object>) data;
+        Map<String, Object> auditDetails = (Map<String, Object>) dataMap.get(AUDIT_DETAILS_KEY);
+
+        if (auditDetails == null) {
+            log.warn("⚠️ SLA could not be calculated: auditDetails missing");
+            return null;
+        }
 
         String stateUuid = null;
-        if (JsonPath.read(data, "$.currentProcessInstance") != null)
+        if (JsonPath.read(data, "$.currentProcessInstance") != null) {
             stateUuid = JsonPath.read(data, STATE_UUID_PATH);
+        }
 
         if (stateUuid != null) {
             if (stateUuidSlaMap.containsKey(stateUuid)) {
@@ -455,15 +462,17 @@ public class InboxServiceV2 {
                     log.debug("📌 Calculated SLA (by state) for stateUuid {} = {} days", stateUuid, remaining);
                     return remaining;
                 }
-            } else {
-                if (!ObjectUtils.isEmpty(auditDetails.get(CREATED_TIME_KEY))) {
-                    Long createdTime = ((Number) auditDetails.get(CREATED_TIME_KEY)).longValue();
-                    String businessService = JsonPath.read(data, BUSINESS_SERVICE_PATH);
-                    Long businessServiceSLA = businessServiceSlaMap.get(businessService);
-                    Long remaining = Math.round((businessServiceSLA - (currentDate - createdTime)) / ((double) (24 * 60 * 60 * 1000)));
-                    log.debug("📌 Calculated SLA (by businessService) for {} = {} days", businessService, remaining);
-                    return remaining;
+            } else if (!ObjectUtils.isEmpty(auditDetails.get(CREATED_TIME_KEY))) {
+                Long createdTime = ((Number) auditDetails.get(CREATED_TIME_KEY)).longValue();
+                String businessService = JsonPath.read(data, BUSINESS_SERVICE_PATH);
+                Long businessServiceSLA = businessServiceSlaMap.get(businessService);
+                if (businessServiceSLA == null) {
+                    log.warn("⚠️ SLA could not be calculated: no SLA config for businessService={}", businessService);
+                    return null;
                 }
+                Long remaining = Math.round((businessServiceSLA - (currentDate - createdTime)) / ((double) (24 * 60 * 60 * 1000)));
+                log.debug("📌 Calculated SLA (by businessService) for {} = {} days", businessService, remaining);
+                return remaining;
             }
         }
         log.warn("⚠️ SLA could not be calculated for data: {}", data);
