@@ -73,9 +73,9 @@ public class ServiceRequestValidator {
         }
         if (request.getWorkflow() == null || StringUtils.isEmpty(request.getWorkflow().getAction())) {
             if (request.getWorkflow() == null) {
-                request.setWorkflow(Workflow.builder().action(LIVELIHOOD_WF_AUTO_ASSIGN).build());
+                request.setWorkflow(Workflow.builder().action(LIVELIHOOD_WF_CREATE).build());
             } else {
-                request.getWorkflow().setAction(LIVELIHOOD_WF_AUTO_ASSIGN);
+                request.getWorkflow().setAction(LIVELIHOOD_WF_CREATE);
             }
         }
     }

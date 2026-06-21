@@ -81,7 +81,7 @@ public class LivelihoodCreateService {
 
         String vendorUserUuid = resolveVendorUserUuid(asset, request.getRequestInfo(), incident.getTenantId());
         workflow.setAssignes(List.of(vendorUserUuid));
-        workflow.setAction(LIVELIHOOD_WF_AUTO_ASSIGN);
+        workflow.setAction(resolveCreateWorkflowAction(request.getRequestInfo()));
 
         enrichEntryMetadata(request);
     }
@@ -185,5 +185,27 @@ public class LivelihoodCreateService {
         return requestInfo.getUserInfo().getRoles().stream()
                 .map(Role::getCode)
                 .anyMatch(code -> ROLE_LIVELIHOOD_POC.equalsIgnoreCase(code));
+    }
+
+    /**
+     * LivelihoodIncident start state exposes two create paths:
+     * CREATE for COMPLAINANT / LIVELIHOOD_POC, AUTO_ASSIGN for SYSTEM_USER (IVR/cron).
+     * Vendor is still pre-assigned via workflow.assignes in both cases.
+     */
+    private String resolveCreateWorkflowAction(RequestInfo requestInfo) {
+        if (isSystemUser(requestInfo)) {
+            return LIVELIHOOD_WF_AUTO_ASSIGN;
+        }
+        return LIVELIHOOD_WF_CREATE;
+    }
+
+    private boolean isSystemUser(RequestInfo requestInfo) {
+        if (requestInfo == null || requestInfo.getUserInfo() == null
+                || CollectionUtils.isEmpty(requestInfo.getUserInfo().getRoles())) {
+            return false;
+        }
+        return requestInfo.getUserInfo().getRoles().stream()
+                .map(Role::getCode)
+                .anyMatch(code -> "SYSTEM_USER".equalsIgnoreCase(code));
     }
 }
