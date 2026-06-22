@@ -481,6 +481,22 @@ public class IMService {
     public Integer count(RequestInfo requestInfo, RequestSearchCriteria criteria){
         log.trace("IMService::count method invoked");
         log.info("Counting incidents with criteria tenantId={}", criteria.getTenantId());
+        log.trace("Validating count criteria");
+        validator.validateSearch(requestInfo, criteria);
+
+        log.trace("Enriching count request");
+        enrichmentService.enrichSearchRequest(requestInfo, criteria);
+
+        if (criteria.isEmpty()) {
+            log.debug("Count criteria is empty, returning 0");
+            return 0;
+        }
+
+        if (criteria.getMobileNumber() != null && CollectionUtils.isEmpty(criteria.getUserIds())) {
+            log.debug("Mobile number provided but no userIds found, returning count 0");
+            return 0;
+        }
+
         criteria.setIsPlainSearch(false);
         log.trace("Fetching count from repository");
         Integer count = repository.getCount(criteria);
