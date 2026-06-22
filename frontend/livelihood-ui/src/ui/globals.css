@@ -1,0 +1,147 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@source "../**/*.{ts,tsx}";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sla: var(--sla);
+  --color-sla-foreground: var(--sla-foreground);
+  --color-page: var(--page);
+}
+
+:root {
+  --radius: 0.5rem;
+  /* Pale mint page background */
+  --page: hsl(120 18% 96%);
+  --background: hsl(120 18% 96%);
+  --foreground: hsl(160 30% 12%);
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(160 30% 12%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(160 30% 12%);
+  /* Forest green primary */
+  --primary: hsl(152 45% 28%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(120 20% 94%);
+  --secondary-foreground: hsl(160 30% 18%);
+  --muted: hsl(120 15% 93%);
+  --muted-foreground: hsl(160 8% 42%);
+  --accent: hsl(140 35% 92%);
+  --accent-foreground: hsl(152 45% 22%);
+  --destructive: hsl(0 72% 51%);
+  --border: hsl(140 12% 88%);
+  --input: hsl(140 12% 88%);
+  --ring: hsl(152 45% 28%);
+  /* SLA badge */
+  --sla: hsl(140 40% 90%);
+  --sla-foreground: hsl(152 45% 28%);
+  --sidebar: hsl(0 0% 98%);
+  --sidebar-foreground: hsl(240 5.3% 26.1%);
+  --sidebar-primary: hsl(152 45% 28%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(120 20% 94%);
+  --sidebar-accent-foreground: hsl(160 30% 18%);
+  --sidebar-border: hsl(140 12% 88%);
+  --sidebar-ring: hsl(152 45% 28%);
+}
+
+.dark {
+  --page: hsl(160 20% 8%);
+  --background: hsl(160 20% 8%);
+  --foreground: hsl(120 15% 96%);
+  --card: hsl(160 18% 12%);
+  --card-foreground: hsl(120 15% 96%);
+  --popover: hsl(160 18% 12%);
+  --popover-foreground: hsl(120 15% 96%);
+  --primary: hsl(152 40% 42%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(160 15% 16%);
+  --secondary-foreground: hsl(120 15% 96%);
+  --muted: hsl(160 15% 16%);
+  --muted-foreground: hsl(140 10% 60%);
+  --accent: hsl(160 15% 18%);
+  --accent-foreground: hsl(120 15% 96%);
+  --destructive: hsl(0 62.8% 45%);
+  --border: hsl(160 12% 20%);
+  --input: hsl(160 12% 20%);
+  --ring: hsl(152 40% 42%);
+  --sla: hsl(152 25% 18%);
+  --sla-foreground: hsl(140 45% 72%);
+  --sidebar: hsl(160 20% 10%);
+  --sidebar-foreground: hsl(120 15% 96%);
+  --sidebar-primary: hsl(152 40% 42%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(160 15% 16%);
+  --sidebar-accent-foreground: hsl(120 15% 96%);
+  --sidebar-border: hsl(160 12% 20%);
+  --sidebar-ring: hsl(152 40% 42%);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-page text-foreground antialiased;
+  }
+}
+
+@layer components {
+  .livelihood-card {
+    @apply rounded-lg border border-border bg-card shadow-sm;
+  }
+
+  .livelihood-filter-select {
+    @apply h-10 w-full appearance-none rounded-md border border-input bg-card px-3 pr-9 text-sm text-foreground;
+  }
+
+  .livelihood-radio {
+    @apply size-4 appearance-none rounded-full border-2 border-input bg-card;
+  }
+
+  .livelihood-radio:checked {
+    @apply border-primary;
+    background-image: radial-gradient(circle, hsl(152 45% 28%) 40%, transparent 45%);
+  }
+
+  .livelihood-sla-badge {
+    @apply inline-flex min-w-[2rem] items-center justify-center rounded-full bg-sla px-2.5 py-0.5 text-sm font-medium text-sla-foreground;
+  }
+
+  .livelihood-sla-badge-muted {
+    @apply inline-flex min-w-[2rem] items-center justify-center rounded-full bg-muted px-2.5 py-0.5 text-sm text-muted-foreground;
+  }
+}
