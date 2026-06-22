@@ -34,6 +34,16 @@ public class IMConstants {
 
     public static final String ROLE_LIVELIHOOD_POC = "LIVELIHOOD_POC";
 
+    public static final String POC_ACCESS_DENIED_CODE = "POC_ACCESS_DENIED";
+
+    public static final String POC_ACCESS_DENIED_MSG =
+            "Access denied: resource is outside your assigned state jurisdiction";
+
+    public static final String POC_JURISDICTION_MISSING_CODE = "POC_JURISDICTION_MISSING";
+
+    public static final String POC_JURISDICTION_MISSING_MSG =
+            "LIVELIHOOD_POC user has no active state jurisdiction configured in HRMS";
+
     public static final String ENTRY_CHANNEL_DIRECT = "DIRECT";
 
     public static final String ENTRY_CHANNEL_POC_MANUAL = "POC_MANUAL";
@@ -50,6 +60,13 @@ public class IMConstants {
     public static final String LIVELIHOOD_CATCH_ALL_MENU_PATH = "I Cannot Identify The Issue";
 
     public static final String LIVELIHOOD_ASSET_CATEGORY_DETAIL_KEY = "assetCategory";
+
+    public static final String LIVELIHOOD_RAISED_BY_POC_DETAIL_KEY = "raisedByPocUuid";
+
+    public static final String COMPLAINANT_NOT_FOUND_CODE = "COMPLAINANT_NOT_FOUND";
+
+    public static final String COMPLAINANT_NOT_FOUND_MSG =
+            "No facility manager (COMPLAINANT) found for the facility boundary";
 
     public static final String IM_BUSINESSSERVICE_HIGH = "Incident_High";
 

@@ -139,6 +139,20 @@ public class IMQueryBuilder {
             preparedStmtList.add(criteria.getBoundaryCode().toLowerCase());
         }
 
+        List<String> boundaryCodePrefixes = criteria.getBoundaryCodePrefixes();
+        if (!CollectionUtils.isEmpty(boundaryCodePrefixes)) {
+            addClauseIfRequired(preparedStmtList, builder);
+            builder.append(" (");
+            for (int i = 0; i < boundaryCodePrefixes.size(); i++) {
+                if (i > 0) {
+                    builder.append(" OR ");
+                }
+                builder.append(" LOWER(ser.boundarycode) LIKE ? ");
+                preparedStmtList.add(boundaryCodePrefixes.get(i).toLowerCase());
+            }
+            builder.append(") ");
+        }
+
         if (criteria.getBlock() != null) {
             addClauseIfRequired(preparedStmtList, builder);
             builder.append(" LOWER(ser.block) = ? ");

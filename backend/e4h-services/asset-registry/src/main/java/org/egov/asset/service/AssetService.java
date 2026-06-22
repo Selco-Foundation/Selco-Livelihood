@@ -134,6 +134,17 @@ public class AssetService {
         if (asset.getBoundaryCode() != null && !asset.getBoundaryCode().isBlank()) {
             query.append(" AND boundary_code = ?");
             params.add(asset.getBoundaryCode());
+        } else if (!CollectionUtils.isEmpty(asset.getBoundaryCodePrefixes())) {
+            query.append(" AND (");
+            List<String> prefixes = asset.getBoundaryCodePrefixes();
+            for (int i = 0; i < prefixes.size(); i++) {
+                if (i > 0) {
+                    query.append(" OR ");
+                }
+                query.append(" LOWER(boundary_code) LIKE ? ");
+                params.add(prefixes.get(i).toLowerCase(Locale.ROOT));
+            }
+            query.append(") ");
         }
 
         if (asset.getActivityFacilityID() != null && !asset.getActivityFacilityID().isBlank()) {
@@ -212,6 +223,17 @@ public class AssetService {
         if (asset.getBoundaryCode() != null && !asset.getBoundaryCode().isBlank()) {
             query.append(" AND boundary_code = ?");
             params.add(asset.getBoundaryCode());
+        } else if (!CollectionUtils.isEmpty(asset.getBoundaryCodePrefixes())) {
+            query.append(" AND (");
+            List<String> prefixes = asset.getBoundaryCodePrefixes();
+            for (int i = 0; i < prefixes.size(); i++) {
+                if (i > 0) {
+                    query.append(" OR ");
+                }
+                query.append(" LOWER(boundary_code) LIKE ? ");
+                params.add(prefixes.get(i).toLowerCase(Locale.ROOT));
+            }
+            query.append(") ");
         }
 
         if (asset.getActivityFacilityID() != null && !asset.getActivityFacilityID().isBlank()) {

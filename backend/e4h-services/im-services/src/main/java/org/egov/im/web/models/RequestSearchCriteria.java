@@ -10,6 +10,7 @@ import org.hibernate.validator.constraints.SafeHtml;
 
 import jakarta.validation.constraints.NotNull;
 import java.util.Set;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -43,6 +44,13 @@ public class RequestSearchCriteria {
     @SafeHtml
     @JsonProperty("boundaryCode")
     private String boundaryCode;
+
+    @SafeHtml
+    @JsonProperty("facilityState")
+    private String facilityState;
+
+    @JsonIgnore
+    private List<String> boundaryCodePrefixes;
 
     @SafeHtml
     @JsonProperty("systemFunctional")

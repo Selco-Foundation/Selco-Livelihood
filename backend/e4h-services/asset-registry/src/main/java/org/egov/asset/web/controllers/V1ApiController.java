@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.egov.asset.service.AssetService;
+import org.egov.asset.util.LivelihoodPocScopeService;
 import org.egov.asset.web.models.*;
 import org.egov.asset.web.validator.AssetValidator;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,12 +35,16 @@ public class V1ApiController {
 
     private final AssetService assetService;
 
+    private final LivelihoodPocScopeService livelihoodPocScopeService;
+
     @Autowired
-    public V1ApiController(ObjectMapper objectMapper, HttpServletRequest request, AssetValidator validator, AssetService assetService) {
+    public V1ApiController(ObjectMapper objectMapper, HttpServletRequest request, AssetValidator validator,
+                           AssetService assetService, LivelihoodPocScopeService livelihoodPocScopeService) {
         this.objectMapper = objectMapper;
         this.request = request;
         this.validator = validator;
         this.assetService = assetService;
+        this.livelihoodPocScopeService = livelihoodPocScopeService;
     }
 
     @RequestMapping(value = "/v1/asset/bulk/_create", method = RequestMethod.POST)
@@ -154,6 +159,7 @@ public class V1ApiController {
                 .vendorId(criteria.getVendorId())
                 .itemCode(criteria.getItemCode())
                 .build();
+        livelihoodPocScopeService.applyAssetSearchScope(searchRequest, asset);
         List<Asset> searchResponse = assetService.fetchAssetsWithDocuments(asset,limit, offset);
         Integer count = assetService.getAssetsCount(asset);
         return new ResponseEntity<>(searchResponse, HttpStatus.OK);

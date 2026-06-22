@@ -7,6 +7,7 @@ import org.egov.common.contract.request.RequestInfo;
 import org.egov.im.config.IMConfiguration;
 import org.egov.im.repository.IMRepository;
 import org.egov.im.util.HRMSUtil;
+import org.egov.im.util.LivelihoodPocScopeService;
 import org.egov.im.util.LivelihoodTenantUtil;
 import org.egov.im.web.models.*;
 import org.egov.tracer.model.CustomException;
@@ -31,13 +32,17 @@ public class ServiceRequestValidator {
 
     private LivelihoodTenantUtil livelihoodTenantUtil;
 
+    private LivelihoodPocScopeService livelihoodPocScopeService;
+
     @Autowired
     public ServiceRequestValidator(IMConfiguration config, IMRepository repository, HRMSUtil hrmsUtil,
-                                   LivelihoodTenantUtil livelihoodTenantUtil) {
+                                   LivelihoodTenantUtil livelihoodTenantUtil,
+                                   LivelihoodPocScopeService livelihoodPocScopeService) {
         this.config = config;
         this.repository = repository;
         this.hrmsUtil = hrmsUtil;
         this.livelihoodTenantUtil = livelihoodTenantUtil;
+        this.livelihoodPocScopeService = livelihoodPocScopeService;
     }
 
 
@@ -108,6 +113,14 @@ public class ServiceRequestValidator {
         Incident existingIncident = incidentWrappers.get(0).getIncident();
         if (request.getIncident().getWarrantyStatus() == null && existingIncident != null) {
             request.getIncident().setWarrantyStatus(existingIncident.getWarrantyStatus());
+        }
+
+        if (livelihoodTenantUtil.isLivelihood(tenantId)) {
+            livelihoodPocScopeService.assertBoundaryInScope(
+                    request.getRequestInfo(),
+                    tenantId,
+                    existingIncident != null ? existingIncident.getBoundaryCode() : null
+            );
         }
 
     }
@@ -301,6 +314,9 @@ public class ServiceRequestValidator {
 
         if(criteria.getPhcType()!=null && !allowedParams.contains("phcType"))
             throw new CustomException("INVALID SEARCH","Search on PHCType is not allowed");
+
+        if(criteria.getFacilityState()!=null && !allowedParams.contains("facilityState"))
+            throw new CustomException("INVALID SEARCH","Search on facilityState is not allowed");
 
         if(criteria.getIds()!=null && !allowedParams.contains("ids"))
             throw new CustomException("INVALID SEARCH","Search on ids is not allowed");

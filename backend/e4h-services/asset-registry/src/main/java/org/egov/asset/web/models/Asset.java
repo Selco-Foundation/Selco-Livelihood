@@ -105,4 +105,7 @@ public class Asset {
 
     @JsonProperty("assetTypeSearch")
     private List<String> assetTypeSearch = null; // Used as asset search criteria
+
+    @JsonProperty("boundaryCodePrefixes")
+    private List<String> boundaryCodePrefixes = null; // POC state scope search filter
 }

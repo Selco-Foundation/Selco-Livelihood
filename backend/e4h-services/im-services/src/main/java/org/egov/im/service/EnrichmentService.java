@@ -8,6 +8,7 @@ import org.egov.im.repository.IdGenRepository;
 import org.egov.im.repository.ServiceRequestRepository;
 import org.egov.im.util.HRMSUtil;
 import org.egov.im.util.IMUtils;
+import org.egov.im.util.LivelihoodPocScopeService;
 import org.egov.im.util.MDMSUtils;
 import org.egov.im.web.models.AuditDetails;
 import org.egov.im.web.models.Boundary;
@@ -70,12 +71,15 @@ public class EnrichmentService {
 
     private RestTemplate restTemplate;
 
+    private LivelihoodPocScopeService livelihoodPocScopeService;
+
     @Autowired
     public EnrichmentService(
             IMUtils utils, HRMSUtil hrmsUtil, MDMSUtils mdmsUtils, IdGenRepository idGenRepository,
             IMConfiguration config, UserService userService, LocalizationService localizationService,
             NotificationService notificationService, @Lazy WorkflowService workflowService,
-            SLAService slaService, RestTemplate restTemplate) {
+            SLAService slaService, RestTemplate restTemplate,
+            LivelihoodPocScopeService livelihoodPocScopeService) {
         this.utils = utils;
         this.hrmsUtil = hrmsUtil;
         this.mdmsUtils = mdmsUtils;
@@ -87,6 +91,7 @@ public class EnrichmentService {
         this.workflowService = workflowService;
         this.slaService = slaService;
         this.restTemplate = restTemplate;
+        this.livelihoodPocScopeService = livelihoodPocScopeService;
     }
 
 
@@ -270,6 +275,8 @@ public class EnrichmentService {
 
         if (criteria.getLimit() != null && criteria.getLimit() > config.getMaxLimit())
             criteria.setLimit(config.getMaxLimit());
+
+        livelihoodPocScopeService.applySearchScope(requestInfo, criteria);
 
     }
 

@@ -14,13 +14,15 @@ import org.egov.im.web.models.Incident;
 import org.egov.im.web.models.IncidentRequest;
 import org.egov.im.web.models.Notification.SMSRequest;
 import org.egov.im.web.models.RequestInfoWrapper;
-
-import java.util.*;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 
 import static org.egov.im.util.IMConstants.*;
 
@@ -61,7 +63,11 @@ public class LivelihoodNotificationService {
         }
 
         notifyVendor(request);
-        notifyPoc(request);
+        if (Boolean.TRUE.equals(incident.getCreatedOnBehalf())) {
+            notifyComplainantOnBehalf(request);
+        } else {
+            notifyPoc(request);
+        }
     }
 
     private void notifyVendor(IncidentRequest request) {
@@ -93,6 +99,54 @@ public class LivelihoodNotificationService {
         }
     }
 
+    private void notifyComplainantOnBehalf(IncidentRequest request) {
+        if (config.getIsSMSEnabled() == null || !config.getIsSMSEnabled()) {
+            return;
+        }
+
+        try {
+            String mobile = resolveComplainantMobile(request);
+            if (StringUtils.isBlank(mobile)) {
+                log.warn("Complainant mobile not found for on-behalf incidentId={}",
+                        request.getIncident().getIncidentId());
+                return;
+            }
+
+            String message = buildComplainantOnBehalfSmsMessage(request);
+            notificationUtil.sendSMS(
+                    request.getIncident().getTenantId(),
+                    Collections.singletonList(SMSRequest.builder().mobileNumber(mobile).message(message).build())
+            );
+        } catch (Exception e) {
+            log.error("Failed to send on-behalf complainant SMS for incidentId={}",
+                    request.getIncident().getIncidentId(), e);
+        }
+    }
+
+    private String resolveComplainantMobile(IncidentRequest request) {
+        org.egov.im.web.models.User reporter = request.getIncident().getReporter();
+        if (reporter != null && StringUtils.isNotBlank(reporter.getMobileNumber())) {
+            return reporter.getMobileNumber();
+        }
+        if (reporter != null && StringUtils.isNotBlank(reporter.getUuid())) {
+            String mobile = fetchUserMobile(
+                    reporter.getUuid(),
+                    request.getRequestInfo(),
+                    request.getIncident().getTenantId()
+            );
+            if (StringUtils.isNotBlank(mobile)) {
+                return mobile;
+            }
+        }
+
+        Map<String, String> complainant = hrmsUtil.findComplainantAtBoundary(
+                request.getRequestInfo(),
+                request.getIncident().getTenantId(),
+                request.getIncident().getBoundaryCode()
+        );
+        return complainant.get("mobile");
+    }
+
     private void notifyPoc(IncidentRequest request) {
         try {
             String boundaryCode = request.getIncident().getBoundaryCode();
@@ -114,12 +168,22 @@ public class LivelihoodNotificationService {
     private String buildVendorSmsMessage(IncidentRequest request) {
         Incident incident = request.getIncident();
         return String.format(
-                "New ticket %s assigned to you for asset %s at facility %s. Issue: %s - %s",
+                "New ticket %s assigned to you for asset %s at facility %s. Issue: %s",
                 incident.getIncidentId(),
                 incident.getAssetId(),
                 incident.getFacilityId(),
-                incident.getIncidentType(),
-                incident.getIncidentSubType()
+                incident.getIncidentType()
+        );
+    }
+
+    private String buildComplainantOnBehalfSmsMessage(IncidentRequest request) {
+        Incident incident = request.getIncident();
+        return String.format(
+                "A support ticket %s has been raised on your behalf for facility %s. Issue: %s. "
+                        + "A vendor has been assigned to resolve it.",
+                incident.getIncidentId(),
+                incident.getFacilityId(),
+                incident.getIncidentType()
         );
     }
 
@@ -130,14 +194,13 @@ public class LivelihoodNotificationService {
                         + "Ticket ID: %s%n"
                         + "Facility: %s%n"
                         + "Asset: %s%n"
-                        + "Issue: %s / %s%n"
+                        + "Issue: %s%n"
                         + "Status: %s%n"
                         + "Entry channel: %s%n",
                 incident.getIncidentId(),
                 incident.getFacilityId(),
                 incident.getAssetId(),
                 incident.getIncidentType(),
-                incident.getIncidentSubType(),
                 incident.getApplicationStatus(),
                 incident.getEntryChannel()
         );

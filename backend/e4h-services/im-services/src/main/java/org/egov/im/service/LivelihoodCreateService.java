@@ -1,17 +1,21 @@
 package org.egov.im.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.common.contract.request.Role;
 import org.egov.im.util.AssetRegistryUtil;
+import org.egov.im.util.HRMSUtil;
 import org.egov.im.util.LivelihoodIssueTypeUtil;
+import org.egov.im.util.LivelihoodPocScopeService;
 import org.egov.im.util.LivelihoodTenantUtil;
 import org.egov.im.util.VendorRegistryUtil;
 import org.egov.im.web.models.Document;
 import org.egov.im.web.models.Incident;
 import org.egov.im.web.models.IncidentRequest;
+import org.egov.im.web.models.User;
 import org.egov.im.web.models.Workflow;
 import org.egov.im.web.models.asset.Asset;
 import org.egov.tracer.model.CustomException;
@@ -19,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -37,6 +42,9 @@ public class LivelihoodCreateService {
     private final LivelihoodTenantUtil livelihoodTenantUtil;
     private final VendorRegistryUtil vendorRegistryUtil;
     private final LivelihoodIssueTypeUtil livelihoodIssueTypeUtil;
+    private final LivelihoodPocScopeService livelihoodPocScopeService;
+    private final HRMSUtil hrmsUtil;
+    private final ObjectMapper objectMapper;
 
     public void prepareCreate(IncidentRequest request, Object mdmsData) {
         if (!livelihoodTenantUtil.isLivelihood(request.getIncident().getTenantId())) {
@@ -78,6 +86,12 @@ public class LivelihoodCreateService {
         if (StringUtils.isBlank(incident.getBoundaryCode()) && StringUtils.isNotBlank(asset.getBoundaryCode())) {
             incident.setBoundaryCode(asset.getBoundaryCode());
         }
+
+        livelihoodPocScopeService.assertBoundaryInScope(
+                request.getRequestInfo(),
+                incident.getTenantId(),
+                incident.getBoundaryCode()
+        );
 
         String vendorUserUuid = resolveVendorUserUuid(asset, request.getRequestInfo(), incident.getTenantId());
         workflow.setAssignes(List.of(vendorUserUuid));
@@ -159,22 +173,74 @@ public class LivelihoodCreateService {
     private void enrichEntryMetadata(IncidentRequest request) {
         Incident incident = request.getIncident();
         RequestInfo requestInfo = request.getRequestInfo();
+        boolean pocUser = isPocUser(requestInfo);
 
         if (incident.getEntryChannel() == null || incident.getEntryChannel().isBlank()) {
-            if (isPocUser(requestInfo)) {
-                incident.setEntryChannel(ENTRY_CHANNEL_POC_MANUAL);
-            } else {
-                incident.setEntryChannel(ENTRY_CHANNEL_DIRECT);
-            }
+            incident.setEntryChannel(pocUser ? ENTRY_CHANNEL_POC_MANUAL : ENTRY_CHANNEL_DIRECT);
         }
 
         if (incident.getCreatedOnBehalf() == null) {
-            incident.setCreatedOnBehalf(isPocUser(requestInfo));
+            incident.setCreatedOnBehalf(pocUser);
+        }
+
+        if (pocUser || Boolean.TRUE.equals(incident.getCreatedOnBehalf())) {
+            enrichOnBehalfComplainant(request);
+            return;
         }
 
         if (StringUtils.isEmpty(incident.getReporterType())) {
-            incident.setReporterType(isPocUser(requestInfo) ? ROLE_LIVELIHOOD_POC : ROLE_COMPLAINANT);
+            incident.setReporterType(ROLE_COMPLAINANT);
         }
+    }
+
+    private void enrichOnBehalfComplainant(IncidentRequest request) {
+        Incident incident = request.getIncident();
+        RequestInfo requestInfo = request.getRequestInfo();
+
+        incident.setCreatedOnBehalf(true);
+        incident.setReporterType(ROLE_COMPLAINANT);
+
+        if (requestInfo != null && requestInfo.getUserInfo() != null
+                && StringUtils.isNotBlank(requestInfo.getUserInfo().getUuid())) {
+            storeRaisedByPoc(incident, requestInfo.getUserInfo().getUuid());
+        }
+
+        User reporter = incident.getReporter();
+        if (reporter == null || StringUtils.isBlank(reporter.getUuid())) {
+            Map<String, String> complainant = hrmsUtil.findComplainantAtBoundary(
+                    requestInfo,
+                    incident.getTenantId(),
+                    incident.getBoundaryCode()
+            );
+            incident.setReporter(User.builder()
+                    .uuid(complainant.get("uuid"))
+                    .tenantId(StringUtils.defaultIfBlank(complainant.get("tenantId"), incident.getTenantId()))
+                    .name(complainant.get("name"))
+                    .mobileNumber(complainant.get("mobile"))
+                    .build());
+            return;
+        }
+
+        if (StringUtils.isBlank(reporter.getTenantId())) {
+            reporter.setTenantId(incident.getTenantId());
+        }
+    }
+
+    private void storeRaisedByPoc(Incident incident, String pocUuid) {
+        Map<String, Object> details = toMutableMap(incident.getAdditionalDetail());
+        details.put(LIVELIHOOD_RAISED_BY_POC_DETAIL_KEY, pocUuid);
+        incident.setAdditionalDetail(details);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> toMutableMap(Object additionalDetail) {
+        if (additionalDetail == null) {
+            return new HashMap<>();
+        }
+        if (additionalDetail instanceof Map<?, ?> map) {
+            return new HashMap<>((Map<String, Object>) map);
+        }
+        return objectMapper.convertValue(additionalDetail, Map.class);
     }
 
     private boolean isPocUser(RequestInfo requestInfo) {
