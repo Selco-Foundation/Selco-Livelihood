@@ -28,10 +28,21 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+function isInvalidAccessTokenError(error: unknown): boolean {
+  const errors = (error as { response?: { data?: { Errors?: Array<{ message?: string }> } } })
+    ?.response?.data?.Errors;
+
+  if (!Array.isArray(errors)) {
+    return false;
+  }
+
+  return errors.some((apiError) => apiError.message?.includes("InvalidAccessTokenException"));
+}
+
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (isInvalidAccessTokenError(error)) {
       useAuthStore.getState().clearSession();
       useJurisdictionStore.getState().clearJurisdiction();
 
