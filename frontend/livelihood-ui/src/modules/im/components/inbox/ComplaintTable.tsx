@@ -87,9 +87,6 @@ export function ComplaintTable({
                   {t(`SERVICEDEFS.${row.incidentType.toUpperCase()}`)}
                 </td>
                 <td className="px-5 py-4 text-foreground">
-                  {t(`SERVICEDEFS.${row.incidentSubType.toUpperCase()}`)}
-                </td>
-                <td className="px-5 py-4 text-foreground">
                   {t(`CS_COMMON_${row.status}`)}
                 </td>
                 <td className="px-5 py-4 text-foreground">{t(row.facility)}</td>
