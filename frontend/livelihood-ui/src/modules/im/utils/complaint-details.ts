@@ -21,10 +21,6 @@ export function buildComplaintDetailRows(
       value: `SERVICEDEFS.${incident.incidentType.toUpperCase()}`,
     },
     {
-      labelKey: "CS_ADDCOMPLAINT_TICKET_SUB_TYPE",
-      value: `SERVICEDEFS.${incident.incidentSubType.toUpperCase()}`,
-    },
-    {
       labelKey: "CS_ADDCOMPLAINT_SYSTEM_FUNCTIONAL",
       value: incident.systemFunctional ?? "-",
     },
