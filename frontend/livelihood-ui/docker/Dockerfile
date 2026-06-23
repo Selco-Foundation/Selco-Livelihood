@@ -7,6 +7,8 @@ WORKDIR /app
 
 COPY ${WORK_DIR} .
 
+ENV VITE_CONTEXT_PATH=livelihood-ui
+
 RUN pnpm install --frozen-lockfile \
   && pnpm build
 
