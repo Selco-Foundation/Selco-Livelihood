@@ -6,16 +6,14 @@ import type {
   SelectOption,
   VerificationDocument,
 } from "../types/create-incident";
+import type { LivelihoodAsset, LivelihoodFacility } from "../types/facility-asset";
 import { searchInbox } from "./inbox";
 
 export interface CreateIncidentInput {
   tenantId: string;
-  district: SelectOption;
-  block: SelectOption;
-  facility: SelectOption;
+  endUser: LivelihoodFacility;
+  asset: LivelihoodAsset;
   complaintType: SelectOption;
-  subType: SelectOption;
-  systemFunctionality: SelectOption;
   comments?: string;
   uploadedDocuments: VerificationDocument[];
   user: AuthUser;
@@ -39,17 +37,6 @@ const DUPLICATE_STATUSES = [
   "PENDING_RESOLUTION_OUT_OF_WARRANTY",
 ].join(",");
 
-function getWorkflowAction(complaintTypeKey: string): string {
-  const normalized = complaintTypeKey.trim().toUpperCase();
-  if (normalized === "THEFT") {
-    return "APPLY_THEFT";
-  }
-  if (normalized === "RMS DEVICE") {
-    return "APPLY_RMS_DEVICE";
-  }
-  return "APPLY";
-}
-
 export function buildVerificationDocuments(
   uploadedDocuments: VerificationDocument[],
 ): VerificationDocument[] {
@@ -64,17 +51,18 @@ export function buildVerificationDocuments(
 }
 
 export function buildCreateIncidentPayload(input: CreateIncidentInput) {
-  const workflowAction = getWorkflowAction(input.complaintType.key ?? input.complaintType.code);
+  const incidentType =
+    input.complaintType.serviceCode ??
+    input.complaintType.key ??
+    input.complaintType.code;
 
   return {
     incident: {
       tenantId: input.tenantId,
-      district: input.district.name,
-      block: input.block.name,
-      incidentType: input.complaintType.key ?? input.complaintType.code,
-      incidentSubtype: input.subType.key ?? input.subType.code,
-      systemFunctional: input.systemFunctionality.key ?? input.systemFunctionality.code,
-      boundaryCode: input.facility.code,
+      facilityId: input.endUser.facilityId,
+      assetId: input.asset.assetId,
+      incidentType,
+      boundaryCode: input.endUser.boundaryCode,
       comments: input.comments ?? "",
       additionalDetail: {
         fileStoreId: input.uploadedDocuments,
@@ -85,11 +73,12 @@ export function buildCreateIncidentPayload(input: CreateIncidentInput) {
       source: "web",
       reporter: {
         uuid: input.user.uuid,
-        tenantId: input.user.tenantId,
+        userName: input.user.userName,
+        tenantId: input.user.tenantId ?? input.tenantId,
       },
     },
     workflow: {
-      action: workflowAction,
+      action: "CREATE",
       verificationDocuments: buildVerificationDocuments(input.uploadedDocuments),
     },
   };
@@ -123,9 +112,8 @@ export async function createIncident(
 export async function searchPotentialDuplicates(
   tenantId: string,
   jurisdiction: JurisdictionBoundaries,
-  facilityCode: string,
+  facilityId: string,
   incidentType: string,
-  incidentSubType: string,
   accessToken: string,
   user: AuthUser | null | undefined,
 ) {
@@ -137,9 +125,8 @@ export async function searchPotentialDuplicates(
       offset: 0,
       services: ["Incident"],
       sortOrder: "DESC",
-      facility: facilityCode,
+      facility: facilityId,
       incidentType,
-      incidentSubType,
       applicationStatus: DUPLICATE_STATUSES,
     },
     accessToken,

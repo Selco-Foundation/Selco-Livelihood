@@ -81,6 +81,8 @@ export interface InboxDataResult {
 export interface ComplaintTypeOption {
   key: string;
   name: string;
+  menuPath?: string;
+  serviceCode?: string;
 }
 
 export interface SystemFunctionalityOption {
