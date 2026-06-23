@@ -63,7 +63,7 @@ export function combineInboxResponses(
       incidentSubType: incident.incidentSubType,
       phcType: incident.phcType,
       facility: incident.boundary?.facilityCode
-        ? `Boundary_${incident.boundary.facilityCode}`
+        ? `BOUNDARY_${incident.boundary.facilityCode}`
         : "-",
       status: incident.applicationStatus,
       taskOwner: assignee?.name || "-",

@@ -28,7 +28,7 @@ export function buildComplaintDetailRows(
     { labelKey: "CS_ADDCOMPLAINT_BLOCK", value: incident.block ?? "-" },
     {
       labelKey: "CS_ADDCOMPLAINT_HEALTH_CARE_CENTRE",
-      value: incident.boundaryCode ? `Boundary_${incident.boundaryCode}` : "-",
+      value: incident.boundaryCode ? `BOUNDARY_${incident.boundaryCode}` : "-",
     },
     { labelKey: "CS_COMPLAINT_COMMENTS", value: incident.comments ?? "-" },
     {

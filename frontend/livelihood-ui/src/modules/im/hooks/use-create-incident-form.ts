@@ -91,7 +91,7 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
     return (boundaryData?.districts ?? [])
       .map((district) => ({
         code: district.code,
-        name: t(`Boundary_${district.code}`),
+        name: t(`BOUNDARY_${district.code}`),
         parentCode: district.parentCode,
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -105,7 +105,7 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
       .filter((block) => block.parentCode === form.district?.code)
       .map((block) => ({
         code: block.code,
-        name: t(`Boundary_${block.code}`),
+        name: t(`BOUNDARY_${block.code}`),
         parentCode: block.parentCode,
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -125,7 +125,7 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
       .filter((facility) => parentMap.get(facility.boundaryCode) === form.block?.code)
       .map((facility) => ({
         code: facility.boundaryCode,
-        name: t(`Boundary_${facility.boundaryCode}`),
+        name: t(`BOUNDARY_${facility.boundaryCode}`),
         id: facility.facilityId,
         status: facility.facilityStatus,
         parentCode: parentMap.get(facility.boundaryCode),
