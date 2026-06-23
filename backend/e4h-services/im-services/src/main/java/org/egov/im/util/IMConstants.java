@@ -30,6 +30,28 @@ public class IMConstants {
 
     public static final String LIVELIHOOD_OUT_OF_WARRANTY_PENDING_VENDOR = "OUT_OF_WARRANTY_PENDING_VENDOR";
 
+    public static final String LIVELIHOOD_RESOLVED = "RESOLVED";
+
+    public static final String LIVELIHOOD_CLOSED_AFTER_RESOLUTION = "CLOSED_AFTER_RESOLUTION";
+
+    public static final String LIVELIHOOD_CLOSED_AFTER_DECLINE = "CLOSED_AFTER_DECLINE";
+
+    public static final String LIVELIHOOD_WF_OUT_OF_SCOPE = "OUT_OF_SCOPE";
+
+    public static final String LIVELIHOOD_WF_OUT_OF_WARRANTY = "OUT_OF_WARRANTY";
+
+    public static final String LIVELIHOOD_WF_DECLINE = "DECLINE";
+
+    public static final String LIVELIHOOD_WF_AUTO_CLOSE = "AUTO_CLOSE";
+
+    public static final String VENDOR_ACCESS_DENIED_CODE = "VENDOR_ACCESS_DENIED";
+
+    public static final String VENDOR_ACCESS_DENIED_MSG = "Access denied: ticket is not assigned to you";
+
+    public static final String LIVELIHOOD_OOW_QUOTATION_DETAIL_KEY = "oowQuotation";
+
+    public static final String LIVELIHOOD_OOW_ENTERED_AT_DETAIL_KEY = "oowEnteredAt";
+
     public static final String ROLE_LIVELIHOOD_VENDOR = "LIVELIHOOD_VENDOR";
 
     public static final String ROLE_LIVELIHOOD_POC = "LIVELIHOOD_POC";

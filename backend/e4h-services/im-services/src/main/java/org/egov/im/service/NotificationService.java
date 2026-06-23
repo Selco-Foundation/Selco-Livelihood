@@ -11,6 +11,7 @@ import org.egov.common.utils.MultiStateInstanceUtil;
 import org.egov.im.config.IMConfiguration;
 import org.egov.im.repository.ServiceRequestRepository;
 import org.egov.im.util.HRMSUtil;
+import org.egov.im.util.LivelihoodTenantUtil;
 import org.egov.im.util.MDMSUtils;
 import org.egov.im.util.NotificationUtil;
 import org.egov.im.web.models.Notification.*;
@@ -51,6 +52,8 @@ public class NotificationService {
 
     private WorkflowSmsNotificationService workflowSmsNotificationService;
 
+    private LivelihoodTenantUtil livelihoodTenantUtil;
+
     @Autowired
     public NotificationService(IMConfiguration config,
                                NotificationUtil notificationUtil,
@@ -60,7 +63,8 @@ public class NotificationService {
                                ObjectMapper mapper,
                                MultiStateInstanceUtil centralInstanceUtil,
                                @Lazy WorkflowService workflowService,
-                               @Lazy WorkflowSmsNotificationService workflowSmsNotificationService) {
+                               @Lazy WorkflowSmsNotificationService workflowSmsNotificationService,
+                               LivelihoodTenantUtil livelihoodTenantUtil) {
         this.config = config;
         this.notificationUtil = notificationUtil;
         this.serviceRequestRepository = serviceRequestRepository;
@@ -70,10 +74,16 @@ public class NotificationService {
         this.centralInstanceUtil = centralInstanceUtil;
         this.workflowService = workflowService;
         this.workflowSmsNotificationService = workflowSmsNotificationService;
+        this.livelihoodTenantUtil = livelihoodTenantUtil;
     }
 
     public void process(IncidentRequest request, String topic) {
         try {
+            if (request != null && request.getIncident() != null
+                    && livelihoodTenantUtil.isLivelihood(request.getIncident().getTenantId())) {
+                log.debug("Skipping E4H notification pipeline for livelihood tenant");
+                return;
+            }
             log.info("request for notification :" + request);
             workflowSmsNotificationService.process(request);
             String tenantId = request.getIncident().getTenantId();

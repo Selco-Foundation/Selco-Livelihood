@@ -6,11 +6,12 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.apache.commons.lang.StringUtils;
 import org.hibernate.validator.constraints.SafeHtml;
 
 import jakarta.validation.constraints.NotNull;
-import java.util.Set;
 import java.util.List;
+import java.util.Set;
 
 @Data
 @NoArgsConstructor
@@ -115,6 +116,9 @@ public class RequestSearchCriteria {
     @JsonIgnore
     private Boolean isPlainSearch;
 
+    @JsonIgnore
+    private String assigneeUserId;
+
 
     public enum SortOrder {
         ASC,
@@ -132,6 +136,9 @@ public class RequestSearchCriteria {
     private String accountId;
 
     public boolean isEmpty(){
+        if (StringUtils.isNotBlank(assigneeUserId)) {
+            return false;
+        }
         return (this.tenantId==null && this.serviceCode==null && this.mobileNumber==null && this.incidentId==null
         && this.applicationStatus==null && this.ids==null && this.userIds==null && this.locality==null);
     }

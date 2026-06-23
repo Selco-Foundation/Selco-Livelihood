@@ -9,6 +9,9 @@ import org.egov.im.repository.IMRepository;
 import org.egov.im.util.HRMSUtil;
 import org.egov.im.util.LivelihoodPocScopeService;
 import org.egov.im.util.LivelihoodTenantUtil;
+import org.egov.im.util.LivelihoodVendorScopeService;
+import org.egov.im.service.LivelihoodUpdateService;
+import org.egov.im.service.WorkflowService;
 import org.egov.im.web.models.*;
 import org.egov.tracer.model.CustomException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,15 +37,27 @@ public class ServiceRequestValidator {
 
     private LivelihoodPocScopeService livelihoodPocScopeService;
 
+    private LivelihoodVendorScopeService livelihoodVendorScopeService;
+
+    private LivelihoodUpdateService livelihoodUpdateService;
+
+    private WorkflowService workflowService;
+
     @Autowired
     public ServiceRequestValidator(IMConfiguration config, IMRepository repository, HRMSUtil hrmsUtil,
                                    LivelihoodTenantUtil livelihoodTenantUtil,
-                                   LivelihoodPocScopeService livelihoodPocScopeService) {
+                                   LivelihoodPocScopeService livelihoodPocScopeService,
+                                   LivelihoodVendorScopeService livelihoodVendorScopeService,
+                                   LivelihoodUpdateService livelihoodUpdateService,
+                                   WorkflowService workflowService) {
         this.config = config;
         this.repository = repository;
         this.hrmsUtil = hrmsUtil;
         this.livelihoodTenantUtil = livelihoodTenantUtil;
         this.livelihoodPocScopeService = livelihoodPocScopeService;
+        this.livelihoodVendorScopeService = livelihoodVendorScopeService;
+        this.livelihoodUpdateService = livelihoodUpdateService;
+        this.workflowService = workflowService;
     }
 
 
@@ -121,6 +136,12 @@ public class ServiceRequestValidator {
                     tenantId,
                     existingIncident != null ? existingIncident.getBoundaryCode() : null
             );
+            List<String> currentAssignees = workflowService.getCurrentAssigneeUuids(
+                    tenantId,
+                    existingIncident.getIncidentId(),
+                    request.getRequestInfo()
+            );
+            livelihoodUpdateService.validateUpdate(request, existingIncident, currentAssignees);
         }
 
     }
@@ -285,8 +306,11 @@ public class ServiceRequestValidator {
      */
     private void validateSearchParam(RequestInfo requestInfo, RequestSearchCriteria criteria){
         log.info("serviceRequestValidator::Validating incident search param");
-        if(requestInfo.getUserInfo().getType().equalsIgnoreCase("EMPLOYEE" ) && criteria.isEmpty())
-            throw new CustomException("INVALID_SEARCH","Search without params is not allowed");
+        if(requestInfo.getUserInfo().getType().equalsIgnoreCase("EMPLOYEE" ) && criteria.isEmpty()) {
+            if (!livelihoodVendorScopeService.allowsVendorSearchWithoutExtraParams(requestInfo, criteria)) {
+                throw new CustomException("INVALID_SEARCH", "Search without params is not allowed");
+            }
+        }
 
 //        if(requestInfo.getUserInfo().getType().equalsIgnoreCase("EMPLOYEE") && criteria.getTenantId().split("\\.").length == config.getStateLevelTenantIdLength()){
 //            throw new CustomException("INVALID_SEARCH", "Employees cannot perform state level searches.");
@@ -320,6 +344,9 @@ public class ServiceRequestValidator {
 
         if(criteria.getIds()!=null && !allowedParams.contains("ids"))
             throw new CustomException("INVALID SEARCH","Search on ids is not allowed");
+
+        if(criteria.getDistrict()!=null && !allowedParams.contains("district"))
+            throw new CustomException("INVALID SEARCH","Search on district is not allowed");
 
     }
 

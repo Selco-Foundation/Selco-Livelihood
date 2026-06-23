@@ -9,6 +9,9 @@ import org.egov.im.repository.ServiceRequestRepository;
 import org.egov.im.util.HRMSUtil;
 import org.egov.im.util.IMUtils;
 import org.egov.im.util.LivelihoodPocScopeService;
+import org.egov.im.util.LivelihoodTenantUtil;
+import org.egov.im.util.LivelihoodVendorScopeService;
+import org.egov.im.util.AssetRegistryUtil;
 import org.egov.im.util.MDMSUtils;
 import org.egov.im.web.models.AuditDetails;
 import org.egov.im.web.models.Boundary;
@@ -73,13 +76,22 @@ public class EnrichmentService {
 
     private LivelihoodPocScopeService livelihoodPocScopeService;
 
+    private LivelihoodVendorScopeService livelihoodVendorScopeService;
+
+    private LivelihoodTenantUtil livelihoodTenantUtil;
+
+    private AssetRegistryUtil assetRegistryUtil;
+
     @Autowired
     public EnrichmentService(
             IMUtils utils, HRMSUtil hrmsUtil, MDMSUtils mdmsUtils, IdGenRepository idGenRepository,
             IMConfiguration config, UserService userService, LocalizationService localizationService,
             NotificationService notificationService, @Lazy WorkflowService workflowService,
             SLAService slaService, RestTemplate restTemplate,
-            LivelihoodPocScopeService livelihoodPocScopeService) {
+            LivelihoodPocScopeService livelihoodPocScopeService,
+            LivelihoodVendorScopeService livelihoodVendorScopeService,
+            LivelihoodTenantUtil livelihoodTenantUtil,
+            AssetRegistryUtil assetRegistryUtil) {
         this.utils = utils;
         this.hrmsUtil = hrmsUtil;
         this.mdmsUtils = mdmsUtils;
@@ -92,6 +104,9 @@ public class EnrichmentService {
         this.slaService = slaService;
         this.restTemplate = restTemplate;
         this.livelihoodPocScopeService = livelihoodPocScopeService;
+        this.livelihoodVendorScopeService = livelihoodVendorScopeService;
+        this.livelihoodTenantUtil = livelihoodTenantUtil;
+        this.assetRegistryUtil = assetRegistryUtil;
     }
 
 
@@ -277,6 +292,7 @@ public class EnrichmentService {
             criteria.setLimit(config.getMaxLimit());
 
         livelihoodPocScopeService.applySearchScope(requestInfo, criteria);
+        livelihoodVendorScopeService.applySearchScope(requestInfo, criteria);
 
     }
 
@@ -340,8 +356,81 @@ public class EnrichmentService {
             indexView.setBoundary(boundary);
         }
 
+        if (livelihoodTenantUtil.isLivelihood(incidentRequest.getIncident().getTenantId())) {
+            enrichLivelihoodIndexView(wrapper, indexView);
+        }
+
         // Enrich localized fields first (will populate IndexView inside the wrapper)
         localizationService.enrichLocalizedFieldsForIndexing(wrapper);
+    }
+
+    private void enrichLivelihoodIndexView(IncidentRequestWrapper wrapper, IndexView indexView) {
+        IncidentRequest incidentRequest = wrapper.getIncidentRequest();
+        Incident incident = incidentRequest.getIncident();
+
+        User reporter = incident.getReporter();
+        if (reporter != null) {
+            if (StringUtils.isNotBlank(reporter.getName())) {
+                indexView.setEndUserName(reporter.getName());
+            }
+            if (StringUtils.isNotBlank(reporter.getMobileNumber())) {
+                indexView.setEndUserMobile(reporter.getMobileNumber());
+            }
+        }
+
+        if (StringUtils.isNotBlank(incident.getAssetId())) {
+            try {
+                org.egov.im.web.models.asset.Asset asset = assetRegistryUtil.fetchAsset(
+                        incidentRequest.getRequestInfo(),
+                        incident.getTenantId(),
+                        incident.getAssetId(),
+                        incident.getFacilityId()
+                );
+                if (asset != null && StringUtils.isNotBlank(asset.getName())) {
+                    indexView.setAssetName(asset.getName());
+                } else if (asset != null && StringUtils.isNotBlank(asset.getItemCode())) {
+                    indexView.setAssetName(asset.getItemCode());
+                }
+            } catch (Exception e) {
+                log.warn("Could not enrich asset name for assetId={}", incident.getAssetId(), e);
+            }
+        }
+
+        Workflow workflow = incidentRequest.getWorkflow();
+        if (workflow != null && !CollectionUtils.isEmpty(workflow.getAssignes())) {
+            String vendorUuid = workflow.getAssignes().get(0);
+            try {
+                org.egov.common.contract.request.User vendorUser = notificationService.fetchUserByUUID(
+                        vendorUuid, incidentRequest.getRequestInfo(), incident.getTenantId());
+                if (vendorUser != null) {
+                    if (StringUtils.isNotBlank(vendorUser.getName())) {
+                        indexView.setMappedVendorName(vendorUser.getName());
+                    }
+                    if (StringUtils.isNotBlank(vendorUser.getUserName())) {
+                        indexView.setMappedVendorUserName(vendorUser.getUserName());
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Could not enrich vendor user for uuid={}", vendorUuid, e);
+            }
+        }
+
+        indexView.setAttachmentUrls(buildAttachmentUrls(incidentRequest));
+        indexView.setDocumentUrls(indexView.getAttachmentUrls());
+    }
+
+    private String buildAttachmentUrls(IncidentRequest incidentRequest) {
+        String tenantId = incidentRequest.getIncident().getTenantId();
+        Workflow workflow = incidentRequest.getWorkflow();
+        if (workflow == null || CollectionUtils.isEmpty(workflow.getVerificationDocuments())) {
+            return "";
+        }
+        return workflow.getVerificationDocuments().stream()
+                .filter(doc -> doc != null && StringUtils.isNotBlank(doc.getFileStoreId()))
+                .filter(doc -> doc.getDocumentType() == null || !"HLS".equalsIgnoreCase(doc.getDocumentType()))
+                .map(doc -> String.format("%s?tenantId=%s&fileStoreId=%s",
+                        config.getFileStoreDownloadEndpoint(), tenantId, doc.getFileStoreId()))
+                .collect(Collectors.joining(" , "));
     }
 
     /**

@@ -371,17 +371,11 @@ public class WorkflowService {
         Workflow workflow = request.getWorkflow();
         String action = request.getWorkflow().getAction();
         log.debug("Creating process instance for incident: {} with action: {}", incident.getIncidentId(), action);
-        if (action.equalsIgnoreCase("RESOLVE") || action.equalsIgnoreCase("REJECT")) {
+        if (livelihoodTenantUtil.isLivelihood(incident.getTenantId())) {
+            applyLivelihoodWorkflowRules(workflow, request, action);
+        } else if (action.equalsIgnoreCase("RESOLVE") || action.equalsIgnoreCase("REJECT")) {
             reassignWorkflow(workflow, request, "COMPLAINANT");
-        }
-//        else if (action.equalsIgnoreCase("OUT_OF_WARRANTY")) {
-//            reassignWorkflow(workflow, request, "COMPLAINT_FACILITATOR_2");
-//        }
-//        else if (request.getIncident()!=null && request.getIncident().getApplicationStatus()!= null &&
-//                request.getIncident().getApplicationStatus().trim().equals("PENDING_REVISION") && action.equalsIgnoreCase("SUBMIT")) {
-//            reassignWorkflow(workflow, request, "COMPLAINT_FACILITATOR_2");
-//        }
-        else if (request.getIncident()!=null && request.getIncident().getApplicationStatus()!= null &&
+        } else if (request.getIncident()!=null && request.getIncident().getApplicationStatus()!= null &&
                 request.getIncident().getApplicationStatus().trim().equals("PENDINGRESOLUTION") && action.equalsIgnoreCase("MARK_OUT_OF_SCOPE")) {
             reassignWorkflow(workflow, request, "COMPLAINT_FACILITATOR_1");
         }
@@ -423,6 +417,47 @@ public class WorkflowService {
         List<String> assignee = Arrays.asList(reassigneeDetails.get("employeeUUID"));
         workflow.setAssignes(assignee);
         log.debug("Workflow reassigned to employee with UUID: {}", reassigneeDetails.get("employeeUUID"));
+    }
+
+    private void applyLivelihoodWorkflowRules(Workflow workflow, IncidentRequest request, String action) {
+        if (action == null) {
+            return;
+        }
+        String normalized = action.trim().toUpperCase(Locale.ROOT);
+        if (IM_WF_RESOLVE.equals(normalized) || REJECT.equals(normalized)) {
+            reassignWorkflow(workflow, request, ROLE_COMPLAINANT);
+        } else if (LIVELIHOOD_WF_OUT_OF_SCOPE.equals(normalized)) {
+            reassignWorkflow(workflow, request, ROLE_LIVELIHOOD_POC);
+        } else if (LIVELIHOOD_WF_DECLINE.equals(normalized)) {
+            reassignWorkflow(workflow, request, ROLE_LIVELIHOOD_POC);
+        }
+    }
+
+    public List<String> getCurrentAssigneeUuids(String tenantId, String incidentId, RequestInfo requestInfo) {
+        if (StringUtils.isBlank(tenantId) || StringUtils.isBlank(incidentId) || requestInfo == null) {
+            return Collections.emptyList();
+        }
+        RequestInfoWrapper requestInfoWrapper = RequestInfoWrapper.builder().requestInfo(requestInfo).build();
+        StringBuilder searchUrl = getprocessInstanceSearchURL(tenantId, incidentId);
+        Object result = repository.fetchResult(searchUrl, requestInfoWrapper);
+        try {
+            ProcessInstanceResponse response = mapper.convertValue(result, ProcessInstanceResponse.class);
+            if (response == null || CollectionUtils.isEmpty(response.getProcessInstances())) {
+                return Collections.emptyList();
+            }
+            ProcessInstance processInstance = response.getProcessInstances().get(0);
+            if (CollectionUtils.isEmpty(processInstance.getAssignes())) {
+                return Collections.emptyList();
+            }
+            return processInstance.getAssignes().stream()
+                    .filter(Objects::nonNull)
+                    .map(User::getUuid)
+                    .filter(StringUtils::isNotBlank)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Failed to fetch current assignee for incidentId={}", incidentId, e);
+            return Collections.emptyList();
+        }
     }
 
     /**

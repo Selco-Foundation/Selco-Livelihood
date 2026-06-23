@@ -7,6 +7,7 @@ import com.google.gson.Gson;
 import com.jayway.jsonpath.JsonPath;
 import lombok.extern.slf4j.Slf4j;
 
+import org.apache.commons.lang3.StringUtils;
 import org.egov.common.contract.request.Role;
 import org.egov.hash.HashService;
 import org.egov.inbox.config.InboxConfiguration;
@@ -82,12 +83,24 @@ public class InboxServiceV2 {
 
         // Vérification des rôles
         List<Role> roles = inboxRequest.getRequestInfo().getUserInfo().getRoles();
+        boolean isVendor = roles.stream()
+                .map(Role::getCode)
+                .filter(Objects::nonNull)
+                .anyMatch(code -> "COMPLAINT_RESOLVER".equalsIgnoreCase(code)
+                        || "LIVELIHOOD_VENDOR".equalsIgnoreCase(code));
         List<String> tenantIds = roles.stream()
-                .filter(role -> role.getCode().equals("COMPLAINT_RESOLVER"))
+                .filter(role -> "COMPLAINT_RESOLVER".equalsIgnoreCase(role.getCode())
+                        || "LIVELIHOOD_VENDOR".equalsIgnoreCase(role.getCode()))
                 .map(Role::getTenantId)
                 .collect(Collectors.toList());
-        boolean isVendor = !tenantIds.isEmpty();
         log.debug("👤 User roles found: {} | isVendor={}", roles, isVendor);
+
+        if (isVendor && StringUtils.isBlank(inboxRequest.getInbox().getProcessSearchCriteria().getAssignee())) {
+            inboxRequest.getInbox().getProcessSearchCriteria()
+                    .setAssignee(inboxRequest.getRequestInfo().getUserInfo().getUuid());
+            log.debug("Auto-set inbox assignee to logged-in vendor uuid={}",
+                    inboxRequest.getRequestInfo().getUserInfo().getUuid());
+        }
 
         // Gestion du tenantId pour les vendors
         Object tenantIdFromRequest = inboxRequest.getInbox().getModuleSearchCriteria().get("tenantId");

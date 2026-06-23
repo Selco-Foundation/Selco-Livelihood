@@ -46,7 +46,7 @@ public class AssetService {
 
     public AssetCreateResponse createAsset(AssetCreateRequest request) {
         List<String> ids = idgenUtil.getIdList(request.getRequestInfo(), request.getAssetDetail().getAsset().getTenantId(),
-                "assetId", "ASSET-[SEQ_ASSET_ID]", 1);
+                "assetId", "", 1);
         List<String> documentIds = idgenUtil.getIdList(request.getRequestInfo(), request.getAssetDetail().getAsset().getTenantId(),
                 "documentId", "DOCUMENT-[SEQ_DOCUMENT_ID]", request.getAssetDetail().getAsset().getDocuments().size());
         if (!ids.isEmpty())
