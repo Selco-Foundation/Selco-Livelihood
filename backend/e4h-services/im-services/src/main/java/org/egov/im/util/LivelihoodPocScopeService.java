@@ -178,15 +178,7 @@ public class LivelihoodPocScopeService {
     }
 
     private String toStateBoundaryCode(String boundary) {
-        if (StringUtils.isBlank(boundary)) {
-            return "";
-        }
-        String normalized = boundary.trim().replace('.', '_');
-        List<String> segments = splitSegments(normalized);
-        if (segments.size() >= 2) {
-            return segments.get(0) + "_" + segments.get(1);
-        }
-        return normalized;
+        return hrmsUtil.resolveBoundaryForHrmsRole(ROLE_LIVELIHOOD_POC, boundary);
     }
 
     private String normalizeFacilityState(String facilityState) {

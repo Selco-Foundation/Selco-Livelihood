@@ -815,14 +815,15 @@ public class NotificationService {
         employeeName = JsonPath.read(response, HRMS_EMP_NAME_JSONPATH);
         employeeMobile = JsonPath.read(response, HRMS_EMP_MOBILE_JSONPATH);
         employeeUUID = JsonPath.read(response, HRMS_EMP_UUID_JSONPATH);
-        //}
-//        catch (Exception e){
-//            throw new CustomException("JSONPATH_ERROR","Failed to parse mdms response for department");
-//        }
-//
-//        String localisedDesignation = notificationUtil.getCustomizedMsgForPlaceholder(localisationMessageForPlaceholder,"COMMON_MASTERS_DESIGNATION_"+designation.get(0));
-//
-//        reassigneeDetails.put("designation",localisedDesignation);
+
+        if (CollectionUtils.isEmpty(employeeUUID) || StringUtils.isEmpty(employeeUUID.get(0))) {
+            if (ROLE_LIVELIHOOD_POC.equals(role)) {
+                throw new CustomException(POC_JURISDICTION_MISSING_CODE, POC_JURISDICTION_MISSING_MSG);
+            }
+            throw new CustomException("HRMS_EMPLOYEE_NOT_FOUND",
+                    "No active HRMS employee found for role: " + role);
+        }
+
         reassigneeDetails.put("employeeName", employeeName.get(0));
         reassigneeDetails.put("employeeMobile", employeeMobile.get(0));
 

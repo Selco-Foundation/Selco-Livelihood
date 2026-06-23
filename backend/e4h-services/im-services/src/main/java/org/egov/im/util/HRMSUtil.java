@@ -11,9 +11,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.egov.im.util.IMConstants.COMPLAINANT_NOT_FOUND_CODE;
 import static org.egov.im.util.IMConstants.COMPLAINANT_NOT_FOUND_MSG;
@@ -93,7 +95,7 @@ public class HRMSUtil {
 
         if (boundaryCodes != null) {
             builder.append("&boundaryCodes=");
-            builder.append(boundaryCodes);
+            builder.append(resolveBoundaryForHrmsRole(role, boundaryCodes));
         }
         if (role != null) {
             builder.append("&roles=");
@@ -107,6 +109,30 @@ public class HRMSUtil {
         builder.append(true);
 
         return builder;
+    }
+
+    /**
+     * Livelihood POC is state-scoped in HRMS; facility managers use the full facility boundary.
+     */
+    public String resolveBoundaryForHrmsRole(String role, String boundaryCode) {
+        if (StringUtils.isBlank(boundaryCode) || !ROLE_LIVELIHOOD_POC.equals(role)) {
+            return boundaryCode;
+        }
+        return toStateBoundaryCode(boundaryCode);
+    }
+
+    private String toStateBoundaryCode(String boundaryCode) {
+        if (StringUtils.isBlank(boundaryCode)) {
+            return boundaryCode;
+        }
+        String normalized = boundaryCode.trim().replace('.', '_');
+        List<String> segments = Arrays.stream(normalized.split("_"))
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toList());
+        if (segments.size() >= 2) {
+            return segments.get(0) + "_" + segments.get(1);
+        }
+        return normalized;
     }
 
     /**
