@@ -158,5 +158,19 @@ public class MdmsUtil {
         return Collections.emptyList();
     }
 
+    public String resolveItemCodeDisplayName(RequestInfo requestInfo, String tenantId, String itemCode) {
+        if (itemCode == null || itemCode.isBlank()) {
+            return null;
+        }
+        return getLivelihoodItemCodeData(requestInfo, tenantId).stream()
+                .filter(row -> itemCode.equalsIgnoreCase(String.valueOf(row.get("code")).trim()))
+                .map(row -> row.get("name"))
+                .filter(Objects::nonNull)
+                .map(String::valueOf)
+                .map(String::trim)
+                .filter(name -> !name.isEmpty())
+                .findFirst()
+                .orElse(null);
+    }
 
 }
