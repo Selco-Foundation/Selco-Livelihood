@@ -216,6 +216,10 @@ public class FacilityService {
                 );
                 facility.setBoundaryCode(facilityBoundaryCode);
 
+                if (CATEGORY_LIVELIHOOD.equalsIgnoreCase(facility.getFacilityCategory())) {
+                    enrichAddressFromBlockBoundaryCode(facility.getAddress(), facilityCreate.getBlockBoundaryCode());
+                }
+
                 // Set default workflow status and activation flag
                 if (facility.getWfStatus() == null) facility.setWfStatus("CREATED");
                 if (facility.getIsActive() == null) facility.setIsActive(true);
@@ -1881,6 +1885,42 @@ public class FacilityService {
                     "Facility boundary was updated but incident boundary sync to im-services failed: " + e.getMessage()
             );
         }
+    }
+
+    /**
+     * Livelihood ingestion schema requires {@code State}, {@code District}, and {@code Block}.
+     * API create supplies {@code blockBoundaryCode}; derive labels when address geo fields are absent.
+     */
+    private void enrichAddressFromBlockBoundaryCode(FacilityAddress address, String blockBoundaryCode) {
+        if (address == null || blockBoundaryCode == null || blockBoundaryCode.isBlank()) {
+            return;
+        }
+        String[] parts = blockBoundaryCode.trim().split("_");
+        if (parts.length < 3) {
+            return;
+        }
+        int stateIdx = parts.length >= 4 ? 1 : 0;
+        if (isBlank(address.getState()) && parts.length > stateIdx) {
+            address.setState(titleCaseBoundarySegment(parts[stateIdx]));
+        }
+        if (isBlank(address.getDistrict()) && parts.length > stateIdx + 1) {
+            address.setDistrict(titleCaseBoundarySegment(parts[stateIdx + 1]));
+        }
+        if (isBlank(address.getBlock()) && parts.length > stateIdx + 2) {
+            address.setBlock(titleCaseBoundarySegment(parts[stateIdx + 2]));
+        }
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
+    private static String titleCaseBoundarySegment(String segment) {
+        if (segment == null || segment.isBlank()) {
+            return segment;
+        }
+        return segment.substring(0, 1).toUpperCase(Locale.ROOT)
+                + segment.substring(1).toLowerCase(Locale.ROOT);
     }
 
     private String deriveBlockFromBoundaryCode(String newBlockBoundaryCode) {
