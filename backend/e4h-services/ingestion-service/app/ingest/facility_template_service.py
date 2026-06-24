@@ -31,7 +31,7 @@ class FacilityTemplateService:
         params = {
             "page": 0,
             "size": 20000,
-            "tenantId": "in",
+            "tenantId": "livelihood",
             "hierarchyType": "SELCO",
             "boundaryType": "Block"
         }
@@ -272,13 +272,13 @@ class FacilityTemplateService:
             df_facility = pd.DataFrame(columns=output_list)
             facility_writer = create_excel_data_writer(
                 output_path,
-                "FacilityIngestionTemplate"
+                "EndUserIngestionTemplate"
             )
             facility_writer.write_data(df_facility)
 
             add_dropdowns_to_excel(
                 file_path=output_path,
-                sheet_name="FacilityIngestionTemplate",
+                sheet_name="EndUserIngestionTemplate",
                 dropdowns=dropdowns_map,
                 allow_blank_map=allow_blank_map
             )
@@ -296,12 +296,7 @@ class FacilityTemplateService:
             )
             boundary_writer.write_data(df_boundary)
 
-            df_vendor = pd.DataFrame(vendor_data)
-            vendor_writer = create_excel_data_writer(
-                output_path,
-                "VendorCodes"
-            )
-            vendor_writer.write_data(df_vendor)
+            # Livelihood: no Vendor Code column -> do not generate the VendorCodes sheet.
 
             remove_default_empty_sheet(output_path)
             logger.info(f"Successfully created template file at {output_path}")

@@ -100,7 +100,7 @@ def project_facility_validation(
     add_err = lambda i, msg: errors[i].append(msg)
 
     # Only validate rows where Facility ID is empty
-    new_rows = df[df["Facility Id"].isna() | (df["Facility Id"].astype(str).str.strip() == "")]
+    new_rows = df[df["End user Id"].isna() | (df["End user Id"].astype(str).str.strip() == "")]
     if new_rows.empty:
         return errors  # No new rows to validate
 
@@ -133,7 +133,7 @@ def facility_validation(
     add_err = lambda i, msg: errors[i].append(msg)
 
     # Only validate rows where Facility ID is empty
-    new_rows = df[df["Facility Id"].isna() | (df["Facility Id"].astype(str).str.strip() == "")]
+    new_rows = df[df["End user Id"].isna() | (df["End user Id"].astype(str).str.strip() == "")]
     if new_rows.empty:
         return errors  # No new rows to validate
 
@@ -145,11 +145,10 @@ def facility_validation(
     )
 
     # Use positional index mapping to reference errors in original df
+    # Livelihood: only schema-driven checks; HFR/NIN + Anganwadi PoC validators dropped (columns removed).
     validate_columns(new_rows, schema, lambda i, m: add_err(new_rows.loc[i, "index"], m))
     validate_unique_ids(df, schema, add_err)
     validate_row_constraints(new_rows, schema, lambda i, m: add_err(new_rows.loc[i, "index"], m))
-    validate_anganwadi_poc_username(new_rows, schema, lambda i, m: add_err(new_rows.loc[i, "index"], m))
-    validate_hfr_nin(new_rows, lambda i, m: add_err(new_rows.loc[i, "index"], m), facility_client)
 
     return errors
 

@@ -23,7 +23,7 @@ class MDMSClient:
         payload = {
             "RequestInfo": {"authToken": request_info.auth_token},
             "MdmsCriteria": {
-                "tenantId": "in",
+                "tenantId": "livelihood",
                 "schemaCode": schema_code
             }
         }
@@ -52,7 +52,7 @@ class MDMSClient:
         payload = {
             "RequestInfo": {"authToken": request_info.auth_token},
             "MdmsCriteria": {
-                "tenantId": "in",
+                "tenantId": "livelihood",
                 "schemaCode": schema_code
             }
         }

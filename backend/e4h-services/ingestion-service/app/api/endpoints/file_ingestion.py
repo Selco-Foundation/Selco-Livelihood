@@ -280,7 +280,7 @@ async def upload_boundaries_excel_sheet(
 async def validate_facilities_excel_sheet(
         background_tasks: BackgroundTasks,
         facility_file: UploadFile = File(..., description="Excel file containing facility data"),
-        facility_sheet_name: str = Form(default="FacilityIngestionTemplate",
+        facility_sheet_name: str = Form(default="EndUserIngestionTemplate",
                                         description="Name of the sheet containing facility data"),
         boundary_sheet_name: str = Form(default="BlockBoundaryCodes",
                                         description="Name of the sheet containing boundary data"),
@@ -314,15 +314,9 @@ async def validate_facilities_excel_sheet(
         df = normalize_excel_integer_columns(df, force_columns=FACILITY_IDENTIFIER_COLUMNS)
 
         # ----------------- Read Facility Column ----------------- #
-        if 'Facility Id' not in df.columns:
-            raise HTTPException(status_code=400, detail=f"Facility Column in '{facility_sheet_name}' not found")
-
-        if FACILITY_VENDOR_CODE_COLUMN not in df.columns:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Missing mandatory column '{FACILITY_VENDOR_CODE_COLUMN}'. "
-                "Facilities cannot be validated without vendor mapping.",
-            )
+        facility_id_column = 'End user Id'
+        if facility_id_column not in df.columns:
+            raise HTTPException(status_code=400, detail=f"'End user Id' column in '{facility_sheet_name}' not found")
 
         # Ensure status/error columns exist
         if 'status' not in df.columns:
@@ -352,7 +346,7 @@ async def validate_facilities_excel_sheet(
                 try:
                     response_data = boundary_client.search_boundaries(
                         request_info=request_info_obj,
-                        tenant_id="in",
+                        tenant_id="livelihood",
                         codes=chunk,
                     )
                     if response_data and "Boundary" in response_data:
@@ -381,27 +375,8 @@ async def validate_facilities_excel_sheet(
             request_info_obj,
             facility_client,
             boundary_data_df,
-            'data-ingestion.FacilityIngestionSchema'
+            'data-ingestion.FacilityIngestionSchemaWithoutBoundaryCode'
         )
-
-        org_client = OrganizationServiceClient(org_service_url)
-        registered_vendor_codes = org_client.fetch_registered_vendor_codes(request_info_obj)
-        for i in range(len(df)):
-            row = df.iloc[i]
-            fid = row.get("Facility Id")
-            is_new = pd.isna(fid) or str(fid).strip() == ""
-            if not is_new:
-                continue
-            vendor_code = org_client.normalize_facility_vendor_code(row.get(FACILITY_VENDOR_CODE_COLUMN))
-            if not vendor_code:
-                validation_errors[i].append(
-                    f"{FACILITY_VENDOR_CODE_COLUMN} is required; facilities cannot be created without a vendor mapping."
-                )
-            elif registered_vendor_codes is not None and vendor_code not in registered_vendor_codes:
-                validation_errors[i].append(
-                    f"Vendor code '{vendor_code}' is not registered in the vendor service; "
-                    "register the vendor before facility ingestion."
-                )
 
         # Mark rows based on validation results, preserving earlier boundary errors
         error_count = 0
@@ -478,7 +453,7 @@ async def validate_facilities_excel_sheet(
              response_description='Returns processed Excel file with validations results')
 async def upload_facilities_excel_sheet(
         facility_file: UploadFile = File(description="Excel file containing facility data"),
-        facility_sheet_name: str = Form(default="FacilityIngestionTemplate",
+        facility_sheet_name: str = Form(default="EndUserIngestionTemplate",
                                         description="Name of the sheet containing facility data"),
         request_info: str = Form(default=""),
         are_facilities_onm_ready: bool = Form(description="FieldPlan ID")
@@ -522,37 +497,14 @@ async def upload_facilities_excel_sheet(
 
         if facility_service_url and not df.empty:
             facility_client = FacilityServiceClient(facility_service_url)
-            facility_schema = mdms_client.get_column_definitions_with_metadata(request_info,'data-ingestion.FacilityIngestionSchema')
-            org_client = OrganizationServiceClient(org_service_url) if org_service_url else None
-            vendor_mapping_cache: Dict[str, Dict[str, Optional[str]]] = {}
-            hfr_nin_db_cache: Dict[str, bool] = {}
+            facility_schema = mdms_client.get_column_definitions_with_metadata(request_info,'data-ingestion.FacilityIngestionSchemaWithoutBoundaryCode')
             for index, row in df[df['status'] != 'success'].iterrows():
-                hfr_nin_errs = collect_hfr_nin_errors_for_row(
-                    row, index, df, facility_client, hfr_nin_db_cache,
-                )
-                anganwadi_poc_errs = collect_anganwadi_poc_username_errors_for_row(
-                    row, index, df, facility_schema,
-                )
-                pre_errs = list(dict.fromkeys([*hfr_nin_errs, *anganwadi_poc_errs]))
-                if pre_errs:
-                    df.at[index, 'status'] = 'failed'
-                    df.at[index, 'error'] = '; '.join(pre_errs)
-                    continue
                 try:
-                    vendor_mapping = resolve_mapped_vendor_for_facility_row(
-                        org_client,
-                        request_info,
-                        row,
-                        FACILITY_VENDOR_CODE_COLUMN,
-                        vendor_mapping_cache,
-                    )
                     facility_data_payload = create_facility_payload(
                         request_info,
                         row,
                         are_facilities_onm_ready,
                         facility_schema,
-                        mapped_vendor_name=vendor_mapping.get("mappedVendorName"),
-                        mapped_vendor_user_name=vendor_mapping.get("mappedVendorUserName"),
                     )
                     response = facility_client.create_facility(facility_data_payload)
                     if response.status_code in (200, 201):

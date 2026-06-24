@@ -515,14 +515,24 @@ def create_facility_payload(
         mapped_vendor_name: Optional[str] = None,
         mapped_vendor_user_name: Optional[str] = None,
 ):
-    facility_type_name = safe_get(row, 'Type of HC (Mandatory)')
-    facility_type_code = get_mdms_code_by_name(facility_schema, 'Type of HC', facility_type_name)
+    facility_category_name = safe_get(row, 'Category (Mandatory)')
+    facility_category_code = get_mdms_code_by_name(facility_schema, 'Category', facility_category_name)
 
-    facility_category_name = safe_get(row, 'Category of Facility (Mandatory)')
-    facility_category_code = get_mdms_code_by_name(facility_schema, 'Category of Facility', facility_category_name)
+    # "Sectors" is the renamed "Type of HC" -> maps to the existing facility_type field.
+    sector_name = safe_get(row, 'Sectors (Mandatory)')
+    facility_type_code = get_mdms_code_by_name(facility_schema, 'Sectors', sector_name)
 
-    solar_solution_design_type_name = safe_get(row, 'Solution Design Type (Mandatory)')
-    solar_solution_design_type_code = get_mdms_code_by_name(facility_schema, 'Solution Design Type', solar_solution_design_type_name)
+    # Solution Design Type (non-mandatory) -> facility_details.solar_solution_design_type
+    # Optional mdms field: only resolve a code when a value is actually provided.
+    solution_design_name = safe_get(row, 'Solution Design Type')
+    if solution_design_name is not None and str(solution_design_name).strip().lower() not in ('', 'nan', 'none'):
+        solution_design_code = get_mdms_code_by_name(facility_schema, 'Solution Design Type', solution_design_name)
+    else:
+        solution_design_code = None
+
+    # Livelihood: the single "End user Name" is used both as the end-user contact name
+    # and as the facility name (no separate facility-name column in the template).
+    end_user_name = safe_get(row, 'End user Name (Mandatory)')
 
     poc_username_hdr = next(
         (format_col_name(c) for c in facility_schema if c.get("code") == "facility_poc_username"),
@@ -530,16 +540,20 @@ def create_facility_payload(
     )
 
     facility_record = {
-        'tenant_id': 'in',
-        'facility_name': safe_get(row, 'Health Centre Name (Mandatory)'),
-        'facility_type': facility_type_code,
+        'tenant_id': 'livelihood',
+        'facility_name': end_user_name,
         'facility_category': facility_category_code,
+        'facility_type': facility_type_code,
+        'facility_details': {
+            'solar_solution_design_type': solution_design_code,
+            'pocDesignation': safe_get(row, 'End user Designation'),
+        },
         'facility_ownership': safe_get(row, 'Ownership', 'GOVERNMENT'),
         'facility_region': safe_get(row, 'Region', 'RURAL'),
         'isActive': True,
         'blockBoundaryCode': safe_get(row, 'Boundary Code (Mandatory)'),
         'address': {
-            'tenantId': 'in',
+            'tenantId': 'livelihood',
             'latitude': safe_get(row, 'Latitude'),
             'longitude': safe_get(row, 'Longitude'),
             'addressLine1': safe_get(row, 'Address'),
@@ -547,18 +561,12 @@ def create_facility_payload(
             'district': safe_get(row, 'District (Mandatory)'),
             'block': safe_get(row, 'Block (Mandatory)')
         },
-        'facility_poc_name': safe_get(row, 'HC PoC Name (Mandatory)'),
-        'facility_poc_phone': safe_get(row, 'HC PoC Contact number (Mandatory)'),
-        'facility_poc_email': safe_get(row, 'HC PoC Email'),
+        'facility_poc_name': end_user_name,
+        'facility_poc_phone': safe_get(row, 'End user Contact number (Mandatory)'),
+        'facility_poc_email': safe_get(row, 'End user Email'),
         'facility_status': 'ACTIVE',
-        'hfr_id': safe_get(row, 'HFR ID'),
-        'nin_id': safe_get(row, 'NIN ID'),
-        'isOnmReady': are_facilities_onm_ready,
-        'facility_details': {
-            'vendor_code': safe_get(row, 'Vendor Code (Mandatory)'),
-            'solar_solution_design_type': solar_solution_design_type_code,
-            'pocDesignation': safe_get(row, 'HC PoC Designation')
-        }
+        'isOnmReady': True,
+        'additionalDetails': {'preferredLanguage': safe_get(row, 'Preferred Language')},
     }
     if poc_username_hdr:
         facility_record['facility_poc_username'] = safe_get(row, poc_username_hdr)
@@ -888,7 +896,7 @@ def resolve_boundary_code(
     Returns (boundary_code, error_message).
     If successful, error_message is None.
     """
-    country = "India"
+    country = "INDIA"
 
     # --- State ---
     state_normalized = state.strip().lower().replace(" ", "") if state else ""
@@ -967,7 +975,7 @@ def resolve_boundary_codes_for_dataframe(
             from app.utils.localization_service_client import LocalizationServiceClient
             loc_client = LocalizationServiceClient(localization_service_url)
             loc_response = loc_client.search_messages(
-                tenant_id="in",
+                tenant_id="livelihood",
                 locale="en_IN",
                 module="rainmaker-in",
             )
