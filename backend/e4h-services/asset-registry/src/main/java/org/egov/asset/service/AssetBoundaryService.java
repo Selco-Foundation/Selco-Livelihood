@@ -2,6 +2,7 @@ package org.egov.asset.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.fasterxml.jackson.databind.node.NullNode;
 import org.egov.asset.repository.ServiceRequestRepository;
 import org.egov.asset.web.models.boundary.Boundary;
 import org.egov.asset.web.models.boundary.BoundaryCreateRequest;
@@ -48,6 +49,7 @@ public class AssetBoundaryService {
                         Boundary.builder()
                                 .tenantId(tenantId)
                                 .code(assetBoundaryCode)
+                                .geometry(NullNode.getInstance())
                                 .build()
                 ))
                 .build();
