@@ -468,12 +468,14 @@ public class AssetValidator {
         List<Object> facilities = facilityUtil.searchFacility(asset.getTenantId(), asset.getFacilityID());
         if(facilities.isEmpty() || facilities.get(0) == null)
             errorMap.put(ErrorConstants.ASSET_FACILITY_ID_VALIDATION_CODE, ErrorConstants.ASSET_FACILITY_ID_VALIDATION_MSG);
-        else if (isLivelihoodTenant(asset.getTenantId())
-                && (asset.getBoundaryCode() == null || asset.getBoundaryCode().isBlank())) {
-            String boundaryCode = facilityUtil.resolveFacilityBoundaryCode(
+        else if (isLivelihoodTenant(asset.getTenantId())) {
+            String facilityBoundaryCode = facilityUtil.resolveFacilityBoundaryCode(
                     asset.getTenantId(), asset.getFacilityID());
-            if (boundaryCode != null && !boundaryCode.isBlank()) {
-                asset.setBoundaryCode(boundaryCode);
+            if (facilityBoundaryCode == null || facilityBoundaryCode.isBlank()) {
+                errorMap.put(
+                        ErrorConstants.FACILITY_BOUNDARY_NOT_FOUND_CODE,
+                        ErrorConstants.FACILITY_BOUNDARY_NOT_FOUND_MSG
+                );
             }
         }
     }

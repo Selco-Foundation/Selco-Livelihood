@@ -352,6 +352,9 @@ public class IMConfiguration {
     @Value("${egov.boundary.search.path}")
     private String boundarySearchPath;
 
+    @Value("${egov.boundary.hierarchy.type:SELCO}")
+    private String boundaryHierarchyType;
+
     // Theft notification (cron + endpoint)
     @Value("${im.theft.notification.cron:0 0 9 * * ?}")
     private String theftNotificationCron;

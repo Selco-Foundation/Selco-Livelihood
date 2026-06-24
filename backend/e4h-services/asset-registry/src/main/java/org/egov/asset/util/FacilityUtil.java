@@ -101,4 +101,15 @@ public class FacilityUtil {
         }
         return boundaryCode != null ? String.valueOf(boundaryCode).trim() : null;
     }
+
+    /**
+     * Asset boundary follows the same pattern as facility: {@code {facilityBoundaryCode}_{assetId}}.
+     */
+    public String buildAssetBoundaryCode(String facilityBoundaryCode, String assetId) {
+        if (facilityBoundaryCode == null || facilityBoundaryCode.isBlank()
+                || assetId == null || assetId.isBlank()) {
+            return null;
+        }
+        return facilityBoundaryCode.trim() + "_" + assetId.trim();
+    }
 }

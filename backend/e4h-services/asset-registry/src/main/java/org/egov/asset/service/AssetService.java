@@ -33,15 +33,28 @@ public class AssetService {
     private final IdgenUtil idgenUtil;
     private final AssetRepository assetRepository;
     private final ResponseInfoFactory responseInfoFactory;
+    private final LivelihoodAssetBoundaryEnricher livelihoodAssetBoundaryEnricher;
+    private final AssetLocalizationService assetLocalizationService;
 
     @Autowired
-    public AssetService(JdbcTemplate jdbcTemplate, AssetRowMapper assetRowMapper, DocumentRowMapper documentRowMapper, IdgenUtil idgenUtil, AssetRepository assetRepository, ResponseInfoFactory responseInfoFactory) {
+    public AssetService(
+            JdbcTemplate jdbcTemplate,
+            AssetRowMapper assetRowMapper,
+            DocumentRowMapper documentRowMapper,
+            IdgenUtil idgenUtil,
+            AssetRepository assetRepository,
+            ResponseInfoFactory responseInfoFactory,
+            LivelihoodAssetBoundaryEnricher livelihoodAssetBoundaryEnricher,
+            AssetLocalizationService assetLocalizationService
+    ) {
         this.jdbcTemplate = jdbcTemplate;
         this.assetRowMapper = assetRowMapper;
         this.documentRowMapper = documentRowMapper;
         this.idgenUtil = idgenUtil;
         this.assetRepository = assetRepository;
         this.responseInfoFactory = responseInfoFactory;
+        this.livelihoodAssetBoundaryEnricher = livelihoodAssetBoundaryEnricher;
+        this.assetLocalizationService = assetLocalizationService;
     }
 
     public AssetCreateResponse createAsset(AssetCreateRequest request) {
@@ -64,6 +77,11 @@ public class AssetService {
         }
         IntStream.range(0, documentIds.size())
                 .forEach(i -> request.getAssetDetail().getAsset().getDocuments().get(i).setId(documentIds.get(i)));
+
+        livelihoodAssetBoundaryEnricher.enrichAndRegister(
+                request.getAssetDetail().getAsset(),
+                request.getRequestInfo()
+        );
 
         assetRepository.pushCreateAsset(request.getAssetDetail().getAsset());
         return AssetCreateResponse.builder()
@@ -331,7 +349,11 @@ public class AssetService {
             updated.getAuditDetails().setLastModifiedBy(request.getRequestInfo().getUserInfo().getUserName());
             updated.getAuditDetails().setLastModifiedTime(System.currentTimeMillis());
         }
+        if (updated.getBoundaryCode() == null || updated.getBoundaryCode().isBlank()) {
+            updated.setBoundaryCode(existingAssets.get(0).getBoundaryCode());
+        }
         assetRepository.pushUpdateAsset(updated);
+        assetLocalizationService.upsertAssetBoundaryLocalizations(updated, request.getRequestInfo());
         return updated;
     }
 

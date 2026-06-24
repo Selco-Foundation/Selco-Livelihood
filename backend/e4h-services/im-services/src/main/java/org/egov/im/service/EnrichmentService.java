@@ -173,7 +173,10 @@ public class EnrichmentService {
 
         String idGenIncidentIdFormat = config.getServiceRequestIdGenFormat();
 
-        StringBuilder hcrUserSearchUri = hrmsUtil.getHRMSURI(null, incident.getTenantId(), "COMPLAINANT", incident.getBoundaryCode());
+        String complainantBoundary = resolveComplainantBoundary(incident, boundary);
+        StringBuilder hcrUserSearchUri = hrmsUtil.getHRMSURI(
+                null, incident.getTenantId(), "COMPLAINANT", complainantBoundary
+        );
         hcrUserSearchUri.append("&searchOnlyInBoundary=");
         hcrUserSearchUri.append(true);
 
@@ -483,7 +486,13 @@ public class EnrichmentService {
      */
     private void enrichFacilityDetailsFromBoundaryCode(IncidentRequest incidentRequest) {
         Incident incident = incidentRequest.getIncident();
-        String boundaryCode = incident.getBoundaryCode();
+        if (livelihoodTenantUtil.isLivelihood(incident.getTenantId())
+                && StringUtils.isNotBlank(incident.getFacilityId())) {
+            log.debug("Skipping facility boundary lookup; facilityId already set for Livelihood incident");
+            return;
+        }
+
+        String boundaryCode = resolveFacilityBoundaryForLookup(incident);
         String tenantId = incident.getTenantId();
 
         if (boundaryCode == null || boundaryCode.isEmpty()) {
@@ -547,6 +556,23 @@ public class EnrichmentService {
             log.error("Error enriching facility details for boundaryCode: {}", boundaryCode, e);
             throw new CustomException("FACILITY_NOT_FOUND", "Cannot find facility");
         }
+    }
+
+    private String resolveComplainantBoundary(Incident incident, Boundary boundary) {
+        if (!livelihoodTenantUtil.isLivelihood(incident.getTenantId())) {
+            return incident.getBoundaryCode();
+        }
+        if (boundary != null && StringUtils.isNotBlank(boundary.getFacilityCode())) {
+            return boundary.getFacilityCode();
+        }
+        return BoundaryService.resolveFacilityBoundaryCode(incident.getBoundaryCode(), incident.getAssetId());
+    }
+
+    private String resolveFacilityBoundaryForLookup(Incident incident) {
+        if (!livelihoodTenantUtil.isLivelihood(incident.getTenantId())) {
+            return incident.getBoundaryCode();
+        }
+        return BoundaryService.resolveFacilityBoundaryCode(incident.getBoundaryCode(), incident.getAssetId());
     }
 
     public void enrichFieldsForAuditIndexing(IncidentRequestWrapper wrapper, String startingStatus) {

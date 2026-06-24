@@ -234,7 +234,8 @@ public class IMService {
         Boundary boundary = boundaryService.fetchBoundaryFromBoundaryCode(
                 request.getRequestInfo(),
                 request.getIncident().getBoundaryCode(),
-                request.getIncident().getTenantId()
+                request.getIncident().getTenantId(),
+                request.getIncident().getAssetId()
         );
         if (boundary == null) {
             throw new CustomException(
@@ -431,7 +432,10 @@ public class IMService {
         wrapper.setProcessInstance(trimmedUpdatedProcessInstance);
         log.trace("Fetching boundary for indexing");
         Boundary boundary = boundaryService.fetchBoundaryFromBoundaryCode(
-                request.getRequestInfo(), request.getIncident().getBoundaryCode(), request.getIncident().getTenantId()
+                request.getRequestInfo(),
+                request.getIncident().getBoundaryCode(),
+                request.getIncident().getTenantId(),
+                livelihoodTenantUtil.isLivelihood(tenantId) ? request.getIncident().getAssetId() : null
         );
         log.trace("Enriching fields for indexing");
         enrichmentService.enrichFieldsForIndexing(wrapper, boundary);

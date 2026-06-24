@@ -210,7 +210,7 @@ public class LivelihoodCreateService {
             Map<String, String> complainant = hrmsUtil.findComplainantAtBoundary(
                     requestInfo,
                     incident.getTenantId(),
-                    incident.getBoundaryCode()
+                    resolveFacilityBoundary(incident)
             );
             incident.setReporter(User.builder()
                     .uuid(complainant.get("uuid"))
@@ -224,6 +224,21 @@ public class LivelihoodCreateService {
         if (StringUtils.isBlank(reporter.getTenantId())) {
             reporter.setTenantId(incident.getTenantId());
         }
+    }
+
+    /**
+     * COMPLAINANT HRMS users are registered at facility boundary; incident boundary is asset-level.
+     */
+    private String resolveFacilityBoundary(Incident incident) {
+        String assetBoundary = incident.getBoundaryCode();
+        String assetId = incident.getAssetId();
+        if (StringUtils.isNotBlank(assetBoundary) && StringUtils.isNotBlank(assetId)) {
+            String suffix = "_" + assetId;
+            if (assetBoundary.endsWith(suffix)) {
+                return assetBoundary.substring(0, assetBoundary.length() - suffix.length());
+            }
+        }
+        return assetBoundary;
     }
 
     private void storeRaisedByPoc(Incident incident, String pocUuid) {
