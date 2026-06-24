@@ -217,7 +217,8 @@ public class FacilityMdmsValidator {
                 .filter(Objects::nonNull)
                 .map(String::trim)
                 .collect(Collectors.toSet());
-        return normalized.contains("HFR ID") && normalized.contains("NIN ID");
+        return (normalized.contains("HFR ID") && normalized.contains("NIN ID"))
+                || (normalized.contains("hfr_id") && normalized.contains("nin_id"));
     }
 
     /**
@@ -280,17 +281,16 @@ public class FacilityMdmsValidator {
     }
 
     /**
-     * Upper-case category from payload (same keys as ingestion template / {@link #convertFacilityToMap}).
+     * Upper-case category from payload (keys aligned with MDMS column {@code code} values).
      */
     private static String normalizeFacilityCategoryForValidation(Map<String, Object> input) {
-        for (String key : List.of("Category of Facility", "Facility Category")) {
+        for (String key : List.of("facility_category", "Category of Facility", "Facility Category")) {
             Object v = input.get(key);
             if (v == null) {
                 continue;
             }
             String s = v.toString().trim();
             if (!s.isEmpty()) {
-                // Values are typically MDMS codes (e.g. ANGANWADI, HEALTH).
                 return s.toUpperCase(Locale.ROOT);
             }
         }
@@ -306,18 +306,23 @@ public class FacilityMdmsValidator {
     }
 
     /**
-     * Determines the key name to use from column definition,
-     * using svcSource, mdmsSource, or falling back to column name.
+     * Determines the key name to use from column definition.
+     * Prefers svcSource key, then MDMS column {@code code}, then mdmsSource path, then display name.
      */
     private String deriveKeyFromColumn(Map<String, Object> col, String defaultKey) {
         log.trace("Entering deriveKeyFromColumn method");
         String result;
         if (col.containsKey("svcSource")) {
             result = ((Map<String, String>) col.get("svcSource")).get("key");
-        } else if (col.containsKey(MDMS_SOURCE)) {
-            result = ((Map<String, String>) col.get(MDMS_SOURCE)).get("path").replace("$.", "");
         } else {
-            result = defaultKey;
+            Object code = col.get("code");
+            if (code != null && !code.toString().isBlank()) {
+                result = code.toString().trim();
+            } else if (col.containsKey(MDMS_SOURCE)) {
+                result = ((Map<String, String>) col.get(MDMS_SOURCE)).get("path").replace("$.", "");
+            } else {
+                result = defaultKey;
+            }
         }
         log.trace("Exiting deriveKeyFromColumn method, derived key: {}", result);
         return result;
@@ -355,48 +360,76 @@ public class FacilityMdmsValidator {
 
     /**
      * Converts a Facility object into a flat map suitable for validation.
-     * Includes data from nested FacilityAddress and HealthFacilityDetails.
+     * Keys use MDMS ingestion column {@code code} values (e.g. facility_name, facility_category).
      */
     private Map<String, Object> convertFacilityToMap(Facility facility) {
         log.trace("Entering convertFacilityToMap method for facility: {}", facility.getFacilityId());
         Map<String, Object> map = new HashMap<>();
 
+        putIfNotBlank(map, "tenant_id", facility.getTenantId());
+        putIfNotBlank(map, "facility_id", facility.getFacilityId());
+        putIfNotBlank(map, "facility_name", facility.getFacilityName());
+        putIfNotBlank(map, "facility_type", facility.getFacilityType());
+        putIfNotBlank(map, "facility_category", facility.getFacilityCategory());
+        putIfNotBlank(map, "facility_subtype", facility.getFacilitySubtype());
+        putIfNotBlank(map, "facility_ownership", facility.getFacilityOwnership());
+        putIfNotBlank(map, "facility_region", facility.getFacilityRegion());
+        putIfNotBlank(map, "facility_poc_name", facility.getFacilityPocName());
+        putIfNotBlank(map, "facility_poc_phone", facility.getFacilityPocPhone());
+        putIfNotBlank(map, "facility_poc_username", facility.getFacilityPocUsername());
+        putIfNotBlank(map, "facility_poc_email", facility.getFacilityPocEmail());
+        putIfNotBlank(map, "hfr_id", facility.getHfrId());
+        putIfNotBlank(map, "nin_id", facility.getNinId());
+
+        if (facility.getBoundaryCode() != null) {
+            map.put("boundary_code", facility.getBoundaryCode());
+            map.put("boundaryCode", facility.getBoundaryCode());
+        }
+
         FacilityAddress addr = facility.getAddress();
         if (addr != null) {
-            map.put("Latitude", addr.getLatitude());
-            map.put("Longitude", addr.getLongitude());
-            map.put("Address", buildFullAddress(addr));
-            map.put("City", addr.getCity());
-            map.put("Pincode", addr.getPincode());
-            map.put("State", addr.getState());
-            map.put("District", addr.getDistrict());
-            map.put("Block", addr.getBlock());
+            if (addr.getLatitude() != null) {
+                map.put("latitude", addr.getLatitude());
+            }
+            if (addr.getLongitude() != null) {
+                map.put("longitude", addr.getLongitude());
+            }
+            putIfNotBlank(map, "address", buildFullAddress(addr));
+            putIfNotBlank(map, "address_line1", addr.getAddressLine1());
+            putIfNotBlank(map, "city", addr.getCity());
+            putIfNotBlank(map, "pincode", addr.getPincode());
+            putIfNotBlank(map, "state", addr.getState());
+            putIfNotBlank(map, "district", addr.getDistrict());
+            putIfNotBlank(map, "block", addr.getBlock());
             log.debug("Converted address data for facility: {}", facility.getFacilityId());
         }
 
-        map.put("Health Centre Name", facility.getFacilityName());
-        map.put("Type of HC", facility.getFacilityType());
-        map.put("Category of Facility", facility.getFacilityCategory());
-        map.put("facility_id", facility.getFacilityId());
-        map.put("tenant_id", facility.getTenantId());
-        map.put("boundaryCode", facility.getBoundaryCode());
-        map.put("HFR ID", facility.getHfrId());
-        map.put("NIN ID", facility.getNinId());
-        map.put("HC PoC Name", facility.getFacilityPocName());
-        map.put("HC PoC Contact number", facility.getFacilityPocPhone());
-        map.put("PoC Username", facility.getFacilityPocUsername());
-
         HealthFacilityDetails details = facility.getFacilityDetails();
         if (details != null) {
-            map.put("Solution Design Type", details.getSolarSolutionDesignType());
-            map.put("HC PoC Designation", details.getPocDesignation());
-            // Don't log POC contact in debug as it's PI data
+            if (details.getSolarSolutionDesignType() != null) {
+                map.put("solar_solution_design_type", details.getSolarSolutionDesignType().name());
+            }
+            putIfNotBlank(map, "vendor_code", details.getVendorCode());
+            putIfNotBlank(map, "facility_poc_designation", details.getPocDesignation());
+            putIfNotBlank(map, "poc_designation", details.getPocDesignation());
+            if (details.getHfrId() != null && !details.getHfrId().isBlank()) {
+                map.putIfAbsent("hfr_id", details.getHfrId());
+            }
+            if (details.getNinId() != null && !details.getNinId().isBlank()) {
+                map.putIfAbsent("nin_id", details.getNinId());
+            }
             log.debug("Converted facility details data for facility: {}", facility.getFacilityId());
         }
 
         log.debug("Converted facility to map with {} fields", map.size());
         log.trace("Exiting convertFacilityToMap method");
         return map;
+    }
+
+    private static void putIfNotBlank(Map<String, Object> map, String key, String value) {
+        if (value != null && !value.isBlank()) {
+            map.put(key, value);
+        }
     }
 
     /**
