@@ -444,9 +444,32 @@ public class WorkflowService {
             reassignWorkflow(workflow, request, ROLE_LIVELIHOOD_POC);
         } else if (LIVELIHOOD_WF_DECLINE.equals(normalized)) {
             reassignWorkflow(workflow, request, ROLE_LIVELIHOOD_POC);
+        } else if (LIVELIHOOD_WF_OUT_OF_WARRANTY.equals(normalized)) {
+            keepActingVendorAssigned(workflow, request);
         } else if (IM_WF_REOPEN.equals(normalized)) {
             assignVendorForReopen(workflow, request);
         }
+    }
+
+    /**
+     * OUT_OF_WARRANTY keeps the ticket with the vendor who raised the quotation: the next state
+     * (OUT_OF_WARRANTY_PENDING_VENDOR) still requires that same vendor to RESOLVE/DECLINE. Without
+     * this, the workflow would clear assignes and the ticket would appear unassigned to every vendor.
+     */
+    private void keepActingVendorAssigned(Workflow workflow, IncidentRequest request) {
+        if (!CollectionUtils.isEmpty(workflow.getAssignes())) {
+            return;
+        }
+        String vendorUuid = request.getRequestInfo() != null && request.getRequestInfo().getUserInfo() != null
+                ? request.getRequestInfo().getUserInfo().getUuid()
+                : null;
+        if (StringUtils.isBlank(vendorUuid)) {
+            throw new CustomException(REOPEN_VENDOR_NOT_FOUND_CODE,
+                    "Could not determine the acting vendor to retain assignment for OUT_OF_WARRANTY");
+        }
+        workflow.setAssignes(List.of(vendorUuid));
+        log.debug("OUT_OF_WARRANTY retained ticket {} with acting vendor {}",
+                request.getIncident().getIncidentId(), vendorUuid);
     }
 
     public Long getLatestResolvedTimestamp(String tenantId, String incidentId, RequestInfo requestInfo) {
