@@ -11,7 +11,6 @@ import {
   Video,
 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
-import type { SelectOption } from "../../types/create-incident";
 import { useCreateIncidentForm } from "../../hooks/use-create-incident-form";
 import { DuplicateTicketsDialog } from "./DuplicateTicketsDialog";
 import { FormSectionCard } from "./FormSectionCard";
@@ -30,23 +29,20 @@ export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormPr
     translateOr,
     form,
     fieldErrors,
-    districtMenu,
-    blockMenu,
-    facilityMenu,
+    endUserOptions,
+    assetOptions,
+    facilityById,
+    assetById,
     complaintTypes,
-    subTypes,
-    systemOptions,
+    showEndUserDropdown,
+    isFacilitiesLoading,
+    isAssetsLoading,
     imageUploads,
     videoUploads,
-    firUploads,
     uploadFiles,
     isImageUploading,
     isVideoUploading,
-    isFirUploading,
     disableUpload,
-    isTheftIssue,
-    isInstallationTicket,
-    isUninstalledFacility,
     duplicateTickets,
     setDuplicateTickets,
     canSubmit,
@@ -56,9 +52,8 @@ export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormPr
     clearForm,
     saveDraft,
     validate,
-    handleDistrictChange,
-    handleBlockChange,
-    handleFacilityChange,
+    handleEndUserChange,
+    handleAssetChange,
     handleComplaintTypeChange,
     updateField,
   } = useCreateIncidentForm(inboxPath, responsePath);
@@ -103,35 +98,45 @@ export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormPr
           description={translateOr(
             t,
             "TICKET_LOCATION_DESC",
-            "Select where the issue is occurring",
+            "Select the end user and asset for this ticket",
           )}
         >
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
+            {showEndUserDropdown ? (
+              <FormSelectField
+                label={translateOr(t, "INCIDENT_END_USER", "End user")}
+                required
+                value={form.endUser?.facilityId ?? ""}
+                options={endUserOptions}
+                disabled={isFacilitiesLoading}
+                error={fieldErrors.endUser}
+                onChange={(option) =>
+                  handleEndUserChange(
+                    option ? (facilityById.get(option.code) ?? null) : null,
+                  )
+                }
+              />
+            ) : form.endUser ? (
+              <div className="min-w-0 space-y-1.5">
+                <p className="text-sm font-medium text-foreground">
+                  {translateOr(t, "INCIDENT_END_USER", "End user")}
+                </p>
+                <p className="rounded-md border border-input bg-muted/30 px-3 py-2 text-sm text-foreground">
+                  {form.endUser.facilityPocName}
+                </p>
+              </div>
+            ) : null}
+
             <FormSelectField
-              label={translateOr(t, "INCIDENT_DISTRICT", "District")}
+              label={translateOr(t, "INCIDENT_ASSET", "Asset")}
               required
-              value={form.district?.code ?? ""}
-              options={districtMenu}
-              error={fieldErrors.district}
-              onChange={(option) => handleDistrictChange(option)}
-            />
-            <FormSelectField
-              label={translateOr(t, "INCIDENT_BLOCK", "Block")}
-              required
-              value={form.block?.code ?? ""}
-              options={blockMenu}
-              disabled={!form.district}
-              error={fieldErrors.block}
-              onChange={(option) => handleBlockChange(option)}
-            />
-            <FormSelectField
-              label={translateOr(t, "HEALTH_CARE_CENTRE", "Facility")}
-              required
-              value={form.facility?.code ?? ""}
-              options={facilityMenu}
-              disabled={!form.block}
-              error={fieldErrors.facility}
-              onChange={(option) => handleFacilityChange(option)}
+              value={form.asset?.assetId ?? ""}
+              options={assetOptions}
+              disabled={!form.endUser || isAssetsLoading}
+              error={fieldErrors.asset}
+              onChange={(option) =>
+                handleAssetChange(option ? (assetById.get(option.code) ?? null) : null)
+              }
             />
           </div>
         </FormSectionCard>
@@ -145,39 +150,15 @@ export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormPr
             "Describe the problem so we can help faster",
           )}
         >
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             <FormSelectField
               label={translateOr(t, "TICKET_TYPE", "Issue Type")}
               required
               value={form.complaintType?.code ?? ""}
               options={complaintTypes}
-              disabled={isUninstalledFacility}
+              disabled={!form.asset}
               error={fieldErrors.complaintType}
               onChange={(option) => handleComplaintTypeChange(option)}
-            />
-            <FormSelectField
-              label={translateOr(t, "TICKET_SUBTYPE", "Issue Sub Type")}
-              required
-              value={form.subType?.code ?? ""}
-              options={subTypes}
-              disabled={!form.complaintType || isUninstalledFacility || isInstallationTicket}
-              error={fieldErrors.subType}
-              onChange={(option: SelectOption | null) => updateField("subType", option)}
-            />
-            <FormSelectField
-              label={translateOr(
-                t,
-                "SYSTEM_FUNCTIONAL",
-                "Is the Solar System Working?",
-              )}
-              required
-              value={form.systemFunctionality?.code ?? ""}
-              options={systemOptions}
-              disabled={!form.complaintType || isUninstalledFacility || isInstallationTicket}
-              error={fieldErrors.systemFunctionality}
-              onChange={(option: SelectOption | null) =>
-                updateField("systemFunctionality", option)
-              }
             />
           </div>
         </FormSectionCard>
@@ -233,27 +214,6 @@ export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormPr
                 onSelect={(files) => void uploadFiles(files, "video")}
               />
             </div>
-
-            {isTheftIssue ? (
-              <MediaUploadZone
-                label={translateOr(
-                  t,
-                  "INCIDENT_UPLOAD_FIR_POLICE_LETTER",
-                  "Upload FIR / Police Letter",
-                )}
-                hint={translateOr(
-                  t,
-                  "INCIDENT_PLEASE_UPLOAD_FIR_POLICE_LETTER",
-                  "Please upload FIR or police letter (required for theft)",
-                )}
-                icon={Info}
-                accept=".pdf,.jpg,.jpeg,.png,image/*"
-                disabled={disableUpload}
-                uploading={isFirUploading}
-                files={firUploads.map((item) => item.file.name)}
-                onSelect={(files) => void uploadFiles(files, "fir")}
-              />
-            ) : null}
           </div>
         </FormSectionCard>
 

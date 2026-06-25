@@ -1,5 +1,5 @@
 import type { InboxStatusMapEntry } from "../../types/inbox";
-import { ORDERED_INBOX_STATUSES } from "../../constants/routes";
+import { ORDERED_INBOX_STATUSES } from "../../constants/inbox-statuses";
 import { useTranslate } from "@/shared";
 import { Label } from "@/ui";
 import { useMemo } from "react";

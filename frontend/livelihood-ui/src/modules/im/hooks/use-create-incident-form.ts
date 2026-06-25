@@ -1,47 +1,37 @@
 import {
-  aggregateBoundaryCodes,
-  tenantId,
   useAuthStore,
-  useBoundary,
-  useFacility,
   useJurisdictionStore,
   useTranslate,
 } from "@/shared";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useImMdms } from "./use-im-inbox-summary";
-import { createIncident, searchPotentialDuplicates } from "../services/incident";
+import { searchAssetsForFacility } from "../services/asset-search";
+import { searchFacilitiesByJurisdiction } from "../services/facility-search";
 import { uploadIncidentFile, uploadIncidentVideo } from "../services/file-upload";
-import {
-  fetchComplaintSubTypes,
-  fetchComplaintTypes,
-} from "../services/mdms";
+import { createIncident, searchPotentialDuplicates } from "../services/incident";
+import { fetchServiceDefsForMenuPath } from "../services/mdms";
 import type {
   CreateIncidentFormValues,
   SelectOption,
   UploadedMediaEntry,
 } from "../types/create-incident";
+import type { LivelihoodAsset, LivelihoodFacility } from "../types/facility-asset";
 import { buildUploadedDocuments } from "../utils/create-incident-documents";
+import { buildFacilitySearchCriteria } from "../utils/jurisdiction-facility-criteria";
 
 const DRAFT_STORAGE_KEY = "livelihood-im-create-draft";
 
 interface FieldErrors {
-  district?: string;
-  block?: string;
-  facility?: string;
+  endUser?: string;
+  asset?: string;
   complaintType?: string;
-  subType?: string;
-  systemFunctionality?: string;
 }
 
 const EMPTY_FORM: CreateIncidentFormValues = {
-  district: null,
-  block: null,
-  facility: null,
+  endUser: null,
+  asset: null,
   complaintType: null,
-  subType: null,
-  systemFunctionality: null,
   comments: "",
 };
 
@@ -58,204 +48,137 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
   const accessToken = useAuthStore((state) => state.accessToken);
   const employeeTenantId = useAuthStore((state) => state.employeeTenantId);
   const currentBoundary = useJurisdictionStore((state) => state.currentBoundary);
-  const jurisdictionCodes = aggregateBoundaryCodes(currentBoundary);
 
   const [form, setForm] = useState<CreateIncidentFormValues>(EMPTY_FORM);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [complaintTypes, setComplaintTypes] = useState<SelectOption[]>([]);
-  const [subTypes, setSubTypes] = useState<SelectOption[]>([]);
   const [imageUploads, setImageUploads] = useState<UploadedMediaEntry[]>([]);
   const [videoUploads, setVideoUploads] = useState<UploadedMediaEntry[]>([]);
-  const [firUploads, setFirUploads] = useState<UploadedMediaEntry[]>([]);
   const [isImageUploading, setIsImageUploading] = useState(false);
   const [isVideoUploading, setIsVideoUploading] = useState(false);
-  const [isFirUploading, setIsFirUploading] = useState(false);
   const [duplicateTickets, setDuplicateTickets] = useState<
     Array<{ ticketId: string; ticketTenantId: string }>
   >([]);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [disableUpload, setDisableUpload] = useState(true);
 
-  const { data: boundaryData } = useBoundary(jurisdictionCodes);
-  const [facilityBoundaryCodes, setFacilityBoundaryCodes] = useState<string[]>(["-"]);
-  const { data: facilityData } = useFacility(facilityBoundaryCodes);
-  const { data: systemFunctionalityMenu } = useImMdms();
-
-  const isTheftIssue = form.complaintType?.key?.toUpperCase() === "THEFT";
-  const isInstallationTicket =
-    form.complaintType?.key?.toUpperCase() === "UNINSTALL" ||
-    form.complaintType?.key?.toUpperCase() === "REINSTALL";
-  const isUninstalledFacility = form.facility?.status === "UNINSTALLED";
-
-  const districtMenu = useMemo(() => {
-    return (boundaryData?.districts ?? [])
-      .map((district) => ({
-        code: district.code,
-        name: t(`Boundary_${district.code}`),
-        parentCode: district.parentCode,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [boundaryData, t]);
-
-  const blockMenu = useMemo(() => {
-    if (!form.district?.code) {
-      return [];
-    }
-    return (boundaryData?.blocks ?? [])
-      .filter((block) => block.parentCode === form.district?.code)
-      .map((block) => ({
-        code: block.code,
-        name: t(`Boundary_${block.code}`),
-        parentCode: block.parentCode,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [boundaryData, form.district, t]);
-
-  const facilityMenu = useMemo(() => {
-    if (!form.block?.code || !facilityData?.facilities?.length) {
-      return [];
-    }
-    const parentMap = new Map(
-      (boundaryData?.facilities ?? []).map((facility) => [
-        facility.code,
-        facility.parentCode,
-      ]),
-    );
-    return facilityData.facilities
-      .filter((facility) => parentMap.get(facility.boundaryCode) === form.block?.code)
-      .map((facility) => ({
-        code: facility.boundaryCode,
-        name: t(`Boundary_${facility.boundaryCode}`),
-        id: facility.facilityId,
-        status: facility.facilityStatus,
-        parentCode: parentMap.get(facility.boundaryCode),
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [boundaryData, facilityData, form.block, t]);
-
-  const systemOptions = useMemo(
+  const facilityCriteria = useMemo(
     () =>
-      (systemFunctionalityMenu ?? []).map((item) => ({
-        code: item.code,
-        key: item.code,
-        name: t(item.name),
+      employeeTenantId
+        ? buildFacilitySearchCriteria(currentBoundary, employeeTenantId)
+        : null,
+    [currentBoundary, employeeTenantId],
+  );
+
+  const facilitiesQuery = useQuery({
+    queryKey: ["create-incident-facilities", facilityCriteria, accessToken],
+    enabled: Boolean(accessToken && facilityCriteria),
+    queryFn: () =>
+      searchFacilitiesByJurisdiction(facilityCriteria!, accessToken!, user),
+  });
+
+  const facilities = facilitiesQuery.data?.facilities ?? [];
+  const showEndUserDropdown = facilities.length !== 1;
+
+  const assetsQuery = useQuery({
+    queryKey: [
+      "create-incident-assets",
+      form.endUser?.facilityId,
+      employeeTenantId,
+      accessToken,
+    ],
+    enabled: Boolean(accessToken && employeeTenantId && form.endUser?.facilityId),
+    queryFn: () =>
+      searchAssetsForFacility(
+        form.endUser!.facilityId,
+        employeeTenantId!,
+        accessToken!,
+        user,
+      ),
+  });
+
+  const assets = assetsQuery.data ?? [];
+
+  const facilityById = useMemo(
+    () => new Map(facilities.map((facility) => [facility.facilityId, facility])),
+    [facilities],
+  );
+
+  const assetById = useMemo(
+    () => new Map(assets.map((asset) => [asset.assetId, asset])),
+    [assets],
+  );
+
+  const endUserOptions = useMemo(
+    () =>
+      facilities.map((facility) => ({
+        code: facility.facilityId,
+        name: facility.facilityPocName,
       })),
-    [systemFunctionalityMenu, t],
+    [facilities],
+  );
+
+  const assetOptions = useMemo(
+    () =>
+      assets.map((asset) => ({
+        code: asset.assetId,
+        name: asset.serialNumber
+          ? `${asset.name} (${asset.serialNumber})`
+          : asset.name,
+      })),
+    [assets],
   );
 
   useEffect(() => {
-    if (boundaryData?.facilities) {
-      setFacilityBoundaryCodes(
-        boundaryData.facilities.map((facility) => facility.code).filter(Boolean),
-      );
-    }
-  }, [boundaryData]);
-
-  useEffect(() => {
-    if (!accessToken) {
+    if (facilities.length !== 1 || form.endUser) {
       return;
     }
-    void fetchComplaintTypes(accessToken, user, t).then((types) => {
-      const others = types.find((item) => item.key === "" || item.key === "Others");
-      const remaining = types
-        .filter((item) => item.key !== "" && item.key !== "Others")
-        .sort((a, b) => a.name.localeCompare(b.name));
-      if (others) {
-        remaining.push(others);
-      }
+    const facility = facilities[0];
+    setForm((prev) => ({
+      ...prev,
+      endUser: facility,
+      asset: null,
+      complaintType: null,
+    }));
+    setDisableUpload(false);
+  }, [facilities, form.endUser]);
+
+  useEffect(() => {
+    if (!form.asset?.assetTypeId || !accessToken) {
+      setComplaintTypes([]);
+      return;
+    }
+
+    void fetchServiceDefsForMenuPath(
+      accessToken,
+      user,
+      form.asset.assetTypeId,
+      t,
+    ).then((types) => {
       setComplaintTypes(
-        remaining.map((item) => ({
+        types.map((item) => ({
           code: item.key,
           key: item.key,
+          serviceCode: item.serviceCode,
+          menuPath: item.menuPath,
           name: item.name,
         })),
       );
     });
-  }, [accessToken, user, t]);
+  }, [accessToken, form.asset?.assetTypeId, t, user]);
 
   useEffect(() => {
-    if (!form.complaintType?.key || !accessToken) {
-      setSubTypes([]);
-      return;
-    }
-    if (form.complaintType.key === "Others" || form.complaintType.key === "") {
-      setSubTypes([{ code: "Others", key: "Others", name: t("SERVICEDEFS.OTHERS") }]);
-      return;
-    }
-    void fetchComplaintSubTypes(accessToken, user, form.complaintType.key, t).then(
-      (items) => {
-        const others = items.find((item) => item.key === "Other");
-        const remaining = items
-          .filter((item) => item.key !== "Other")
-          .sort((a, b) => a.name.localeCompare(b.name));
-        if (others) {
-          remaining.push(others);
-        }
-        setSubTypes(
-          remaining.map((item) => ({
-            code: item.key,
-            key: item.key,
-            name: item.name,
-          })),
-        );
-      },
-    );
-  }, [accessToken, form.complaintType, t, user]);
-
-  useEffect(() => {
-    const key = form.complaintType?.key?.toUpperCase();
-    if (key === "UNINSTALL") {
-      setForm((prev) => ({
-        ...prev,
-        systemFunctionality: { code: "FUNCTIONAL", key: "FUNCTIONAL", name: t("Yes") },
-        subType: {
-          code: "UninstallSolarSystem",
-          key: "UninstallSolarSystem",
-          name: t("SERVICEDEFS.UNINSTALLSOLARSYSTEM"),
-        },
-      }));
-    } else if (key === "REINSTALL") {
-      setForm((prev) => ({
-        ...prev,
-        systemFunctionality: {
-          code: "NON_FUNCTIONAL",
-          key: "NON_FUNCTIONAL",
-          name: t("No"),
-        },
-        subType: {
-          code: "ReinstallSolarSystem",
-          key: "ReinstallSolarSystem",
-          name: t("SERVICEDEFS.REINSTALLSOLARSYSTEM"),
-        },
-      }));
-    }
-  }, [form.complaintType?.key, t]);
-
-  useEffect(() => {
-    if (isUninstalledFacility) {
-      setForm((prev) => ({
-        ...prev,
-        complaintType: {
-          code: "Reinstall",
-          key: "Reinstall",
-          name: t("SERVICEDEFS.REINSTALL"),
-        },
-      }));
-    }
-  }, [isUninstalledFacility, t]);
-
-  useEffect(() => {
-    if (!form.facility?.code || !form.complaintType?.key || !form.subType?.key) {
+    if (!form.endUser?.facilityId || !form.complaintType?.key) {
       setDuplicateTickets([]);
       return;
     }
+
     const jurisdiction = currentBoundary ?? { country: ["-"] };
     void searchPotentialDuplicates(
       employeeTenantId!,
       jurisdiction,
-      form.facility.code,
+      form.endUser.facilityId,
       form.complaintType.key,
-      form.subType.key,
       accessToken!,
       user,
     ).then(setDuplicateTickets);
@@ -264,8 +187,7 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
     currentBoundary,
     employeeTenantId,
     form.complaintType,
-    form.facility,
-    form.subType,
+    form.endUser,
     user,
   ]);
 
@@ -275,17 +197,8 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
         return;
       }
       const setUploading =
-        kind === "image"
-          ? setIsImageUploading
-          : kind === "video"
-            ? setIsVideoUploading
-            : setIsFirUploading;
-      const setUploads =
-        kind === "image"
-          ? setImageUploads
-          : kind === "video"
-            ? setVideoUploads
-            : setFirUploads;
+        kind === "image" ? setIsImageUploading : setIsVideoUploading;
+      const setUploads = kind === "image" ? setImageUploads : setVideoUploads;
 
       setUploading(true);
       try {
@@ -312,25 +225,18 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
 
   const validate = useCallback(() => {
     const errors: FieldErrors = {};
-    if (!form.district) {
-      errors.district = translateOr(
+    if (!form.endUser) {
+      errors.endUser = translateOr(
         t,
-        "INCIDENT_DISTRICT_REQUIRED",
-        "Please select a district to continue",
+        "INCIDENT_END_USER_REQUIRED",
+        "Please select an end user to continue",
       );
     }
-    if (!form.block) {
-      errors.block = translateOr(
+    if (!form.asset) {
+      errors.asset = translateOr(
         t,
-        "INCIDENT_BLOCK_REQUIRED",
-        "Please select a block to continue",
-      );
-    }
-    if (!form.facility) {
-      errors.facility = translateOr(
-        t,
-        "INCIDENT_FACILITY_REQUIRED",
-        "Please select a facility to continue",
+        "INCIDENT_ASSET_REQUIRED",
+        "Please select an asset to continue",
       );
     }
     if (!form.complaintType) {
@@ -340,40 +246,19 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
         "Please select an issue type to continue",
       );
     }
-    if (!form.subType) {
-      errors.subType = translateOr(
-        t,
-        "INCIDENT_SUBTYPE_REQUIRED",
-        "Please select an issue sub type to continue",
-      );
-    }
-    if (!form.systemFunctionality) {
-      errors.systemFunctionality = translateOr(
-        t,
-        "INCIDENT_SYSTEM_FUNCTIONAL_REQUIRED",
-        "Please select system functionality to continue",
-      );
-    }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }, [form, t]);
 
   const canSubmit = useMemo(() => {
-    const hasMandatoryTheftUpload =
-      !isTheftIssue || firUploads.some((upload) => upload.kind === "fir");
     return Boolean(
-      form.complaintType &&
-        form.subType &&
-        form.systemFunctionality &&
-        form.facility &&
-        form.district &&
-        form.block &&
+      form.endUser &&
+        form.asset &&
+        form.complaintType &&
         !isImageUploading &&
-        !isVideoUploading &&
-        !isFirUploading &&
-        hasMandatoryTheftUpload,
+        !isVideoUploading,
     );
-  }, [firUploads, form, isFirUploading, isImageUploading, isTheftIssue, isVideoUploading]);
+  }, [form, isImageUploading, isVideoUploading]);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -387,17 +272,13 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
       const uploadedDocuments = buildUploadedDocuments([
         ...imageUploads,
         ...videoUploads,
-        ...firUploads,
       ]);
 
       return createIncident({
         tenantId: employeeTenantId,
-        district: form.district!,
-        block: form.block!,
-        facility: form.facility!,
+        endUser: form.endUser!,
+        asset: form.asset!,
         complaintType: form.complaintType!,
-        subType: form.subType!,
-        systemFunctionality: form.systemFunctionality!,
         comments: form.comments,
         uploadedDocuments,
         user,
@@ -429,10 +310,17 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
     setFieldErrors({});
     setImageUploads([]);
     setVideoUploads([]);
-    setFirUploads([]);
-    setDisableUpload(true);
+    setComplaintTypes([]);
+    setDisableUpload(facilities.length !== 1);
     sessionStorage.removeItem(DRAFT_STORAGE_KEY);
-  }, []);
+    if (facilities.length === 1) {
+      setForm({
+        ...EMPTY_FORM,
+        endUser: facilities[0],
+      });
+      setDisableUpload(false);
+    }
+  }, [facilities]);
 
   const saveDraft = useCallback(() => {
     sessionStorage.setItem(
@@ -468,56 +356,39 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
     setFieldErrors((prev) => ({ ...prev, [key]: undefined }));
   };
 
-  const handleDistrictChange = (district: SelectOption | null) => {
+  const handleEndUserChange = (facility: LivelihoodFacility | null) => {
     setForm((prev) => ({
       ...prev,
-      district,
-      block: null,
-      facility: null,
+      endUser: facility,
+      asset: null,
+      complaintType: null,
     }));
     setFieldErrors((prev) => ({
       ...prev,
-      district: undefined,
-      block: undefined,
-      facility: undefined,
+      endUser: undefined,
+      asset: undefined,
+      complaintType: undefined,
     }));
-  };
-
-  const handleBlockChange = (block: SelectOption | null) => {
-    setForm((prev) => ({
-      ...prev,
-      block,
-      facility: null,
-    }));
-    setFieldErrors((prev) => ({
-      ...prev,
-      block: undefined,
-      facility: undefined,
-    }));
-  };
-
-  const handleFacilityChange = (facility: SelectOption | null) => {
-    updateField("facility", facility);
     if (facility) {
       setDisableUpload(false);
     }
   };
 
-  const handleComplaintTypeChange = (complaintType: SelectOption | null) => {
-    const key = complaintType?.key?.toUpperCase();
-    const isInstall = key === "UNINSTALL" || key === "REINSTALL";
+  const handleAssetChange = (asset: LivelihoodAsset | null) => {
     setForm((prev) => ({
       ...prev,
-      complaintType,
-      subType: isInstall ? prev.subType : null,
-      systemFunctionality: isInstall ? prev.systemFunctionality : null,
+      asset,
+      complaintType: null,
     }));
     setFieldErrors((prev) => ({
       ...prev,
+      asset: undefined,
       complaintType: undefined,
-      subType: undefined,
-      systemFunctionality: undefined,
     }));
+  };
+
+  const handleComplaintTypeChange = (complaintType: SelectOption | null) => {
+    updateField("complaintType", complaintType);
     if (complaintType) {
       setDisableUpload(false);
     }
@@ -529,24 +400,20 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
     form,
     updateField,
     fieldErrors,
-    districtMenu,
-    blockMenu,
-    facilityMenu,
+    endUserOptions,
+    assetOptions,
+    facilityById,
+    assetById,
     complaintTypes,
-    subTypes,
-    systemOptions,
+    showEndUserDropdown,
+    isFacilitiesLoading: facilitiesQuery.isLoading,
+    isAssetsLoading: assetsQuery.isLoading,
     imageUploads,
     videoUploads,
-    firUploads,
     uploadFiles,
     isImageUploading,
     isVideoUploading,
-    isFirUploading,
     disableUpload,
-    setDisableUpload,
-    isTheftIssue,
-    isInstallationTicket,
-    isUninstalledFacility,
     duplicateTickets,
     setDuplicateTickets,
     canSubmit,
@@ -557,9 +424,8 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
     saveDraft,
     validate,
     inboxPath,
-    handleDistrictChange,
-    handleBlockChange,
-    handleFacilityChange,
+    handleEndUserChange,
+    handleAssetChange,
     handleComplaintTypeChange,
   };
 }

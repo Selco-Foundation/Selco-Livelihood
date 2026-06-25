@@ -1,7 +1,5 @@
 import {
   aggregateBoundaryCodes,
-  isNonHcrUser,
-  isTechPocUser,
   useAuthStore,
   useBoundary,
   useFacility,
@@ -10,10 +8,11 @@ import {
 } from "@/shared";
 import { ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { ORDERED_INBOX_STATUSES } from "../../constants/routes";
+import { ORDERED_INBOX_STATUSES } from "../../constants/inbox-statuses";
 import { buildDefaultInboxRoleFilters } from "../../hooks/inbox-defaults";
-import { useImComplaintTypes, useImMdms } from "../../hooks/use-im-inbox-summary";
+import { useImComplaintTypes } from "../../hooks/use-im-inbox-summary";
 import type { ImInboxFilters, InboxDataResult } from "../../types/inbox";
+import { isEndUser } from "../../utils/access";
 import { buildFilterQueryFromState } from "../../utils/inbox-filters";
 
 interface FilterOption {
@@ -75,7 +74,7 @@ export function InboxFilter({
 }: InboxFilterProps) {
   const { t } = useTranslate();
   const user = useAuthStore((state) => state.user);
-  const userName = user?.userName ?? "";
+  const userUuid = user?.uuid ?? "";
   const roles = user?.roles;
   const currentBoundary = useJurisdictionStore((state) => state.currentBoundary);
   const jurisdictionCodes = aggregateBoundaryCodes(currentBoundary);
@@ -89,11 +88,10 @@ export function InboxFilter({
   );
 
   const defaultFilters = buildDefaultInboxRoleFilters(user);
-  const techPoc = isTechPocUser(roles);
-  const showGeoFilters = isNonHcrUser(roles);
+  const showGeoFilters = !isEndUser(roles);
 
   const [selectAssigned, setSelectAssigned] = useState(
-    searchParams.filters?.wfFilters?.assignee?.[0]?.code === userName
+    searchParams.filters?.wfFilters?.assignee?.[0]?.code === userUuid
       ? assignedToOptions[0]
       : assignedToOptions[1],
   );
@@ -104,7 +102,6 @@ export function InboxFilter({
     state: [] as Array<{ code: string; name?: string }>,
     district: [] as Array<{ code: string; name?: string }>,
     block: [] as Array<{ code: string; name?: string }>,
-    isSystemFunctional: [] as Array<{ code: string; name?: string }>,
     applicationStatus: [] as Array<{ code: string }>,
   };
 
@@ -124,11 +121,9 @@ export function InboxFilter({
   const [facilityOptions, setFacilityOptions] = useState<FilterOption[]>([]);
   const [facilityBoundaries, setFacilityBoundaries] = useState<FilterOption[]>([]);
   const [facilityBoundaryCodes, setFacilityBoundaryCodes] = useState<string[]>(["-"]);
-  const [systemFunctionalityMenu, setSystemFunctionalityMenu] = useState<FilterOption[]>([]);
 
   const { data: boundaryData } = useBoundary(jurisdictionCodes);
   const { data: facilityData } = useFacility(facilityBoundaryCodes);
-  const { data: mdmsData } = useImMdms();
   const { data: complaintTypes } = useImComplaintTypes();
 
   const sortedMenu = useMemo(() => {
@@ -195,7 +190,7 @@ export function InboxFilter({
         if (!unique.has(state.code)) {
           unique.set(state.code, {
             code: state.code,
-            name: t(`Boundary_${state.code}`),
+            name: t(`BOUNDARY_${state.code}`),
           });
         }
       }
@@ -211,7 +206,7 @@ export function InboxFilter({
           .filter((district) => district.parentCode === selectedState.code)
           .map((district) => ({
             code: district.code,
-            name: t(`Boundary_${district.code}`),
+            name: t(`BOUNDARY_${district.code}`),
           }))
           .sort((a, b) => a.name.localeCompare(b.name)),
       );
@@ -228,7 +223,7 @@ export function InboxFilter({
           .filter((block) => block.parentCode === selectedDistrict.code)
           .map((block) => ({
             code: block.code,
-            name: t(`Boundary_${block.code}`),
+            name: t(`BOUNDARY_${block.code}`),
           }))
           .sort((a, b) => a.name.localeCompare(b.name)),
       );
@@ -245,7 +240,7 @@ export function InboxFilter({
           .filter((facility) => facility.parentCode === selectedBlock.code)
           .map((facility) => ({
             code: facility.code,
-            name: t(`Boundary_${facility.code}`),
+            name: t(`BOUNDARY_${facility.code}`),
           }))
           .sort((a, b) => a.name.localeCompare(b.name)),
       );
@@ -255,36 +250,12 @@ export function InboxFilter({
   }, [pgrfilters.block, facilityOptions, t]);
 
   useEffect(() => {
-    if (mdmsData?.length) {
-      setSystemFunctionalityMenu(
-        mdmsData
-          .filter((item) => item.active !== false)
-          .sort((a, b) => a.name.localeCompare(b.name))
-          .map((item) => ({
-            code: item.code,
-            name: t(item.name),
-          })),
-      );
-    }
-  }, [mdmsData, t]);
-
-  useEffect(() => {
-    const code = selectAssigned.code === "ASSIGNED_TO_ME" ? userName : "";
+    const code = selectAssigned.code === "ASSIGNED_TO_ME" ? userUuid : "";
     setWfFilters((prev) => ({
       ...prev,
       assignee: [{ code }],
-      ...(techPoc &&
-        (code
-          ? {
-              wfStatus: [
-                { code: "RMS_DEVICE_PENDING_TECH_POC" },
-                { code: "OUT_OF_WARRANTY_PENDING_TECH_POC" },
-                { code: "OUT_OF_WARRANTY_PENDING_TECH_POC_ROUND_2" },
-              ],
-            }
-          : { wfStatus: [] })),
     }));
-  }, [selectAssigned, techPoc, userName]);
+  }, [selectAssigned, userUuid]);
 
   useEffect(() => {
     const { pgrQuery, wfQuery } = buildFilterQueryFromState({ pgrfilters, wfFilters });
@@ -315,7 +286,7 @@ export function InboxFilter({
 
       <div className="my-5 border-t border-border" />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <FilterSelect
           label={t("CS_COMPLAINT_DETAILS_TICKET_TYPE")}
           value={pgrfilters.incidentType[0]?.code ?? ""}
@@ -418,24 +389,6 @@ export function InboxFilter({
             setPgrFilters((prev) => ({
               ...prev,
               facility: option ? [option] : [],
-            }));
-          }}
-        />
-
-        <FilterSelect
-          label={t("CS_SYSTEM_FUNCTIONAL")}
-          value={pgrfilters.isSystemFunctional[0]?.code ?? ""}
-          options={systemFunctionalityMenu}
-          allLabel={allLabel}
-          onChange={(code) => {
-            if (!code) {
-              setPgrFilters((prev) => ({ ...prev, isSystemFunctional: [] }));
-              return;
-            }
-            const option = systemFunctionalityMenu.find((item) => item.code === code);
-            setPgrFilters((prev) => ({
-              ...prev,
-              isSystemFunctional: option ? [option] : [],
             }));
           }}
         />

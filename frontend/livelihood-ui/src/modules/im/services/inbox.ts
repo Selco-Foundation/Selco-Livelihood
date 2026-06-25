@@ -33,7 +33,7 @@ export async function searchInbox(
     sortBy,
     sortOrder,
     applicationNumber,
-  } = buildIncidentInboxFilters(filters, tenantId, user?.uuid);
+  } = buildIncidentInboxFilters(filters, tenantId);
 
   const payload: InboxSearchPayload = {
     inbox: {

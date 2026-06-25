@@ -1,7 +1,11 @@
+import type { LivelihoodAsset, LivelihoodFacility } from "./facility-asset";
+
 export interface SelectOption {
   code: string;
   name: string;
   key?: string;
+  menuPath?: string;
+  serviceCode?: string;
   id?: string;
   status?: string;
   parentCode?: string;
@@ -22,12 +26,9 @@ export interface UploadedMediaEntry {
 }
 
 export interface CreateIncidentFormValues {
-  district: SelectOption | null;
-  block: SelectOption | null;
-  facility: SelectOption | null;
+  endUser: LivelihoodFacility | null;
+  asset: LivelihoodAsset | null;
   complaintType: SelectOption | null;
-  subType: SelectOption | null;
-  systemFunctionality: SelectOption | null;
   comments: string;
 }
 

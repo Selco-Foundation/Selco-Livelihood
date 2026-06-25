@@ -1,7 +1,5 @@
 import {
   contextPath,
-  hasImAccess,
-  hasRole,
   loadModules,
   tenantId,
   useAuthStore,
@@ -10,6 +8,7 @@ import {
 import { ModuleHomeCard } from "@/ui";
 import { useEffect } from "react";
 import { useImInboxSummary } from "../hooks/use-im-inbox-summary";
+import { hasImAccess, hasRole } from "../utils/access";
 
 function ImIcon() {
   return (
@@ -42,11 +41,6 @@ export function ImHomeCard() {
       label: t("ES_IM_NEW_INCIDENT"),
       link: `${basePath}/incident/create`,
       role: "COMPLAINANT",
-    },
-    {
-      label: t("ES_IM_PAUSE_RMS"),
-      link: `${basePath}/paused-rms-facilities`,
-      role: "COMPLAINT_ASSESSOR",
     },
   ].filter((item) => hasRole(user?.roles, item.role));
 

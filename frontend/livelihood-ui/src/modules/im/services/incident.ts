@@ -6,49 +6,25 @@ import type {
   SelectOption,
   VerificationDocument,
 } from "../types/create-incident";
+import type { LivelihoodAsset, LivelihoodFacility } from "../types/facility-asset";
+import {
+  LIVELIHOOD_INCIDENT_BUSINESS_SERVICE,
+  OPEN_DUPLICATE_APPLICATION_STATUSES,
+} from "../constants/workflow";
 import { searchInbox } from "./inbox";
 
 export interface CreateIncidentInput {
   tenantId: string;
-  district: SelectOption;
-  block: SelectOption;
-  facility: SelectOption;
+  endUser: LivelihoodFacility;
+  asset: LivelihoodAsset;
   complaintType: SelectOption;
-  subType: SelectOption;
-  systemFunctionality: SelectOption;
   comments?: string;
   uploadedDocuments: VerificationDocument[];
   user: AuthUser;
   accessToken: string;
 }
 
-const DUPLICATE_STATUSES = [
-  "PENDINGFORASSIGNMENT",
-  "PENDINGFORASSIGNMENT_RMS_DEVICE",
-  "PENDINGFORASSIGNMENT_THEFT",
-  "RMS_DEVICE_PENDING_TECH_POC",
-  "PENDINGRESOLUTION",
-  "OUT_OF_SCOPE",
-  "OUT_OF_WARRANTY_PENDING_TECH_POC",
-  "PENDING_REVISION",
-  "OUT_OF_WARRANTY_PENDING_TECH_POC_ROUND_2",
-  "PENDING_ASSIGNMENT_SPARE_PART_NEEDED",
-  "PENDING_ASSIGNMENT_OUT_OF_WARRANTY",
-  "PENDING_RESOLUTION_OUT_OF_SCOPE",
-  "PENDING_RESOLUTION_SPARE_PART_NEEDED",
-  "PENDING_RESOLUTION_OUT_OF_WARRANTY",
-].join(",");
-
-function getWorkflowAction(complaintTypeKey: string): string {
-  const normalized = complaintTypeKey.trim().toUpperCase();
-  if (normalized === "THEFT") {
-    return "APPLY_THEFT";
-  }
-  if (normalized === "RMS DEVICE") {
-    return "APPLY_RMS_DEVICE";
-  }
-  return "APPLY";
-}
+const DUPLICATE_STATUSES = OPEN_DUPLICATE_APPLICATION_STATUSES;
 
 export function buildVerificationDocuments(
   uploadedDocuments: VerificationDocument[],
@@ -64,32 +40,31 @@ export function buildVerificationDocuments(
 }
 
 export function buildCreateIncidentPayload(input: CreateIncidentInput) {
-  const workflowAction = getWorkflowAction(input.complaintType.key ?? input.complaintType.code);
+  const incidentType =
+    input.complaintType.serviceCode ??
+    input.complaintType.key ??
+    input.complaintType.code;
 
   return {
     incident: {
       tenantId: input.tenantId,
-      district: input.district.name,
-      block: input.block.name,
-      incidentType: input.complaintType.key ?? input.complaintType.code,
-      incidentSubtype: input.subType.key ?? input.subType.code,
-      systemFunctional: input.systemFunctionality.key ?? input.systemFunctionality.code,
-      boundaryCode: input.facility.code,
+      facilityId: input.endUser.facilityId,
+      assetId: input.asset.assetId,
+      incidentType,
+      boundaryCode: input.asset.boundaryCode,
       comments: input.comments ?? "",
-      additionalDetail: {
-        fileStoreId: input.uploadedDocuments,
-        reopenreason: [],
-        rejectReason: [],
-        sendBackReason: [],
-      },
+      ...(input.uploadedDocuments.length > 0
+        ? { additionalDetail: { fileStoreId: input.uploadedDocuments } }
+        : {}),
       source: "web",
       reporter: {
         uuid: input.user.uuid,
-        tenantId: input.user.tenantId,
+        userName: input.user.userName,
+        tenantId: input.user.tenantId ?? input.tenantId,
       },
     },
     workflow: {
-      action: workflowAction,
+      action: "CREATE",
       verificationDocuments: buildVerificationDocuments(input.uploadedDocuments),
     },
   };
@@ -123,9 +98,8 @@ export async function createIncident(
 export async function searchPotentialDuplicates(
   tenantId: string,
   jurisdiction: JurisdictionBoundaries,
-  facilityCode: string,
+  facilityId: string,
   incidentType: string,
-  incidentSubType: string,
   accessToken: string,
   user: AuthUser | null | undefined,
 ) {
@@ -135,11 +109,10 @@ export async function searchPotentialDuplicates(
     {
       limit: 100,
       offset: 0,
-      services: ["Incident"],
+      services: [LIVELIHOOD_INCIDENT_BUSINESS_SERVICE],
       sortOrder: "DESC",
-      facility: facilityCode,
+      facility: facilityId,
       incidentType,
-      incidentSubType,
       applicationStatus: DUPLICATE_STATUSES,
     },
     accessToken,

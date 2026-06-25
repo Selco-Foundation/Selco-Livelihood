@@ -62,10 +62,4 @@ export {
   filterRolesForEmployeeTenant,
   hydrateEmployeeJurisdictions,
 } from "./utils/employee-session";
-export {
-  hasImAccess,
-  hasRole,
-  isNonHcrUser,
-  isTechPocUser,
-} from "./utils/im-access";
 export type { ModuleDefinition, NavItem } from "./modules/types";

@@ -1,6 +1,7 @@
-import { contextPath, hasRole, useAuthStore, useTranslate } from "@/shared";
+import { contextPath, useAuthStore, useTranslate } from "@/shared";
 import { Card, CardContent } from "@/ui";
 import { Link } from "@tanstack/react-router";
+import { hasRole } from "../../utils/access";
 
 function ImHeaderIcon() {
   return (

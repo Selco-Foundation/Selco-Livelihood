@@ -1,44 +1,22 @@
-import { hasRole, isTechPocUser, type AuthUser } from "@/shared";
+import type { AuthUser } from "@/shared";
 import type { ImInboxFilters } from "../types/inbox";
+import { hasRole } from "../utils/access";
 
 export function buildDefaultInboxRoleFilters(
   user: AuthUser | null | undefined,
 ): ImInboxFilters {
-  const userName = user?.userName ?? "";
+  const userUuid = user?.uuid ?? "";
   const roles = user?.roles;
 
   if (hasRole(roles, "COMPLAINT_RESOLVER")) {
     return {
-      wfFilters: { assignee: [{ code: userName }] },
+      wfFilters: { assignee: [{ code: userUuid }] },
       pgrfilters: {
         incidentType: [],
         facility: [],
         state: [],
         district: [],
         block: [],
-        isSystemFunctional: [],
-        applicationStatus: [],
-      },
-    };
-  }
-
-  if (isTechPocUser(roles)) {
-    return {
-      wfFilters: {
-        assignee: [{ code: userName }],
-        wfStatus: [
-          { code: "RMS_DEVICE_PENDING_TECH_POC" },
-          { code: "OUT_OF_WARRANTY_PENDING_TECH_POC" },
-          { code: "OUT_OF_WARRANTY_PENDING_TECH_POC_ROUND_2" },
-        ],
-      },
-      pgrfilters: {
-        incidentType: [],
-        facility: [],
-        state: [],
-        district: [],
-        block: [],
-        isSystemFunctional: [],
         applicationStatus: [],
       },
     };
@@ -52,7 +30,6 @@ export function buildDefaultInboxRoleFilters(
       state: [],
       district: [],
       block: [],
-      isSystemFunctional: [],
       applicationStatus: [],
     },
   };
@@ -61,19 +38,11 @@ export function buildDefaultInboxRoleFilters(
 export function buildSummaryRoleFilters(
   user: AuthUser | null | undefined,
 ): Record<string, unknown> {
-  const userName = user?.userName ?? "";
+  const userUuid = user?.uuid ?? "";
   const roles = user?.roles;
 
   if (hasRole(roles, "COMPLAINT_RESOLVER")) {
-    return { assignee: userName };
-  }
-
-  if (isTechPocUser(roles)) {
-    return {
-      assignee: userName,
-      wfStatus:
-        "RMS_DEVICE_PENDING_TECH_POC,OUT_OF_WARRANTY_PENDING_TECH_POC,OUT_OF_WARRANTY_PENDING_TECH_POC_ROUND_2",
-    };
+    return { assignee: userUuid };
   }
 
   return {};

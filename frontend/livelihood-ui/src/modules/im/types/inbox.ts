@@ -11,7 +11,6 @@ export interface ImInboxFilters {
     state?: Array<{ code: string; name?: string }>;
     district?: Array<{ code: string; name?: string }>;
     block?: Array<{ code: string; name?: string }>;
-    isSystemFunctional?: Array<{ code: string; name?: string }>;
     applicationStatus?: Array<{ code: string }>;
   };
 }
@@ -28,7 +27,9 @@ export interface ImInboxSearchParams {
 export interface InboxIncident {
   incidentId: string;
   incidentType: string;
-  incidentSubType: string;
+  incidentSubType?: string;
+  facilityId?: string;
+  assetId?: string;
   phcType?: string;
   applicationStatus: string;
   tenantId: string;
@@ -62,9 +63,7 @@ export interface InboxSearchResponse {
 export interface InboxRow {
   incidentId: string;
   incidentType: string;
-  incidentSubType: string;
-  phcType?: string;
-  facility: string;
+  assetId: string;
   status: string;
   taskOwner: string;
   sla: string;
@@ -81,6 +80,8 @@ export interface InboxDataResult {
 export interface ComplaintTypeOption {
   key: string;
   name: string;
+  menuPath?: string;
+  serviceCode?: string;
 }
 
 export interface SystemFunctionalityOption {

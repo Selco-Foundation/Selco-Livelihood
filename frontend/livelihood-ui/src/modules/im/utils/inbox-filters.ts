@@ -1,3 +1,5 @@
+import { LIVELIHOOD_INCIDENT_BUSINESS_SERVICE } from "../constants/workflow";
+
 const DAY = 24 * 60 * 60 * 1000;
 
 export interface IncidentFilterInput {
@@ -20,7 +22,6 @@ export interface IncidentFilterInput {
   block?: string;
   isSystemFunctional?: string;
   wfStatus?: string;
-  uuid?: { code: string };
   IncidentWrappers?: boolean;
   incidentId?: string;
   tenantId?: string;
@@ -43,7 +44,6 @@ function splitCsv(value: string): string[] {
 export function buildIncidentInboxFilters(
   filtersArg: IncidentFilterInput,
   tenantId: string,
-  userUuid?: string,
 ): IncidentFilterResult {
   const searchFilters: Record<string, unknown> = {};
   const workflowFilters: Record<string, unknown> = {};
@@ -65,7 +65,6 @@ export function buildIncidentInboxFilters(
     state,
     district,
     block,
-    isSystemFunctional,
     wfStatus,
   } = filtersArg ?? {};
 
@@ -105,16 +104,8 @@ export function buildIncidentInboxFilters(
     searchFilters.state = splitCsv(state);
   }
 
-  if (isSystemFunctional) {
-    searchFilters.systemFunctional = splitCsv(isSystemFunctional);
-  }
-
-  if (assignee && !wfStatus) {
-    searchFilters.assignee = assignee;
-  }
-
-  if (filtersArg?.uuid?.code === "ASSIGNED_TO_ME" && userUuid) {
-    workflowFilters.assignee = userUuid;
+  if (assignee) {
+    workflowFilters.assignee = assignee;
   }
 
   if (mobileNumber) {
@@ -205,7 +196,7 @@ export function flattenInboxFilters(
     limit: searchParams.limit,
     offset: searchParams.offset,
     nearingSLA: searchParams.nearingSLA,
-    services: defaults.services ?? ["Incident"],
+    services: defaults.services ?? [LIVELIHOOD_INCIDENT_BUSINESS_SERVICE],
     sortOrder: defaults.sortOrder ?? "DESC",
   };
 }

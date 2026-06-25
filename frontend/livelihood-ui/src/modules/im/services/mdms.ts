@@ -92,6 +92,34 @@ export async function fetchComplaintTypes(
   return menu;
 }
 
+export async function fetchServiceDefsForMenuPath(
+  accessToken: string,
+  user: AuthUser | null | undefined,
+  menuPath: string,
+  t: (key: string) => string,
+): Promise<ComplaintTypeOption[]> {
+  const stateTenantId = tenantId();
+  const masters = await fetchMdmsMasters(
+    stateTenantId,
+    "Incident",
+    ["ServiceDefs"],
+    accessToken,
+    user,
+  );
+  const serviceDefs = (masters.ServiceDefs as ServiceDef[]) ?? [];
+
+  return serviceDefs
+    .filter((def) => !def.deprecated && def.menuPath === menuPath)
+    .map((def) => ({
+      key: def.serviceCode ?? "",
+      serviceCode: def.serviceCode,
+      menuPath: def.menuPath,
+      name: t(`SERVICEDEFS.${(def.serviceCode ?? "").toUpperCase()}`),
+    }))
+    .filter((item) => item.key)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export async function fetchComplaintSubTypes(
   accessToken: string,
   user: AuthUser | null | undefined,

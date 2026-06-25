@@ -2,7 +2,6 @@ import { apiClient, tenantId, type AuthUser } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
 import type { VerificationDocument } from "../types/create-incident";
 import type {
-  EmployeeSearchResult,
   MdmsReasonOption,
   UpdateIncidentResponse,
   WorkflowBusinessServiceResponse,
@@ -14,11 +13,10 @@ import type {
 import { fetchMdmsMasters } from "./mdms";
 import { resolveVerificationMedia } from "./incident-details";
 import { formatEpochToDate } from "../utils/date-format";
+import { LIVELIHOOD_INCIDENT_BUSINESS_SERVICE } from "../constants/workflow";
 import type {
   ComplaintDetailsData,
   IncidentWrapper,
-  OowResponse,
-  SpcResponse,
 } from "../types/incident-details";
 
 export async function searchWorkflowProcess(
@@ -169,7 +167,8 @@ export async function fetchWorkflowDetails(
   }
 
   const currentInstance = processInstances[0];
-  const businessServiceName = currentInstance.businessService ?? "Incident";
+  const businessServiceName =
+    currentInstance.businessService ?? LIVELIHOOD_INCIDENT_BUSINESS_SERVICE;
 
   const businessServiceResponse = await fetchWorkflowBusinessService(
     tenantId,
@@ -210,13 +209,12 @@ export async function fetchWorkflowDetails(
   const merged = mergeCommentEvents(withMedia);
   let timeline = buildTimeline(merged);
 
-  const pendingAssignment = timeline.filter(
-    (checkpoint) => checkpoint.status === "PENDINGFORASSIGNMENT",
+  const createCheckpoint = timeline.find(
+    (checkpoint) => checkpoint.performedAction === "CREATE",
   );
-  const lastPending = pendingAssignment.at(-1);
-  if (lastPending) {
+  if (createCheckpoint) {
     timeline.push({
-      ...lastPending,
+      ...createCheckpoint,
       status: "COMPLAINT_FILED",
     });
   }
@@ -228,43 +226,6 @@ export async function fetchWorkflowDetails(
     processInstances: withMedia,
     applicationBusinessService: businessServiceName,
   };
-}
-
-export async function searchEmployeesForAssign(
-  tenantId: string,
-  roles: string,
-  boundaryCode: string,
-  accessToken: string,
-  user?: AuthUser | null,
-): Promise<EmployeeSearchResult[]> {
-  interface HrmsEmployeeResponse {
-    Employees?: Array<{
-      user?: { uuid?: string; userName?: string };
-    }>;
-  }
-
-  const { data } = await apiClient.get<HrmsEmployeeResponse>(
-    "/egov-hrms/employees/_search",
-    {
-      params: {
-        tenantId,
-        roles,
-        boundaryCodes: boundaryCode,
-        isActive: true,
-        searchOnlyInBoundary: true,
-      },
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    },
-  );
-
-  return (data.Employees ?? [])
-    .map((employee) => ({
-      uuid: employee.user?.uuid ?? "",
-      name: employee.user?.userName ?? "",
-    }))
-    .filter((employee) => employee.uuid);
 }
 
 export async function fetchReasonOptions(
@@ -294,12 +255,8 @@ export interface UpdateIncidentActionInput {
   assigneeUuid?: string | null;
   comments?: string;
   documents?: VerificationDocument[];
-  reopenReason?: string;
-  rejectReason?: MdmsReasonOption | null;
-  sendBackReason?: MdmsReasonOption | null;
   outOfScopeReason?: MdmsReasonOption | null;
-  oowResponses?: OowResponse;
-  spcResponses?: SpcResponse;
+  declineReason?: MdmsReasonOption | null;
   accessToken: string;
   user: AuthUser;
 }
@@ -317,42 +274,23 @@ export async function updateIncidentAction(
   workflow.verificationDocuments = input.documents ?? [];
 
   const additionalDetail = {
-    reopenreason: [...(incident.additionalDetail?.reopenreason ?? [])],
-    rejectReason: [...(incident.additionalDetail?.rejectReason ?? [])],
-    sendBackReason: [...(incident.additionalDetail?.sendBackReason ?? [])],
-    oowResponses: [...(incident.additionalDetail?.oowResponses ?? [])],
     outOfScopeReason: [...(incident.additionalDetail?.outOfScopeReason ?? [])],
-    spcResponses: [...(incident.additionalDetail?.spcResponses ?? [])],
+    declineReason: [...(incident.additionalDetail?.declineReason ?? [])],
     fileStoreId: incident.additionalDetail?.fileStoreId,
   };
 
-  if (input.reopenReason) {
-    workflow.reopenreason = input.reopenReason;
-    additionalDetail.reopenreason.push(input.reopenReason);
+  const outOfScopeReason =
+    input.outOfScopeReason?.code ?? input.outOfScopeReason?.localizedCode;
+  if (outOfScopeReason) {
+    workflow.outOfScopeReason = outOfScopeReason;
+    additionalDetail.outOfScopeReason.push(outOfScopeReason);
   }
-  if (input.rejectReason?.localizedCode) {
-    workflow.rejectReason = input.rejectReason.localizedCode;
-    additionalDetail.rejectReason.push(input.rejectReason.localizedCode);
-  }
-  if (input.sendBackReason?.localizedCode) {
-    workflow.sendBackReason = {
-      reason: input.sendBackReason.localizedCode,
-    };
-    additionalDetail.sendBackReason.push({
-      reason: input.sendBackReason.localizedCode,
-    });
-  }
-  if (input.oowResponses) {
-    workflow.oowResponses = input.oowResponses;
-    additionalDetail.oowResponses.push(input.oowResponses);
-  }
-  if (input.outOfScopeReason?.localizedCode) {
-    workflow.outOfScopeReason = input.outOfScopeReason.localizedCode;
-    additionalDetail.outOfScopeReason.push(input.outOfScopeReason.localizedCode);
-  }
-  if (input.spcResponses) {
-    workflow.spcResponses = input.spcResponses;
-    additionalDetail.spcResponses.push(input.spcResponses);
+
+  const declineReason =
+    input.declineReason?.code ?? input.declineReason?.localizedCode;
+  if (declineReason) {
+    workflow.declineReason = declineReason;
+    additionalDetail.declineReason.push(declineReason);
   }
 
   incident.additionalDetail = additionalDetail;
