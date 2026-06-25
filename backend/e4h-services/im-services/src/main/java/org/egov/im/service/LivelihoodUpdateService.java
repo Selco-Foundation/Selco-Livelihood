@@ -126,7 +126,6 @@ public class LivelihoodUpdateService {
             throw new CustomException("QUOTATION_REQUIRED",
                     "Mandatory quotation document must include a fileStoreId");
         }
-        requireComment(workflow, "OUT_OF_WARRANTY requires observation/details in comments");
     }
 
     private void validateDecline(IncidentRequest request, String currentStatus) {
