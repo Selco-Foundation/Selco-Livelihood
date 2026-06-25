@@ -44,6 +44,24 @@ public class IMConstants {
 
     public static final String LIVELIHOOD_WF_AUTO_CLOSE = "AUTO_CLOSE";
 
+    /** 72-hour reopen window after resolution. */
+    public static final long LIVELIHOOD_REOPEN_WINDOW_MS = 72L * 60 * 60 * 1000;
+
+    public static final String REOPEN_ACCESS_DENIED_CODE = "REOPEN_ACCESS_DENIED";
+
+    public static final String REOPEN_ACCESS_DENIED_MSG =
+            "Only the facility manager can reopen this ticket";
+
+    public static final String REOPEN_WINDOW_EXPIRED_CODE = "403";
+
+    public static final String REOPEN_WINDOW_EXPIRED_MSG =
+            "Reopen is only allowed within 72 hours of resolution";
+
+    public static final String REOPEN_VENDOR_NOT_FOUND_CODE = "REOPEN_VENDOR_NOT_FOUND";
+
+    public static final String REOPEN_VENDOR_NOT_FOUND_MSG =
+            "Could not determine the vendor to reassign for reopen";
+
     public static final String VENDOR_ACCESS_DENIED_CODE = "VENDOR_ACCESS_DENIED";
 
     public static final String VENDOR_ACCESS_DENIED_MSG = "Access denied: ticket is not assigned to you";

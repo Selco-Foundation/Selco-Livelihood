@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.egov.common.contract.request.RequestInfo;
+import org.egov.common.contract.request.User;
 import org.egov.im.util.LivelihoodVendorScopeService;
 import org.egov.im.web.models.Document;
 import org.egov.im.web.models.Incident;
@@ -34,6 +35,7 @@ public class LivelihoodUpdateService {
     );
 
     private final LivelihoodVendorScopeService livelihoodVendorScopeService;
+    private final WorkflowService workflowService;
     private final ObjectMapper objectMapper;
 
     public void validateUpdate(IncidentRequest request, Incident existingIncident, List<String> currentAssignees) {
@@ -59,6 +61,7 @@ public class LivelihoodUpdateService {
             case "OUT_OF_SCOPE" -> validateOutOfScope(request, currentStatus);
             case "OUT_OF_WARRANTY" -> validateOutOfWarranty(request, currentStatus);
             case "DECLINE" -> validateDecline(request, currentStatus);
+            case "REOPEN" -> validateReopen(request, existingIncident, requestInfo);
             default -> { }
         }
     }
@@ -131,6 +134,41 @@ public class LivelihoodUpdateService {
             throw new CustomException("INVALID_ACTION", "DECLINE is only allowed from OUT_OF_WARRANTY_PENDING_VENDOR");
         }
         requireComment(request.getWorkflow(), "DECLINE requires a mandatory comment");
+    }
+
+    private void validateReopen(IncidentRequest request, Incident existingIncident, RequestInfo requestInfo) {
+        if (!LIVELIHOOD_RESOLVED.equals(normalizeStatus(existingIncident.getApplicationStatus()))) {
+            throw new CustomException("INVALID_ACTION", "REOPEN is only allowed from RESOLVED");
+        }
+        requireComment(request.getWorkflow(), "REOPEN requires a mandatory comment");
+        assertComplainantCanReopen(requestInfo, existingIncident);
+
+        Long resolvedAt = workflowService.getLatestResolvedTimestamp(
+                existingIncident.getTenantId(),
+                existingIncident.getIncidentId(),
+                requestInfo
+        );
+        if (resolvedAt == null && existingIncident.getAuditDetails() != null) {
+            resolvedAt = existingIncident.getAuditDetails().getLastModifiedTime();
+        }
+        if (resolvedAt == null) {
+            throw new CustomException("REOPEN_TIMESTAMP_MISSING", "Could not determine resolution timestamp");
+        }
+        if (System.currentTimeMillis() - resolvedAt > LIVELIHOOD_REOPEN_WINDOW_MS) {
+            throw new CustomException(REOPEN_WINDOW_EXPIRED_CODE, REOPEN_WINDOW_EXPIRED_MSG);
+        }
+    }
+
+    private void assertComplainantCanReopen(RequestInfo requestInfo, Incident existingIncident) {
+        if (requestInfo == null || requestInfo.getUserInfo() == null) {
+            throw new CustomException(REOPEN_ACCESS_DENIED_CODE, REOPEN_ACCESS_DENIED_MSG);
+        }
+        User user = requestInfo.getUserInfo();
+        if (StringUtils.isNotBlank(existingIncident.getAccountId())
+                && existingIncident.getAccountId().equalsIgnoreCase(user.getUuid())) {
+            return;
+        }
+        throw new CustomException(REOPEN_ACCESS_DENIED_CODE, REOPEN_ACCESS_DENIED_MSG);
     }
 
     private void requireComment(Workflow workflow, String message) {

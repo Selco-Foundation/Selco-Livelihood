@@ -260,9 +260,14 @@ public class ServiceRequestValidator {
      */
     private void validateReOpen(IncidentRequest request){
         log.info("serviceRequestValidator::Validating incident reopen request");
-        if(!request.getWorkflow().getAction().equalsIgnoreCase(IM_WF_REOPEN))
+        if (request.getWorkflow() == null
+                || !request.getWorkflow().getAction().equalsIgnoreCase(IM_WF_REOPEN)) {
             return;
+        }
 
+        if (livelihoodTenantUtil.isLivelihood(request.getIncident().getTenantId())) {
+            return;
+        }
 
         Incident incident = request.getIncident();
         RequestInfo requestInfo = request.getRequestInfo();

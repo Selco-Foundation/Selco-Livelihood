@@ -108,6 +108,11 @@ public class LivelihoodNotificationService {
                     notifyPocVendorDeclined(request);
                 }
             }
+            case "REOPEN" -> {
+                if (LIVELIHOOD_PENDING_FOR_RESOLUTION.equalsIgnoreCase(newStatus)) {
+                    notifyVendorReopened(request);
+                }
+            }
             case "REASSIGN", "ASSIGN_VENDOR" -> {
                 // POC reassignment: do not notify the original vendor (#36)
                 log.debug("Skipping vendor notification for POC reassignment on incidentId={}",
@@ -163,6 +168,17 @@ public class LivelihoodNotificationService {
                 "Your ticket %s has been resolved by the vendor. "
                         + "You may reopen within 72 hours if the issue persists.",
                 request.getIncident().getIncidentId()
+        ));
+    }
+
+    private void notifyVendorReopened(IncidentRequest request) {
+        notifyVendorSms(request, String.format(
+                "Ticket %s has been reopened by the facility manager for asset %s at %s. "
+                        + "Please review and resolve within 7 days. Comment: %s",
+                request.getIncident().getIncidentId(),
+                request.getIncident().getAssetId(),
+                request.getIncident().getFacilityId(),
+                StringUtils.defaultIfBlank(request.getWorkflow().getComments(), "N/A")
         ));
     }
 
