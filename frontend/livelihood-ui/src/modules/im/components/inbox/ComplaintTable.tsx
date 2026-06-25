@@ -40,9 +40,8 @@ export function ComplaintTable({
   const columns = [
     { key: "ticket", label: t("CS_COMMON_TICKET_NO") },
     { key: "type", label: t("CS_TICKET_TYPE") },
-    { key: "subType", label: t("CS_TICKET_SUB_TYPE") },
     { key: "status", label: t("CS_TICKET_DETAILS_CURRENT_STATUS") },
-    { key: "facility", label: t("CS_COMPLAINT_PHC_TYPE") },
+    { key: "asset", label: t("INCIDENT_ASSET") },
     { key: "owner", label: t("WF_INBOX_HEADER_CURRENT_OWNER") },
     { key: "sla", label: t("WF_INBOX_HEADER_SLA_DAYS_REMAINING") },
   ] as const;
@@ -89,7 +88,7 @@ export function ComplaintTable({
                 <td className="px-5 py-4 text-foreground">
                   {t(`CS_COMMON_${row.status}`)}
                 </td>
-                <td className="px-5 py-4 text-foreground">{t(row.facility)}</td>
+                <td className="px-5 py-4 text-foreground">{row.assetId}</td>
                 <td className="px-5 py-4 text-foreground">{row.taskOwner}</td>
                 <td className="px-5 py-4">
                   <SlaBadge value={row.sla} overdueLabel={overdueLabel} />

@@ -32,7 +32,6 @@ export function combineInboxResponses(
     const incident = businessObject?.incident ?? {
       incidentId: "",
       incidentType: "",
-      incidentSubType: "",
       applicationStatus: "",
       tenantId: "",
     };
@@ -60,11 +59,7 @@ export function combineInboxResponses(
     return {
       incidentId: incident.incidentId,
       incidentType: incident.incidentType,
-      incidentSubType: incident.incidentSubType,
-      phcType: incident.phcType,
-      facility: incident.boundary?.facilityCode
-        ? `BOUNDARY_${incident.boundary.facilityCode}`
-        : "-",
+      assetId: incident.assetId ?? "-",
       status: incident.applicationStatus,
       taskOwner: assignee?.name || "-",
       sla: `${slaValue}`,
