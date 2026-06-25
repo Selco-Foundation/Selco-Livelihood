@@ -607,7 +607,9 @@ public class EnrichmentService {
 
     public Map<String, Object> getFacilityDetailsFromBoundaryCode(IncidentRequest incidentRequest) {
         Incident incident = incidentRequest.getIncident();
-        String boundaryCode = incident.getBoundaryCode();
+        // Livelihood incidents carry an asset-level boundary ({facilityBoundary}_{assetId}); the facility
+        // registry is keyed on the facility boundary, so strip the asset suffix before lookup.
+        String boundaryCode = resolveFacilityBoundaryForLookup(incident);
         String tenantId = incident.getTenantId();
 
         if (boundaryCode == null || boundaryCode.isEmpty()) {
