@@ -1,6 +1,6 @@
-import { contextPath } from "@/shared";
+import { contextPath, useModuleI18n } from "@/shared";
 import type { AnyRoute } from "@tanstack/react-router";
-import { createRoute, redirect } from "@tanstack/react-router";
+import { createRoute, Outlet, redirect } from "@tanstack/react-router";
 import { Inbox } from "lucide-react";
 import { ImHomeCard } from "./components/ImHomeCard";
 import { IM_ROUTES } from "./constants/routes";
@@ -8,6 +8,25 @@ import { ComplaintDetailsPage } from "./pages/employee/ComplaintDetailsPage";
 import { CreateIncidentPage } from "./pages/employee/CreateIncidentPage";
 import { CreateIncidentResponsePage } from "./pages/employee/CreateIncidentResponsePage";
 import { InboxPage } from "./pages/employee/InboxPage";
+
+/**
+ * Parent route component for all IM pages.
+ * Blocks rendering until the rainmaker-im translation module is loaded
+ * (either from localStorage cache or fetched from the API on first visit).
+ */
+function ImModuleWrapper() {
+  const { isLoading } = useModuleI18n("im");
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[200px] items-center justify-center text-sm text-muted-foreground">
+        Loading...
+      </div>
+    );
+  }
+
+  return <Outlet />;
+}
 
 export function createImRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRoute) {
   const basePath = contextPath();
@@ -17,8 +36,15 @@ export function createImRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
   const createResponsePath = `/${basePath}${IM_ROUTES.createResponse}`;
   const complaintDetailsPath = `/${basePath}${IM_ROUTES.complaintDetails}/$incidentId/$tenantId`;
 
-  const imIndexRoute = createRoute({
+  // Parent route — loads rainmaker-im translations before any IM page renders
+  const imParentRoute = createRoute({
     getParentRoute: () => employeeLayoutRoute,
+    id: "im-module",
+    component: ImModuleWrapper,
+  });
+
+  const imIndexRoute = createRoute({
+    getParentRoute: () => imParentRoute,
     path: imRoot,
     beforeLoad: () => {
       throw redirect({ to: inboxPath });
@@ -26,7 +52,7 @@ export function createImRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
   });
 
   const inboxRoute = createRoute({
-    getParentRoute: () => employeeLayoutRoute,
+    getParentRoute: () => imParentRoute,
     path: inboxPath,
     validateSearch: (search: Record<string, unknown>) => ({
       filter: typeof search.filter === "string" ? search.filter : undefined,
@@ -38,25 +64,26 @@ export function createImRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
   });
 
   const createIncidentRoute = createRoute({
-    getParentRoute: () => employeeLayoutRoute,
+    getParentRoute: () => imParentRoute,
     path: createPath,
     component: CreateIncidentPage,
   });
 
   const createIncidentResponseRoute = createRoute({
-    getParentRoute: () => employeeLayoutRoute,
+    getParentRoute: () => imParentRoute,
     path: createResponsePath,
     component: CreateIncidentResponsePage,
   });
 
   const complaintDetailsRoute = createRoute({
-    getParentRoute: () => employeeLayoutRoute,
+    getParentRoute: () => imParentRoute,
     path: complaintDetailsPath,
     component: ComplaintDetailsPage,
   });
 
   return {
     routes: [
+      imParentRoute,
       imIndexRoute,
       inboxRoute,
       createIncidentRoute,

@@ -7,6 +7,7 @@ interface LocaleState {
   loadedModules: string[];
   setLocale: (locale: string) => void;
   markModulesLoaded: (modules: string[]) => void;
+  removeModule: (module: string) => void;
   getUnloadedModules: (modules: string[]) => string[];
 }
 
@@ -19,6 +20,10 @@ export const useLocaleStore = create<LocaleState>()(
       markModulesLoaded: (modules) =>
         set((state) => ({
           loadedModules: [...new Set([...state.loadedModules, ...modules])],
+        })),
+      removeModule: (module) =>
+        set((state) => ({
+          loadedModules: state.loadedModules.filter((m) => m !== module),
         })),
       getUnloadedModules: (modules) => {
         const loaded = new Set(get().loadedModules);

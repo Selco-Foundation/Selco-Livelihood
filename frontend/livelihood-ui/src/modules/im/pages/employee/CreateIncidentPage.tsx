@@ -1,7 +1,6 @@
-import { contextPath, loadModules, useTranslate } from "@/shared";
+import { contextPath, useTranslate } from "@/shared";
 import { PageHeader } from "@/ui";
 import { Link } from "@tanstack/react-router";
-import { useEffect } from "react";
 import { CreateTicketForm } from "../../components/create/CreateTicketForm";
 import { IM_ROUTES } from "../../constants/routes";
 
@@ -19,10 +18,6 @@ export function CreateIncidentPage() {
   const basePath = `/${contextPath()}`;
   const inboxPath = `${basePath}${IM_ROUTES.inbox}`;
   const responsePath = `${basePath}${IM_ROUTES.createResponse}`;
-
-  useEffect(() => {
-    void loadModules(["rainmaker-im"]);
-  }, []);
 
   return (
     <div className="mx-auto max-w-[960px] space-y-6">
