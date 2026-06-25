@@ -7,6 +7,7 @@ import com.google.gson.Gson;
 import com.jayway.jsonpath.JsonPath;
 import lombok.extern.slf4j.Slf4j;
 
+import org.apache.commons.lang3.StringUtils;
 import org.egov.common.contract.request.Role;
 import org.egov.hash.HashService;
 import org.egov.inbox.config.InboxConfiguration;
@@ -82,12 +83,24 @@ public class InboxServiceV2 {
 
         // Vérification des rôles
         List<Role> roles = inboxRequest.getRequestInfo().getUserInfo().getRoles();
+        boolean isVendor = roles.stream()
+                .map(Role::getCode)
+                .filter(Objects::nonNull)
+                .anyMatch(code -> "COMPLAINT_RESOLVER".equalsIgnoreCase(code)
+                        || "LIVELIHOOD_VENDOR".equalsIgnoreCase(code));
         List<String> tenantIds = roles.stream()
-                .filter(role -> role.getCode().equals("COMPLAINT_RESOLVER"))
+                .filter(role -> "COMPLAINT_RESOLVER".equalsIgnoreCase(role.getCode())
+                        || "LIVELIHOOD_VENDOR".equalsIgnoreCase(role.getCode()))
                 .map(Role::getTenantId)
                 .collect(Collectors.toList());
-        boolean isVendor = !tenantIds.isEmpty();
         log.debug("👤 User roles found: {} | isVendor={}", roles, isVendor);
+
+        if (isVendor && StringUtils.isBlank(inboxRequest.getInbox().getProcessSearchCriteria().getAssignee())) {
+            inboxRequest.getInbox().getProcessSearchCriteria()
+                    .setAssignee(inboxRequest.getRequestInfo().getUserInfo().getUuid());
+            log.debug("Auto-set inbox assignee to logged-in vendor uuid={}",
+                    inboxRequest.getRequestInfo().getUserInfo().getUuid());
+        }
 
         // Gestion du tenantId pour les vendors
         Object tenantIdFromRequest = inboxRequest.getInbox().getModuleSearchCriteria().get("tenantId");
@@ -440,12 +453,19 @@ public class InboxServiceV2 {
     }
 
     private Long getApplicationServiceSla(Map<String, Long> businessServiceSlaMap, Map<String, Long> stateUuidSlaMap, Object data) {
-        Long currentDate = System.currentTimeMillis(); // current time
-        Map<String, Object> auditDetails = (Map<String, Object>) ((Map<String, Object>) data).get(AUDIT_DETAILS_KEY);
+        Long currentDate = System.currentTimeMillis();
+        Map<String, Object> dataMap = (Map<String, Object>) data;
+        Map<String, Object> auditDetails = (Map<String, Object>) dataMap.get(AUDIT_DETAILS_KEY);
+
+        if (auditDetails == null) {
+            log.warn("⚠️ SLA could not be calculated: auditDetails missing");
+            return null;
+        }
 
         String stateUuid = null;
-        if (JsonPath.read(data, "$.currentProcessInstance") != null)
+        if (JsonPath.read(data, "$.currentProcessInstance") != null) {
             stateUuid = JsonPath.read(data, STATE_UUID_PATH);
+        }
 
         if (stateUuid != null) {
             if (stateUuidSlaMap.containsKey(stateUuid)) {
@@ -455,15 +475,17 @@ public class InboxServiceV2 {
                     log.debug("📌 Calculated SLA (by state) for stateUuid {} = {} days", stateUuid, remaining);
                     return remaining;
                 }
-            } else {
-                if (!ObjectUtils.isEmpty(auditDetails.get(CREATED_TIME_KEY))) {
-                    Long createdTime = ((Number) auditDetails.get(CREATED_TIME_KEY)).longValue();
-                    String businessService = JsonPath.read(data, BUSINESS_SERVICE_PATH);
-                    Long businessServiceSLA = businessServiceSlaMap.get(businessService);
-                    Long remaining = Math.round((businessServiceSLA - (currentDate - createdTime)) / ((double) (24 * 60 * 60 * 1000)));
-                    log.debug("📌 Calculated SLA (by businessService) for {} = {} days", businessService, remaining);
-                    return remaining;
+            } else if (!ObjectUtils.isEmpty(auditDetails.get(CREATED_TIME_KEY))) {
+                Long createdTime = ((Number) auditDetails.get(CREATED_TIME_KEY)).longValue();
+                String businessService = JsonPath.read(data, BUSINESS_SERVICE_PATH);
+                Long businessServiceSLA = businessServiceSlaMap.get(businessService);
+                if (businessServiceSLA == null) {
+                    log.warn("⚠️ SLA could not be calculated: no SLA config for businessService={}", businessService);
+                    return null;
                 }
+                Long remaining = Math.round((businessServiceSLA - (currentDate - createdTime)) / ((double) (24 * 60 * 60 * 1000)));
+                log.debug("📌 Calculated SLA (by businessService) for {} = {} days", businessService, remaining);
+                return remaining;
             }
         }
         log.warn("⚠️ SLA could not be calculated for data: {}", data);

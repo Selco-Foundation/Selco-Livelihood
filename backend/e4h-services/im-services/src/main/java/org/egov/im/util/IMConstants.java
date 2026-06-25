@@ -14,6 +14,100 @@ public class IMConstants {
 
     public static final String IM_BUSINESSSERVICE = "Incident";
 
+    public static final String LIVELIHOOD_BUSINESSSERVICE = "LivelihoodIncident";
+
+    public static final String LIVELIHOOD_TENANT_ID = "livelihood";
+
+    public static final String LIVELIHOOD_WF_AUTO_ASSIGN = "AUTO_ASSIGN";
+
+    public static final String LIVELIHOOD_WF_CREATE = "CREATE";
+
+    public static final String LIVELIHOOD_PENDING_FOR_RESOLUTION = "PENDING_FOR_RESOLUTION";
+
+    public static final String LIVELIHOOD_OUT_OF_SCOPE_PENDING_POC = "OUT_OF_SCOPE_PENDING_POC";
+
+    public static final String LIVELIHOOD_OUT_OF_SCOPE_PENDING_VENDOR = "OUT_OF_SCOPE_PENDING_VENDOR";
+
+    public static final String LIVELIHOOD_OUT_OF_WARRANTY_PENDING_VENDOR = "OUT_OF_WARRANTY_PENDING_VENDOR";
+
+    public static final String LIVELIHOOD_RESOLVED = "RESOLVED";
+
+    public static final String LIVELIHOOD_CLOSED_AFTER_RESOLUTION = "CLOSED_AFTER_RESOLUTION";
+
+    public static final String LIVELIHOOD_CLOSED_AFTER_DECLINE = "CLOSED_AFTER_DECLINE";
+
+    public static final String LIVELIHOOD_WF_OUT_OF_SCOPE = "OUT_OF_SCOPE";
+
+    public static final String LIVELIHOOD_WF_OUT_OF_WARRANTY = "OUT_OF_WARRANTY";
+
+    public static final String LIVELIHOOD_WF_DECLINE = "DECLINE";
+
+    public static final String LIVELIHOOD_WF_AUTO_CLOSE = "AUTO_CLOSE";
+
+    /** 72-hour reopen window after resolution. */
+    public static final long LIVELIHOOD_REOPEN_WINDOW_MS = 72L * 60 * 60 * 1000;
+
+    public static final String REOPEN_ACCESS_DENIED_CODE = "REOPEN_ACCESS_DENIED";
+
+    public static final String REOPEN_ACCESS_DENIED_MSG =
+            "Only the facility manager can reopen this ticket";
+
+    public static final String REOPEN_WINDOW_EXPIRED_CODE = "403";
+
+    public static final String REOPEN_WINDOW_EXPIRED_MSG =
+            "Reopen is only allowed within 72 hours of resolution";
+
+    public static final String REOPEN_VENDOR_NOT_FOUND_CODE = "REOPEN_VENDOR_NOT_FOUND";
+
+    public static final String REOPEN_VENDOR_NOT_FOUND_MSG =
+            "Could not determine the vendor to reassign for reopen";
+
+    public static final String VENDOR_ACCESS_DENIED_CODE = "VENDOR_ACCESS_DENIED";
+
+    public static final String VENDOR_ACCESS_DENIED_MSG = "Access denied: ticket is not assigned to you";
+
+    public static final String LIVELIHOOD_OOW_QUOTATION_DETAIL_KEY = "oowQuotation";
+
+    public static final String LIVELIHOOD_OOW_ENTERED_AT_DETAIL_KEY = "oowEnteredAt";
+
+    public static final String ROLE_LIVELIHOOD_VENDOR = "LIVELIHOOD_VENDOR";
+
+    public static final String ROLE_LIVELIHOOD_POC = "LIVELIHOOD_POC";
+
+    public static final String POC_ACCESS_DENIED_CODE = "POC_ACCESS_DENIED";
+
+    public static final String POC_ACCESS_DENIED_MSG =
+            "Access denied: resource is outside your assigned state jurisdiction";
+
+    public static final String POC_JURISDICTION_MISSING_CODE = "POC_JURISDICTION_MISSING";
+
+    public static final String POC_JURISDICTION_MISSING_MSG =
+            "LIVELIHOOD_POC user has no active state jurisdiction configured in HRMS";
+
+    public static final String ENTRY_CHANNEL_DIRECT = "DIRECT";
+
+    public static final String ENTRY_CHANNEL_POC_MANUAL = "POC_MANUAL";
+
+    public static final String ENTRY_CHANNEL_IVR_WHATSAPP = "IVR_WHATSAPP";
+
+    public static final String MDMS_SERVICEDEF_LIVELIHOOD_SEARCH =
+            "$.MdmsRes.Incident.ServiceDefs[?(@.serviceCode=='{SERVICEDEF}' && @.menuPath=='{MENUPATH}')]";
+
+    public static final String MDMS_LIVELIHOOD_MODULE = "livelihood";
+
+    public static final String MDMS_ITEM_CODE_MASTER = "ItemCode";
+
+    public static final String LIVELIHOOD_CATCH_ALL_MENU_PATH = "I Cannot Identify The Issue";
+
+    public static final String LIVELIHOOD_ASSET_CATEGORY_DETAIL_KEY = "assetCategory";
+
+    public static final String LIVELIHOOD_RAISED_BY_POC_DETAIL_KEY = "raisedByPocUuid";
+
+    public static final String COMPLAINANT_NOT_FOUND_CODE = "COMPLAINANT_NOT_FOUND";
+
+    public static final String COMPLAINANT_NOT_FOUND_MSG =
+            "No facility manager (COMPLAINANT) found for the facility boundary";
+
     public static final String IM_BUSINESSSERVICE_HIGH = "Incident_High";
 
     public static final String IM_BUSINESSSERVICE_MEDIUM = "Incident_Medium";

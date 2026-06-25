@@ -9,9 +9,13 @@ import org.egov.common.contract.request.RequestInfo;
 import org.egov.common.contract.request.User;
 import org.egov.im.config.IMConfiguration;
 import org.egov.im.repository.ServiceRequestRepository;
+import org.egov.im.util.AssetRegistryUtil;
 import org.egov.im.util.BusinessHoursUtil;
+import org.egov.im.util.LivelihoodTenantUtil;
 import org.egov.im.util.MDMSUtils;
+import org.egov.im.util.VendorRegistryUtil;
 import org.egov.im.web.models.*;
+import org.egov.im.web.models.asset.Asset;
 import org.egov.im.web.models.workflow.*;
 import org.egov.tracer.model.CustomException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +41,16 @@ public class WorkflowService {
 
     private SLAService slaService;
 
+    private LivelihoodTenantUtil livelihoodTenantUtil;
+
+    private AssetRegistryUtil assetRegistryUtil;
+
+    private VendorRegistryUtil vendorRegistryUtil;
+
+    private static final List<String> VENDOR_UUID_KEYS = Arrays.asList(
+            "vendorUserUuid", "vendorEmployeeUuid", "assignedVendorUserId", "vendorUserId"
+    );
+
     private static final Map<Priority, String> PRIORITY_BUSINESS_SERVICE_MAP = Map.of(
             Priority.HIGH, IM_BUSINESSSERVICE_HIGH,
             Priority.MEDIUM, IM_BUSINESSSERVICE_MEDIUM,
@@ -49,13 +63,18 @@ public class WorkflowService {
     @Autowired
     public WorkflowService(IMConfiguration imConfiguration,
                            ServiceRequestRepository repository,
-                           ObjectMapper mapper, NotificationService notificationService, MDMSUtils mdmsUtils, SLAService slaService) {
+                           ObjectMapper mapper, NotificationService notificationService, MDMSUtils mdmsUtils,
+                           SLAService slaService, LivelihoodTenantUtil livelihoodTenantUtil,
+                           AssetRegistryUtil assetRegistryUtil, VendorRegistryUtil vendorRegistryUtil) {
         this.imConfiguration = imConfiguration;
         this.repository = repository;
         this.mapper = mapper;
         this.notificationService = notificationService;
         this.mdmsUtils = mdmsUtils;
         this.slaService = slaService;
+        this.livelihoodTenantUtil = livelihoodTenantUtil;
+        this.assetRegistryUtil = assetRegistryUtil;
+        this.vendorRegistryUtil = vendorRegistryUtil;
     }
 
     /*
@@ -66,7 +85,7 @@ public class WorkflowService {
     public BusinessService getBusinessService(IncidentRequest incidentRequest, Priority priority) {
         log.trace("WorkflowService::getBusinessService method invoked");
         String tenantId = incidentRequest.getIncident().getTenantId();
-        String businessService = PRIORITY_BUSINESS_SERVICE_MAP.getOrDefault(priority, IM_BUSINESSSERVICE);
+        String businessService = resolveBusinessServiceName(incidentRequest, priority);
         log.info("Fetching business service for tenant: {}, priority: {}, businessService: {}",
                 tenantId, priority, businessService);
         log.trace("Building search URL and fetching business service");
@@ -100,8 +119,9 @@ public class WorkflowService {
     public ProcessInstance updateWorkflowStatus(IncidentRequestWrapper wrapper, Object mdmsData) {
         log.trace("WorkflowService::updateWorkflowStatus method invoked");
         IncidentRequest incidentRequest = wrapper.getIncidentRequest();
-        log.trace("Fetching priority from IM priority table");
-        Priority priority = slaService.getPriorityFromIMPriorityTable(incidentRequest.getIncident());
+        Priority priority = livelihoodTenantUtil.isLivelihood(incidentRequest.getIncident().getTenantId())
+                ? slaService.getLivelihoodPriorityFromMDMS(incidentRequest, mdmsData)
+                : slaService.getPriorityFromIMPriorityTable(incidentRequest.getIncident());
         log.trace("Creating process instance for workflow");
         ProcessInstance processInstance = getProcessInstanceForIM(incidentRequest, priority);
         log.info("Updating workflow status for incident: {}, tenant: {}",
@@ -306,6 +326,38 @@ public class WorkflowService {
 
     }
 
+    public void enrichProcessHistory(RequestInfo requestInfo, List<IncidentWrapper> incidentWrappers) {
+        if (CollectionUtils.isEmpty(incidentWrappers)) {
+            return;
+        }
+        for (IncidentWrapper wrapper : incidentWrappers) {
+            String tenantId = wrapper.getIncident().getTenantId();
+            String incidentId = wrapper.getIncident().getIncidentId();
+            RequestInfoWrapper requestInfoWrapper = RequestInfoWrapper.builder().requestInfo(requestInfo).build();
+            StringBuilder searchUrl = getprocessInstanceSearchURL(tenantId, incidentId);
+            searchUrl.append("&history=true");
+            Object result = repository.fetchResult(searchUrl, requestInfoWrapper);
+            ProcessInstanceResponse processInstanceResponse;
+            try {
+                processInstanceResponse = mapper.convertValue(result, ProcessInstanceResponse.class);
+            } catch (IllegalArgumentException e) {
+                log.error("Failed to parse process instance history for incidentId={}", incidentId, e);
+                continue;
+            }
+            if (processInstanceResponse != null
+                    && !CollectionUtils.isEmpty(processInstanceResponse.getProcessInstances())) {
+                wrapper.setProcessHistory(processInstanceResponse.getProcessInstances());
+            }
+        }
+    }
+
+    private String resolveBusinessServiceName(IncidentRequest incidentRequest, Priority priority) {
+        if (livelihoodTenantUtil.isLivelihood(incidentRequest.getIncident().getTenantId())) {
+            return LIVELIHOOD_BUSINESSSERVICE;
+        }
+        return PRIORITY_BUSINESS_SERVICE_MAP.getOrDefault(priority, IM_BUSINESSSERVICE);
+    }
+
     private Map<String, List<IncidentWrapper>> getTenantIdToServiceWrapperMap(List<IncidentWrapper> incidentWrappers) {
         log.trace("WorkflowService::getTenantIdToServiceWrapperMap method invoked");
         Map<String, List<IncidentWrapper>> resultMap = new HashMap<>();
@@ -333,17 +385,11 @@ public class WorkflowService {
         Workflow workflow = request.getWorkflow();
         String action = request.getWorkflow().getAction();
         log.debug("Creating process instance for incident: {} with action: {}", incident.getIncidentId(), action);
-        if (action.equalsIgnoreCase("RESOLVE") || action.equalsIgnoreCase("REJECT")) {
+        if (livelihoodTenantUtil.isLivelihood(incident.getTenantId())) {
+            applyLivelihoodWorkflowRules(workflow, request, action);
+        } else if (action.equalsIgnoreCase("RESOLVE") || action.equalsIgnoreCase("REJECT")) {
             reassignWorkflow(workflow, request, "COMPLAINANT");
-        }
-//        else if (action.equalsIgnoreCase("OUT_OF_WARRANTY")) {
-//            reassignWorkflow(workflow, request, "COMPLAINT_FACILITATOR_2");
-//        }
-//        else if (request.getIncident()!=null && request.getIncident().getApplicationStatus()!= null &&
-//                request.getIncident().getApplicationStatus().trim().equals("PENDING_REVISION") && action.equalsIgnoreCase("SUBMIT")) {
-//            reassignWorkflow(workflow, request, "COMPLAINT_FACILITATOR_2");
-//        }
-        else if (request.getIncident()!=null && request.getIncident().getApplicationStatus()!= null &&
+        } else if (request.getIncident()!=null && request.getIncident().getApplicationStatus()!= null &&
                 request.getIncident().getApplicationStatus().trim().equals("PENDINGRESOLUTION") && action.equalsIgnoreCase("MARK_OUT_OF_SCOPE")) {
             reassignWorkflow(workflow, request, "COMPLAINT_FACILITATOR_1");
         }
@@ -385,6 +431,172 @@ public class WorkflowService {
         List<String> assignee = Arrays.asList(reassigneeDetails.get("employeeUUID"));
         workflow.setAssignes(assignee);
         log.debug("Workflow reassigned to employee with UUID: {}", reassigneeDetails.get("employeeUUID"));
+    }
+
+    private void applyLivelihoodWorkflowRules(Workflow workflow, IncidentRequest request, String action) {
+        if (action == null) {
+            return;
+        }
+        String normalized = action.trim().toUpperCase(Locale.ROOT);
+        if (IM_WF_RESOLVE.equals(normalized) || REJECT.equals(normalized)) {
+            reassignWorkflow(workflow, request, ROLE_COMPLAINANT);
+        } else if (LIVELIHOOD_WF_OUT_OF_SCOPE.equals(normalized)) {
+            reassignWorkflow(workflow, request, ROLE_LIVELIHOOD_POC);
+        } else if (LIVELIHOOD_WF_DECLINE.equals(normalized)) {
+            reassignWorkflow(workflow, request, ROLE_LIVELIHOOD_POC);
+        } else if (IM_WF_REOPEN.equals(normalized)) {
+            assignVendorForReopen(workflow, request);
+        }
+    }
+
+    public Long getLatestResolvedTimestamp(String tenantId, String incidentId, RequestInfo requestInfo) {
+        List<ProcessInstance> processInstances = getAllProcessInstances(tenantId, incidentId, requestInfo);
+        Long latest = null;
+        for (ProcessInstance processInstance : processInstances) {
+            if (processInstance.getState() == null) {
+                continue;
+            }
+            String status = processInstance.getState().getApplicationStatus();
+            if (!LIVELIHOOD_RESOLVED.equalsIgnoreCase(status) && !RESOLVED.equalsIgnoreCase(status)) {
+                continue;
+            }
+            if (processInstance.getAuditDetails() == null
+                    || processInstance.getAuditDetails().getCreatedTime() == null) {
+                continue;
+            }
+            long ts = processInstance.getAuditDetails().getCreatedTime();
+            if (latest == null || ts > latest) {
+                latest = ts;
+            }
+        }
+        return latest;
+    }
+
+    private void assignVendorForReopen(Workflow workflow, IncidentRequest request) {
+        String vendorUuid = resolveVendorUuidForReopen(request);
+        if (StringUtils.isBlank(vendorUuid)) {
+            throw new CustomException(REOPEN_VENDOR_NOT_FOUND_CODE, REOPEN_VENDOR_NOT_FOUND_MSG);
+        }
+        workflow.setAssignes(List.of(vendorUuid));
+        log.debug("Reopen reassigned ticket {} to vendor {}", request.getIncident().getIncidentId(), vendorUuid);
+    }
+
+    private String resolveVendorUuidForReopen(IncidentRequest request) {
+        Incident incident = request.getIncident();
+        String vendorFromHistory = resolveVendorFromProcessHistory(
+                incident.getTenantId(),
+                incident.getIncidentId(),
+                request.getRequestInfo()
+        );
+        if (StringUtils.isNotBlank(vendorFromHistory)) {
+            return vendorFromHistory;
+        }
+        return resolveVendorFromAsset(request);
+    }
+
+    private String resolveVendorFromProcessHistory(String tenantId, String incidentId, RequestInfo requestInfo) {
+        List<ProcessInstance> cycle = new ArrayList<>(getAllProcessInstances(tenantId, incidentId, requestInfo));
+        cycle.sort(Comparator.comparingLong(pi -> {
+            if (pi.getAuditDetails() != null && pi.getAuditDetails().getCreatedTime() != null) {
+                return pi.getAuditDetails().getCreatedTime();
+            }
+            return 0L;
+        }));
+
+        String lastVendorUuid = null;
+        for (int i = 1; i < cycle.size(); i++) {
+            ProcessInstance current = cycle.get(i);
+            if (current.getAction() == null || !IM_WF_RESOLVE.equalsIgnoreCase(current.getAction().trim())) {
+                continue;
+            }
+            String assignee = firstAssigneeUuid(cycle.get(i - 1));
+            if (StringUtils.isNotBlank(assignee)) {
+                lastVendorUuid = assignee;
+            }
+        }
+        return lastVendorUuid;
+    }
+
+    private String firstAssigneeUuid(ProcessInstance processInstance) {
+        if (processInstance == null || CollectionUtils.isEmpty(processInstance.getAssignes())) {
+            return null;
+        }
+        return processInstance.getAssignes().stream()
+                .filter(Objects::nonNull)
+                .map(User::getUuid)
+                .filter(StringUtils::isNotBlank)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private String resolveVendorFromAsset(IncidentRequest request) {
+        Incident incident = request.getIncident();
+        Asset asset = assetRegistryUtil.fetchAsset(
+                request.getRequestInfo(),
+                incident.getTenantId(),
+                incident.getAssetId(),
+                incident.getFacilityId()
+        );
+        if (StringUtils.isNotBlank(asset.getVendorId())) {
+            String vendorId = asset.getVendorId().trim();
+            if (vendorId.matches("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")) {
+                return vendorId;
+            }
+            String resolved = vendorRegistryUtil.resolveVendorUserUuid(
+                    request.getRequestInfo(), incident.getTenantId(), vendorId);
+            if (StringUtils.isNotBlank(resolved)) {
+                return resolved;
+            }
+        }
+        String vendorUuid = extractVendorUuid(asset.getAdditionalDetails());
+        if (StringUtils.isBlank(vendorUuid)) {
+            vendorUuid = extractVendorUuid(asset.getAssetDetails());
+        }
+        return vendorUuid;
+    }
+
+    private String extractVendorUuid(Map<String, Object> details) {
+        if (details == null || details.isEmpty()) {
+            return null;
+        }
+        for (String key : VENDOR_UUID_KEYS) {
+            Object value = details.get(key);
+            if (value != null && StringUtils.isNotBlank(String.valueOf(value))) {
+                return String.valueOf(value).trim();
+            }
+        }
+        Object vendorId = details.get("vendorId");
+        if (vendorId != null && StringUtils.isNotBlank(String.valueOf(vendorId))) {
+            return String.valueOf(vendorId).trim();
+        }
+        return null;
+    }
+
+    public List<String> getCurrentAssigneeUuids(String tenantId, String incidentId, RequestInfo requestInfo) {
+        if (StringUtils.isBlank(tenantId) || StringUtils.isBlank(incidentId) || requestInfo == null) {
+            return Collections.emptyList();
+        }
+        RequestInfoWrapper requestInfoWrapper = RequestInfoWrapper.builder().requestInfo(requestInfo).build();
+        StringBuilder searchUrl = getprocessInstanceSearchURL(tenantId, incidentId);
+        Object result = repository.fetchResult(searchUrl, requestInfoWrapper);
+        try {
+            ProcessInstanceResponse response = mapper.convertValue(result, ProcessInstanceResponse.class);
+            if (response == null || CollectionUtils.isEmpty(response.getProcessInstances())) {
+                return Collections.emptyList();
+            }
+            ProcessInstance processInstance = response.getProcessInstances().get(0);
+            if (CollectionUtils.isEmpty(processInstance.getAssignes())) {
+                return Collections.emptyList();
+            }
+            return processInstance.getAssignes().stream()
+                    .filter(Objects::nonNull)
+                    .map(User::getUuid)
+                    .filter(StringUtils::isNotBlank)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Failed to fetch current assignee for incidentId={}", incidentId, e);
+            return Collections.emptyList();
+        }
     }
 
     /**
@@ -444,7 +656,9 @@ public class WorkflowService {
         Collections.reverse(processInstances);
         int lastIndex = -1;
         for (int i = processInstances.size() - 1; i >= 0; i--) {
-            if (PENDINGFORASSIGNMENT.equals(processInstances.get(i).getState().getState())) {
+            String state = processInstances.get(i).getState().getState();
+            if (PENDINGFORASSIGNMENT.equals(state)
+                    || LIVELIHOOD_PENDING_FOR_RESOLUTION.equals(state)) {
                 lastIndex = i;
                 break;
             }

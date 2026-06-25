@@ -108,5 +108,69 @@ public class MdmsUtil {
 
     }
 
+    /**
+     * Fetches active Livelihood ItemCode master data used to validate asset.itemCode.
+     */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> getLivelihoodItemCodeData(RequestInfo requestInfo, String tenantId) {
+        StringBuilder uri = new StringBuilder();
+        Map<String, List<String>> mapOfModulesAndMasters = new HashMap<>();
+        mapOfModulesAndMasters.put(AssetConstants.LIVELIHOOD_MODULE,
+                List.of(AssetConstants.ITEM_CODE_MASTER));
+
+        List<ModuleDetail> moduleDetails = mapOfModulesAndMasters.entrySet().stream()
+                .map(entry -> {
+                    ModuleDetail moduleDetail = new ModuleDetail();
+                    moduleDetail.setModuleName(entry.getKey());
+                    List<MasterDetail> masterDetails = entry.getValue().stream()
+                            .map(master -> MasterDetail.builder().name(master).build())
+                            .toList();
+                    moduleDetail.setMasterDetails(masterDetails);
+                    return moduleDetail;
+                })
+                .toList();
+
+        uri.append(configuration.getMdmsHost()).append(configuration.getMdmsSearchEndPoint());
+        MdmsCriteria mdmsCriteria = MdmsCriteria.builder().tenantId(tenantId).moduleDetails(moduleDetails).build();
+        MdmsCriteriaReq request = MdmsCriteriaReq.builder().requestInfo(requestInfo).mdmsCriteria(mdmsCriteria).build();
+
+        MdmsResponse response;
+        try {
+            response = restTemplate.postForObject(uri.toString(), request, MdmsResponse.class);
+        } catch (Exception e) {
+            log.error("Exception while fetching Livelihood ItemCode from MDMS", e);
+            throw new CustomException(ErrorConstants.MDMS_SERVICE_ERROR_CODE, ErrorConstants.MDMS_SERVICE_ERROR_MSG);
+        }
+
+        if (response == null || CollectionUtils.isEmpty(response.getMdmsRes())) {
+            return Collections.emptyList();
+        }
+
+        Object moduleData = response.getMdmsRes().get(AssetConstants.LIVELIHOOD_MODULE);
+        if (!(moduleData instanceof Map<?, ?> moduleMap)) {
+            return Collections.emptyList();
+        }
+
+        Object itemCodes = moduleMap.get(AssetConstants.ITEM_CODE_MASTER);
+        if (itemCodes instanceof List<?> list) {
+            return (List<Map<String, Object>>) list;
+        }
+        return Collections.emptyList();
+    }
+
+    public String resolveItemCodeDisplayName(RequestInfo requestInfo, String tenantId, String itemCode) {
+        if (itemCode == null || itemCode.isBlank()) {
+            return null;
+        }
+        return getLivelihoodItemCodeData(requestInfo, tenantId).stream()
+                .filter(row -> itemCode.equalsIgnoreCase(String.valueOf(row.get("code")).trim()))
+                .map(row -> row.get("name"))
+                .filter(Objects::nonNull)
+                .map(String::valueOf)
+                .map(String::trim)
+                .filter(name -> !name.isEmpty())
+                .findFirst()
+                .orElse(null);
+    }
 
 }

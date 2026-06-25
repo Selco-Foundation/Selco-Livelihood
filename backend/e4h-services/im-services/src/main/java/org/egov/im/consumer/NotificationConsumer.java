@@ -8,10 +8,19 @@ import java.util.Map;
 
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.im.service.IMService;
+import org.egov.im.service.LivelihoodNotificationService;
 import org.egov.im.service.NotificationService;
+import org.egov.im.util.LivelihoodTenantUtil;
 import org.egov.im.util.IMConstants;
+import static org.egov.im.util.IMConstants.CLOSE;
+import static org.egov.im.util.IMConstants.LIVELIHOOD_BUSINESSSERVICE;
+import static org.egov.im.util.IMConstants.LIVELIHOOD_OUT_OF_WARRANTY_PENDING_VENDOR;
+import static org.egov.im.util.IMConstants.LIVELIHOOD_RESOLVED;
+import static org.egov.im.util.IMConstants.LIVELIHOOD_WF_AUTO_CLOSE;
+import static org.egov.im.util.IMConstants.RESOLVED;
 import org.egov.im.web.models.IMEscalationInstance;
 import org.egov.im.web.models.IMEscalationRequest;
+import org.egov.im.web.models.Incident;
 import org.egov.im.web.models.IncidentRequest;
 import org.egov.im.web.models.IncidentWrapper;
 import org.egov.im.web.models.RequestSearchCriteria;
@@ -38,6 +47,12 @@ public class NotificationConsumer {
     
     @Autowired
 	private IMService imService;
+
+    @Autowired
+    private LivelihoodTenantUtil livelihoodTenantUtil;
+
+    @Autowired
+    private LivelihoodNotificationService livelihoodNotificationService;
 
 
 /**
@@ -94,11 +109,39 @@ public class NotificationConsumer {
 
         if (!incidents.isEmpty()) {
         	log.info("inside update");
+            IMEscalationInstance escalationInstance =
+                    processInstanceRequest.getImEscalationInstance().get(0);
+            Incident existing = incidents.get(0).getIncident();
+            boolean livelihood = livelihoodTenantUtil.isLivelihood(escalationInstance.getTenantId())
+                    || LIVELIHOOD_BUSINESSSERVICE.equalsIgnoreCase(escalationInstance.getBusinessService());
+
+            if (livelihood && LIVELIHOOD_OUT_OF_WARRANTY_PENDING_VENDOR.equalsIgnoreCase(
+                    existing.getApplicationStatus())) {
+                IncidentRequest reminderRequest = new IncidentRequest();
+                reminderRequest.setIncident(existing);
+                reminderRequest.setRequestInfo(requestInfo);
+                reminderRequest.setWorkflow(workflow);
+                livelihoodNotificationService.processOowRemindersIfDue(reminderRequest, 0L);
+                return;
+            }
+
+            if (livelihood && !LIVELIHOOD_RESOLVED.equalsIgnoreCase(existing.getApplicationStatus())
+                    && !RESOLVED.equalsIgnoreCase(existing.getApplicationStatus())) {
+                log.info("Skipping livelihood auto-escalation close for incidentId={} status={}",
+                        existing.getIncidentId(), existing.getApplicationStatus());
+                return;
+            }
+
 			workflow.setAssignes(new ArrayList<>());
-            	workflow.setAction("CLOSE"); 
+            String escalationAction = CLOSE;
+            if (livelihood && (LIVELIHOOD_RESOLVED.equalsIgnoreCase(existing.getApplicationStatus())
+                    || RESOLVED.equalsIgnoreCase(existing.getApplicationStatus()))) {
+                escalationAction = LIVELIHOOD_WF_AUTO_CLOSE;
+            }
+            	workflow.setAction(escalationAction);
             	workflow.setVerificationDocuments(null);
         	IncidentRequest incidentRequest=new IncidentRequest();
-        	incidentRequest.setIncident(incidents.get(0).getIncident());
+        	incidentRequest.setIncident(existing);
         	incidentRequest.setRequestInfo(requestInfo);
         	incidentRequest.setWorkflow(workflow);
 		log.info("Proceeding for Update call");

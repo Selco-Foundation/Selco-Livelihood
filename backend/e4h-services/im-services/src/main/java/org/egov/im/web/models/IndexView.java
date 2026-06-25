@@ -91,4 +91,16 @@ public class IndexView {
 
     @JsonProperty("boundary")
     private Boundary boundary;
+
+    @JsonProperty("endUserName")
+    private String endUserName;
+
+    @JsonProperty("endUserMobile")
+    private String endUserMobile;
+
+    @JsonProperty("assetName")
+    private String assetName;
+
+    @JsonProperty("attachmentUrls")
+    private String attachmentUrls;
 }

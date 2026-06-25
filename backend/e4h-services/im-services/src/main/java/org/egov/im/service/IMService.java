@@ -1,6 +1,7 @@
 package org.egov.im.service;
 
 
+import org.apache.commons.lang.StringUtils;
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.common.contract.request.User;
 
@@ -8,6 +9,8 @@ import org.egov.im.config.IMConfiguration;
 import org.egov.im.producer.Producer;
 import org.egov.im.repository.IMRepository;
 import org.egov.im.util.IMUtils;
+import org.egov.im.util.LivelihoodTenantUtil;
+import org.egov.im.util.LivelihoodVendorScopeService;
 import org.egov.im.util.MDMSUtils;
 import org.egov.im.validator.ServiceRequestValidator;
 import org.egov.im.web.models.*;
@@ -52,6 +55,16 @@ public class IMService {
 
     private RmsInactiveIncidentService rmsInactiveIncidentService;
 
+    private LivelihoodTenantUtil livelihoodTenantUtil;
+
+    private LivelihoodCreateService livelihoodCreateService;
+
+    private LivelihoodNotificationService livelihoodNotificationService;
+
+    private LivelihoodUpdateService livelihoodUpdateService;
+
+    private LivelihoodVendorScopeService livelihoodVendorScopeService;
+
     @Value("#{'${workflow.ticket.open.statuses}'.split(',')}")
     private Set<String> openTicketStatuses;
 
@@ -67,7 +80,11 @@ public class IMService {
             ServiceRequestValidator serviceRequestValidator, ServiceRequestValidator validator, Producer producer,
             IMConfiguration config, IMRepository repository, MDMSUtils mdmsUtils, IMUtils imUtils,
             LocalizationService localizationService, BoundaryService boundaryService,
-            RmsStatusUpdateService rmsStatusUpdateService, RmsInactiveIncidentService rmsInactiveIncidentService
+            RmsStatusUpdateService rmsStatusUpdateService, RmsInactiveIncidentService rmsInactiveIncidentService,
+            LivelihoodTenantUtil livelihoodTenantUtil, LivelihoodCreateService livelihoodCreateService,
+            LivelihoodNotificationService livelihoodNotificationService,
+            LivelihoodUpdateService livelihoodUpdateService,
+            LivelihoodVendorScopeService livelihoodVendorScopeService
     ) {
         this.enrichmentService = enrichmentService;
         this.userService = userService;
@@ -83,6 +100,11 @@ public class IMService {
         this.boundaryService = boundaryService;
         this.rmsStatusUpdateService = rmsStatusUpdateService;
         this.rmsInactiveIncidentService = rmsInactiveIncidentService;
+        this.livelihoodTenantUtil = livelihoodTenantUtil;
+        this.livelihoodCreateService = livelihoodCreateService;
+        this.livelihoodNotificationService = livelihoodNotificationService;
+        this.livelihoodUpdateService = livelihoodUpdateService;
+        this.livelihoodVendorScopeService = livelihoodVendorScopeService;
     }
 
 
@@ -99,6 +121,11 @@ public class IMService {
         Object mdmsData = mdmsUtils.mDMSCall(request);
         log.trace("Validating create request");
         validator.validateCreate(request, mdmsData);
+
+        if (livelihoodTenantUtil.isLivelihood(tenantId)) {
+            return createLivelihoodIncident(request, mdmsData);
+        }
+
         log.trace("Fetching boundary from boundaryCode");
 
         // Get facility details in order to get facility status before ticket creation
@@ -200,6 +227,48 @@ public class IMService {
         return request;
     }
 
+    private IncidentRequest createLivelihoodIncident(IncidentRequest request, Object mdmsData) {
+        log.info("Creating Livelihood incident for tenantId={}", request.getIncident().getTenantId());
+        livelihoodCreateService.prepareCreate(request, mdmsData);
+
+        Boundary boundary = boundaryService.fetchBoundaryFromBoundaryCode(
+                request.getRequestInfo(),
+                request.getIncident().getBoundaryCode(),
+                request.getIncident().getTenantId(),
+                request.getIncident().getAssetId()
+        );
+        if (boundary == null) {
+            throw new CustomException(
+                    "BOUNDARY_DATA_NOT_FOUND",
+                    "Boundary data not found for code " + request.getIncident().getBoundaryCode()
+            );
+        }
+
+        enrichmentService.enrichCreateRequest(request, boundary);
+        request.getIncident().setPotentialDuplicate(false);
+
+        String startingStatus = request.getIncident().getApplicationStatus();
+        IncidentRequestWrapper wrapper = IncidentRequestWrapper.builder()
+                .incidentRequest(request)
+                .indexView(new IndexView())
+                .build();
+
+        ProcessInstance updatedProcessInstance = workflowService.updateWorkflowStatus(wrapper, mdmsData);
+        ProcessInstance trimmedUpdatedProcessInstance = imUtils.trimRolesFromProcessInstance(updatedProcessInstance);
+
+        String tenantId = request.getIncident().getTenantId();
+        producer.push(tenantId, config.getCreateTopic(), wrapper.getIncidentRequest());
+        wrapper.setProcessInstance(trimmedUpdatedProcessInstance);
+        enrichmentService.enrichFieldsForIndexing(wrapper, boundary);
+        producer.push(tenantId, config.getCreateTopicIndexer(), wrapper);
+        enrichmentService.enrichFieldsForAuditIndexing(wrapper, startingStatus);
+        producer.push(tenantId, config.getAuditCreateTopicIndexer(), wrapper);
+
+        livelihoodNotificationService.notifyOnCreate(request);
+        log.info("Livelihood incident created successfully with incidentId={}", request.getIncident().getIncidentId());
+        return request;
+    }
+
 
     /**
      * Searches the complaints in the system based on the given criteria
@@ -240,6 +309,13 @@ public class IMService {
         //userService.enrichUsers(serviceWrappers);
         log.trace("Enriching workflow for incidents");
         List<IncidentWrapper> enrichedServiceWrappers = workflowService.enrichWorkflow(requestInfo,incidentWrappers);
+        if (livelihoodTenantUtil.isLivelihood(criteria.getTenantId())) {
+            workflowService.enrichProcessHistory(requestInfo, enrichedServiceWrappers);
+        }
+        if (StringUtils.isNotBlank(criteria.getAssigneeUserId())) {
+            enrichedServiceWrappers = livelihoodVendorScopeService.filterByAssignee(
+                    enrichedServiceWrappers, criteria.getAssigneeUserId());
+        }
         log.debug("Sorting {} incidents by createdTime desc", enrichedServiceWrappers.size());
         Map<Long, List<IncidentWrapper>> sortedWrappers = new TreeMap<>(Collections.reverseOrder());
         for(IncidentWrapper svc : enrichedServiceWrappers){
@@ -275,6 +351,10 @@ public class IMService {
         Object mdmsData = mdmsUtils.mDMSCall(request);
         log.trace("Validating update request");
         validator.validateUpdate(request, mdmsData);
+
+        if (livelihoodTenantUtil.isLivelihood(tenantId)) {
+            livelihoodUpdateService.prepareUpdate(request);
+        }
 
         String boundaryCode = request.getIncident().getBoundaryCode();
         if (boundaryCode != null && !boundaryCode.isEmpty()) {
@@ -352,7 +432,10 @@ public class IMService {
         wrapper.setProcessInstance(trimmedUpdatedProcessInstance);
         log.trace("Fetching boundary for indexing");
         Boundary boundary = boundaryService.fetchBoundaryFromBoundaryCode(
-                request.getRequestInfo(), request.getIncident().getBoundaryCode(), request.getIncident().getTenantId()
+                request.getRequestInfo(),
+                request.getIncident().getBoundaryCode(),
+                request.getIncident().getTenantId(),
+                livelihoodTenantUtil.isLivelihood(tenantId) ? request.getIncident().getAssetId() : null
         );
         log.trace("Enriching fields for indexing");
         enrichmentService.enrichFieldsForIndexing(wrapper, boundary);
@@ -374,6 +457,10 @@ public class IMService {
             rmsInactiveIncidentService.onIncidentUpdated(request, workflowAction);
         } catch (Exception e) {
             log.error("Failed to sync facility_rms_inactive_incident for incidentId={}", request.getIncident().getIncidentId(), e);
+        }
+
+        if (livelihoodTenantUtil.isLivelihood(tenantId)) {
+            livelihoodNotificationService.notifyOnUpdate(request, startingStatus);
         }
 
         return request;
@@ -420,6 +507,22 @@ public class IMService {
     public Integer count(RequestInfo requestInfo, RequestSearchCriteria criteria){
         log.trace("IMService::count method invoked");
         log.info("Counting incidents with criteria tenantId={}", criteria.getTenantId());
+        log.trace("Validating count criteria");
+        validator.validateSearch(requestInfo, criteria);
+
+        log.trace("Enriching count request");
+        enrichmentService.enrichSearchRequest(requestInfo, criteria);
+
+        if (criteria.isEmpty()) {
+            log.debug("Count criteria is empty, returning 0");
+            return 0;
+        }
+
+        if (criteria.getMobileNumber() != null && CollectionUtils.isEmpty(criteria.getUserIds())) {
+            log.debug("Mobile number provided but no userIds found, returning count 0");
+            return 0;
+        }
+
         criteria.setIsPlainSearch(false);
         log.trace("Fetching count from repository");
         Integer count = repository.getCount(criteria);

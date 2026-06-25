@@ -89,6 +89,12 @@ public class Configuration {
     @Value("${egov.hrms.default.designation.code}")
     private String hrmsDefaultDesignationCode;
 
+    /**
+     * Tenant id for HRMS API calls and employee payloads.
+     */
+    @Value("${egov.hrms.tenant.id:livelihood}")
+    private String hrmsTenantId;
+
 
     //URLShortening
     @Value("${egov.url.shortner.host}")
@@ -103,7 +109,7 @@ public class Configuration {
     private String smsNotificationTopic;
 
     //Enc Service TenantId
-    @Value("${enc.service.tenant.id}")
+    @Value("${enc.service.tenant.id:livelihood}")
     private String encServiceTenantId;
 
 
@@ -138,6 +144,18 @@ public class Configuration {
 
     @Value("${egov.boundary.hierarchy.type:SELCO}")
     private String boundaryHierarchyType;
+
+    /**
+     * Tenant id used for boundary entity and boundary-relationship APIs (boundary-service).
+     */
+    @Value("${egov.boundary.tenant.id:livelihood}")
+    private String boundaryTenantId;
+
+    /**
+     * Tenant id used when upserting boundary localization messages.
+     */
+    @Value("${egov.localization.tenant.id:livelihood}")
+    private String localizationTenantId;
 
     /**
      * Operator endpoint {@code POST /v2/facility/_backfill-boundary-relationships}. Disabled by default.

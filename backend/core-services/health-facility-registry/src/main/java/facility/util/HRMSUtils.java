@@ -30,7 +30,8 @@ public class HRMSUtils {
     }
 
     public Employee getUserById(Object request, String userId) {
-        String url = config.getHrmsHost() + config.getHrmsSearchEndPoint()+ "?tenantId=in&uuids="+userId;
+        String url = config.getHrmsHost() + config.getHrmsSearchEndPoint()
+                + "?tenantId=" + config.getHrmsTenantId() + "&uuids=" + userId;
         Object response = serviceRequestRepository.fetchResult(new StringBuilder(url), request);
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         EmployeeResponse employeeResponse = mapper.convertValue(response, EmployeeResponse.class);
@@ -41,7 +42,8 @@ public class HRMSUtils {
     }
 
     public Employee getUserByUsername(Object request, String codes) {
-        String url = config.getHrmsHost() + config.getHrmsSearchEndPoint()+ "?tenantId=in&codes="+codes;
+        String url = config.getHrmsHost() + config.getHrmsSearchEndPoint()
+                + "?tenantId=" + config.getHrmsTenantId() + "&codes=" + codes;
         Object response = serviceRequestRepository.fetchResult(new StringBuilder(url), request);
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         EmployeeResponse employeeResponse = mapper.convertValue(response, EmployeeResponse.class);
@@ -52,7 +54,8 @@ public class HRMSUtils {
     }
 
     public List<Employee> getUserByPhoneNumber(Object request, String phoneNumber) {
-        String url = config.getHrmsHost() + config.getHrmsSearchEndPoint()+ "?tenantId=in&phone="+phoneNumber;
+        String url = config.getHrmsHost() + config.getHrmsSearchEndPoint()
+                + "?tenantId=" + config.getHrmsTenantId() + "&phone=" + phoneNumber;
         Object response = serviceRequestRepository.fetchResult(new StringBuilder(url), request);
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         EmployeeResponse employeeResponse = mapper.convertValue(response, EmployeeResponse.class);
@@ -63,7 +66,8 @@ public class HRMSUtils {
     }
 
     public List<Employee> createHRMSUser(Object request) {
-        String url = config.getHrmsHost() + config.getHrmsCreateEndPoint()+ "?tenantId=in";
+        String url = config.getHrmsHost() + config.getHrmsCreateEndPoint()
+                + "?tenantId=" + config.getHrmsTenantId();
         Object response = serviceRequestRepository.fetchResult(new StringBuilder(url), request);
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         EmployeeResponse employeeResponse = mapper.convertValue(response, EmployeeResponse.class);
@@ -74,7 +78,8 @@ public class HRMSUtils {
     }
 
     public List<Employee> updateHRMSUser(Object request) {
-        String url = config.getHrmsHost() + config.getHrmsUpdateEndPoint()+ "?tenantId=in";
+        String url = config.getHrmsHost() + config.getHrmsUpdateEndPoint()
+                + "?tenantId=" + config.getHrmsTenantId();
         Object response = serviceRequestRepository.fetchResult(new StringBuilder(url), request);
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         EmployeeResponse employeeResponse = mapper.convertValue(response, EmployeeResponse.class);
@@ -92,7 +97,7 @@ public class HRMSUtils {
                 .employeeStatus("EMPLOYED")
                 .employeeType("PERMANENT")
                 .dateOfAppointment(1617215400000L)
-                .tenantId("in")
+                .tenantId(config.getHrmsTenantId())
                 .IsActive(true)
                 .reActivateEmployee(false)
                 .assignments(buildAssignments())
@@ -157,9 +162,9 @@ public class HRMSUtils {
         if (boundaryCodes == null || boundaryCodes.isEmpty()) {
             Jurisdiction jurisdiction = Jurisdiction.builder()
                     .hierarchy("ADMIN")
-                    .boundary("in")
-                    .boundaryType("City")
-                    .tenantId("in")
+                    .boundary("India")
+                    .boundaryType("Country")
+                    .tenantId(config.getHrmsTenantId())
                     .isActive(true)
                     .build();
             return Collections.singletonList(jurisdiction);
@@ -171,7 +176,7 @@ public class HRMSUtils {
                                 .hierarchy("ADMIN")
                                 .boundary(boundaryCode)
                                 .boundaryType("Block")
-                                .tenantId("in")
+                                .tenantId(config.getHrmsTenantId())
                                 .isActive(true)
                                 .build()
                 )
@@ -184,7 +189,7 @@ public class HRMSUtils {
                 .designation("DESIG_01")
                 .department("DEPT_1")
                 .fromDate(1617215400000L)
-                .tenantid("in")
+                .tenantid(config.getHrmsTenantId())
                 .isHOD(false)
                 .isCurrentAssignment(true)
                 .build();

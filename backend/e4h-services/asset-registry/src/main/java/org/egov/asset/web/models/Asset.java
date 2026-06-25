@@ -39,8 +39,10 @@ public class Asset {
     @NotNull
     private String facilityID = null;
 
+    @JsonProperty("boundaryCode")
+    private String boundaryCode = null;
+
     @JsonProperty("activityFacilityID")
-    @NotNull
     private String activityFacilityID = null;
 
     @JsonProperty("assetTypeID")
@@ -57,6 +59,15 @@ public class Asset {
     @JsonProperty("brandID")
     @NotNull
     private String brandID = null;
+
+    @JsonProperty("vendorId")
+    private String vendorId = null;
+
+    @JsonProperty("itemCode")
+    private String itemCode = null;
+
+    @JsonProperty("name")
+    private String name = null;
 
     @JsonProperty("assetDetails")
     private Map<String, Object> assetDetails = null;
@@ -94,4 +105,7 @@ public class Asset {
 
     @JsonProperty("assetTypeSearch")
     private List<String> assetTypeSearch = null; // Used as asset search criteria
+
+    @JsonProperty("boundaryCodePrefixes")
+    private List<String> boundaryCodePrefixes = null; // POC state scope search filter
 }

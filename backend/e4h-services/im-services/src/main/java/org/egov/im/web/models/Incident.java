@@ -32,8 +32,7 @@ public class Incident   {
         @JsonProperty("incidentType")
         private String incidentType = null;
 		
-		@NotNull
-        @SafeHtml
+		@SafeHtml
         @JsonProperty("incidentSubType")
         private String incidentSubType = null;
 		
@@ -134,4 +133,15 @@ public class Incident   {
 
         @JsonProperty("warrantyStatus")
         private WarrantyStatus warrantyStatus;
+
+        @SafeHtml
+        @JsonProperty("assetId")
+        private String assetId = null;
+
+        @JsonProperty("createdOnBehalf")
+        private Boolean createdOnBehalf = null;
+
+        @SafeHtml
+        @JsonProperty("entryChannel")
+        private String entryChannel = null;
 }

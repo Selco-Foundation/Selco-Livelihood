@@ -3,6 +3,7 @@ package org.egov.im.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.egov.im.config.IMConfiguration;
+import org.egov.im.util.LivelihoodTenantUtil;
 import org.egov.im.util.NotificationUtil;
 import org.egov.im.web.models.IncidentRequest;
 import org.egov.im.web.models.Notification.SMSRequest;
@@ -75,6 +76,7 @@ public class WorkflowSmsNotificationService {
     private final IMConfiguration config;
     private final NotificationUtil notificationUtil;
     private final NotificationService notificationService;
+    private final LivelihoodTenantUtil livelihoodTenantUtil;
 
     private record SmsRule(String template, String recipientRole) {}
 
@@ -103,6 +105,10 @@ public class WorkflowSmsNotificationService {
      * Sends workflow SMS when the action + new application status match a configured rule.
      */
     public void process(IncidentRequest request) {
+        if (request != null && request.getIncident() != null
+                && livelihoodTenantUtil.isLivelihood(request.getIncident().getTenantId())) {
+            return;
+        }
         if (config.getIsSMSEnabled() == null || !config.getIsSMSEnabled()) {
             return;
         }
