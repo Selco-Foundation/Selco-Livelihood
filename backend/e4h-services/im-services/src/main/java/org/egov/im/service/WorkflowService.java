@@ -443,12 +443,22 @@ public class WorkflowService {
         } else if (LIVELIHOOD_WF_OUT_OF_SCOPE.equals(normalized)) {
             reassignWorkflow(workflow, request, ROLE_LIVELIHOOD_POC);
         } else if (LIVELIHOOD_WF_DECLINE.equals(normalized)) {
-            reassignWorkflow(workflow, request, ROLE_LIVELIHOOD_POC);
+            clearAssigneesForTerminalAction(workflow);
         } else if (LIVELIHOOD_WF_OUT_OF_WARRANTY.equals(normalized)) {
             keepActingVendorAssigned(workflow, request);
         } else if (IM_WF_REOPEN.equals(normalized)) {
             assignVendorForReopen(workflow, request);
         }
+    }
+
+    /**
+     * DECLINE (vendor rejecting after OOW) transitions to the terminal CLOSED_AFTER_DECLINE state,
+     * which has no actions/roles. Any assignee on a terminal transition is rejected by the workflow
+     * validator (INVALID_ASSIGNEE), so the ticket must be closed with no assignee.
+     */
+    private void clearAssigneesForTerminalAction(Workflow workflow) {
+        workflow.setAssignes(Collections.emptyList());
+        log.debug("Cleared assignees for terminal DECLINE transition");
     }
 
     /**
