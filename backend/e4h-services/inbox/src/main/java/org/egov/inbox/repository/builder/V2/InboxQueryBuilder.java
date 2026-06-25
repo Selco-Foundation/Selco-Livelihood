@@ -33,6 +33,13 @@ import static org.egov.inbox.util.InboxConstants.*;
 @Component
 public class InboxQueryBuilder implements QueryBuilderInterface {
 
+    private static final String NEARING_SLA_PAINLESS_SCRIPT =
+            "doc.containsKey('Data.totalSlaRemaining') && " +
+                    "doc.containsKey('Data.definedTotalSla') && " +
+                    "doc['Data.definedTotalSla'].size() > 0 && " +
+                    "doc['Data.definedTotalSla'].value > 0 && " +
+                    "((double) doc['Data.totalSlaRemaining'].value / doc['Data.definedTotalSla'].value) <= 0.3";
+
     @Autowired
     private ObjectMapper objectMapper;
 
@@ -136,12 +143,7 @@ public class InboxQueryBuilder implements QueryBuilderInterface {
             log.debug("🚫 Added SLA exclusions: terminated tickets + Incident service");
 
             Map<String, Object> scriptInner = new HashMap<>();
-            scriptInner.put("source",
-                    "doc.containsKey('Data.slaRemaining') && " +
-                            "doc.containsKey('Data.stateSla') && " +
-                            "doc['Data.stateSla'].size() > 0 && " +
-                            "doc['Data.stateSla'].value > 0 && " +
-                            "((double) doc['Data.slaRemaining'].value / doc['Data.stateSla'].value) <= 0.3");
+            scriptInner.put("source", NEARING_SLA_PAINLESS_SCRIPT);
             scriptInner.put("lang", "painless");
 
             Map<String, Object> scriptClause = new HashMap<>();
@@ -590,12 +592,7 @@ public class InboxQueryBuilder implements QueryBuilderInterface {
 
         // Build the painless script
         Map<String, Object> innerScript = new HashMap<>();
-        innerScript.put("source",
-                "doc.containsKey('Data.slaRemaining') && " +
-                        "doc.containsKey('Data.stateSla') && " +
-                        "doc['Data.stateSla'].size() > 0 && " +
-                        "doc['Data.stateSla'].value > 0 && " +
-                        "((double) doc['Data.slaRemaining'].value / doc['Data.stateSla'].value) <= 0.3");
+        innerScript.put("source", NEARING_SLA_PAINLESS_SCRIPT);
         innerScript.put("lang", "painless");
 
         Map<String, Object> script = new HashMap<>();
