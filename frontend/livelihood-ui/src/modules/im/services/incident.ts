@@ -64,12 +64,9 @@ export function buildCreateIncidentPayload(input: CreateIncidentInput) {
       incidentType,
       boundaryCode: input.asset.boundaryCode,
       comments: input.comments ?? "",
-      additionalDetail: {
-        fileStoreId: input.uploadedDocuments,
-        reopenreason: [],
-        rejectReason: [],
-        sendBackReason: [],
-      },
+      ...(input.uploadedDocuments.length > 0
+        ? { additionalDetail: { fileStoreId: input.uploadedDocuments } }
+        : {}),
       source: "web",
       reporter: {
         uuid: input.user.uuid,

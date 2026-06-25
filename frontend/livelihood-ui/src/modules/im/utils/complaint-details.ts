@@ -20,10 +20,6 @@ export function buildComplaintDetailRows(
       labelKey: "CS_ADDCOMPLAINT_TICKET_TYPE",
       value: `SERVICEDEFS.${incident.incidentType.toUpperCase()}`,
     },
-    {
-      labelKey: "CS_ADDCOMPLAINT_SYSTEM_FUNCTIONAL",
-      value: incident.systemFunctional ?? "-",
-    },
     { labelKey: "CS_ADDCOMPLAINT_DISTRICT", value: incident.district ?? "-" },
     { labelKey: "CS_ADDCOMPLAINT_BLOCK", value: incident.block ?? "-" },
     {
@@ -39,19 +35,7 @@ export function buildComplaintDetailRows(
       labelKey: "CS_COMPLAINT_FILED_DATE",
       value: formatEpochToDate(filedDate),
     },
-  ].map((row) => ({
-    ...row,
-    value:
-      row.labelKey === "CS_COMPLAINT_DETAILS_TICKET_NO" ||
-      row.labelKey === "CS_ADDCOMPLAINT_DISTRICT" ||
-      row.labelKey === "CS_ADDCOMPLAINT_BLOCK" ||
-      row.labelKey === "CS_COMPLAINT_COMMENTS" ||
-      row.labelKey === "CS_ADDCOMPLAINT_HEALTH_CARE_SUB_TYPE" ||
-      row.labelKey === "CS_COMPLAINT_FILED_DATE" ||
-      row.labelKey === "CS_ADDCOMPLAINT_SYSTEM_FUNCTIONAL"
-        ? row.value
-        : row.value,
-  }));
+  ];
 }
 
 export function translateDetailValue(
@@ -87,18 +71,4 @@ export function buildComplaintDetailsData(
 
 export function isClosedTicket(status?: string): boolean {
   return status === "CLOSEDAFTERRESOLUTION";
-}
-
-export function isRmsTicketToReopen(
-  applicationStatus?: string,
-  incidentType?: string,
-  nextActions: Array<{ action: string }> = [],
-): boolean {
-  const isTerminal =
-    applicationStatus === "REJECTED" || applicationStatus === "RESOLVED";
-  const isRms = incidentType?.toUpperCase() === "RMS DEVICE";
-  if (!isTerminal || !isRms) {
-    return false;
-  }
-  return nextActions.some((action) => action.action === "REOPEN_RMS");
 }

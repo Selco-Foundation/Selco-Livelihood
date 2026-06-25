@@ -22,34 +22,20 @@ function TimelineCaption({
   const { t } = useTranslate();
   const additional = complaintDetails.incident.additionalDetail;
 
-  const rejectReasons = [...(additional?.rejectReason ?? [])].reverse();
-  const reopenReasons = [...(additional?.reopenreason ?? [])].reverse();
-  const sendBackReasons = [...(additional?.sendBackReason ?? [])].reverse();
   const outOfScopeReasons = [...(additional?.outOfScopeReason ?? [])].reverse();
-  const oowResponses = [...(additional?.oowResponses ?? [])].reverse();
-  const spcResponses = [...(additional?.spcResponses ?? [])].reverse();
+  const declineReasons = [...(additional?.declineReason ?? [])].reverse();
 
   const action = checkpoint.performedAction;
   let reasonText: string | null = null;
+  let reasonLabel: string | null = null;
 
-  if (action === "REJECT") {
-    reasonText = String(rejectReasons.shift() ?? "");
-  } else if (action === "REOPEN" || action === "REOPEN_RMS") {
-    reasonText = String(reopenReasons.shift() ?? "");
-  } else if (action === "SENDBACK") {
-    const reason = sendBackReasons.shift();
-    reasonText =
-      typeof reason === "object" && reason && "reason" in reason
-        ? String((reason as { reason?: string }).reason)
-        : String(reason ?? "");
-  } else if (action === "MARK_OUT_OF_SCOPE") {
+  if (action === "OUT_OF_SCOPE") {
     reasonText = String(outOfScopeReasons.shift() ?? "");
+    reasonLabel = t("WF_OUT_OF_SCOPE_REASON");
+  } else if (action === "DECLINE_POC") {
+    reasonText = String(declineReasons.shift() ?? "");
+    reasonLabel = t("WF_DECLINE_REASON");
   }
-
-  const oow = ["OUT_OF_WARRANTY", "SUBMIT"].includes(action ?? "")
-    ? oowResponses.shift()
-    : null;
-  const spc = action === "SPARE_PART_NEEDED" ? spcResponses.shift() : null;
 
   return (
     <div className="mt-3 space-y-3 text-sm text-muted-foreground">
@@ -63,48 +49,8 @@ function TimelineCaption({
 
       {reasonText ? (
         <div>
-          <p className="font-medium text-foreground">{t("WF_DECLINE_REASON")}</p>
+          <p className="font-medium text-foreground">{reasonLabel}</p>
           <p>{reasonText}</p>
-        </div>
-      ) : null}
-
-      {oow ? (
-        <div className="space-y-1">
-          {oow.oowIssue ? (
-            <p>
-              <span className="font-medium text-foreground">{t("OOW_ACTION_ISSUE_OBSERVATION")}: </span>
-              {oow.oowIssue}
-            </p>
-          ) : null}
-          {oow.oowRootCause ? (
-            <p>
-              <span className="font-medium text-foreground">{t("OOW_ACTION_ISSUE_ROOT_CAUSE")}: </span>
-              {oow.oowRootCause}
-            </p>
-          ) : null}
-          {oow.oowRecommendedSolution ? (
-            <p>
-              <span className="font-medium text-foreground">{t("OOW_ACTION_ISSUE_SOLUTION")}: </span>
-              {oow.oowRecommendedSolution}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-
-      {spc ? (
-        <div className="space-y-1">
-          {spc.spcRootAnalysis ? (
-            <p>
-              <span className="font-medium text-foreground">{t("SPC_ACTION_ROOT_CAUSE_ANALYSIS")}: </span>
-              {spc.spcRootAnalysis}
-            </p>
-          ) : null}
-          {spc.spcSparePartToBeReplaced ? (
-            <p>
-              <span className="font-medium text-foreground">{t("SPC_ACTION_SPARE_PART_TO_BE_REPLACED")}: </span>
-              {spc.spcSparePartToBeReplaced}
-            </p>
-          ) : null}
         </div>
       ) : null}
 

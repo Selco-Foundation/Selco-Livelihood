@@ -2,8 +2,9 @@ import { useTranslate } from "@/shared";
 import { Button } from "@/ui";
 import { ChevronDown } from "lucide-react";
 import { useMemo, useState } from "react";
+import { SUPPORTED_WORKFLOW_ACTION_SET } from "../../constants/workflow-actions";
 import type { ComplaintDetailsData, WorkflowDetailsData } from "../../types/incident-details";
-import { isClosedTicket, isRmsTicketToReopen } from "../../utils/complaint-details";
+import { isClosedTicket } from "../../utils/complaint-details";
 import { ComplaintActionDialog } from "./ComplaintActionDialog";
 
 interface ComplaintActionBarProps {
@@ -26,19 +27,13 @@ export function ComplaintActionBar({
   const [menuOpen, setMenuOpen] = useState(false);
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
 
-  const availableActions = useMemo(() => {
-    const actions = workflowDetails.nextActions ?? [];
-    if (
-      isRmsTicketToReopen(
-        complaintDetails.incident.applicationStatus,
-        complaintDetails.incident.incidentType,
-        actions,
-      )
-    ) {
-      return actions.filter((action) => action.action === "REOPEN_RMS");
-    }
-    return actions;
-  }, [complaintDetails.incident, workflowDetails.nextActions]);
+  const availableActions = useMemo(
+    () =>
+      (workflowDetails.nextActions ?? []).filter((entry) =>
+        SUPPORTED_WORKFLOW_ACTION_SET.has(entry.action),
+      ),
+    [workflowDetails.nextActions],
+  );
 
   const showActions =
     !isClosedTicket(complaintDetails.incident.applicationStatus) &&
@@ -67,7 +62,7 @@ export function ComplaintActionBar({
             <ChevronDown className="size-4" />
           </Button>
           {menuOpen ? (
-            <div className="absolute right-0 z-20 mt-2 min-w-[220px] rounded-lg border border-border bg-card p-1 shadow-lg">
+            <div className="absolute right-0 bottom-full z-20 mb-2 min-w-[220px] rounded-lg border border-border bg-card p-1 shadow-lg">
               {availableActions.map((action) => (
                 <button
                   key={action.action}
@@ -90,7 +85,6 @@ export function ComplaintActionBar({
         <ComplaintActionDialog
           action={selectedAction}
           complaintDetails={complaintDetails}
-          workflowDetails={workflowDetails}
           onClose={() => setSelectedAction(null)}
           onComplete={async () => {
             await onActionComplete();

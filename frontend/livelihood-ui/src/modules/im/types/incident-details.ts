@@ -6,26 +6,9 @@ export interface IncidentAuditDetails {
 }
 
 export interface IncidentAdditionalDetail {
-  reopenreason?: unknown[];
-  rejectReason?: unknown[];
-  sendBackReason?: unknown[];
-  oowResponses?: OowResponse[];
   outOfScopeReason?: unknown[];
-  spcResponses?: SpcResponse[];
+  declineReason?: unknown[];
   fileStoreId?: VerificationDocument[];
-}
-
-export interface OowResponse {
-  oowIssue?: string;
-  oowRootCause?: string;
-  oowRecommendedSolution?: string;
-  oowTotalCostOfSolution?: string;
-  oowTimeToResolve?: string;
-}
-
-export interface SpcResponse {
-  spcRootAnalysis?: string;
-  spcSparePartToBeReplaced?: string;
 }
 
 export interface Incident {
@@ -52,12 +35,8 @@ export interface IncidentWorkflow {
   rating?: number;
   assignes?: string[] | null;
   verificationDocuments?: VerificationDocument[];
-  reopenreason?: unknown;
-  rejectReason?: unknown;
-  sendBackReason?: unknown;
-  oowResponses?: OowResponse;
   outOfScopeReason?: unknown;
-  spcResponses?: SpcResponse;
+  declineReason?: unknown;
 }
 
 export interface IncidentWrapper {
@@ -186,11 +165,6 @@ export interface FileStoreUrlEntry {
 
 export interface FileStoreUrlResponse {
   fileStoreIds?: FileStoreUrlEntry[];
-}
-
-export interface EmployeeSearchResult {
-  uuid: string;
-  name: string;
 }
 
 export interface MdmsReasonOption {
