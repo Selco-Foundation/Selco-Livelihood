@@ -62,7 +62,7 @@ export function buildCreateIncidentPayload(input: CreateIncidentInput) {
       facilityId: input.endUser.facilityId,
       assetId: input.asset.assetId,
       incidentType,
-      boundaryCode: input.endUser.boundaryCode,
+      boundaryCode: input.asset.boundaryCode,
       comments: input.comments ?? "",
       additionalDetail: {
         fileStoreId: input.uploadedDocuments,
