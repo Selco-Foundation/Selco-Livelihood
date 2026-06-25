@@ -1,8 +1,8 @@
-import { contextPath, loadModules, useTranslate } from "@/shared";
+import { contextPath, useTranslate } from "@/shared";
 import { Button, PageHeader } from "@/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import {
   ComplaintActionBar,
 } from "../../components/details/ComplaintActionBar";
@@ -46,10 +46,6 @@ export function ComplaintDetailsPage() {
     isError,
     revalidate,
   } = useComplaintDetails(incidentId, tenantId);
-
-  useEffect(() => {
-    void loadModules(["rainmaker-im"]);
-  }, []);
 
   if (!incidentId || !tenantId) {
     return (

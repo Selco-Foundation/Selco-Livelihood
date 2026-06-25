@@ -1,6 +1,5 @@
 import {
   aggregateBoundaryCodes,
-  loadModules,
   tenantId,
   useAuthStore,
   useBoundary,
@@ -143,10 +142,6 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
       })),
     [systemFunctionalityMenu, t],
   );
-
-  useEffect(() => {
-    void loadModules(["rainmaker-im"]);
-  }, []);
 
   useEffect(() => {
     if (boundaryData?.facilities) {

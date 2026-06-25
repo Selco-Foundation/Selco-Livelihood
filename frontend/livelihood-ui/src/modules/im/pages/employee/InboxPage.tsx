@@ -1,7 +1,6 @@
 import {
   contextPath,
   hasRole,
-  loadModules,
   useAuthStore,
   useTranslate,
 } from "@/shared";
@@ -62,10 +61,6 @@ export function InboxPage() {
   const [pageSize, setPageSize] = useState(routeSearch.pageSize || 10);
   const prevSearchParamsRef = useRef(JSON.stringify(searchParams));
   const prevPageSizeRef = useRef(pageSize);
-
-  useEffect(() => {
-    void loadModules(["rainmaker-im"]);
-  }, []);
 
   useEffect(() => {
     const query = new URLSearchParams();
