@@ -7,6 +7,10 @@ import type {
   VerificationDocument,
 } from "../types/create-incident";
 import type { LivelihoodAsset, LivelihoodFacility } from "../types/facility-asset";
+import {
+  LIVELIHOOD_INCIDENT_BUSINESS_SERVICE,
+  OPEN_DUPLICATE_APPLICATION_STATUSES,
+} from "../constants/workflow";
 import { searchInbox } from "./inbox";
 
 export interface CreateIncidentInput {
@@ -20,22 +24,7 @@ export interface CreateIncidentInput {
   accessToken: string;
 }
 
-const DUPLICATE_STATUSES = [
-  "PENDINGFORASSIGNMENT",
-  "PENDINGFORASSIGNMENT_RMS_DEVICE",
-  "PENDINGFORASSIGNMENT_THEFT",
-  "RMS_DEVICE_PENDING_TECH_POC",
-  "PENDINGRESOLUTION",
-  "OUT_OF_SCOPE",
-  "OUT_OF_WARRANTY_PENDING_TECH_POC",
-  "PENDING_REVISION",
-  "OUT_OF_WARRANTY_PENDING_TECH_POC_ROUND_2",
-  "PENDING_ASSIGNMENT_SPARE_PART_NEEDED",
-  "PENDING_ASSIGNMENT_OUT_OF_WARRANTY",
-  "PENDING_RESOLUTION_OUT_OF_SCOPE",
-  "PENDING_RESOLUTION_SPARE_PART_NEEDED",
-  "PENDING_RESOLUTION_OUT_OF_WARRANTY",
-].join(",");
+const DUPLICATE_STATUSES = OPEN_DUPLICATE_APPLICATION_STATUSES;
 
 export function buildVerificationDocuments(
   uploadedDocuments: VerificationDocument[],
@@ -120,7 +109,7 @@ export async function searchPotentialDuplicates(
     {
       limit: 100,
       offset: 0,
-      services: ["Incident"],
+      services: [LIVELIHOOD_INCIDENT_BUSINESS_SERVICE],
       sortOrder: "DESC",
       facility: facilityId,
       incidentType,

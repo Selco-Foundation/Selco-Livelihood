@@ -13,6 +13,7 @@ import type {
 import { fetchMdmsMasters } from "./mdms";
 import { resolveVerificationMedia } from "./incident-details";
 import { formatEpochToDate } from "../utils/date-format";
+import { LIVELIHOOD_INCIDENT_BUSINESS_SERVICE } from "../constants/workflow";
 import type {
   ComplaintDetailsData,
   IncidentWrapper,
@@ -166,7 +167,8 @@ export async function fetchWorkflowDetails(
   }
 
   const currentInstance = processInstances[0];
-  const businessServiceName = currentInstance.businessService ?? "Incident";
+  const businessServiceName =
+    currentInstance.businessService ?? LIVELIHOOD_INCIDENT_BUSINESS_SERVICE;
 
   const businessServiceResponse = await fetchWorkflowBusinessService(
     tenantId,
@@ -207,13 +209,12 @@ export async function fetchWorkflowDetails(
   const merged = mergeCommentEvents(withMedia);
   let timeline = buildTimeline(merged);
 
-  const pendingAssignment = timeline.filter(
-    (checkpoint) => checkpoint.status === "PENDINGFORASSIGNMENT",
+  const createCheckpoint = timeline.find(
+    (checkpoint) => checkpoint.performedAction === "CREATE",
   );
-  const lastPending = pendingAssignment.at(-1);
-  if (lastPending) {
+  if (createCheckpoint) {
     timeline.push({
-      ...lastPending,
+      ...createCheckpoint,
       status: "COMPLAINT_FILED",
     });
   }

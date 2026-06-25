@@ -1,3 +1,5 @@
+import { LIVELIHOOD_INCIDENT_BUSINESS_SERVICE } from "../constants/workflow";
+
 const DAY = 24 * 60 * 60 * 1000;
 
 export interface IncidentFilterInput {
@@ -194,7 +196,7 @@ export function flattenInboxFilters(
     limit: searchParams.limit,
     offset: searchParams.offset,
     nearingSLA: searchParams.nearingSLA,
-    services: defaults.services ?? ["Incident"],
+    services: defaults.services ?? [LIVELIHOOD_INCIDENT_BUSINESS_SERVICE],
     sortOrder: defaults.sortOrder ?? "DESC",
   };
 }

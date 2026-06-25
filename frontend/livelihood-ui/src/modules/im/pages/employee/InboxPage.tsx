@@ -1,6 +1,5 @@
 import {
   contextPath,
-  hasRole,
   useAuthStore,
   useTranslate,
 } from "@/shared";
@@ -12,6 +11,7 @@ import { DesktopInbox } from "../../components/inbox/DesktopInbox";
 import { buildDefaultInboxRoleFilters } from "../../hooks/inbox-defaults";
 import { useImInboxData } from "../../hooks/use-im-inbox-summary";
 import type { ImInboxFilters } from "../../types/inbox";
+import { hasRole } from "../../utils/access";
 
 function parseFilterParam(filter?: string): ImInboxFilters | null {
   if (!filter) {

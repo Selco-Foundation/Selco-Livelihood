@@ -80,9 +80,7 @@ export function ComplaintDetailsPage() {
   }
 
   const applyCheckpoint = workflowDetails.timeline.find((checkpoint) =>
-    ["APPLY", "APPLY_THEFT", "APPLY_RMS_DEVICE"].includes(
-      checkpoint.performedAction ?? "",
-    ),
+    ["APPLY", "CREATE"].includes(checkpoint.performedAction ?? ""),
   );
   const timelineMediaImages =
     applyCheckpoint?.thumbnailsToShow?.fullImage ?? complaintDetails.images;

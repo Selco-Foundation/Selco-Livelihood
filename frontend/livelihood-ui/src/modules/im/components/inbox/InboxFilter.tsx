@@ -1,7 +1,5 @@
 import {
   aggregateBoundaryCodes,
-  isNonHcrUser,
-  isTechPocUser,
   useAuthStore,
   useBoundary,
   useFacility,
@@ -10,10 +8,11 @@ import {
 } from "@/shared";
 import { ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { ORDERED_INBOX_STATUSES } from "../../constants/routes";
+import { ORDERED_INBOX_STATUSES } from "../../constants/inbox-statuses";
 import { buildDefaultInboxRoleFilters } from "../../hooks/inbox-defaults";
 import { useImComplaintTypes } from "../../hooks/use-im-inbox-summary";
 import type { ImInboxFilters, InboxDataResult } from "../../types/inbox";
+import { isEndUser } from "../../utils/access";
 import { buildFilterQueryFromState } from "../../utils/inbox-filters";
 
 interface FilterOption {
@@ -89,8 +88,7 @@ export function InboxFilter({
   );
 
   const defaultFilters = buildDefaultInboxRoleFilters(user);
-  const techPoc = isTechPocUser(roles);
-  const showGeoFilters = isNonHcrUser(roles);
+  const showGeoFilters = !isEndUser(roles);
 
   const [selectAssigned, setSelectAssigned] = useState(
     searchParams.filters?.wfFilters?.assignee?.[0]?.code === userUuid
@@ -256,18 +254,8 @@ export function InboxFilter({
     setWfFilters((prev) => ({
       ...prev,
       assignee: [{ code }],
-      ...(techPoc &&
-        (code
-          ? {
-              wfStatus: [
-                { code: "RMS_DEVICE_PENDING_TECH_POC" },
-                { code: "OUT_OF_WARRANTY_PENDING_TECH_POC" },
-                { code: "OUT_OF_WARRANTY_PENDING_TECH_POC_ROUND_2" },
-              ],
-            }
-          : { wfStatus: [] })),
     }));
-  }, [selectAssigned, techPoc, userUuid]);
+  }, [selectAssigned, userUuid]);
 
   useEffect(() => {
     const { pgrQuery, wfQuery } = buildFilterQueryFromState({ pgrfilters, wfFilters });

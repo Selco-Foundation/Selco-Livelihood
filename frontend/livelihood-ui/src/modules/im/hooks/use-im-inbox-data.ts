@@ -1,13 +1,14 @@
 import {
-  hasImAccess,
   tenantId,
   useAuthStore,
   useJurisdictionStore,
   useTranslate,
 } from "@/shared";
 import { useQuery } from "@tanstack/react-query";
+import { LIVELIHOOD_INCIDENT_BUSINESS_SERVICE } from "../constants/workflow";
 import { searchInbox } from "../services/inbox";
 import type { ImInboxSearchParams } from "../types/inbox";
+import { hasImAccess } from "../utils/access";
 import { flattenInboxFilters } from "../utils/inbox-filters";
 import {
   combineInboxResponses,
@@ -24,7 +25,7 @@ export function useImInboxSummary() {
   const filters = {
     limit: 10,
     offset: 0,
-    services: ["Incident"],
+    services: [LIVELIHOOD_INCIDENT_BUSINESS_SERVICE],
     sortOrder: "DESC",
     ...buildSummaryRoleFilters(user),
   };
@@ -65,7 +66,7 @@ export function useImInboxData(searchParams: ImInboxSearchParams) {
   const filters = flattenInboxFilters(searchParams, {
     limit: searchParams.limit ?? 10,
     offset: searchParams.offset ?? 0,
-    services: ["Incident"],
+    services: [LIVELIHOOD_INCIDENT_BUSINESS_SERVICE],
     sortOrder: "DESC",
     ...roleFilters.pgrQuery,
     ...roleFilters.wfQuery,

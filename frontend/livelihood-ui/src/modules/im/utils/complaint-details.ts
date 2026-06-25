@@ -1,4 +1,5 @@
 import type { ComplaintDetailsData, ComplaintDetailsRow, Incident, IncidentWorkflow } from "../types/incident-details";
+import { TERMINAL_APPLICATION_STATUSES } from "../constants/workflow";
 import { formatEpochToDate } from "./date-format";
 
 export function buildComplaintDetailRows(
@@ -70,5 +71,5 @@ export function buildComplaintDetailsData(
 }
 
 export function isClosedTicket(status?: string): boolean {
-  return status === "CLOSEDAFTERRESOLUTION";
+  return (TERMINAL_APPLICATION_STATUSES as readonly string[]).includes(status ?? "");
 }
