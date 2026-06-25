@@ -512,8 +512,6 @@ def create_facility_payload(
         row: Series,
         are_facilities_onm_ready: bool,
         facility_schema: List[Dict[str, Any]],
-        mapped_vendor_name: Optional[str] = None,
-        mapped_vendor_user_name: Optional[str] = None,
 ):
     facility_category_name = safe_get(row, 'Category (Mandatory)')
     facility_category_code = get_mdms_code_by_name(facility_schema, 'Category', facility_category_name)
@@ -538,6 +536,13 @@ def create_facility_payload(
         (format_col_name(c) for c in facility_schema if c.get("code") == "facility_poc_username"),
         None,
     )
+
+    # Preferred Language (optional mdms field): resolve the display name -> MDMS code (en_IN/kn_IN).
+    preferred_language_name = safe_get(row, 'Preferred Language')
+    if preferred_language_name is not None and str(preferred_language_name).strip().lower() not in ('', 'nan', 'none'):
+        preferred_language_code = get_mdms_code_by_name(facility_schema, 'Preferred Language', preferred_language_name)
+    else:
+        preferred_language_code = None
 
     facility_record = {
         'tenant_id': 'livelihood',
@@ -566,20 +571,10 @@ def create_facility_payload(
         'facility_poc_email': safe_get(row, 'End user Email'),
         'facility_status': 'ACTIVE',
         'isOnmReady': True,
-        'additionalDetails': {'preferredLanguage': safe_get(row, 'Preferred Language')},
+        'additionalDetails': {'preferredLanguage': preferred_language_code},
     }
     if poc_username_hdr:
         facility_record['facility_poc_username'] = safe_get(row, poc_username_hdr)
-
-    if mapped_vendor_name or mapped_vendor_user_name:
-        additional_details: Dict[str, Any] = {}
-        if mapped_vendor_name:
-            facility_record['mappedVendorName'] = mapped_vendor_name
-            additional_details['mappedVendorName'] = mapped_vendor_name
-        if mapped_vendor_user_name:
-            facility_record['mappedVendorUserName'] = mapped_vendor_user_name
-            additional_details['mappedVendorUserName'] = mapped_vendor_user_name
-        facility_record['additionalDetails'] = additional_details
 
     return {
         'RequestInfo': request_info.model_dump(by_alias=True, exclude_none=True),
@@ -587,25 +582,84 @@ def create_facility_payload(
     }
 
 
-def resolve_mapped_vendor_for_facility_row(
-        org_client,
-        request_info: RequestInfo,
-        row: Series,
-        vendor_code_column: str,
-        cache: Optional[Dict[str, Dict[str, Optional[str]]]] = None,
-) -> Dict[str, Optional[str]]:
-    """Resolve mapped vendor fields for a facility row, with optional per-vendor-code cache."""
-    empty = {"mappedVendorName": None, "mappedVendorUserName": None}
-    if org_client is None:
-        return empty
-    vendor_code = org_client.normalize_facility_vendor_code(row.get(vendor_code_column))
-    if not vendor_code:
-        return empty
-    if cache is not None:
-        if vendor_code not in cache:
-            cache[vendor_code] = org_client.resolve_mapped_vendor_fields(vendor_code, request_info)
-        return cache[vendor_code]
-    return org_client.resolve_mapped_vendor_fields(vendor_code, request_info)
+def create_asset_payload(request_info: RequestInfo, row: Series, asset_schema: List[Dict[str, Any]]):
+    """Build the asset-registry create payload for one template row.
+    Reads each value by the template header derived from the asset schema
+    (column name + '(Mandatory)' for required columns)."""
+
+    def header_for(code: str) -> Optional[str]:
+        for c in asset_schema:
+            if c.get("code") == code:
+                indicator = "(Mandatory)" if c.get("required") else ""
+                return f"{c.get('name')} {indicator}".strip()
+        return None
+
+    def val(code: str):
+        h = header_for(code)
+        return safe_get(row, h) if h else None
+
+    def is_blank(v) -> bool:
+        return v is None or str(v).strip().lower() in ("", "nan", "none")
+
+    def parse_warranty_start(v):
+        if is_blank(v):
+            return None
+        if isinstance(v, datetime):
+            return int(v.timestamp() * 1000)
+        s = str(v).strip()
+        for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"):
+            try:
+                return int(datetime.strptime(s, fmt).timestamp() * 1000)
+            except ValueError:
+                continue
+        return None
+
+    def to_int(v):
+        if is_blank(v):
+            return None
+        try:
+            return int(float(str(v).strip()))
+        except (ValueError, TypeError):
+            return None
+
+    # Item Code is an MDMS dropdown (livelihood.ItemCode): the cell holds the master's
+    # display name, so resolve it to the code asset-registry validates against.
+    item_code_val = val("itemCode")
+    if is_blank(item_code_val):
+        raise ValueError("Item Code is required")
+    item_code_code = get_mdms_code_by_name(asset_schema, "Item Code", item_code_val)
+
+    asset = {
+        "tenantId": "livelihood",
+        "facilityID": val("facilityID"),
+        "itemCode": item_code_code,
+        "name": val("name"),
+        "vendorId": val("vendorId"),
+        "assetTypeID": val("assetTypeID"),
+        "serialNumber": val("serialNumber"),
+        "brandID": val("brandID"),
+        "modelNumber": val("modelNumber"),
+        "boundaryCode": val("boundaryCode"),
+        "warrantyStartDate": parse_warranty_start(val("warrantyStartDate")),
+        "warrantyDuration": to_int(val("warrantyDuration")),
+        "isOperational": True,
+        "isActive": True,
+    }
+    # Drop empty optional fields so they aren't sent as blanks.
+    asset = {k: v for k, v in asset.items() if not (v is None or (isinstance(v, str) and v.strip() == ""))}
+    # asset-registry persists name inside assetDetails (the asset table has no name column;
+    # AssetRowMapper reads assetDetails.name, else falls back to assetTypeID). Store it there too.
+    name_val = val("name")
+    if name_val is not None and str(name_val).strip() != "":
+        asset["assetDetails"] = {"name": str(name_val).strip()}
+    # asset-registry dereferences documents without a null-check -> always send an empty list.
+    asset["documents"] = []
+
+    return {
+        "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
+        "assetDetail": {"Asset": asset},
+    }
+
 
 def convert_response_to_facility(response: Dict[str, Any], role_type: str):
     return {

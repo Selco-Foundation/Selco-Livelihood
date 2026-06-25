@@ -243,8 +243,7 @@ class FacilityTemplateService:
 
     def generate_template_file(self, output_path: str,
                                facility_schema: List[Dict[str, Any]],
-                               boundary_data: List[Boundary],
-                               vendor_data: List[Dict]
+                               boundary_data: List[Boundary]
                                ) -> None:
         try:
             create_empty_excel_file(output_path)

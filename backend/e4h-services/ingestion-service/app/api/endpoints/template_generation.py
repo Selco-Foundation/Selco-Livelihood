@@ -14,6 +14,7 @@ from openpyxl.utils import get_column_letter
 from app.core.logging import AppLogger
 from app.decorators.rbac_validator import get_authorized_request_info
 from app.ingest.facility_template_service import FacilityTemplateService
+from app.ingest.asset_template_service import AssetTemplateService
 from app.ingest.project_service import ProjectService
 from app.schemas.boundary import Boundary, flatten_boundaries
 from app.utils.amc_scheduler_service_client import AMCSchedulerServiceClient
@@ -480,8 +481,7 @@ async def get_facility_ingestion_template(
             facility_service.generate_template_file(
                 output_path=output_file_path,
                 facility_schema=facility_schema,
-                boundary_data=boundary_data,
-                vendor_data=[]
+                boundary_data=boundary_data
             )
             logger.info(f"Successfully created facility ingestion template at {output_file_path}")
         except Exception as e:
@@ -497,6 +497,45 @@ async def get_facility_ingestion_template(
 
     except Exception as e:
         logger.error(f"Unhandled error in get_facility_ingestion_template: {e}")
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+
+@router.post('/assetIngestion',
+            summary='Generate asset ingestion template Excel file from the asset schema',
+            response_description="Returns Excel template with asset schema columns")
+async def get_asset_ingestion_template(request_info: str = Form(default="")):
+    request_info = request_info_from_json(request_info)
+    mdms_client = MDMSClient(mdms_url)
+    asset_service = AssetTemplateService()
+    try:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_filename = f"asset_ingestion_template_{timestamp}.xlsx"
+        output_file_path = create_temp_file(suffix=".xlsx")
+        try:
+            asset_schema = mdms_client.get_column_definitions_with_metadata(
+                request_info, 'data-ingestion.AssetIngestionSchema')
+        except Exception as e:
+            logger.error(f"Error fetching asset schema from MDMS: {e}")
+            cleanup_temp_file(output_file_path)
+            raise HTTPException(status_code=502, detail=f"External service error: {str(e)}")
+
+        try:
+            asset_service.generate_asset_template_file(
+                output_path=output_file_path, asset_schema=asset_schema)
+            logger.info(f"Successfully created asset ingestion template at {output_file_path}")
+        except Exception as e:
+            logger.error(f"Error generating asset template file: {e}")
+            cleanup_temp_file(output_file_path)
+            raise HTTPException(status_code=500, detail=f"Template generation error: {str(e)}")
+
+        return FileResponse(
+            path=output_file_path,
+            filename=output_filename,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unhandled error in get_asset_ingestion_template: {e}")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
 @router.post('/facilityWithStaff',
