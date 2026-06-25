@@ -172,4 +172,19 @@ public class ErrorConstants {
 
     public static final String ASSET_NOT_FOUND_CODE = "ERR_ASSET_NOT_FOUND";
     public static final String ASSET_NOT_FOUND_MSG = "Provided asset does not exist or invalid";
+
+    public static final String ASSET_ITEM_CODE_REQUIRED_CODE = "ERR_ASSET_ITEM_CODE_REQUIRED";
+    public static final String ASSET_ITEM_CODE_REQUIRED_MSG = "itemCode is required for Livelihood assets";
+
+    public static final String ASSET_ITEM_CODE_MDMS_DATA_CODE = "ERR_ASSET_ITEM_CODE_MDMS_DATA";
+    public static final String ASSET_ITEM_CODE_MDMS_DATA_MSG = "MDMS data for Livelihood item codes does not exist or is invalid";
+
+    public static final String ASSET_ITEM_CODE_VALIDATION_CODE = "ERR_ASSET_ITEM_CODE_VALIDATION";
+    public static final String ASSET_ITEM_CODE_VALIDATION_MSG = "Provided itemCode does not match an active Livelihood ItemCode in MDMS";
+
+    public static final String FACILITY_BOUNDARY_NOT_FOUND_CODE = "ERR_FACILITY_BOUNDARY_NOT_FOUND";
+    public static final String FACILITY_BOUNDARY_NOT_FOUND_MSG = "Facility boundary code is required before creating a Livelihood asset";
+
+    public static final String ASSET_BOUNDARY_ENRICHMENT_CODE = "ERR_ASSET_BOUNDARY_ENRICHMENT";
+    public static final String ASSET_BOUNDARY_ENRICHMENT_MSG = "Asset ID must be generated before assigning asset boundary code";
 }

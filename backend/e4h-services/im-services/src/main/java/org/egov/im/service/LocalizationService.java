@@ -2,8 +2,10 @@ package org.egov.im.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.StringUtils;
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.im.config.IMConfiguration;
+import org.egov.im.util.LivelihoodTenantUtil;
 import org.egov.im.web.models.*;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -19,6 +21,7 @@ public class LocalizationService {
 
     private final RestTemplate restTemplate;
     private final IMConfiguration config;
+    private final LivelihoodTenantUtil livelihoodTenantUtil;
 
     public LocalizationResponse getLocalizationMessages(RequestInfo requestInfo, String stateTenant, String module, String locale, String codes) {
         String baseUrl = config.getLocalizationHost() + config.getLocalizationContextPath() + config.getLocalizationSearchEndpoint();
@@ -74,7 +77,10 @@ public class LocalizationService {
         String stateCode = "Boundary_" + indexView.getBoundary().getStateCode();
         String facilityCode = "Boundary_" + indexView.getBoundary().getFacilityCode();
         String incidentTypeCode = "SERVICEDEFS." + incident.getIncidentType().toUpperCase();
-        String incidentSubTypeCode = "SERVICEDEFS." + incident.getIncidentSubType().toUpperCase();
+        boolean livelihood = livelihoodTenantUtil.isLivelihood(tenantId);
+        String incidentSubTypeCode = !livelihood && StringUtils.isNotBlank(incident.getIncidentSubType())
+                ? "SERVICEDEFS." + incident.getIncidentSubType().toUpperCase()
+                : null;
 
         String appStatusCode = Optional.ofNullable(incident.getApplicationStatus())
                 .map(String::toUpperCase)
@@ -85,7 +91,9 @@ public class LocalizationService {
                 .map(status -> "CS_COMMON_" + status)
                 .orElse("");
 
-        String imCodes = String.join(",", incidentTypeCode, incidentSubTypeCode, appStatusCode, warrantyStatusCode);
+        String imCodes = livelihood
+                ? String.join(",", incidentTypeCode, appStatusCode, warrantyStatusCode)
+                : String.join(",", incidentTypeCode, incidentSubTypeCode, appStatusCode, warrantyStatusCode);
         String boundaryCodes = String.join(",", stateCode, facilityCode);
 
         LocalizationResponse boundaryResponse = getLocalizationMessages(requestInfo, stateTenant, "rainmaker-in", locale, boundaryCodes);
@@ -93,7 +101,11 @@ public class LocalizationService {
 
         indexView.setState(boundaryResponse.getMessageByCode(stateCode));
         indexView.setIncidentTypeLocalized(imResponse.getMessageByCode(incidentTypeCode));
-        indexView.setIncidentSubTypeLocalized(imResponse.getMessageByCode(incidentSubTypeCode));
+        if (livelihood) {
+            indexView.setIncidentSubTypeLocalized(null);
+        } else {
+            indexView.setIncidentSubTypeLocalized(imResponse.getMessageByCode(incidentSubTypeCode));
+        }
         indexView.setApplicationStatusLocalized(imResponse.getMessageByCode(appStatusCode));
         indexView.setWarrantyStatusLocalized(imResponse.getMessageByCode(warrantyStatusCode));
         indexView.setTenantIdLocalized(boundaryResponse.getMessageByCode(facilityCode));
