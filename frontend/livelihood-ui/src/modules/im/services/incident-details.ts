@@ -24,14 +24,14 @@ export async function fetchFileUrls(
     return { fileStoreIds: [] };
   }
 
-  const { data } = await apiClient.post<FileStoreUrlResponse>(
+  const { data } = await apiClient.get<FileStoreUrlResponse>(
     "/filestore/v1/files/url",
     {
-      RequestInfo: createRequestInfo(accessToken, user),
-      tenantId,
-      fileStoreIds,
+      params: {
+        tenantId,
+        fileStoreIds: fileStoreIds.join(","),
+      },
     },
-    { params: { tenantId } },
   );
 
   return data;
