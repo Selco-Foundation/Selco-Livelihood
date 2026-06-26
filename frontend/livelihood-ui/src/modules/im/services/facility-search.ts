@@ -13,6 +13,8 @@ interface FacilityBulkSearchResponse {
     facility_poc_name?: string;
     facility_poc_username?: string;
     facility_poc_phone?: string;
+    facility_poc_email?: string;
+    end_user_uuid?: string;
     boundaryCode?: string;
     facility_status?: string | null;
     isOnmReady?: boolean;
@@ -33,6 +35,8 @@ function mapFacility(raw: NonNullable<FacilityBulkSearchResponse["facilities"]>[
     facilityPocName: raw.facility_poc_name ?? raw.facility_name ?? raw.facility_id ?? "",
     facilityPocUsername: raw.facility_poc_username,
     facilityPocPhone: raw.facility_poc_phone,
+    facilityPocEmail: raw.facility_poc_email,
+    endUserUuid: raw.end_user_uuid,
     boundaryCode: raw.boundaryCode ?? "",
     facilityStatus: raw.facility_status,
     address: raw.address,
