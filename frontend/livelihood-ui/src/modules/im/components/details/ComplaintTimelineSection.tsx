@@ -123,15 +123,6 @@ export function ComplaintTimelineSection({
                 <p className="text-sm font-semibold text-foreground">
                   {translateOr(t, statusKey, statusKey)}
                 </p>
-                {checkpoint.performedAction ? (
-                  <p className="text-xs text-muted-foreground">
-                    {translateOr(
-                      t,
-                      `CS_ACTION_${checkpoint.performedAction}`,
-                      checkpoint.performedAction,
-                    )}
-                  </p>
-                ) : null}
                 <TimelineCaption
                   checkpoint={checkpoint}
                   complaintDetails={complaintDetails}
