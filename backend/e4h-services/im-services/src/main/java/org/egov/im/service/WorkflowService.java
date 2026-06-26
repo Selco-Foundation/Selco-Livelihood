@@ -443,10 +443,45 @@ public class WorkflowService {
         } else if (LIVELIHOOD_WF_OUT_OF_SCOPE.equals(normalized)) {
             reassignWorkflow(workflow, request, ROLE_LIVELIHOOD_POC);
         } else if (LIVELIHOOD_WF_DECLINE.equals(normalized)) {
-            reassignWorkflow(workflow, request, ROLE_LIVELIHOOD_POC);
+            clearAssigneesForTerminalAction(workflow);
+        } else if (LIVELIHOOD_WF_OUT_OF_WARRANTY.equals(normalized)) {
+            keepActingVendorAssigned(workflow, request);
+        } else if (REASSIGN.equals(normalized)) {
+            assignVendorFromAssetForReassign(workflow, request);
         } else if (IM_WF_REOPEN.equals(normalized)) {
             assignVendorForReopen(workflow, request);
         }
+    }
+
+    /**
+     * DECLINE (vendor rejecting after OOW) transitions to the terminal CLOSED_AFTER_DECLINE state,
+     * which has no actions/roles. Any assignee on a terminal transition is rejected by the workflow
+     * validator (INVALID_ASSIGNEE), so the ticket must be closed with no assignee.
+     */
+    private void clearAssigneesForTerminalAction(Workflow workflow) {
+        workflow.setAssignes(Collections.emptyList());
+        log.debug("Cleared assignees for terminal DECLINE transition");
+    }
+
+    /**
+     * OUT_OF_WARRANTY keeps the ticket with the vendor who raised the quotation: the next state
+     * (OUT_OF_WARRANTY_PENDING_VENDOR) still requires that same vendor to RESOLVE/DECLINE. Without
+     * this, the workflow would clear assignes and the ticket would appear unassigned to every vendor.
+     */
+    private void keepActingVendorAssigned(Workflow workflow, IncidentRequest request) {
+        if (!CollectionUtils.isEmpty(workflow.getAssignes())) {
+            return;
+        }
+        String vendorUuid = request.getRequestInfo() != null && request.getRequestInfo().getUserInfo() != null
+                ? request.getRequestInfo().getUserInfo().getUuid()
+                : null;
+        if (StringUtils.isBlank(vendorUuid)) {
+            throw new CustomException(REOPEN_VENDOR_NOT_FOUND_CODE,
+                    "Could not determine the acting vendor to retain assignment for OUT_OF_WARRANTY");
+        }
+        workflow.setAssignes(List.of(vendorUuid));
+        log.debug("OUT_OF_WARRANTY retained ticket {} with acting vendor {}",
+                request.getIncident().getIncidentId(), vendorUuid);
     }
 
     public Long getLatestResolvedTimestamp(String tenantId, String incidentId, RequestInfo requestInfo) {
@@ -479,6 +514,20 @@ public class WorkflowService {
         }
         workflow.setAssignes(List.of(vendorUuid));
         log.debug("Reopen reassigned ticket {} to vendor {}", request.getIncident().getIncidentId(), vendorUuid);
+    }
+
+    /**
+     * POC REASSIGN (OOS) sends the ticket back to the asset's mapped vendor — same vendor as at create.
+     * ASSIGN_VENDOR is used when POC picks a different vendor and must pass workflow.assignes explicitly.
+     */
+    private void assignVendorFromAssetForReassign(Workflow workflow, IncidentRequest request) {
+        String vendorUuid = resolveVendorFromAsset(request);
+        if (StringUtils.isBlank(vendorUuid)) {
+            throw new CustomException(REOPEN_VENDOR_NOT_FOUND_CODE, REOPEN_VENDOR_NOT_FOUND_MSG);
+        }
+        workflow.setAssignes(List.of(vendorUuid));
+        log.debug("REASSIGN auto-assigned ticket {} to asset vendor {}",
+                request.getIncident().getIncidentId(), vendorUuid);
     }
 
     private String resolveVendorUuidForReopen(IncidentRequest request) {

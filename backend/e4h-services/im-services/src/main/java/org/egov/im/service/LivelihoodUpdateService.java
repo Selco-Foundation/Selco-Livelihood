@@ -62,6 +62,7 @@ public class LivelihoodUpdateService {
             case "OUT_OF_WARRANTY" -> validateOutOfWarranty(request, currentStatus);
             case "DECLINE" -> validateDecline(request, currentStatus);
             case "REOPEN" -> validateReopen(request, existingIncident, requestInfo);
+            case "ASSIGN_VENDOR" -> validateAssignVendor(request, currentStatus);
             default -> { }
         }
     }
@@ -126,7 +127,6 @@ public class LivelihoodUpdateService {
             throw new CustomException("QUOTATION_REQUIRED",
                     "Mandatory quotation document must include a fileStoreId");
         }
-        requireComment(workflow, "OUT_OF_WARRANTY requires observation/details in comments");
     }
 
     private void validateDecline(IncidentRequest request, String currentStatus) {
@@ -134,6 +134,17 @@ public class LivelihoodUpdateService {
             throw new CustomException("INVALID_ACTION", "DECLINE is only allowed from OUT_OF_WARRANTY_PENDING_VENDOR");
         }
         requireComment(request.getWorkflow(), "DECLINE requires a mandatory comment");
+    }
+
+    private void validateAssignVendor(IncidentRequest request, String currentStatus) {
+        if (!LIVELIHOOD_OUT_OF_SCOPE_PENDING_POC.equals(currentStatus)) {
+            throw new CustomException("INVALID_ACTION",
+                    "ASSIGN_VENDOR is only allowed from OUT_OF_SCOPE_PENDING_POC");
+        }
+        if (request.getWorkflow() == null || CollectionUtils.isEmpty(request.getWorkflow().getAssignes())) {
+            throw new CustomException("ASSIGNEE_REQUIRED",
+                    "ASSIGN_VENDOR requires workflow.assignes with the target vendor user uuid");
+        }
     }
 
     private void validateReopen(IncidentRequest request, Incident existingIncident, RequestInfo requestInfo) {
