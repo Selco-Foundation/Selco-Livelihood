@@ -13,7 +13,7 @@ export type SupportedWorkflowAction = (typeof SUPPORTED_WORKFLOW_ACTIONS)[number
 
 export const SUPPORTED_WORKFLOW_ACTION_SET = new Set<string>(SUPPORTED_WORKFLOW_ACTIONS);
 
-export type ReasonMaster = "OutOfScopeReasons" | "DeclineReasons";
+export type ReasonMaster = "OutOfScopeReasons" | "RejectReasons";
 
 export interface WorkflowActionConfig {
   comment: "required" | "optional";
@@ -35,7 +35,7 @@ export const WORKFLOW_ACTION_CONFIG: Record<SupportedWorkflowAction, WorkflowAct
   DECLINE_POC: {
     comment: "optional",
     documents: "none",
-    reasonMaster: "DeclineReasons",
+    reasonMaster: "RejectReasons",
   },
   REOPEN: { comment: "required", documents: "none" },
 };
