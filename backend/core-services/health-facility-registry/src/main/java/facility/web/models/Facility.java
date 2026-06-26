@@ -104,6 +104,10 @@ public class Facility {
     @JsonProperty("user_id")
     private String userId = null;
 
+    /** HRMS user UUID of the facility manager / end user (COMPLAINANT). */
+    @JsonProperty("end_user_uuid")
+    private String endUserUuid = null;
+
     @JsonProperty("auditDetails")
     private AuditDetails auditDetails = null;
 

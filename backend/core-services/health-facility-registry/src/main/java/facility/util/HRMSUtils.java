@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.egov.tracer.model.CustomException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -39,6 +40,21 @@ public class HRMSUtils {
             throw new CustomException("EMPLOYEE_NOT_FOUND", "Employee not found with ID: " + userId);
         }
         return employeeResponse.getEmployees().get(0);
+    }
+
+    public String findEmployeeUuidByCode(Object request, String employeeCode) {
+        if (!StringUtils.hasText(employeeCode)) {
+            return null;
+        }
+        try {
+            Employee employee = getUserByUsername(request, employeeCode.trim());
+            if (employee != null && employee.getUser() != null) {
+                return employee.getUser().getUuid();
+            }
+        } catch (Exception e) {
+            log.debug("Could not resolve HRMS uuid for employee code {}", employeeCode, e);
+        }
+        return null;
     }
 
     public Employee getUserByUsername(Object request, String codes) {

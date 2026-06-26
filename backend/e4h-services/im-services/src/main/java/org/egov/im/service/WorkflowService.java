@@ -439,7 +439,7 @@ public class WorkflowService {
         }
         String normalized = action.trim().toUpperCase(Locale.ROOT);
         if (IM_WF_RESOLVE.equals(normalized) || REJECT.equals(normalized)) {
-            reassignWorkflow(workflow, request, ROLE_COMPLAINANT);
+            assignComplainantForResolve(workflow, request);
         } else if (LIVELIHOOD_WF_OUT_OF_SCOPE.equals(normalized)) {
             reassignWorkflow(workflow, request, ROLE_LIVELIHOOD_POC);
         } else if (LIVELIHOOD_WF_DECLINE.equals(normalized)) {
@@ -451,6 +451,35 @@ public class WorkflowService {
         } else if (IM_WF_REOPEN.equals(normalized)) {
             assignVendorForReopen(workflow, request);
         }
+    }
+
+    /**
+     * Livelihood RESOLVE moves the ticket to the RESOLVED state, whose only citizen-facing action
+     * (REOPEN) is restricted to the COMPLAINANT role. 
+    */
+    private void assignComplainantForResolve(Workflow workflow, IncidentRequest request) {
+        String complainantUuid = resolveComplainantUuid(request);
+        if (StringUtils.isBlank(complainantUuid)) {
+            throw new CustomException("COMPLAINANT_NOT_FOUND",
+                    "Could not determine the complainant to assign the resolved ticket to");
+        }
+        workflow.setAssignes(List.of(complainantUuid));
+        log.debug("RESOLVE assigned ticket {} to complainant {}",
+                request.getIncident().getIncidentId(), complainantUuid);
+    }
+
+    private String resolveComplainantUuid(IncidentRequest request) {
+        Incident incident = request.getIncident();
+        if (incident == null) {
+            return null;
+        }
+        if (StringUtils.isNotBlank(incident.getAccountId())) {
+            return incident.getAccountId();
+        }
+        if (incident.getReporter() != null && StringUtils.isNotBlank(incident.getReporter().getUuid())) {
+            return incident.getReporter().getUuid();
+        }
+        return null;
     }
 
     /**
@@ -518,7 +547,6 @@ public class WorkflowService {
 
     /**
      * POC REASSIGN (OOS) sends the ticket back to the asset's mapped vendor — same vendor as at create.
-     * ASSIGN_VENDOR is used when POC picks a different vendor and must pass workflow.assignes explicitly.
      */
     private void assignVendorFromAssetForReassign(Workflow workflow, IncidentRequest request) {
         String vendorUuid = resolveVendorFromAsset(request);
