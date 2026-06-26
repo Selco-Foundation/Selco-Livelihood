@@ -41,7 +41,7 @@ export function createCoreRoutes(rootRoute: AnyRoute) {
         throw redirect({
           to: employeeLogin,
           search: {
-            from: location.pathname + location.search,
+            from: location.href,
           },
         });
       }
