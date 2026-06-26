@@ -1,8 +1,9 @@
-import { contextPath, useTranslate } from "@/shared";
+import { contextPath, employeeHomePath, useTranslate } from "@/shared";
 import { Button } from "@/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { CheckCircle2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { ImBreadcrumbs } from "../../components/ImBreadcrumbs";
 import { IM_ROUTES } from "../../constants/routes";
 import type { CreateIncidentResponse } from "../../types/create-incident";
 
@@ -21,8 +22,9 @@ export function CreateIncidentResponsePage() {
   const { t } = useTranslate();
   const navigate = useNavigate();
   const basePath = `/${contextPath()}`;
-  const homePath = `${basePath}/employee`;
+  const homePath = employeeHomePath();
   const inboxPath = `${basePath}${IM_ROUTES.inbox}`;
+  const createPath = `${basePath}${IM_ROUTES.createIncident}`;
 
   const [response, setResponse] = useState<CreateIncidentResponse | null>(null);
 
@@ -46,6 +48,18 @@ export function CreateIncidentResponsePage() {
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
+      <ImBreadcrumbs
+        items={[
+          { label: translateOr(t, "ES_COMMON_HOME", "Home"), to: homePath },
+          { label: translateOr(t, "ES_IM_TICKET_CREATE", "Ticket create"), to: createPath },
+          {
+            label: isSuccess && incidentId
+              ? incidentId
+              : translateOr(t, "ES_IM_TICKET_CREATE_RESPONSE", "Submission"),
+          },
+        ]}
+      />
+
       <div className="livelihood-card p-8 text-center">
         <div
           className={`mx-auto mb-4 flex size-16 items-center justify-center rounded-full ${

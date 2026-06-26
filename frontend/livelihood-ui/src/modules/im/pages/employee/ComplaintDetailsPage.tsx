@@ -1,8 +1,9 @@
-import { contextPath, useTranslate } from "@/shared";
+import { contextPath, employeeHomePath, useTranslate } from "@/shared";
 import { Button, PageHeader } from "@/ui";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Loader2 } from "lucide-react";
 import { useMemo } from "react";
+import { ImBreadcrumbs } from "../../components/ImBreadcrumbs";
 import {
   ComplaintActionBar,
 } from "../../components/details/ComplaintActionBar";
@@ -34,9 +35,9 @@ function useComplaintRouteParams() {
 
 export function ComplaintDetailsPage() {
   const { t } = useTranslate();
-  const navigate = useNavigate();
   const { incidentId, tenantId } = useComplaintRouteParams();
   const basePath = `/${contextPath()}`;
+  const homePath = employeeHomePath();
   const inboxPath = `${basePath}${IM_ROUTES.inbox}`;
 
   const {
@@ -87,31 +88,13 @@ export function ComplaintDetailsPage() {
 
   return (
     <div className="mx-auto max-w-[960px] space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <Button
-          type="button"
-          variant="ghost"
-          className="gap-2 px-0 text-muted-foreground hover:text-primary"
-          onClick={() => {
-            if (window.history.length > 1) {
-              window.history.back();
-            } else {
-              void navigate({ to: inboxPath });
-            }
-          }}
-        >
-          <ArrowLeft className="size-4" />
-          {t("CS_COMMON_BACK")}
-        </Button>
-      </div>
-
-      <nav className="text-sm text-muted-foreground">
-        <Link to={inboxPath} className="hover:text-primary">
-          {translateOr(t, "ES_IM_TICKETS", "Tickets")}
-        </Link>
-        <span className="mx-2">&gt;</span>
-        <span>{incidentId}</span>
-      </nav>
+      <ImBreadcrumbs
+        items={[
+          { label: translateOr(t, "ES_COMMON_HOME", "Home"), to: homePath },
+          { label: translateOr(t, "ES_IM_INBOX", "Inbox"), to: inboxPath },
+          { label: incidentId },
+        ]}
+      />
 
       <PageHeader
         title={translateOr(t, "CS_HEADER_TICKET_DETAILS", "Ticket Details")}
