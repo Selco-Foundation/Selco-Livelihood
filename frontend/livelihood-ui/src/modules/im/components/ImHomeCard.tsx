@@ -8,7 +8,7 @@ import {
 import { ModuleHomeCard } from "@/ui";
 import { useEffect } from "react";
 import { useImInboxSummary } from "../hooks/use-im-inbox-summary";
-import { hasImAccess, hasRole } from "../utils/access";
+import { canCreateIncident, hasImAccess } from "../utils/access";
 
 function ImIcon() {
   return (
@@ -36,13 +36,14 @@ export function ImHomeCard() {
     return null;
   }
 
-  const roleLinks = [
-    {
-      label: t("ES_IM_NEW_INCIDENT"),
-      link: `${basePath}/incident/create`,
-      role: "COMPLAINANT",
-    },
-  ].filter((item) => hasRole(user?.roles, item.role));
+  const roleLinks = canCreateIncident(user?.roles)
+    ? [
+        {
+          label: t("ES_IM_NEW_INCIDENT"),
+          link: `${basePath}/incident/create`,
+        },
+      ]
+    : [];
 
   return (
     <ModuleHomeCard

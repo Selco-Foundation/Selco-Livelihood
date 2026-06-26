@@ -1,7 +1,7 @@
 import { contextPath, useAuthStore, useTranslate } from "@/shared";
 import { Card, CardContent } from "@/ui";
 import { Link } from "@tanstack/react-router";
-import { hasRole } from "../../utils/access";
+import { canCreateIncident } from "../../utils/access";
 
 function ImHeaderIcon() {
   return (
@@ -20,13 +20,14 @@ export function ComplaintLinks() {
   const user = useAuthStore((state) => state.user);
   const basePath = `/${contextPath()}/employee/im`;
 
-  const links = [
-    {
-      text: t("ES_IM_NEW_INCIDENT"),
-      link: `${basePath}/incident/create`,
-      accessTo: ["COMPLAINANT"],
-    },
-  ].filter((item) => !item.accessTo || item.accessTo.some((role) => hasRole(user?.roles, role)));
+  const links = canCreateIncident(user?.roles)
+    ? [
+        {
+          text: t("ES_IM_NEW_INCIDENT"),
+          link: `${basePath}/incident/create`,
+        },
+      ]
+    : [];
 
   return (
     <Card className="w-full max-w-[270px]">
