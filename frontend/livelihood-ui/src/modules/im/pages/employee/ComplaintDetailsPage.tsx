@@ -1,6 +1,6 @@
-import { contextPath, employeeHomePath, useTranslate } from "@/shared";
+import { contextPath, employeeHomePath, useAuthStore, useTranslate } from "@/shared";
 import { Button, PageHeader } from "@/ui";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useMemo } from "react";
 import { ImBreadcrumbs } from "../../components/ImBreadcrumbs";
@@ -12,6 +12,7 @@ import { ComplaintSummarySection } from "../../components/details/ComplaintSumma
 import { ComplaintTimelineSection } from "../../components/details/ComplaintTimelineSection";
 import { IM_ROUTES } from "../../constants/routes";
 import { useComplaintDetails } from "../../hooks/use-complaint-details";
+import { isAssigneeScopedUser } from "../../utils/access";
 
 function translateOr(
   t: (key: string) => string,
@@ -35,6 +36,8 @@ function useComplaintRouteParams() {
 
 export function ComplaintDetailsPage() {
   const { t } = useTranslate();
+  const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
   const { incidentId, tenantId } = useComplaintRouteParams();
   const basePath = `/${contextPath()}`;
   const homePath = employeeHomePath();
@@ -86,6 +89,13 @@ export function ComplaintDetailsPage() {
   const timelineMediaImages =
     applyCheckpoint?.thumbnailsToShow?.fullImage ?? complaintDetails.images;
 
+  const handleActionComplete = async () => {
+    await revalidate();
+    if (isAssigneeScopedUser(user?.roles)) {
+      await navigate({ to: inboxPath });
+    }
+  };
+
   return (
     <div className="mx-auto max-w-[960px] space-y-6">
       <ImBreadcrumbs
@@ -120,7 +130,7 @@ export function ComplaintDetailsPage() {
       <ComplaintActionBar
         complaintDetails={complaintDetails}
         workflowDetails={workflowDetails}
-        onActionComplete={revalidate}
+        onActionComplete={handleActionComplete}
       />
     </div>
   );

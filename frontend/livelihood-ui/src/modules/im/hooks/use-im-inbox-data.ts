@@ -14,7 +14,7 @@ import {
   combineInboxResponses,
   normalizeInboxResponse,
 } from "../utils/inbox-transform";
-import { buildDefaultInboxRoleFilters, buildSummaryRoleFilters } from "./inbox-defaults";
+import { buildSummaryRoleFilters } from "./inbox-defaults";
 
 export function useImInboxSummary() {
   const accessToken = useAuthStore((state) => state.accessToken);
@@ -62,15 +62,15 @@ export function useImInboxData(searchParams: ImInboxSearchParams) {
   const currentBoundary = useJurisdictionStore((state) => state.currentBoundary);
   const { t } = useTranslate();
 
-  const roleFilters = buildDefaultInboxRoleFilters(user);
-  const filters = flattenInboxFilters(searchParams, {
-    limit: searchParams.limit ?? 10,
-    offset: searchParams.offset ?? 0,
-    services: [LIVELIHOOD_INCIDENT_BUSINESS_SERVICE],
-    sortOrder: "DESC",
-    ...roleFilters.pgrQuery,
-    ...roleFilters.wfQuery,
-  });
+  const filters = {
+    ...flattenInboxFilters(searchParams, {
+      limit: searchParams.limit ?? 10,
+      offset: searchParams.offset ?? 0,
+      services: [LIVELIHOOD_INCIDENT_BUSINESS_SERVICE],
+      sortOrder: "DESC",
+    }),
+    ...buildSummaryRoleFilters(user),
+  };
 
   const enabled = Boolean(accessToken && employeeTenantId && hasImAccess(user?.roles));
   const jurisdiction = currentBoundary ?? { country: ["-"] };
