@@ -10,7 +10,6 @@ export function HomePage() {
     <div className="mx-auto max-w-[1400px] space-y-6">
       <PageHeader
         title={t("ACTION_TEST_HOME")}
-        description={t("CORE_COMMON_HOME")}
       />
 
       {homeCards.length > 0 ? (
