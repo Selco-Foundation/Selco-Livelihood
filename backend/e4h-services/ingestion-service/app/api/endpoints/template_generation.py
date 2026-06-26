@@ -27,6 +27,7 @@ from app.utils.fieldplan_service_client import FieldPlanServiceClient
 from app.utils.file_utils import create_temp_file, cleanup_temp_file
 from app.utils.mdms_client import MDMSClient
 from app.utils.project_service_client import ProjectServiceClient
+from app.utils.vendor_registry_client import VendorRegistryClient
 import os, tempfile, zipfile, qrcode, shutil
 
 router = APIRouter()
@@ -41,6 +42,7 @@ facility_service_url = os.getenv("FACILITY_SERVICE_URL")
 fieldPlan_service_url = os.getenv("FIELDPLAN_SERVICE_URL")
 fieldPlan_activity_service_url = os.getenv("FIELDPLAN_ACTIVITY_SERVICE_URL")
 amc_scheduler_service_url = os.getenv("AMC_SCHEDULER_SERVICE_URL")
+vendor_service_url = os.getenv("VENDOR_SERVICE_URL")
 DEFAULT_AMC_ASSET_TYPES = ["INVERTER", "PANEL", "BATTERY"]
 DB_CONFIG = {
     "host": os.getenv("DB_HOST"),
@@ -518,9 +520,35 @@ async def get_asset_ingestion_template(request_info: str = Form(default="")):
             cleanup_temp_file(output_file_path)
             raise HTTPException(status_code=502, detail=f"External service error: {str(e)}")
 
+        facility_data = []
+        if facility_service_url:
+            try:
+                facility_client = FacilityServiceClient(facility_service_url)
+                bulk_result = facility_client.bulk_search_facility_with_boundary(
+                    request_info=request_info,
+                    tenant_ids=["livelihood"],
+                    limit=10000,
+                    send_non_paginated_response=True,
+                )
+                facility_data = bulk_result.get("facilities", []) or []
+            except Exception as e:
+                logger.error(f"Error fetching facility data for asset template: {e}")
+
+        vendor_records = []
+        if vendor_service_url:
+            try:
+                vendor_client = VendorRegistryClient(vendor_service_url)
+                vendor_records = vendor_client.get_all_vendor_codes(request_info)
+            except Exception as e:
+                logger.error(f"Error fetching vendor codes for asset template: {e}")
+
         try:
             asset_service.generate_asset_template_file(
-                output_path=output_file_path, asset_schema=asset_schema)
+                output_path=output_file_path,
+                asset_schema=asset_schema,
+                facility_data=facility_data,
+                vendor_records=vendor_records,
+            )
             logger.info(f"Successfully created asset ingestion template at {output_file_path}")
         except Exception as e:
             logger.error(f"Error generating asset template file: {e}")

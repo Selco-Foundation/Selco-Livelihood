@@ -21,7 +21,6 @@ from dotenv import load_dotenv
 load_dotenv()
 mdms_url = os.getenv("MDMS_URL")
 boundary_service_url = os.getenv("BOUNDARY_SERVICE_URL")
-vendor_service_url = os.getenv("VENDOR_SERVICE_URL")
 localization_service_url = os.getenv("LOCALIZATION_SERVICE_URL")
 
 class FacilityTemplateService:
@@ -428,54 +427,3 @@ class FacilityTemplateService:
         except Exception as e:
             logger.error(f"Error generating template file: {e}")
             raise
-
-    def get_all_vendor_codes(self, request_info : RequestInfo) -> List[Dict]:
-        """
-        Fetch all vendor codes from vendor service using the specified API format
-        Returns list of vendor records with code and name
-        """
-        url = f"{vendor_service_url}/vendor/organisation/v1/_search"
-
-        request_info_dict = request_info.model_dump(by_alias=True, exclude_none=True)
-
-        payload = {
-            "RequestInfo": request_info_dict,
-            "SearchCriteria": {
-                "tenantId": "in",
-                "createdFrom": 0
-            },
-            "Pagination": {
-                "limit": 10000,
-                "offset": 0
-            }
-        }
-
-        headers = {
-            "Content-Type": "application/json",
-        }
-
-        try:
-            response = requests.post(url, headers=headers, json=payload)
-            response.raise_for_status()
-            return self._parse_vendor_response(response.json())
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Error fetching vendor codes: {str(e)}")
-            if hasattr(e, 'response') and e.response:
-                logger.error(f"Vendor service response: {e.response.text}")
-            return []
-        except Exception as e:
-            logger.error(f"Unexpected error fetching vendor codes: {str(e)}")
-            return []
-
-    def _parse_vendor_response(self, response_json: Dict) -> List[Dict]:
-        """Parse vendor API response into list of vendor records"""
-        vendors = []
-        if response_json and 'organisations' in response_json:
-            for vendor in response_json['organisations']:
-                vendors.append({
-                    "Vendor Id": vendor.get('id', ''),
-                    "Vendor Code": vendor.get('code', ''),
-                    "Vendor Name": vendor.get('name', ''),
-                    "Vendor Application Number": vendor.get('applicationNumber', ''),
-                })
-        return vendors

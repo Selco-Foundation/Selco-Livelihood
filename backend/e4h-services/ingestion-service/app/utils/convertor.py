@@ -19,6 +19,7 @@ from app.schemas.vendor_ingestion_shema_response import (
     MDMSDataSource, ResponseInfo)
 
 from app.utils.facility_validator import format_col_name
+from app.utils.mdms_client import get_nested_value
 
 logger = AppLogger().get_logger()
 
@@ -33,15 +34,6 @@ def format_facility_data_for_template(
     Converts raw facility data into rows, aligned with `headers`
     (already computed from facility_schema in generate_template_file).
     """
-
-    def get_nested_value(data: Dict[str, Any], path: str):
-        cur = data
-        for part in path.split("."):
-            if isinstance(cur, dict) and part in cur:
-                cur = cur[part]
-            else:
-                return ""
-        return "" if cur is None else cur
 
     compiled_cols = []
     for col, header in zip(facility_schema, headers):
@@ -263,12 +255,12 @@ def create_vendor_request(request_info: RequestInfo, vendor: Vendor):
     return {
         "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
         "organisations": [{
-            "tenantId": "in",
+            "tenantId": "livelihood",
             "name": vendor.vendor_name,
             "code": None,
             "orgAddress": [
                 {
-                    "tenantId": "in",
+                    "tenantId": "livelihood",
                     "boundaryType": "country",
                     "boundaryCode": vendor.country_boundary_code,
                     "hqAddress": vendor.hq_address
@@ -582,7 +574,12 @@ def create_facility_payload(
     }
 
 
-def create_asset_payload(request_info: RequestInfo, row: Series, asset_schema: List[Dict[str, Any]]):
+def create_asset_payload(
+    request_info: RequestInfo,
+    row: Series,
+    asset_schema: List[Dict[str, Any]],
+    vendor_lookup: Dict[str, str],
+):
     """Build the asset-registry create payload for one template row.
     Reads each value by the template header derived from the asset schema
     (column name + '(Mandatory)' for required columns)."""
@@ -627,17 +624,38 @@ def create_asset_payload(request_info: RequestInfo, row: Series, asset_schema: L
     item_code_val = val("itemCode")
     if is_blank(item_code_val):
         raise ValueError("Item Code is required")
-    item_code_code = get_mdms_code_by_name(asset_schema, "Item Code", item_code_val)
+    item_code_code = resolve_mdms_value(asset_schema, "Item Code", item_code_val)
+
+    # Brand ID is an MDMS dropdown (asset-registry.Brand); required per schema, but
+    # resolved defensively here too in case that ever changes to optional.
+    brand_val = val("brandID")
+    brand_code = None if is_blank(brand_val) else resolve_mdms_value(asset_schema, "Brand ID", brand_val)
+
+    # System is an MDMS dropdown (asset-registry.SystemSchema, nested); optional,
+    # defaults to the baseline non-solar code when left blank.
+    system_val = val("system")
+    system_code = "LIVELIHOOD" if is_blank(system_val) else resolve_mdms_value(asset_schema, "System", system_val)
+
+    # Vendor Code (username) resolves to the vendor user's UUID so im-services can
+    # directly assign the incident ticket to that specific person (isUuid → true path).
+    vendor_code_val = val("vendorId")
+    if is_blank(vendor_code_val):
+        raise ValueError("Vendor Code is required")
+    vendor_code_str = str(vendor_code_val).strip()
+    if vendor_code_str not in vendor_lookup:
+        raise ValueError(f"Unknown Vendor Code: '{vendor_code_str}'")
+    vendor_id = vendor_lookup[vendor_code_str]
 
     asset = {
         "tenantId": "livelihood",
         "facilityID": val("facilityID"),
         "itemCode": item_code_code,
         "name": val("name"),
-        "vendorId": val("vendorId"),
+        "vendorId": vendor_id,
         "assetTypeID": val("assetTypeID"),
         "serialNumber": val("serialNumber"),
-        "brandID": val("brandID"),
+        "brandID": brand_code,
+        "system": system_code,
         "modelNumber": val("modelNumber"),
         "boundaryCode": val("boundaryCode"),
         "warrantyStartDate": parse_warranty_start(val("warrantyStartDate")),
@@ -736,6 +754,26 @@ def get_mdms_code_by_name(schema_list: List[Dict[str, Any]], field_name: str, va
             raise ValueError(f"Invalid value '{value}' for field '{field_name}' in MDMS schema.")
 
     raise ValueError(f"Field name '{field_name}' not found in MDMS schema.")
+
+
+def resolve_mdms_value(schema_list: List[Dict[str, Any]], field_name: str, display_value: str) -> str:
+    """
+    Generalized sibling of get_mdms_code_by_name, built on the schema's `mdms_options`
+    (display/value pairs already resolved per the column's mdmsSource.mode) instead of a
+    hardcoded name/code lookup.
+
+    Raises:
+        ValueError: If the field_name or display_value is not found in the MDMS schema.
+    """
+    for schema in schema_list:
+        if schema.get('name') == field_name:
+            for option in schema.get('mdms_options', []):
+                if option.get('display') == display_value:
+                    return option.get('value')
+            raise ValueError(f"Invalid value '{display_value}' for field '{field_name}' in MDMS schema.")
+
+    raise ValueError(f"Field name '{field_name}' not found in MDMS schema.")
+
 
 def get_expected_roles_for_staff() -> List[str]:
     return ["INSTALLATION_REPORT_PART_A_EDITOR", "EMPLOYEE"]

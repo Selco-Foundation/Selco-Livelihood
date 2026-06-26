@@ -24,9 +24,47 @@ def asset_validation(df, mdms_client, request_info, schema_name):
     schema = mdms_client.get_column_definitions_and_row_constraints_with_metadata(request_info, schema_name)
 
     validate_columns(new_rows, schema, lambda i, m: add_err(new_rows.loc[i, "index"], m))
+    _validate_asset_type_matches_item_code(new_rows, schema, lambda i, m: add_err(new_rows.loc[i, "index"], m))
     _validate_unique_serial(df, schema, add_err)
 
     return errors
+
+
+def _validate_asset_type_matches_item_code(new_rows, schema, add_err):
+    """Flags rows where the selected Asset Type ID doesn't match the selected
+    Item Code's actual category in livelihood.ItemCode (Asset Type ID is an
+    independent dropdown, not auto-derived from Item Code)."""
+    item_code_col = next((c for c in schema.get("column_list", []) if c.get("code") == "itemCode"), None)
+    asset_type_col = next((c for c in schema.get("column_list", []) if c.get("code") == "assetTypeID"), None)
+    if not item_code_col or not asset_type_col:
+        return
+    item_code_header = format_col_name(item_code_col)
+    asset_type_header = format_col_name(asset_type_col)
+    if item_code_header not in new_rows.columns or asset_type_header not in new_rows.columns:
+        return
+
+    category_by_item_name = {
+        item.get("name"): item.get("category")
+        for item in item_code_col.get("mdms_values", [])
+        if item.get("name")
+    }
+
+    for i in range(len(new_rows)):
+        item_name = new_rows.loc[i, item_code_header]
+        asset_type = new_rows.loc[i, asset_type_header]
+        if pd.isna(item_name) or str(item_name).strip() == "":
+            continue
+        if pd.isna(asset_type) or str(asset_type).strip() == "":
+            continue
+        item_name_s = str(item_name).strip()
+        asset_type_s = str(asset_type).strip()
+        expected_category = category_by_item_name.get(item_name_s)
+        if expected_category is not None and expected_category != asset_type_s:
+            add_err(
+                i,
+                f"Asset Type ID '{asset_type_s}' does not match Item Code '{item_name_s}' "
+                f"(expected '{expected_category}')",
+            )
 
 
 def _validate_unique_serial(df, schema, add_err):

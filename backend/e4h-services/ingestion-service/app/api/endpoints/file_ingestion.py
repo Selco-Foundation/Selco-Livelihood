@@ -55,6 +55,7 @@ from app.utils.mdms_client import MDMSClient
 from app.utils.organization_service_client import OrganizationServiceClient
 from app.utils.project_service_client import ProjectServiceClient
 from app.utils.hrms_service_client import HRMSServiceClient
+from app.utils.vendor_registry_client import VendorRegistryClient
 
 router = APIRouter()
 logger = AppLogger().get_logger()
@@ -663,9 +664,12 @@ async def upload_assets_excel_sheet(
 
         if asset_service_url and not df.empty:
             asset_client = AssetServiceClient(asset_service_url)
+            vendor_lookup = {}
+            if org_service_url:
+                vendor_lookup = VendorRegistryClient(org_service_url).get_vendor_code_lookup(request_info_obj)
             for index, row in df[df['status'] != 'success'].iterrows():
                 try:
-                    asset_payload = create_asset_payload(request_info_obj, row, asset_schema)
+                    asset_payload = create_asset_payload(request_info_obj, row, asset_schema, vendor_lookup)
                     response = asset_client.create_asset(asset_payload)
                     if response.status_code in (200, 201):
                         df.at[index, 'status'] = 'success'

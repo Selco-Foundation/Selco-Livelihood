@@ -9,7 +9,7 @@ from app.schemas.request_info import RequestInfo
 
 logger = AppLogger().get_logger()
 
-DEFAULT_TENANT_ID = "in"
+DEFAULT_TENANT_ID = "livelihood"
 
 class OrganizationServiceClient:
     def __init__(self, org_service_url: str):
@@ -59,7 +59,7 @@ class OrganizationServiceClient:
         try:
             payload = {
                 "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
-                "SearchCriteria": {"tenantId": "in", "createdFrom": 0},
+                "SearchCriteria": {"tenantId": "livelihood", "createdFrom": 0},
                 "Pagination": {"limit": 10000, "offset": 0},
             }
             response = requests.post(
