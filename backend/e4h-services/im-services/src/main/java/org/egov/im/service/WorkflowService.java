@@ -446,6 +446,8 @@ public class WorkflowService {
             clearAssigneesForTerminalAction(workflow);
         } else if (LIVELIHOOD_WF_OUT_OF_WARRANTY.equals(normalized)) {
             keepActingVendorAssigned(workflow, request);
+        } else if (REASSIGN.equals(normalized)) {
+            assignVendorFromAssetForReassign(workflow, request);
         } else if (IM_WF_REOPEN.equals(normalized)) {
             assignVendorForReopen(workflow, request);
         }
@@ -512,6 +514,20 @@ public class WorkflowService {
         }
         workflow.setAssignes(List.of(vendorUuid));
         log.debug("Reopen reassigned ticket {} to vendor {}", request.getIncident().getIncidentId(), vendorUuid);
+    }
+
+    /**
+     * POC REASSIGN (OOS) sends the ticket back to the asset's mapped vendor — same vendor as at create.
+     * ASSIGN_VENDOR is used when POC picks a different vendor and must pass workflow.assignes explicitly.
+     */
+    private void assignVendorFromAssetForReassign(Workflow workflow, IncidentRequest request) {
+        String vendorUuid = resolveVendorFromAsset(request);
+        if (StringUtils.isBlank(vendorUuid)) {
+            throw new CustomException(REOPEN_VENDOR_NOT_FOUND_CODE, REOPEN_VENDOR_NOT_FOUND_MSG);
+        }
+        workflow.setAssignes(List.of(vendorUuid));
+        log.debug("REASSIGN auto-assigned ticket {} to asset vendor {}",
+                request.getIncident().getIncidentId(), vendorUuid);
     }
 
     private String resolveVendorUuidForReopen(IncidentRequest request) {
