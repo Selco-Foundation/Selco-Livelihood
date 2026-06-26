@@ -30,10 +30,10 @@ function TimelineCaption({
   let reasonLabel: string | null = null;
 
   if (action === "OUT_OF_SCOPE") {
-    reasonText = String(outOfScopeReasons.shift() ?? "");
+    reasonText = t(String(outOfScopeReasons.shift() ?? ""));
     reasonLabel = t("WF_OUT_OF_SCOPE_REASON");
   } else if (action === "DECLINE_POC") {
-    reasonText = String(declineReasons.shift() ?? "");
+    reasonText = t(String(declineReasons.shift() ?? ""));
     reasonLabel = t("WF_DECLINE_REASON");
   }
 
