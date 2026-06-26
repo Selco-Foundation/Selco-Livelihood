@@ -7,6 +7,15 @@ import {
   type NavItem,
 } from "@/shared";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
   Avatar,
   AvatarFallback,
   Button,
@@ -24,10 +33,11 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarTrigger,
+  toast,
 } from "@/ui";
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Home, LogOut } from "lucide-react";
-import { ChangeCity } from "../components/ChangeCity";
+import { ChangeCity } from "@/modules/core";
 
 export function AppShell() {
   const navItems = getModuleNavItems();
@@ -66,8 +76,11 @@ export function AppShell() {
               <SidebarMenu>
                 {allNavItems.map((item) => {
                   const Icon = item.icon;
+                  const homePath = `${basePath}/employee`;
                   const isActive =
-                    pathname === item.to || pathname.startsWith(`${item.to}/`);
+                    item.to === homePath
+                      ? pathname === item.to
+                      : pathname === item.to || pathname.startsWith(`${item.to}/`);
 
                   return (
                     <SidebarMenuItem key={item.id}>
@@ -97,18 +110,35 @@ export function AppShell() {
             </div>
           </div>
           <Separator className="my-3" />
-          <Button
-            variant="outline"
-            className="w-full justify-start"
-            onClick={() => {
-              clearSession();
-              clearJurisdiction();
-              void navigate({ to: employeeLoginPath() });
-            }}
-          >
-            <LogOut />
-            Sign out
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" className="w-full justify-start">
+                <LogOut />
+                Sign out
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Sign out</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to sign out?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    clearSession();
+                    clearJurisdiction();
+                    toast.success("Signed out successfully");
+                    void navigate({ to: employeeLoginPath() });
+                  }}
+                >
+                  Sign out
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>

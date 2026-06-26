@@ -40,6 +40,17 @@ export {
   DialogTitle,
   DialogTrigger,
 } from "./components/ui/dialog";
+export {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "./components/ui/alert-dialog";
 export { Toaster } from "./components/ui/sonner";
 export { toast } from "sonner";
 export {
