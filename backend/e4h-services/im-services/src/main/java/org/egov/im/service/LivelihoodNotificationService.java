@@ -113,7 +113,7 @@ public class LivelihoodNotificationService {
                     notifyVendorReopened(request);
                 }
             }
-            case "REASSIGN", "ASSIGN_VENDOR" -> {
+            case "REASSIGN" -> {
                 // POC reassignment: do not notify the original vendor (#36)
                 log.debug("Skipping vendor notification for POC reassignment on incidentId={}",
                         request.getIncident().getIncidentId());

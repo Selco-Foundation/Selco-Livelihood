@@ -1046,6 +1046,7 @@ public class FacilityService {
             }
         }
 
+        enrichFacilitiesWithEndUserUuid(facilityList, null);
         return facilityList;
     }
 
@@ -1066,6 +1067,7 @@ public class FacilityService {
                 .collect(Collectors.toSet());
         Map<String, Boundary> listBlock = boundaryUtil.getBoundaryMapForFacilityCodes(boundaryCodesOnRows);
         enrichFacilitiesWithBoundaries(facilityList, listBlock);
+        enrichFacilitiesWithEndUserUuid(facilityList, request.getRequestInfo());
         log.trace("Exiting bulkSearchFacilities method");
         return facilityList;
     }
@@ -1087,6 +1089,7 @@ public class FacilityService {
                 .collect(Collectors.toSet());
         Map<String, Boundary> listBlock = boundaryUtil.getBoundaryMapForFacilityCodes(boundaryCodesOnRows);
         enrichFacilitiesWithBoundaries(facilityList, listBlock);
+        enrichFacilitiesWithEndUserUuid(facilityList, request.getRequestInfo());
         log.trace("Exiting bulkSearchFacilitiesWithAddressAndBoundary method");
         return facilityList;
     }
@@ -1159,6 +1162,67 @@ public class FacilityService {
                 }
             }
         }
+    }
+
+    /**
+     * Populates {@code end_user_uuid} for each facility — the HRMS user UUID of the facility manager
+     * (COMPLAINANT / end user). Uses persisted {@code user_id} when present, otherwise resolves via HRMS
+     * employee code ({@code facility_poc_username} for Livelihood/Anganwadi, HFR/NIN for Health).
+     */
+    private void enrichFacilitiesWithEndUserUuid(List<Facility> facilityList, RequestInfo requestInfo) {
+        if (facilityList == null || facilityList.isEmpty()) {
+            return;
+        }
+        Map<String, Object> hrmsRequest = new HashMap<>();
+        if (requestInfo != null) {
+            hrmsRequest.put("RequestInfo", requestInfo);
+        }
+        Map<String, String> employeeCodeToUuid = new HashMap<>();
+
+        for (Facility facility : facilityList) {
+            if (facility == null) {
+                continue;
+            }
+            if (facility.getUserId() != null && !facility.getUserId().isBlank()) {
+                facility.setEndUserUuid(facility.getUserId());
+                continue;
+            }
+            String employeeCode = resolveEndUserEmployeeCode(facility);
+            if (employeeCode == null || employeeCode.isBlank()) {
+                continue;
+            }
+            String normalizedCode = employeeCode.trim();
+            String endUserUuid = employeeCodeToUuid.computeIfAbsent(
+                    normalizedCode,
+                    code -> hrmsUtils.findEmployeeUuidByCode(hrmsRequest, code)
+            );
+            if (endUserUuid != null && !endUserUuid.isBlank()) {
+                facility.setEndUserUuid(endUserUuid);
+            }
+        }
+    }
+
+    private String resolveEndUserEmployeeCode(Facility facility) {
+        if (usesManagerPocUsername(facility.getFacilityCategory())) {
+            return facility.getFacilityPocUsername();
+        }
+        if (facility.getHfrId() != null && !facility.getHfrId().isBlank()) {
+            return facility.getHfrId().trim();
+        }
+        if (facility.getNinId() != null && !facility.getNinId().isBlank()) {
+            return facility.getNinId().trim();
+        }
+        HealthFacilityDetails details = facility.getFacilityDetails();
+        if (details == null) {
+            return null;
+        }
+        if (details.getHfrId() != null && !details.getHfrId().isBlank()) {
+            return details.getHfrId().trim();
+        }
+        if (details.getNinId() != null && !details.getNinId().isBlank()) {
+            return details.getNinId().trim();
+        }
+        return null;
     }
 
 

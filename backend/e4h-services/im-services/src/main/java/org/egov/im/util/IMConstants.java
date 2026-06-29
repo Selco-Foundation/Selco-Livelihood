@@ -42,8 +42,6 @@ public class IMConstants {
 
     public static final String LIVELIHOOD_WF_DECLINE = "DECLINE";
 
-    public static final String LIVELIHOOD_WF_ASSIGN_VENDOR = "ASSIGN_VENDOR";
-
     public static final String LIVELIHOOD_WF_AUTO_CLOSE = "AUTO_CLOSE";
 
     /** 72-hour reopen window after resolution. */
