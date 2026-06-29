@@ -21,7 +21,6 @@ from dotenv import load_dotenv
 load_dotenv()
 mdms_url = os.getenv("MDMS_URL")
 boundary_service_url = os.getenv("BOUNDARY_SERVICE_URL")
-vendor_service_url = os.getenv("VENDOR_SERVICE_URL")
 localization_service_url = os.getenv("LOCALIZATION_SERVICE_URL")
 
 class FacilityTemplateService:
@@ -31,7 +30,7 @@ class FacilityTemplateService:
         params = {
             "page": 0,
             "size": 20000,
-            "tenantId": "in",
+            "tenantId": "livelihood",
             "hierarchyType": "SELCO",
             "boundaryType": "Block"
         }
@@ -243,8 +242,7 @@ class FacilityTemplateService:
 
     def generate_template_file(self, output_path: str,
                                facility_schema: List[Dict[str, Any]],
-                               boundary_data: List[Boundary],
-                               vendor_data: List[Dict]
+                               boundary_data: List[Boundary]
                                ) -> None:
         try:
             create_empty_excel_file(output_path)
@@ -272,13 +270,13 @@ class FacilityTemplateService:
             df_facility = pd.DataFrame(columns=output_list)
             facility_writer = create_excel_data_writer(
                 output_path,
-                "FacilityIngestionTemplate"
+                "EndUserIngestionTemplate"
             )
             facility_writer.write_data(df_facility)
 
             add_dropdowns_to_excel(
                 file_path=output_path,
-                sheet_name="FacilityIngestionTemplate",
+                sheet_name="EndUserIngestionTemplate",
                 dropdowns=dropdowns_map,
                 allow_blank_map=allow_blank_map
             )
@@ -296,12 +294,7 @@ class FacilityTemplateService:
             )
             boundary_writer.write_data(df_boundary)
 
-            df_vendor = pd.DataFrame(vendor_data)
-            vendor_writer = create_excel_data_writer(
-                output_path,
-                "VendorCodes"
-            )
-            vendor_writer.write_data(df_vendor)
+            # Livelihood: no Vendor Code column -> do not generate the VendorCodes sheet.
 
             remove_default_empty_sheet(output_path)
             logger.info(f"Successfully created template file at {output_path}")
@@ -434,54 +427,3 @@ class FacilityTemplateService:
         except Exception as e:
             logger.error(f"Error generating template file: {e}")
             raise
-
-    def get_all_vendor_codes(self, request_info : RequestInfo) -> List[Dict]:
-        """
-        Fetch all vendor codes from vendor service using the specified API format
-        Returns list of vendor records with code and name
-        """
-        url = f"{vendor_service_url}/vendor/organisation/v1/_search"
-
-        request_info_dict = request_info.model_dump(by_alias=True, exclude_none=True)
-
-        payload = {
-            "RequestInfo": request_info_dict,
-            "SearchCriteria": {
-                "tenantId": "in",
-                "createdFrom": 0
-            },
-            "Pagination": {
-                "limit": 10000,
-                "offset": 0
-            }
-        }
-
-        headers = {
-            "Content-Type": "application/json",
-        }
-
-        try:
-            response = requests.post(url, headers=headers, json=payload)
-            response.raise_for_status()
-            return self._parse_vendor_response(response.json())
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Error fetching vendor codes: {str(e)}")
-            if hasattr(e, 'response') and e.response:
-                logger.error(f"Vendor service response: {e.response.text}")
-            return []
-        except Exception as e:
-            logger.error(f"Unexpected error fetching vendor codes: {str(e)}")
-            return []
-
-    def _parse_vendor_response(self, response_json: Dict) -> List[Dict]:
-        """Parse vendor API response into list of vendor records"""
-        vendors = []
-        if response_json and 'organisations' in response_json:
-            for vendor in response_json['organisations']:
-                vendors.append({
-                    "Vendor Id": vendor.get('id', ''),
-                    "Vendor Code": vendor.get('code', ''),
-                    "Vendor Name": vendor.get('name', ''),
-                    "Vendor Application Number": vendor.get('applicationNumber', ''),
-                })
-        return vendors

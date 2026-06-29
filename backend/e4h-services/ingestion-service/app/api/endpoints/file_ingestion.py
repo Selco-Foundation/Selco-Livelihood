@@ -38,12 +38,13 @@ from app.processor.factory.vendor_data_processor_factory import VendorDataProces
 from app.schemas.request_info import RequestInfo
 from app.producer.producer import Producer
 from app.utils.convertor import request_info_from_json, create_vendor_request, create_facility_payload, \
-    resolve_mapped_vendor_for_facility_row, \
     get_project_creation_payload, check_role_mismatch_for_user_type, get_user_creation_payload_staff, \
     get_user_creation_payload_supervisors, \
     get_staff_creation_payload, create_project_payload, get_installation_spoc_creation_payload, \
     get_staff_search_payload, create_update_payload, get_incident_request_info, \
-    resolve_boundary_codes_for_dataframe
+    resolve_boundary_codes_for_dataframe, create_asset_payload
+from app.utils.asset_validator import asset_validation
+from app.utils.asset_service_client import AssetServiceClient
 from app.utils.boundary_service_client import BoundaryServiceClient
 from app.utils.facility_service_client import FacilityServiceClient
 from app.utils.fieldplan_activity_service_client import FieldPlanActivityServiceClient
@@ -54,6 +55,7 @@ from app.utils.mdms_client import MDMSClient
 from app.utils.organization_service_client import OrganizationServiceClient
 from app.utils.project_service_client import ProjectServiceClient
 from app.utils.hrms_service_client import HRMSServiceClient
+from app.utils.vendor_registry_client import VendorRegistryClient
 
 router = APIRouter()
 logger = AppLogger().get_logger()
@@ -88,6 +90,7 @@ project_service_url = os.getenv("PROJECT_SERVICE_URL")
 fieldPlan_service_url = os.getenv("FIELDPLAN_SERVICE_URL")
 fieldPlan_activity_service_url = os.getenv("FIELDPLAN_ACTIVITY_SERVICE_URL")
 facility_service_url = os.getenv("FACILITY_SERVICE_URL")
+asset_service_url = os.getenv("ASSET_SERVICE_URL")
 hrms_service_url = os.getenv("HRMS_SERVICE_URL")
 im_services_url = os.getenv("IM_SERVICES_URL")
 amc_scheduler_service_url = os.getenv("AMC_SCHEDULER_SERVICE_URL")
@@ -113,8 +116,6 @@ DB_CONFIG = {
     "user": os.getenv("DB_USER"),
     "password": os.getenv("DB_PASSWORD")
 }
-
-FACILITY_VENDOR_CODE_COLUMN = "Vendor Code (Mandatory)"
 
 @router.post('/vendors',
              summary='Upload and process vendor Excel file with multiple sheets',
@@ -280,7 +281,7 @@ async def upload_boundaries_excel_sheet(
 async def validate_facilities_excel_sheet(
         background_tasks: BackgroundTasks,
         facility_file: UploadFile = File(..., description="Excel file containing facility data"),
-        facility_sheet_name: str = Form(default="FacilityIngestionTemplate",
+        facility_sheet_name: str = Form(default="EndUserIngestionTemplate",
                                         description="Name of the sheet containing facility data"),
         boundary_sheet_name: str = Form(default="BlockBoundaryCodes",
                                         description="Name of the sheet containing boundary data"),
@@ -314,15 +315,9 @@ async def validate_facilities_excel_sheet(
         df = normalize_excel_integer_columns(df, force_columns=FACILITY_IDENTIFIER_COLUMNS)
 
         # ----------------- Read Facility Column ----------------- #
-        if 'Facility Id' not in df.columns:
-            raise HTTPException(status_code=400, detail=f"Facility Column in '{facility_sheet_name}' not found")
-
-        if FACILITY_VENDOR_CODE_COLUMN not in df.columns:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Missing mandatory column '{FACILITY_VENDOR_CODE_COLUMN}'. "
-                "Facilities cannot be validated without vendor mapping.",
-            )
+        facility_id_column = 'End user Id'
+        if facility_id_column not in df.columns:
+            raise HTTPException(status_code=400, detail=f"'End user Id' column in '{facility_sheet_name}' not found")
 
         # Ensure status/error columns exist
         if 'status' not in df.columns:
@@ -352,7 +347,7 @@ async def validate_facilities_excel_sheet(
                 try:
                     response_data = boundary_client.search_boundaries(
                         request_info=request_info_obj,
-                        tenant_id="in",
+                        tenant_id="livelihood",
                         codes=chunk,
                     )
                     if response_data and "Boundary" in response_data:
@@ -381,27 +376,8 @@ async def validate_facilities_excel_sheet(
             request_info_obj,
             facility_client,
             boundary_data_df,
-            'data-ingestion.FacilityIngestionSchema'
+            'data-ingestion.FacilityIngestionSchemaWithoutBoundaryCode'
         )
-
-        org_client = OrganizationServiceClient(org_service_url)
-        registered_vendor_codes = org_client.fetch_registered_vendor_codes(request_info_obj)
-        for i in range(len(df)):
-            row = df.iloc[i]
-            fid = row.get("Facility Id")
-            is_new = pd.isna(fid) or str(fid).strip() == ""
-            if not is_new:
-                continue
-            vendor_code = org_client.normalize_facility_vendor_code(row.get(FACILITY_VENDOR_CODE_COLUMN))
-            if not vendor_code:
-                validation_errors[i].append(
-                    f"{FACILITY_VENDOR_CODE_COLUMN} is required; facilities cannot be created without a vendor mapping."
-                )
-            elif registered_vendor_codes is not None and vendor_code not in registered_vendor_codes:
-                validation_errors[i].append(
-                    f"Vendor code '{vendor_code}' is not registered in the vendor service; "
-                    "register the vendor before facility ingestion."
-                )
 
         # Mark rows based on validation results, preserving earlier boundary errors
         error_count = 0
@@ -478,7 +454,7 @@ async def validate_facilities_excel_sheet(
              response_description='Returns processed Excel file with validations results')
 async def upload_facilities_excel_sheet(
         facility_file: UploadFile = File(description="Excel file containing facility data"),
-        facility_sheet_name: str = Form(default="FacilityIngestionTemplate",
+        facility_sheet_name: str = Form(default="EndUserIngestionTemplate",
                                         description="Name of the sheet containing facility data"),
         request_info: str = Form(default=""),
         are_facilities_onm_ready: bool = Form(description="FieldPlan ID")
@@ -522,37 +498,14 @@ async def upload_facilities_excel_sheet(
 
         if facility_service_url and not df.empty:
             facility_client = FacilityServiceClient(facility_service_url)
-            facility_schema = mdms_client.get_column_definitions_with_metadata(request_info,'data-ingestion.FacilityIngestionSchema')
-            org_client = OrganizationServiceClient(org_service_url) if org_service_url else None
-            vendor_mapping_cache: Dict[str, Dict[str, Optional[str]]] = {}
-            hfr_nin_db_cache: Dict[str, bool] = {}
+            facility_schema = mdms_client.get_column_definitions_with_metadata(request_info,'data-ingestion.FacilityIngestionSchemaWithoutBoundaryCode')
             for index, row in df[df['status'] != 'success'].iterrows():
-                hfr_nin_errs = collect_hfr_nin_errors_for_row(
-                    row, index, df, facility_client, hfr_nin_db_cache,
-                )
-                anganwadi_poc_errs = collect_anganwadi_poc_username_errors_for_row(
-                    row, index, df, facility_schema,
-                )
-                pre_errs = list(dict.fromkeys([*hfr_nin_errs, *anganwadi_poc_errs]))
-                if pre_errs:
-                    df.at[index, 'status'] = 'failed'
-                    df.at[index, 'error'] = '; '.join(pre_errs)
-                    continue
                 try:
-                    vendor_mapping = resolve_mapped_vendor_for_facility_row(
-                        org_client,
-                        request_info,
-                        row,
-                        FACILITY_VENDOR_CODE_COLUMN,
-                        vendor_mapping_cache,
-                    )
                     facility_data_payload = create_facility_payload(
                         request_info,
                         row,
                         are_facilities_onm_ready,
                         facility_schema,
-                        mapped_vendor_name=vendor_mapping.get("mappedVendorName"),
-                        mapped_vendor_user_name=vendor_mapping.get("mappedVendorUserName"),
                     )
                     response = facility_client.create_facility(facility_data_payload)
                     if response.status_code in (200, 201):
@@ -587,6 +540,171 @@ async def upload_facilities_excel_sheet(
     finally:
         if input_temp_file and os.path.exists(input_temp_file.name):
             os.unlink(input_temp_file.name)
+
+@router.post('/addAssetsValidateData',
+             summary='Validate bulk asset Excel file before processing',
+             response_description='Returns validation report Excel with PASSED/FAILED rows')
+async def validate_assets_excel_sheet(
+        background_tasks: BackgroundTasks,
+        asset_file: UploadFile = File(..., description="Excel file containing asset data"),
+        asset_sheet_name: str = Form(default="AssetIngestionTemplate",
+                                     description="Name of the sheet containing asset data"),
+        request_info: str = Form(default="")
+):
+    temp_input_file = None
+    request_info_obj = request_info_from_json(request_info)
+    mdms_client = MDMSClient(mdms_url)
+    try:
+        temp_input_file, _ = await _save_upload_to_temp_file(asset_file, suffix=".xlsx")
+        wb = load_workbook(temp_input_file.name)
+
+        if asset_sheet_name not in wb.sheetnames:
+            raise HTTPException(status_code=400, detail=f"Asset sheet '{asset_sheet_name}' not found")
+
+        df = pd.read_excel(temp_input_file.name, sheet_name=asset_sheet_name)
+        df.columns = [str(c).strip() for c in df.columns]
+        df = df.loc[:, ~df.columns.str.startswith('Unnamed')]
+        df = normalize_excel_integer_columns(df)
+
+        if 'status' not in df.columns:
+            df['status'] = ''
+        if 'error' not in df.columns:
+            df['error'] = ''
+
+        validation_errors = asset_validation(
+            df, mdms_client, request_info_obj, 'data-ingestion.AssetIngestionSchema'
+        )
+
+        error_count = 0
+        for i, errs in enumerate(validation_errors):
+            if errs:
+                df.at[i, 'status'] = 'FAILED'
+                df.at[i, 'error'] = "; ".join(dict.fromkeys(errs))
+                error_count += 1
+            else:
+                df.at[i, 'status'] = 'PASSED'
+                df.at[i, 'error'] = ''
+
+        # Update the asset sheet in-place
+        ws = wb[asset_sheet_name]
+        header_values = [cell.value for cell in ws[1]]
+        for col_name in ["status", "error"]:
+            if col_name not in header_values:
+                new_col_idx = len(header_values) + 1
+                cell = ws.cell(row=1, column=new_col_idx, value=col_name)
+                cell.font = Font(bold=True)
+                header_values.append(col_name)
+
+        export_df = prepare_dataframe_for_excel_export(df)
+        for r_idx, row in enumerate(dataframe_to_rows(export_df, index=False, header=False), start=2):
+            for c_idx, value in enumerate(row, start=1):
+                ws.cell(row=r_idx, column=c_idx, value=value)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_temp_file_path = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx").name
+        wb.save(output_temp_file_path)
+        autofit_columns(output_temp_file_path, asset_sheet_name, auto_fit=True)
+        background_tasks.add_task(cleanup_temp_file, output_temp_file_path)
+
+        response = FileResponse(
+            path=output_temp_file_path,
+            filename=f"asset_validation_results_{timestamp}.xlsx",
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response.headers["X-Error-Count"] = str(error_count)
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
+    finally:
+        if temp_input_file and os.path.exists(temp_input_file.name):
+            os.unlink(temp_input_file.name)
+
+
+@router.post('/assets',
+             summary='Upload and create assets from an Excel file',
+             response_description='Returns processed Excel with creation results')
+async def upload_assets_excel_sheet(
+        asset_file: UploadFile = File(description="Excel file containing asset data"),
+        asset_sheet_name: str = Form(default="AssetIngestionTemplate",
+                                     description="Name of the sheet containing asset data"),
+        request_info: str = Form(default="")
+):
+    input_temp_file = None
+    output_temp_file = None
+    request_info_obj = request_info_from_json(request_info)
+    mdms_client = MDMSClient(mdms_url)
+
+    try:
+        input_temp_file, _ = await _save_upload_to_temp_file(asset_file, suffix=".xlsx")
+        asset_file_path = input_temp_file.name
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_filename = f"asset_ingestion_results_{timestamp}.xlsx"
+        output_temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
+        output_temp_file.close()
+        output_file_path = output_temp_file.name
+
+        df = pd.read_excel(asset_file_path, sheet_name=asset_sheet_name)
+        df.columns = [str(c).strip() for c in df.columns]
+        df = df.loc[:, ~df.columns.str.startswith('Unnamed')]
+        df = normalize_excel_integer_columns(df)
+
+        if 'status' not in df.columns:
+            df['status'] = ''
+        if 'error' not in df.columns:
+            df['error'] = ''
+        df['status'] = df['status'].fillna('').astype(str)
+        df['error'] = df['error'].fillna('').astype(str)
+
+        asset_schema = mdms_client.get_column_definitions_with_metadata(
+            request_info_obj, 'data-ingestion.AssetIngestionSchema')
+
+        if asset_service_url and not df.empty:
+            asset_client = AssetServiceClient(asset_service_url)
+            vendor_lookup = {}
+            if org_service_url:
+                vendor_lookup = VendorRegistryClient(org_service_url).get_vendor_code_lookup(request_info_obj)
+            for index, row in df[df['status'] != 'success'].iterrows():
+                try:
+                    asset_payload = create_asset_payload(request_info_obj, row, asset_schema, vendor_lookup)
+                    response = asset_client.create_asset(asset_payload)
+                    if response.status_code in (200, 201):
+                        df.at[index, 'status'] = 'success'
+                        df.at[index, 'error'] = ''
+                    elif response.status_code == 400:
+                        error_data = response.json()
+                        first_error = error_data.get('Errors', [{}])[0]
+                        error_message = first_error.get('message') or first_error.get('code') or 'Unknown error'
+                        df.at[index, 'status'] = 'failed'
+                        df.at[index, 'error'] = error_message
+                    else:
+                        df.at[index, 'status'] = 'failed'
+                        df.at[index, 'error'] = f'{response.status_code}: {response.text}'
+                except Exception as e:
+                    df.at[index, 'status'] = 'failed'
+                    df.at[index, 'error'] = f'Exception: {str(e)}'
+
+        # Write a fresh single-sheet result file (the asset template has only one visible
+        # sheet, so the in-place ExcelDataWriter path would leave a hidden-only workbook).
+        export_df = prepare_dataframe_for_excel_export(df)
+        with pd.ExcelWriter(output_file_path, engine='openpyxl') as writer:
+            export_df.to_excel(writer, sheet_name=asset_sheet_name, index=False)
+
+        return FileResponse(
+            path=output_file_path,
+            filename=output_filename,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    except Exception as e:
+        logger.error(f"Error processing asset data: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to process asset data: {str(e)}")
+    finally:
+        if input_temp_file and os.path.exists(input_temp_file.name):
+            os.unlink(input_temp_file.name)
+
 
 @router.post('/workStreamWithFacilities',
              summary='Upload and process workstream with facilities excel file.',
