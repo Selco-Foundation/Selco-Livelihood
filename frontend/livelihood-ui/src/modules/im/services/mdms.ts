@@ -71,21 +71,22 @@ export async function fetchComplaintTypes(
   );
   const serviceDefs = (masters.ServiceDefs as ServiceDef[]) ?? [];
   const menu: ComplaintTypeOption[] = [];
+  const seen = new Set<string>();
 
   for (const def of serviceDefs) {
     if (def.deprecated) {
       continue;
     }
-    const menuPath = def.menuPath ?? "";
-    if (menu.some((item) => item.key === menuPath)) {
+    const serviceCode = def.serviceCode ?? "";
+    if (!serviceCode || seen.has(serviceCode)) {
       continue;
     }
+    seen.add(serviceCode);
     menu.push({
-      key: menuPath,
-      name:
-        menuPath === ""
-          ? t("SERVICEDEFS.OTHERS")
-          : t(`SERVICEDEFS.${menuPath.toUpperCase()}`),
+      key: serviceCode,
+      serviceCode,
+      menuPath: def.menuPath,
+      name: t(`SERVICEDEFS.${serviceCode.toUpperCase()}`),
     });
   }
 
