@@ -3,6 +3,7 @@ from typing import Dict, Any, List
 
 import requests
 
+from app.core.tenant import LIVELIHOOD_TENANT_ID
 from app.schemas.request_info import RequestInfo
 from app.schemas.vendor_ingestion_shema_response import ResponseInfo
 
@@ -28,7 +29,7 @@ class FieldPlanActivityServiceClient:
                 'activatedAt': fieldPlan.get("startDate", None),
                 'reviewerUser': roleToIds.get("INSTALLATION_REVIEWER"),
                 'spocUser': roleToIds.get("INSTALLATION_SPOC"),
-                'tenantId': 'in'
+                'tenantId': LIVELIHOOD_TENANT_ID
             }]
         }
         try:
@@ -50,7 +51,7 @@ class FieldPlanActivityServiceClient:
             raise req_err
 
     def search_facility_activity(self, request_info: RequestInfo, fieldplan_id: str, facility_id:str) -> Dict[str, Any]:
-        tenant_id = "in"
+        tenant_id = LIVELIHOOD_TENANT_ID
         limit = 1000
         offset = 0
         all_facilities = []
@@ -112,7 +113,7 @@ class FieldPlanActivityServiceClient:
 
 
     def search_fieldplan_activity_assignment(self, request_info: RequestInfo, fieldplan_id: str) -> Dict[str, Any]:
-        tenant_id = "in"
+        tenant_id = LIVELIHOOD_TENANT_ID
         limit = 1000
         offset = 0
         all_facilities = []
@@ -190,7 +191,7 @@ class FieldPlanActivityServiceClient:
 
             # Build FieldPlanFacility payload - only include rowVersion if present
             facility_activity_payload_list = [
-                {'id': fa_id, 'isDeleted': True, 'tenantId': 'in'}
+                {'id': fa_id, 'isDeleted': True, 'tenantId': LIVELIHOOD_TENANT_ID}
                 for fa_id in facility_activity_id
             ]
 

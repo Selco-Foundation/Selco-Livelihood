@@ -3,6 +3,7 @@ from typing import Dict, List
 
 import requests
 
+from app.core.tenant import LIVELIHOOD_TENANT_ID
 from app.schemas.request_info import RequestInfo
 
 logger = logging.getLogger(__name__)
@@ -32,11 +33,11 @@ class VendorRegistryClient:
             try:
                 url = (
                     f"{self.vendor_service_url}/vendor/organisation/v1/user/_search"
-                    f"?tenantId=livelihood&limit=1000&offset=0"
+                    f"?tenantId={LIVELIHOOD_TENANT_ID}&limit=1000&offset=0"
                 )
                 payload = {
                     "RequestInfo": request_info_dict,
-                    "OrgUser": {"tenantId": "livelihood", "organizationIds": [org_id]},
+                    "OrgUser": {"tenantId": LIVELIHOOD_TENANT_ID, "organizationIds": [org_id]},
                 }
                 response = requests.post(url, headers=headers, json=payload, timeout=60)
                 response.raise_for_status()
@@ -71,7 +72,7 @@ class VendorRegistryClient:
         url = f"{self.vendor_service_url}/vendor/organisation/v1/_search"
         payload = {
             "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
-            "SearchCriteria": {"tenantId": "livelihood", "createdFrom": 0},
+            "SearchCriteria": {"tenantId": LIVELIHOOD_TENANT_ID, "createdFrom": 0},
             "Pagination": {"limit": 10000, "offset": 0},
         }
         try:

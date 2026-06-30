@@ -6,6 +6,7 @@ import pandas as pd
 import requests
 
 from app.core.logging import AppLogger
+from app.core.tenant import LIVELIHOOD_TENANT_ID
 from app.schemas.boundary import Boundary
 from app.schemas.request_info import RequestInfo
 from app.schemas.vendor_ingestion_shema_response import IngestionSchemaResponse
@@ -30,7 +31,7 @@ class FacilityTemplateService:
         params = {
             "page": 0,
             "size": 20000,
-            "tenantId": "livelihood",
+            "tenantId": LIVELIHOOD_TENANT_ID,
             "hierarchyType": "SELCO",
             "boundaryType": "Block"
         }
@@ -320,7 +321,7 @@ class FacilityTemplateService:
             try:
                 loc_client = LocalizationServiceClient(localization_service_url)
                 loc_response = loc_client.search_messages(
-                    tenant_id="in",
+                    tenant_id=LIVELIHOOD_TENANT_ID,
                     locale="en_IN",
                     module="rainmaker-in",
                     codes=loc_codes,
