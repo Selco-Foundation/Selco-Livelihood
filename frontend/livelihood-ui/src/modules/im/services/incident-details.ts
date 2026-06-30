@@ -6,12 +6,27 @@ import type {
   IncidentSearchResponse,
 } from "../types/incident-details";
 
-function getFileUrl(url: string): string {
+function getThumbnailUrl(url: string): string {
   if (url.includes(",")) {
     const parts = url.split(",");
     return parts[3] || parts[0] || url;
   }
   return url;
+}
+
+/** Full-size original — variant without large/medium/small in path (digit-ui pattern). */
+function getOriginalFileUrl(url: string): string {
+  if (!url.includes(",")) {
+    return url;
+  }
+  const parts = url.split(",");
+  const original = parts.find(
+    (part) =>
+      !part.includes("/large/") &&
+      !part.includes("/medium/") &&
+      !part.includes("/small/"),
+  );
+  return original ?? parts[0] ?? url;
 }
 
 export async function fetchFileUrls(
@@ -62,7 +77,7 @@ export async function resolveVerificationMedia(
       continue;
     }
 
-    const fileUrl = getFileUrl(rawUrl);
+    const fileUrl = getOriginalFileUrl(rawUrl);
     const docType = doc.documentType?.toUpperCase() ?? "";
 
     if (
@@ -87,7 +102,7 @@ export async function resolveVerificationMedia(
   }
 
   const thumbs = (response.fileStoreIds ?? []).map((entry) =>
-    getFileUrl(entry.url ?? ""),
+    getThumbnailUrl(entry.url ?? ""),
   );
 
   return {

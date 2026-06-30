@@ -6,6 +6,7 @@ import type {
   WorkflowTimelineCheckpoint,
 } from "../../types/incident-details";
 import { FormSectionCard } from "../create/FormSectionCard";
+import { ComplaintMediaList } from "./ComplaintMediaList";
 
 interface ComplaintTimelineSectionProps {
   timeline: WorkflowTimelineCheckpoint[];
@@ -26,6 +27,7 @@ function TimelineCaption({
   const declineReasons = [...(additional?.declineReason ?? [])].reverse();
 
   const action = checkpoint.performedAction;
+  const isCreateCheckpoint = action === "APPLY" || action === "CREATE";
   let reasonText: string | null = null;
   let reasonLabel: string | null = null;
 
@@ -61,13 +63,16 @@ function TimelineCaption({
         </div>
       ))}
 
-      {checkpoint.thumbnailsToShow?.fullImage?.length ? (
-        <div className="grid grid-cols-3 gap-2">
-          {checkpoint.thumbnailsToShow.fullImage.map((src) => (
-            <a key={src} href={src} target="_blank" rel="noreferrer">
-              <img src={src} alt="" className="aspect-square rounded-md object-cover" />
-            </a>
-          ))}
+      {!isCreateCheckpoint &&
+      (checkpoint.thumbnailsToShow?.fullImage?.length ||
+        checkpoint.thumbnailsToShow?.videos?.length) ? (
+        <div className="space-y-2">
+          <p className="font-medium text-foreground">{t("CS_COMMON_ATTACHMENTS")}</p>
+          <ComplaintMediaList
+            images={checkpoint.thumbnailsToShow?.fullImage ?? []}
+            videos={checkpoint.thumbnailsToShow?.videos ?? []}
+            imageGridClassName="grid grid-cols-3 gap-2"
+          />
         </div>
       ) : null}
     </div>

@@ -88,6 +88,8 @@ export function ComplaintDetailsPage() {
   );
   const timelineMediaImages =
     applyCheckpoint?.thumbnailsToShow?.fullImage ?? complaintDetails.images;
+  const timelineMediaVideos =
+    applyCheckpoint?.thumbnailsToShow?.videos ?? complaintDetails.videos;
 
   const handleActionComplete = async () => {
     await revalidate();
@@ -119,7 +121,7 @@ export function ComplaintDetailsPage() {
 
       <ComplaintMediaSection
         images={timelineMediaImages}
-        videos={complaintDetails.videos}
+        videos={timelineMediaVideos}
       />
 
       <ComplaintTimelineSection

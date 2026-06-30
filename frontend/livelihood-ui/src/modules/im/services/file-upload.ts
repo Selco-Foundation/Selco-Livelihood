@@ -21,7 +21,6 @@ export async function uploadIncidentFile(
     "/filestore/v1/files",
     formData,
     {
-      params: { tenantId },
       headers: {
         "Content-Type": "multipart/form-data",
         Authorization: `Bearer ${accessToken}`,
@@ -54,7 +53,6 @@ export async function uploadIncidentVideo(
     "/im-services/v2/video/upload",
     formData,
     {
-      params: { tenantId },
       headers: {
         "Content-Type": "multipart/form-data",
         Authorization: `Bearer ${accessToken}`,
