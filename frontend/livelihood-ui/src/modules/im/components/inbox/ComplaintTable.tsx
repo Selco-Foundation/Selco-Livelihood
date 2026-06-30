@@ -1,8 +1,9 @@
-import { contextPath, useTranslate } from "@/shared";
+import { contextPath, useAuthStore, useTranslate } from "@/shared";
 import { cn } from "@/ui";
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { InboxRow } from "../../types/inbox";
+import { isEndUser } from "../../utils/access";
 import { translateDetailValue } from "../../utils/complaint-details";
 
 interface ComplaintTableProps {
@@ -32,6 +33,10 @@ export function ComplaintTable({
   onPageChange,
 }: ComplaintTableProps) {
   const { t } = useTranslate();
+  const user = useAuthStore((state) => state.user);
+  const slaColumnLabel = isEndUser(user?.roles)
+    ? t("WF_INBOX_HEADER_DAYS_REMAINING")
+    : t("WF_INBOX_HEADER_SLA_DAYS_REMAINING");
   const basePath = `/${contextPath()}/employee/im`;
   const totalPages = Math.max(1, Math.ceil(totalRecords / pageSizeLimit));
   const canGoPrev = currentPage > 0;
@@ -44,7 +49,8 @@ export function ComplaintTable({
     { key: "status", label: t("CS_TICKET_DETAILS_CURRENT_STATUS") },
     { key: "asset", label: t("INCIDENT_ASSET") },
     { key: "owner", label: t("WF_INBOX_HEADER_CURRENT_OWNER") },
-    { key: "sla", label: t("WF_INBOX_HEADER_SLA_DAYS_REMAINING") },
+    { key: "sla", label: slaColumnLabel },
+    { key: "endUser", label: t("INCIDENT_END_USER") },
   ] as const;
 
   const pageNumbers = Array.from({ length: totalPages }, (_, index) => index);
@@ -96,6 +102,7 @@ export function ComplaintTable({
                 <td className="px-5 py-4">
                   <SlaBadge value={row.sla} overdueLabel={overdueLabel} />
                 </td>
+                <td className="px-5 py-4 text-foreground">{row.endUser}</td>
               </tr>
             ))}
           </tbody>

@@ -24,6 +24,12 @@ export interface ImInboxSearchParams {
   nearingSLA?: boolean;
 }
 
+export interface InboxIncidentReporter {
+  name?: string;
+  uuid?: string;
+  userName?: string;
+}
+
 export interface InboxIncident {
   incidentId: string;
   incidentType: string;
@@ -36,6 +42,7 @@ export interface InboxIncident {
   tenantId: string;
   isPotentialDuplicate?: boolean;
   boundary?: { facilityCode?: string };
+  reporter?: InboxIncidentReporter;
 }
 
 export interface InboxItem {
@@ -68,6 +75,7 @@ export interface InboxRow {
   status: string;
   taskOwner: string;
   sla: string;
+  endUser: string;
   tenantId: string;
   potentialDuplicate: boolean;
 }
