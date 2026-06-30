@@ -22,6 +22,7 @@ export function ComplaintMediaList({
   imageGridClassName = "grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4",
 }: ComplaintMediaListProps) {
   const { t } = useTranslate();
+  const attachmentLabel = translateOr(t, "CS_COMMON_ATTACHMENT", "Attachment");
 
   if (!images.length && !videos.length) {
     return null;
@@ -31,17 +32,26 @@ export function ComplaintMediaList({
     <div className="space-y-4">
       {images.length > 0 ? (
         <div className={imageGridClassName}>
-          {images.map((src) => (
-            <a
-              key={src}
-              href={src}
-              target="_blank"
-              rel="noreferrer"
-              className="overflow-hidden rounded-lg border border-border bg-muted/30"
-            >
-              <img src={src} alt="" className="aspect-square w-full object-cover" />
-            </a>
-          ))}
+          {images.map((src, index) => {
+            const label = `${attachmentLabel} ${index + 1}`;
+
+            return (
+              <a
+                key={src}
+                href={src}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={label}
+                className="overflow-hidden rounded-lg border border-border bg-muted/30"
+              >
+                <img
+                  src={src}
+                  alt={label}
+                  className="aspect-square w-full object-cover"
+                />
+              </a>
+            );
+          })}
         </div>
       ) : null}
 
