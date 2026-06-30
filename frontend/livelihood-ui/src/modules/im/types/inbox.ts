@@ -30,6 +30,7 @@ export interface InboxIncident {
   incidentSubType?: string;
   facilityId?: string;
   assetId?: string;
+  boundaryCode?: string;
   phcType?: string;
   applicationStatus: string;
   tenantId: string;
@@ -63,7 +64,7 @@ export interface InboxSearchResponse {
 export interface InboxRow {
   incidentId: string;
   incidentType: string;
-  assetId: string;
+  assetLabel: string;
   status: string;
   taskOwner: string;
   sla: string;

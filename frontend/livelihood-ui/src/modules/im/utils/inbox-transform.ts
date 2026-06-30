@@ -49,7 +49,7 @@ export function combineInboxResponses(
     return {
       incidentId: incident.incidentId,
       incidentType: incident.incidentType,
-      assetId: incident.assetId ?? "-",
+      assetLabel: incident.boundaryCode ? `BOUNDARY_${incident.boundaryCode}` : "-",
       status: incident.applicationStatus,
       taskOwner: assignee?.name || "-",
       sla: `${slaValue}`,

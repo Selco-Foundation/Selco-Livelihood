@@ -3,6 +3,7 @@ import { cn } from "@/ui";
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { InboxRow } from "../../types/inbox";
+import { translateDetailValue } from "../../utils/complaint-details";
 
 interface ComplaintTableProps {
   data: InboxRow[];
@@ -88,7 +89,9 @@ export function ComplaintTable({
                 <td className="px-5 py-4 text-foreground">
                   {t(`CS_COMMON_${row.status}`)}
                 </td>
-                <td className="px-5 py-4 text-foreground">{row.assetId}</td>
+                <td className="px-5 py-4 text-foreground">
+                  {translateDetailValue(row.assetLabel, t)}
+                </td>
                 <td className="px-5 py-4 text-foreground">{row.taskOwner}</td>
                 <td className="px-5 py-4">
                   <SlaBadge value={row.sla} overdueLabel={overdueLabel} />
