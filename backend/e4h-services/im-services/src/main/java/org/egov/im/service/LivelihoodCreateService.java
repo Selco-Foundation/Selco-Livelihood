@@ -114,10 +114,10 @@ public class LivelihoodCreateService {
             }
             if (document.getDocumentType() != null) {
                 String type = document.getDocumentType().toUpperCase();
-                if (!IMAGE_DOCUMENT_TYPE.equals(type) && !"VIDEO".equals(type)) {
+                if (!IMAGE_DOCUMENT_TYPE.equals(type) && !"VIDEO".equals(type) && !"HLS".equals(type)) {
                     throw new CustomException(
                             "INVALID_DOCUMENTS",
-                            "Only PHOTO and VIDEO document types are supported during ticket creation"
+                            "Only PHOTO, VIDEO and HLS document types are supported during ticket creation"
                     );
                 }
             }
