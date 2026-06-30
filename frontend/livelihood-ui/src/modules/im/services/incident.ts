@@ -11,6 +11,7 @@ import {
   LIVELIHOOD_INCIDENT_BUSINESS_SERVICE,
   OPEN_DUPLICATE_APPLICATION_STATUSES,
 } from "../constants/workflow";
+import { hasRole } from "../utils/access";
 import { searchInbox } from "./inbox";
 
 export interface CreateIncidentInput {
@@ -45,6 +46,36 @@ export function buildCreateIncidentPayload(input: CreateIncidentInput) {
     input.complaintType.key ??
     input.complaintType.code;
 
+  const isPocCreate = hasRole(input.user.roles, "LIVELIHOOD_POC");
+  const additionalDetail =
+    input.uploadedDocuments.length > 0
+      ? { additionalDetail: { fileStoreId: input.uploadedDocuments } }
+      : {};
+
+  if (isPocCreate) {
+    return {
+      incident: {
+        incidentType,
+        reporterType: "COMPLAINANT",
+        tenantId: input.tenantId,
+        accountId: input.endUser.endUserUuid,
+        reporterTenant: input.tenantId,
+        facilityId: input.endUser.facilityId,
+        assetId: input.asset.assetId,
+        boundaryCode: input.asset.boundaryCode,
+        comments: input.comments ?? "",
+        createdOnBehalf: true,
+        entryChannel: "POC_MANUAL",
+        reporter: buildOnBehalfReporter(input.endUser, input.tenantId),
+        ...additionalDetail,
+      },
+      workflow: {
+        action: "CREATE",
+        verificationDocuments: buildVerificationDocuments(input.uploadedDocuments),
+      },
+    };
+  }
+
   return {
     incident: {
       tenantId: input.tenantId,
@@ -53,20 +84,32 @@ export function buildCreateIncidentPayload(input: CreateIncidentInput) {
       incidentType,
       boundaryCode: input.asset.boundaryCode,
       comments: input.comments ?? "",
-      ...(input.uploadedDocuments.length > 0
-        ? { additionalDetail: { fileStoreId: input.uploadedDocuments } }
-        : {}),
-      source: "web",
+      entryChannel: "DIRECT",
       reporter: {
         uuid: input.user.uuid,
         userName: input.user.userName,
+        name: input.user.name,
         tenantId: input.user.tenantId ?? input.tenantId,
+        type: "EMPLOYEE",
       },
+      ...additionalDetail,
     },
     workflow: {
       action: "CREATE",
       verificationDocuments: buildVerificationDocuments(input.uploadedDocuments),
     },
+  };
+}
+
+function buildOnBehalfReporter(endUser: LivelihoodFacility, tenantId: string) {
+  return {
+    uuid: endUser.endUserUuid,
+    userName: endUser.facilityPocUsername,
+    name: endUser.facilityPocName,
+    mobileNumber: endUser.facilityPocPhone,
+    emailId: endUser.facilityPocEmail,
+    type: "EMPLOYEE",
+    tenantId,
   };
 }
 

@@ -19,6 +19,14 @@ export function createCoreRoutes(rootRoute: AnyRoute) {
     },
   });
 
+  const contextRootRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: `/${basePath}`,
+    beforeLoad: () => {
+      throw redirect({ to: employeeHome });
+    },
+  });
+
   const employeeLoginRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: employeeLogin,
@@ -41,7 +49,7 @@ export function createCoreRoutes(rootRoute: AnyRoute) {
         throw redirect({
           to: employeeLogin,
           search: {
-            from: location.pathname + location.search,
+            from: location.href,
           },
         });
       }
@@ -56,7 +64,13 @@ export function createCoreRoutes(rootRoute: AnyRoute) {
   });
 
   return {
-    routes: [indexRoute, employeeLoginRoute, employeeLayoutRoute, employeeHomeRoute],
+    routes: [
+      indexRoute,
+      contextRootRoute,
+      employeeLoginRoute,
+      employeeLayoutRoute,
+      employeeHomeRoute,
+    ],
     navItems: [],
     employeeLayoutRoute,
   };

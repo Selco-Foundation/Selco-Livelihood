@@ -1,6 +1,6 @@
-import { contextPath, useTranslate } from "@/shared";
+import { contextPath, employeeHomePath, useTranslate } from "@/shared";
 import { PageHeader } from "@/ui";
-import { Link } from "@tanstack/react-router";
+import { ImBreadcrumbs } from "../../components/ImBreadcrumbs";
 import { CreateTicketForm } from "../../components/create/CreateTicketForm";
 import { IM_ROUTES } from "../../constants/routes";
 
@@ -16,18 +16,18 @@ function translateOr(
 export function CreateIncidentPage() {
   const { t } = useTranslate();
   const basePath = `/${contextPath()}`;
+  const homePath = employeeHomePath();
   const inboxPath = `${basePath}${IM_ROUTES.inbox}`;
   const responsePath = `${basePath}${IM_ROUTES.createResponse}`;
 
   return (
     <div className="mx-auto max-w-[960px] space-y-6">
-      <nav className="text-sm text-muted-foreground">
-        <Link to={inboxPath} className="hover:text-primary">
-          {translateOr(t, "ES_IM_TICKETS", "Tickets")}
-        </Link>
-        <span className="mx-2">&gt;</span>
-        <span>{translateOr(t, "ES_IM_NEW_TICKET", "New Ticket")}</span>
-      </nav>
+      <ImBreadcrumbs
+        items={[
+          { label: translateOr(t, "ES_COMMON_HOME", "Home"), to: homePath },
+          { label: translateOr(t, "ES_IM_TICKET_CREATE", "Ticket create") },
+        ]}
+      />
 
       <PageHeader
         title={translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise a New Ticket")}

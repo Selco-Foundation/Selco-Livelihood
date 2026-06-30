@@ -7,9 +7,7 @@ export function buildComplaintDetailRows(
   incident: Incident,
   t: (key: string) => string,
 ): ComplaintDetailsRow[] {
-  const filedDate =
-    incident.filedDate ??
-    incident.auditDetails?.createdTime;
+  const filedDate = incident.auditDetails?.createdTime;
 
   return [
     { labelKey: "CS_COMPLAINT_DETAILS_TICKET_NO", value: incidentId },
@@ -24,14 +22,10 @@ export function buildComplaintDetailRows(
     { labelKey: "CS_ADDCOMPLAINT_DISTRICT", value: incident.district ?? "-" },
     { labelKey: "CS_ADDCOMPLAINT_BLOCK", value: incident.block ?? "-" },
     {
-      labelKey: "CS_ADDCOMPLAINT_HEALTH_CARE_CENTRE",
+      labelKey: "CS_ADDCOMPLAINT_ASSET",
       value: incident.boundaryCode ? `BOUNDARY_${incident.boundaryCode}` : "-",
     },
-    { labelKey: "CS_COMPLAINT_COMMENTS", value: incident.comments ?? "-" },
-    {
-      labelKey: "CS_ADDCOMPLAINT_HEALTH_CARE_SUB_TYPE",
-      value: incident.phcSubType ?? "-",
-    },
+    { labelKey: "CS_COMPLAINT_COMMENTS", value: incident.comments?.length?  incident.comments :  "-" },
     {
       labelKey: "CS_COMPLAINT_FILED_DATE",
       value: formatEpochToDate(filedDate),

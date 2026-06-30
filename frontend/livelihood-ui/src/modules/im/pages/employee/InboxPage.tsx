@@ -1,5 +1,6 @@
 import {
   contextPath,
+  employeeHomePath,
   useAuthStore,
   useTranslate,
 } from "@/shared";
@@ -7,11 +8,12 @@ import { Button, PageHeader } from "@/ui";
 import { Link } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { ImBreadcrumbs } from "../../components/ImBreadcrumbs";
 import { DesktopInbox } from "../../components/inbox/DesktopInbox";
 import { buildDefaultInboxRoleFilters } from "../../hooks/inbox-defaults";
 import { useImInboxData } from "../../hooks/use-im-inbox-summary";
 import type { ImInboxFilters } from "../../types/inbox";
-import { hasRole } from "../../utils/access";
+import { canCreateIncident } from "../../utils/access";
 
 function parseFilterParam(filter?: string): ImInboxFilters | null {
   if (!filter) {
@@ -97,14 +99,23 @@ export function InboxPage() {
 
   const { data: complaints, isLoading } = useImInboxData(inboxParams);
   const totalRecords = complaints?.total ?? 0;
-  const canCreateTicket = hasRole(user?.roles, "COMPLAINANT");
+  const canCreateTicket = canCreateIncident(user?.roles);
 
   const handleFilterChange = (nextFilters: ImInboxFilters) => {
     setSearchParams((prev) => ({ ...prev, filters: nextFilters }));
   };
 
+  const homePath = employeeHomePath();
+
   return (
     <div className="mx-auto max-w-[1400px] space-y-6">
+      <ImBreadcrumbs
+        items={[
+          { label: translateOr(t, "ES_COMMON_HOME", "Home"), to: homePath },
+          { label: translateOr(t, "ES_IM_INBOX", "Inbox") },
+        ]}
+      />
+
       <PageHeader
         title={translateOr(t, "ES_IM_ALL_TICKETS", "All Tickets")}
         description={translateOr(

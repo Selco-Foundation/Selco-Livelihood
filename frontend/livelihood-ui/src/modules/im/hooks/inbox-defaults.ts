@@ -1,6 +1,6 @@
 import type { AuthUser } from "@/shared";
 import type { ImInboxFilters } from "../types/inbox";
-import { hasRole } from "../utils/access";
+import { isAssigneeScopedUser } from "../utils/access";
 
 export function buildDefaultInboxRoleFilters(
   user: AuthUser | null | undefined,
@@ -8,7 +8,7 @@ export function buildDefaultInboxRoleFilters(
   const userUuid = user?.uuid ?? "";
   const roles = user?.roles;
 
-  if (hasRole(roles, "COMPLAINT_RESOLVER")) {
+  if (isAssigneeScopedUser(roles)) {
     return {
       wfFilters: { assignee: [{ code: userUuid }] },
       pgrfilters: {
@@ -41,7 +41,7 @@ export function buildSummaryRoleFilters(
   const userUuid = user?.uuid ?? "";
   const roles = user?.roles;
 
-  if (hasRole(roles, "COMPLAINT_RESOLVER")) {
+  if (isAssigneeScopedUser(roles)) {
     return { assignee: userUuid };
   }
 

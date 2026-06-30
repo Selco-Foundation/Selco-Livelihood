@@ -6,6 +6,7 @@ import type {
   WorkflowTimelineCheckpoint,
 } from "../../types/incident-details";
 import { FormSectionCard } from "../create/FormSectionCard";
+import { ComplaintMediaList } from "./ComplaintMediaList";
 
 interface ComplaintTimelineSectionProps {
   timeline: WorkflowTimelineCheckpoint[];
@@ -26,14 +27,15 @@ function TimelineCaption({
   const declineReasons = [...(additional?.declineReason ?? [])].reverse();
 
   const action = checkpoint.performedAction;
+  const isCreateCheckpoint = action === "APPLY" || action === "CREATE";
   let reasonText: string | null = null;
   let reasonLabel: string | null = null;
 
   if (action === "OUT_OF_SCOPE") {
-    reasonText = String(outOfScopeReasons.shift() ?? "");
+    reasonText = t(String(outOfScopeReasons.shift() ?? ""));
     reasonLabel = t("WF_OUT_OF_SCOPE_REASON");
   } else if (action === "DECLINE_POC") {
-    reasonText = String(declineReasons.shift() ?? "");
+    reasonText = t(String(declineReasons.shift() ?? ""));
     reasonLabel = t("WF_DECLINE_REASON");
   }
 
@@ -61,13 +63,16 @@ function TimelineCaption({
         </div>
       ))}
 
-      {checkpoint.thumbnailsToShow?.fullImage?.length ? (
-        <div className="grid grid-cols-3 gap-2">
-          {checkpoint.thumbnailsToShow.fullImage.map((src) => (
-            <a key={src} href={src} target="_blank" rel="noreferrer">
-              <img src={src} alt="" className="aspect-square rounded-md object-cover" />
-            </a>
-          ))}
+      {!isCreateCheckpoint &&
+      (checkpoint.thumbnailsToShow?.fullImage?.length ||
+        checkpoint.thumbnailsToShow?.videos?.length) ? (
+        <div className="space-y-2">
+          <p className="font-medium text-foreground">{t("CS_COMMON_ATTACHMENTS")}</p>
+          <ComplaintMediaList
+            images={checkpoint.thumbnailsToShow?.fullImage ?? []}
+            videos={checkpoint.thumbnailsToShow?.videos ?? []}
+            imageGridClassName="grid grid-cols-3 gap-2"
+          />
         </div>
       ) : null}
     </div>
@@ -123,15 +128,6 @@ export function ComplaintTimelineSection({
                 <p className="text-sm font-semibold text-foreground">
                   {translateOr(t, statusKey, statusKey)}
                 </p>
-                {checkpoint.performedAction ? (
-                  <p className="text-xs text-muted-foreground">
-                    {translateOr(
-                      t,
-                      `CS_ACTION_${checkpoint.performedAction}`,
-                      checkpoint.performedAction,
-                    )}
-                  </p>
-                ) : null}
                 <TimelineCaption
                   checkpoint={checkpoint}
                   complaintDetails={complaintDetails}

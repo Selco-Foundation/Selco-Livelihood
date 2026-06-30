@@ -70,6 +70,15 @@ export {
   useSidebar,
 } from "./components/ui/sidebar";
 export { Separator } from "./components/ui/separator";
+export {
+  Breadcrumb,
+  BreadcrumbEllipsis,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "./components/ui/breadcrumb";
 export { Avatar, AvatarFallback, AvatarImage } from "./components/ui/avatar";
 export {
   Tooltip,

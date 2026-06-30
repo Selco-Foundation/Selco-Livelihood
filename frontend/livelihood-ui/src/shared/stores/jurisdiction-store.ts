@@ -34,7 +34,7 @@ export const useJurisdictionStore = create<JurisdictionState>()(
     }),
     {
       name: "livelihood-jurisdiction",
-      storage: createJSONStorage(() => sessionStorage),
+      storage: createJSONStorage(() => localStorage),
     },
   ),
 );

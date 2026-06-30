@@ -94,10 +94,10 @@ export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormPr
       >
         <FormSectionCard
           icon={MapPin}
-          title={translateOr(t, "TICKET_LOCATION", "Ticket Location")}
+          title={translateOr(t, "ASSET_DETAILS", "Asset Details")}
           description={translateOr(
             t,
-            "TICKET_LOCATION_DESC",
+            "ASSET_DETAILS_DESC",
             "Select the end user and asset for this ticket",
           )}
         >

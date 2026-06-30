@@ -1,8 +1,9 @@
-import { contextPath, useTranslate } from "@/shared";
+import { contextPath, employeeHomePath, useAuthStore, useTranslate } from "@/shared";
 import { Button, PageHeader } from "@/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useMemo } from "react";
+import { ImBreadcrumbs } from "../../components/ImBreadcrumbs";
 import {
   ComplaintActionBar,
 } from "../../components/details/ComplaintActionBar";
@@ -11,6 +12,7 @@ import { ComplaintSummarySection } from "../../components/details/ComplaintSumma
 import { ComplaintTimelineSection } from "../../components/details/ComplaintTimelineSection";
 import { IM_ROUTES } from "../../constants/routes";
 import { useComplaintDetails } from "../../hooks/use-complaint-details";
+import { isAssigneeScopedUser } from "../../utils/access";
 
 function translateOr(
   t: (key: string) => string,
@@ -35,8 +37,10 @@ function useComplaintRouteParams() {
 export function ComplaintDetailsPage() {
   const { t } = useTranslate();
   const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
   const { incidentId, tenantId } = useComplaintRouteParams();
   const basePath = `/${contextPath()}`;
+  const homePath = employeeHomePath();
   const inboxPath = `${basePath}${IM_ROUTES.inbox}`;
 
   const {
@@ -84,34 +88,25 @@ export function ComplaintDetailsPage() {
   );
   const timelineMediaImages =
     applyCheckpoint?.thumbnailsToShow?.fullImage ?? complaintDetails.images;
+  const timelineMediaVideos =
+    applyCheckpoint?.thumbnailsToShow?.videos ?? complaintDetails.videos;
+
+  const handleActionComplete = async () => {
+    await revalidate();
+    if (isAssigneeScopedUser(user?.roles)) {
+      await navigate({ to: inboxPath });
+    }
+  };
 
   return (
     <div className="mx-auto max-w-[960px] space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <Button
-          type="button"
-          variant="ghost"
-          className="gap-2 px-0 text-muted-foreground hover:text-primary"
-          onClick={() => {
-            if (window.history.length > 1) {
-              window.history.back();
-            } else {
-              void navigate({ to: inboxPath });
-            }
-          }}
-        >
-          <ArrowLeft className="size-4" />
-          {t("CS_COMMON_BACK")}
-        </Button>
-      </div>
-
-      <nav className="text-sm text-muted-foreground">
-        <Link to={inboxPath} className="hover:text-primary">
-          {translateOr(t, "ES_IM_TICKETS", "Tickets")}
-        </Link>
-        <span className="mx-2">&gt;</span>
-        <span>{incidentId}</span>
-      </nav>
+      <ImBreadcrumbs
+        items={[
+          { label: translateOr(t, "ES_COMMON_HOME", "Home"), to: homePath },
+          { label: translateOr(t, "ES_IM_INBOX", "Inbox"), to: inboxPath },
+          { label: incidentId },
+        ]}
+      />
 
       <PageHeader
         title={translateOr(t, "CS_HEADER_TICKET_DETAILS", "Ticket Details")}
@@ -126,7 +121,7 @@ export function ComplaintDetailsPage() {
 
       <ComplaintMediaSection
         images={timelineMediaImages}
-        videos={complaintDetails.videos}
+        videos={timelineMediaVideos}
       />
 
       <ComplaintTimelineSection
@@ -137,7 +132,7 @@ export function ComplaintDetailsPage() {
       <ComplaintActionBar
         complaintDetails={complaintDetails}
         workflowDetails={workflowDetails}
-        onActionComplete={revalidate}
+        onActionComplete={handleActionComplete}
       />
     </div>
   );

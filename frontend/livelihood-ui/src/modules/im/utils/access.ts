@@ -27,3 +27,15 @@ export function isEndUser(roles: Array<{ code?: string }> | undefined): boolean 
     roles?.every((role) => role.code === "EMPLOYEE" || role.code === "COMPLAINANT") ?? false
   );
 }
+
+const INCIDENT_CREATE_ROLES = ["COMPLAINANT", "LIVELIHOOD_POC"] as const;
+
+export function canCreateIncident(roles: Array<{ code?: string }> | undefined): boolean {
+  return INCIDENT_CREATE_ROLES.some((role) => hasRole(roles, role));
+}
+
+export function isAssigneeScopedUser(
+  roles: Array<{ code?: string }> | undefined,
+): boolean {
+  return hasRole(roles, "LIVELIHOOD_VENDOR") || hasRole(roles, "COMPLAINT_RESOLVER");
+}

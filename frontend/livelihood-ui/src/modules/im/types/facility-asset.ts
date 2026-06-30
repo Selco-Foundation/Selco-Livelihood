@@ -11,6 +11,8 @@ export interface LivelihoodFacility {
   facilityPocName: string;
   facilityPocUsername?: string;
   facilityPocPhone?: string;
+  facilityPocEmail?: string;
+  endUserUuid?: string;
   boundaryCode: string;
   facilityStatus?: string | null;
   address?: LivelihoodFacilityAddress;
