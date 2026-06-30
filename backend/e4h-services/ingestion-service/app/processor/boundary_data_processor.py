@@ -348,7 +348,7 @@ class BoundaryDataProcessor:
                 raw_display_name = data.get("localization_label") or data.get("name") or code
                 display_name = re.sub(r"\s+", " ", raw_display_name).strip()
                 messages.append({
-                    "code": f"Boundary_{full_code}",
+                    "code": f"BOUNDARY_{full_code}",
                     "message": display_name,
                     "module": "rainmaker-in",
                     "locale": "en_IN",

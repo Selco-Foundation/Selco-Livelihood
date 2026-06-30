@@ -314,7 +314,7 @@ class FacilityTemplateService:
                 if val:
                     all_raw_codes.add(val)
 
-        loc_codes = [f"Boundary_{code}" for code in all_raw_codes]
+        loc_codes = [f"BOUNDARY_{code}" for code in all_raw_codes]
 
         localization_map: Dict[str, str] = {}
         if localization_service_url and loc_codes:
@@ -337,7 +337,7 @@ class FacilityTemplateService:
         def localized(raw_code: str) -> str:
             if not raw_code:
                 return ""
-            loc_key = f"Boundary_{raw_code}"
+            loc_key = f"BOUNDARY_{raw_code}"
             return localization_map.get(loc_key, loc_key)
 
         for boundary in boundary_data:

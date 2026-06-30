@@ -962,13 +962,13 @@ def create_update_payload(search_response: dict, update_data: dict) -> dict:
 def build_localization_reverse_map(messages: List[Dict[str, Any]]) -> Dict[str, List[str]]:
     """
     Build a reverse map from normalized localization message → list of localization codes.
-    Only includes codes starting with "Boundary_".
+    Only includes codes starting with "BOUNDARY_".
     """
     reverse_map: Dict[str, List[str]] = {}
     for m in messages:
         code = (m.get("code") or "").strip()
         message = (m.get("message") or "").strip()
-        if code.startswith("Boundary_") and message:
+        if code.startswith("BOUNDARY_") and message:
             key = message.lower().strip().replace(" ", "")
             if key not in reverse_map:
                 reverse_map[key] = []
@@ -1000,14 +1000,14 @@ def resolve_boundary_code(
     if not state_candidates:
         return None, f"Boundary code for State '{state}' not found"
 
-    state_prefix = f"Boundary_{country}_"
+    state_prefix = f"BOUNDARY_{country}_"
     state_matches = [c for c in state_candidates if c.startswith(state_prefix) and '_' not in c[len(state_prefix):]]
     if not state_matches:
         return None, f"Boundary code for State '{state}' not found"
     if len(state_matches) > 1:
         return None, f"Boundary code for State '{state}' not found, multiple matches: {state_matches}"
 
-    state_boundary = state_matches[0].replace("Boundary_", "", 1)
+    state_boundary = state_matches[0].replace("BOUNDARY_", "", 1)
 
     # --- District ---
     district_normalized = district.strip().lower().replace(" ", "") if district else ""
@@ -1018,14 +1018,14 @@ def resolve_boundary_code(
     if not district_candidates:
         return None, f"Boundary code for District '{district}' not found"
 
-    district_prefix = f"Boundary_{state_boundary}_"
+    district_prefix = f"BOUNDARY_{state_boundary}_"
     district_matches = [c for c in district_candidates if c.startswith(district_prefix) and '_' not in c[len(district_prefix):]]
     if not district_matches:
         return None, f"Boundary code for District '{district}' under State '{state}' not found"
     if len(district_matches) > 1:
         return None, f"Boundary code for District '{district}' under State '{state}' not found, multiple matches: {district_matches}"
 
-    district_boundary = district_matches[0].replace("Boundary_", "", 1)
+    district_boundary = district_matches[0].replace("BOUNDARY_", "", 1)
 
     # --- Block ---
     block_normalized = block.strip().lower().replace(" ", "") if block else ""
@@ -1036,14 +1036,14 @@ def resolve_boundary_code(
     if not block_candidates:
         return None, f"Boundary code for Block '{block}' not found"
 
-    block_prefix = f"Boundary_{district_boundary}_"
+    block_prefix = f"BOUNDARY_{district_boundary}_"
     block_matches = [c for c in block_candidates if c.startswith(block_prefix) and '_' not in c[len(block_prefix):]]
     if not block_matches:
         return None, f"Boundary code for Block '{block}' under District '{district}' not found"
     if len(block_matches) > 1:
         return None, f"Boundary code for Block '{block}' under District '{district}' not found, multiple matches: {block_matches}"
 
-    block_boundary = block_matches[0].replace("Boundary_", "", 1)
+    block_boundary = block_matches[0].replace("BOUNDARY_", "", 1)
 
     return block_boundary, None
 

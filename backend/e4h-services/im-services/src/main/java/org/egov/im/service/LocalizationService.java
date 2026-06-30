@@ -55,8 +55,8 @@ public class LocalizationService {
         String tenantId = incident.getTenantId();
         String locale = "en_IN";
 
-        String districtCode = "Boundary_" + boundary.getDistrictCode();
-        String blockCode = "Boundary_" + boundary.getBlockCode();
+        String districtCode = "BOUNDARY_" + boundary.getDistrictCode();
+        String blockCode = "BOUNDARY_" + boundary.getBlockCode();
         String boundaryCodes = String.join(",", districtCode, blockCode);
 
         LocalizationResponse boundaryResponse = getLocalizationMessages(incidentRequest.getRequestInfo(), tenantId, "rainmaker-in", locale, boundaryCodes);
@@ -74,8 +74,8 @@ public class LocalizationService {
         String stateTenant = tenantId.split("\\.")[0];
         String locale = "en_IN";
 
-        String stateCode = "Boundary_" + indexView.getBoundary().getStateCode();
-        String facilityCode = "Boundary_" + indexView.getBoundary().getFacilityCode();
+        String stateCode = "BOUNDARY_" + indexView.getBoundary().getStateCode();
+        String facilityCode = "BOUNDARY_" + indexView.getBoundary().getFacilityCode();
         String incidentTypeCode = "SERVICEDEFS." + incident.getIncidentType().toUpperCase();
         boolean livelihood = livelihoodTenantUtil.isLivelihood(tenantId);
         String incidentSubTypeCode = !livelihood && StringUtils.isNotBlank(incident.getIncidentSubType())

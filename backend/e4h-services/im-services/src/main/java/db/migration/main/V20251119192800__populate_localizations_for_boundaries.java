@@ -559,7 +559,7 @@ public class V20251119192800__populate_localizations_for_boundaries extends Base
         List<ObjectNode> messages = new ArrayList<>();
 
         for (BoundaryInfo boundary : boundaries) {
-            String code = "Boundary_" + boundary.code;
+            String code = "BOUNDARY_" + boundary.code;
             String message;
 
             if ("en_IN".equals(locale)) {

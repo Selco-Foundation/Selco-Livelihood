@@ -275,7 +275,7 @@ public class FacilityKibanaMapper {
     }
 
     /**
-     * Resolves a human-readable boundary label via egov-localization ({@code Boundary_{code}}).
+     * Resolves a human-readable boundary label via egov-localization ({@code BOUNDARY_{code}}).
      * Falls back to the last hierarchy segment when localization is missing or unavailable.
      */
     private String resolveBoundaryDisplayLabel(String boundaryCode, Map<String, String> labels) {
@@ -377,10 +377,10 @@ public class FacilityKibanaMapper {
     }
 
     private static String toLocalizationCode(String boundaryCode) {
-        if (boundaryCode.startsWith("Boundary_")) {
+        if (boundaryCode.startsWith("BOUNDARY_")) {
             return boundaryCode;
         }
-        return "Boundary_" + boundaryCode;
+        return "BOUNDARY_" + boundaryCode;
     }
 
     /**

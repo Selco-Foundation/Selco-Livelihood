@@ -45,7 +45,7 @@ public class AssetLocalizationService {
             return;
         }
 
-        String localizationCode = "Boundary_" + assetBoundaryCode;
+        String localizationCode = "BOUNDARY_" + assetBoundaryCode;
         String displayName = resolveDisplayName(asset, requestInfo, localizationCode);
 
         List<Map<String, String>> messages = List.of(Map.of(
@@ -68,7 +68,7 @@ public class AssetLocalizationService {
             if (asset == null || StringUtils.isBlank(asset.getBoundaryCode())) {
                 continue;
             }
-            String localizationCode = "Boundary_" + asset.getBoundaryCode();
+            String localizationCode = "BOUNDARY_" + asset.getBoundaryCode();
             messages.add(Map.of(
                     "code", localizationCode,
                     "message", resolveDisplayName(asset, requestInfo, localizationCode),

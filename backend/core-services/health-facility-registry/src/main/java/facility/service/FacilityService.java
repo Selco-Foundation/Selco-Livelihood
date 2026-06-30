@@ -266,7 +266,7 @@ public class FacilityService {
                 boundaryService.createBoundaryRelationship(boundaryRelationshipRequest);
             }
 
-            // Create localization messages for each facility boundary (code: Boundary_{facilityBoundaryCode})
+            // Create localization messages for each facility boundary (code: BOUNDARY_{facilityBoundaryCode})
             upsertFacilityBoundaryLocalizations(tenantFacilities, request.getRequestInfo());
 
             log.info("Pushing {} facilities to Kafka for tenant {}", tenantFacilities.size(), tenantId);
@@ -330,7 +330,7 @@ public class FacilityService {
             String facilityBoundaryCode = facility.getBoundaryCode();
             if (facilityBoundaryCode == null || facilityBoundaryCode.isBlank()) continue;
 
-            String localizationCode = "Boundary_" + facilityBoundaryCode;
+            String localizationCode = "BOUNDARY_" + facilityBoundaryCode;
 
             // Display name for this boundary localization: use facility name when available.
             String displayName = facility.getFacilityName();
@@ -746,7 +746,7 @@ public class FacilityService {
             updatedHRMSUser(request, existingFacility, facility);
         }
 
-        // Create localization messages for each facility boundary (code: Boundary_{facilityBoundaryCode})
+        // Create localization messages for each facility boundary (code: BOUNDARY_{facilityBoundaryCode})
         upsertFacilityBoundaryLocalizations(List.of(facility), request.getRequestInfo());
 
         try {
