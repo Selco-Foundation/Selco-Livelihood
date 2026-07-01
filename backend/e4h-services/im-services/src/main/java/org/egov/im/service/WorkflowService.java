@@ -446,6 +446,8 @@ public class WorkflowService {
             clearAssigneesForTerminalAction(workflow);
         } else if (LIVELIHOOD_WF_OUT_OF_WARRANTY.equals(normalized)) {
             keepActingVendorAssigned(workflow, request);
+        } else if (LIVELIHOOD_WF_REVISE_QUOTATION.equals(normalized)) {
+            keepActingVendorAssigned(workflow, request);
         } else if (REASSIGN.equals(normalized)) {
             assignVendorFromAssetForReassign(workflow, request);
         } else if (IM_WF_REOPEN.equals(normalized)) {

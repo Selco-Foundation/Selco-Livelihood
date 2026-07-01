@@ -353,7 +353,8 @@ public class IMService {
         validator.validateUpdate(request, mdmsData);
 
         if (livelihoodTenantUtil.isLivelihood(tenantId)) {
-            livelihoodUpdateService.prepareUpdate(request);
+            Incident existingIncident = fetchExistingIncident(request.getIncident().getId(), tenantId);
+            livelihoodUpdateService.prepareUpdate(request, existingIncident);
         }
 
         String boundaryCode = request.getIncident().getBoundaryCode();
@@ -630,5 +631,18 @@ public class IMService {
 			throw new CustomException("INSUFFICIENT_PRIVILEGES",
 					"Only FACILITY_ADMIN or SYSTEM_USER can sync incident boundaries");
 		}
+	}
+
+	private Incident fetchExistingIncident(String incidentUuid, String tenantId) {
+		RequestSearchCriteria criteria = RequestSearchCriteria.builder()
+				.ids(Collections.singleton(incidentUuid))
+				.tenantId(tenantId)
+				.build();
+		criteria.setIsPlainSearch(false);
+		List<IncidentWrapper> incidentWrappers = repository.getIncidentWrappers(criteria);
+		if (CollectionUtils.isEmpty(incidentWrappers) || incidentWrappers.get(0).getIncident() == null) {
+			throw new CustomException("INVALID_UPDATE", "The record that you are trying to update does not exists");
+		}
+		return incidentWrappers.get(0).getIncident();
 	}
 }

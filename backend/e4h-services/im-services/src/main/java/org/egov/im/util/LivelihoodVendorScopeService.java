@@ -102,6 +102,7 @@ public class LivelihoodVendorScopeService {
         return IM_WF_RESOLVE.equals(normalized)
                 || LIVELIHOOD_WF_OUT_OF_SCOPE.equals(normalized)
                 || LIVELIHOOD_WF_OUT_OF_WARRANTY.equals(normalized)
+                || LIVELIHOOD_WF_REVISE_QUOTATION.equals(normalized)
                 || LIVELIHOOD_WF_DECLINE.equals(normalized);
     }
 
