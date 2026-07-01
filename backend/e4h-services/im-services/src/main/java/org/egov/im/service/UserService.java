@@ -3,6 +3,7 @@ package org.egov.im.service;
 
 import com.jayway.jsonpath.JsonPath;
 import org.egov.common.contract.request.RequestInfo;
+import org.egov.common.contract.request.Role;
 
 import org.egov.im.config.IMConfiguration;
 import org.egov.im.producer.Producer;
@@ -92,7 +93,12 @@ public class UserService {
         });
 
         log.trace("Searching bulk users for {} UUIDs", uuids.size());
-        Map<String, User> idToUserMap = searchBulkUser(new LinkedList<>(uuids));
+        if (uuids.isEmpty()) {
+            return;
+        }
+
+        String tenantId = incidentWrappers.get(0).getIncident().getTenantId();
+        Map<String, User> idToUserMap = searchBulkUser(new LinkedList<>(uuids), tenantId);
 
         incidentWrappers.forEach(incidentWrapper -> {
         	incidentWrapper.getIncident().setReporter(idToUserMap.get(incidentWrapper.getIncident().getAccountId()));
@@ -148,15 +154,19 @@ public class UserService {
         RequestInfo requestInfo = request.getRequestInfo();
         String accountId = request.getIncident().getReporter().getUuid();
 
+        User existingReporter = request.getIncident().getReporter();
+
         log.trace("Searching user by accountId");
-        UserDetailResponse userDetailResponse = searchUser(null,accountId,null);
+        UserDetailResponse userDetailResponse = searchUser(request.getIncident().getTenantId(), accountId, null);
 
         if(userDetailResponse.getUser().isEmpty()) {
             log.error("No user found for accountId: {}", accountId);
             throw new CustomException("INVALID_ACCOUNTID","No user exist for the given accountId");
         }
 
-        request.getIncident().setReporter(userDetailResponse.getUser().get(0));
+        User resolvedReporter = userDetailResponse.getUser().get(0);
+        mergeReporterPiiIfMasked(existingReporter, resolvedReporter);
+        request.getIncident().setReporter(resolvedReporter);
         log.debug("User enriched successfully for accountId: {}", accountId);
     }
 
@@ -229,6 +239,8 @@ public class UserService {
         if(!StringUtils.isEmpty(stateLevelTenant))
             userSearchRequest.setTenantId(stateLevelTenant);
 
+        applyInternalServiceRequestInfo(userSearchRequest, stateLevelTenant);
+
         log.debug("Searching user with stateLevelTenant={}, accountId={}, userName={}", stateLevelTenant, accountId, userName);
         StringBuilder uri = new StringBuilder(config.getUserHost()).append(config.getUserSearchEndpoint());
         return userUtils.userCall(userSearchRequest,uri);
@@ -240,7 +252,7 @@ public class UserService {
      * @param uuids
      * @return
      */
-    public Map<String,User> searchBulkUser(List<String> uuids){
+    public Map<String,User> searchBulkUser(List<String> uuids, String tenantId){
         log.debug("Searching bulk users for uuids: {}", uuids);
         UserSearchRequest userSearchRequest =new UserSearchRequest();
         userSearchRequest.setActive(true);
@@ -250,7 +262,10 @@ public class UserService {
         if(!CollectionUtils.isEmpty(uuids))
             userSearchRequest.setUuid(uuids);
 
+        if(!StringUtils.isEmpty(tenantId))
+            userSearchRequest.setTenantId(tenantId);
 
+        applyInternalServiceRequestInfo(userSearchRequest, tenantId);
         StringBuilder uri = new StringBuilder(config.getUserHost()).append(config.getUserSearchEndpoint());
         UserDetailResponse userDetailResponse = userUtils.userCall(userSearchRequest,uri);
         List<User> users = userDetailResponse.getUser();
@@ -278,6 +293,8 @@ public class UserService {
         userSearchRequest.setUserType(USERTYPE_EMPLOYEE);
         userSearchRequest.setTenantId(tenantId);
         userSearchRequest.setMobileNumber(mobileNumber);
+
+        applyInternalServiceRequestInfo(userSearchRequest, tenantId);
 
         StringBuilder uri = new StringBuilder(config.getUserHost()).append(config.getUserSearchEndpoint());
         UserDetailResponse userDetailResponse = userUtils.userCall(userSearchRequest,uri);
@@ -538,6 +555,52 @@ public class UserService {
             return preferred;
         }
         return fallback == null ? "" : fallback;
+    }
+
+    /**
+     * User-service encrypts PII at rest. Searches without an internal service identity return masked values (XXXXXXXX).
+     * Use the same internal microservice user as notification flows so reporter fields index with real values.
+     */
+    private void applyInternalServiceRequestInfo(UserSearchRequest userSearchRequest, String tenantId) {
+        String effectiveTenantId = StringUtils.isEmpty(tenantId) ? "livelihood" : tenantId;
+        Role role = Role.builder()
+                .name("Internal Microservice Role")
+                .code("INTERNAL_MICROSERVICE_ROLE")
+                .tenantId(effectiveTenantId)
+                .build();
+        org.egov.common.contract.request.User internalUser = org.egov.common.contract.request.User.builder()
+                .uuid(config.getEgovInternalMicroserviceUserUuid())
+                .type("SYSTEM")
+                .roles(Collections.singletonList(role))
+                .id(0L)
+                .tenantId(effectiveTenantId)
+                .build();
+        userSearchRequest.setRequestInfo(RequestInfo.builder().userInfo(internalUser).build());
+    }
+
+    private void mergeReporterPiiIfMasked(User preferred, User resolved) {
+        if (preferred == null || resolved == null) {
+            return;
+        }
+        if (isMaskedPii(resolved.getName()) && !StringUtils.isEmpty(preferred.getName())) {
+            resolved.setName(preferred.getName());
+        }
+        if (isMaskedPii(resolved.getMobileNumber()) && !StringUtils.isEmpty(preferred.getMobileNumber())) {
+            resolved.setMobileNumber(preferred.getMobileNumber());
+        }
+        if (isMaskedPii(resolved.getEmailId()) && !StringUtils.isEmpty(preferred.getEmailId())) {
+            resolved.setEmailId(preferred.getEmailId());
+        }
+        if (isMaskedPii(resolved.getUserName()) && !StringUtils.isEmpty(preferred.getUserName())) {
+            resolved.setUserName(preferred.getUserName());
+        }
+    }
+
+    private boolean isMaskedPii(String value) {
+        if (StringUtils.isEmpty(value)) {
+            return false;
+        }
+        return value.chars().allMatch(ch -> ch == 'X' || ch == 'x');
     }
 
 }
