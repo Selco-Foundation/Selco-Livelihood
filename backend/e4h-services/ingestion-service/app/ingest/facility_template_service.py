@@ -6,6 +6,7 @@ import pandas as pd
 import requests
 
 from app.core.logging import AppLogger
+from app.core.tenant import LIVELIHOOD_TENANT_ID
 from app.schemas.boundary import Boundary
 from app.schemas.request_info import RequestInfo
 from app.schemas.vendor_ingestion_shema_response import IngestionSchemaResponse
@@ -30,7 +31,7 @@ class FacilityTemplateService:
         params = {
             "page": 0,
             "size": 20000,
-            "tenantId": "livelihood",
+            "tenantId": LIVELIHOOD_TENANT_ID,
             "hierarchyType": "SELCO",
             "boundaryType": "Block"
         }
@@ -313,14 +314,14 @@ class FacilityTemplateService:
                 if val:
                     all_raw_codes.add(val)
 
-        loc_codes = [f"Boundary_{code}" for code in all_raw_codes]
+        loc_codes = [f"BOUNDARY_{code}" for code in all_raw_codes]
 
         localization_map: Dict[str, str] = {}
         if localization_service_url and loc_codes:
             try:
                 loc_client = LocalizationServiceClient(localization_service_url)
                 loc_response = loc_client.search_messages(
-                    tenant_id="in",
+                    tenant_id=LIVELIHOOD_TENANT_ID,
                     locale="en_IN",
                     module="rainmaker-in",
                     codes=loc_codes,
@@ -336,7 +337,7 @@ class FacilityTemplateService:
         def localized(raw_code: str) -> str:
             if not raw_code:
                 return ""
-            loc_key = f"Boundary_{raw_code}"
+            loc_key = f"BOUNDARY_{raw_code}"
             return localization_map.get(loc_key, loc_key)
 
         for boundary in boundary_data:

@@ -31,6 +31,7 @@ from starlette.responses import JSONResponse, StreamingResponse
 import requests
 
 from app.core.logging import AppLogger
+from app.core.tenant import LIVELIHOOD_TENANT_ID
 from app.decorators.rbac_validator import get_authorized_request_info
 from app.ingest.excel_data_writer import ExcelDataWriter
 from app.processor.factory.boundary_data_processor_factory import BoundaryDataProcessorFactory
@@ -347,7 +348,7 @@ async def validate_facilities_excel_sheet(
                 try:
                     response_data = boundary_client.search_boundaries(
                         request_info=request_info_obj,
-                        tenant_id="livelihood",
+                        tenant_id=LIVELIHOOD_TENANT_ID,
                         codes=chunk,
                     )
                     if response_data and "Boundary" in response_data:
@@ -1881,17 +1882,17 @@ def get_request_info_to_send_back_workflow():
             "type": "EMPLOYEE",
             "roles": [
                 {"name": "Installation Report Part A editor", "code": "INSTALLATION_REPORT_PART_A_EDITOR",
-                 "tenantId": "in"},
+                 "tenantId": LIVELIHOOD_TENANT_ID},
                 {"name": "Installation Report Part B editor", "code": "INSTALLATION_REPORT_PART_B_EDITOR",
-                 "tenantId": "in"},
+                 "tenantId": LIVELIHOOD_TENANT_ID},
                 {"name": "Installation Report Part A reviewer", "code": "INSTALLATION_REPORT_PART_A_REVIEWER",
-                 "tenantId": "in"},
-                {"name": "Project manager", "code": "PROJECT_MANAGER", "tenantId": "in"},
+                 "tenantId": LIVELIHOOD_TENANT_ID},
+                {"name": "Project manager", "code": "PROJECT_MANAGER", "tenantId": LIVELIHOOD_TENANT_ID},
                 {"name": "Installation Report Approver QC team", "code": "INSTALLATION_REPORT_APPROVER_QC_TEAM",
-                 "tenantId": "in"}
+                 "tenantId": LIVELIHOOD_TENANT_ID}
             ],
             "active": True,
-            "tenantId": "in",
+            "tenantId": LIVELIHOOD_TENANT_ID,
             "permanentCity": None
         }
     }
@@ -3062,7 +3063,7 @@ async def bulk_ingest_amc_configurations(
     request_info_obj = request_info_from_json(request_info)
 
     # Get tenant ID from request info or use default
-    tenant_id = request_info_obj.user_info.tenant_id if request_info_obj.user_info and request_info_obj.user_info.tenant_id else "in"
+    tenant_id = request_info_obj.user_info.tenant_id if request_info_obj.user_info and request_info_obj.user_info.tenant_id else LIVELIHOOD_TENANT_ID
 
     try:
         # Parse user info list
@@ -3198,7 +3199,7 @@ async def bulk_ingest_amc_configurations(
                     batch_ids = unique_facility_ids[batch_start:batch_start + facility_batch_size]
                     bulk_facility_result = facility_client.bulk_search_facility(
                         request_info=request_info_obj,
-                        tenant_ids=["in"],
+                        tenant_ids=[LIVELIHOOD_TENANT_ID],
                         facility_ids=batch_ids,
                         limit=max(len(batch_ids), 50),
                         send_non_paginated_response=True,

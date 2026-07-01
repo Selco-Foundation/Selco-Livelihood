@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from sqlalchemy import false, true
 
 from app.core.logging import AppLogger
+from app.core.tenant import LIVELIHOOD_TENANT_ID
 from app.schemas.boundary import Boundary
 from app.schemas.request_info import RequestInfo
 from app.schemas.vendor import Vendor
@@ -255,12 +256,12 @@ def create_vendor_request(request_info: RequestInfo, vendor: Vendor):
     return {
         "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
         "organisations": [{
-            "tenantId": "livelihood",
+            "tenantId": LIVELIHOOD_TENANT_ID,
             "name": vendor.vendor_name,
             "code": None,
             "orgAddress": [
                 {
-                    "tenantId": "livelihood",
+                    "tenantId": LIVELIHOOD_TENANT_ID,
                     "boundaryType": "country",
                     "boundaryCode": vendor.country_boundary_code,
                     "hqAddress": vendor.hq_address
@@ -295,7 +296,7 @@ def get_project_creation_payload(request_info: RequestInfo, project_name: str, p
     return {
         "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
         "Projects": [{
-            "tenantId": "in",
+            "tenantId": LIVELIHOOD_TENANT_ID,
             "name": project_name,
             "projectType": project_type,
             "parent": parent_id,
@@ -317,7 +318,7 @@ def get_installation_spoc_creation_payload(request_info: RequestInfo, name:str, 
         "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
         "Employees": [
             {
-                "tenantId": "in",
+                "tenantId": LIVELIHOOD_TENANT_ID,
                 "employeeStatus": "EMPLOYED",
                 "dateOfAppointment": current_timestamp,
                 "employeeType": "PERMANENT",
@@ -329,7 +330,7 @@ def get_installation_spoc_creation_payload(request_info: RequestInfo, name:str, 
                         {"code": "INSTALLATION_REPORT_VIEWER", "name": "Installation report viewer"},
                         {"code": "HRMS_ADMIN", "name": "Hrms admin"}
                     ],
-                    "tenantId": "in",
+                    "tenantId": LIVELIHOOD_TENANT_ID,
                 },
                 "code": name,
                 "jurisdictions": [
@@ -342,7 +343,7 @@ def get_installation_spoc_creation_payload(request_info: RequestInfo, name:str, 
                         "boundaryType": "City",
                         "boundary": "in",
                         "furnishedRolesList": "INSTALLATION_REPORT_VIEWER, HRMS_ADMIN",
-                        "tenantId": "in",
+                        "tenantId": LIVELIHOOD_TENANT_ID,
                     }
                 ],
                 "assignments": [
@@ -369,7 +370,7 @@ def get_user_creation_payload_staff(request_info: RequestInfo, row: Series):
         "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
         "Employees": [
             {
-                "tenantId": "in",
+                "tenantId": LIVELIHOOD_TENANT_ID,
                 "employeeStatus": "EMPLOYED",
                 "dateOfAppointment": current_timestamp,
                 "employeeType": "PERMANENT",
@@ -381,7 +382,7 @@ def get_user_creation_payload_staff(request_info: RequestInfo, row: Series):
                         {"code": "INSTALLATION_REPORT_PART_A_EDITOR", "name": "Installation Report Part A Editor"},
                         {"code": "EMPLOYEE", "name": "employee"}
                     ],
-                    "tenantId": "in",
+                    "tenantId": LIVELIHOOD_TENANT_ID,
                 },
                 "code": row.get("Name", ""),
                 "jurisdictions": [
@@ -394,7 +395,7 @@ def get_user_creation_payload_staff(request_info: RequestInfo, row: Series):
                         "boundaryType": "City",
                         "boundary": "in",
                         "furnishedRolesList": "INSTALLATION_REPORT_PART_A_EDITOR, EMPLOYEE",
-                        "tenantId": "in",
+                        "tenantId": LIVELIHOOD_TENANT_ID,
                     }
                 ],
                 "assignments": [
@@ -421,7 +422,7 @@ def get_user_creation_payload_supervisors(request_info: RequestInfo, row: Series
         "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
         "Employees": [
             {
-                "tenantId": "in",
+                "tenantId": LIVELIHOOD_TENANT_ID,
                 "employeeStatus": "EMPLOYED",
                 "dateOfAppointment": current_timestamp,
                 "employeeType": "PERMANENT",
@@ -434,7 +435,7 @@ def get_user_creation_payload_supervisors(request_info: RequestInfo, row: Series
                         {"code": "INSTALLATION_REPORT_PART_A_REVIEWER", "name": "Installation Report Part A Reviewer"},
                         {"code": "EMPLOYEE", "name": "employee"}
                     ],
-                    "tenantId": "in",
+                    "tenantId": LIVELIHOOD_TENANT_ID,
                 },
                 "code": row.get("Name", ""),
                 "jurisdictions": [
@@ -448,7 +449,7 @@ def get_user_creation_payload_supervisors(request_info: RequestInfo, row: Series
                         "boundaryType": "City",
                         "boundary": "in",
                         "furnishedRolesList": "INSTALLATION_REPORT_PART_B_EDITOR, INSTALLATION_REPORT_PART_A_REVIEWER, EMPLOYEE",
-                        "tenantId": "in",
+                        "tenantId": LIVELIHOOD_TENANT_ID,
                     }
                 ],
                 "assignments": [
@@ -482,7 +483,7 @@ def get_staff_creation_payload(request_info:RequestInfo, user_uuid:str, parent_i
             "endDate": one_year_later_timestamp,
             "channel": "MOBILE",
             "isDeleted": False,
-            "tenantId": "in"
+            "tenantId": LIVELIHOOD_TENANT_ID
         }
     }
 
@@ -537,7 +538,7 @@ def create_facility_payload(
         preferred_language_code = None
 
     facility_record = {
-        'tenant_id': 'livelihood',
+        'tenant_id': LIVELIHOOD_TENANT_ID,
         'facility_name': end_user_name,
         'facility_category': facility_category_code,
         'facility_type': facility_type_code,
@@ -550,7 +551,7 @@ def create_facility_payload(
         'isActive': True,
         'blockBoundaryCode': safe_get(row, 'Boundary Code (Mandatory)'),
         'address': {
-            'tenantId': 'livelihood',
+            'tenantId': LIVELIHOOD_TENANT_ID,
             'latitude': safe_get(row, 'Latitude'),
             'longitude': safe_get(row, 'Longitude'),
             'addressLine1': safe_get(row, 'Address'),
@@ -647,7 +648,7 @@ def create_asset_payload(
     vendor_id = vendor_lookup[vendor_code_str]
 
     asset = {
-        "tenantId": "livelihood",
+        "tenantId": LIVELIHOOD_TENANT_ID,
         "facilityID": val("facilityID"),
         "itemCode": item_code_code,
         "name": val("name"),
@@ -717,7 +718,7 @@ def create_project_payload(request_info: RequestInfo, row: Series):
         'RequestInfo': request_info.model_dump(by_alias=True, exclude_none=True),
         'Projects': [
             {
-                'tenantId': 'in',
+                'tenantId': LIVELIHOOD_TENANT_ID,
                 'name': safe_get(row, 'Project Name'),
                 'projectType': safe_get(row, 'Project Type'),
                 'projectSubType': safe_get(row, 'Project Sub Type'),
@@ -961,13 +962,13 @@ def create_update_payload(search_response: dict, update_data: dict) -> dict:
 def build_localization_reverse_map(messages: List[Dict[str, Any]]) -> Dict[str, List[str]]:
     """
     Build a reverse map from normalized localization message → list of localization codes.
-    Only includes codes starting with "Boundary_".
+    Only includes codes starting with "BOUNDARY_".
     """
     reverse_map: Dict[str, List[str]] = {}
     for m in messages:
         code = (m.get("code") or "").strip()
         message = (m.get("message") or "").strip()
-        if code.startswith("Boundary_") and message:
+        if code.startswith("BOUNDARY_") and message:
             key = message.lower().strip().replace(" ", "")
             if key not in reverse_map:
                 reverse_map[key] = []
@@ -999,14 +1000,14 @@ def resolve_boundary_code(
     if not state_candidates:
         return None, f"Boundary code for State '{state}' not found"
 
-    state_prefix = f"Boundary_{country}_"
+    state_prefix = f"BOUNDARY_{country}_"
     state_matches = [c for c in state_candidates if c.startswith(state_prefix) and '_' not in c[len(state_prefix):]]
     if not state_matches:
         return None, f"Boundary code for State '{state}' not found"
     if len(state_matches) > 1:
         return None, f"Boundary code for State '{state}' not found, multiple matches: {state_matches}"
 
-    state_boundary = state_matches[0].replace("Boundary_", "", 1)
+    state_boundary = state_matches[0].replace("BOUNDARY_", "", 1)
 
     # --- District ---
     district_normalized = district.strip().lower().replace(" ", "") if district else ""
@@ -1017,14 +1018,14 @@ def resolve_boundary_code(
     if not district_candidates:
         return None, f"Boundary code for District '{district}' not found"
 
-    district_prefix = f"Boundary_{state_boundary}_"
+    district_prefix = f"BOUNDARY_{state_boundary}_"
     district_matches = [c for c in district_candidates if c.startswith(district_prefix) and '_' not in c[len(district_prefix):]]
     if not district_matches:
         return None, f"Boundary code for District '{district}' under State '{state}' not found"
     if len(district_matches) > 1:
         return None, f"Boundary code for District '{district}' under State '{state}' not found, multiple matches: {district_matches}"
 
-    district_boundary = district_matches[0].replace("Boundary_", "", 1)
+    district_boundary = district_matches[0].replace("BOUNDARY_", "", 1)
 
     # --- Block ---
     block_normalized = block.strip().lower().replace(" ", "") if block else ""
@@ -1035,14 +1036,14 @@ def resolve_boundary_code(
     if not block_candidates:
         return None, f"Boundary code for Block '{block}' not found"
 
-    block_prefix = f"Boundary_{district_boundary}_"
+    block_prefix = f"BOUNDARY_{district_boundary}_"
     block_matches = [c for c in block_candidates if c.startswith(block_prefix) and '_' not in c[len(block_prefix):]]
     if not block_matches:
         return None, f"Boundary code for Block '{block}' under District '{district}' not found"
     if len(block_matches) > 1:
         return None, f"Boundary code for Block '{block}' under District '{district}' not found, multiple matches: {block_matches}"
 
-    block_boundary = block_matches[0].replace("Boundary_", "", 1)
+    block_boundary = block_matches[0].replace("BOUNDARY_", "", 1)
 
     return block_boundary, None
 
@@ -1067,7 +1068,7 @@ def resolve_boundary_codes_for_dataframe(
             from app.utils.localization_service_client import LocalizationServiceClient
             loc_client = LocalizationServiceClient(localization_service_url)
             loc_response = loc_client.search_messages(
-                tenant_id="livelihood",
+                tenant_id=LIVELIHOOD_TENANT_ID,
                 locale="en_IN",
                 module="rainmaker-in",
             )

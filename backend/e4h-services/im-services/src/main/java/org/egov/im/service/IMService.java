@@ -260,6 +260,7 @@ public class IMService {
         producer.push(tenantId, config.getCreateTopic(), wrapper.getIncidentRequest());
         wrapper.setProcessInstance(trimmedUpdatedProcessInstance);
         enrichmentService.enrichFieldsForIndexing(wrapper, boundary);
+        enrichmentService.finalizeLivelihoodReporterForKafka(wrapper);
         producer.push(tenantId, config.getCreateTopicIndexer(), wrapper);
         enrichmentService.enrichFieldsForAuditIndexing(wrapper, startingStatus);
         producer.push(tenantId, config.getAuditCreateTopicIndexer(), wrapper);
@@ -305,8 +306,9 @@ public class IMService {
             return new ArrayList<>();
         }
 
-         //to add later
-        //userService.enrichUsers(serviceWrappers);
+        if (livelihoodTenantUtil.isLivelihood(criteria.getTenantId())) {
+            userService.enrichLivelihoodUsers(incidentWrappers, requestInfo);
+        }
         log.trace("Enriching workflow for incidents");
         List<IncidentWrapper> enrichedServiceWrappers = workflowService.enrichWorkflow(requestInfo,incidentWrappers);
         if (livelihoodTenantUtil.isLivelihood(criteria.getTenantId())) {
@@ -353,7 +355,8 @@ public class IMService {
         validator.validateUpdate(request, mdmsData);
 
         if (livelihoodTenantUtil.isLivelihood(tenantId)) {
-            livelihoodUpdateService.prepareUpdate(request);
+            Incident existingIncident = fetchExistingIncident(request.getIncident().getId(), tenantId);
+            livelihoodUpdateService.prepareUpdate(request, existingIncident);
         }
 
         String boundaryCode = request.getIncident().getBoundaryCode();
@@ -439,6 +442,9 @@ public class IMService {
         );
         log.trace("Enriching fields for indexing");
         enrichmentService.enrichFieldsForIndexing(wrapper, boundary);
+        if (livelihoodTenantUtil.isLivelihood(tenantId)) {
+            enrichmentService.finalizeLivelihoodReporterForKafka(wrapper);
+        }
         log.trace("Updating business service");
         imUtils.updateBusinessService(wrapper,mdmsData);
         log.trace("Publishing incident to indexer topic");
@@ -630,5 +636,18 @@ public class IMService {
 			throw new CustomException("INSUFFICIENT_PRIVILEGES",
 					"Only FACILITY_ADMIN or SYSTEM_USER can sync incident boundaries");
 		}
+	}
+
+	private Incident fetchExistingIncident(String incidentUuid, String tenantId) {
+		RequestSearchCriteria criteria = RequestSearchCriteria.builder()
+				.ids(Collections.singleton(incidentUuid))
+				.tenantId(tenantId)
+				.build();
+		criteria.setIsPlainSearch(false);
+		List<IncidentWrapper> incidentWrappers = repository.getIncidentWrappers(criteria);
+		if (CollectionUtils.isEmpty(incidentWrappers) || incidentWrappers.get(0).getIncident() == null) {
+			throw new CustomException("INVALID_UPDATE", "The record that you are trying to update does not exists");
+		}
+		return incidentWrappers.get(0).getIncident();
 	}
 }

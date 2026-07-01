@@ -138,7 +138,9 @@ public class EnrichmentService {
             List<org.egov.common.contract.request.Role> userRoles = Optional.ofNullable(requestInfo.getUserInfo())
                     .map(org.egov.common.contract.request.User::getRoles)
                     .orElse(new ArrayList<>());
-            if (userRoles.stream().anyMatch(role -> role.getCode().equalsIgnoreCase("RMS"))) {
+            if (livelihoodTenantUtil.isLivelihood(tenantId)) {
+                incident.setReporterType(ROLE_COMPLAINANT);
+            } else if (userRoles.stream().anyMatch(role -> role.getCode().equalsIgnoreCase("RMS"))) {
                 incident.setReporterType("RMS");
             } else if (userRoles.stream().anyMatch(role -> role.getCode().equalsIgnoreCase("COMPLAINT_ASSESSOR"))) {
                 incident.setReporterType("CRM");
@@ -363,23 +365,73 @@ public class EnrichmentService {
             enrichLivelihoodIndexView(wrapper, indexView);
         }
 
-        // Enrich localized fields first (will populate IndexView inside the wrapper)
         localizationService.enrichLocalizedFieldsForIndexing(wrapper);
+    }
+
+    /**
+     * Must run immediately before publishing to the indexer Kafka topic.
+     * Resolves reporter PII and indexView end-user fields on the wrapper that gets indexed.
+     */
+    public void finalizeLivelihoodReporterForKafka(IncidentRequestWrapper wrapper) {
+        if (wrapper == null || wrapper.getIncidentRequest() == null
+                || wrapper.getIncidentRequest().getIncident() == null) {
+            return;
+        }
+        if (!livelihoodTenantUtil.isLivelihood(wrapper.getIncidentRequest().getIncident().getTenantId())) {
+            return;
+        }
+        IndexView indexView = wrapper.getIndexView();
+        if (indexView == null) {
+            indexView = new IndexView();
+            wrapper.setIndexView(indexView);
+        }
+        enrichReporterForLivelihoodIndexing(wrapper, indexView);
+    }
+
+    private void enrichReporterForLivelihoodIndexing(IncidentRequestWrapper wrapper, IndexView indexView) {
+        IncidentRequest incidentRequest = wrapper.getIncidentRequest();
+        Incident incident = incidentRequest.getIncident();
+        try {
+            String facilityBoundary = resolveFacilityBoundaryForComplainant(incident);
+            Map<String, String> complainant = hrmsUtil.findComplainantAtBoundary(
+                    incidentRequest.getRequestInfo(), incident.getTenantId(), facilityBoundary);
+            User reporter = userService.resolveReporterFromComplainant(
+                    complainant, incidentRequest.getRequestInfo(), incident.getTenantId());
+            if (reporter == null) {
+                return;
+            }
+
+            incident.setAccountId(reporter.getUuid());
+            incident.setReporter(reporter);
+
+            if (StringUtils.isNotBlank(reporter.getName()) && !userService.isMaskedPii(reporter.getName())) {
+                indexView.setEndUserName(reporter.getName());
+            }
+            if (StringUtils.isNotBlank(reporter.getMobileNumber()) && !userService.isMaskedPii(reporter.getMobileNumber())) {
+                indexView.setEndUserMobile(reporter.getMobileNumber());
+            }
+            log.info("Livelihood reporter finalized for indexing incidentId={} uuid={} name={}",
+                    incident.getIncidentId(), reporter.getUuid(), reporter.getName());
+        } catch (Exception e) {
+            log.warn("Failed to finalize livelihood reporter for incidentId={}", incident.getIncidentId(), e);
+        }
+    }
+
+    private String resolveFacilityBoundaryForComplainant(Incident incident) {
+        String assetBoundary = incident.getBoundaryCode();
+        String assetId = incident.getAssetId();
+        if (StringUtils.isNotBlank(assetBoundary) && StringUtils.isNotBlank(assetId)) {
+            String suffix = "_" + assetId;
+            if (assetBoundary.endsWith(suffix)) {
+                return assetBoundary.substring(0, assetBoundary.length() - suffix.length());
+            }
+        }
+        return assetBoundary;
     }
 
     private void enrichLivelihoodIndexView(IncidentRequestWrapper wrapper, IndexView indexView) {
         IncidentRequest incidentRequest = wrapper.getIncidentRequest();
         Incident incident = incidentRequest.getIncident();
-
-        User reporter = incident.getReporter();
-        if (reporter != null) {
-            if (StringUtils.isNotBlank(reporter.getName())) {
-                indexView.setEndUserName(reporter.getName());
-            }
-            if (StringUtils.isNotBlank(reporter.getMobileNumber())) {
-                indexView.setEndUserMobile(reporter.getMobileNumber());
-            }
-        }
 
         if (StringUtils.isNotBlank(incident.getAssetId())) {
             try {

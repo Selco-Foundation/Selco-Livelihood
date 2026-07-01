@@ -44,6 +44,7 @@ public class LivelihoodCreateService {
     private final LivelihoodIssueTypeUtil livelihoodIssueTypeUtil;
     private final LivelihoodPocScopeService livelihoodPocScopeService;
     private final HRMSUtil hrmsUtil;
+    private final UserService userService;
     private final ObjectMapper objectMapper;
 
     public void prepareCreate(IncidentRequest request, Object mdmsData) {
@@ -114,10 +115,10 @@ public class LivelihoodCreateService {
             }
             if (document.getDocumentType() != null) {
                 String type = document.getDocumentType().toUpperCase();
-                if (!IMAGE_DOCUMENT_TYPE.equals(type) && !"VIDEO".equals(type)) {
+                if (!IMAGE_DOCUMENT_TYPE.equals(type) && !"VIDEO".equals(type) && !"HLS".equals(type)) {
                     throw new CustomException(
                             "INVALID_DOCUMENTS",
-                            "Only PHOTO and VIDEO document types are supported during ticket creation"
+                            "Only PHOTO, VIDEO and HLS document types are supported during ticket creation"
                     );
                 }
             }
@@ -205,25 +206,15 @@ public class LivelihoodCreateService {
             storeRaisedByPoc(incident, requestInfo.getUserInfo().getUuid());
         }
 
-        User reporter = incident.getReporter();
-        if (reporter == null || StringUtils.isBlank(reporter.getUuid())) {
-            Map<String, String> complainant = hrmsUtil.findComplainantAtBoundary(
-                    requestInfo,
-                    incident.getTenantId(),
-                    resolveFacilityBoundary(incident)
-            );
-            incident.setReporter(User.builder()
-                    .uuid(complainant.get("uuid"))
-                    .tenantId(StringUtils.defaultIfBlank(complainant.get("tenantId"), incident.getTenantId()))
-                    .name(complainant.get("name"))
-                    .mobileNumber(complainant.get("mobile"))
-                    .build());
-            return;
-        }
-
-        if (StringUtils.isBlank(reporter.getTenantId())) {
-            reporter.setTenantId(incident.getTenantId());
-        }
+        Map<String, String> complainant = hrmsUtil.findComplainantAtBoundary(
+                requestInfo,
+                incident.getTenantId(),
+                resolveFacilityBoundary(incident)
+        );
+        User reporter = userService.resolveReporterFromComplainant(
+                complainant, requestInfo, incident.getTenantId());
+        incident.setAccountId(reporter.getUuid());
+        incident.setReporter(reporter);
     }
 
     /**

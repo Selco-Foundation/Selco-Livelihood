@@ -12,6 +12,7 @@ from openpyxl.styles import Protection, PatternFill
 from openpyxl.utils import get_column_letter
 
 from app.core.logging import AppLogger
+from app.core.tenant import LIVELIHOOD_TENANT_ID
 from app.decorators.rbac_validator import get_authorized_request_info
 from app.ingest.facility_template_service import FacilityTemplateService
 from app.ingest.asset_template_service import AssetTemplateService
@@ -106,7 +107,7 @@ async def get_facility_ingestion_template_with_data(
                 if boundary_codes:
                     bulk_result = facility_client.bulk_search_facility_with_boundary(
                         request_info=request_info,
-                        tenant_ids=["in"],
+                        tenant_ids=[LIVELIHOOD_TENANT_ID],
                         boundary_codes=boundary_codes,
                         limit=max(len(boundary_codes) * 50, 50),
                         send_non_paginated_response=True,
@@ -161,7 +162,7 @@ async def get_facility_ingestion_template_with_data(
                         if facility_ids_to_fetch:
                             bulk_result = facility_client.bulk_search_facility(
                                 request_info=request_info,
-                                tenant_ids=["in"],
+                                tenant_ids=[LIVELIHOOD_TENANT_ID],
                                 facility_ids=facility_ids_to_fetch,
                                 limit=max(len(facility_ids_to_fetch), 50),
                                 send_non_paginated_response=True,
@@ -330,7 +331,7 @@ async def get_facility_ingestion_template_with_data(
             try:
                 boundary_bulk_result = facility_client.bulk_search_facility_with_boundary(
                     request_info=request_info,
-                    tenant_ids=["in"],
+                    tenant_ids=[LIVELIHOOD_TENANT_ID],
                     boundary_codes=boundary_codes,
                     limit=max(len(boundary_codes) * 50, 50),
                     send_non_paginated_response=True,
@@ -362,7 +363,7 @@ async def get_facility_ingestion_template_with_data(
                     try:
                         facilities_bulk_result = facility_client.bulk_search_facility(
                             request_info=request_info,
-                            tenant_ids=["in"],
+                            tenant_ids=[LIVELIHOOD_TENANT_ID],
                             facility_ids=facility_ids,
                             limit=max(len(facility_ids), 50),
                             send_non_paginated_response=True,
@@ -526,7 +527,7 @@ async def get_asset_ingestion_template(request_info: str = Form(default="")):
                 facility_client = FacilityServiceClient(facility_service_url)
                 bulk_result = facility_client.bulk_search_facility_with_boundary(
                     request_info=request_info,
-                    tenant_ids=["livelihood"],
+                    tenant_ids=[LIVELIHOOD_TENANT_ID],
                     limit=10000,
                     send_non_paginated_response=True,
                 )
@@ -709,7 +710,7 @@ async def get_facility_selection_template(
         facility_client = FacilityServiceClient(facility_service_url)
         for boundary_code in boundary_code_list:
             try:
-                results = facility_client.search_facility(tenant_id='in', boundary_code=boundary_code)
+                results = facility_client.search_facility(tenant_id=LIVELIHOOD_TENANT_ID, boundary_code=boundary_code)
                 boundary_facilities.extend(results.get('facilities', []))
             except Exception as e:
                 logger.error(f"Error fetching boundary facilities for boundary code {boundary_code}: {e}", exc_info=True)
@@ -727,7 +728,7 @@ async def get_facility_selection_template(
                     facility_id = pf.get("facilityId")
                     if facility_id and any(f.get('facility_id') == facility_id for f in boundary_facilities):
                         try:
-                            facility_data = facility_client.search_facility(tenant_id='in', facility_id=facility_id)
+                            facility_data = facility_client.search_facility(tenant_id=LIVELIHOOD_TENANT_ID, facility_id=facility_id)
                             if facility_data:
                                 project_facilities.extend(facility_data.get('facilities', []))
                         except Exception as e:
@@ -939,7 +940,7 @@ async def get_amc_configuration_template(
             try:
                 bulk_result = facility_client.bulk_search_facility_with_boundary(
                     request_info=request_info,
-                    tenant_ids=["in"],
+                    tenant_ids=[LIVELIHOOD_TENANT_ID],
                     boundary_codes=boundary_codes,
                     limit=max(len(boundary_codes) * 50, 50),
                     send_non_paginated_response=True,

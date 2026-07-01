@@ -15,6 +15,7 @@ import org.egov.tracer.model.CustomException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -32,6 +33,12 @@ public class LivelihoodUpdateService {
             LIVELIHOOD_PENDING_FOR_RESOLUTION,
             LIVELIHOOD_OUT_OF_SCOPE_PENDING_VENDOR,
             LIVELIHOOD_OUT_OF_WARRANTY_PENDING_VENDOR
+    );
+
+    private static final Set<String> QUOTATION_DETAIL_KEYS = Set.of(
+            LIVELIHOOD_OOW_QUOTATION_DETAIL_KEY,
+            LIVELIHOOD_OOW_QUOTATION_HISTORY_DETAIL_KEY,
+            LIVELIHOOD_OOW_ENTERED_AT_DETAIL_KEY
     );
 
     private final LivelihoodVendorScopeService livelihoodVendorScopeService;
@@ -60,36 +67,38 @@ public class LivelihoodUpdateService {
             case "RESOLVE" -> validateResolve(request, currentStatus);
             case "OUT_OF_SCOPE" -> validateOutOfScope(request, currentStatus);
             case "OUT_OF_WARRANTY" -> validateOutOfWarranty(request, currentStatus);
+            case "REVISE_QUOTATION" -> validateReviseQuotation(request, existingIncident, currentStatus);
             case "DECLINE" -> validateDecline(request, currentStatus);
             case "REOPEN" -> validateReopen(request, existingIncident, requestInfo);
             default -> { }
         }
     }
 
-    public void prepareUpdate(IncidentRequest request) {
+    /**
+     * Enriches {@code additionalDetail} on the update request. Uses persisted incident data as the
+     * base so quotation revision does not lose {@code oowQuotation} when the client sends a partial payload.
+     */
+    public void prepareUpdate(IncidentRequest request, Incident existingIncident) {
         if (request == null || request.getWorkflow() == null || request.getIncident() == null) {
             return;
         }
+
         String action = normalizeAction(request.getWorkflow().getAction());
-        if (!LIVELIHOOD_WF_OUT_OF_WARRANTY.equals(action)) {
+        if (!LIVELIHOOD_WF_OUT_OF_WARRANTY.equals(action) && !LIVELIHOOD_WF_REVISE_QUOTATION.equals(action)) {
             return;
         }
 
-        Map<String, Object> details = toMutableMap(request.getIncident().getAdditionalDetail());
-        details.put(LIVELIHOOD_OOW_ENTERED_AT_DETAIL_KEY, System.currentTimeMillis());
+        Map<String, Object> details = toMutableMap(
+                existingIncident != null ? existingIncident.getAdditionalDetail() : null);
+        mergeRequestAdditionalDetail(details, request.getIncident().getAdditionalDetail());
 
-        Workflow workflow = request.getWorkflow();
-        if (!CollectionUtils.isEmpty(workflow.getVerificationDocuments())) {
-            Map<String, Object> quotation = new HashMap<>();
-            Document primaryDoc = workflow.getVerificationDocuments().get(0);
-            if (primaryDoc != null && StringUtils.isNotBlank(primaryDoc.getFileStoreId())) {
-                quotation.put("fileStoreId", primaryDoc.getFileStoreId());
-            }
-            if (StringUtils.isNotBlank(workflow.getComments())) {
-                quotation.put("details", workflow.getComments());
-            }
-            details.put(LIVELIHOOD_OOW_QUOTATION_DETAIL_KEY, quotation);
+        if (LIVELIHOOD_WF_OUT_OF_WARRANTY.equals(action)) {
+            details.put(LIVELIHOOD_OOW_ENTERED_AT_DETAIL_KEY, System.currentTimeMillis());
+        } else {
+            archiveCurrentQuotation(details);
         }
+
+        storeQuotationOnIncident(request, details);
         request.getIncident().setAdditionalDetail(details);
     }
 
@@ -115,17 +124,26 @@ public class LivelihoodUpdateService {
         if (!LIVELIHOOD_PENDING_FOR_RESOLUTION.equals(currentStatus)) {
             throw new CustomException("INVALID_ACTION", "OUT_OF_WARRANTY is only allowed from PENDING_FOR_RESOLUTION");
         }
-        Workflow workflow = request.getWorkflow();
-        if (CollectionUtils.isEmpty(workflow.getVerificationDocuments())) {
-            throw new CustomException("QUOTATION_REQUIRED",
-                    "Mandatory quotation document (verificationDocuments with fileStoreId) is required for OUT_OF_WARRANTY");
+        requireQuotationDocument(request.getWorkflow());
+    }
+
+    private void validateReviseQuotation(
+            IncidentRequest request,
+            Incident existingIncident,
+            String currentStatus
+    ) {
+        if (!LIVELIHOOD_OUT_OF_WARRANTY_PENDING_VENDOR.equals(currentStatus)) {
+            throw new CustomException(
+                    "INVALID_ACTION",
+                    "REVISE_QUOTATION is only allowed from OUT_OF_WARRANTY_PENDING_VENDOR"
+            );
         }
-        boolean hasFile = workflow.getVerificationDocuments().stream()
-                .anyMatch(doc -> doc != null && StringUtils.isNotBlank(doc.getFileStoreId()));
-        if (!hasFile) {
-            throw new CustomException("QUOTATION_REQUIRED",
-                    "Mandatory quotation document must include a fileStoreId");
+
+        Map<String, Object> details = toMutableMap(existingIncident.getAdditionalDetail());
+        if (!details.containsKey(LIVELIHOOD_OOW_QUOTATION_DETAIL_KEY)) {
+            throw new CustomException("QUOTATION_NOT_FOUND", "No existing quotation found to revise");
         }
+        requireQuotationDocument(request.getWorkflow());
     }
 
     private void validateDecline(IncidentRequest request, String currentStatus) {
@@ -156,6 +174,77 @@ public class LivelihoodUpdateService {
         if (System.currentTimeMillis() - resolvedAt > LIVELIHOOD_REOPEN_WINDOW_MS) {
             throw new CustomException(REOPEN_WINDOW_EXPIRED_CODE, REOPEN_WINDOW_EXPIRED_MSG);
         }
+    }
+
+    private void requireQuotationDocument(Workflow workflow) {
+        if (CollectionUtils.isEmpty(workflow.getVerificationDocuments())) {
+            throw new CustomException("QUOTATION_REQUIRED",
+                    "Mandatory quotation document (verificationDocuments with fileStoreId) is required");
+        }
+        boolean hasFile = workflow.getVerificationDocuments().stream()
+                .anyMatch(doc -> doc != null && StringUtils.isNotBlank(doc.getFileStoreId()));
+        if (!hasFile) {
+            throw new CustomException("QUOTATION_REQUIRED",
+                    "Mandatory quotation document must include a fileStoreId");
+        }
+    }
+
+    private void storeQuotationOnIncident(IncidentRequest request, Map<String, Object> details) {
+        Workflow workflow = request.getWorkflow();
+        if (CollectionUtils.isEmpty(workflow.getVerificationDocuments())) {
+            return;
+        }
+
+        Document primaryDoc = workflow.getVerificationDocuments().stream()
+                .filter(doc -> doc != null && StringUtils.isNotBlank(doc.getFileStoreId()))
+                .findFirst()
+                .orElse(null);
+        if (primaryDoc == null) {
+            return;
+        }
+
+        Map<String, Object> quotation = new HashMap<>();
+        quotation.put("fileStoreId", primaryDoc.getFileStoreId());
+        if (StringUtils.isNotBlank(primaryDoc.getDocumentType())) {
+            quotation.put("documentType", primaryDoc.getDocumentType());
+        }
+        if (StringUtils.isNotBlank(workflow.getComments())) {
+            quotation.put("details", workflow.getComments());
+        }
+        quotation.put("uploadedAt", System.currentTimeMillis());
+        details.put(LIVELIHOOD_OOW_QUOTATION_DETAIL_KEY, quotation);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void archiveCurrentQuotation(Map<String, Object> details) {
+        Object currentQuotation = details.get(LIVELIHOOD_OOW_QUOTATION_DETAIL_KEY);
+        if (!(currentQuotation instanceof Map<?, ?>)) {
+            return;
+        }
+
+        List<Map<String, Object>> history = new ArrayList<>();
+        Object existingHistory = details.get(LIVELIHOOD_OOW_QUOTATION_HISTORY_DETAIL_KEY);
+        if (existingHistory instanceof List<?> list) {
+            for (Object entry : list) {
+                if (entry instanceof Map<?, ?> map) {
+                    history.add(new HashMap<>((Map<String, Object>) map));
+                }
+            }
+        }
+        history.add(new HashMap<>((Map<String, Object>) currentQuotation));
+        details.put(LIVELIHOOD_OOW_QUOTATION_HISTORY_DETAIL_KEY, history);
+    }
+
+    private void mergeRequestAdditionalDetail(Map<String, Object> target, Object requestAdditionalDetail) {
+        if (requestAdditionalDetail == null) {
+            return;
+        }
+        Map<String, Object> fromRequest = toMutableMap(requestAdditionalDetail);
+        fromRequest.forEach((key, value) -> {
+            if (!QUOTATION_DETAIL_KEYS.contains(key)) {
+                target.put(key, value);
+            }
+        });
     }
 
     private void assertComplainantCanReopen(RequestInfo requestInfo, Incident existingIncident) {

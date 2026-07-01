@@ -5,6 +5,7 @@ import re
 import pandas as pd
 
 from app.core.logging import AppLogger
+from app.core.tenant import LIVELIHOOD_TENANT_ID
 from app.ingest.boundary_excel_data_loader import BoundaryExcelDataLoader
 from app.ingest.service.data_loader import DataLoader
 from app.ingest.service.data_writer import DataWriter
@@ -179,7 +180,7 @@ class BoundaryDataProcessor:
             try:
                 response_data = self.boundary_service_client.search_boundaries(
                     request_info=self.request_info,
-                    tenant_id="in",
+                    tenant_id=LIVELIHOOD_TENANT_ID,
                     codes=chunk
                 )
 
@@ -212,7 +213,7 @@ class BoundaryDataProcessor:
                 if self._boundary_exists(full_code):
                     continue
                 boundaries_to_create.append({
-                    "tenantId": "in",
+                    "tenantId": LIVELIHOOD_TENANT_ID,
                     "code": full_code,
                     "geometry": None
                 })
@@ -314,7 +315,7 @@ class BoundaryDataProcessor:
         try:
             response_data = self.boundary_service_client.create_boundary_relationship(
                 request_info=self.request_info,
-                tenant_id="in",
+                tenant_id=LIVELIHOOD_TENANT_ID,
                 code=full_code,
                 hierarchy_type="SELCO",
                 boundary_type=boundary_type,
@@ -347,7 +348,7 @@ class BoundaryDataProcessor:
                 raw_display_name = data.get("localization_label") or data.get("name") or code
                 display_name = re.sub(r"\s+", " ", raw_display_name).strip()
                 messages.append({
-                    "code": f"Boundary_{full_code}",
+                    "code": f"BOUNDARY_{full_code}",
                     "message": display_name,
                     "module": "rainmaker-in",
                     "locale": "en_IN",
@@ -360,7 +361,7 @@ class BoundaryDataProcessor:
             try:
                 self.localization_client.upsert_messages(
                     request_info=self.request_info,
-                    tenant_id="in",
+                    tenant_id=LIVELIHOOD_TENANT_ID,
                     messages=chunk,
                 )
                 logger.info(f"Upserted localization for {len(chunk)} boundaries")

@@ -40,6 +40,8 @@ public class IMConstants {
 
     public static final String LIVELIHOOD_WF_OUT_OF_WARRANTY = "OUT_OF_WARRANTY";
 
+    public static final String LIVELIHOOD_WF_REVISE_QUOTATION = "REVISE_QUOTATION";
+
     public static final String LIVELIHOOD_WF_DECLINE = "DECLINE";
 
     public static final String LIVELIHOOD_WF_AUTO_CLOSE = "AUTO_CLOSE";
@@ -67,6 +69,8 @@ public class IMConstants {
     public static final String VENDOR_ACCESS_DENIED_MSG = "Access denied: ticket is not assigned to you";
 
     public static final String LIVELIHOOD_OOW_QUOTATION_DETAIL_KEY = "oowQuotation";
+
+    public static final String LIVELIHOOD_OOW_QUOTATION_HISTORY_DETAIL_KEY = "oowQuotationHistory";
 
     public static final String LIVELIHOOD_OOW_ENTERED_AT_DETAIL_KEY = "oowEnteredAt";
 

@@ -4,6 +4,8 @@ from typing import Any, Callable, Dict, List, MutableMapping, Optional
 import pandas as pd
 from fastapi import HTTPException
 
+from app.core.tenant import LIVELIHOOD_TENANT_ID
+
 # Same wording everywhere: MDMS pre-validation, API import, and Excel client hints.
 ERR_HFR_OR_NIN_REQUIRED_WHEN_HEALTH = (
     "When Facility Category is HEALTH, at least one of HFR ID or NIN ID is required."
@@ -420,12 +422,12 @@ def collect_anganwadi_poc_username_errors_for_row(
 def check_db_duplicates(cache, facility_client, add_err, df, row_idx, hfr=None, nin=None):
     """
     Checks for duplicates in DB for HFR ID and NIN ID in the given row.
-    tenant_id is fixed as 'livelihood'. Only passes non-empty params to search API.
+    tenant_id is fixed as LIVELIHOOD_TENANT_ID. Only passes non-empty params to search API.
     If DB call fails, we log error for that row and skip further validation.
     """
     row = df.loc[row_idx]
     boundary_code = str(row.get("Boundary Code (Mandatory)", "")).strip()
-    tenant_id = "livelihood"
+    tenant_id = LIVELIHOOD_TENANT_ID
 
     try:
         for col_name, value, key in [

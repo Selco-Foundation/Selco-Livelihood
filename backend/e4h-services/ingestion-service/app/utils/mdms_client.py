@@ -2,6 +2,7 @@ from typing import List, Dict, Any, Optional
 
 import requests
 
+from app.core.tenant import LIVELIHOOD_TENANT_ID
 from app.schemas.request_info import RequestInfo
 from app.schemas.vendor_ingestion_shema_response import IngestionSchemaResponse, MDMS, MDMSDataSource
 
@@ -97,7 +98,7 @@ class MDMSClient:
         payload = {
             "RequestInfo": {"authToken": request_info.auth_token},
             "MdmsCriteria": {
-                "tenantId": "livelihood",
+                "tenantId": LIVELIHOOD_TENANT_ID,
                 "schemaCode": schema_code
             }
         }
@@ -126,7 +127,7 @@ class MDMSClient:
         payload = {
             "RequestInfo": {"authToken": request_info.auth_token},
             "MdmsCriteria": {
-                "tenantId": "livelihood",
+                "tenantId": LIVELIHOOD_TENANT_ID,
                 "schemaCode": schema_code
             }
         }
