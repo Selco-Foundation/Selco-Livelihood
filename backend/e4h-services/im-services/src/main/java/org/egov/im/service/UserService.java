@@ -596,11 +596,30 @@ public class UserService {
         }
     }
 
-    private boolean isMaskedPii(String value) {
+    public boolean isMaskedPii(String value) {
         if (StringUtils.isEmpty(value)) {
             return false;
         }
         return value.chars().allMatch(ch -> ch == 'X' || ch == 'x');
+    }
+
+    /**
+     * Loads reporter PII using the internal microservice identity. Falls back to {@code existing}
+     * when user-service still returns masked values.
+     */
+    public User resolveReporterByAccountId(String accountId, String tenantId, User existing) {
+        if (StringUtils.isEmpty(accountId)) {
+            return existing;
+        }
+
+        UserDetailResponse response = searchUser(tenantId, accountId, null);
+        if (response == null || CollectionUtils.isEmpty(response.getUser())) {
+            return existing;
+        }
+
+        User resolved = response.getUser().get(0);
+        mergeReporterPiiIfMasked(existing, resolved);
+        return resolved;
     }
 
 }

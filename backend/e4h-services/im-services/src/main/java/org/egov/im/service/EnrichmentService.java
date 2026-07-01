@@ -372,11 +372,29 @@ public class EnrichmentService {
         Incident incident = incidentRequest.getIncident();
 
         User reporter = incident.getReporter();
+        if (StringUtils.isNotBlank(incident.getAccountId())) {
+            reporter = userService.resolveReporterByAccountId(
+                    incident.getAccountId(), incident.getTenantId(), reporter
+            );
+            incident.setReporter(reporter);
+        }
+
         if (reporter != null) {
-            if (StringUtils.isNotBlank(reporter.getName())) {
+            if (userService.isMaskedPii(reporter.getName())) {
+                String localizedEndUserName = localizationService.getBoundaryDisplayName(
+                        incidentRequest.getRequestInfo(),
+                        incident.getTenantId(),
+                        resolveFacilityBoundaryForLookup(incident)
+                );
+                if (StringUtils.isNotBlank(localizedEndUserName)) {
+                    reporter.setName(localizedEndUserName);
+                }
+            }
+
+            if (StringUtils.isNotBlank(reporter.getName()) && !userService.isMaskedPii(reporter.getName())) {
                 indexView.setEndUserName(reporter.getName());
             }
-            if (StringUtils.isNotBlank(reporter.getMobileNumber())) {
+            if (StringUtils.isNotBlank(reporter.getMobileNumber()) && !userService.isMaskedPii(reporter.getMobileNumber())) {
                 indexView.setEndUserMobile(reporter.getMobileNumber());
             }
         }

@@ -23,6 +23,22 @@ public class LocalizationService {
     private final IMConfiguration config;
     private final LivelihoodTenantUtil livelihoodTenantUtil;
 
+    public String getBoundaryDisplayName(RequestInfo requestInfo, String tenantId, String boundaryCode) {
+        if (StringUtils.isBlank(boundaryCode)) {
+            return null;
+        }
+        String localizationCode = boundaryCode.startsWith("BOUNDARY_")
+                ? boundaryCode
+                : "BOUNDARY_" + boundaryCode;
+        LocalizationResponse response = getLocalizationMessages(
+                requestInfo, tenantId, "rainmaker-in", "en_IN", localizationCode
+        );
+        if (response == null || response.getMessages() == null) {
+            return null;
+        }
+        return response.getMessageByCode(localizationCode);
+    }
+
     public LocalizationResponse getLocalizationMessages(RequestInfo requestInfo, String stateTenant, String module, String locale, String codes) {
         String baseUrl = config.getLocalizationHost() + config.getLocalizationContextPath() + config.getLocalizationSearchEndpoint();
 
