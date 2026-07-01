@@ -24,9 +24,8 @@ export interface WorkflowActionConfig {
 export const WORKFLOW_ACTION_CONFIG: Record<SupportedWorkflowAction, WorkflowActionConfig> = {
   RESOLVE: { comment: "required", documents: "optional" },
   OUT_OF_SCOPE: {
-    comment: "optional",
+    comment: "required",
     documents: "optional",
-    reasonMaster: "OutOfScopeReasons",
   },
   OUT_OF_WARRANTY: { comment: "optional", documents: "required" },
   DECLINE: { comment: "required", documents: "none" },
