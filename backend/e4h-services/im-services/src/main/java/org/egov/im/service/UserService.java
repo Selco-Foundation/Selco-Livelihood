@@ -166,6 +166,12 @@ public class UserService {
 
         User resolvedReporter = userDetailResponse.getUser().get(0);
         mergeReporterPiiIfMasked(existingReporter, resolvedReporter);
+        applyReporterFromRequestUser(
+                resolvedReporter,
+                requestInfo,
+                accountId,
+                request.getIncident().getCreatedOnBehalf()
+        );
         request.getIncident().setReporter(resolvedReporter);
         log.debug("User enriched successfully for accountId: {}", accountId);
     }
@@ -241,9 +247,19 @@ public class UserService {
 
         applyInternalServiceRequestInfo(userSearchRequest, stateLevelTenant);
 
-        log.debug("Searching user with stateLevelTenant={}, accountId={}, userName={}", stateLevelTenant, accountId, userName);
         StringBuilder uri = new StringBuilder(config.getUserHost()).append(config.getUserSearchEndpoint());
-        return userUtils.userCall(userSearchRequest,uri);
+        log.info("User search: url={}, tenantId={}, accountId={}, internalUserUuid={}",
+                uri, stateLevelTenant, accountId, config.getEgovInternalMicroserviceUserUuid());
+        UserDetailResponse response = userUtils.userCall(userSearchRequest, uri);
+        if (response != null && !CollectionUtils.isEmpty(response.getUser())) {
+            User user = response.getUser().get(0);
+            if (isMaskedPii(user.getName()) || isMaskedPii(user.getMobileNumber())) {
+                log.warn("User search returned masked PII for accountId={} from {}; "
+                                + "verify egov.user.host and egov.internal.microservice.user.uuid",
+                        accountId, uri);
+            }
+        }
+        return response;
 
     }
 
@@ -596,7 +612,7 @@ public class UserService {
         }
     }
 
-    private boolean isMaskedPii(String value) {
+    public boolean isMaskedPii(String value) {
         if (StringUtils.isEmpty(value)) {
             return false;
         }
@@ -620,6 +636,68 @@ public class UserService {
         User resolved = response.getUser().get(0);
         mergeReporterPiiIfMasked(existing, resolved);
         return resolved;
+    }
+
+    /**
+     * Re-resolves reporter PII for create/update responses and indexing.
+     */
+    public User enrichReporterForIncident(IncidentRequest request) {
+        if (request == null || request.getIncident() == null) {
+            return null;
+        }
+        Incident incident = request.getIncident();
+        if (StringUtils.isEmpty(incident.getAccountId())) {
+            return incident.getReporter();
+        }
+
+        User reporter = resolveReporterByAccountId(
+                incident.getAccountId(), incident.getTenantId(), incident.getReporter());
+        applyReporterFromRequestUser(
+                reporter,
+                request.getRequestInfo(),
+                incident.getAccountId(),
+                incident.getCreatedOnBehalf()
+        );
+        incident.setReporter(reporter);
+        if (reporter != null && isMaskedPii(reporter.getName())) {
+            log.warn("Reporter PII still masked for accountId={} after internal user-service search",
+                    incident.getAccountId());
+        }
+        return reporter;
+    }
+
+    /**
+     * When the logged-in user is the reporter, RequestInfo carries decrypted PII from the auth token.
+     */
+    public void applyReporterFromRequestUser(
+            User reporter,
+            RequestInfo requestInfo,
+            String accountId,
+            Boolean createdOnBehalf
+    ) {
+        if (reporter == null || requestInfo == null || requestInfo.getUserInfo() == null) {
+            return;
+        }
+        if (Boolean.TRUE.equals(createdOnBehalf)) {
+            return;
+        }
+        if (!Objects.equals(accountId, requestInfo.getUserInfo().getUuid())) {
+            return;
+        }
+
+        org.egov.common.contract.request.User requestUser = requestInfo.getUserInfo();
+        if (isMaskedPii(reporter.getName()) && !isMaskedPii(requestUser.getName())) {
+            reporter.setName(requestUser.getName());
+        }
+        if (isMaskedPii(reporter.getMobileNumber()) && !isMaskedPii(requestUser.getMobileNumber())) {
+            reporter.setMobileNumber(requestUser.getMobileNumber());
+        }
+        if (isMaskedPii(reporter.getEmailId()) && !isMaskedPii(requestUser.getEmailId())) {
+            reporter.setEmailId(requestUser.getEmailId());
+        }
+        if (isMaskedPii(reporter.getUserName()) && !isMaskedPii(requestUser.getUserName())) {
+            reporter.setUserName(requestUser.getUserName());
+        }
     }
 
 }

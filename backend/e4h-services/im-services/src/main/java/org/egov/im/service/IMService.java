@@ -260,11 +260,13 @@ public class IMService {
         producer.push(tenantId, config.getCreateTopic(), wrapper.getIncidentRequest());
         wrapper.setProcessInstance(trimmedUpdatedProcessInstance);
         enrichmentService.enrichFieldsForIndexing(wrapper, boundary);
+        userService.enrichReporterForIncident(request);
         producer.push(tenantId, config.getCreateTopicIndexer(), wrapper);
         enrichmentService.enrichFieldsForAuditIndexing(wrapper, startingStatus);
         producer.push(tenantId, config.getAuditCreateTopicIndexer(), wrapper);
 
         livelihoodNotificationService.notifyOnCreate(request);
+        userService.enrichReporterForIncident(request);
         log.info("Livelihood incident created successfully with incidentId={}", request.getIncident().getIncidentId());
         return request;
     }
@@ -305,8 +307,9 @@ public class IMService {
             return new ArrayList<>();
         }
 
-         //to add later
-        //userService.enrichUsers(serviceWrappers);
+        if (livelihoodTenantUtil.isLivelihood(criteria.getTenantId())) {
+            userService.enrichUsers(incidentWrappers);
+        }
         log.trace("Enriching workflow for incidents");
         List<IncidentWrapper> enrichedServiceWrappers = workflowService.enrichWorkflow(requestInfo,incidentWrappers);
         if (livelihoodTenantUtil.isLivelihood(criteria.getTenantId())) {

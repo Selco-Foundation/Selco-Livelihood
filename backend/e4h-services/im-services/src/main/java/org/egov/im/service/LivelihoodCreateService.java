@@ -205,25 +205,17 @@ public class LivelihoodCreateService {
             storeRaisedByPoc(incident, requestInfo.getUserInfo().getUuid());
         }
 
-        User reporter = incident.getReporter();
-        if (reporter == null || StringUtils.isBlank(reporter.getUuid())) {
-            Map<String, String> complainant = hrmsUtil.findComplainantAtBoundary(
-                    requestInfo,
-                    incident.getTenantId(),
-                    resolveFacilityBoundary(incident)
-            );
-            incident.setReporter(User.builder()
-                    .uuid(complainant.get("uuid"))
-                    .tenantId(StringUtils.defaultIfBlank(complainant.get("tenantId"), incident.getTenantId()))
-                    .name(complainant.get("name"))
-                    .mobileNumber(complainant.get("mobile"))
-                    .build());
-            return;
-        }
-
-        if (StringUtils.isBlank(reporter.getTenantId())) {
-            reporter.setTenantId(incident.getTenantId());
-        }
+        Map<String, String> complainant = hrmsUtil.findComplainantAtBoundary(
+                requestInfo,
+                incident.getTenantId(),
+                resolveFacilityBoundary(incident)
+        );
+        incident.setReporter(User.builder()
+                .uuid(complainant.get("uuid"))
+                .tenantId(StringUtils.defaultIfBlank(complainant.get("tenantId"), incident.getTenantId()))
+                .name(complainant.get("name"))
+                .mobileNumber(complainant.get("mobile"))
+                .build());
     }
 
     /**

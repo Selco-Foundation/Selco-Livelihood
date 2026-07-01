@@ -364,26 +364,68 @@ public class EnrichmentService {
         }
 
         localizationService.enrichLocalizedFieldsForIndexing(wrapper);
+
+        if (livelihoodTenantUtil.isLivelihood(incidentRequest.getIncident().getTenantId())) {
+            enrichReporterForLivelihoodIndexing(wrapper, indexView);
+        }
+    }
+
+    private void enrichReporterForLivelihoodIndexing(IncidentRequestWrapper wrapper, IndexView indexView) {
+        IncidentRequest incidentRequest = wrapper.getIncidentRequest();
+        User reporter = userService.enrichReporterForIncident(incidentRequest);
+        if (reporter == null) {
+            return;
+        }
+
+        if (userService.isMaskedPii(reporter.getName()) || userService.isMaskedPii(reporter.getMobileNumber())) {
+            applyHrmsReporterFallback(incidentRequest, reporter);
+        }
+
+        incidentRequest.getIncident().setReporter(reporter);
+
+        if (StringUtils.isNotBlank(reporter.getName()) && !userService.isMaskedPii(reporter.getName())) {
+            indexView.setEndUserName(reporter.getName());
+        }
+        if (StringUtils.isNotBlank(reporter.getMobileNumber()) && !userService.isMaskedPii(reporter.getMobileNumber())) {
+            indexView.setEndUserMobile(reporter.getMobileNumber());
+        }
+    }
+
+    private void applyHrmsReporterFallback(IncidentRequest incidentRequest, User reporter) {
+        Incident incident = incidentRequest.getIncident();
+        try {
+            String facilityBoundary = resolveFacilityBoundaryForComplainant(incident);
+            Map<String, String> complainant = hrmsUtil.findComplainantAtBoundary(
+                    incidentRequest.getRequestInfo(), incident.getTenantId(), facilityBoundary);
+            if (userService.isMaskedPii(reporter.getName()) && StringUtils.isNotBlank(complainant.get("name"))) {
+                reporter.setName(complainant.get("name"));
+            }
+            if (userService.isMaskedPii(reporter.getMobileNumber()) && StringUtils.isNotBlank(complainant.get("mobile"))) {
+                reporter.setMobileNumber(complainant.get("mobile"));
+            }
+            if (StringUtils.isNotBlank(complainant.get("uuid"))) {
+                reporter.setUuid(complainant.get("uuid"));
+            }
+        } catch (Exception e) {
+            log.warn("HRMS complainant fallback failed for incidentId={}", incident.getIncidentId(), e);
+        }
+    }
+
+    private String resolveFacilityBoundaryForComplainant(Incident incident) {
+        String assetBoundary = incident.getBoundaryCode();
+        String assetId = incident.getAssetId();
+        if (StringUtils.isNotBlank(assetBoundary) && StringUtils.isNotBlank(assetId)) {
+            String suffix = "_" + assetId;
+            if (assetBoundary.endsWith(suffix)) {
+                return assetBoundary.substring(0, assetBoundary.length() - suffix.length());
+            }
+        }
+        return assetBoundary;
     }
 
     private void enrichLivelihoodIndexView(IncidentRequestWrapper wrapper, IndexView indexView) {
         IncidentRequest incidentRequest = wrapper.getIncidentRequest();
         Incident incident = incidentRequest.getIncident();
-
-        if (StringUtils.isNotBlank(incident.getAccountId())) {
-            User reporter = userService.resolveReporterByAccountId(
-                    incident.getAccountId(), incident.getTenantId(), incident.getReporter()
-            );
-            if (reporter != null) {
-                incident.setReporter(reporter);
-                if (StringUtils.isNotBlank(reporter.getName())) {
-                    indexView.setEndUserName(reporter.getName());
-                }
-                if (StringUtils.isNotBlank(reporter.getMobileNumber())) {
-                    indexView.setEndUserMobile(reporter.getMobileNumber());
-                }
-            }
-        }
 
         if (StringUtils.isNotBlank(incident.getAssetId())) {
             try {
