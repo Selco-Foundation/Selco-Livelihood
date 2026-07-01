@@ -390,93 +390,30 @@ public class EnrichmentService {
 
     private void enrichReporterForLivelihoodIndexing(IncidentRequestWrapper wrapper, IndexView indexView) {
         IncidentRequest incidentRequest = wrapper.getIncidentRequest();
-        User reporter = userService.enrichReporterForIncident(
-                incidentRequest, wrapper.getProcessInstance());
-        if (reporter == null) {
-            return;
-        }
-
-        if (userService.isMaskedPii(reporter.getName()) || userService.isMaskedPii(reporter.getMobileNumber())) {
-            applyHrmsReporterFallback(incidentRequest, reporter);
-        }
-
-        applyReporterFromIndexContext(incidentRequest, indexView, reporter);
-        userService.applyReporterFromWorkflowAssigner(
-                reporter, wrapper.getProcessInstance(), incidentRequest.getIncident().getAccountId());
-
-        incidentRequest.getIncident().setReporter(reporter);
-
-        if (StringUtils.isNotBlank(reporter.getName()) && !userService.isMaskedPii(reporter.getName())) {
-            indexView.setEndUserName(reporter.getName());
-        } else if (StringUtils.isNotBlank(indexView.getLastActionTakenBy())
-                && !userService.isMaskedPii(indexView.getLastActionTakenBy())) {
-            indexView.setEndUserName(indexView.getLastActionTakenBy());
-        }
-        if (StringUtils.isNotBlank(reporter.getMobileNumber()) && !userService.isMaskedPii(reporter.getMobileNumber())) {
-            indexView.setEndUserMobile(reporter.getMobileNumber());
-        }
-    }
-
-    private void applyReporterFromIndexContext(IncidentRequest incidentRequest, IndexView indexView, User reporter) {
-        if (reporter == null || incidentRequest == null || incidentRequest.getIncident() == null) {
-            return;
-        }
-        Incident incident = incidentRequest.getIncident();
-        if (Boolean.TRUE.equals(incident.getCreatedOnBehalf())) {
-            return;
-        }
-        RequestInfo requestInfo = incidentRequest.getRequestInfo();
-        if (requestInfo == null || requestInfo.getUserInfo() == null) {
-            return;
-        }
-        if (!java.util.Objects.equals(incident.getAccountId(), requestInfo.getUserInfo().getUuid())) {
-            return;
-        }
-
-        if (userService.isMaskedPii(reporter.getName())) {
-            if (!userService.isMaskedPii(requestInfo.getUserInfo().getName())) {
-                reporter.setName(requestInfo.getUserInfo().getName());
-            } else if (StringUtils.isNotBlank(indexView.getLastActionTakenBy())
-                    && !userService.isMaskedPii(indexView.getLastActionTakenBy())) {
-                reporter.setName(indexView.getLastActionTakenBy());
-            }
-        }
-        if (userService.isMaskedPii(reporter.getMobileNumber())
-                && !userService.isMaskedPii(requestInfo.getUserInfo().getMobileNumber())) {
-            reporter.setMobileNumber(requestInfo.getUserInfo().getMobileNumber());
-        }
-        if (userService.isMaskedPii(reporter.getUserName())
-                && !userService.isMaskedPii(requestInfo.getUserInfo().getUserName())) {
-            reporter.setUserName(requestInfo.getUserInfo().getUserName());
-        }
-        if (userService.isMaskedPii(reporter.getEmailId())
-                && !userService.isMaskedPii(requestInfo.getUserInfo().getEmailId())) {
-            reporter.setEmailId(requestInfo.getUserInfo().getEmailId());
-        }
-        if (!userService.isMaskedPii(reporter.getName())) {
-            log.info("Reporter PII resolved for indexing incidentId={}", incident.getIncidentId());
-        } else {
-            log.warn("Reporter PII still masked for indexing incidentId={}", incident.getIncidentId());
-        }
-    }
-
-    private void applyHrmsReporterFallback(IncidentRequest incidentRequest, User reporter) {
         Incident incident = incidentRequest.getIncident();
         try {
             String facilityBoundary = resolveFacilityBoundaryForComplainant(incident);
             Map<String, String> complainant = hrmsUtil.findComplainantAtBoundary(
                     incidentRequest.getRequestInfo(), incident.getTenantId(), facilityBoundary);
-            if (userService.isMaskedPii(reporter.getName()) && StringUtils.isNotBlank(complainant.get("name"))) {
-                reporter.setName(complainant.get("name"));
+            User reporter = userService.resolveReporterFromComplainant(
+                    complainant, incidentRequest.getRequestInfo(), incident.getTenantId());
+            if (reporter == null) {
+                return;
             }
-            if (userService.isMaskedPii(reporter.getMobileNumber()) && StringUtils.isNotBlank(complainant.get("mobile"))) {
-                reporter.setMobileNumber(complainant.get("mobile"));
+
+            incident.setAccountId(reporter.getUuid());
+            incident.setReporter(reporter);
+
+            if (StringUtils.isNotBlank(reporter.getName()) && !userService.isMaskedPii(reporter.getName())) {
+                indexView.setEndUserName(reporter.getName());
             }
-            if (StringUtils.isNotBlank(complainant.get("uuid"))) {
-                reporter.setUuid(complainant.get("uuid"));
+            if (StringUtils.isNotBlank(reporter.getMobileNumber()) && !userService.isMaskedPii(reporter.getMobileNumber())) {
+                indexView.setEndUserMobile(reporter.getMobileNumber());
             }
+            log.info("Livelihood reporter finalized for indexing incidentId={} uuid={} name={}",
+                    incident.getIncidentId(), reporter.getUuid(), reporter.getName());
         } catch (Exception e) {
-            log.warn("HRMS complainant fallback failed for incidentId={}", incident.getIncidentId(), e);
+            log.warn("Failed to finalize livelihood reporter for incidentId={}", incident.getIncidentId(), e);
         }
     }
 

@@ -121,6 +121,76 @@ public class UserService {
 
     }
 
+    /**
+     * Livelihood search: reporter is always the facility COMPLAINANT from HRMS, enriched via user-service uuid lookup.
+     */
+    public void enrichLivelihoodUsers(List<IncidentWrapper> incidentWrappers, RequestInfo requestInfo) {
+        if (CollectionUtils.isEmpty(incidentWrappers)) {
+            return;
+        }
+        for (IncidentWrapper wrapper : incidentWrappers) {
+            if (wrapper == null || wrapper.getIncident() == null) {
+                continue;
+            }
+            Incident incident = wrapper.getIncident();
+            try {
+                String facilityBoundary = resolveFacilityBoundaryForComplainant(incident);
+                Map<String, String> complainant = hrmsUtil.findComplainantAtBoundary(
+                        requestInfo, incident.getTenantId(), facilityBoundary);
+                User reporter = resolveReporterFromComplainant(complainant, requestInfo, incident.getTenantId());
+                if (reporter != null) {
+                    incident.setAccountId(reporter.getUuid());
+                    incident.setReporter(reporter);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to enrich livelihood reporter for incidentId={}", incident.getIncidentId(), e);
+            }
+        }
+    }
+
+    /**
+     * HRMS complainant identity + full user profile from user-service internal uuid search.
+     */
+    public User resolveReporterFromComplainant(
+            Map<String, String> complainant, RequestInfo requestInfo, String tenantId) {
+        if (complainant == null || StringUtils.isEmpty(complainant.get("uuid"))) {
+            return null;
+        }
+        String uuid = complainant.get("uuid");
+        User hrmsReporter = User.builder()
+                .uuid(uuid)
+                .tenantId(StringUtils.isEmpty(complainant.get("tenantId")) ? tenantId : complainant.get("tenantId"))
+                .name(complainant.get("name"))
+                .mobileNumber(complainant.get("mobile"))
+                .userName(complainant.get("mobile"))
+                .build();
+
+        UserDetailResponse response = internalSearchByUuid(tenantId, uuid, requestInfo);
+        if (response == null || CollectionUtils.isEmpty(response.getUser())) {
+            log.warn("No user-service record for complainant uuid={}", uuid);
+            return hrmsReporter;
+        }
+
+        User resolved = response.getUser().get(0);
+        mergeReporterPiiIfMasked(hrmsReporter, resolved);
+        if (StringUtils.isEmpty(resolved.getUserName()) && !isMaskedPii(hrmsReporter.getMobileNumber())) {
+            resolved.setUserName(hrmsReporter.getMobileNumber());
+        }
+        return resolved;
+    }
+
+    private String resolveFacilityBoundaryForComplainant(Incident incident) {
+        String assetBoundary = incident.getBoundaryCode();
+        String assetId = incident.getAssetId();
+        if (!StringUtils.isEmpty(assetBoundary) && !StringUtils.isEmpty(assetId)) {
+            String suffix = "_" + assetId;
+            if (assetBoundary.endsWith(suffix)) {
+                return assetBoundary.substring(0, assetBoundary.length() - suffix.length());
+            }
+        }
+        return assetBoundary;
+    }
+
 
     /**
      * Creates or updates the user based on if the user exists. The user existance is searched based on userName = mobileNumber

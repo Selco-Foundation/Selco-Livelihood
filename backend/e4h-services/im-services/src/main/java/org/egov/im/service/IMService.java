@@ -307,7 +307,7 @@ public class IMService {
         }
 
         if (livelihoodTenantUtil.isLivelihood(criteria.getTenantId())) {
-            userService.enrichUsers(incidentWrappers, requestInfo);
+            userService.enrichLivelihoodUsers(incidentWrappers, requestInfo);
         }
         log.trace("Enriching workflow for incidents");
         List<IncidentWrapper> enrichedServiceWrappers = workflowService.enrichWorkflow(requestInfo,incidentWrappers);

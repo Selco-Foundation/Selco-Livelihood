@@ -44,6 +44,7 @@ public class LivelihoodCreateService {
     private final LivelihoodIssueTypeUtil livelihoodIssueTypeUtil;
     private final LivelihoodPocScopeService livelihoodPocScopeService;
     private final HRMSUtil hrmsUtil;
+    private final UserService userService;
     private final ObjectMapper objectMapper;
 
     public void prepareCreate(IncidentRequest request, Object mdmsData) {
@@ -210,12 +211,10 @@ public class LivelihoodCreateService {
                 incident.getTenantId(),
                 resolveFacilityBoundary(incident)
         );
-        incident.setReporter(User.builder()
-                .uuid(complainant.get("uuid"))
-                .tenantId(StringUtils.defaultIfBlank(complainant.get("tenantId"), incident.getTenantId()))
-                .name(complainant.get("name"))
-                .mobileNumber(complainant.get("mobile"))
-                .build());
+        User reporter = userService.resolveReporterFromComplainant(
+                complainant, requestInfo, incident.getTenantId());
+        incident.setAccountId(reporter.getUuid());
+        incident.setReporter(reporter);
     }
 
     /**
