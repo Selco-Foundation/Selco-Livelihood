@@ -138,7 +138,9 @@ public class EnrichmentService {
             List<org.egov.common.contract.request.Role> userRoles = Optional.ofNullable(requestInfo.getUserInfo())
                     .map(org.egov.common.contract.request.User::getRoles)
                     .orElse(new ArrayList<>());
-            if (userRoles.stream().anyMatch(role -> role.getCode().equalsIgnoreCase("RMS"))) {
+            if (livelihoodTenantUtil.isLivelihood(tenantId)) {
+                incident.setReporterType(ROLE_COMPLAINANT);
+            } else if (userRoles.stream().anyMatch(role -> role.getCode().equalsIgnoreCase("RMS"))) {
                 incident.setReporterType("RMS");
             } else if (userRoles.stream().anyMatch(role -> role.getCode().equalsIgnoreCase("COMPLAINT_ASSESSOR"))) {
                 incident.setReporterType("CRM");
@@ -364,10 +366,26 @@ public class EnrichmentService {
         }
 
         localizationService.enrichLocalizedFieldsForIndexing(wrapper);
+    }
 
-        if (livelihoodTenantUtil.isLivelihood(incidentRequest.getIncident().getTenantId())) {
-            enrichReporterForLivelihoodIndexing(wrapper, indexView);
+    /**
+     * Must run immediately before publishing to the indexer Kafka topic.
+     * Resolves reporter PII and indexView end-user fields on the wrapper that gets indexed.
+     */
+    public void finalizeLivelihoodReporterForKafka(IncidentRequestWrapper wrapper) {
+        if (wrapper == null || wrapper.getIncidentRequest() == null
+                || wrapper.getIncidentRequest().getIncident() == null) {
+            return;
         }
+        if (!livelihoodTenantUtil.isLivelihood(wrapper.getIncidentRequest().getIncident().getTenantId())) {
+            return;
+        }
+        IndexView indexView = wrapper.getIndexView();
+        if (indexView == null) {
+            indexView = new IndexView();
+            wrapper.setIndexView(indexView);
+        }
+        enrichReporterForLivelihoodIndexing(wrapper, indexView);
     }
 
     private void enrichReporterForLivelihoodIndexing(IncidentRequestWrapper wrapper, IndexView indexView) {
@@ -382,13 +400,63 @@ public class EnrichmentService {
             applyHrmsReporterFallback(incidentRequest, reporter);
         }
 
+        applyReporterFromIndexContext(incidentRequest, indexView, reporter);
+        userService.applyReporterFromWorkflowAssigner(
+                reporter, wrapper.getProcessInstance(), incidentRequest.getIncident().getAccountId());
+
         incidentRequest.getIncident().setReporter(reporter);
 
         if (StringUtils.isNotBlank(reporter.getName()) && !userService.isMaskedPii(reporter.getName())) {
             indexView.setEndUserName(reporter.getName());
+        } else if (StringUtils.isNotBlank(indexView.getLastActionTakenBy())
+                && !userService.isMaskedPii(indexView.getLastActionTakenBy())) {
+            indexView.setEndUserName(indexView.getLastActionTakenBy());
         }
         if (StringUtils.isNotBlank(reporter.getMobileNumber()) && !userService.isMaskedPii(reporter.getMobileNumber())) {
             indexView.setEndUserMobile(reporter.getMobileNumber());
+        }
+    }
+
+    private void applyReporterFromIndexContext(IncidentRequest incidentRequest, IndexView indexView, User reporter) {
+        if (reporter == null || incidentRequest == null || incidentRequest.getIncident() == null) {
+            return;
+        }
+        Incident incident = incidentRequest.getIncident();
+        if (Boolean.TRUE.equals(incident.getCreatedOnBehalf())) {
+            return;
+        }
+        RequestInfo requestInfo = incidentRequest.getRequestInfo();
+        if (requestInfo == null || requestInfo.getUserInfo() == null) {
+            return;
+        }
+        if (!java.util.Objects.equals(incident.getAccountId(), requestInfo.getUserInfo().getUuid())) {
+            return;
+        }
+
+        if (userService.isMaskedPii(reporter.getName())) {
+            if (!userService.isMaskedPii(requestInfo.getUserInfo().getName())) {
+                reporter.setName(requestInfo.getUserInfo().getName());
+            } else if (StringUtils.isNotBlank(indexView.getLastActionTakenBy())
+                    && !userService.isMaskedPii(indexView.getLastActionTakenBy())) {
+                reporter.setName(indexView.getLastActionTakenBy());
+            }
+        }
+        if (userService.isMaskedPii(reporter.getMobileNumber())
+                && !userService.isMaskedPii(requestInfo.getUserInfo().getMobileNumber())) {
+            reporter.setMobileNumber(requestInfo.getUserInfo().getMobileNumber());
+        }
+        if (userService.isMaskedPii(reporter.getUserName())
+                && !userService.isMaskedPii(requestInfo.getUserInfo().getUserName())) {
+            reporter.setUserName(requestInfo.getUserInfo().getUserName());
+        }
+        if (userService.isMaskedPii(reporter.getEmailId())
+                && !userService.isMaskedPii(requestInfo.getUserInfo().getEmailId())) {
+            reporter.setEmailId(requestInfo.getUserInfo().getEmailId());
+        }
+        if (!userService.isMaskedPii(reporter.getName())) {
+            log.info("Reporter PII resolved for indexing incidentId={}", incident.getIncidentId());
+        } else {
+            log.warn("Reporter PII still masked for indexing incidentId={}", incident.getIncidentId());
         }
     }
 

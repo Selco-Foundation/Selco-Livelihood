@@ -260,12 +260,12 @@ public class IMService {
         producer.push(tenantId, config.getCreateTopic(), wrapper.getIncidentRequest());
         wrapper.setProcessInstance(trimmedUpdatedProcessInstance);
         enrichmentService.enrichFieldsForIndexing(wrapper, boundary);
+        enrichmentService.finalizeLivelihoodReporterForKafka(wrapper);
         producer.push(tenantId, config.getCreateTopicIndexer(), wrapper);
         enrichmentService.enrichFieldsForAuditIndexing(wrapper, startingStatus);
         producer.push(tenantId, config.getAuditCreateTopicIndexer(), wrapper);
 
         livelihoodNotificationService.notifyOnCreate(request);
-        userService.enrichReporterForIncident(request, trimmedUpdatedProcessInstance);
         log.info("Livelihood incident created successfully with incidentId={}", request.getIncident().getIncidentId());
         return request;
     }
@@ -307,7 +307,7 @@ public class IMService {
         }
 
         if (livelihoodTenantUtil.isLivelihood(criteria.getTenantId())) {
-            userService.enrichUsers(incidentWrappers);
+            userService.enrichUsers(incidentWrappers, requestInfo);
         }
         log.trace("Enriching workflow for incidents");
         List<IncidentWrapper> enrichedServiceWrappers = workflowService.enrichWorkflow(requestInfo,incidentWrappers);
@@ -442,6 +442,9 @@ public class IMService {
         );
         log.trace("Enriching fields for indexing");
         enrichmentService.enrichFieldsForIndexing(wrapper, boundary);
+        if (livelihoodTenantUtil.isLivelihood(tenantId)) {
+            enrichmentService.finalizeLivelihoodReporterForKafka(wrapper);
+        }
         log.trace("Updating business service");
         imUtils.updateBusinessService(wrapper,mdmsData);
         log.trace("Publishing incident to indexer topic");
