@@ -45,12 +45,12 @@ export function ComplaintTable({
 
   const columns = [
     { key: "ticket", label: t("CS_COMMON_TICKET_NO") },
+    { key: "endUser", label: t("INCIDENT_END_USER") },
+    { key: "asset", label: t("INCIDENT_ASSET") },
     { key: "type", label: t("CS_TICKET_TYPE") },
     { key: "status", label: t("CS_TICKET_DETAILS_CURRENT_STATUS") },
-    { key: "asset", label: t("INCIDENT_ASSET") },
     { key: "owner", label: t("WF_INBOX_HEADER_CURRENT_OWNER") },
     { key: "sla", label: slaColumnLabel },
-    { key: "endUser", label: t("INCIDENT_END_USER") },
   ] as const;
 
   const pageNumbers = Array.from({ length: totalPages }, (_, index) => index);
@@ -89,20 +89,20 @@ export function ComplaintTable({
                     ) : null}
                   </div>
                 </td>
+                <td className="px-5 py-4 text-foreground">{row.endUser}</td>
+                <td className="px-5 py-4 text-foreground">
+                  {translateDetailValue(row.assetLabel, t)}
+                </td>
                 <td className="px-5 py-4 text-foreground">
                   {t(`SERVICEDEFS.${row.incidentType.toUpperCase()}`)}
                 </td>
                 <td className="px-5 py-4 text-foreground">
                   {t(`CS_COMMON_${row.status}`)}
                 </td>
-                <td className="px-5 py-4 text-foreground">
-                  {translateDetailValue(row.assetLabel, t)}
-                </td>
                 <td className="px-5 py-4 text-foreground">{row.taskOwner}</td>
                 <td className="px-5 py-4">
                   <SlaBadge value={row.sla} overdueLabel={overdueLabel} />
                 </td>
-                <td className="px-5 py-4 text-foreground">{row.endUser}</td>
               </tr>
             ))}
           </tbody>
