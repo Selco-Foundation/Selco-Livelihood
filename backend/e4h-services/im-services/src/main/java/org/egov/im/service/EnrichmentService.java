@@ -372,7 +372,8 @@ public class EnrichmentService {
 
     private void enrichReporterForLivelihoodIndexing(IncidentRequestWrapper wrapper, IndexView indexView) {
         IncidentRequest incidentRequest = wrapper.getIncidentRequest();
-        User reporter = userService.enrichReporterForIncident(incidentRequest);
+        User reporter = userService.enrichReporterForIncident(
+                incidentRequest, wrapper.getProcessInstance());
         if (reporter == null) {
             return;
         }

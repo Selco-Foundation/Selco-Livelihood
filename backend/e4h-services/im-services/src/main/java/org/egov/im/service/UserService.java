@@ -173,7 +173,6 @@ public class UserService {
                 request.getIncident().getCreatedOnBehalf()
         );
         request.getIncident().setReporter(resolvedReporter);
-        log.debug("User enriched successfully for accountId: {}", accountId);
     }
 
     /**
@@ -229,18 +228,17 @@ public class UserService {
      */
     private UserDetailResponse searchUser(String stateLevelTenant, String accountId, String userName){
 
-        UserSearchRequest userSearchRequest =new UserSearchRequest();
-        userSearchRequest.setActive(true);
-        userSearchRequest.setUserType(USERTYPE_EMPLOYEE);
-
         if(StringUtils.isEmpty(accountId) && StringUtils.isEmpty(userName))
             return null;
 
-        if(!StringUtils.isEmpty(accountId))
-            userSearchRequest.setUuid(Collections.singletonList(accountId));
+        if(!StringUtils.isEmpty(accountId)) {
+            return internalSearchByUuid(stateLevelTenant, accountId);
+        }
 
-        if(!StringUtils.isEmpty(userName))
-            userSearchRequest.setUserName(userName);
+        UserSearchRequest userSearchRequest = new UserSearchRequest();
+        userSearchRequest.setActive(true);
+        userSearchRequest.setUserType(USERTYPE_EMPLOYEE);
+        userSearchRequest.setUserName(userName);
 
         if(!StringUtils.isEmpty(stateLevelTenant))
             userSearchRequest.setTenantId(stateLevelTenant);
@@ -248,19 +246,49 @@ public class UserService {
         applyInternalServiceRequestInfo(userSearchRequest, stateLevelTenant);
 
         StringBuilder uri = new StringBuilder(config.getUserHost()).append(config.getUserSearchEndpoint());
-        log.info("User search: url={}, tenantId={}, accountId={}, internalUserUuid={}",
-                uri, stateLevelTenant, accountId, config.getEgovInternalMicroserviceUserUuid());
-        UserDetailResponse response = userUtils.userCall(userSearchRequest, uri);
+        return userUtils.userCall(userSearchRequest, uri);
+    }
+
+    /**
+     * Same request shape as {@link NotificationService#fetchUserByUUID} (proven unmasked for vendor lookup).
+     */
+    private UserDetailResponse internalSearchByUuid(String tenantId, String accountId) {
+        String effectiveTenantId = StringUtils.isEmpty(tenantId) ? "livelihood" : tenantId;
+        RequestInfo requestInfo = new RequestInfo();
+        requestInfo.setUserInfo(buildInternalMicroserviceUser(effectiveTenantId));
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("RequestInfo", requestInfo);
+        body.put("tenantId", effectiveTenantId);
+        body.put("userType", USERTYPE_EMPLOYEE);
+        body.put("uuid", Set.of(accountId));
+
+        StringBuilder uri = new StringBuilder(config.getUserHost()).append(config.getUserSearchEndpoint());
+        log.info("User internal search: url={}, tenantId={}, accountId={}, internalUserUuid={}",
+                uri, effectiveTenantId, accountId, config.getEgovInternalMicroserviceUserUuid());
+        UserDetailResponse response = userUtils.userCall(body, uri);
         if (response != null && !CollectionUtils.isEmpty(response.getUser())) {
             User user = response.getUser().get(0);
             if (isMaskedPii(user.getName()) || isMaskedPii(user.getMobileNumber())) {
-                log.warn("User search returned masked PII for accountId={} from {}; "
-                                + "verify egov.user.host and egov.internal.microservice.user.uuid",
+                log.warn("User internal search returned masked PII for accountId={} from {}",
                         accountId, uri);
             }
         }
         return response;
+    }
 
+    private org.egov.common.contract.request.User buildInternalMicroserviceUser(String tenantId) {
+        Role role = Role.builder()
+                .name("Internal Microservice Role")
+                .code("INTERNAL_MICROSERVICE_ROLE")
+                .tenantId(tenantId)
+                .build();
+        return org.egov.common.contract.request.User.builder()
+                .uuid(config.getEgovInternalMicroserviceUserUuid())
+                .type("SYSTEM")
+                .roles(Collections.singletonList(role))
+                .id(0L)
+                .build();
     }
 
     /**
@@ -270,20 +298,22 @@ public class UserService {
      */
     public Map<String,User> searchBulkUser(List<String> uuids, String tenantId){
         log.debug("Searching bulk users for uuids: {}", uuids);
-        UserSearchRequest userSearchRequest =new UserSearchRequest();
-        userSearchRequest.setActive(true);
-        userSearchRequest.setUserType(USERTYPE_EMPLOYEE);
+        if (CollectionUtils.isEmpty(uuids)) {
+            return Collections.emptyMap();
+        }
 
+        String effectiveTenantId = StringUtils.isEmpty(tenantId) ? "livelihood" : tenantId;
+        RequestInfo requestInfo = new RequestInfo();
+        requestInfo.setUserInfo(buildInternalMicroserviceUser(effectiveTenantId));
 
-        if(!CollectionUtils.isEmpty(uuids))
-            userSearchRequest.setUuid(uuids);
+        Map<String, Object> body = new HashMap<>();
+        body.put("RequestInfo", requestInfo);
+        body.put("tenantId", effectiveTenantId);
+        body.put("userType", USERTYPE_EMPLOYEE);
+        body.put("uuid", new HashSet<>(uuids));
 
-        if(!StringUtils.isEmpty(tenantId))
-            userSearchRequest.setTenantId(tenantId);
-
-        applyInternalServiceRequestInfo(userSearchRequest, tenantId);
         StringBuilder uri = new StringBuilder(config.getUserHost()).append(config.getUserSearchEndpoint());
-        UserDetailResponse userDetailResponse = userUtils.userCall(userSearchRequest,uri);
+        UserDetailResponse userDetailResponse = userUtils.userCall(body, uri);
         List<User> users = userDetailResponse.getUser();
 
         if(CollectionUtils.isEmpty(users))
@@ -579,19 +609,9 @@ public class UserService {
      */
     private void applyInternalServiceRequestInfo(UserSearchRequest userSearchRequest, String tenantId) {
         String effectiveTenantId = StringUtils.isEmpty(tenantId) ? "livelihood" : tenantId;
-        Role role = Role.builder()
-                .name("Internal Microservice Role")
-                .code("INTERNAL_MICROSERVICE_ROLE")
-                .tenantId(effectiveTenantId)
-                .build();
-        org.egov.common.contract.request.User internalUser = org.egov.common.contract.request.User.builder()
-                .uuid(config.getEgovInternalMicroserviceUserUuid())
-                .type("SYSTEM")
-                .roles(Collections.singletonList(role))
-                .id(0L)
-                .tenantId(effectiveTenantId)
-                .build();
-        userSearchRequest.setRequestInfo(RequestInfo.builder().userInfo(internalUser).build());
+        userSearchRequest.setRequestInfo(RequestInfo.builder()
+                .userInfo(buildInternalMicroserviceUser(effectiveTenantId))
+                .build());
     }
 
     private void mergeReporterPiiIfMasked(User preferred, User resolved) {
@@ -642,6 +662,11 @@ public class UserService {
      * Re-resolves reporter PII for create/update responses and indexing.
      */
     public User enrichReporterForIncident(IncidentRequest request) {
+        return enrichReporterForIncident(request, null);
+    }
+
+    public User enrichReporterForIncident(IncidentRequest request,
+                                          org.egov.im.web.models.workflow.ProcessInstance processInstance) {
         if (request == null || request.getIncident() == null) {
             return null;
         }
@@ -658,12 +683,42 @@ public class UserService {
                 incident.getAccountId(),
                 incident.getCreatedOnBehalf()
         );
+        applyReporterFromWorkflowAssigner(reporter, processInstance, incident.getAccountId());
         incident.setReporter(reporter);
         if (reporter != null && isMaskedPii(reporter.getName())) {
-            log.warn("Reporter PII still masked for accountId={} after internal user-service search",
+            log.warn("Reporter PII still masked for accountId={} after user-service and workflow fallbacks",
                     incident.getAccountId());
         }
         return reporter;
+    }
+
+    /**
+     * Workflow returns unmasked assigner PII when user-service search is still masked (same uuid as reporter).
+     */
+    public void applyReporterFromWorkflowAssigner(
+            User reporter,
+            org.egov.im.web.models.workflow.ProcessInstance processInstance,
+            String accountId
+    ) {
+        if (reporter == null || processInstance == null || processInstance.getAssigner() == null) {
+            return;
+        }
+        org.egov.common.contract.request.User assigner = processInstance.getAssigner();
+        if (!Objects.equals(accountId, assigner.getUuid())) {
+            return;
+        }
+        if (isMaskedPii(reporter.getName()) && !isMaskedPii(assigner.getName())) {
+            reporter.setName(assigner.getName());
+        }
+        if (isMaskedPii(reporter.getMobileNumber()) && !isMaskedPii(assigner.getMobileNumber())) {
+            reporter.setMobileNumber(assigner.getMobileNumber());
+        }
+        if (isMaskedPii(reporter.getEmailId()) && !isMaskedPii(assigner.getEmailId())) {
+            reporter.setEmailId(assigner.getEmailId());
+        }
+        if (isMaskedPii(reporter.getUserName()) && !isMaskedPii(assigner.getUserName())) {
+            reporter.setUserName(assigner.getUserName());
+        }
     }
 
     /**
