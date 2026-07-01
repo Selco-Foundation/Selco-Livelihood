@@ -596,7 +596,7 @@ public class UserService {
         }
     }
 
-    public boolean isMaskedPii(String value) {
+    private boolean isMaskedPii(String value) {
         if (StringUtils.isEmpty(value)) {
             return false;
         }

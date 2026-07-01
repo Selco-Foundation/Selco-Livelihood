@@ -363,7 +363,6 @@ public class EnrichmentService {
             enrichLivelihoodIndexView(wrapper, indexView);
         }
 
-        // Enrich localized fields first (will populate IndexView inside the wrapper)
         localizationService.enrichLocalizedFieldsForIndexing(wrapper);
     }
 
@@ -371,31 +370,18 @@ public class EnrichmentService {
         IncidentRequest incidentRequest = wrapper.getIncidentRequest();
         Incident incident = incidentRequest.getIncident();
 
-        User reporter = incident.getReporter();
         if (StringUtils.isNotBlank(incident.getAccountId())) {
-            reporter = userService.resolveReporterByAccountId(
-                    incident.getAccountId(), incident.getTenantId(), reporter
+            User reporter = userService.resolveReporterByAccountId(
+                    incident.getAccountId(), incident.getTenantId(), incident.getReporter()
             );
-            incident.setReporter(reporter);
-        }
-
-        if (reporter != null) {
-            if (userService.isMaskedPii(reporter.getName())) {
-                String localizedEndUserName = localizationService.getBoundaryDisplayName(
-                        incidentRequest.getRequestInfo(),
-                        incident.getTenantId(),
-                        resolveFacilityBoundaryForLookup(incident)
-                );
-                if (StringUtils.isNotBlank(localizedEndUserName)) {
-                    reporter.setName(localizedEndUserName);
+            if (reporter != null) {
+                incident.setReporter(reporter);
+                if (StringUtils.isNotBlank(reporter.getName())) {
+                    indexView.setEndUserName(reporter.getName());
                 }
-            }
-
-            if (StringUtils.isNotBlank(reporter.getName()) && !userService.isMaskedPii(reporter.getName())) {
-                indexView.setEndUserName(reporter.getName());
-            }
-            if (StringUtils.isNotBlank(reporter.getMobileNumber()) && !userService.isMaskedPii(reporter.getMobileNumber())) {
-                indexView.setEndUserMobile(reporter.getMobileNumber());
+                if (StringUtils.isNotBlank(reporter.getMobileNumber())) {
+                    indexView.setEndUserMobile(reporter.getMobileNumber());
+                }
             }
         }
 
