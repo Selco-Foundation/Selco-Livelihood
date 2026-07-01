@@ -2,6 +2,7 @@ export const SUPPORTED_WORKFLOW_ACTIONS = [
   "RESOLVE",
   "OUT_OF_SCOPE",
   "OUT_OF_WARRANTY",
+  "REVISE_QUOTATION",
   "DECLINE",
   "REASSIGN",
   "ASSIGN_VENDOR",
@@ -28,6 +29,7 @@ export const WORKFLOW_ACTION_CONFIG: Record<SupportedWorkflowAction, WorkflowAct
     documents: "optional",
   },
   OUT_OF_WARRANTY: { comment: "optional", documents: "required" },
+  REVISE_QUOTATION: { comment: "optional", documents: "required" },
   DECLINE: { comment: "required", documents: "none" },
   REASSIGN: { comment: "optional", documents: "optional" },
   ASSIGN_VENDOR: { comment: "optional", documents: "optional" },
@@ -47,4 +49,8 @@ export function isSupportedWorkflowAction(
 
 export function getWorkflowActionConfig(action: string): WorkflowActionConfig | null {
   return isSupportedWorkflowAction(action) ? WORKFLOW_ACTION_CONFIG[action] : null;
+}
+
+export function isQuotationRequiredAction(action: string): boolean {
+  return action === "OUT_OF_WARRANTY" || action === "REVISE_QUOTATION";
 }
