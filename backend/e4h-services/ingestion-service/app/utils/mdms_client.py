@@ -1,9 +1,84 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 import requests
 
+from app.core.tenant import LIVELIHOOD_TENANT_ID
 from app.schemas.request_info import RequestInfo
-from app.schemas.vendor_ingestion_shema_response import IngestionSchemaResponse, MDMS
+from app.schemas.vendor_ingestion_shema_response import IngestionSchemaResponse, MDMS, MDMSDataSource
+
+
+def get_nested_value(data: Dict[str, Any], path: str) -> Any:
+    """Resolve a dotted path (optionally prefixed with '$.') against a dict."""
+    if not path:
+        return ""
+    normalized = path[2:] if path.startswith("$.") else path
+    cur: Any = data
+    for part in normalized.split("."):
+        if isinstance(cur, dict) and part in cur:
+            cur = cur[part]
+        else:
+            return ""
+    return "" if cur is None else cur
+
+
+# Some live MDMS schema definitions lock mdmsSource down to exactly
+# {path, master, module, filterType} (additionalProperties: false), so mode/
+# displayField/nestedField can't always be stored as real properties. When
+# they're absent, fall back to a convention encoded in the existing fields:
+# filterType carries the mode (DIRECT_ONE_OF | NESTED_ONE_OF, else "resolve"),
+# and a nested master's array field is its name with a trailing "Schema"
+# stripped (e.g. master "SystemSchema" -> data.System[]).
+_FILTER_TYPE_MODE_MAP = {"DIRECT_ONE_OF": "direct", "NESTED_ONE_OF": "nested"}
+
+
+def resolve_mdms_dropdown_values(
+    mdms_source: Optional[MDMSDataSource], raw_records: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """Turn raw MDMS records into deduplicated [{"display":, "value":}, ...] dropdown
+    options, honoring mdmsSource.mode ('resolve' default | 'direct' | 'nested')."""
+    if not raw_records:
+        return []
+
+    mode = (mdms_source.mode if mdms_source else None) or _FILTER_TYPE_MODE_MAP.get(
+        mdms_source.filterType if mdms_source else None, "resolve"
+    )
+    display_field = (mdms_source.displayField if mdms_source else None) or "name"
+    path = mdms_source.path if mdms_source else None
+
+    records = raw_records
+    if mode == "nested":
+        master = mdms_source.master if mdms_source else None
+        nested_field = (mdms_source.nestedField if mdms_source else None) or (
+            master[: -len("Schema")] if master and master.endswith("Schema") else master
+        )
+        flattened: List[Dict[str, Any]] = []
+        for record in raw_records:
+            items = record.get(nested_field) if nested_field else None
+            if isinstance(items, list):
+                flattened.extend(item for item in items if isinstance(item, dict))
+        records = flattened
+        mode = "resolve"  # the nested array's items are plain {code, name, ...} records
+
+    options: List[Dict[str, Any]] = []
+    seen = set()
+    for record in records:
+        if mode == "direct":
+            value = get_nested_value(record, path or "code")
+            display = value
+        else:
+            display = record.get(display_field)
+            value = get_nested_value(record, path or "code")
+
+        if display in (None, "") or value in (None, ""):
+            continue
+        key = (display, value)
+        if key in seen:
+            continue
+        seen.add(key)
+        options.append({"display": display, "value": value})
+
+    return options
+
 
 class MDMSClient:
     def __init__(self, mdms_url: str):
@@ -23,7 +98,7 @@ class MDMSClient:
         payload = {
             "RequestInfo": {"authToken": request_info.auth_token},
             "MdmsCriteria": {
-                "tenantId": "in",
+                "tenantId": LIVELIHOOD_TENANT_ID,
                 "schemaCode": schema_code
             }
         }
@@ -52,7 +127,7 @@ class MDMSClient:
         payload = {
             "RequestInfo": {"authToken": request_info.auth_token},
             "MdmsCriteria": {
-                "tenantId": "in",
+                "tenantId": LIVELIHOOD_TENANT_ID,
                 "schemaCode": schema_code
             }
         }
@@ -79,6 +154,7 @@ class MDMSClient:
                 "required": col.required,
                 "pattern": col.pattern,
                 "mdms_values": [],
+                "mdms_options": [],
                 "code": col.code
             }
 
@@ -87,6 +163,7 @@ class MDMSClient:
                 mdms_response = self.fetch_schema_column_definitions(request_info, dependent_schema_code)
                 if mdms_response.mdms:
                     column_info["mdms_values"] = [mdms.data.model_dump() for mdms in mdms_response.mdms if mdms.data]
+                    column_info["mdms_options"] = resolve_mdms_dropdown_values(col.mdmsSource, column_info["mdms_values"])
 
             result.append(column_info)
 
@@ -112,6 +189,7 @@ class MDMSClient:
                 "required": col.required,
                 "pattern": col.pattern,
                 "mdms_values": [],
+                "mdms_options": [],
                 "code": col.code
             }
 
@@ -120,6 +198,7 @@ class MDMSClient:
                 mdms_response = self.fetch_schema_column_definitions(request_info, dependent_schema_code)
                 if mdms_response.mdms:
                     column_info["mdms_values"] = [mdms.data.model_dump() for mdms in mdms_response.mdms if mdms.data]
+                    column_info["mdms_options"] = resolve_mdms_dropdown_values(col.mdmsSource, column_info["mdms_values"])
 
             column_list.append(column_info)
         result["column_list"] = column_list

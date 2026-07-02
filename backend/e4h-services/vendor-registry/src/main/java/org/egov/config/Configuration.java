@@ -189,18 +189,18 @@ public class Configuration {
     @Value("${org.default.limit}")
     private Integer defaultLimit;
 
-    //Location
-    @Value("${egov.location.host}")
-    private String locationHost;
+    //boundary
+    @Value("${egov.boundary.host}")
+    private String boundaryHost;
 
-    @Value("${egov.location.context.path}")
-    private String locationContextPath;
+    @Value("${egov.boundary.context.path}")
+    private String boundaryContextPath;
 
-    @Value("${egov.location.endpoint}")
-    private String locationEndpoint;
+    @Value("${egov.boundary.endpoint}")
+    private String boundaryEndpoint;
 
-    @Value("${egov.location.hierarchy.type}")
-    private String locationHierarchyType;
+    @Value("${egov.boundary.hierarchy.type}")
+    private String boundaryHierarchyType;
 
     //Notification
     @Value("${notification.sms.enabled}")

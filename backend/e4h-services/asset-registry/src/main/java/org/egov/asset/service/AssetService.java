@@ -33,20 +33,33 @@ public class AssetService {
     private final IdgenUtil idgenUtil;
     private final AssetRepository assetRepository;
     private final ResponseInfoFactory responseInfoFactory;
+    private final LivelihoodAssetBoundaryEnricher livelihoodAssetBoundaryEnricher;
+    private final AssetLocalizationService assetLocalizationService;
 
     @Autowired
-    public AssetService(JdbcTemplate jdbcTemplate, AssetRowMapper assetRowMapper, DocumentRowMapper documentRowMapper, IdgenUtil idgenUtil, AssetRepository assetRepository, ResponseInfoFactory responseInfoFactory) {
+    public AssetService(
+            JdbcTemplate jdbcTemplate,
+            AssetRowMapper assetRowMapper,
+            DocumentRowMapper documentRowMapper,
+            IdgenUtil idgenUtil,
+            AssetRepository assetRepository,
+            ResponseInfoFactory responseInfoFactory,
+            LivelihoodAssetBoundaryEnricher livelihoodAssetBoundaryEnricher,
+            AssetLocalizationService assetLocalizationService
+    ) {
         this.jdbcTemplate = jdbcTemplate;
         this.assetRowMapper = assetRowMapper;
         this.documentRowMapper = documentRowMapper;
         this.idgenUtil = idgenUtil;
         this.assetRepository = assetRepository;
         this.responseInfoFactory = responseInfoFactory;
+        this.livelihoodAssetBoundaryEnricher = livelihoodAssetBoundaryEnricher;
+        this.assetLocalizationService = assetLocalizationService;
     }
 
     public AssetCreateResponse createAsset(AssetCreateRequest request) {
         List<String> ids = idgenUtil.getIdList(request.getRequestInfo(), request.getAssetDetail().getAsset().getTenantId(),
-                "assetId", "ASSET-[SEQ_ASSET_ID]", 1);
+                "assetId", "", 1);
         List<String> documentIds = idgenUtil.getIdList(request.getRequestInfo(), request.getAssetDetail().getAsset().getTenantId(),
                 "documentId", "DOCUMENT-[SEQ_DOCUMENT_ID]", request.getAssetDetail().getAsset().getDocuments().size());
         if (!ids.isEmpty())
@@ -64,6 +77,11 @@ public class AssetService {
         }
         IntStream.range(0, documentIds.size())
                 .forEach(i -> request.getAssetDetail().getAsset().getDocuments().get(i).setId(documentIds.get(i)));
+
+        livelihoodAssetBoundaryEnricher.enrichAndRegister(
+                request.getAssetDetail().getAsset(),
+                request.getRequestInfo()
+        );
 
         assetRepository.pushCreateAsset(request.getAssetDetail().getAsset());
         return AssetCreateResponse.builder()
@@ -131,6 +149,22 @@ public class AssetService {
             params.add(asset.getFacilityID());
         }
 
+        if (asset.getBoundaryCode() != null && !asset.getBoundaryCode().isBlank()) {
+            query.append(" AND boundary_code = ?");
+            params.add(asset.getBoundaryCode());
+        } else if (!CollectionUtils.isEmpty(asset.getBoundaryCodePrefixes())) {
+            query.append(" AND (");
+            List<String> prefixes = asset.getBoundaryCodePrefixes();
+            for (int i = 0; i < prefixes.size(); i++) {
+                if (i > 0) {
+                    query.append(" OR ");
+                }
+                query.append(" LOWER(boundary_code) LIKE ? ");
+                params.add(prefixes.get(i).toLowerCase(Locale.ROOT));
+            }
+            query.append(") ");
+        }
+
         if (asset.getActivityFacilityID() != null && !asset.getActivityFacilityID().isBlank()) {
             query.append(" AND activity_facility_id = ?");
             params.add(asset.getActivityFacilityID());
@@ -154,6 +188,16 @@ public class AssetService {
         if (asset.getBrandID()!= null && !asset.getBrandID().isBlank()) {
             query.append(" AND brand_id = ?");
             params.add(asset.getBrandID());
+        }
+
+        if (asset.getVendorId() != null && !asset.getVendorId().isBlank()) {
+            query.append(" AND vendor_id = ?");
+            params.add(asset.getVendorId());
+        }
+
+        if (asset.getItemCode() != null && !asset.getItemCode().isBlank()) {
+            query.append(" AND item_code = ?");
+            params.add(asset.getItemCode());
         }
 
         query.append(" ORDER BY created_time DESC LIMIT ? OFFSET ?");
@@ -194,6 +238,22 @@ public class AssetService {
             params.add(asset.getFacilityID());
         }
 
+        if (asset.getBoundaryCode() != null && !asset.getBoundaryCode().isBlank()) {
+            query.append(" AND boundary_code = ?");
+            params.add(asset.getBoundaryCode());
+        } else if (!CollectionUtils.isEmpty(asset.getBoundaryCodePrefixes())) {
+            query.append(" AND (");
+            List<String> prefixes = asset.getBoundaryCodePrefixes();
+            for (int i = 0; i < prefixes.size(); i++) {
+                if (i > 0) {
+                    query.append(" OR ");
+                }
+                query.append(" LOWER(boundary_code) LIKE ? ");
+                params.add(prefixes.get(i).toLowerCase(Locale.ROOT));
+            }
+            query.append(") ");
+        }
+
         if (asset.getActivityFacilityID() != null && !asset.getActivityFacilityID().isBlank()) {
             query.append(" AND activity_facility_id = ?");
             params.add(asset.getActivityFacilityID());
@@ -212,6 +272,16 @@ public class AssetService {
         if (asset.getBrandID()!= null && !asset.getBrandID().isBlank()) {
             query.append(" AND brand_id = ?");
             params.add(asset.getBrandID());
+        }
+
+        if (asset.getVendorId() != null && !asset.getVendorId().isBlank()) {
+            query.append(" AND vendor_id = ?");
+            params.add(asset.getVendorId());
+        }
+
+        if (asset.getItemCode() != null && !asset.getItemCode().isBlank()) {
+            query.append(" AND item_code = ?");
+            params.add(asset.getItemCode());
         }
 
         log.debug("Executing asset search count={} with params={}", query, params);
@@ -247,6 +317,18 @@ public class AssetService {
         });
     }
 
+    public Asset getAssetById(String tenantId, String assetId) {
+        List<Asset> assets = fetchAssetsWithDocuments(
+                Asset.builder().tenantId(tenantId).assetId(assetId).build(),
+                1,
+                0
+        );
+        if (assets == null || assets.isEmpty()) {
+            throw new CustomException(ErrorConstants.ASSET_NOT_FOUND_CODE, ErrorConstants.ASSET_NOT_FOUND_MSG);
+        }
+        return assets.get(0);
+    }
+
     public Asset updateAsset(String assetId, AssetCreateRequest request) {
         if (request == null || request.getAssetDetail() == null || request.getAssetDetail().getAsset() == null) {
             throw new CustomException("INVALID_REQUEST", "Asset request cannot be null");
@@ -267,7 +349,11 @@ public class AssetService {
             updated.getAuditDetails().setLastModifiedBy(request.getRequestInfo().getUserInfo().getUserName());
             updated.getAuditDetails().setLastModifiedTime(System.currentTimeMillis());
         }
+        if (updated.getBoundaryCode() == null || updated.getBoundaryCode().isBlank()) {
+            updated.setBoundaryCode(existingAssets.get(0).getBoundaryCode());
+        }
         assetRepository.pushUpdateAsset(updated);
+        assetLocalizationService.upsertAssetBoundaryLocalizations(updated, request.getRequestInfo());
         return updated;
     }
 

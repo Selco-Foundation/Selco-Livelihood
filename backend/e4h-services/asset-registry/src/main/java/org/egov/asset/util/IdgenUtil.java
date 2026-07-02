@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -35,6 +36,9 @@ public class IdgenUtil {
     }
 
     public List<String> getIdList(RequestInfo requestInfo, String tenantId, String idName, String idformat, Integer count) {
+        if (count == null || count <= 0) {
+            return Collections.emptyList();
+        }
         List<IdRequest> reqList = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             reqList.add(IdRequest.builder().idName(idName).format(idformat).tenantId(tenantId).build());

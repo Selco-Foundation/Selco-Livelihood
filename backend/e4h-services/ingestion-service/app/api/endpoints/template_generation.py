@@ -12,8 +12,10 @@ from openpyxl.styles import Protection, PatternFill
 from openpyxl.utils import get_column_letter
 
 from app.core.logging import AppLogger
+from app.core.tenant import LIVELIHOOD_TENANT_ID
 from app.decorators.rbac_validator import get_authorized_request_info
 from app.ingest.facility_template_service import FacilityTemplateService
+from app.ingest.asset_template_service import AssetTemplateService
 from app.ingest.project_service import ProjectService
 from app.schemas.boundary import Boundary, flatten_boundaries
 from app.utils.amc_scheduler_service_client import AMCSchedulerServiceClient
@@ -26,6 +28,7 @@ from app.utils.fieldplan_service_client import FieldPlanServiceClient
 from app.utils.file_utils import create_temp_file, cleanup_temp_file
 from app.utils.mdms_client import MDMSClient
 from app.utils.project_service_client import ProjectServiceClient
+from app.utils.vendor_registry_client import VendorRegistryClient
 import os, tempfile, zipfile, qrcode, shutil
 
 router = APIRouter()
@@ -40,6 +43,7 @@ facility_service_url = os.getenv("FACILITY_SERVICE_URL")
 fieldPlan_service_url = os.getenv("FIELDPLAN_SERVICE_URL")
 fieldPlan_activity_service_url = os.getenv("FIELDPLAN_ACTIVITY_SERVICE_URL")
 amc_scheduler_service_url = os.getenv("AMC_SCHEDULER_SERVICE_URL")
+vendor_service_url = os.getenv("VENDOR_SERVICE_URL")
 DEFAULT_AMC_ASSET_TYPES = ["INVERTER", "PANEL", "BATTERY"]
 DB_CONFIG = {
     "host": os.getenv("DB_HOST"),
@@ -103,7 +107,7 @@ async def get_facility_ingestion_template_with_data(
                 if boundary_codes:
                     bulk_result = facility_client.bulk_search_facility_with_boundary(
                         request_info=request_info,
-                        tenant_ids=["in"],
+                        tenant_ids=[LIVELIHOOD_TENANT_ID],
                         boundary_codes=boundary_codes,
                         limit=max(len(boundary_codes) * 50, 50),
                         send_non_paginated_response=True,
@@ -158,7 +162,7 @@ async def get_facility_ingestion_template_with_data(
                         if facility_ids_to_fetch:
                             bulk_result = facility_client.bulk_search_facility(
                                 request_info=request_info,
-                                tenant_ids=["in"],
+                                tenant_ids=[LIVELIHOOD_TENANT_ID],
                                 facility_ids=facility_ids_to_fetch,
                                 limit=max(len(facility_ids_to_fetch), 50),
                                 send_non_paginated_response=True,
@@ -327,7 +331,7 @@ async def get_facility_ingestion_template_with_data(
             try:
                 boundary_bulk_result = facility_client.bulk_search_facility_with_boundary(
                     request_info=request_info,
-                    tenant_ids=["in"],
+                    tenant_ids=[LIVELIHOOD_TENANT_ID],
                     boundary_codes=boundary_codes,
                     limit=max(len(boundary_codes) * 50, 50),
                     send_non_paginated_response=True,
@@ -359,7 +363,7 @@ async def get_facility_ingestion_template_with_data(
                     try:
                         facilities_bulk_result = facility_client.bulk_search_facility(
                             request_info=request_info,
-                            tenant_ids=["in"],
+                            tenant_ids=[LIVELIHOOD_TENANT_ID],
                             facility_ids=facility_ids,
                             limit=max(len(facility_ids), 50),
                             send_non_paginated_response=True,
@@ -466,12 +470,11 @@ async def get_facility_ingestion_template(
     mdms_client = MDMSClient(mdms_url)
     try:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_filename = f"facility_ingestion_template_{timestamp}.xlsx"
+        output_filename = f"end_user_ingestion_template_{timestamp}.xlsx"
         output_file_path = create_temp_file(suffix=".xlsx")
         try:
             facility_schema = mdms_client.get_column_definitions_with_metadata(request_info, 'data-ingestion.FacilityIngestionSchemaWithoutBoundaryCode')
             boundary_data = facility_service.get_all_boundaries(request_info)
-            vendor_data = facility_service.get_all_vendor_codes(request_info)
         except Exception as e:
             logger.error(f"Error fetching data from external services: {e}")
             cleanup_temp_file(output_file_path)
@@ -481,8 +484,7 @@ async def get_facility_ingestion_template(
             facility_service.generate_template_file(
                 output_path=output_file_path,
                 facility_schema=facility_schema,
-                boundary_data=boundary_data,
-                vendor_data=vendor_data
+                boundary_data=boundary_data
             )
             logger.info(f"Successfully created facility ingestion template at {output_file_path}")
         except Exception as e:
@@ -498,6 +500,71 @@ async def get_facility_ingestion_template(
 
     except Exception as e:
         logger.error(f"Unhandled error in get_facility_ingestion_template: {e}")
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+
+@router.post('/assetIngestion',
+            summary='Generate asset ingestion template Excel file from the asset schema',
+            response_description="Returns Excel template with asset schema columns")
+async def get_asset_ingestion_template(request_info: str = Form(default="")):
+    request_info = request_info_from_json(request_info)
+    mdms_client = MDMSClient(mdms_url)
+    asset_service = AssetTemplateService()
+    try:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_filename = f"asset_ingestion_template_{timestamp}.xlsx"
+        output_file_path = create_temp_file(suffix=".xlsx")
+        try:
+            asset_schema = mdms_client.get_column_definitions_with_metadata(
+                request_info, 'data-ingestion.AssetIngestionSchema')
+        except Exception as e:
+            logger.error(f"Error fetching asset schema from MDMS: {e}")
+            cleanup_temp_file(output_file_path)
+            raise HTTPException(status_code=502, detail=f"External service error: {str(e)}")
+
+        facility_data = []
+        if facility_service_url:
+            try:
+                facility_client = FacilityServiceClient(facility_service_url)
+                bulk_result = facility_client.bulk_search_facility_with_boundary(
+                    request_info=request_info,
+                    tenant_ids=[LIVELIHOOD_TENANT_ID],
+                    limit=10000,
+                    send_non_paginated_response=True,
+                )
+                facility_data = bulk_result.get("facilities", []) or []
+            except Exception as e:
+                logger.error(f"Error fetching facility data for asset template: {e}")
+
+        vendor_records = []
+        if vendor_service_url:
+            try:
+                vendor_client = VendorRegistryClient(vendor_service_url)
+                vendor_records = vendor_client.get_all_vendor_codes(request_info)
+            except Exception as e:
+                logger.error(f"Error fetching vendor codes for asset template: {e}")
+
+        try:
+            asset_service.generate_asset_template_file(
+                output_path=output_file_path,
+                asset_schema=asset_schema,
+                facility_data=facility_data,
+                vendor_records=vendor_records,
+            )
+            logger.info(f"Successfully created asset ingestion template at {output_file_path}")
+        except Exception as e:
+            logger.error(f"Error generating asset template file: {e}")
+            cleanup_temp_file(output_file_path)
+            raise HTTPException(status_code=500, detail=f"Template generation error: {str(e)}")
+
+        return FileResponse(
+            path=output_file_path,
+            filename=output_filename,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unhandled error in get_asset_ingestion_template: {e}")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
 @router.post('/facilityWithStaff',
@@ -643,7 +710,7 @@ async def get_facility_selection_template(
         facility_client = FacilityServiceClient(facility_service_url)
         for boundary_code in boundary_code_list:
             try:
-                results = facility_client.search_facility(tenant_id='in', boundary_code=boundary_code)
+                results = facility_client.search_facility(tenant_id=LIVELIHOOD_TENANT_ID, boundary_code=boundary_code)
                 boundary_facilities.extend(results.get('facilities', []))
             except Exception as e:
                 logger.error(f"Error fetching boundary facilities for boundary code {boundary_code}: {e}", exc_info=True)
@@ -661,7 +728,7 @@ async def get_facility_selection_template(
                     facility_id = pf.get("facilityId")
                     if facility_id and any(f.get('facility_id') == facility_id for f in boundary_facilities):
                         try:
-                            facility_data = facility_client.search_facility(tenant_id='in', facility_id=facility_id)
+                            facility_data = facility_client.search_facility(tenant_id=LIVELIHOOD_TENANT_ID, facility_id=facility_id)
                             if facility_data:
                                 project_facilities.extend(facility_data.get('facilities', []))
                         except Exception as e:
@@ -873,7 +940,7 @@ async def get_amc_configuration_template(
             try:
                 bulk_result = facility_client.bulk_search_facility_with_boundary(
                     request_info=request_info,
-                    tenant_ids=["in"],
+                    tenant_ids=[LIVELIHOOD_TENANT_ID],
                     boundary_codes=boundary_codes,
                     limit=max(len(boundary_codes) * 50, 50),
                     send_non_paginated_response=True,

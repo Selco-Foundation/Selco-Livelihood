@@ -180,9 +180,9 @@ public class WorkflowService {
 	@Cacheable(value="businessServices")
 	public List<BusinessService> getBusinessServices(InboxRequest request) {
 		String tenantId = request.getInbox().getTenantId();
-		RequestInfo requestInfo = request.getRequestInfo() ;
-		List<String> businessServicesCodes = Arrays.asList("Incident_Low", "Incident_High", "Incident_Medium");
-		String businessServiceList = String.join(",",businessServicesCodes);
+		RequestInfo requestInfo = request.getRequestInfo();
+		List<String> businessServicesCodes = resolveBusinessServiceCodes(request, tenantId);
+		String businessServiceList = String.join(",", businessServicesCodes);
 		StringBuilder url = getSearchURLWithParams(tenantId, businessServiceList);
 		RequestInfoWrapper requestInfoWrapper = RequestInfoWrapper.builder().requestInfo(requestInfo).build();
 		Object result = serviceRequestRepository.fetchResult(url, requestInfoWrapper);
@@ -193,6 +193,21 @@ public class WorkflowService {
 			throw new CustomException(ErrorConstants.PARSING_ERROR, "Failed to parse response of Workflow");
 		}
 		return response.getBusinessServices();
+	}
+
+	/**
+	 * Resolves workflow business-service codes for inbox SLA / status enrichment.
+	 * Livelihood uses a single {@code LivelihoodIncident} service; E4H uses priority variants.
+	 */
+	private List<String> resolveBusinessServiceCodes(InboxRequest request, String tenantId) {
+		ProcessInstanceSearchCriteria processCriteria = request.getInbox().getProcessSearchCriteria();
+		if (processCriteria != null && !CollectionUtils.isEmpty(processCriteria.getBusinessService())) {
+			return new ArrayList<>(processCriteria.getBusinessService());
+		}
+		if (tenantId != null && tenantId.equalsIgnoreCase("livelihood")) {
+			return Collections.singletonList("LivelihoodIncident");
+		}
+		return Arrays.asList("Incident_Low", "Incident_High", "Incident_Medium");
 	}
 
 

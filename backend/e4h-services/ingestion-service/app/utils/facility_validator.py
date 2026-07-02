@@ -4,6 +4,8 @@ from typing import Any, Callable, Dict, List, MutableMapping, Optional
 import pandas as pd
 from fastapi import HTTPException
 
+from app.core.tenant import LIVELIHOOD_TENANT_ID
+
 # Same wording everywhere: MDMS pre-validation, API import, and Excel client hints.
 ERR_HFR_OR_NIN_REQUIRED_WHEN_HEALTH = (
     "When Facility Category is HEALTH, at least one of HFR ID or NIN ID is required."
@@ -100,7 +102,7 @@ def project_facility_validation(
     add_err = lambda i, msg: errors[i].append(msg)
 
     # Only validate rows where Facility ID is empty
-    new_rows = df[df["Facility Id"].isna() | (df["Facility Id"].astype(str).str.strip() == "")]
+    new_rows = df[df["End user Id"].isna() | (df["End user Id"].astype(str).str.strip() == "")]
     if new_rows.empty:
         return errors  # No new rows to validate
 
@@ -133,7 +135,7 @@ def facility_validation(
     add_err = lambda i, msg: errors[i].append(msg)
 
     # Only validate rows where Facility ID is empty
-    new_rows = df[df["Facility Id"].isna() | (df["Facility Id"].astype(str).str.strip() == "")]
+    new_rows = df[df["End user Id"].isna() | (df["End user Id"].astype(str).str.strip() == "")]
     if new_rows.empty:
         return errors  # No new rows to validate
 
@@ -145,11 +147,10 @@ def facility_validation(
     )
 
     # Use positional index mapping to reference errors in original df
+    # Livelihood: only schema-driven checks; HFR/NIN + Anganwadi PoC validators dropped (columns removed).
     validate_columns(new_rows, schema, lambda i, m: add_err(new_rows.loc[i, "index"], m))
     validate_unique_ids(df, schema, add_err)
     validate_row_constraints(new_rows, schema, lambda i, m: add_err(new_rows.loc[i, "index"], m))
-    validate_anganwadi_poc_username(new_rows, schema, lambda i, m: add_err(new_rows.loc[i, "index"], m))
-    validate_hfr_nin(new_rows, lambda i, m: add_err(new_rows.loc[i, "index"], m), facility_client)
 
     return errors
 
@@ -214,6 +215,7 @@ def validate_columns(df, schema, add_err):
 
             # --- Dropdown check (MDMS values) ---
             mdms_values = col.get("mdms_values")
+            mdms_options = col.get("mdms_options")
             if mdms_values:
                 effective_mdms = mdms_values
                 facility_cat_for_type = ""
@@ -226,7 +228,14 @@ def validate_columns(df, schema, add_err):
                             if str(v.get("facilityCategory") or "").strip().upper()
                             == facility_cat_for_type
                         ]
-                allowed_values = [v.get("name") for v in effective_mdms if v.get("name")]
+                    allowed_values = [v.get("name") for v in effective_mdms if v.get("name")]
+                elif mdms_options:
+                    # mdmsSource.mode can resolve dropdown options differently from raw
+                    # record "name" (e.g. "direct"/"nested" modes) -- mdms_options already
+                    # accounts for that, so check against its resolved display values.
+                    allowed_values = [o.get("display") for o in mdms_options if o.get("display")]
+                else:
+                    allowed_values = [v.get("name") for v in effective_mdms if v.get("name")]
                 if str_val not in allowed_values:
                     if col.get("code") == "facility_type" and facility_cat_for_type in (
                         "HEALTH",
@@ -413,12 +422,12 @@ def collect_anganwadi_poc_username_errors_for_row(
 def check_db_duplicates(cache, facility_client, add_err, df, row_idx, hfr=None, nin=None):
     """
     Checks for duplicates in DB for HFR ID and NIN ID in the given row.
-    tenant_id is fixed as 'in'. Only passes non-empty params to search API.
+    tenant_id is fixed as LIVELIHOOD_TENANT_ID. Only passes non-empty params to search API.
     If DB call fails, we log error for that row and skip further validation.
     """
     row = df.loc[row_idx]
     boundary_code = str(row.get("Boundary Code (Mandatory)", "")).strip()
-    tenant_id = "in"
+    tenant_id = LIVELIHOOD_TENANT_ID
 
     try:
         for col_name, value, key in [

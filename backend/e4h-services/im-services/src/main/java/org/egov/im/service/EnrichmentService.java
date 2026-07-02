@@ -8,6 +8,10 @@ import org.egov.im.repository.IdGenRepository;
 import org.egov.im.repository.ServiceRequestRepository;
 import org.egov.im.util.HRMSUtil;
 import org.egov.im.util.IMUtils;
+import org.egov.im.util.LivelihoodPocScopeService;
+import org.egov.im.util.LivelihoodTenantUtil;
+import org.egov.im.util.LivelihoodVendorScopeService;
+import org.egov.im.util.AssetRegistryUtil;
 import org.egov.im.util.MDMSUtils;
 import org.egov.im.web.models.AuditDetails;
 import org.egov.im.web.models.Boundary;
@@ -70,12 +74,24 @@ public class EnrichmentService {
 
     private RestTemplate restTemplate;
 
+    private LivelihoodPocScopeService livelihoodPocScopeService;
+
+    private LivelihoodVendorScopeService livelihoodVendorScopeService;
+
+    private LivelihoodTenantUtil livelihoodTenantUtil;
+
+    private AssetRegistryUtil assetRegistryUtil;
+
     @Autowired
     public EnrichmentService(
             IMUtils utils, HRMSUtil hrmsUtil, MDMSUtils mdmsUtils, IdGenRepository idGenRepository,
             IMConfiguration config, UserService userService, LocalizationService localizationService,
             NotificationService notificationService, @Lazy WorkflowService workflowService,
-            SLAService slaService, RestTemplate restTemplate) {
+            SLAService slaService, RestTemplate restTemplate,
+            LivelihoodPocScopeService livelihoodPocScopeService,
+            LivelihoodVendorScopeService livelihoodVendorScopeService,
+            LivelihoodTenantUtil livelihoodTenantUtil,
+            AssetRegistryUtil assetRegistryUtil) {
         this.utils = utils;
         this.hrmsUtil = hrmsUtil;
         this.mdmsUtils = mdmsUtils;
@@ -87,6 +103,10 @@ public class EnrichmentService {
         this.workflowService = workflowService;
         this.slaService = slaService;
         this.restTemplate = restTemplate;
+        this.livelihoodPocScopeService = livelihoodPocScopeService;
+        this.livelihoodVendorScopeService = livelihoodVendorScopeService;
+        this.livelihoodTenantUtil = livelihoodTenantUtil;
+        this.assetRegistryUtil = assetRegistryUtil;
     }
 
 
@@ -118,7 +138,9 @@ public class EnrichmentService {
             List<org.egov.common.contract.request.Role> userRoles = Optional.ofNullable(requestInfo.getUserInfo())
                     .map(org.egov.common.contract.request.User::getRoles)
                     .orElse(new ArrayList<>());
-            if (userRoles.stream().anyMatch(role -> role.getCode().equalsIgnoreCase("RMS"))) {
+            if (livelihoodTenantUtil.isLivelihood(tenantId)) {
+                incident.setReporterType(ROLE_COMPLAINANT);
+            } else if (userRoles.stream().anyMatch(role -> role.getCode().equalsIgnoreCase("RMS"))) {
                 incident.setReporterType("RMS");
             } else if (userRoles.stream().anyMatch(role -> role.getCode().equalsIgnoreCase("COMPLAINT_ASSESSOR"))) {
                 incident.setReporterType("CRM");
@@ -153,31 +175,6 @@ public class EnrichmentService {
 
         String idGenIncidentIdFormat = config.getServiceRequestIdGenFormat();
 
-        StringBuilder hcrUserSearchUri = hrmsUtil.getHRMSURI(null, incident.getTenantId(), "COMPLAINANT", incident.getBoundaryCode());
-        hcrUserSearchUri.append("&searchOnlyInBoundary=");
-        hcrUserSearchUri.append(true);
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("RequestInfo", requestInfo);
-
-        HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestBody, headers);
-
-        ResponseEntity<Map<String, Object>> responseEntity = restTemplate.exchange(
-                hcrUserSearchUri.toString(),
-                HttpMethod.POST,
-                requestEntity,
-                new ParameterizedTypeReference<>() {}
-        );
-        Map<String, Object> responseMap = responseEntity.getBody();
-        String hcrUser = Optional.ofNullable(safeJsonPathRead(responseMap, "$.Employees[0].code"))
-                .filter(String.class::isInstance)
-                .map(String.class::cast)
-                .orElseThrow(() -> new CustomException("HCR_NOT_FOUND", "HCR not found for given boundary"));
-
         Object mdmsResponse = mdmsUtils.fetchMDMSData(requestInfo, incident.getTenantId(), "common-masters", List.of("StateInfo"), null);
         List<?> stateInfoList = Optional.ofNullable(safeJsonPathRead(mdmsResponse, "$.MdmsRes.common-masters.StateInfo"))
                 .filter(List.class::isInstance)
@@ -194,7 +191,6 @@ public class EnrichmentService {
 
         Map<String, String> values = Map.of(
                 "STATE_CODE", stateCode,
-                "HCR_USERNAME", hcrUser,
                 "FACILITY_ID", incident.getFacilityId().replace("/", "_")
         );
 
@@ -271,6 +267,9 @@ public class EnrichmentService {
         if (criteria.getLimit() != null && criteria.getLimit() > config.getMaxLimit())
             criteria.setLimit(config.getMaxLimit());
 
+        livelihoodPocScopeService.applySearchScope(requestInfo, criteria);
+        livelihoodVendorScopeService.applySearchScope(requestInfo, criteria);
+
     }
 
     public void enrichFieldsForIndexing(IncidentRequestWrapper wrapper, Boundary boundary) {
@@ -333,8 +332,131 @@ public class EnrichmentService {
             indexView.setBoundary(boundary);
         }
 
-        // Enrich localized fields first (will populate IndexView inside the wrapper)
+        if (livelihoodTenantUtil.isLivelihood(incidentRequest.getIncident().getTenantId())) {
+            enrichLivelihoodIndexView(wrapper, indexView);
+        }
+
         localizationService.enrichLocalizedFieldsForIndexing(wrapper);
+    }
+
+    /**
+     * Must run immediately before publishing to the indexer Kafka topic.
+     * Resolves reporter PII and indexView end-user fields on the wrapper that gets indexed.
+     */
+    public void finalizeLivelihoodReporterForKafka(IncidentRequestWrapper wrapper) {
+        if (wrapper == null || wrapper.getIncidentRequest() == null
+                || wrapper.getIncidentRequest().getIncident() == null) {
+            return;
+        }
+        if (!livelihoodTenantUtil.isLivelihood(wrapper.getIncidentRequest().getIncident().getTenantId())) {
+            return;
+        }
+        IndexView indexView = wrapper.getIndexView();
+        if (indexView == null) {
+            indexView = new IndexView();
+            wrapper.setIndexView(indexView);
+        }
+        enrichReporterForLivelihoodIndexing(wrapper, indexView);
+    }
+
+    private void enrichReporterForLivelihoodIndexing(IncidentRequestWrapper wrapper, IndexView indexView) {
+        IncidentRequest incidentRequest = wrapper.getIncidentRequest();
+        Incident incident = incidentRequest.getIncident();
+        try {
+            String facilityBoundary = resolveFacilityBoundaryForComplainant(incident);
+            Map<String, String> complainant = hrmsUtil.findComplainantAtBoundary(
+                    incidentRequest.getRequestInfo(), incident.getTenantId(), facilityBoundary);
+            User reporter = userService.resolveReporterFromComplainant(
+                    complainant, incidentRequest.getRequestInfo(), incident.getTenantId());
+            if (reporter == null) {
+                return;
+            }
+
+            incident.setAccountId(reporter.getUuid());
+            incident.setReporter(reporter);
+
+            if (StringUtils.isNotBlank(reporter.getName()) && !userService.isMaskedPii(reporter.getName())) {
+                indexView.setEndUserName(reporter.getName());
+            }
+            if (StringUtils.isNotBlank(reporter.getMobileNumber()) && !userService.isMaskedPii(reporter.getMobileNumber())) {
+                indexView.setEndUserMobile(reporter.getMobileNumber());
+            }
+            log.info("Livelihood reporter finalized for indexing incidentId={} uuid={} name={}",
+                    incident.getIncidentId(), reporter.getUuid(), reporter.getName());
+        } catch (Exception e) {
+            log.warn("Failed to finalize livelihood reporter for incidentId={}", incident.getIncidentId(), e);
+        }
+    }
+
+    private String resolveFacilityBoundaryForComplainant(Incident incident) {
+        String assetBoundary = incident.getBoundaryCode();
+        String assetId = incident.getAssetId();
+        if (StringUtils.isNotBlank(assetBoundary) && StringUtils.isNotBlank(assetId)) {
+            String suffix = "_" + assetId;
+            if (assetBoundary.endsWith(suffix)) {
+                return assetBoundary.substring(0, assetBoundary.length() - suffix.length());
+            }
+        }
+        return assetBoundary;
+    }
+
+    private void enrichLivelihoodIndexView(IncidentRequestWrapper wrapper, IndexView indexView) {
+        IncidentRequest incidentRequest = wrapper.getIncidentRequest();
+        Incident incident = incidentRequest.getIncident();
+
+        if (StringUtils.isNotBlank(incident.getAssetId())) {
+            try {
+                org.egov.im.web.models.asset.Asset asset = assetRegistryUtil.fetchAsset(
+                        incidentRequest.getRequestInfo(),
+                        incident.getTenantId(),
+                        incident.getAssetId(),
+                        incident.getFacilityId()
+                );
+                if (asset != null && StringUtils.isNotBlank(asset.getName())) {
+                    indexView.setAssetName(asset.getName());
+                } else if (asset != null && StringUtils.isNotBlank(asset.getItemCode())) {
+                    indexView.setAssetName(asset.getItemCode());
+                }
+            } catch (Exception e) {
+                log.warn("Could not enrich asset name for assetId={}", incident.getAssetId(), e);
+            }
+        }
+
+        Workflow workflow = incidentRequest.getWorkflow();
+        if (workflow != null && !CollectionUtils.isEmpty(workflow.getAssignes())) {
+            String vendorUuid = workflow.getAssignes().get(0);
+            try {
+                org.egov.common.contract.request.User vendorUser = notificationService.fetchUserByUUID(
+                        vendorUuid, incidentRequest.getRequestInfo(), incident.getTenantId());
+                if (vendorUser != null) {
+                    if (StringUtils.isNotBlank(vendorUser.getName())) {
+                        indexView.setMappedVendorName(vendorUser.getName());
+                    }
+                    if (StringUtils.isNotBlank(vendorUser.getUserName())) {
+                        indexView.setMappedVendorUserName(vendorUser.getUserName());
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Could not enrich vendor user for uuid={}", vendorUuid, e);
+            }
+        }
+
+        indexView.setAttachmentUrls(buildAttachmentUrls(incidentRequest));
+        indexView.setDocumentUrls(indexView.getAttachmentUrls());
+    }
+
+    private String buildAttachmentUrls(IncidentRequest incidentRequest) {
+        String tenantId = incidentRequest.getIncident().getTenantId();
+        Workflow workflow = incidentRequest.getWorkflow();
+        if (workflow == null || CollectionUtils.isEmpty(workflow.getVerificationDocuments())) {
+            return "";
+        }
+        return workflow.getVerificationDocuments().stream()
+                .filter(doc -> doc != null && StringUtils.isNotBlank(doc.getFileStoreId()))
+                .filter(doc -> doc.getDocumentType() == null || !"HLS".equalsIgnoreCase(doc.getDocumentType()))
+                .map(doc -> String.format("%s?tenantId=%s&fileStoreId=%s",
+                        config.getFileStoreDownloadEndpoint(), tenantId, doc.getFileStoreId()))
+                .collect(Collectors.joining(" , "));
     }
 
     /**
@@ -387,7 +509,13 @@ public class EnrichmentService {
      */
     private void enrichFacilityDetailsFromBoundaryCode(IncidentRequest incidentRequest) {
         Incident incident = incidentRequest.getIncident();
-        String boundaryCode = incident.getBoundaryCode();
+        if (livelihoodTenantUtil.isLivelihood(incident.getTenantId())
+                && StringUtils.isNotBlank(incident.getFacilityId())) {
+            log.debug("Skipping facility boundary lookup; facilityId already set for Livelihood incident");
+            return;
+        }
+
+        String boundaryCode = resolveFacilityBoundaryForLookup(incident);
         String tenantId = incident.getTenantId();
 
         if (boundaryCode == null || boundaryCode.isEmpty()) {
@@ -453,6 +581,23 @@ public class EnrichmentService {
         }
     }
 
+    private String resolveComplainantBoundary(Incident incident, Boundary boundary) {
+        if (!livelihoodTenantUtil.isLivelihood(incident.getTenantId())) {
+            return incident.getBoundaryCode();
+        }
+        if (boundary != null && StringUtils.isNotBlank(boundary.getFacilityCode())) {
+            return boundary.getFacilityCode();
+        }
+        return BoundaryService.resolveFacilityBoundaryCode(incident.getBoundaryCode(), incident.getAssetId());
+    }
+
+    private String resolveFacilityBoundaryForLookup(Incident incident) {
+        if (!livelihoodTenantUtil.isLivelihood(incident.getTenantId())) {
+            return incident.getBoundaryCode();
+        }
+        return BoundaryService.resolveFacilityBoundaryCode(incident.getBoundaryCode(), incident.getAssetId());
+    }
+
     public void enrichFieldsForAuditIndexing(IncidentRequestWrapper wrapper, String startingStatus) {
         log.info("EnrichmentService::Enriching incident fields for audit indexing");
         // Ensure IndexView is initialized
@@ -485,7 +630,9 @@ public class EnrichmentService {
 
     public Map<String, Object> getFacilityDetailsFromBoundaryCode(IncidentRequest incidentRequest) {
         Incident incident = incidentRequest.getIncident();
-        String boundaryCode = incident.getBoundaryCode();
+        // Livelihood incidents carry an asset-level boundary ({facilityBoundary}_{assetId}); the facility
+        // registry is keyed on the facility boundary, so strip the asset suffix before lookup.
+        String boundaryCode = resolveFacilityBoundaryForLookup(incident);
         String tenantId = incident.getTenantId();
 
         if (boundaryCode == null || boundaryCode.isEmpty()) {

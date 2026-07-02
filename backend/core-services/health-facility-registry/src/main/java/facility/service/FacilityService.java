@@ -26,11 +26,24 @@ import static facility.config.ServiceConstants.SYSTEM_USER;
 public class FacilityService {
     private static final String CATEGORY_HEALTH = "HEALTH";
     public static final String CATEGORY_ANGANWADI = "ANGANWADI";
+    public static final String CATEGORY_LIVELIHOOD = "LIVELIHOOD";
     /** When category is HEALTH, MDMS-style rule: at least one of HFR ID or NIN ID must be present. */
     private static final String ERR_HFR_OR_NIN_REQUIRED_WHEN_HEALTH =
             "When Facility Category is HEALTH, at least one of HFR ID or NIN ID is required.";
-    private static final String ERR_POC_USERNAME_REQUIRED_WHEN_ANGANWADI =
-            "PoC Username is required when Facility Category is ANGANWADI.";
+    private static final String ERR_POC_USERNAME_REQUIRED_FOR_MANAGER =
+            "PoC Username is required when Facility Category is ANGANWADI or LIVELIHOOD.";
+
+    /**
+     * Facility managers (COMPLAINANT) are provisioned in HRMS using {@code facility_poc_username}
+     * for Anganwadi and Livelihood — not HFR/NIN identifiers used by HEALTH facilities.
+     */
+    public static boolean usesManagerPocUsername(String facilityCategory) {
+        if (facilityCategory == null || facilityCategory.isBlank()) {
+            return false;
+        }
+        String normalized = facilityCategory.trim().toUpperCase(Locale.ROOT);
+        return CATEGORY_ANGANWADI.equals(normalized) || CATEGORY_LIVELIHOOD.equals(normalized);
+    }
 
     private final FacilityRepository facilityRepository;
     private final JdbcTemplate jdbcTemplate;
@@ -51,13 +64,10 @@ public class FacilityService {
     private final HRMSService hrmsService;
     private final VendorOrganisationService vendorOrganisationService;
     private final RestTemplate restTemplate;
+    private final LivelihoodPocScopeService livelihoodPocScopeService;
 
     private static final String LOCALIZATION_MODULE = "rainmaker-in";
     private static final String LOCALIZATION_LOCALE = "en_IN";
-    // Existing boundary localization upsert uses tenantId="in" (see ingestion-service / im-service migrations)
-    private static final String LOCALIZATION_TENANT_ID = "in";
-    /** Tenant used for boundary entity and boundary_relationship (all facilities). */
-    private static final String BOUNDARY_TENANT_ID = "in";
 
     public FacilityService(
             FacilityRepository facilityRepository,
@@ -76,7 +86,8 @@ public class FacilityService {
             HRMSUtils hrmsUtils,
             HRMSService hrmsService,
             VendorOrganisationService vendorOrganisationService,
-            RestTemplate restTemplate) {
+            RestTemplate restTemplate,
+            LivelihoodPocScopeService livelihoodPocScopeService) {
         this.facilityRepository = facilityRepository;
         this.jdbcTemplate = jdbcTemplate;
         this.facilityRowMapper = facilityRowMapper;
@@ -94,6 +105,7 @@ public class FacilityService {
         this.hrmsService = hrmsService;
         this.vendorOrganisationService = vendorOrganisationService;
         this.restTemplate = restTemplate;
+        this.livelihoodPocScopeService = livelihoodPocScopeService;
     }
 
     /**
@@ -204,6 +216,10 @@ public class FacilityService {
                 );
                 facility.setBoundaryCode(facilityBoundaryCode);
 
+                if (CATEGORY_LIVELIHOOD.equalsIgnoreCase(facility.getFacilityCategory())) {
+                    enrichAddressFromBlockBoundaryCode(facility.getAddress(), facilityCreate.getBlockBoundaryCode());
+                }
+
                 // Set default workflow status and activation flag
                 if (facility.getWfStatus() == null) facility.setWfStatus("CREATED");
                 if (facility.getIsActive() == null) facility.setIsActive(true);
@@ -250,7 +266,7 @@ public class FacilityService {
                 boundaryService.createBoundaryRelationship(boundaryRelationshipRequest);
             }
 
-            // Create localization messages for each facility boundary (code: Boundary_{facilityBoundaryCode})
+            // Create localization messages for each facility boundary (code: BOUNDARY_{facilityBoundaryCode})
             upsertFacilityBoundaryLocalizations(tenantFacilities, request.getRequestInfo());
 
             log.info("Pushing {} facilities to Kafka for tenant {}", tenantFacilities.size(), tenantId);
@@ -314,7 +330,7 @@ public class FacilityService {
             String facilityBoundaryCode = facility.getBoundaryCode();
             if (facilityBoundaryCode == null || facilityBoundaryCode.isBlank()) continue;
 
-            String localizationCode = "Boundary_" + facilityBoundaryCode;
+            String localizationCode = "BOUNDARY_" + facilityBoundaryCode;
 
             // Display name for this boundary localization: use facility name when available.
             String displayName = facility.getFacilityName();
@@ -352,7 +368,7 @@ public class FacilityService {
 
         Map<String, Object> payload = new HashMap<>();
         payload.put("RequestInfo", requestInfo);
-        payload.put("tenantId", LOCALIZATION_TENANT_ID);
+        payload.put("tenantId", configs.getLocalizationTenantId());
         payload.put("messages", messages);
 
         try {
@@ -412,7 +428,7 @@ public class FacilityService {
     }
 
     /**
-     * Validates facility POC username: required for ANGANWADI, unique within tenant when provided.
+     * Validates facility POC username: required for ANGANWADI/LIVELIHOOD, unique within tenant when provided.
      * Throws CustomException if duplicate found.
      */
     private void validateFacilityPocUsernameUnique(
@@ -420,10 +436,11 @@ public class FacilityService {
     ) {
         log.trace("Entering validateFacilityPocUsernameUnique method");
         String normalizedCategory = facilityCategory == null ? "" : facilityCategory.trim().toUpperCase(Locale.ROOT);
-        if (CATEGORY_ANGANWADI.equals(normalizedCategory)
+        if (usesManagerPocUsername(normalizedCategory)
                 && (facilityPocUsername == null || facilityPocUsername.isBlank())) {
-            log.warn("Missing facility POC username for ANGANWADI facility in tenant {}", tenantId);
-            throw new IllegalArgumentException(ERR_POC_USERNAME_REQUIRED_WHEN_ANGANWADI);
+            log.warn("Missing facility POC username for {} facility in tenant {}",
+                    normalizedCategory, tenantId);
+            throw new IllegalArgumentException(ERR_POC_USERNAME_REQUIRED_FOR_MANAGER);
         }
         if (facilityPocUsername != null && !facilityPocUsername.isBlank()) {
             String normalizedUsername = facilityPocUsername.trim();
@@ -459,8 +476,8 @@ public class FacilityService {
             }
             return;
         }
-        if (CATEGORY_ANGANWADI.equals(normalizedCategory)) {
-            // Explicitly optional for ANGANWADI.
+        if (CATEGORY_ANGANWADI.equals(normalizedCategory) || CATEGORY_LIVELIHOOD.equals(normalizedCategory)) {
+            // HFR/NIN not used for manager provisioning on these categories.
             return;
         }
     }
@@ -474,8 +491,8 @@ public class FacilityService {
 
     /**
      * Creates POC user as HRMS employee if not exists (checks by employee username / code in HRMS).
-     * For {@code ANGANWADI} facilities, username is {@code facilityPocUsername} (HFR not required).
-     * Otherwise validates that HFR ID or NIN ID is present (one is always required), plus POC contact and POC name.
+     * For {@code ANGANWADI} and {@code LIVELIHOOD} facilities, username is {@code facilityPocUsername} (HFR not required).
+     * For {@code HEALTH}, validates that HFR ID or NIN ID is present, plus POC contact and POC name.
      * Supports both direct fields (facilityPocName, facilityPocPhone, hfrId) and nested facilityDetails.
      *
      * @param facility The facility for which to create POC user
@@ -520,18 +537,19 @@ public class FacilityService {
         String normalizedCategory = facility.getFacilityCategory() == null
                 ? ""
                 : facility.getFacilityCategory().trim().toUpperCase(Locale.ROOT);
-        boolean isAnganwadi = CATEGORY_ANGANWADI.equals(normalizedCategory);
+        boolean usesPocUsername = usesManagerPocUsername(normalizedCategory);
 
-        // Validate required fields (ANGANWADI: POC username + contact + name; HEALTH/other: HFR or NIN + contact + name)
-        if (isAnganwadi) {
+        // Validate required fields (manager categories: POC username + contact + name; HEALTH: HFR or NIN + contact + name)
+        if (usesPocUsername) {
             String pocUsername = facility.getFacilityPocUsername() == null
                     ? ""
                     : facility.getFacilityPocUsername().trim();
             if (pocUsername.isBlank()
                     || facilityDetails.getPocContact() == null || facilityDetails.getPocContact().isBlank()
                     || facilityDetails.getPocName() == null || facilityDetails.getPocName().isBlank()) {
-                log.warn("Cannot create POC user for ANGANWADI facility {}: missing facility POC username, POC contact, or POC name. " +
+                log.warn("Cannot create POC user for {} facility {}: missing facility POC username, POC contact, or POC name. " +
                                 "POC username: {}, POC Contact: {}, POC Name: {}",
+                        normalizedCategory,
                         sanitizeForLog(facility.getFacilityId()),
                         sanitizeForLog(pocUsername.isBlank() ? null : pocUsername),
                         sanitizeForLog(facilityDetails.getPocContact()),
@@ -555,7 +573,7 @@ public class FacilityService {
         }
 
         String username;
-        if (isAnganwadi) {
+        if (usesPocUsername) {
             username = facility.getFacilityPocUsername().trim();
         } else {
             username = resolveFacilityIdentifier(facility, facilityDetails);
@@ -728,7 +746,7 @@ public class FacilityService {
             updatedHRMSUser(request, existingFacility, facility);
         }
 
-        // Create localization messages for each facility boundary (code: Boundary_{facilityBoundaryCode})
+        // Create localization messages for each facility boundary (code: BOUNDARY_{facilityBoundaryCode})
         upsertFacilityBoundaryLocalizations(List.of(facility), request.getRequestInfo());
 
         try {
@@ -1028,6 +1046,7 @@ public class FacilityService {
             }
         }
 
+        enrichFacilitiesWithEndUserUuid(facilityList, null);
         return facilityList;
     }
 
@@ -1040,8 +1059,15 @@ public class FacilityService {
     public List<Facility> bulkSearchFacilities(FacilityBulkSearchRequest request) {
         log.trace("Entering bulkSearchFacilities method");
         List<Facility> facilityList = loadBulkFacilitiesWithAddressJoin(request);
-        Map<String, Boundary> listBlock = boundaryUtil.getBoundaryByCode();
+        Set<String> boundaryCodesOnRows = facilityList.stream()
+                .map(Facility::getBoundaryCode)
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toSet());
+        Map<String, Boundary> listBlock = boundaryUtil.getBoundaryMapForFacilityCodes(boundaryCodesOnRows);
         enrichFacilitiesWithBoundaries(facilityList, listBlock);
+        enrichFacilitiesWithEndUserUuid(facilityList, request.getRequestInfo());
         log.trace("Exiting bulkSearchFacilities method");
         return facilityList;
     }
@@ -1063,6 +1089,7 @@ public class FacilityService {
                 .collect(Collectors.toSet());
         Map<String, Boundary> listBlock = boundaryUtil.getBoundaryMapForFacilityCodes(boundaryCodesOnRows);
         enrichFacilitiesWithBoundaries(facilityList, listBlock);
+        enrichFacilitiesWithEndUserUuid(facilityList, request.getRequestInfo());
         log.trace("Exiting bulkSearchFacilitiesWithAddressAndBoundary method");
         return facilityList;
     }
@@ -1071,23 +1098,10 @@ public class FacilityService {
      * Shared bulk SQL: facility rows with address fields from {@code facility_address}, POC phone decrypted.
      */
     private List<Facility> loadBulkFacilitiesWithAddressJoin(FacilityBulkSearchRequest request) {
-        FacilityBulkSearchCriteria criteria = request.getFacilityBulkSearchCriteria();
-        List<String> listFacilityCodes = boundaryUtil.getFacilityCodesFromBoundary(criteria);
-        // When searching by state, district, or block with no facilities in that boundary, return empty list
-        boolean isBoundarySearch = (criteria.getState() != null && !criteria.getState().isEmpty())
-                || (criteria.getDistrict() != null && !criteria.getDistrict().isEmpty())
-                || (criteria.getBlock() != null && !criteria.getBlock().isEmpty());
-        if (isBoundarySearch && (listFacilityCodes == null || listFacilityCodes.isEmpty())) {
+        if (prepareBulkSearchRequest(request)) {
             return Collections.emptyList();
         }
-        if(listFacilityCodes !=null && !listFacilityCodes.isEmpty()){
-            if(request.getFacilityBulkSearchCriteria().getBoundaryCodes()==null)
-                request.getFacilityBulkSearchCriteria().setBoundaryCodes(new ArrayList<>());
-
-            // Remove any facility code duplicates
-            List<String> uniqueListFacilityCodes = new ArrayList<>(new LinkedHashSet<>(listFacilityCodes));
-            request.getFacilityBulkSearchCriteria().getBoundaryCodes().addAll(uniqueListFacilityCodes);
-        }
+        FacilityBulkSearchCriteria criteria = request.getFacilityBulkSearchCriteria();
 
         QueryBuilderResult result = QueryBuilderUtil.buildBulkWhereClause(
                 request.getFacilityBulkSearchCriteria(), request.getRequestInfo(), configs.getOnmNonReadyAllowedRoles()
@@ -1150,6 +1164,67 @@ public class FacilityService {
         }
     }
 
+    /**
+     * Populates {@code end_user_uuid} for each facility — the HRMS user UUID of the facility manager
+     * (COMPLAINANT / end user). Uses persisted {@code user_id} when present, otherwise resolves via HRMS
+     * employee code ({@code facility_poc_username} for Livelihood/Anganwadi, HFR/NIN for Health).
+     */
+    private void enrichFacilitiesWithEndUserUuid(List<Facility> facilityList, RequestInfo requestInfo) {
+        if (facilityList == null || facilityList.isEmpty()) {
+            return;
+        }
+        Map<String, Object> hrmsRequest = new HashMap<>();
+        if (requestInfo != null) {
+            hrmsRequest.put("RequestInfo", requestInfo);
+        }
+        Map<String, String> employeeCodeToUuid = new HashMap<>();
+
+        for (Facility facility : facilityList) {
+            if (facility == null) {
+                continue;
+            }
+            if (facility.getUserId() != null && !facility.getUserId().isBlank()) {
+                facility.setEndUserUuid(facility.getUserId());
+                continue;
+            }
+            String employeeCode = resolveEndUserEmployeeCode(facility);
+            if (employeeCode == null || employeeCode.isBlank()) {
+                continue;
+            }
+            String normalizedCode = employeeCode.trim();
+            String endUserUuid = employeeCodeToUuid.computeIfAbsent(
+                    normalizedCode,
+                    code -> hrmsUtils.findEmployeeUuidByCode(hrmsRequest, code)
+            );
+            if (endUserUuid != null && !endUserUuid.isBlank()) {
+                facility.setEndUserUuid(endUserUuid);
+            }
+        }
+    }
+
+    private String resolveEndUserEmployeeCode(Facility facility) {
+        if (usesManagerPocUsername(facility.getFacilityCategory())) {
+            return facility.getFacilityPocUsername();
+        }
+        if (facility.getHfrId() != null && !facility.getHfrId().isBlank()) {
+            return facility.getHfrId().trim();
+        }
+        if (facility.getNinId() != null && !facility.getNinId().isBlank()) {
+            return facility.getNinId().trim();
+        }
+        HealthFacilityDetails details = facility.getFacilityDetails();
+        if (details == null) {
+            return null;
+        }
+        if (details.getHfrId() != null && !details.getHfrId().isBlank()) {
+            return details.getHfrId().trim();
+        }
+        if (details.getNinId() != null && !details.getNinId().isBlank()) {
+            return details.getNinId().trim();
+        }
+        return null;
+    }
+
 
     /**
      * Fetches a one-line summary of a facility using its ID.
@@ -1190,6 +1265,9 @@ public class FacilityService {
 
     public int countFacilitiesForBulkSearch(FacilityBulkSearchRequest request) {
         log.trace("Entering countFacilitiesForBulkSearch method");
+        if (prepareBulkSearchRequest(request)) {
+            return 0;
+        }
         QueryBuilderResult result = QueryBuilderUtil.buildBulkWhereClause(
                 request.getFacilityBulkSearchCriteria(), request.getRequestInfo(), configs.getOnmNonReadyAllowedRoles()
         );
@@ -1198,6 +1276,26 @@ public class FacilityService {
         log.debug("Bulk search facility count: {}", count);
         log.trace("Exiting countFacilitiesForBulkSearch method");
         return count;
+    }
+
+    private boolean prepareBulkSearchRequest(FacilityBulkSearchRequest request) {
+        livelihoodPocScopeService.applyFacilityBulkSearchScope(request);
+        FacilityBulkSearchCriteria criteria = request.getFacilityBulkSearchCriteria();
+        List<String> listFacilityCodes = boundaryUtil.getFacilityCodesFromBoundary(criteria);
+        boolean isBoundarySearch = (criteria.getState() != null && !criteria.getState().isEmpty())
+                || (criteria.getDistrict() != null && !criteria.getDistrict().isEmpty())
+                || (criteria.getBlock() != null && !criteria.getBlock().isEmpty());
+        if (isBoundarySearch && (listFacilityCodes == null || listFacilityCodes.isEmpty())) {
+            return true;
+        }
+        if (listFacilityCodes != null && !listFacilityCodes.isEmpty()) {
+            if (criteria.getBoundaryCodes() == null) {
+                criteria.setBoundaryCodes(new ArrayList<>());
+            }
+            List<String> uniqueListFacilityCodes = new ArrayList<>(new LinkedHashSet<>(listFacilityCodes));
+            criteria.getBoundaryCodes().addAll(uniqueListFacilityCodes);
+        }
+        return false;
     }
 
     /**
@@ -1543,11 +1641,16 @@ public class FacilityService {
         String normalizedCategory = existingFacilityDetails.getFacilityCategory() == null
                 ? ""
                 : existingFacilityDetails.getFacilityCategory().trim().toUpperCase(Locale.ROOT);
-        boolean isAnganwadi = CATEGORY_ANGANWADI.equals(normalizedCategory);
+        boolean usesPocUsername = usesManagerPocUsername(normalizedCategory);
         String username;
-        if (isAnganwadi) {
-            username = existingFacilityDetails.getFacilityPocUsername() !=null && !existingFacilityDetails.getFacilityPocUsername().trim().isBlank() ?
-                    existingFacilityDetails.getFacilityPocUsername().trim() : "";
+        if (usesPocUsername) {
+            username = firstNonBlank(
+                    requestFacilityDetails.getFacilityPocUsername(),
+                    existingFacilityDetails.getFacilityPocUsername()
+            );
+            if (username != null) {
+                username = username.trim();
+            }
         } else {
             username = existingFacilityDetails.getHfrId() != null && !existingFacilityDetails.getHfrId().trim().isBlank()
                     ? existingFacilityDetails.getHfrId().trim()
@@ -1616,7 +1719,7 @@ public class FacilityService {
 
         List<FacilityBoundaryBackfillRow> rows = loadFacilitiesMissingBoundaryRelationship(hierarchyType);
         log.info("Boundary backfill: boundaryTenantId={}, hierarchyType={}, scanned={}",
-                BOUNDARY_TENANT_ID, hierarchyType, rows.size());
+                configs.getBoundaryTenantId(), hierarchyType, rows.size());
 
         FacilityBoundaryBackfillResponse response = FacilityBoundaryBackfillResponse.builder()
                 .scanned(rows.size())
@@ -1649,7 +1752,7 @@ public class FacilityService {
         for (FacilityBoundaryBackfillRow row : toBackfill) {
             String parent = deriveParentBlockBoundaryCode(row.boundaryCode(), row.facilityId());
             try {
-                ensureFacilityBoundaryExists(row.boundaryCode(), parent, BOUNDARY_TENANT_ID, request.getRequestInfo());
+                ensureFacilityBoundaryExists(row.boundaryCode(), parent, configs.getBoundaryTenantId(), request.getRequestInfo());
                 response.setCreated(response.getCreated() + 1);
             } catch (Exception e) {
                 response.setFailed(response.getFailed() + 1);
@@ -1683,7 +1786,7 @@ public class FacilityService {
                 "    AND br.code = f.boundary_code " +
                 "    AND br.hierarchytype = ? " +
                 ") ORDER BY f.id DESC";
-        List<Object> params = List.of(BOUNDARY_TENANT_ID, hierarchyType);
+        List<Object> params = List.of(configs.getBoundaryTenantId(), hierarchyType);
         return jdbcTemplate.query(
                 sql,
                 params.toArray(),
@@ -1846,6 +1949,42 @@ public class FacilityService {
                     "Facility boundary was updated but incident boundary sync to im-services failed: " + e.getMessage()
             );
         }
+    }
+
+    /**
+     * Livelihood ingestion schema requires {@code State}, {@code District}, and {@code Block}.
+     * API create supplies {@code blockBoundaryCode}; derive labels when address geo fields are absent.
+     */
+    private void enrichAddressFromBlockBoundaryCode(FacilityAddress address, String blockBoundaryCode) {
+        if (address == null || blockBoundaryCode == null || blockBoundaryCode.isBlank()) {
+            return;
+        }
+        String[] parts = blockBoundaryCode.trim().split("_");
+        if (parts.length < 3) {
+            return;
+        }
+        int stateIdx = parts.length >= 4 ? 1 : 0;
+        if (isBlank(address.getState()) && parts.length > stateIdx) {
+            address.setState(titleCaseBoundarySegment(parts[stateIdx]));
+        }
+        if (isBlank(address.getDistrict()) && parts.length > stateIdx + 1) {
+            address.setDistrict(titleCaseBoundarySegment(parts[stateIdx + 1]));
+        }
+        if (isBlank(address.getBlock()) && parts.length > stateIdx + 2) {
+            address.setBlock(titleCaseBoundarySegment(parts[stateIdx + 2]));
+        }
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
+    private static String titleCaseBoundarySegment(String segment) {
+        if (segment == null || segment.isBlank()) {
+            return segment;
+        }
+        return segment.substring(0, 1).toUpperCase(Locale.ROOT)
+                + segment.substring(1).toLowerCase(Locale.ROOT);
     }
 
     private String deriveBlockFromBoundaryCode(String newBlockBoundaryCode) {

@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from sqlalchemy import false, true
 
 from app.core.logging import AppLogger
+from app.core.tenant import LIVELIHOOD_TENANT_ID
 from app.schemas.boundary import Boundary
 from app.schemas.request_info import RequestInfo
 from app.schemas.vendor import Vendor
@@ -19,6 +20,7 @@ from app.schemas.vendor_ingestion_shema_response import (
     MDMSDataSource, ResponseInfo)
 
 from app.utils.facility_validator import format_col_name
+from app.utils.mdms_client import get_nested_value
 
 logger = AppLogger().get_logger()
 
@@ -33,15 +35,6 @@ def format_facility_data_for_template(
     Converts raw facility data into rows, aligned with `headers`
     (already computed from facility_schema in generate_template_file).
     """
-
-    def get_nested_value(data: Dict[str, Any], path: str):
-        cur = data
-        for part in path.split("."):
-            if isinstance(cur, dict) and part in cur:
-                cur = cur[part]
-            else:
-                return ""
-        return "" if cur is None else cur
 
     compiled_cols = []
     for col, header in zip(facility_schema, headers):
@@ -263,12 +256,12 @@ def create_vendor_request(request_info: RequestInfo, vendor: Vendor):
     return {
         "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
         "organisations": [{
-            "tenantId": "in",
+            "tenantId": LIVELIHOOD_TENANT_ID,
             "name": vendor.vendor_name,
             "code": None,
             "orgAddress": [
                 {
-                    "tenantId": "in",
+                    "tenantId": LIVELIHOOD_TENANT_ID,
                     "boundaryType": "country",
                     "boundaryCode": vendor.country_boundary_code,
                     "hqAddress": vendor.hq_address
@@ -303,7 +296,7 @@ def get_project_creation_payload(request_info: RequestInfo, project_name: str, p
     return {
         "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
         "Projects": [{
-            "tenantId": "in",
+            "tenantId": LIVELIHOOD_TENANT_ID,
             "name": project_name,
             "projectType": project_type,
             "parent": parent_id,
@@ -325,7 +318,7 @@ def get_installation_spoc_creation_payload(request_info: RequestInfo, name:str, 
         "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
         "Employees": [
             {
-                "tenantId": "in",
+                "tenantId": LIVELIHOOD_TENANT_ID,
                 "employeeStatus": "EMPLOYED",
                 "dateOfAppointment": current_timestamp,
                 "employeeType": "PERMANENT",
@@ -337,7 +330,7 @@ def get_installation_spoc_creation_payload(request_info: RequestInfo, name:str, 
                         {"code": "INSTALLATION_REPORT_VIEWER", "name": "Installation report viewer"},
                         {"code": "HRMS_ADMIN", "name": "Hrms admin"}
                     ],
-                    "tenantId": "in",
+                    "tenantId": LIVELIHOOD_TENANT_ID,
                 },
                 "code": name,
                 "jurisdictions": [
@@ -350,7 +343,7 @@ def get_installation_spoc_creation_payload(request_info: RequestInfo, name:str, 
                         "boundaryType": "City",
                         "boundary": "in",
                         "furnishedRolesList": "INSTALLATION_REPORT_VIEWER, HRMS_ADMIN",
-                        "tenantId": "in",
+                        "tenantId": LIVELIHOOD_TENANT_ID,
                     }
                 ],
                 "assignments": [
@@ -377,7 +370,7 @@ def get_user_creation_payload_staff(request_info: RequestInfo, row: Series):
         "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
         "Employees": [
             {
-                "tenantId": "in",
+                "tenantId": LIVELIHOOD_TENANT_ID,
                 "employeeStatus": "EMPLOYED",
                 "dateOfAppointment": current_timestamp,
                 "employeeType": "PERMANENT",
@@ -389,7 +382,7 @@ def get_user_creation_payload_staff(request_info: RequestInfo, row: Series):
                         {"code": "INSTALLATION_REPORT_PART_A_EDITOR", "name": "Installation Report Part A Editor"},
                         {"code": "EMPLOYEE", "name": "employee"}
                     ],
-                    "tenantId": "in",
+                    "tenantId": LIVELIHOOD_TENANT_ID,
                 },
                 "code": row.get("Name", ""),
                 "jurisdictions": [
@@ -402,7 +395,7 @@ def get_user_creation_payload_staff(request_info: RequestInfo, row: Series):
                         "boundaryType": "City",
                         "boundary": "in",
                         "furnishedRolesList": "INSTALLATION_REPORT_PART_A_EDITOR, EMPLOYEE",
-                        "tenantId": "in",
+                        "tenantId": LIVELIHOOD_TENANT_ID,
                     }
                 ],
                 "assignments": [
@@ -429,7 +422,7 @@ def get_user_creation_payload_supervisors(request_info: RequestInfo, row: Series
         "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
         "Employees": [
             {
-                "tenantId": "in",
+                "tenantId": LIVELIHOOD_TENANT_ID,
                 "employeeStatus": "EMPLOYED",
                 "dateOfAppointment": current_timestamp,
                 "employeeType": "PERMANENT",
@@ -442,7 +435,7 @@ def get_user_creation_payload_supervisors(request_info: RequestInfo, row: Series
                         {"code": "INSTALLATION_REPORT_PART_A_REVIEWER", "name": "Installation Report Part A Reviewer"},
                         {"code": "EMPLOYEE", "name": "employee"}
                     ],
-                    "tenantId": "in",
+                    "tenantId": LIVELIHOOD_TENANT_ID,
                 },
                 "code": row.get("Name", ""),
                 "jurisdictions": [
@@ -456,7 +449,7 @@ def get_user_creation_payload_supervisors(request_info: RequestInfo, row: Series
                         "boundaryType": "City",
                         "boundary": "in",
                         "furnishedRolesList": "INSTALLATION_REPORT_PART_B_EDITOR, INSTALLATION_REPORT_PART_A_REVIEWER, EMPLOYEE",
-                        "tenantId": "in",
+                        "tenantId": LIVELIHOOD_TENANT_ID,
                     }
                 ],
                 "assignments": [
@@ -490,7 +483,7 @@ def get_staff_creation_payload(request_info:RequestInfo, user_uuid:str, parent_i
             "endDate": one_year_later_timestamp,
             "channel": "MOBILE",
             "isDeleted": False,
-            "tenantId": "in"
+            "tenantId": LIVELIHOOD_TENANT_ID
         }
     }
 
@@ -512,34 +505,53 @@ def create_facility_payload(
         row: Series,
         are_facilities_onm_ready: bool,
         facility_schema: List[Dict[str, Any]],
-        mapped_vendor_name: Optional[str] = None,
-        mapped_vendor_user_name: Optional[str] = None,
 ):
-    facility_type_name = safe_get(row, 'Type of HC (Mandatory)')
-    facility_type_code = get_mdms_code_by_name(facility_schema, 'Type of HC', facility_type_name)
+    facility_category_name = safe_get(row, 'Category (Mandatory)')
+    facility_category_code = get_mdms_code_by_name(facility_schema, 'Category', facility_category_name)
 
-    facility_category_name = safe_get(row, 'Category of Facility (Mandatory)')
-    facility_category_code = get_mdms_code_by_name(facility_schema, 'Category of Facility', facility_category_name)
+    # "Sectors" is the renamed "Type of HC" -> maps to the existing facility_type field.
+    sector_name = safe_get(row, 'Sectors (Mandatory)')
+    facility_type_code = get_mdms_code_by_name(facility_schema, 'Sectors', sector_name)
 
-    solar_solution_design_type_name = safe_get(row, 'Solution Design Type (Mandatory)')
-    solar_solution_design_type_code = get_mdms_code_by_name(facility_schema, 'Solution Design Type', solar_solution_design_type_name)
+    # Solution Design Type (non-mandatory) -> facility_details.solar_solution_design_type
+    # Optional mdms field: only resolve a code when a value is actually provided.
+    solution_design_name = safe_get(row, 'Solution Design Type')
+    if solution_design_name is not None and str(solution_design_name).strip().lower() not in ('', 'nan', 'none'):
+        solution_design_code = get_mdms_code_by_name(facility_schema, 'Solution Design Type', solution_design_name)
+    else:
+        solution_design_code = None
+
+    # Livelihood: the single "End user Name" is used both as the end-user contact name
+    # and as the facility name (no separate facility-name column in the template).
+    end_user_name = safe_get(row, 'End user Name (Mandatory)')
 
     poc_username_hdr = next(
         (format_col_name(c) for c in facility_schema if c.get("code") == "facility_poc_username"),
         None,
     )
 
+    # Preferred Language (optional mdms field): resolve the display name -> MDMS code (en_IN/kn_IN).
+    preferred_language_name = safe_get(row, 'Preferred Language')
+    if preferred_language_name is not None and str(preferred_language_name).strip().lower() not in ('', 'nan', 'none'):
+        preferred_language_code = get_mdms_code_by_name(facility_schema, 'Preferred Language', preferred_language_name)
+    else:
+        preferred_language_code = None
+
     facility_record = {
-        'tenant_id': 'in',
-        'facility_name': safe_get(row, 'Health Centre Name (Mandatory)'),
-        'facility_type': facility_type_code,
+        'tenant_id': LIVELIHOOD_TENANT_ID,
+        'facility_name': end_user_name,
         'facility_category': facility_category_code,
+        'facility_type': facility_type_code,
+        'facility_details': {
+            'solar_solution_design_type': solution_design_code,
+            'pocDesignation': safe_get(row, 'End user Designation'),
+        },
         'facility_ownership': safe_get(row, 'Ownership', 'GOVERNMENT'),
         'facility_region': safe_get(row, 'Region', 'RURAL'),
         'isActive': True,
         'blockBoundaryCode': safe_get(row, 'Boundary Code (Mandatory)'),
         'address': {
-            'tenantId': 'in',
+            'tenantId': LIVELIHOOD_TENANT_ID,
             'latitude': safe_get(row, 'Latitude'),
             'longitude': safe_get(row, 'Longitude'),
             'addressLine1': safe_get(row, 'Address'),
@@ -547,31 +559,15 @@ def create_facility_payload(
             'district': safe_get(row, 'District (Mandatory)'),
             'block': safe_get(row, 'Block (Mandatory)')
         },
-        'facility_poc_name': safe_get(row, 'HC PoC Name (Mandatory)'),
-        'facility_poc_phone': safe_get(row, 'HC PoC Contact number (Mandatory)'),
-        'facility_poc_email': safe_get(row, 'HC PoC Email'),
+        'facility_poc_name': end_user_name,
+        'facility_poc_phone': safe_get(row, 'End user Contact number (Mandatory)'),
+        'facility_poc_email': safe_get(row, 'End user Email'),
         'facility_status': 'ACTIVE',
-        'hfr_id': safe_get(row, 'HFR ID'),
-        'nin_id': safe_get(row, 'NIN ID'),
-        'isOnmReady': are_facilities_onm_ready,
-        'facility_details': {
-            'vendor_code': safe_get(row, 'Vendor Code (Mandatory)'),
-            'solar_solution_design_type': solar_solution_design_type_code,
-            'pocDesignation': safe_get(row, 'HC PoC Designation')
-        }
+        'isOnmReady': True,
+        'additionalDetails': {'preferredLanguage': preferred_language_code},
     }
     if poc_username_hdr:
         facility_record['facility_poc_username'] = safe_get(row, poc_username_hdr)
-
-    if mapped_vendor_name or mapped_vendor_user_name:
-        additional_details: Dict[str, Any] = {}
-        if mapped_vendor_name:
-            facility_record['mappedVendorName'] = mapped_vendor_name
-            additional_details['mappedVendorName'] = mapped_vendor_name
-        if mapped_vendor_user_name:
-            facility_record['mappedVendorUserName'] = mapped_vendor_user_name
-            additional_details['mappedVendorUserName'] = mapped_vendor_user_name
-        facility_record['additionalDetails'] = additional_details
 
     return {
         'RequestInfo': request_info.model_dump(by_alias=True, exclude_none=True),
@@ -579,25 +575,110 @@ def create_facility_payload(
     }
 
 
-def resolve_mapped_vendor_for_facility_row(
-        org_client,
-        request_info: RequestInfo,
-        row: Series,
-        vendor_code_column: str,
-        cache: Optional[Dict[str, Dict[str, Optional[str]]]] = None,
-) -> Dict[str, Optional[str]]:
-    """Resolve mapped vendor fields for a facility row, with optional per-vendor-code cache."""
-    empty = {"mappedVendorName": None, "mappedVendorUserName": None}
-    if org_client is None:
-        return empty
-    vendor_code = org_client.normalize_facility_vendor_code(row.get(vendor_code_column))
-    if not vendor_code:
-        return empty
-    if cache is not None:
-        if vendor_code not in cache:
-            cache[vendor_code] = org_client.resolve_mapped_vendor_fields(vendor_code, request_info)
-        return cache[vendor_code]
-    return org_client.resolve_mapped_vendor_fields(vendor_code, request_info)
+def create_asset_payload(
+    request_info: RequestInfo,
+    row: Series,
+    asset_schema: List[Dict[str, Any]],
+    vendor_lookup: Dict[str, str],
+):
+    """Build the asset-registry create payload for one template row.
+    Reads each value by the template header derived from the asset schema
+    (column name + '(Mandatory)' for required columns)."""
+
+    def header_for(code: str) -> Optional[str]:
+        for c in asset_schema:
+            if c.get("code") == code:
+                indicator = "(Mandatory)" if c.get("required") else ""
+                return f"{c.get('name')} {indicator}".strip()
+        return None
+
+    def val(code: str):
+        h = header_for(code)
+        return safe_get(row, h) if h else None
+
+    def is_blank(v) -> bool:
+        return v is None or str(v).strip().lower() in ("", "nan", "none")
+
+    def parse_warranty_start(v):
+        if is_blank(v):
+            return None
+        if isinstance(v, datetime):
+            return int(v.timestamp() * 1000)
+        s = str(v).strip()
+        for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"):
+            try:
+                return int(datetime.strptime(s, fmt).timestamp() * 1000)
+            except ValueError:
+                continue
+        return None
+
+    def to_int(v):
+        if is_blank(v):
+            return None
+        try:
+            return int(float(str(v).strip()))
+        except (ValueError, TypeError):
+            return None
+
+    # Item Code is an MDMS dropdown (livelihood.ItemCode): the cell holds the master's
+    # display name, so resolve it to the code asset-registry validates against.
+    item_code_val = val("itemCode")
+    if is_blank(item_code_val):
+        raise ValueError("Item Code is required")
+    item_code_code = resolve_mdms_value(asset_schema, "Item Code", item_code_val)
+
+    # Brand ID is an MDMS dropdown (asset-registry.Brand); required per schema, but
+    # resolved defensively here too in case that ever changes to optional.
+    brand_val = val("brandID")
+    brand_code = None if is_blank(brand_val) else resolve_mdms_value(asset_schema, "Brand ID", brand_val)
+
+    # System is an MDMS dropdown (asset-registry.SystemSchema, nested); optional,
+    # defaults to the baseline non-solar code when left blank.
+    system_val = val("system")
+    system_code = "LIVELIHOOD" if is_blank(system_val) else resolve_mdms_value(asset_schema, "System", system_val)
+
+    # Vendor Code (username) resolves to the vendor user's UUID so im-services can
+    # directly assign the incident ticket to that specific person (isUuid → true path).
+    vendor_code_val = val("vendorId")
+    if is_blank(vendor_code_val):
+        raise ValueError("Vendor Code is required")
+    vendor_code_str = str(vendor_code_val).strip()
+    if vendor_code_str not in vendor_lookup:
+        raise ValueError(f"Unknown Vendor Code: '{vendor_code_str}'")
+    vendor_id = vendor_lookup[vendor_code_str]
+
+    asset = {
+        "tenantId": LIVELIHOOD_TENANT_ID,
+        "facilityID": val("facilityID"),
+        "itemCode": item_code_code,
+        "name": val("name"),
+        "vendorId": vendor_id,
+        "assetTypeID": val("assetTypeID"),
+        "serialNumber": val("serialNumber"),
+        "brandID": brand_code,
+        "system": system_code,
+        "modelNumber": val("modelNumber"),
+        "boundaryCode": val("boundaryCode"),
+        "warrantyStartDate": parse_warranty_start(val("warrantyStartDate")),
+        "warrantyDuration": to_int(val("warrantyDuration")),
+        "isOperational": True,
+        "isActive": True,
+    }
+    # Drop empty optional fields so they aren't sent as blanks.
+    asset = {k: v for k, v in asset.items() if not (v is None or (isinstance(v, str) and v.strip() == ""))}
+    # asset-registry persists name inside assetDetails (the asset table has no name column;
+    # AssetRowMapper reads assetDetails.name, else falls back to assetTypeID). Store it there too.
+    name_val = val("name")
+    if name_val is not None and str(name_val).strip() != "":
+        asset["assetDetails"] = {"name": str(name_val).strip()}
+    # asset-registry dereferences documents without a null-check -> always send an empty list.
+    asset["documents"] = []
+
+    return {
+        "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
+        "assetDetail": {"Asset": asset},
+    }
+
 
 def convert_response_to_facility(response: Dict[str, Any], role_type: str):
     return {
@@ -637,7 +718,7 @@ def create_project_payload(request_info: RequestInfo, row: Series):
         'RequestInfo': request_info.model_dump(by_alias=True, exclude_none=True),
         'Projects': [
             {
-                'tenantId': 'in',
+                'tenantId': LIVELIHOOD_TENANT_ID,
                 'name': safe_get(row, 'Project Name'),
                 'projectType': safe_get(row, 'Project Type'),
                 'projectSubType': safe_get(row, 'Project Sub Type'),
@@ -674,6 +755,26 @@ def get_mdms_code_by_name(schema_list: List[Dict[str, Any]], field_name: str, va
             raise ValueError(f"Invalid value '{value}' for field '{field_name}' in MDMS schema.")
 
     raise ValueError(f"Field name '{field_name}' not found in MDMS schema.")
+
+
+def resolve_mdms_value(schema_list: List[Dict[str, Any]], field_name: str, display_value: str) -> str:
+    """
+    Generalized sibling of get_mdms_code_by_name, built on the schema's `mdms_options`
+    (display/value pairs already resolved per the column's mdmsSource.mode) instead of a
+    hardcoded name/code lookup.
+
+    Raises:
+        ValueError: If the field_name or display_value is not found in the MDMS schema.
+    """
+    for schema in schema_list:
+        if schema.get('name') == field_name:
+            for option in schema.get('mdms_options', []):
+                if option.get('display') == display_value:
+                    return option.get('value')
+            raise ValueError(f"Invalid value '{display_value}' for field '{field_name}' in MDMS schema.")
+
+    raise ValueError(f"Field name '{field_name}' not found in MDMS schema.")
+
 
 def get_expected_roles_for_staff() -> List[str]:
     return ["INSTALLATION_REPORT_PART_A_EDITOR", "EMPLOYEE"]
@@ -861,13 +962,13 @@ def create_update_payload(search_response: dict, update_data: dict) -> dict:
 def build_localization_reverse_map(messages: List[Dict[str, Any]]) -> Dict[str, List[str]]:
     """
     Build a reverse map from normalized localization message → list of localization codes.
-    Only includes codes starting with "Boundary_".
+    Only includes codes starting with "BOUNDARY_".
     """
     reverse_map: Dict[str, List[str]] = {}
     for m in messages:
         code = (m.get("code") or "").strip()
         message = (m.get("message") or "").strip()
-        if code.startswith("Boundary_") and message:
+        if code.startswith("BOUNDARY_") and message:
             key = message.lower().strip().replace(" ", "")
             if key not in reverse_map:
                 reverse_map[key] = []
@@ -888,7 +989,7 @@ def resolve_boundary_code(
     Returns (boundary_code, error_message).
     If successful, error_message is None.
     """
-    country = "India"
+    country = "INDIA"
 
     # --- State ---
     state_normalized = state.strip().lower().replace(" ", "") if state else ""
@@ -899,14 +1000,14 @@ def resolve_boundary_code(
     if not state_candidates:
         return None, f"Boundary code for State '{state}' not found"
 
-    state_prefix = f"Boundary_{country}_"
+    state_prefix = f"BOUNDARY_{country}_"
     state_matches = [c for c in state_candidates if c.startswith(state_prefix) and '_' not in c[len(state_prefix):]]
     if not state_matches:
         return None, f"Boundary code for State '{state}' not found"
     if len(state_matches) > 1:
         return None, f"Boundary code for State '{state}' not found, multiple matches: {state_matches}"
 
-    state_boundary = state_matches[0].replace("Boundary_", "", 1)
+    state_boundary = state_matches[0].replace("BOUNDARY_", "", 1)
 
     # --- District ---
     district_normalized = district.strip().lower().replace(" ", "") if district else ""
@@ -917,14 +1018,14 @@ def resolve_boundary_code(
     if not district_candidates:
         return None, f"Boundary code for District '{district}' not found"
 
-    district_prefix = f"Boundary_{state_boundary}_"
+    district_prefix = f"BOUNDARY_{state_boundary}_"
     district_matches = [c for c in district_candidates if c.startswith(district_prefix) and '_' not in c[len(district_prefix):]]
     if not district_matches:
         return None, f"Boundary code for District '{district}' under State '{state}' not found"
     if len(district_matches) > 1:
         return None, f"Boundary code for District '{district}' under State '{state}' not found, multiple matches: {district_matches}"
 
-    district_boundary = district_matches[0].replace("Boundary_", "", 1)
+    district_boundary = district_matches[0].replace("BOUNDARY_", "", 1)
 
     # --- Block ---
     block_normalized = block.strip().lower().replace(" ", "") if block else ""
@@ -935,14 +1036,14 @@ def resolve_boundary_code(
     if not block_candidates:
         return None, f"Boundary code for Block '{block}' not found"
 
-    block_prefix = f"Boundary_{district_boundary}_"
+    block_prefix = f"BOUNDARY_{district_boundary}_"
     block_matches = [c for c in block_candidates if c.startswith(block_prefix) and '_' not in c[len(block_prefix):]]
     if not block_matches:
         return None, f"Boundary code for Block '{block}' under District '{district}' not found"
     if len(block_matches) > 1:
         return None, f"Boundary code for Block '{block}' under District '{district}' not found, multiple matches: {block_matches}"
 
-    block_boundary = block_matches[0].replace("Boundary_", "", 1)
+    block_boundary = block_matches[0].replace("BOUNDARY_", "", 1)
 
     return block_boundary, None
 
@@ -967,7 +1068,7 @@ def resolve_boundary_codes_for_dataframe(
             from app.utils.localization_service_client import LocalizationServiceClient
             loc_client = LocalizationServiceClient(localization_service_url)
             loc_response = loc_client.search_messages(
-                tenant_id="in",
+                tenant_id=LIVELIHOOD_TENANT_ID,
                 locale="en_IN",
                 module="rainmaker-in",
             )

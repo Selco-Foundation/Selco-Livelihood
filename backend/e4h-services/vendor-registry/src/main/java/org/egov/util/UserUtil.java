@@ -5,12 +5,13 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import org.egov.common.contract.request.RequestInfo;
 import org.egov.common.contract.user.UserDetailResponse;
-import org.egov.common.contract.user.enums.UserType;
 import org.egov.config.Configuration;
 import org.egov.repository.ServiceRequestRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.egov.tracer.model.CustomException;
+import org.egov.web.models.CreateUserRequest;
 import org.egov.web.models.RoleRequest;
 import org.egov.web.models.User;
 import org.egov.web.models.UserRequest;
@@ -223,6 +224,150 @@ public class UserUtil {
 						.tenantId(r.getTenantId())
 						.build())
 				.collect(Collectors.toSet());
+	}
+
+	/**
+	 * Sets default password via egov-user {@code _updatenovalidate} using the HRMS user object
+	 * (Long epoch dates, roles, id/uuid) — same shape as the working E4H manual curl.
+	 */
+	public void updatePasswordWithHrmsUser(RequestInfo requestInfo, User hrmsUser, String password) {
+		if (requestInfo == null || hrmsUser == null || hrmsUser.getUuid() == null || hrmsUser.getUuid().isBlank()) {
+			throw new CustomException("USER_UPDATE", "RequestInfo and HRMS user uuid are required to update password");
+		}
+		if (password == null || password.isBlank()) {
+			throw new CustomException("USER_UPDATE", "Password is required to update user");
+		}
+		User userForUpdate = prepareHrmsUserForPasswordUpdate(hrmsUser, password);
+		CreateUserRequest payload = CreateUserRequest.builder()
+				.requestInfo(requestInfo)
+				.user(userForUpdate)
+				.build();
+		String updateUrl = configs.getUserHost() + configs.getUserUpdateEndpoint();
+		serviceRequestRepository.fetchResult(new StringBuilder(updateUrl), payload);
+		log.info("Default password updated in egov-user for HRMS user uuid {}", userForUpdate.getUuid());
+	}
+
+	private User prepareHrmsUserForPasswordUpdate(User hrmsUser, String password) {
+		User userForUpdate = copyUser(hrmsUser);
+		userForUpdate.setPassword(password);
+		if (userForUpdate.getActive() == null) {
+			userForUpdate.setActive(true);
+		}
+		if (userForUpdate.getType() == null || userForUpdate.getType().isBlank()) {
+			userForUpdate.setType("EMPLOYEE");
+		}
+		if (userForUpdate.getAccountLocked() == null) {
+			userForUpdate.setAccountLocked(false);
+		}
+		if (userForUpdate.getCreatedBy() == null || userForUpdate.getCreatedBy().isBlank()) {
+			userForUpdate.setCreatedBy("0");
+		}
+		if (userForUpdate.getLastModifiedBy() == null || userForUpdate.getLastModifiedBy().isBlank()) {
+			userForUpdate.setLastModifiedBy("0");
+		}
+		return userForUpdate;
+	}
+
+	private User copyUser(User source) {
+		if (source == null) {
+			return null;
+		}
+		return User.builder()
+				.id(source.getId())
+				.uuid(source.getUuid())
+				.userName(source.getUserName())
+				.name(source.getName())
+				.gender(source.getGender())
+				.mobileNumber(source.getMobileNumber())
+				.emailId(source.getEmailId())
+				.altContactNumber(source.getAltContactNumber())
+				.pan(source.getPan())
+				.aadhaarNumber(source.getAadhaarNumber())
+				.permanentAddress(source.getPermanentAddress())
+				.permanentCity(source.getPermanentCity())
+				.permanentPincode(source.getPermanentPincode())
+				.correspondenceCity(source.getCorrespondenceCity())
+				.correspondencePincode(source.getCorrespondencePincode())
+				.correspondenceAddress(source.getCorrespondenceAddress())
+				.active(source.getActive())
+				.dob(source.getDob())
+				.pwdExpiryDate(source.getPwdExpiryDate())
+				.locale(source.getLocale())
+				.type(source.getType())
+				.signature(source.getSignature())
+				.accountLocked(source.getAccountLocked())
+				.roles(source.getRoles())
+				.fatherOrHusbandName(source.getFatherOrHusbandName())
+				.relationship(source.getRelationship())
+				.bloodGroup(source.getBloodGroup())
+				.identificationMark(source.getIdentificationMark())
+				.photo(source.getPhoto())
+				.createdBy(source.getCreatedBy())
+				.createdDate(source.getCreatedDate())
+				.lastModifiedBy(source.getLastModifiedBy())
+				.lastModifiedDate(source.getLastModifiedDate())
+				.otpReference(source.getOtpReference())
+				.tenantId(source.getTenantId())
+				.jurisdictions(source.getJurisdictions())
+				.build();
+	}
+
+	/**
+	 * @deprecated Prefer {@link #updatePasswordWithHrmsUser(RequestInfo, User, String)} with HRMS user payload.
+	 */
+	@SuppressWarnings("unchecked")
+	public void updateDefaultPassword(RequestInfo requestInfo, String tenantId, String uuid, String password) {
+		if (requestInfo == null || tenantId == null || tenantId.isBlank() || uuid == null || uuid.isBlank()) {
+			throw new CustomException("USER_UPDATE", "RequestInfo, tenantId and uuid are required to update password");
+		}
+		String searchUrl = configs.getUserHost() + configs.getUserSearchEndpoint() + "?tenantId=" + tenantId;
+		Map<String, Object> searchRequest = new HashMap<>();
+		searchRequest.put("RequestInfo", requestInfo);
+		searchRequest.put("uuid", Collections.singletonList(uuid));
+		searchRequest.put("tenantId", tenantId);
+		searchRequest.put("type", "EMPLOYEE");
+
+		LinkedHashMap<String, Object> searchResponse = (LinkedHashMap<String, Object>) serviceRequestRepository
+				.fetchResult(new StringBuilder(searchUrl), searchRequest);
+		List<LinkedHashMap<String, Object>> users = (List<LinkedHashMap<String, Object>>) searchResponse.get("user");
+		if (users == null || users.isEmpty()) {
+			throw new CustomException("USER_SEARCH", "User not found in egov-user for uuid " + uuid);
+		}
+
+		LinkedHashMap<String, Object> userForUpdate = new LinkedHashMap<>(users.get(0));
+		normalizeUserForEgovUserUpdate(userForUpdate);
+		userForUpdate.put("password", password);
+
+		Map<String, Object> updateRequest = new HashMap<>();
+		updateRequest.put("RequestInfo", requestInfo);
+		updateRequest.put("user", userForUpdate);
+
+		String updateUrl = configs.getUserHost() + configs.getUserUpdateEndpoint();
+		serviceRequestRepository.fetchResult(new StringBuilder(updateUrl), updateRequest);
+		log.info("Default password updated in egov-user for uuid {}", uuid);
+	}
+
+	/** v1 search uses {@code yyyy-MM-dd} for dob; {@code _updatenovalidate} expects {@code dd/MM/yyyy}. */
+	private void normalizeUserForEgovUserUpdate(Map<String, Object> user) {
+		Object dob = user.get("dob");
+		if (dob instanceof String dobStr && !dobStr.isBlank()) {
+			if (dobStr.matches("\\d{4}-\\d{2}-\\d{2}")) {
+				String[] parts = dobStr.split("-");
+				user.put("dob", parts[2] + "/" + parts[1] + "/" + parts[0]);
+			}
+		}
+		if (user.get("accountLocked") == null) {
+			user.put("accountLocked", false);
+		}
+		if (user.get("accountLockedDate") == null) {
+			user.put("accountLockedDate", 0);
+		}
+		if (user.get("createdBy") == null) {
+			user.put("createdBy", 0);
+		}
+		if (user.get("lastModifiedBy") == null) {
+			user.put("lastModifiedBy", 0);
+		}
 	}
 
 
