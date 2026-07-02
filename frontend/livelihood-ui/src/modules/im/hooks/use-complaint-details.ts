@@ -28,7 +28,7 @@ export function useComplaintDetails(incidentId: string, tenantId: string) {
         throw new Error("COMPLAINT_NOT_FOUND");
       }
 
-      const documents = wrapper.workflow.verificationDocuments ?? [];
+      const documents = wrapper.incident.additionalDetail?.fileStoreId ?? [];
       const media = await resolveVerificationMedia(
         documents,
         wrapper.incident.tenantId,
