@@ -24,17 +24,25 @@ export interface ImInboxSearchParams {
   nearingSLA?: boolean;
 }
 
+export interface InboxIncidentReporter {
+  name?: string;
+  uuid?: string;
+  userName?: string;
+}
+
 export interface InboxIncident {
   incidentId: string;
   incidentType: string;
   incidentSubType?: string;
   facilityId?: string;
   assetId?: string;
+  boundaryCode?: string;
   phcType?: string;
   applicationStatus: string;
   tenantId: string;
   isPotentialDuplicate?: boolean;
   boundary?: { facilityCode?: string };
+  reporter?: InboxIncidentReporter;
 }
 
 export interface InboxItem {
@@ -63,10 +71,11 @@ export interface InboxSearchResponse {
 export interface InboxRow {
   incidentId: string;
   incidentType: string;
-  assetId: string;
+  assetLabel: string;
   status: string;
   taskOwner: string;
   sla: string;
+  endUser: string;
   tenantId: string;
   potentialDuplicate: boolean;
 }

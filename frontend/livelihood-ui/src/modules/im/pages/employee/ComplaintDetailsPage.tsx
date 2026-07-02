@@ -84,7 +84,7 @@ export function ComplaintDetailsPage() {
   }
 
   const applyCheckpoint = workflowDetails.timeline.find((checkpoint) =>
-    ["APPLY", "CREATE"].includes(checkpoint.performedAction ?? ""),
+    ["AUTO_ASSIGN", "CREATE"].includes(checkpoint.performedAction ?? ""),
   );
   const timelineMediaImages =
     applyCheckpoint?.thumbnailsToShow?.fullImage ?? complaintDetails.images;

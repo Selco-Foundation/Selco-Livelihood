@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import {
   getWorkflowActionConfig,
+  isQuotationRequiredAction,
   isSupportedWorkflowAction,
 } from "../../constants/workflow-actions";
 import type { UploadedMediaEntry } from "../../types/create-incident";
@@ -149,6 +150,7 @@ export function ComplaintActionDialog({
   }
 
   const showDocuments = actionConfig.documents !== "none";
+  const requiresQuotation = isQuotationRequiredAction(action);
   const reasonLabel =
     action === "OUT_OF_SCOPE"
       ? translateOr(t, "WF_OUT_OF_SCOPE_REASON", "Out of scope reason")
@@ -198,7 +200,7 @@ export function ComplaintActionDialog({
           {showDocuments ? (
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">
-                {action === "OUT_OF_WARRANTY"
+                {requiresQuotation
                   ? translateOr(
                       t,
                       "WF_QUOTATION_DOCUMENT",
@@ -210,7 +212,7 @@ export function ComplaintActionDialog({
               <input
                 type="file"
                 accept=".png,.jpg,.jpeg,.pdf,image/*,application/pdf"
-                multiple={action !== "OUT_OF_WARRANTY"}
+                multiple={!requiresQuotation}
                 disabled={isUploading}
                 onChange={(event) => {
                   if (event.target.files?.length) {

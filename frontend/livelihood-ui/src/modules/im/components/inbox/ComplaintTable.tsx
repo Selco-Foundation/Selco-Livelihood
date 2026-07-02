@@ -1,8 +1,10 @@
-import { contextPath, useTranslate } from "@/shared";
+import { contextPath, useAuthStore, useTranslate } from "@/shared";
 import { cn } from "@/ui";
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { InboxRow } from "../../types/inbox";
+import { isEndUser } from "../../utils/access";
+import { translateDetailValue } from "../../utils/complaint-details";
 
 interface ComplaintTableProps {
   data: InboxRow[];
@@ -31,6 +33,10 @@ export function ComplaintTable({
   onPageChange,
 }: ComplaintTableProps) {
   const { t } = useTranslate();
+  const user = useAuthStore((state) => state.user);
+  const slaColumnLabel = isEndUser(user?.roles)
+    ? t("WF_INBOX_HEADER_DAYS_REMAINING")
+    : t("WF_INBOX_HEADER_SLA_DAYS_REMAINING");
   const basePath = `/${contextPath()}/employee/im`;
   const totalPages = Math.max(1, Math.ceil(totalRecords / pageSizeLimit));
   const canGoPrev = currentPage > 0;
@@ -39,11 +45,12 @@ export function ComplaintTable({
 
   const columns = [
     { key: "ticket", label: t("CS_COMMON_TICKET_NO") },
+    { key: "endUser", label: t("INCIDENT_END_USER") },
+    { key: "asset", label: t("INCIDENT_ASSET") },
     { key: "type", label: t("CS_TICKET_TYPE") },
     { key: "status", label: t("CS_TICKET_DETAILS_CURRENT_STATUS") },
-    { key: "asset", label: t("INCIDENT_ASSET") },
     { key: "owner", label: t("WF_INBOX_HEADER_CURRENT_OWNER") },
-    { key: "sla", label: t("WF_INBOX_HEADER_SLA_DAYS_REMAINING") },
+    { key: "sla", label: slaColumnLabel },
   ] as const;
 
   const pageNumbers = Array.from({ length: totalPages }, (_, index) => index);
@@ -82,13 +89,16 @@ export function ComplaintTable({
                     ) : null}
                   </div>
                 </td>
+                <td className="px-5 py-4 text-foreground">{row.endUser}</td>
+                <td className="px-5 py-4 text-foreground">
+                  {translateDetailValue(row.assetLabel, t)}
+                </td>
                 <td className="px-5 py-4 text-foreground">
                   {t(`SERVICEDEFS.${row.incidentType.toUpperCase()}`)}
                 </td>
                 <td className="px-5 py-4 text-foreground">
                   {t(`CS_COMMON_${row.status}`)}
                 </td>
-                <td className="px-5 py-4 text-foreground">{row.assetId}</td>
                 <td className="px-5 py-4 text-foreground">{row.taskOwner}</td>
                 <td className="px-5 py-4">
                   <SlaBadge value={row.sla} overdueLabel={overdueLabel} />

@@ -49,10 +49,11 @@ export function combineInboxResponses(
     return {
       incidentId: incident.incidentId,
       incidentType: incident.incidentType,
-      assetId: incident.assetId ?? "-",
+      assetLabel: incident.boundaryCode ? `BOUNDARY_${incident.boundaryCode}` : "-",
       status: incident.applicationStatus,
       taskOwner: assignee?.name || "-",
       sla: `${slaValue}`,
+      endUser: incident.reporter?.name || "-",
       tenantId: incident.tenantId,
       potentialDuplicate:
         (currentUserRoles?.includes("LIVELIHOOD_POC") && !!incident.isPotentialDuplicate) ??
