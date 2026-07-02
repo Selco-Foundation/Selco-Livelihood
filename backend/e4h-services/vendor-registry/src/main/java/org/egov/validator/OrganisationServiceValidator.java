@@ -81,7 +81,7 @@ public class OrganisationServiceValidator {
 
     private void validateBoundary(Map<String, List<String>> boundaries, String tenantId, RequestInfo requestInfo) {
         if (!boundaries.isEmpty()) {
-            boundaryUtil.validateBoundaryDetails(boundaries, tenantId, requestInfo, config.getLocationHierarchyType());
+            boundaryUtil.validateBoundaryDetails(boundaries, tenantId, requestInfo, config.getBoundaryHierarchyType());
         }
     }
 

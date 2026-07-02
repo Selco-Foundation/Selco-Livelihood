@@ -175,34 +175,6 @@ public class EnrichmentService {
 
         String idGenIncidentIdFormat = config.getServiceRequestIdGenFormat();
 
-        String complainantBoundary = resolveComplainantBoundary(incident, boundary);
-        StringBuilder hcrUserSearchUri = hrmsUtil.getHRMSURI(
-                null, incident.getTenantId(), "COMPLAINANT", complainantBoundary
-        );
-        hcrUserSearchUri.append("&searchOnlyInBoundary=");
-        hcrUserSearchUri.append(true);
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("RequestInfo", requestInfo);
-
-        HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestBody, headers);
-
-        ResponseEntity<Map<String, Object>> responseEntity = restTemplate.exchange(
-                hcrUserSearchUri.toString(),
-                HttpMethod.POST,
-                requestEntity,
-                new ParameterizedTypeReference<>() {}
-        );
-        Map<String, Object> responseMap = responseEntity.getBody();
-        String hcrUser = Optional.ofNullable(safeJsonPathRead(responseMap, "$.Employees[0].code"))
-                .filter(String.class::isInstance)
-                .map(String.class::cast)
-                .orElseThrow(() -> new CustomException("HCR_NOT_FOUND", "HCR not found for given boundary"));
-
         Object mdmsResponse = mdmsUtils.fetchMDMSData(requestInfo, incident.getTenantId(), "common-masters", List.of("StateInfo"), null);
         List<?> stateInfoList = Optional.ofNullable(safeJsonPathRead(mdmsResponse, "$.MdmsRes.common-masters.StateInfo"))
                 .filter(List.class::isInstance)
@@ -219,7 +191,6 @@ public class EnrichmentService {
 
         Map<String, String> values = Map.of(
                 "STATE_CODE", stateCode,
-                "HCR_USERNAME", hcrUser,
                 "FACILITY_ID", incident.getFacilityId().replace("/", "_")
         );
 
