@@ -1,4 +1,6 @@
 import { useTranslate } from "@/shared";
+import {getAttachmentKind, getFileName} from "@/modules/im/utils/file";
+import {FileIcon, FileText} from "lucide-react";
 
 export interface ComplaintVideoEntry {
   master?: string | null;
@@ -34,6 +36,30 @@ export function ComplaintMediaList({
         <div className={imageGridClassName}>
           {images.map((src, index) => {
             const label = `${attachmentLabel} ${index + 1}`;
+            const kind = getAttachmentKind(src);
+
+            if (kind === "image") {
+              return (
+                <a
+                  key={src}
+                  href={src}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={label}
+                  className="overflow-hidden rounded-lg border border-border bg-muted/30"
+                >
+                  <img
+                    src={src}
+                    alt={label}
+                    className="aspect-square w-full object-cover"
+                  />
+                </a>
+              );
+            }
+
+            const fileName = getFileName(src);
+            const ext = fileName.split(".").pop()?.toUpperCase();
+            const Icon = kind === "pdf" ? FileText : FileIcon;
 
             return (
               <a
@@ -42,15 +68,20 @@ export function ComplaintMediaList({
                 target="_blank"
                 rel="noreferrer"
                 aria-label={label}
-                className="overflow-hidden rounded-lg border border-border bg-muted/30"
+                className="flex aspect-square w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-lg border border-border bg-muted/30 p-3 text-center transition-colors hover:bg-muted/50"
               >
-                <img
-                  src={src}
-                  alt={label}
-                  className="aspect-square w-full object-cover"
-                />
+                <Icon className="h-8 w-8 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span className="line-clamp-2 w-full break-words text-xs text-muted-foreground">
+                  {fileName}
+                </span>
+                {ext ? (
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
+                    {ext}
+                  </span>
+                ) : null}
               </a>
             );
+
           })}
         </div>
       ) : null}
