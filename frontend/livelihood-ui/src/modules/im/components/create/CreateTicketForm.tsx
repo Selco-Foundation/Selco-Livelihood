@@ -4,7 +4,7 @@ import {
   ClipboardList,
   Info,
   Loader2,
-  MapPin,
+  Factory,
   RotateCcw,
   Send,
   Shield,
@@ -93,7 +93,7 @@ export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormPr
         }}
       >
         <FormSectionCard
-          icon={MapPin}
+          icon={Factory}
           title={translateOr(t, "ASSET_DETAILS", "Asset Details")}
           description={translateOr(
             t,
