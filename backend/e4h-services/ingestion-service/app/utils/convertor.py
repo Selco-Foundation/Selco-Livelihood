@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from sqlalchemy import false, true
 
 from app.core.logging import AppLogger
-from app.core.tenant import LIVELIHOOD_TENANT_ID
+from app.core.tenant import LIVELIHOOD_TENANT_ID, LOCALIZATION_MODULE
 from app.schemas.boundary import Boundary
 from app.schemas.request_info import RequestInfo
 from app.schemas.vendor import Vendor
@@ -1070,7 +1070,7 @@ def resolve_boundary_codes_for_dataframe(
             loc_response = loc_client.search_messages(
                 tenant_id=LIVELIHOOD_TENANT_ID,
                 locale="en_IN",
-                module="rainmaker-in",
+                module=LOCALIZATION_MODULE,
             )
             messages = loc_response.get("messages", [])
             if logger:

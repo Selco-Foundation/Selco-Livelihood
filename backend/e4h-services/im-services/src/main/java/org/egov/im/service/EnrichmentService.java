@@ -189,17 +189,12 @@ public class EnrichmentService {
                 .findFirst()
                 .orElseThrow(() -> new CustomException("STATE_CODE_NOT_FOUND", "State code not found for boundary " + boundary.getStateCode()));
 
-        Map<String, String> values = Map.of(
-                "STATE_CODE", stateCode,
-                "FACILITY_ID", incident.getFacilityId().replace("/", "_")
+        // One sequence per state (e.g. KA-[SEQ_EGOV_COMMON_KA]) so incidentIds are unique
+        // across facilities and users; per-facility seq reused KA-0001 per facility and broke workflow.
+        idGenIncidentIdFormat = idGenIncidentIdFormat.replaceAll(
+                "\\[STATE_CODE]",
+                Matcher.quoteReplacement(stateCode)
         );
-
-        for (Map.Entry<String, String> entry : values.entrySet()) {
-            idGenIncidentIdFormat = idGenIncidentIdFormat.replaceAll(
-                    "\\[" + entry.getKey() + "]",
-                    Matcher.quoteReplacement(entry.getValue())
-            );
-        }
 
         return idGenIncidentIdFormat;
     }

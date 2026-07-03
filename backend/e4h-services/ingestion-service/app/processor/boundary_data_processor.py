@@ -5,7 +5,7 @@ import re
 import pandas as pd
 
 from app.core.logging import AppLogger
-from app.core.tenant import LIVELIHOOD_TENANT_ID
+from app.core.tenant import LIVELIHOOD_TENANT_ID, LOCALIZATION_MODULE
 from app.ingest.boundary_excel_data_loader import BoundaryExcelDataLoader
 from app.ingest.service.data_loader import DataLoader
 from app.ingest.service.data_writer import DataWriter
@@ -350,7 +350,7 @@ class BoundaryDataProcessor:
                 messages.append({
                     "code": f"BOUNDARY_{full_code}",
                     "message": display_name,
-                    "module": "rainmaker-in",
+                    "module": LOCALIZATION_MODULE,
                     "locale": "en_IN",
                 })
         if not messages:
