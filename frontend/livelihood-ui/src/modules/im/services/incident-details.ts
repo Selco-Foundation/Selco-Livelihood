@@ -15,7 +15,7 @@ function getThumbnailUrl(url: string): string {
 }
 
 /** Full-size original — variant without large/medium/small in path (digit-ui pattern). */
-function getOriginalFileUrl(url: string): string {
+export function getOriginalFileUrl(url: string): string {
   if (!url.includes(",")) {
     return url;
   }

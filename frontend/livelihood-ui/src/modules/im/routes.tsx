@@ -2,7 +2,7 @@ import { contextPath, useModuleI18n } from "@/shared";
 import type { AnyRoute } from "@tanstack/react-router";
 import { createRoute, Outlet, redirect } from "@tanstack/react-router";
 import { Inbox } from "lucide-react";
-import { ImHomeCard } from "./components/ImHomeCard";
+import { ImOverview } from "./components/ImOverview";
 import { IM_ROUTES } from "./constants/routes";
 import { ComplaintDetailsPage } from "./pages/employee/ComplaintDetailsPage";
 import { CreateIncidentPage } from "./pages/employee/CreateIncidentPage";
@@ -109,6 +109,6 @@ export function createImModule(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
     order: 1,
     routes,
     navItems,
-    homeCards: [ImHomeCard],
+    overview: ImOverview,
   };
 }

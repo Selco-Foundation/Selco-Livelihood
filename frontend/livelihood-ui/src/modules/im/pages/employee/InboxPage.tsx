@@ -111,7 +111,7 @@ export function InboxPage() {
     <div className="mx-auto max-w-[1400px] space-y-6">
       <ImBreadcrumbs
         items={[
-          { label: translateOr(t, "ES_COMMON_HOME", "Home"), to: homePath },
+          { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: homePath },
           { label: translateOr(t, "ES_IM_INBOX", "Inbox") },
         ]}
       />

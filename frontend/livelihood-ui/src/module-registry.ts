@@ -17,15 +17,14 @@ export function getModuleNavItems() {
     .flatMap((module) => module.navItems ?? []);
 }
 
-export interface ModuleHomeCardEntry {
-  Card: ComponentType;
+export interface ModuleOverviewEntry {
+  Overview: ComponentType;
   moduleId: string;
 }
 
-export function getModuleHomeCards(): ModuleHomeCardEntry[] {
+export function getModuleOverviews(): ModuleOverviewEntry[] {
   return [...registeredModules]
     .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
-    .flatMap((module) =>
-      (module.homeCards ?? []).map((Card) => ({ Card, moduleId: module.id })),
-    );
+    .filter((module) => module.overview)
+    .map((module) => ({ Overview: module.overview!, moduleId: module.id }));
 }
