@@ -25,7 +25,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AssetLocalizationService {
 
-    private static final String LOCALIZATION_MODULE = "rainmaker-in";
+    private static final String LOCALIZATION_MODULE = "rainmaker-livelihood";
     private static final String LOCALIZATION_LOCALE = "en_IN";
     private static final String DEFAULT_UPSERT_PATH = "/_upsert";
 

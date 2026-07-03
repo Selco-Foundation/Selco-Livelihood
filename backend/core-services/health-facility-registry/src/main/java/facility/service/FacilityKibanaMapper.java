@@ -42,7 +42,7 @@ public class FacilityKibanaMapper {
     private final ObjectMapper mapper;
     private final Configuration configs;
 
-    private static final String LOCALIZATION_MODULE = "rainmaker-in";
+    private static final String LOCALIZATION_MODULE = "rainmaker-livelihood";
     private static final String LOCALIZATION_LOCALE = "en_IN";
 
     @Value("${egov.boundary.host}")

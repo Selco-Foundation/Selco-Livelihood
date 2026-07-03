@@ -19,6 +19,8 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class LocalizationService {
 
+    private static final String BOUNDARY_LOCALIZATION_MODULE = "rainmaker-livelihood";
+
     private final RestTemplate restTemplate;
     private final IMConfiguration config;
     private final LivelihoodTenantUtil livelihoodTenantUtil;
@@ -59,7 +61,7 @@ public class LocalizationService {
         String blockCode = "BOUNDARY_" + boundary.getBlockCode();
         String boundaryCodes = String.join(",", districtCode, blockCode);
 
-        LocalizationResponse boundaryResponse = getLocalizationMessages(incidentRequest.getRequestInfo(), tenantId, "rainmaker-in", locale, boundaryCodes);
+        LocalizationResponse boundaryResponse = getLocalizationMessages(incidentRequest.getRequestInfo(), tenantId, BOUNDARY_LOCALIZATION_MODULE, locale, boundaryCodes);
 
         incident.setDistrict(boundaryResponse.getMessageByCode(districtCode));
         incident.setBlock(boundaryResponse.getMessageByCode(blockCode));
@@ -96,7 +98,7 @@ public class LocalizationService {
                 : String.join(",", incidentTypeCode, incidentSubTypeCode, appStatusCode, warrantyStatusCode);
         String boundaryCodes = String.join(",", stateCode, facilityCode);
 
-        LocalizationResponse boundaryResponse = getLocalizationMessages(requestInfo, stateTenant, "rainmaker-in", locale, boundaryCodes);
+        LocalizationResponse boundaryResponse = getLocalizationMessages(requestInfo, stateTenant, BOUNDARY_LOCALIZATION_MODULE, locale, boundaryCodes);
         LocalizationResponse imResponse = getLocalizationMessages(requestInfo, stateTenant, "rainmaker-im", locale, imCodes);
 
         indexView.setState(boundaryResponse.getMessageByCode(stateCode));
