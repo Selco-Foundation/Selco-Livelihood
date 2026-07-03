@@ -120,7 +120,6 @@ export function LoginPage() {
       <Card className="livelihood-card w-full max-w-md">
         <CardHeader>
           <CardTitle>Livelihood UI</CardTitle>
-          <CardDescription>Sign in with your employee credentials</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
