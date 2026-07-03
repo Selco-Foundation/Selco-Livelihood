@@ -2,6 +2,19 @@ import { apiClient, type AuthUser } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
 import type { LivelihoodAsset } from "../types/facility-asset";
 
+interface AssetDocument {
+  id?: string;
+  documentType?: string;
+  fileStore?: string;
+  documentUid?: string;
+  additionalDetails?: unknown;
+  geoLocation?: {
+    latitude?: number;
+    longitude?: number;
+    additionalDetails?: unknown;
+  };
+}
+
 interface AssetSearchResponseItem {
   assetId?: string;
   tenantId?: string;
@@ -12,6 +25,13 @@ interface AssetSearchResponseItem {
   serialNumber?: string;
   modelNumber?: string;
   isOperational?: boolean;
+  documents?: AssetDocument[];
+}
+
+function getFirstDocumentFileStore(
+  documents: AssetSearchResponseItem["documents"],
+): string | undefined {
+  return documents?.[0]?.fileStore || undefined;
 }
 
 function mapAsset(raw: AssetSearchResponseItem): LivelihoodAsset {
@@ -25,6 +45,7 @@ function mapAsset(raw: AssetSearchResponseItem): LivelihoodAsset {
     serialNumber: raw.serialNumber,
     modelNumber: raw.modelNumber,
     isOperational: raw.isOperational,
+    documentFileStoreId: getFirstDocumentFileStore(raw.documents),
   };
 }
 

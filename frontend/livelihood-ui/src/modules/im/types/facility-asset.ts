@@ -29,6 +29,7 @@ export interface LivelihoodAsset {
   serialNumber?: string;
   modelNumber?: string;
   isOperational?: boolean;
+  documentFileStoreId?: string;
 }
 
 export interface FacilityBulkSearchCriteria {

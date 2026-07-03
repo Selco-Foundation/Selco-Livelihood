@@ -50,7 +50,7 @@ export function CreateIncidentResponsePage() {
     <div className="mx-auto max-w-lg space-y-6">
       <ImBreadcrumbs
         items={[
-          { label: translateOr(t, "ES_COMMON_HOME", "Home"), to: homePath },
+          { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: homePath },
           { label: translateOr(t, "ES_IM_TICKET_CREATE", "Ticket create"), to: createPath },
           {
             label: isSuccess && incidentId

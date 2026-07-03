@@ -55,8 +55,8 @@ export function AppShell() {
 
   const allNavItems: NavItem[] = [
     {
-      id: "home",
-      label: "Home",
+      id: "overview",
+      label: "Overview",
       to: `${basePath}/employee`,
       icon: Home,
     },
