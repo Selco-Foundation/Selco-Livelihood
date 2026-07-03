@@ -6,7 +6,7 @@ import pandas as pd
 import requests
 
 from app.core.logging import AppLogger
-from app.core.tenant import LIVELIHOOD_TENANT_ID
+from app.core.tenant import LIVELIHOOD_TENANT_ID, LOCALIZATION_MODULE
 from app.schemas.boundary import Boundary
 from app.schemas.request_info import RequestInfo
 from app.schemas.vendor_ingestion_shema_response import IngestionSchemaResponse
@@ -323,7 +323,7 @@ class FacilityTemplateService:
                 loc_response = loc_client.search_messages(
                     tenant_id=LIVELIHOOD_TENANT_ID,
                     locale="en_IN",
-                    module="rainmaker-in",
+                    module=LOCALIZATION_MODULE,
                     codes=loc_codes,
                 )
                 for m in loc_response.get("messages", []):

@@ -66,7 +66,7 @@ public class FacilityService {
     private final RestTemplate restTemplate;
     private final LivelihoodPocScopeService livelihoodPocScopeService;
 
-    private static final String LOCALIZATION_MODULE = "rainmaker-in";
+    private static final String LOCALIZATION_MODULE = "rainmaker-livelihood";
     private static final String LOCALIZATION_LOCALE = "en_IN";
 
     public FacilityService(

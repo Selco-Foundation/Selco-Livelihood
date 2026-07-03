@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Resolves boundary display names via egov-localization ({@code rainmaker-in} module).
+ * Resolves boundary display names via egov-localization ({@code rainmaker-livelihood} module).
  */
 @Slf4j
 @Component
