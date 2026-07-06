@@ -57,7 +57,11 @@ function AssetRow({ asset }: { asset: EndUserAsset }) {
       {asset.isOperational !== undefined ? (
         <Badge
           variant="outline"
-          className="shrink-0 border-transparent bg-green-100 text-green-700"
+          className={
+            asset.isOperational
+              ? "shrink-0 border-transparent bg-green-100 text-green-700"
+              : "shrink-0 border-transparent bg-red-100 text-red-700"
+          }
         >
           {asset.isOperational
             ? translateOr(t, "ES_IM_ASSET_OPERATIONAL", "Operational")
