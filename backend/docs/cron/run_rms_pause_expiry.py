@@ -3,7 +3,7 @@ import sys
 import requests
 
 # Endpoint and headers
-url = os.getenv("RMS_PAUSE_EXPIRE_URL", "http://rms-service.core-dev:8080/rms-service/v1/ticket/pause/_expire")
+url = os.getenv("RMS_PAUSE_EXPIRE_URL", "http://rms-service.core:8080/rms-service/v1/ticket/pause/_expire")
 auth_token = os.getenv("RMS_PAUSE_EXPIRE_AUTH_TOKEN", "")
 tenant_id = os.getenv("RMS_PAUSE_EXPIRE_TENANT_ID", "in")
 limit = int(os.getenv("RMS_PAUSE_EXPIRE_LIMIT", "500"))
