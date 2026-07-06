@@ -12,5 +12,5 @@ export interface ModuleDefinition<TRoute = unknown> {
   order?: number;
   routes: TRoute[];
   navItems: NavItem[];
-  homeCards?: ComponentType[];
+  overview?: ComponentType;
 }

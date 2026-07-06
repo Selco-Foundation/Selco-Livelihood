@@ -16,7 +16,7 @@ export function contextPath(): string {
 export function tenantId(envFallback?: string): string {
   return getConfigString(
     "STATE_LEVEL_TENANT_ID",
-    envFallback ?? getViteEnv("VITE_STATE_LEVEL_TENANT_ID", "in"),
+    envFallback ?? getViteEnv("VITE_STATE_LEVEL_TENANT_ID", "livelihood"),
   );
 }
 
