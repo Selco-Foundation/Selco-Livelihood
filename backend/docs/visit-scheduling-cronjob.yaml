@@ -21,6 +21,6 @@ spec:
             imagePullPolicy: IfNotPresent
             env:
             - name: AMC_SCHEDULER_SERVICE_HOST
-              value: "http://amc-scheduler-service.core-dev:8095"  # Adjust based on your service name and namespace
+              value: "http://amc-scheduler-service.core:8095"  # Adjust based on your service name and namespace
           restartPolicy: OnFailure
 

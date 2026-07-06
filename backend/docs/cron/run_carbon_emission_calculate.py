@@ -2,7 +2,7 @@ import requests
 import sys
 
 # Endpoint and headers
-url = "http://im-services-analytics.core-dev:8080/im-services-analytics/v1/carbon/trigger?tenantId=in"
+url = "http://im-services-analytics.core:8080/im-services-analytics/v1/carbon/trigger?tenantId=in"
 headers = {
     "Content-Type": "application/json",
 }

@@ -2,7 +2,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: daily
-  namespace: core-dev
+  namespace: core
 spec:
   concurrencyPolicy: Allow
   failedJobsHistoryLimit: 1

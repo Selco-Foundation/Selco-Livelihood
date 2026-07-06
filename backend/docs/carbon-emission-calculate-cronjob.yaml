@@ -27,7 +27,7 @@ spec:
                 - |
                   set -e
                   TENANT="${TENANT_ID:-in}"
-                  URL="${ANALYTICS_BASE_URL:-http://im-services-analytics.core-dev:8080/im-services-analytics/v1/carbon/trigger}"
+                  URL="${ANALYTICS_BASE_URL:-http://im-services-analytics.core:8080/im-services-analytics/v1/carbon/trigger}"
                   echo "Triggering CO2 calculation for tenant=${TENANT}"
                   curl -sf -X POST "${URL}?tenantId=${TENANT}"
                   echo "Done."
@@ -35,5 +35,5 @@ spec:
                 - name: TENANT_ID
                   value: "in"
                 - name: ANALYTICS_BASE_URL
-                  value: "http://im-services-analytics.core-dev:8080/im-services-analytics/v1/carbon/trigger"
+                  value: "http://im-services-analytics.core:8080/im-services-analytics/v1/carbon/trigger"
           restartPolicy: OnFailure

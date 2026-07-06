@@ -20,7 +20,7 @@ spec:
               imagePullPolicy: IfNotPresent
               env:
                 - name: RMS_PAUSE_EXPIRE_URL
-                  value: "http://rms-service.core-dev:8080/rms-service/v1/ticket/pause/_expire"
+                  value: "http://rms-service.core:8080/rms-service/v1/ticket/pause/_expire"
                 - name: RMS_PAUSE_EXPIRE_TENANT_ID
                   value: "in"
                 - name: RMS_PAUSE_EXPIRE_LIMIT
