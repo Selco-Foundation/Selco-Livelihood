@@ -17,4 +17,4 @@ const enabledModules: ModuleDefinition<AnyRoute>[] = [core, im];
 setRegisteredModules(enabledModules);
 
 export { rootRoute, enabledModules };
-export { getModuleHomeCards, getModuleNavItems } from "./module-registry";
+export { getModuleOverviews, getModuleNavItems } from "./module-registry";

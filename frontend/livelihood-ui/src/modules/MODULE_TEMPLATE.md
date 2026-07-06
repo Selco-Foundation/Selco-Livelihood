@@ -27,12 +27,12 @@ Export a `create<Module>Module(rootRoute, employeeLayoutRoute?)` function that r
   order?: number,
   routes: AnyRoute[],
   navItems: NavItem[],
-  homeCards?: ComponentType[],
+  overview?: ComponentType,
 }
 ```
 
-- **`order`**: optional sort order for home cards and sidebar nav aggregation
-- **`homeCards`**: dashboard cards rendered on the employee home page
+- **`order`**: optional sort order for overview sections and sidebar nav aggregation
+- **`overview`**: a single component rendered on the employee home page for this module — it owns its whole section (stat tiles, lists, etc.), not just a single card. Compose it from `StatTile` (`@/ui`) for standalone KPI tiles plus any module-specific content (e.g. IM's `EndUserAssetsList`)
 - **`employeeLayoutRoute`**: pass the route from `createCoreModule()` so module pages render inside `AppShell`
 
 Use `@/shared` for API (`apiClient`), react-query, zustand, and config helpers.
@@ -54,7 +54,7 @@ const enabledModules = [core, im];
 setRegisteredModules(enabledModules);
 ```
 
-`module-registry.ts` aggregates `navItems` for `AppShell` and `homeCards` for `HomePage`.
+`module-registry.ts` aggregates `navItems` for `AppShell` and `overview` for `HomePage`.
 
 ## Routing conventions
 
