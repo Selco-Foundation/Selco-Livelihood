@@ -5,8 +5,8 @@ import shlex
 from urllib.parse import urlencode
 
 # Hosts
-USER_HOST = "http://egov-user.core-dev:8080"
-WORKFLOW_HOST = "http://egov-workflow-v2.core-dev:8080"
+USER_HOST = "http://egov-user.core:8080"
+WORKFLOW_HOST = "http://egov-workflow-v2.core:8080"
 
 # Business services to loop through
 business_services = ["LivelihoodIncident"]
