@@ -432,29 +432,33 @@ public class ElasticSearchClient {
     }
 
     /**
-     * Extract priority from business service name
-     * Business service format: "Incident_High", "Incident_Low", "Incident_Medium"
-     * Priority is the part after the underscore
+     * E4H encodes priority in the business service name ({@code Incident_Medium}).
+     * Livelihood uses a single {@code LivelihoodIncident} service with no priority tier.
      */
     private String extractPriorityFromBusinessService(Map<String, Object> data) {
         try {
             Map<String, Object> currentProcessInstance = (Map<String, Object>) data.get("currentProcessInstance");
             if (currentProcessInstance == null) {
-                return "Medium"; // Default fallback
+                return "Medium";
             }
 
             Object businessServiceObj = currentProcessInstance.get("businessService");
-            if (businessServiceObj instanceof String businessService && businessService.contains("_")) {
-                String[] parts = businessService.split("_", 2);
-                if (parts.length > 1) {
-                    return parts[1]; // Return part after underscore (High, Low, Medium)
+            if (businessServiceObj instanceof String businessService) {
+                if (LIVELIHOOD_INCIDENT.equalsIgnoreCase(businessService)) {
+                    return null;
+                }
+                if (businessService.contains("_")) {
+                    String[] parts = businessService.split("_", 2);
+                    if (parts.length > 1) {
+                        return parts[1];
+                    }
                 }
             }
 
-            return "Medium"; // Default fallback
+            return "Medium";
         } catch (Exception e) {
             log.warn("Error extracting priority from business service: {}", e.getMessage());
-            return "Medium"; // Default fallback
+            return "Medium";
         }
     }
 
