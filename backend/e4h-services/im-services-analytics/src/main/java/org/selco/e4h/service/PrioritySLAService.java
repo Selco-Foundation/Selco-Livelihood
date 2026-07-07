@@ -108,27 +108,19 @@ public class PrioritySLAService {
 
 
 
-        String businessService;
-        String priority;
         Object bsObj = currentProcessInstance.get("businessService");
-        if(bsObj instanceof String bs && bs.contains("_")) {
-            businessService = bs;
-            priority = bs.split("_", 2)[1];
-        } else {
-            businessService = "Incident_Medium";
-            priority = "Medium";
-        }
-        log.debug("Business service: {}, priority: {}", businessService, priority);
+        String businessService = resolveBusinessService(bsObj, tenantId);
+        log.debug("Business service: {}", businessService);
 
 
         TenantServiceStateKey stateKey = new TenantServiceStateKey(tenantId, businessService, state);
         Duration stateSlaDuration = slaMap.getOrDefault(stateKey, Duration.ZERO);
         long stateSla = stateSlaDuration.toMillis();
 
-        Duration totalSla = computeTotalSla(tenantId, priority, state, slaMap, processInstances);
+        Duration totalSla = computeTotalSla(tenantId, businessService, state, slaMap, processInstances);
         long definedTotalSla = totalSla.toMillis();
 
-        long totalSlaRemaining = computeTotalSlaRemaining(tenantId,priority,processInstances,slaMap,bh);
+        long totalSlaRemaining = computeTotalSlaRemaining(tenantId, businessService, processInstances, slaMap, bh);
         long slaRemaining = stateSla - businessElapsedFromModified;
         log.debug("SLA calculations - stateSla: {}ms, totalSla: {}ms, slaRemaining: {}ms, totalSlaRemaining: {}ms",
             stateSla, definedTotalSla, slaRemaining, totalSlaRemaining);
@@ -138,8 +130,7 @@ public class PrioritySLAService {
             log.warn("Incident ID is null for ticket: {}", ticket);
             return;
         }
-        boolean isAClosedTicket = state.equals(CLOSED_AFTER_REJECTION) || state.equals(CLOSED_AFTER_RESOLUTION)
-                || state.equals(REJECTED) || state.equals(RESOLVED);
+        boolean isAClosedTicket = isTerminalOrResolvedState(state);
 
         String incidentId = incidentIdObj.toString();
         if (transform) {
@@ -323,11 +314,10 @@ public class PrioritySLAService {
     }
 
 
-    public long computeTotalSlaRemaining( String tenantId, String priority, List<ProcessInstance> processInstances, Map<TenantServiceStateKey, Duration> slaMap, BusinessHours businessHours) {
+    public long computeTotalSlaRemaining(String tenantId, String businessService, List<ProcessInstance> processInstances, Map<TenantServiceStateKey, Duration> slaMap, BusinessHours businessHours) {
         if (processInstances == null || processInstances.isEmpty()) {
             return 0;
         }
-        String businessService = INCIDENT_UNDERSCORE + capitalize(priority);
         long remainingTotalSla = 0;
 
         for (int i = 0; i < processInstances.size(); i++) {
@@ -380,9 +370,8 @@ public class PrioritySLAService {
         return remainingTotalSla;
     }
 
-    private Duration computeTotalSla(String tenantId, String priority, String currentState, Map<TenantServiceStateKey, Duration> slaMap, List<ProcessInstance> processInstances) {
-        log.trace("Computing total SLA for tenantId: {}, priority: {}, currentState: {}", tenantId, priority, currentState);
-        String businessService = INCIDENT_UNDERSCORE + capitalize(priority);
+    private Duration computeTotalSla(String tenantId, String businessService, String currentState, Map<TenantServiceStateKey, Duration> slaMap, List<ProcessInstance> processInstances) {
+        log.trace("Computing total SLA for tenantId: {}, businessService: {}, currentState: {}", tenantId, businessService, currentState);
         Duration total = Duration.ZERO;
         log.debug("Business service: {}", businessService);
 
@@ -471,17 +460,39 @@ public class PrioritySLAService {
                         || OUT_OF_WARRANTY_PENDING_TECH_POC.equals(state)
                         || PENDING_REVISION.equals(state)
                         || OUT_OF_WARRANTY_PENDING_TECH_POC_ROUND_2.equals(state)
+                        || LIVELIHOOD_PENDING_FOR_RESOLUTION.equals(state)
+                        || LIVELIHOOD_OUT_OF_SCOPE_PENDING_POC.equals(state)
+                        || LIVELIHOOD_OUT_OF_SCOPE_PENDING_VENDOR.equals(state)
+                        || LIVELIHOOD_OUT_OF_WARRANTY_PENDING_VENDOR.equals(state)
                         || state.startsWith(PENDING_ASSIGNMENT_PREFIX)
                         || state.startsWith(PENDING_RESOLUTION_PREFIX);
         log.debug("State {} SLA-bearing: {}", state, result);
         return result;
     }
 
-    private String capitalize(String value) {
-        log.trace("Capitalizing string: {}", value);
-        if (value == null || value.isEmpty()) return value;
-        String capitalized = value.substring(0, 1).toUpperCase() + value.substring(1).toLowerCase();
-        log.debug("Capitalized: {} -> {}", value, capitalized);
-        return capitalized;
+    /**
+     * Livelihood has a single workflow ({@code LivelihoodIncident}); E4H uses priority variants
+     * ({@code Incident_Low}, {@code Incident_Medium}, {@code Incident_High}).
+     */
+    private String resolveBusinessService(Object bsObj, String tenantId) {
+        if (bsObj instanceof String bs && !bs.isBlank()) {
+            return bs;
+        }
+        if ("livelihood".equalsIgnoreCase(tenantId)) {
+            return LIVELIHOOD_INCIDENT;
+        }
+        return "Incident_Medium";
+    }
+
+    private boolean isTerminalOrResolvedState(String state) {
+        if (state == null) {
+            return false;
+        }
+        return RESOLVED.equalsIgnoreCase(state)
+                || REJECTED.equalsIgnoreCase(state)
+                || CLOSED_AFTER_RESOLUTION.equalsIgnoreCase(state)
+                || CLOSED_AFTER_REJECTION.equalsIgnoreCase(state)
+                || LIVELIHOOD_CLOSED_AFTER_RESOLUTION.equalsIgnoreCase(state)
+                || LIVELIHOOD_CLOSED_AFTER_DECLINE.equalsIgnoreCase(state);
     }
 }
