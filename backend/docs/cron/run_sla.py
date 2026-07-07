@@ -1,17 +1,31 @@
 import json
+import os
 import sys
 import time
 import uuid
 
 import requests
 
-USER_HOST = "http://egov-user.core:8080"
-SLA_URL = "http://im-services-analytics.core:8080/im-services-analytics/v1/computeSLA?transform=false"
+USER_HOST = "http://localhost:8284"
+SLA_URL = "http://localhost:8080/im-services-analytics/v1/computeSLA?transform=false"
 
-tenant_ids = sys.argv[1:]
+DEFAULT_TENANT_IDS = ("livelihood",)
+
+
+def resolve_tenant_ids() -> list[str]:
+    if len(sys.argv) > 1:
+        return sys.argv[1:]
+    env_tenants = os.environ.get("SLA_TENANT_IDS") or os.environ.get("TENANT_ID")
+    if env_tenants:
+        return [t.strip() for t in env_tenants.replace(",", " ").split() if t.strip()]
+    return list(DEFAULT_TENANT_IDS)
+
+
+tenant_ids = resolve_tenant_ids()
 
 if not tenant_ids:
-    print("Usage: python run_sla.py <tenant_id1> <tenant_id2> ...")
+    print("Usage: python run_sla.py [tenant_id ...]")
+    print(f"Defaults to {', '.join(DEFAULT_TENANT_IDS)} when no tenant is provided.")
     sys.exit(1)
 
 headers = {"Content-Type": "application/json"}
@@ -30,7 +44,6 @@ def fetch_cronjob_user(tenant_id: str) -> dict:
             "userInfo": {"id": 102},
         },
         "tenantId": tenant_id,
-        "userType": "SYSTEM",
         "userName": "CRONJOB",
         "pageSize": "1",
         "roleCodes": ["SYSTEM"],
@@ -46,6 +59,7 @@ def fetch_cronjob_user(tenant_id: str) -> dict:
 
 for tenant_id in tenant_ids:
     try:
+        print(f"[{tenant_id}] Starting SLA computation...")
         user_info = fetch_cronjob_user(tenant_id)
         user_info["tenantId"] = tenant_id
         if user_info.get("roles"):

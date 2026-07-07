@@ -124,4 +124,18 @@ public class IMConstants {
     public static final String CLOSED_AFTER_REJECTION = "CLOSEDAFTERREJECTION";
 
     public static final String INCIDENT_UNDERSCORE = "Incident_";
+
+    public static final String LIVELIHOOD_INCIDENT = "LivelihoodIncident";
+
+    public static final String LIVELIHOOD_PENDING_FOR_RESOLUTION = "PENDING_FOR_RESOLUTION";
+
+    public static final String LIVELIHOOD_OUT_OF_SCOPE_PENDING_POC = "OUT_OF_SCOPE_PENDING_POC";
+
+    public static final String LIVELIHOOD_OUT_OF_SCOPE_PENDING_VENDOR = "OUT_OF_SCOPE_PENDING_VENDOR";
+
+    public static final String LIVELIHOOD_OUT_OF_WARRANTY_PENDING_VENDOR = "OUT_OF_WARRANTY_PENDING_VENDOR";
+
+    public static final String LIVELIHOOD_CLOSED_AFTER_RESOLUTION = "CLOSED_AFTER_RESOLUTION";
+
+    public static final String LIVELIHOOD_CLOSED_AFTER_DECLINE = "CLOSED_AFTER_DECLINE";
 }
