@@ -1,7 +1,7 @@
 import type { AuthUser } from "@/shared";
 import {
+  BLANK_SLA_STATUSES,
   ROLE_STATUS_MAPPING,
-  TERMINAL_APPLICATION_STATUSES,
 } from "../constants/workflow";
 import type { InboxItem, InboxRow, InboxSearchResponse } from "../types/inbox";
 
@@ -30,7 +30,7 @@ export function combineInboxResponses(
 
     let slaValue: string | number = "-";
 
-    if ((TERMINAL_APPLICATION_STATUSES as readonly string[]).includes(incident.applicationStatus)) {
+    if ((BLANK_SLA_STATUSES as readonly string[]).includes(incident.applicationStatus)) {
       slaValue = "-";
     } else if (isEndUser) {
       const totalSla = businessObject?.totalSlaRemaining ?? 0;
