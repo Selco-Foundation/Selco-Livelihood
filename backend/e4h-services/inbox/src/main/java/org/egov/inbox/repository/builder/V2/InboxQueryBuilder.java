@@ -122,7 +122,7 @@ public class InboxQueryBuilder implements QueryBuilderInterface {
         innerBoolClause.put(MUST_KEY, mergedMustClause);
 
         // Add SLA filter if required
-        if (params.containsKey("nearingSLA") && isSLA) {
+        if (params.containsKey(NEARING_SLA_PARAM) && isSLA) {
             log.info("⏳ Applying SLA filter (nearingSLA enabled)");
 
             Map<String, Object> query = (Map<String, Object>) baseEsQuery.get("query");
@@ -149,7 +149,8 @@ public class InboxQueryBuilder implements QueryBuilderInterface {
             Map<String, Object> scriptClause = new HashMap<>();
             scriptClause.put("script", scriptInner);
 
-            mustClauseList.add(Collections.singletonMap("script", scriptClause));
+            mergedMustClause.add(Collections.singletonMap("script", scriptClause));
+            innerBoolClause.put(MUST_KEY, mergedMustClause);
             log.debug("⏱️ Added SLA painless script filter");
         }
 
@@ -486,36 +487,43 @@ public class InboxQueryBuilder implements QueryBuilderInterface {
     private void addModuleSearchCriteriaToBaseQuery(Map<String, Object> params, Map<String, String> nameToPathMap,
                                                     Map<String, SearchParam.Operator> nameToOperator, List<Object> mustClauseList) {
         params.keySet().forEach(key -> {
-            if (!(key.equals(SORT_ORDER_CONSTANT) || key.equals(SORT_BY_CONSTANT))) {
+            if (isReservedModuleSearchParam(key)) {
+                return;
+            }
 
-                SearchParam.Operator operator = nameToOperator.get(key);
-                if (operator != null && operator.equals(SearchParam.Operator.WILDCARD)) {
-                    List<Map<String, Object>> mustClauseChild = null;
+            SearchParam.Operator operator = nameToOperator.get(key);
+            if (operator != null && operator.equals(SearchParam.Operator.WILDCARD)) {
+                List<Map<String, Object>> mustClauseChild = null;
 
-                    mustClauseChild = (List<Map<String, Object>>) prepareMustClauseWildCardChild(params, key,
-                            nameToPathMap, nameToOperator);
+                mustClauseChild = (List<Map<String, Object>>) prepareMustClauseWildCardChild(params, key,
+                        nameToPathMap, nameToOperator);
 
-                    if (CollectionUtils.isEmpty(mustClauseChild)) {
-                        log.info("Error occurred while preparing filter for must clause. Filter for key " + key
-                                + " will not be added.");
-                    } else {
-                        mustClauseList.addAll(mustClauseChild);
-                    }
+                if (CollectionUtils.isEmpty(mustClauseChild)) {
+                    log.info("Error occurred while preparing filter for must clause. Filter for key " + key
+                            + " will not be added.");
                 } else {
-
-                    Map<String, Object> mustClauseChild = null;
-                    mustClauseChild = (Map<String, Object>) prepareMustClauseChild(params, key, nameToPathMap,
-                            nameToOperator);
-                    if (CollectionUtils.isEmpty(mustClauseChild)) {
-                        log.info("Error occurred while preparing filter for must clause. Filter for key " + key
-                                + " will not be added.");
-                    } else {
-                        mustClauseList.add(mustClauseChild);
-                    }
-
+                    mustClauseList.addAll(mustClauseChild);
                 }
+            } else {
+
+                Map<String, Object> mustClauseChild = null;
+                mustClauseChild = (Map<String, Object>) prepareMustClauseChild(params, key, nameToPathMap,
+                        nameToOperator);
+                if (CollectionUtils.isEmpty(mustClauseChild)) {
+                    log.info("Error occurred while preparing filter for must clause. Filter for key " + key
+                            + " will not be added.");
+                } else {
+                    mustClauseList.add(mustClauseChild);
+                }
+
             }
         });
+    }
+
+    private boolean isReservedModuleSearchParam(String key) {
+        return SORT_ORDER_CONSTANT.equals(key)
+                || SORT_BY_CONSTANT.equals(key)
+                || NEARING_SLA_PARAM.equals(key);
     }
 
     private void addJurisdictionSearchCriteriaToBaseQuery(Map<String, Object> params, Map<String, String> nameToPathMap,
