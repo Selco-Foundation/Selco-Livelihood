@@ -35,6 +35,19 @@ export { initI18n, loadModules, reloadModule, setLocale, i18n } from "./i18n";
 export { useTranslate } from "./i18n/useTranslate";
 export { useModuleI18n } from "./i18n/useModuleI18n";
 export {
+  SUPPORTED_LANGUAGES,
+  type SupportedLanguage,
+} from "./i18n/supported-languages";
+export { persistActiveLocale, readActiveLocale } from "./i18n/locale-persistence";
+export {
+  getAllKnownModules,
+  getLoadedModulesForLocale,
+  markModuleLoaded,
+  readModulePayload,
+  removeModuleFromLocale,
+  writeModulePayload,
+} from "./i18n/module-cache";
+export {
   convertToLocale,
   convertToLocaleData,
   getCityLocale,
