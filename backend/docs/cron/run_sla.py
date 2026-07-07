@@ -6,8 +6,8 @@ import uuid
 
 import requests
 
-USER_HOST = "http://egov-user.core:8080"
-SLA_URL = "http://im-services-analytics.core:8080/im-services-analytics/v1/computeSLA?transform=false"
+USER_HOST = "http://localhost:8284"
+SLA_URL = "http://localhost:8080/im-services-analytics/v1/computeSLA?transform=false"
 
 DEFAULT_TENANT_IDS = ("livelihood",)
 
@@ -44,7 +44,6 @@ def fetch_cronjob_user(tenant_id: str) -> dict:
             "userInfo": {"id": 102},
         },
         "tenantId": tenant_id,
-        "userType": "SYSTEM",
         "userName": "CRONJOB",
         "pageSize": "1",
         "roleCodes": ["SYSTEM"],
