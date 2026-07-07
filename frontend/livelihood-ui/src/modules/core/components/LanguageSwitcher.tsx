@@ -43,6 +43,7 @@ export function LanguageSwitcher() {
         {SUPPORTED_LANGUAGES.map((language) => (
           <DropdownMenuItem
             key={language.code}
+            className="cursor-pointer"
             onClick={() => void handleSelect(language.code)}
           >
             {language.nativeLabel}
