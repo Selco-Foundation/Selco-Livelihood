@@ -4,12 +4,16 @@ import { fetchLocalization } from "../api/localization";
 import { tenantId as resolveTenantId } from "../config/global-config";
 import { getViteEnv } from "../env";
 import { useAuthStore } from "../stores/auth-store";
-import { useLocaleStore } from "../stores/locale-store";
+import { persistActiveLocale, readActiveLocale } from "./locale-persistence";
 import {
-  getDefaultLanguage,
-  getDefaultLocalizationModules,
-  normalizeLocale,
-} from "./locale-utils";
+  getAllKnownModules,
+  getLoadedModulesForLocale,
+  markModuleLoaded,
+  readModulePayload,
+  removeModuleFromLocale,
+  writeModulePayload,
+} from "./module-cache";
+import { getDefaultLocalizationModules, normalizeLocale } from "./locale-utils";
 
 const TRANSLATIONS_NS = "translations";
 
@@ -22,85 +26,40 @@ function getActiveTenantId(explicitTenantId?: string): string {
   return employeeTenant ?? resolveTenantId(getViteEnv("VITE_STATE_LEVEL_TENANT_ID"));
 }
 
-function persistLocaleChoice(locale: string): void {
-  useLocaleStore.getState().setLocale(locale);
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem("Employee.locale", locale);
-    window.localStorage.setItem("Citizen.locale", locale);
-    window.sessionStorage.setItem("locale", locale);
-  }
-}
-
-function readStoredLocale(): string {
-  if (typeof window === "undefined") {
-    return getDefaultLanguage();
-  }
-
-  const persisted = useLocaleStore.getState().locale;
-  if (persisted) {
-    return persisted;
-  }
-
-  return (
-    window.sessionStorage.getItem("locale") ??
-    window.localStorage.getItem("Employee.locale") ??
-    window.localStorage.getItem("Citizen.locale") ??
-    getDefaultLanguage()
-  );
-}
-
-function modulesCacheKey(locale: string, module: string): string {
-  return `livelihood-i18n.${locale}.${module}`;
-}
-
-function readModuleCache(locale: string, module: string): Record<string, string> | null {
-  try {
-    const raw = window.localStorage.getItem(modulesCacheKey(locale, module));
-    if (!raw) return null;
-    return JSON.parse(raw) as Record<string, string>;
-  } catch {
-    return null;
-  }
-}
-
-function writeModuleCache(locale: string, module: string, resources: Record<string, string>): void {
-  try {
-    window.localStorage.setItem(modulesCacheKey(locale, module), JSON.stringify(resources));
-  } catch {
-    // localStorage write failures (e.g. private mode quota) are non-fatal
-  }
-}
-
 async function fetchAndApplyModules(
   modules: string[],
   locale: string,
   tenant: string,
 ): Promise<void> {
   const normalizedLocale = normalizeLocale(locale);
+  const loadedForLocale = new Set(getLoadedModulesForLocale(normalizedLocale));
+  const modulesToEnsure = [...new Set([...modules, ...getAllKnownModules()])];
 
-  for (const module of modules) {
-    const alreadyLoaded = useLocaleStore.getState().getUnloadedModules([module]).length === 0;
-
-    if (alreadyLoaded) {
-      // Module is recorded in livelihood-locale.loadedModules — restore translations
-      // from the per-module localStorage cache into i18next (handles page refresh).
-      const cached = readModuleCache(normalizedLocale, module);
-      if (cached) {
-        i18n.addResources(normalizedLocale, TRANSLATIONS_NS, cached);
+  for (const module of modulesToEnsure) {
+    try {
+      if (loadedForLocale.has(module)) {
+        const cached = readModulePayload(normalizedLocale, module);
+        if (cached) {
+          i18n.addResources(normalizedLocale, TRANSLATIONS_NS, cached);
+        }
+        continue;
       }
-      continue;
+
+      const resources = await fetchLocalization({
+        locale: normalizedLocale,
+        tenantId: tenant,
+        modules: [module],
+      });
+
+      writeModulePayload(normalizedLocale, module, resources);
+      i18n.addResources(normalizedLocale, TRANSLATIONS_NS, resources);
+      markModuleLoaded(normalizedLocale, module);
+    } catch (error) {
+      console.error(
+        `[i18n] failed to load module "${module}" for locale "${normalizedLocale}"`,
+        error,
+      );
     }
-
-    // Module not in loadedModules — fetch fresh from API, cache, and mark as loaded.
-    const resources = await fetchLocalization({
-      locale: normalizedLocale,
-      tenantId: tenant,
-      modules: [module],
-    });
-
-    writeModuleCache(normalizedLocale, module, resources);
-    i18n.addResources(normalizedLocale, TRANSLATIONS_NS, resources);
-    useLocaleStore.getState().markModulesLoaded([module]);
   }
 }
 
@@ -119,7 +78,7 @@ async function ensureI18nInstance(locale: string): Promise<void> {
 
   await i18n.use(initReactI18next).init({
     lng: locale,
-    fallbackLng: getDefaultLanguage(),
+    fallbackLng: false,
     debug: false,
     ns: [TRANSLATIONS_NS],
     defaultNS: TRANSLATIONS_NS,
@@ -130,7 +89,7 @@ async function ensureI18nInstance(locale: string): Promise<void> {
     },
     react: {
       useSuspense: false,
-      bindI18n: "loaded",
+      bindI18n: "languageChanged loaded",
       bindI18nStore: "added",
     },
     resources: {
@@ -144,11 +103,11 @@ async function ensureI18nInstance(locale: string): Promise<void> {
 }
 
 export async function initI18n(options: InitI18nOptions = {}): Promise<typeof i18n> {
-  const locale = normalizeLocale(options.locale ?? readStoredLocale());
+  const locale = normalizeLocale(options.locale ?? readActiveLocale());
   const tenant = getActiveTenantId(options.tenantId);
   const modules = options.modules ?? getDefaultLocalizationModules(tenant);
 
-  persistLocaleChoice(locale);
+  persistActiveLocale(locale);
   await ensureI18nInstance(locale);
   await loadModules(modules, locale, tenant);
   await i18n.changeLanguage(locale);
@@ -160,19 +119,13 @@ export async function loadModules(
   locale?: string,
   tenantId?: string,
 ): Promise<void> {
-  const activeLocale = normalizeLocale(locale ?? readStoredLocale());
+  const activeLocale = normalizeLocale(locale ?? readActiveLocale());
   const tenant = getActiveTenantId(tenantId);
   await fetchAndApplyModules(modules, activeLocale, tenant);
 }
 
 /**
- * Forces a fresh re-fetch of a module's translations from the API.
- *
- * Steps:
- *   1. Removes the module from livelihood-locale.loadedModules (Zustand persist).
- *      This makes fetchAndApplyModules treat it as unloaded on the next call.
- *   2. Calls loadModules() for that module — because it is no longer in loadedModules,
- *      the full fetch + cache-write + mark-loaded cycle runs again with fresh API data.
+ * Forces a fresh re-fetch of a module's translations from the API for one locale.
  *
  * Use this when you need to invalidate and refresh a module's translations at runtime,
  * e.g. after an admin updates localization keys.
@@ -185,12 +138,10 @@ export async function reloadModule(
   tenantId?: string,
 ): Promise<void> {
   const fullModuleName = `rainmaker-${moduleCode.toLowerCase()}`;
+  const activeLocale = normalizeLocale(locale ?? readActiveLocale());
 
-  // Step 1: Remove from livelihood-locale so the next loadModules call treats it as fresh.
-  useLocaleStore.getState().removeModule(fullModuleName);
-
-  // Step 2: Re-run the full localization cycle for this module.
-  await loadModules([fullModuleName], locale, tenantId);
+  removeModuleFromLocale(activeLocale, fullModuleName);
+  await loadModules([fullModuleName], activeLocale, tenantId);
 }
 
 export async function setLocale(
@@ -201,7 +152,7 @@ export async function setLocale(
   const tenant = getActiveTenantId(tenantId);
   const modules = getDefaultLocalizationModules(tenant);
 
-  persistLocaleChoice(normalizedLocale);
+  persistActiveLocale(normalizedLocale);
   await loadModules(modules, normalizedLocale, tenant);
   await i18n.changeLanguage(normalizedLocale);
 }
