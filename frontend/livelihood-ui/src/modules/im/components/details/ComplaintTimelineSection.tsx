@@ -59,7 +59,7 @@ function TimelineCaption({
       {checkpoint.wfComment?.map((comment, index) => (
         <div key={`${comment}-${index}`}>
           <p className="font-medium text-foreground">{t("WF_COMMON_COMMENTS")}</p>
-          <p>{comment}</p>
+          <p className="break-words">{comment}</p>
         </div>
       ))}
 
