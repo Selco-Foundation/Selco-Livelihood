@@ -124,6 +124,21 @@ export function ComplaintActionDialog({
     if (!accessToken) {
       return;
     }
+    if (requiresQuotation) {
+      const hasImage = Array.from(files).some((file) =>
+        file.type.startsWith("image/"),
+      );
+      if (hasImage) {
+        setError(
+          translateOr(
+            t,
+            "WF_QUOTATION_IMAGE_NOT_ALLOWED",
+            "Quotation must be a document (PDF or Word), not an image",
+          ),
+        );
+        return;
+      }
+    }
     setIsUploading(true);
     try {
       const uploaded: UploadedMediaEntry[] = [];
@@ -211,7 +226,11 @@ export function ComplaintActionDialog({
               </label>
               <input
                 type="file"
-                accept=".png,.jpg,.jpeg,.pdf,image/*,application/pdf"
+                accept={
+                  requiresQuotation
+                    ? ".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    : ".png,.jpg,.jpeg,.pdf,image/*,application/pdf"
+                }
                 multiple={!requiresQuotation}
                 disabled={isUploading}
                 onChange={(event) => {
