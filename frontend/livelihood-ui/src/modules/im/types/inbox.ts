@@ -6,7 +6,7 @@ export interface ImInboxFilters {
     wfStatus?: Array<{ code: string }>;
   };
   pgrfilters?: {
-    incidentType?: Array<{ code: string; name?: string; key?: string }>;
+    assetType?: Array<{ code: string; name?: string; key?: string }>;
     facility?: Array<{ code: string; name?: string }>;
     state?: Array<{ code: string; name?: string }>;
     district?: Array<{ code: string; name?: string }>;

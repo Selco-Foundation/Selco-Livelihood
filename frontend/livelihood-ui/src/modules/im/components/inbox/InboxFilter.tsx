@@ -10,7 +10,7 @@ import { ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { ORDERED_INBOX_STATUSES } from "../../constants/inbox-statuses";
 import { buildDefaultInboxRoleFilters } from "../../hooks/inbox-defaults";
-import { useImComplaintTypes } from "../../hooks/use-im-inbox-summary";
+import { useImAssetTypes } from "../../hooks/use-im-inbox-summary";
 import type { ImInboxFilters, InboxDataResult } from "../../types/inbox";
 import { isAssigneeScopedUser, isEndUser } from "../../utils/access";
 import { buildFilterQueryFromState } from "../../utils/inbox-filters";
@@ -102,7 +102,7 @@ export function InboxFilter({
   );
 
   const emptyPgrFilters = {
-    incidentType: [] as Array<{ code: string; name?: string; key?: string }>,
+    assetType: [] as Array<{ code: string; name?: string; key?: string }>,
     facility: [] as Array<{ code: string; name?: string }>,
     state: [] as Array<{ code: string; name?: string }>,
     district: [] as Array<{ code: string; name?: string }>,
@@ -129,25 +129,12 @@ export function InboxFilter({
 
   const { data: boundaryData } = useBoundary(jurisdictionCodes);
   const { data: facilityData } = useFacility(facilityBoundaryCodes);
-  const { data: complaintTypes } = useImComplaintTypes();
+  const { data: assetTypes } = useImAssetTypes();
 
-  const sortedMenu = useMemo(() => {
-    if (!complaintTypes?.length) {
-      return [];
-    }
-    const othersItem = complaintTypes.find((item) => item.key === "");
-    const remaining = [...complaintTypes]
-      .filter((item) => item.key !== "")
-      .sort((a, b) => a.name.localeCompare(b.name));
-    if (othersItem) {
-      remaining.push(othersItem);
-    }
-    return remaining.map((item) => ({
-      code: item.key,
-      key: item.key,
-      name: item.name,
-    }));
-  }, [complaintTypes]);
+  const assetTypeMenu = useMemo(
+    () => (assetTypes ?? []).map((item) => ({ code: item.code, name: item.name })),
+    [assetTypes],
+  );
 
   const statusMenu = useMemo(
     () =>
@@ -342,19 +329,19 @@ export function InboxFilter({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <FilterSelect
-          label={t("CS_COMPLAINT_DETAILS_TICKET_TYPE")}
-          value={pgrfilters.incidentType[0]?.code ?? ""}
-          options={sortedMenu}
+          label={t("CS_ASSET_TYPE")}
+          value={pgrfilters.assetType[0]?.code ?? ""}
+          options={assetTypeMenu}
           allLabel={allLabel}
           onChange={(code) => {
             if (!code) {
-              setPgrFilters((prev) => ({ ...prev, incidentType: [] }));
+              setPgrFilters((prev) => ({ ...prev, assetType: [] }));
               return;
             }
-            const option = sortedMenu.find((item) => item.code === code);
+            const option = assetTypeMenu.find((item) => item.code === code);
             setPgrFilters((prev) => ({
               ...prev,
-              incidentType: option ? [{ code: option.code, name: option.name }] : [],
+              assetType: option ? [{ code: option.code, name: option.name }] : [],
             }));
           }}
         />

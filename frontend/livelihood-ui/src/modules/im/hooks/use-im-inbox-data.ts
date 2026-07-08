@@ -120,19 +120,19 @@ export function useImMdms() {
   });
 }
 
-export function useImComplaintTypes() {
+export function useImAssetTypes() {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
   const stateTenantId = tenantId();
   const { t } = useTranslate();
 
   return useQuery({
-    queryKey: ["im-complaint-types", stateTenantId],
+    queryKey: ["im-asset-types", stateTenantId],
     enabled: Boolean(accessToken),
     staleTime: Number.POSITIVE_INFINITY,
     queryFn: async () => {
-      const { fetchComplaintTypes } = await import("../services/mdms");
-      return fetchComplaintTypes(accessToken!, user, t);
+      const { fetchAssetTypes } = await import("../services/mdms");
+      return fetchAssetTypes(accessToken!, user, t);
     },
   });
 }
