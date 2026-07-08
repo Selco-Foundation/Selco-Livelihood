@@ -174,7 +174,6 @@ export function flattenInboxFilters(
       pgrQuery?: Record<string, string>;
       wfQuery?: Record<string, string>;
     };
-    search?: Record<string, string> | string;
     limit?: number;
     offset?: number;
     nearingSLA?: boolean;
@@ -183,16 +182,11 @@ export function flattenInboxFilters(
 ): IncidentFilterInput {
   const pgrQuery = searchParams.filters?.pgrQuery ?? {};
   const wfQuery = searchParams.filters?.wfQuery ?? {};
-  const search =
-    typeof searchParams.search === "object" && searchParams.search
-      ? searchParams.search
-      : {};
 
   return {
     ...defaults,
     ...pgrQuery,
     ...wfQuery,
-    ...search,
     limit: searchParams.limit,
     offset: searchParams.offset,
     nearingSLA: searchParams.nearingSLA,

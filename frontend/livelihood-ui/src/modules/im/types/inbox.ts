@@ -17,8 +17,6 @@ export interface ImInboxFilters {
 
 export interface ImInboxSearchParams {
   filters?: ImInboxFilters;
-  search?: Record<string, string> | string;
-  sort?: Record<string, unknown>;
   limit?: number;
   offset?: number;
   nearingSLA?: boolean;

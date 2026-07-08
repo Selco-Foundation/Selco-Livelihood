@@ -8,6 +8,14 @@ import { ComplaintDetailsPage } from "./pages/employee/ComplaintDetailsPage";
 import { CreateIncidentPage } from "./pages/employee/CreateIncidentPage";
 import { CreateIncidentResponsePage } from "./pages/employee/CreateIncidentResponsePage";
 import { InboxPage } from "./pages/employee/InboxPage";
+import type { ImInboxFilters } from "./types/inbox";
+
+export interface InboxRouteSearch {
+  filter?: ImInboxFilters;
+  pageOffset: number;
+  pageSize: number;
+  nearing?: string;
+}
 
 /**
  * Parent route component for all IM pages.
@@ -54,11 +62,20 @@ export function createImRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
   const inboxRoute = createRoute({
     getParentRoute: () => imParentRoute,
     path: inboxPath,
-    validateSearch: (search: Record<string, unknown>) => ({
-      filter: typeof search.filter === "string" ? search.filter : undefined,
+    validateSearch: (search: Record<string, unknown>): InboxRouteSearch => ({
+      // Stored as a plain object — the router's default codec JSON-encodes/decodes
+      // object search values natively, so there's no manual stringify/parse to keep
+      // in sync (that mismatch is what previously dropped the filter on reload).
+      filter:
+        search.filter && typeof search.filter === "object"
+          ? (search.filter as ImInboxFilters)
+          : undefined,
       pageOffset: Number(search.pageOffset ?? 0),
       pageSize: Number(search.pageSize ?? 10),
-      nearing: typeof search.nearing === "string" ? search.nearing : undefined,
+      nearing:
+        search.nearing === undefined || search.nearing === null
+          ? undefined
+          : String(search.nearing),
     }),
     component: InboxPage,
   });
