@@ -38,7 +38,18 @@ public class InboxQueryBuilder implements QueryBuilderInterface {
                     "doc.containsKey('Data.definedTotalSla') && " +
                     "doc['Data.definedTotalSla'].size() > 0 && " +
                     "doc['Data.definedTotalSla'].value > 0 && " +
+                    "doc['Data.totalSlaRemaining'].size() > 0 && " +
+                    "doc['Data.totalSlaRemaining'].value > 0 && " +
                     "((double) doc['Data.totalSlaRemaining'].value / doc['Data.definedTotalSla'].value) <= 0.3";
+
+    private static final List<String> NEARING_SLA_EXCLUDED_STATUSES = List.of(
+            "RESOLVED",
+            "CLOSED_AFTER_RESOLUTION",
+            "CLOSED_AFTER_DECLINE",
+            "CLOSEDAFTERRESOLUTION",
+            "CLOSEDAFTERREJECTION",
+            "REJECTED"
+    );
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -131,16 +142,9 @@ public class InboxQueryBuilder implements QueryBuilderInterface {
             List<Map<String, Object>> mustNotClauseList =
                     (List<Map<String, Object>>) boolClause.getOrDefault("must_not", new ArrayList<>());
 
-            Map<String, Object> terminateClause = new HashMap<>();
-            terminateClause.put("term", Collections.singletonMap("Data.currentProcessInstance.state.isTerminateState", true));
-            mustNotClauseList.add(terminateClause);
-
-            Map<String, Object> excludeIncidentTerm = new HashMap<>();
-            excludeIncidentTerm.put("term", Collections.singletonMap("Data.currentProcessInstance.businessService.keyword", "Incident"));
-            mustNotClauseList.add(excludeIncidentTerm);
-
+            appendNearingSlaExclusions(mustNotClauseList);
             boolClause.put("must_not", mustNotClauseList);
-            log.debug("🚫 Added SLA exclusions: terminated tickets + Incident service");
+            log.debug("🚫 Added SLA exclusions for nearing filter");
 
             Map<String, Object> scriptInner = new HashMap<>();
             scriptInner.put("source", NEARING_SLA_PAINLESS_SCRIPT);
@@ -579,13 +583,7 @@ public class InboxQueryBuilder implements QueryBuilderInterface {
         // Ensure must_not clause exists
         List<Object> mustNotClauseList = (List<Object>) bool.getOrDefault("must_not", new ArrayList<>());
 
-        // Add isTerminateState filter to must_not
-        Map<String, Object> terminateTerm = new HashMap<>();
-        terminateTerm.put("Data.currentProcessInstance.state.isTerminateState", true);
-        Map<String, Object> mustNotTermWrapper = new HashMap<>();
-        mustNotTermWrapper.put("term", terminateTerm);
-        mustNotClauseList.add(mustNotTermWrapper);
-
+        appendNearingSlaExclusions(mustNotClauseList);
         bool.put("must_not", mustNotClauseList);
 
         // Add to must clause
@@ -807,6 +805,23 @@ public class InboxQueryBuilder implements QueryBuilderInterface {
             path = "Data." + key + ".keyword";
 
         return path;
+    }
+
+    private void appendNearingSlaExclusions(List<?> mustNotClauseList) {
+        Map<String, Object> terminateClause = new HashMap<>();
+        terminateClause.put("term", Collections.singletonMap("Data.currentProcessInstance.state.isTerminateState", true));
+        mustNotClauseList.add(terminateClause);
+
+        Map<String, Object> excludeIncidentTerm = new HashMap<>();
+        excludeIncidentTerm.put("term", Collections.singletonMap("Data.currentProcessInstance.businessService.keyword", "Incident"));
+        mustNotClauseList.add(excludeIncidentTerm);
+
+        Map<String, Object> excludedStatuses = new HashMap<>();
+        excludedStatuses.put("terms", Collections.singletonMap(
+                "Data.incident.applicationStatus.keyword",
+                NEARING_SLA_EXCLUDED_STATUSES
+        ));
+        mustNotClauseList.add(excludedStatuses);
     }
 
 }
