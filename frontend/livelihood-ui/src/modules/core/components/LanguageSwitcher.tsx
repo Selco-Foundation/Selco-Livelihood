@@ -1,21 +1,22 @@
-import { setLocale, useLocaleStore, SUPPORTED_LANGUAGES } from "@/shared";
+import { setLocale, useLanguages, useLocaleStore } from "@/shared";
 import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  toast,
 } from "@/ui";
 import { ChevronDown, Globe } from "lucide-react";
 import { useState } from "react";
 
 export function LanguageSwitcher() {
   const currentLocale = useLocaleStore((state) => state.locale);
+  const languages = useLanguages();
   const [isSwitching, setIsSwitching] = useState(false);
 
   const current =
-    SUPPORTED_LANGUAGES.find((language) => language.code === currentLocale) ??
-    SUPPORTED_LANGUAGES[0];
+    languages.find((language) => language.code === currentLocale) ?? languages[0];
 
   const handleSelect = async (code: string) => {
     if (code === currentLocale || isSwitching) {
@@ -25,6 +26,10 @@ export function LanguageSwitcher() {
     setIsSwitching(true);
     try {
       await setLocale(code);
+    } catch (error) {
+      toast.error("Failed to change language", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
     } finally {
       setIsSwitching(false);
     }
@@ -40,7 +45,7 @@ export function LanguageSwitcher() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {SUPPORTED_LANGUAGES.map((language) => (
+        {languages.map((language) => (
           <DropdownMenuItem
             key={language.code}
             className="cursor-pointer"

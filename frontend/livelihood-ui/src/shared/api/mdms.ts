@@ -1,7 +1,12 @@
-import { apiClient, tenantId, type AuthUser } from "@/shared";
-import { createRequestInfo } from "@/shared/api/request-info";
-import type { SelectOption } from "../types/create-incident";
-import type { ComplaintTypeOption, SystemFunctionalityOption } from "../types/inbox";
+import { apiClient } from "./client";
+import { createRequestInfo } from "./request-info";
+import { tenantId } from "../config/global-config";
+import type { AuthUser } from "../stores/auth-store";
+import type {
+  ComplaintTypeOption,
+  SystemFunctionalityOption,
+} from "@/modules/im/types/inbox";
+import {SelectOption} from "@/modules/im/types/create-incident";
 
 interface MdmsResponse {
   MdmsRes?: Record<string, Record<string, unknown[]>>;
@@ -23,7 +28,7 @@ export async function fetchMdmsMasters(
   stateTenantId: string,
   moduleCode: string,
   masterNames: string[],
-  accessToken: string,
+  accessToken?: string,
   user?: AuthUser | null,
 ): Promise<Record<string, unknown[]>> {
   const { data } = await apiClient.post<MdmsResponse>(
@@ -46,6 +51,37 @@ export async function fetchMdmsMasters(
   );
 
   return data.MdmsRes?.[moduleCode] ?? {};
+}
+
+export interface SupportedLanguage {
+  code: string;
+  label: string;
+  nativeLabel: string;
+}
+
+function isSupportedLanguage(value: unknown): value is SupportedLanguage {
+  const record = value as Partial<SupportedLanguage> | null;
+  return Boolean(record && typeof record.code === "string" && typeof record.label === "string");
+}
+
+export async function fetchLanguages(
+  accessToken?: string,
+  user?: AuthUser | null,
+): Promise<SupportedLanguage[]> {
+  const masters = await fetchMdmsMasters(
+    tenantId(),
+    "common-masters",
+    ["Languages"],
+    accessToken,
+    user,
+  );
+  const languages = (masters.Languages as unknown[]) ?? [];
+
+  return languages.filter(isSupportedLanguage).map((language) => ({
+    code: language.code,
+    label: language.label,
+    nativeLabel: language.nativeLabel ?? language.label,
+  }));
 }
 
 export async function fetchSystemFunctionality(

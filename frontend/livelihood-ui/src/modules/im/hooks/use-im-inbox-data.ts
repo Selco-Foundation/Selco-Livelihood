@@ -1,4 +1,6 @@
 import {
+  fetchAssetTypes,
+  fetchSystemFunctionality,
   tenantId,
   useAuthStore,
   useJurisdictionStore,
@@ -113,10 +115,7 @@ export function useImMdms() {
     queryKey: ["im-mdms", stateTenantId],
     enabled: Boolean(accessToken),
     staleTime: Number.POSITIVE_INFINITY,
-    queryFn: async () => {
-      const { fetchSystemFunctionality } = await import("../services/mdms");
-      return fetchSystemFunctionality(accessToken!, user);
-    },
+    queryFn: () => fetchSystemFunctionality(accessToken!, user),
   });
 }
 
@@ -131,7 +130,6 @@ export function useImAssetTypes() {
     enabled: Boolean(accessToken),
     staleTime: Number.POSITIVE_INFINITY,
     queryFn: async () => {
-      const { fetchAssetTypes } = await import("../services/mdms");
       return fetchAssetTypes(accessToken!, user, t);
     },
   });
