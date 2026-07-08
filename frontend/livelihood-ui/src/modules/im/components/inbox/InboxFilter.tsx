@@ -22,6 +22,10 @@ interface FilterOption {
   parentCode?: string;
 }
 
+function codesOf(items: Array<{ code: string }>): Set<string> {
+  return new Set(items.map((item) => item.code));
+}
+
 interface InboxFilterProps {
   complaints?: InboxDataResult;
   searchParams: { filters?: ImInboxFilters };
@@ -200,55 +204,91 @@ export function InboxFilter({
   }, [boundaryData, t]);
 
   useEffect(() => {
-    const selectedState = pgrfilters.state?.[0];
-    if (selectedState && boundaryData?.districts) {
-      setDistrictMenu(
-        boundaryData.districts
-          .filter((district) => district.parentCode === selectedState.code)
-          .map((district) => ({
-            code: district.code,
-            name: t(`BOUNDARY_${district.code}`),
-          }))
-          .sort((a, b) => a.name.localeCompare(b.name)),
-      );
-    } else if (!selectedState) {
+    if (!boundaryData?.districts) {
       setDistrictMenu([]);
+      return;
     }
+    const selectedState = pgrfilters.state?.[0];
+    const districts = selectedState
+      ? boundaryData.districts.filter((district) => district.parentCode === selectedState.code)
+      : boundaryData.districts;
+
+    setDistrictMenu(
+      districts
+        .map((district) => ({
+          code: district.code,
+          name: t(`BOUNDARY_${district.code}`),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    );
   }, [pgrfilters.state, boundaryData, t]);
 
   useEffect(() => {
-    const selectedDistrict = pgrfilters.district?.[0];
-    if (selectedDistrict && boundaryData?.blocks) {
-      setBlockMenu(
-        boundaryData.blocks
-          .filter((block) => block.parentCode === selectedDistrict.code)
-          .map((block) => ({
-            code: block.code,
-            name: t(`BOUNDARY_${block.code}`),
-          }))
-          .sort((a, b) => a.name.localeCompare(b.name)),
-      );
-    } else if (!selectedDistrict) {
+    if (!boundaryData?.blocks) {
       setBlockMenu([]);
+      return;
     }
-  }, [pgrfilters.district, boundaryData, t]);
+    const selectedState = pgrfilters.state?.[0];
+    const selectedDistrict = pgrfilters.district?.[0];
+
+    let blocks = boundaryData.blocks;
+    if (selectedDistrict) {
+      blocks = blocks.filter((block) => block.parentCode === selectedDistrict.code);
+    } else if (selectedState && boundaryData.districts) {
+      const districtCodes = codesOf(
+        boundaryData.districts.filter((district) => district.parentCode === selectedState.code),
+      );
+      blocks = blocks.filter((block) => block.parentCode && districtCodes.has(block.parentCode));
+    }
+
+    setBlockMenu(
+      blocks
+        .map((block) => ({
+          code: block.code,
+          name: t(`BOUNDARY_${block.code}`),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    );
+  }, [pgrfilters.state, pgrfilters.district, boundaryData, t]);
 
   useEffect(() => {
+    const selectedState = pgrfilters.state?.[0];
+    const selectedDistrict = pgrfilters.district?.[0];
     const selectedBlock = pgrfilters.block?.[0];
+
+    let facilities = facilityOptions;
     if (selectedBlock) {
-      setFacilityMenu(
-        facilityOptions
-          .filter((facility) => facility.parentCode === selectedBlock.code)
-          .map((facility) => ({
-            code: facility.code,
-            name: t(`BOUNDARY_${facility.code}`),
-          }))
-          .sort((a, b) => a.name.localeCompare(b.name)),
+      facilities = facilities.filter((facility) => facility.parentCode === selectedBlock.code);
+    } else if (selectedDistrict && boundaryData?.blocks) {
+      const blockCodes = codesOf(
+        boundaryData.blocks.filter((block) => block.parentCode === selectedDistrict.code),
       );
-    } else {
-      setFacilityMenu([]);
+      facilities = facilities.filter(
+        (facility) => facility.parentCode && blockCodes.has(facility.parentCode),
+      );
+    } else if (selectedState && boundaryData?.districts && boundaryData?.blocks) {
+      const districtCodes = codesOf(
+        boundaryData.districts.filter((district) => district.parentCode === selectedState.code),
+      );
+      const blockCodes = codesOf(
+        boundaryData.blocks.filter(
+          (block) => block.parentCode && districtCodes.has(block.parentCode),
+        ),
+      );
+      facilities = facilities.filter(
+        (facility) => facility.parentCode && blockCodes.has(facility.parentCode),
+      );
     }
-  }, [pgrfilters.block, facilityOptions, t]);
+
+    setFacilityMenu(
+      facilities
+        .map((facility) => ({
+          code: facility.code,
+          name: t(`BOUNDARY_${facility.code}`),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    );
+  }, [pgrfilters.state, pgrfilters.district, pgrfilters.block, facilityOptions, boundaryData, t]);
 
   useEffect(() => {
     if (!showAssigneeFilter) {
@@ -319,93 +359,93 @@ export function InboxFilter({
           }}
         />
 
-        <FilterSelect
-          label={t("CS_STATE")}
-          value={pgrfilters.state[0]?.code ?? ""}
-          options={stateMenu}
-          allLabel={allLabel}
-          disabled={!showGeoFilters}
-          onChange={(code) => {
-            if (!code) {
-              setPgrFilters((prev) => ({
-                ...prev,
-                state: [],
-                district: [],
-                block: [],
-                facility: [],
-              }));
-              return;
-            }
-            const option = stateMenu.find((item) => item.code === code);
-            setPgrFilters((prev) => ({
-              ...prev,
-              state: option ? [option] : [],
-              district: [],
-              block: [],
-              facility: [],
-            }));
-          }}
-        />
+        {showGeoFilters ? (
+          <>
+            <FilterSelect
+              label={t("CS_STATE")}
+              value={pgrfilters.state[0]?.code ?? ""}
+              options={stateMenu}
+              allLabel={allLabel}
+              onChange={(code) => {
+                if (!code) {
+                  setPgrFilters((prev) => ({
+                    ...prev,
+                    state: [],
+                    district: [],
+                    block: [],
+                    facility: [],
+                  }));
+                  return;
+                }
+                const option = stateMenu.find((item) => item.code === code);
+                setPgrFilters((prev) => ({
+                  ...prev,
+                  state: option ? [option] : [],
+                  district: [],
+                  block: [],
+                  facility: [],
+                }));
+              }}
+            />
 
-        <FilterSelect
-          label={t("CS_DISTRICT")}
-          value={pgrfilters.district[0]?.code ?? ""}
-          options={districtMenu}
-          allLabel={allLabel}
-          disabled={!showGeoFilters || !pgrfilters.state.length}
-          onChange={(code) => {
-            if (!code) {
-              setPgrFilters((prev) => ({ ...prev, district: [], block: [], facility: [] }));
-              return;
-            }
-            const option = districtMenu.find((item) => item.code === code);
-            setPgrFilters((prev) => ({
-              ...prev,
-              district: option ? [option] : [],
-              block: [],
-              facility: [],
-            }));
-          }}
-        />
+            <FilterSelect
+              label={t("CS_DISTRICT")}
+              value={pgrfilters.district[0]?.code ?? ""}
+              options={districtMenu}
+              allLabel={allLabel}
+              onChange={(code) => {
+                if (!code) {
+                  setPgrFilters((prev) => ({ ...prev, district: [], block: [], facility: [] }));
+                  return;
+                }
+                const option = districtMenu.find((item) => item.code === code);
+                setPgrFilters((prev) => ({
+                  ...prev,
+                  district: option ? [option] : [],
+                  block: [],
+                  facility: [],
+                }));
+              }}
+            />
 
-        <FilterSelect
-          label={t("CS_BLOCK")}
-          value={pgrfilters.block[0]?.code ?? ""}
-          options={blockMenu}
-          allLabel={allLabel}
-          disabled={!showGeoFilters || !pgrfilters.district.length}
-          onChange={(code) => {
-            if (!code) {
-              setPgrFilters((prev) => ({ ...prev, block: [], facility: [] }));
-              return;
-            }
-            const option = blockMenu.find((item) => item.code === code);
-            setPgrFilters((prev) => ({
-              ...prev,
-              block: option ? [option] : [],
-              facility: [],
-            }));
-          }}
-        />
+            <FilterSelect
+              label={t("CS_BLOCK")}
+              value={pgrfilters.block[0]?.code ?? ""}
+              options={blockMenu}
+              allLabel={allLabel}
+              onChange={(code) => {
+                if (!code) {
+                  setPgrFilters((prev) => ({ ...prev, block: [], facility: [] }));
+                  return;
+                }
+                const option = blockMenu.find((item) => item.code === code);
+                setPgrFilters((prev) => ({
+                  ...prev,
+                  block: option ? [option] : [],
+                  facility: [],
+                }));
+              }}
+            />
 
-        <FilterSelect
-          label={t("CS_HEALTH_CARE")}
-          value={pgrfilters.facility[0]?.code ?? ""}
-          options={facilityMenu}
-          allLabel={allLabel}
-          disabled={!showGeoFilters || !pgrfilters.block.length}
-          onChange={(code) => {
-            if (!code) {
-              setPgrFilters((prev) => ({ ...prev, facility: [] }));
-              return;
-            }
-            const option = facilityMenu.find((item) => item.code === code);
-            setPgrFilters((prev) => ({
-              ...prev,
-              facility: option ? [option] : [],
-            }));
-          }}
-        />
+            <FilterSelect
+              label={t("CS_HEALTH_CARE")}
+              value={pgrfilters.facility[0]?.code ?? ""}
+              options={facilityMenu}
+              allLabel={allLabel}
+              onChange={(code) => {
+                if (!code) {
+                  setPgrFilters((prev) => ({ ...prev, facility: [] }));
+                  return;
+                }
+                const option = facilityMenu.find((item) => item.code === code);
+                setPgrFilters((prev) => ({
+                  ...prev,
+                  facility: option ? [option] : [],
+                }));
+              }}
+            />
+          </>
+        ) : null}
 
         <FilterSelect
           label={t("ES_IM_FILTER_STATUS")}
