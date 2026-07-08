@@ -42,7 +42,7 @@ public class InboxQueryBuilder implements QueryBuilderInterface {
                     "doc['Data.totalSlaRemaining'].value > 0 && " +
                     "((double) doc['Data.totalSlaRemaining'].value / doc['Data.definedTotalSla'].value) <= 0.3";
 
-    private static final List<String> NEARING_SLA_EXCLUDED_STATUSES = List.of(
+    private static final List<String> NEARING_SLA_EXCLUDED_STATUSES = Arrays.asList(
             "RESOLVED",
             "CLOSED_AFTER_RESOLUTION",
             "CLOSED_AFTER_DECLINE",
@@ -139,8 +139,8 @@ public class InboxQueryBuilder implements QueryBuilderInterface {
             Map<String, Object> query = (Map<String, Object>) baseEsQuery.get("query");
             Map<String, Object> boolClause = (Map<String, Object>) query.get("bool");
 
-            List<Map<String, Object>> mustNotClauseList =
-                    (List<Map<String, Object>>) boolClause.getOrDefault("must_not", new ArrayList<>());
+            List<Object> mustNotClauseList = new ArrayList<>(
+                    (Collection<?>) boolClause.getOrDefault("must_not", new ArrayList<>()));
 
             appendNearingSlaExclusions(mustNotClauseList);
             boolClause.put("must_not", mustNotClauseList);
@@ -807,7 +807,7 @@ public class InboxQueryBuilder implements QueryBuilderInterface {
         return path;
     }
 
-    private void appendNearingSlaExclusions(List<?> mustNotClauseList) {
+    private void appendNearingSlaExclusions(List<Object> mustNotClauseList) {
         Map<String, Object> terminateClause = new HashMap<>();
         terminateClause.put("term", Collections.singletonMap("Data.currentProcessInstance.state.isTerminateState", true));
         mustNotClauseList.add(terminateClause);
