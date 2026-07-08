@@ -58,6 +58,16 @@ export function markModuleLoaded(locale: string, module: string): void {
 export function removeModuleFromLocale(locale: string, module: string): void {
   const perLocale = getLoadedModulesForLocale(locale).filter((m) => m !== module);
   writeStringArray(modulesListKey(locale), perLocale);
+
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(modulePayloadKey(locale, module));
+  } catch {
+    // localStorage removal failures are non-fatal
+  }
 }
 
 export function readModulePayload(locale: string, module: string): Record<string, string> | null {

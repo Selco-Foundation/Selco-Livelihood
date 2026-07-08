@@ -1,4 +1,5 @@
 import {
+  fetchServiceDefsForMenuPath,
   useAuthStore,
   useJurisdictionStore,
   useTranslate,
@@ -10,7 +11,6 @@ import { searchAssetsForFacility } from "../services/asset-search";
 import { searchFacilitiesByJurisdiction } from "../services/facility-search";
 import { uploadIncidentFile, uploadIncidentVideo } from "../services/file-upload";
 import { createIncident, searchPotentialDuplicates } from "../services/incident";
-import { fetchServiceDefsForMenuPath } from "../services/mdms";
 import type {
   CreateIncidentFormValues,
   SelectOption,

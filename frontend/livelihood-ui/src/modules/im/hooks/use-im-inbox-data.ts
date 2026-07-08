@@ -1,4 +1,6 @@
 import {
+  fetchComplaintTypes,
+  fetchSystemFunctionality,
   tenantId,
   useAuthStore,
   useJurisdictionStore,
@@ -113,10 +115,7 @@ export function useImMdms() {
     queryKey: ["im-mdms", stateTenantId],
     enabled: Boolean(accessToken),
     staleTime: Number.POSITIVE_INFINITY,
-    queryFn: async () => {
-      const { fetchSystemFunctionality } = await import("../services/mdms");
-      return fetchSystemFunctionality(accessToken!, user);
-    },
+    queryFn: () => fetchSystemFunctionality(accessToken!, user),
   });
 }
 
@@ -130,9 +129,6 @@ export function useImComplaintTypes() {
     queryKey: ["im-complaint-types", stateTenantId],
     enabled: Boolean(accessToken),
     staleTime: Number.POSITIVE_INFINITY,
-    queryFn: async () => {
-      const { fetchComplaintTypes } = await import("../services/mdms");
-      return fetchComplaintTypes(accessToken!, user, t);
-    },
+    queryFn: () => fetchComplaintTypes(accessToken!, user, t),
   });
 }

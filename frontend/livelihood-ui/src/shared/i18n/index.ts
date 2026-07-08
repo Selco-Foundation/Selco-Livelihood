@@ -41,8 +41,10 @@ async function fetchAndApplyModules(
         const cached = readModulePayload(normalizedLocale, module);
         if (cached) {
           i18n.addResources(normalizedLocale, TRANSLATIONS_NS, cached);
+          continue;
         }
-        continue;
+        // Marked loaded but the payload is missing (e.g. a prior write failed) —
+        // fall through and refetch instead of leaving the module untranslated.
       }
 
       const resources = await fetchLocalization({
@@ -152,9 +154,9 @@ export async function setLocale(
   const tenant = getActiveTenantId(tenantId);
   const modules = getDefaultLocalizationModules(tenant);
 
-  persistActiveLocale(normalizedLocale);
   await loadModules(modules, normalizedLocale, tenant);
   await i18n.changeLanguage(normalizedLocale);
+  persistActiveLocale(normalizedLocale);
 }
 
 export { i18n };
