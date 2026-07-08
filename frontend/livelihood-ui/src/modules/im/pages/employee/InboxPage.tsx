@@ -118,11 +118,6 @@ export function InboxPage() {
 
       <PageHeader
         title={translateOr(t, "ES_IM_ALL_TICKETS", "All Tickets")}
-        description={translateOr(
-          t,
-          "ES_IM_INBOX_DESCRIPTION",
-          "View and track all your service requests.",
-        )}
         action={
           canCreateTicket ? (
             <Button asChild className="gap-2 rounded-md px-5">

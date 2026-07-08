@@ -110,11 +110,6 @@ export function ComplaintDetailsPage() {
 
       <PageHeader
         title={translateOr(t, "CS_HEADER_TICKET_DETAILS", "Ticket Details")}
-        description={translateOr(
-          t,
-          "CS_COMPLAINT_DETAILS_PAGE_DESC",
-          "Review ticket information, attachments, and workflow history.",
-        )}
       />
 
       <ComplaintSummarySection complaintDetails={complaintDetails} />
