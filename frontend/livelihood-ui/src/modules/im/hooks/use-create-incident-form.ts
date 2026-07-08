@@ -47,7 +47,7 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
   const user = useAuthStore((state) => state.user);
   const accessToken = useAuthStore((state) => state.accessToken);
   const employeeTenantId = useAuthStore((state) => state.employeeTenantId);
-  const currentBoundary = useJurisdictionStore((state) => state.currentBoundary);
+  const boundaries = useJurisdictionStore((state) => state.boundaries);
 
   const [form, setForm] = useState<CreateIncidentFormValues>(EMPTY_FORM);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -65,9 +65,9 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
   const facilityCriteria = useMemo(
     () =>
       employeeTenantId
-        ? buildFacilitySearchCriteria(currentBoundary, employeeTenantId)
+        ? buildFacilitySearchCriteria(boundaries, employeeTenantId)
         : null,
-    [currentBoundary, employeeTenantId],
+    [boundaries, employeeTenantId],
   );
 
   const facilitiesQuery = useQuery({
@@ -173,7 +173,7 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
       return;
     }
 
-    const jurisdiction = currentBoundary ?? { country: ["-"] };
+    const jurisdiction = boundaries ?? { country: ["-"] };
     void searchPotentialDuplicates(
       employeeTenantId!,
       jurisdiction,
@@ -184,7 +184,7 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
     ).then(setDuplicateTickets);
   }, [
     accessToken,
-    currentBoundary,
+    boundaries,
     employeeTenantId,
     form.complaintType,
     form.endUser,

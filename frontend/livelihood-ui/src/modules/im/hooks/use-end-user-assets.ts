@@ -18,14 +18,14 @@ export function useEndUserAssets({ enabled }: UseEndUserAssetsOptions) {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
   const employeeTenantId = useAuthStore((state) => state.employeeTenantId);
-  const currentBoundary = useJurisdictionStore((state) => state.currentBoundary);
+  const boundaries = useJurisdictionStore((state) => state.boundaries);
 
   const query = useQuery({
-    queryKey: ["im-end-user-assets", employeeTenantId, currentBoundary],
+    queryKey: ["im-end-user-assets", employeeTenantId, boundaries],
     enabled: Boolean(enabled && accessToken && employeeTenantId),
     staleTime: 30_000,
     queryFn: async () => {
-      const criteria = buildFacilitySearchCriteria(currentBoundary, employeeTenantId!);
+      const criteria = buildFacilitySearchCriteria(boundaries, employeeTenantId!);
       const { facilities } = await searchFacilitiesByJurisdiction(
         criteria,
         accessToken!,

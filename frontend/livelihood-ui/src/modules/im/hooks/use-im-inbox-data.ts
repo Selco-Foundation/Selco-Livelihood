@@ -20,7 +20,7 @@ export function useImInboxSummary() {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
   const employeeTenantId = useAuthStore((state) => state.employeeTenantId);
-  const currentBoundary = useJurisdictionStore((state) => state.currentBoundary);
+  const boundaries = useJurisdictionStore((state) => state.boundaries);
 
   const filters = {
     limit: 10,
@@ -31,7 +31,7 @@ export function useImInboxSummary() {
   };
 
   const enabled = Boolean(accessToken && employeeTenantId && hasImAccess(user?.roles));
-  const jurisdiction = currentBoundary ?? { country: ["-"] };
+  const jurisdiction = boundaries ?? { country: ["-"] };
 
   return useQuery({
     queryKey: ["im-inbox-summary", employeeTenantId, filters, jurisdiction],
@@ -59,7 +59,7 @@ export function useImInboxData(searchParams: ImInboxSearchParams) {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
   const employeeTenantId = useAuthStore((state) => state.employeeTenantId);
-  const currentBoundary = useJurisdictionStore((state) => state.currentBoundary);
+  const boundaries = useJurisdictionStore((state) => state.boundaries);
   const { t } = useTranslate();
 
   const filters = {
@@ -73,7 +73,7 @@ export function useImInboxData(searchParams: ImInboxSearchParams) {
   };
 
   const enabled = Boolean(accessToken && employeeTenantId && hasImAccess(user?.roles));
-  const jurisdiction = currentBoundary ?? { country: ["-"] };
+  const jurisdiction = boundaries ?? { country: ["-"] };
 
   return useQuery({
     queryKey: [

@@ -76,8 +76,8 @@ export function InboxFilter({
   const user = useAuthStore((state) => state.user);
   const userUuid = user?.uuid ?? "";
   const roles = user?.roles;
-  const currentBoundary = useJurisdictionStore((state) => state.currentBoundary);
-  const jurisdictionCodes = aggregateBoundaryCodes(currentBoundary);
+  const boundaries = useJurisdictionStore((state) => state.boundaries);
+  const jurisdictionCodes = aggregateBoundaryCodes(boundaries);
 
   const assignedToOptions = useMemo(
     () => [
