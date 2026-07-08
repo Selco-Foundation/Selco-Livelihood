@@ -1,6 +1,6 @@
 import { contextPath, useAuthStore, useTranslate } from "@/shared";
 import { cn } from "@/ui";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { InboxRow } from "../../types/inbox";
 import { isEndUser } from "../../utils/access";
@@ -33,6 +33,7 @@ export function ComplaintTable({
   onPageChange,
 }: ComplaintTableProps) {
   const { t } = useTranslate();
+  const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const slaColumnLabel = isEndUser(user?.roles)
     ? t("WF_INBOX_HEADER_DAYS_REMAINING")
@@ -72,39 +73,48 @@ export function ComplaintTable({
             </tr>
           </thead>
           <tbody>
-            {data.map((row) => (
-              <tr key={`${row.incidentId}-${row.tenantId}`} className="border-b border-border/70">
-                <td className="px-5 py-4">
-                  <div>
-                    <Link
-                      to={`${basePath}/complaint/details/${row.incidentId}/${row.tenantId}`}
-                      className="font-semibold text-foreground hover:text-primary hover:underline"
-                    >
-                      {row.incidentId}
-                    </Link>
-                    {row.potentialDuplicate ? (
-                      <p className="mt-1 text-xs font-medium text-destructive">
-                        {t("CS_INFO_POTENTIAL_DUPLICATE")}
-                      </p>
-                    ) : null}
-                  </div>
-                </td>
-                <td className="px-5 py-4 text-foreground">{row.endUser}</td>
-                <td className="px-5 py-4 text-foreground">
-                  {translateDetailValue(row.assetLabel, t)}
-                </td>
-                <td className="px-5 py-4 text-foreground">
-                  {t(`SERVICEDEFS.${row.incidentType.toUpperCase()}`)}
-                </td>
-                <td className="px-5 py-4 text-foreground">
-                  {t(`CS_COMMON_${row.status}`)}
-                </td>
-                <td className="px-5 py-4 text-foreground">{row.taskOwner}</td>
-                <td className="px-5 py-4">
-                  <SlaBadge value={row.sla} overdueLabel={overdueLabel} />
-                </td>
-              </tr>
-            ))}
+            {data.map((row) => {
+              const detailsPath = `${basePath}/complaint/details/${row.incidentId}/${row.tenantId}`;
+
+              return (
+                <tr
+                  key={`${row.incidentId}-${row.tenantId}`}
+                  className="cursor-pointer border-b border-border/70 hover:bg-muted/40"
+                  onClick={() => void navigate({ to: detailsPath })}
+                >
+                  <td className="px-5 py-4">
+                    <div>
+                      <Link
+                        to={detailsPath}
+                        className="font-semibold text-foreground hover:text-primary hover:underline"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        {row.incidentId}
+                      </Link>
+                      {row.potentialDuplicate ? (
+                        <p className="mt-1 text-xs font-medium text-destructive">
+                          {t("CS_INFO_POTENTIAL_DUPLICATE")}
+                        </p>
+                      ) : null}
+                    </div>
+                  </td>
+                  <td className="px-5 py-4 text-foreground">{row.endUser}</td>
+                  <td className="px-5 py-4 text-foreground">
+                    {translateDetailValue(row.assetLabel, t)}
+                  </td>
+                  <td className="px-5 py-4 text-foreground">
+                    {t(`SERVICEDEFS.${row.incidentType.toUpperCase()}`)}
+                  </td>
+                  <td className="px-5 py-4 text-foreground">
+                    {t(`CS_COMMON_${row.status}`)}
+                  </td>
+                  <td className="px-5 py-4 text-foreground">{row.taskOwner}</td>
+                  <td className="px-5 py-4">
+                    <SlaBadge value={row.sla} overdueLabel={overdueLabel} />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
