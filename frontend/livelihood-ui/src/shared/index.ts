@@ -17,10 +17,6 @@ export { fetchFacilities, type FacilitySummary } from "./api/facility";
 export {
   fetchMdmsMasters,
   fetchLanguages,
-  fetchSystemFunctionality,
-  fetchComplaintTypes,
-  fetchServiceDefsForMenuPath,
-  fetchComplaintSubTypes,
   type SupportedLanguage,
 } from "./api/mdms";
 export {
