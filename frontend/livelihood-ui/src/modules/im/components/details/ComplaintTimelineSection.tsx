@@ -107,9 +107,8 @@ export function ComplaintTimelineSection({
       <ol className="space-y-0">
         {timeline.map((checkpoint, index) => {
           const isLast = index === timeline.length - 1;
-          const statusKey = checkpoint.status
-            ? `CS_COMMON_${checkpoint.status}`
-            : checkpoint.performedAction ?? "UNKNOWN";
+          const action = checkpoint.performedAction ?? "UNKNOWN";
+          const actionKey = `TIMELINE_ACTION_${action}`;
 
           return (
             <li key={`${checkpoint.status}-${checkpoint.performedAction}-${index}`} className="relative flex gap-4 pb-8">
@@ -126,7 +125,7 @@ export function ComplaintTimelineSection({
               </div>
               <div className="min-w-0 flex-1 pt-[-2px]">
                 <p className="text-sm font-semibold text-foreground">
-                  {translateOr(t, statusKey, statusKey)}
+                  {translateOr(t, actionKey, action)}
                 </p>
                 <TimelineCaption
                   checkpoint={checkpoint}
