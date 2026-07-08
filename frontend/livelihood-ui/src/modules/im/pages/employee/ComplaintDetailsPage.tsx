@@ -92,8 +92,13 @@ export function ComplaintDetailsPage() {
     applyCheckpoint?.thumbnailsToShow?.videos ?? complaintDetails.videos;
 
   const handleActionComplete = async () => {
-    await revalidate();
-    if (isAssigneeScopedUser(user?.roles)) {
+    const refreshedWorkflow = await revalidate();
+    const currentAssigneeUuid = refreshedWorkflow?.processInstances?.[0]?.assignes?.[0]?.uuid;
+    const stillAssignedToCurrentUser = Boolean(
+      user?.uuid && currentAssigneeUuid === user.uuid,
+    );
+
+    if (isAssigneeScopedUser(user?.roles) && !stillAssignedToCurrentUser) {
       await navigate({ to: inboxPath });
     }
   };
