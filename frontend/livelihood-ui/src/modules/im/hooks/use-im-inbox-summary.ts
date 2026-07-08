@@ -1,1 +1,1 @@
-export { useImInboxData, useImInboxSummary, useImMdms, useImAssetTypes } from "./use-im-inbox-data";
+export { useImInboxData, useImInboxSummary, useImAssetTypes } from "./use-im-inbox-data";
