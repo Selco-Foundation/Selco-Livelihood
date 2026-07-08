@@ -106,7 +106,11 @@ export function ComplaintTimelineSection({
     >
       <ol className="space-y-0">
         {timeline.map((checkpoint, index) => {
-          const isLast = index === timeline.length - 1;
+          // `timeline[0]` is the most recent process instance (see
+          // fetchWorkflowDetails's `currentInstance = processInstances[0]`), so the
+          // latest action is the FIRST entry here, not the last one rendered.
+          const isLatest = index === 0;
+          const isLastRendered = index === timeline.length - 1;
           const action = checkpoint.performedAction ?? "UNKNOWN";
           const actionKey = `TIMELINE_ACTION_${action}`;
 
@@ -116,10 +120,10 @@ export function ComplaintTimelineSection({
                 <div
                   className={cn(
                     "z-10 flex size-3 rounded-full",
-                    isLast ? "bg-primary" : "bg-muted-foreground/40",
+                    isLatest ? "bg-primary" : "bg-muted-foreground/40",
                   )}
                 />
-                {!isLast ? (
+                {!isLastRendered ? (
                   <div className="mt-1 w-px flex-1 bg-border" />
                 ) : null}
               </div>
