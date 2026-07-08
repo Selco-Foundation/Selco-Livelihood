@@ -171,6 +171,18 @@ export function ComplaintActionDialog({
       ? translateOr(t, "WF_OUT_OF_SCOPE_REASON", "Out of scope reason")
       : translateOr(t, "WF_DECLINE_REASON", "Decline reason");
 
+  const endUserName =
+    complaintDetails.incident.reporter?.name ??
+    translateOr(t, "CS_COMMON_END_USER", "the end user");
+  const outOfWarrantyHelperText =
+    action === "OUT_OF_WARRANTY"
+      ? translateOr(
+          t,
+          "WF_OUT_OF_WARRANTY_HELPER",
+          "By marking this ticket as Out of Warranty, you are expected to contact {endUserName} and resolve the issue through the appropriate offline process.",
+        ).replace("{endUserName}", endUserName)
+      : null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-card p-6 shadow-lg">
@@ -249,6 +261,12 @@ export function ComplaintActionDialog({
           ) : null}
 
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
+
+          {outOfWarrantyHelperText ? (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              {outOfWarrantyHelperText}
+            </p>
+          ) : null}
         </div>
 
         <div className="mt-6 flex justify-end gap-3">
