@@ -1,4 +1,4 @@
-import { setLocale, useLanguages, useLocaleStore } from "@/shared";
+import { setLocale, useLanguages, useLocaleStore, useTranslate } from "@/shared";
 import {
   Button,
   DropdownMenu,
@@ -14,6 +14,7 @@ export function LanguageSwitcher() {
   const currentLocale = useLocaleStore((state) => state.locale);
   const languages = useLanguages();
   const [isSwitching, setIsSwitching] = useState(false);
+  const { t } = useTranslate();
 
   const current =
     languages.find((language) => language.code === currentLocale) ?? languages[0];
@@ -27,8 +28,10 @@ export function LanguageSwitcher() {
     try {
       await setLocale(code);
     } catch (error) {
-      toast.error("Failed to change language", {
-        description: error instanceof Error ? error.message : "Please try again.",
+      toast.error(t("CORE_LANGUAGE_SWITCH_FAILURE_TOAST"), {
+        description: error instanceof Error
+          ? error.message
+          : t("CORE_LANGUAGE_SWITCH_ERROR_GENERIC"),
       });
     } finally {
       setIsSwitching(false);
