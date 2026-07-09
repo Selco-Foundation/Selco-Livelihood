@@ -6,8 +6,9 @@ import {
 } from "@/shared";
 import { Button, PageHeader, StatTile } from "@/ui";
 import { Link } from "@tanstack/react-router";
-import { Clock, FileText, Plus } from "lucide-react";
+import { CheckCircle2, Clock, FileText, Plus } from "lucide-react";
 import { useEffect } from "react";
+import { LanguageSwitcher } from "@/modules/core";
 import { EndUserAssetsList } from "./EndUserAssetsList";
 import { useEndUserAssets } from "../hooks/use-end-user-assets";
 import { useImInboxSummary } from "../hooks/use-im-inbox-summary";
@@ -25,6 +26,11 @@ export function ImOverview() {
   const { data, isLoading } = useImInboxSummary();
   const endUser = isEndUser(user?.roles);
   const { assets, isLoading: isAssetsLoading } = useEndUserAssets({ enabled: endUser });
+  const canCreate = canCreateIncident(user?.roles);
+  const displayName = user?.name ?? user?.userName ?? "";
+  const welcomeTitle = displayName
+    ? `${translateOr(t, "ES_IM_WELCOME", "Welcome")}, ${displayName}`
+    : translateOr(t, "ES_IM_WELCOME", "Welcome");
 
   useEffect(() => {
     void loadModules(["rainmaker-im"]);
@@ -37,32 +43,49 @@ export function ImOverview() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={translateOr(t, "IM_HEADER", "Manage Tickets")}
+        title={welcomeTitle}
+        description={translateOr(
+          t,
+          "ES_IM_OVERVIEW_SUBTITLE",
+          "Here's what's happening with your tickets and registered assets today.",
+        )}
         action={
-          canCreateIncident(user?.roles) ? (
-            <Button asChild className="gap-2 rounded-md px-5">
-              <Link to={`${basePath}/incident/create`}>
-                <Plus className="size-4" />
-                {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise new ticket")}
-              </Link>
-            </Button>
-          ) : null
+          <div className="flex items-center gap-3">
+            <LanguageSwitcher />
+            {canCreate ? (
+              <>
+                <span aria-hidden="true" className="h-8 w-px bg-border" />
+                <Button asChild size="sm" className="gap-1.5 rounded-md px-4 text-sm font-semibold">
+                  <Link to={`${basePath}/incident/create`}>
+                    <Plus className="size-4" />
+                    {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise new ticket")}
+                  </Link>
+                </Button>
+              </>
+            ) : null}
+          </div>
         }
       />
-      <div className="grid max-w-xl grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatTile
-          icon={<FileText className="h-5 w-5" />}
-          iconClassName="bg-blue-100 text-blue-600"
+          icon={<FileText className="h-6 w-6" />}
+          iconClassName="bg-info text-info-foreground"
           label={t("TOTAL_IM")}
           value={isLoading ? "-" : (data?.totalCount ?? "-")}
           link={`${basePath}/inbox`}
         />
         <StatTile
-          icon={<Clock className="h-5 w-5" />}
-          iconClassName="bg-amber-100 text-amber-600"
+          icon={<Clock className="h-6 w-6" />}
+          iconClassName="bg-warning text-warning-foreground"
           label={t("TOTAL_NEARING_SLA")}
           value={isLoading ? "-" : (data?.nearingSlaCount ?? "-")}
           link={`${basePath}/inbox?nearing=1`}
+        />
+        <StatTile
+          icon={<CheckCircle2 className="h-6 w-6" />}
+          iconClassName="bg-success text-success-foreground"
+          label={translateOr(t, "ES_IM_TOTAL_RESOLVED", "Resolved")}
+          value={isLoading ? "-" : (data?.resolvedCount ?? "-")}
         />
       </div>
       {endUser ? (
