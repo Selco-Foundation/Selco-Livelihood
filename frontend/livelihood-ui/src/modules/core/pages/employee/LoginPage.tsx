@@ -10,6 +10,7 @@ import {
   useAuthStore,
   useJurisdictionStore,
   useLoginBannerImages,
+  useTranslate,
 } from "@/shared";
 import {
   Button,
@@ -59,6 +60,7 @@ export function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const bannerImages = useLoginBannerImages();
+  const { t } = useTranslate();
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -99,17 +101,17 @@ export function LoginPage() {
       });
       setJurisdictionData(jurisdictionData);
 
-      toast.success("Signed in successfully");
+      toast.success(t("CORE_LOGIN_SUCCESS_TOAST"));
       await navigate({ to: resolveRedirectPath(from) });
     } catch (error) {
       const message =
         error instanceof Error && error.message === "ES_ERROR_USER_NOT_PERMITTED"
-          ? "You are not permitted to access this application."
+          ? t("CORE_LOGIN_ERROR_NOT_PERMITTED")
           : error instanceof Error
             ? error.message
-            : "Check your credentials and try again.";
+            : t("CORE_LOGIN_ERROR_GENERIC");
 
-      toast.error("Sign in failed", {
+      toast.error(t("CORE_LOGIN_FAILURE_TOAST"), {
         description: message,
       });
     } finally {
@@ -131,9 +133,11 @@ export function LoginPage() {
 
         <div className="flex w-full max-w-[360px] flex-col gap-5">
           <div className="flex flex-col gap-1">
-            <h1 className="text-[32px] font-semibold leading-[48px] text-ink-950">Welcome</h1>
+            <h1 className="text-[32px] font-semibold leading-[48px] text-ink-950">
+              {t("CORE_LOGIN_WELCOME_TITLE")}
+            </h1>
             <p className="text-sm leading-[21px] text-ink-600">
-              Please enter your details to login.
+              {t("CORE_LOGIN_SUBTITLE")}
             </p>
           </div>
 
@@ -146,12 +150,12 @@ export function LoginPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-sm leading-[21px] font-medium text-ink-950">
-                        Username <span className="text-destructive">*</span>
+                        {t("CORE_LOGIN_USERNAME_LABEL")} <span className="text-destructive">*</span>
                       </FormLabel>
                       <FormControl>
                         <Input
                           autoComplete="username"
-                          placeholder="Enter your username"
+                          placeholder={t("CORE_LOGIN_USERNAME_PLACEHOLDER")}
                           className="h-9 rounded border-ink-300 px-3 py-2 text-sm leading-[21px] text-ink-950 placeholder:text-ink-400"
                           {...field}
                         />
@@ -166,14 +170,14 @@ export function LoginPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-sm leading-[21px] font-medium text-ink-950">
-                        Password <span className="text-destructive">*</span>
+                        {t("CORE_LOGIN_PASSWORD_LABEL")} <span className="text-destructive">*</span>
                       </FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Input
                             type={showPassword ? "text" : "password"}
                             autoComplete="current-password"
-                            placeholder="Enter your password"
+                            placeholder={t("CORE_LOGIN_PASSWORD_PLACEHOLDER")}
                             className="h-9 rounded border-ink-300 px-3 py-2 pr-10 text-sm leading-[21px] text-ink-950 placeholder:text-ink-400"
                             {...field}
                           />
@@ -202,7 +206,7 @@ export function LoginPage() {
                 disabled={isSubmitting}
                 className="h-10 w-full rounded-lg bg-primary text-base leading-[24px] font-semibold text-white hover:bg-primary/90"
               >
-                {isSubmitting ? "Logging in..." : "Log in"}
+                {isSubmitting ? t("CORE_LOGIN_BUTTON_LOADING") : t("CORE_LOGIN_BUTTON")}
               </Button>
             </form>
           </Form>

@@ -4,6 +4,7 @@ import {
   employeeLoginPath,
   useAuthStore,
   useJurisdictionStore,
+  useTranslate,
   type NavItem,
 } from "@/shared";
 import {
@@ -47,6 +48,7 @@ export function AppShell() {
   const clearSession = useAuthStore((state) => state.clearSession);
   const clearJurisdiction = useJurisdictionStore((state) => state.clearJurisdiction);
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const { t } = useTranslate();
 
   const initials =
     user?.name?.slice(0, 2).toUpperCase() ??
@@ -130,7 +132,7 @@ export function AppShell() {
                   onClick={() => {
                     clearSession();
                     clearJurisdiction();
-                    toast.success("Signed out successfully");
+                    toast.success(t("CORE_LOGOUT_SUCCESS_TOAST"));
                     void navigate({ to: employeeLoginPath() });
                   }}
                 >
