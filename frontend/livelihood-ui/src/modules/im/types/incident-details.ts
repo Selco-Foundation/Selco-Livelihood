@@ -26,7 +26,7 @@ export interface Incident {
   filedDate?: number;
   auditDetails?: IncidentAuditDetails;
   additionalDetail?: IncidentAdditionalDetail;
-  reporter?: { uuid?: string; tenantId?: string };
+  reporter?: { uuid?: string; tenantId?: string; name?: string };
 }
 
 export interface IncidentWorkflow {

@@ -8,6 +8,7 @@ import {
   tenantId,
   useAuthStore,
   useJurisdictionStore,
+  useTranslate,
 } from "@/shared";
 import {
   Button,
@@ -37,6 +38,18 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
+function translateOr(t: (key: string) => string, key: string, fallback: string) {
+  const value = t(key);
+  return value === key ? fallback : value;
+}
+
+function extractOAuthErrorDescription(error: unknown): string | undefined {
+  const response = (
+    error as { response?: { data?: { error_description?: string } } }
+  )?.response;
+  return response?.data?.error_description;
+}
+
 function resolveRedirectPath(from?: string): string {
   const fallback = employeeHomePath();
 
@@ -52,6 +65,7 @@ function resolveRedirectPath(from?: string): string {
 }
 
 export function LoginPage() {
+  const { t } = useTranslate();
   const navigate = useNavigate();
   const from = new URLSearchParams(window.location.search).get("from") ?? undefined;
   const setSession = useAuthStore((state) => state.setSession);
@@ -102,12 +116,19 @@ export function LoginPage() {
     } catch (error) {
       const message =
         error instanceof Error && error.message === "ES_ERROR_USER_NOT_PERMITTED"
-          ? "You are not permitted to access this application."
-          : error instanceof Error
-            ? error.message
-            : "Check your credentials and try again.";
+          ? translateOr(
+              t,
+              "ES_ERROR_USER_NOT_PERMITTED",
+              "You are not permitted to access this application.",
+            )
+          : (extractOAuthErrorDescription(error) ??
+            translateOr(
+              t,
+              "CS_LOGIN_INVALID_CREDENTIALS",
+              "Check your credentials and try again.",
+            ));
 
-      toast.error("Sign in failed", {
+      toast.error(translateOr(t, "CS_LOGIN_FAILED", "Sign in failed"), {
         description: message,
       });
     } finally {

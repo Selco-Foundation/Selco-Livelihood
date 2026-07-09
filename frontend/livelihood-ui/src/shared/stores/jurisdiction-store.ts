@@ -5,14 +5,11 @@ import type { JurisdictionBoundaries } from "../utils/boundary-util";
 
 interface JurisdictionState {
   boundaries: JurisdictionBoundaries | null;
-  currentBoundary: JurisdictionBoundaries | null;
   hrmsUser: HrmsEmployee | null;
   setJurisdictionData: (data: {
     boundaries: JurisdictionBoundaries;
-    currentBoundary: JurisdictionBoundaries;
     hrmsUser: HrmsEmployee;
   }) => void;
-  setCurrentBoundary: (boundary: JurisdictionBoundaries) => void;
   clearJurisdiction: () => void;
 }
 
@@ -20,15 +17,12 @@ export const useJurisdictionStore = create<JurisdictionState>()(
   persist(
     (set) => ({
       boundaries: null,
-      currentBoundary: null,
       hrmsUser: null,
-      setJurisdictionData: ({ boundaries, currentBoundary, hrmsUser }) =>
-        set({ boundaries, currentBoundary, hrmsUser }),
-      setCurrentBoundary: (currentBoundary) => set({ currentBoundary }),
+      setJurisdictionData: ({ boundaries, hrmsUser }) =>
+        set({ boundaries, hrmsUser }),
       clearJurisdiction: () =>
         set({
           boundaries: null,
-          currentBoundary: null,
           hrmsUser: null,
         }),
     }),

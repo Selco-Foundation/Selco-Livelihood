@@ -19,6 +19,16 @@ import type {
 import type { LivelihoodAsset, LivelihoodFacility } from "../types/facility-asset";
 import { buildUploadedDocuments } from "../utils/create-incident-documents";
 import { buildFacilitySearchCriteria } from "../utils/jurisdiction-facility-criteria";
+import {
+  MAX_COMMENT_LENGTH,
+  MAX_IMAGE_COUNT,
+  MAX_IMAGE_SIZE_MB,
+  MAX_VIDEO_COUNT,
+  MAX_VIDEO_SIZE_MB,
+  validateMediaFiles,
+  type MediaKind,
+  type MediaValidationError,
+} from "../utils/media-validation";
 
 const DRAFT_STORAGE_KEY = "livelihood-im-create-draft";
 
@@ -26,6 +36,9 @@ interface FieldErrors {
   endUser?: string;
   asset?: string;
   complaintType?: string;
+  comments?: string;
+  image?: string;
+  video?: string;
 }
 
 const EMPTY_FORM: CreateIncidentFormValues = {
@@ -40,6 +53,56 @@ function translateOr(t: (key: string) => string, key: string, fallback: string) 
   return value === key ? fallback : value;
 }
 
+function buildMediaErrorMessage(
+  t: (key: string) => string,
+  kind: MediaKind,
+  error: MediaValidationError,
+): string {
+  const maxCount = kind === "image" ? MAX_IMAGE_COUNT : MAX_VIDEO_COUNT;
+  const maxSizeMb = kind === "image" ? MAX_IMAGE_SIZE_MB : MAX_VIDEO_SIZE_MB;
+  const formats = kind === "image" ? "JPG, JPEG, PNG" : "MP4, MOV, AVI, WMV";
+
+  if (error.code === "COUNT") {
+    return kind === "image"
+      ? translateOr(
+          t,
+          "INCIDENT_IMAGE_COUNT_EXCEEDED",
+          `You can upload up to ${maxCount} images`,
+        )
+      : translateOr(
+          t,
+          "INCIDENT_VIDEO_COUNT_EXCEEDED",
+          `You can upload up to ${maxCount} videos`,
+        );
+  }
+
+  if (error.code === "SIZE") {
+    return kind === "image"
+      ? translateOr(
+          t,
+          "INCIDENT_IMAGE_SIZE_EXCEEDED",
+          `Each image must be ${maxSizeMb}MB or smaller`,
+        )
+      : translateOr(
+          t,
+          "INCIDENT_VIDEO_SIZE_EXCEEDED",
+          `Each video must be ${maxSizeMb}MB or smaller`,
+        );
+  }
+
+  return kind === "image"
+    ? translateOr(
+        t,
+        "INCIDENT_IMAGE_FORMAT_INVALID",
+        `Only ${formats} formats are supported`,
+      )
+    : translateOr(
+        t,
+        "INCIDENT_VIDEO_FORMAT_INVALID",
+        `Only ${formats} formats are supported`,
+      );
+}
+
 export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
   const { t } = useTranslate();
   const navigate = useNavigate();
@@ -47,7 +110,7 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
   const user = useAuthStore((state) => state.user);
   const accessToken = useAuthStore((state) => state.accessToken);
   const employeeTenantId = useAuthStore((state) => state.employeeTenantId);
-  const currentBoundary = useJurisdictionStore((state) => state.currentBoundary);
+  const boundaries = useJurisdictionStore((state) => state.boundaries);
 
   const [form, setForm] = useState<CreateIncidentFormValues>(EMPTY_FORM);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -65,9 +128,9 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
   const facilityCriteria = useMemo(
     () =>
       employeeTenantId
-        ? buildFacilitySearchCriteria(currentBoundary, employeeTenantId)
+        ? buildFacilitySearchCriteria(boundaries, employeeTenantId)
         : null,
-    [currentBoundary, employeeTenantId],
+    [boundaries, employeeTenantId],
   );
 
   const facilitiesQuery = useQuery({
@@ -173,7 +236,7 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
       return;
     }
 
-    const jurisdiction = currentBoundary ?? { country: ["-"] };
+    const jurisdiction = boundaries ?? { country: ["-"] };
     void searchPotentialDuplicates(
       employeeTenantId!,
       jurisdiction,
@@ -184,7 +247,7 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
     ).then(setDuplicateTickets);
   }, [
     accessToken,
-    currentBoundary,
+    boundaries,
     employeeTenantId,
     form.complaintType,
     form.endUser,
@@ -196,6 +259,24 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
       if (!accessToken || !employeeTenantId) {
         return;
       }
+      if (kind !== "image" && kind !== "video") {
+        return;
+      }
+
+      const fileArray = Array.from(files);
+      const existingCount =
+        kind === "image" ? imageUploads.length : videoUploads.length;
+      const validationError = validateMediaFiles(fileArray, existingCount, kind);
+
+      if (validationError) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          [kind]: buildMediaErrorMessage(t, kind, validationError),
+        }));
+        return;
+      }
+      setFieldErrors((prev) => ({ ...prev, [kind]: undefined }));
+
       const setUploading =
         kind === "image" ? setIsImageUploading : setIsVideoUploading;
       const setUploads = kind === "image" ? setImageUploads : setVideoUploads;
@@ -203,7 +284,7 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
       setUploading(true);
       try {
         const uploaded: UploadedMediaEntry[] = [];
-        for (const file of Array.from(files)) {
+        for (const file of fileArray) {
           const result =
             kind === "video"
               ? await uploadIncidentVideo(file, employeeTenantId, accessToken)
@@ -220,7 +301,7 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
         setUploading(false);
       }
     },
-    [accessToken, employeeTenantId],
+    [accessToken, employeeTenantId, imageUploads.length, t, videoUploads.length],
   );
 
   const validate = useCallback(() => {
@@ -246,7 +327,14 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
         "Please select an issue type to continue",
       );
     }
-    setFieldErrors(errors);
+    if (form.comments.length > MAX_COMMENT_LENGTH) {
+      errors.comments = translateOr(
+        t,
+        "INCIDENT_COMMENTS_MAX_LENGTH",
+        `Comments must be ${MAX_COMMENT_LENGTH} characters or fewer`,
+      );
+    }
+    setFieldErrors((prev) => ({ ...prev, ...errors }));
     return Object.keys(errors).length === 0;
   }, [form, t]);
 
@@ -427,5 +515,10 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
     handleEndUserChange,
     handleAssetChange,
     handleComplaintTypeChange,
+    maxImageCount: MAX_IMAGE_COUNT,
+    maxImageSizeMb: MAX_IMAGE_SIZE_MB,
+    maxVideoCount: MAX_VIDEO_COUNT,
+    maxVideoSizeMb: MAX_VIDEO_SIZE_MB,
+    maxCommentLength: MAX_COMMENT_LENGTH,
   };
 }

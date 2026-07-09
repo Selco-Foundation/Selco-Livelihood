@@ -1,5 +1,6 @@
 import { apiClient, tenantId, type AuthUser } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
+import type { SelectOption } from "../types/create-incident";
 import type { ComplaintTypeOption, SystemFunctionalityOption } from "../types/inbox";
 
 interface MdmsResponse {
@@ -10,6 +11,12 @@ interface ServiceDef {
   deprecated?: boolean;
   menuPath?: string;
   serviceCode?: string;
+}
+
+interface ItemCode {
+  code?: string;
+  category?: string;
+  active?: boolean;
 }
 
 export async function fetchMdmsMasters(
@@ -56,41 +63,32 @@ export async function fetchSystemFunctionality(
   return (masters.SystemFunctionality as SystemFunctionalityOption[]) ?? [];
 }
 
-export async function fetchComplaintTypes(
+export async function fetchAssetTypes(
   accessToken: string,
   user: AuthUser | null | undefined,
   t: (key: string) => string,
-): Promise<ComplaintTypeOption[]> {
+): Promise<SelectOption[]> {
   const stateTenantId = tenantId();
   const masters = await fetchMdmsMasters(
     stateTenantId,
-    "Incident",
-    ["ServiceDefs"],
+    "livelihood",
+    ["ItemCode"],
     accessToken,
     user,
   );
-  const serviceDefs = (masters.ServiceDefs as ServiceDef[]) ?? [];
-  const menu: ComplaintTypeOption[] = [];
-  const seen = new Set<string>();
+  const items = (masters.ItemCode as ItemCode[]) ?? [];
+  const categories = new Map<string, string>();
 
-  for (const def of serviceDefs) {
-    if (def.deprecated) {
+  for (const item of items) {
+    if (item.active === false || !item.category || categories.has(item.category)) {
       continue;
     }
-    const serviceCode = def.serviceCode ?? "";
-    if (!serviceCode || seen.has(serviceCode)) {
-      continue;
-    }
-    seen.add(serviceCode);
-    menu.push({
-      key: serviceCode,
-      serviceCode,
-      menuPath: def.menuPath,
-      name: t(`SERVICEDEFS.${serviceCode.toUpperCase()}`),
-    });
+    categories.set(item.category, t(`ASSETTYPE_${item.category}`));
   }
 
-  return menu;
+  return [...categories.entries()]
+    .map(([code, name]) => ({ code, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function fetchServiceDefsForMenuPath(

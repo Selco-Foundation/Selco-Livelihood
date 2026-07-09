@@ -10,7 +10,6 @@ interface DesktopInboxProps {
   onFilterChange: (filters: ImInboxFilters) => void;
   searchParams: {
     filters?: ImInboxFilters;
-    search?: Record<string, string> | string;
   };
   onNextPage: () => void;
   onPrevPage: () => void;

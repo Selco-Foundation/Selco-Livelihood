@@ -32,6 +32,76 @@ function translateOr(t: (key: string) => string, key: string, fallback: string) 
   return value === key ? fallback : value;
 }
 
+function getReasonLabel(t: (key: string) => string, action: string): string {
+  return action === "OUT_OF_SCOPE"
+    ? translateOr(t, "WF_OUT_OF_SCOPE_REASON", "Out of scope reason")
+    : translateOr(t, "WF_DECLINE_REASON", "Decline reason");
+}
+
+function getOutOfWarrantyHelperText(
+  t: (key: string) => string,
+  action: string,
+  endUserName: string,
+): string | null {
+  if (action !== "OUT_OF_WARRANTY") {
+    return null;
+  }
+  return translateOr(
+    t,
+    "WF_OUT_OF_WARRANTY_HELPER",
+    "By marking this ticket as Out of Warranty, you are expected to contact {endUserName} and resolve the issue through the appropriate offline process.",
+  ).replace("{endUserName}", endUserName);
+}
+
+interface ActionDocumentsFieldProps {
+  requiresQuotation: boolean;
+  documentsRequired: boolean;
+  uploadCount: number;
+  isUploading: boolean;
+  onUpload: (files: FileList) => Promise<void>;
+  t: (key: string) => string;
+}
+
+function ActionDocumentsField({
+  requiresQuotation,
+  documentsRequired,
+  uploadCount,
+  isUploading,
+  onUpload,
+  t,
+}: ActionDocumentsFieldProps) {
+  const label = requiresQuotation
+    ? translateOr(t, "WF_QUOTATION_DOCUMENT", "Quotation document")
+    : translateOr(t, "INCIDENT_UPLOAD_IMAGE", "Supporting documents");
+  const accept = requiresQuotation
+    ? ".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    : ".png,.jpg,.jpeg,.pdf,image/*,application/pdf";
+
+  return (
+    <div className="space-y-2">
+      <label className="text-sm font-medium text-foreground">
+        {label}
+        {documentsRequired ? " *" : null}
+      </label>
+      <input
+        type="file"
+        accept={accept}
+        multiple={!requiresQuotation}
+        disabled={isUploading}
+        onChange={(event) => {
+          if (event.target.files?.length) {
+            onUpload(event.target.files).catch(() => {});
+            event.target.value = "";
+          }
+        }}
+      />
+      {uploadCount > 0 ? (
+        <p className="text-xs text-primary">{uploadCount} file(s) attached</p>
+      ) : null}
+    </div>
+  );
+}
+
 export function ComplaintActionDialog({
   action,
   complaintDetails,
@@ -124,6 +194,21 @@ export function ComplaintActionDialog({
     if (!accessToken) {
       return;
     }
+    if (requiresQuotation) {
+      const hasImage = Array.from(files).some((file) =>
+        file.type.startsWith("image/"),
+      );
+      if (hasImage) {
+        setError(
+          translateOr(
+            t,
+            "WF_QUOTATION_IMAGE_NOT_ALLOWED",
+            "Quotation must be a document (PDF or Word), not an image",
+          ),
+        );
+        return;
+      }
+    }
     setIsUploading(true);
     try {
       const uploaded: UploadedMediaEntry[] = [];
@@ -151,10 +236,12 @@ export function ComplaintActionDialog({
 
   const showDocuments = actionConfig.documents !== "none";
   const requiresQuotation = isQuotationRequiredAction(action);
-  const reasonLabel =
-    action === "OUT_OF_SCOPE"
-      ? translateOr(t, "WF_OUT_OF_SCOPE_REASON", "Out of scope reason")
-      : translateOr(t, "WF_DECLINE_REASON", "Decline reason");
+  const reasonLabel = getReasonLabel(t, action);
+
+  const endUserName =
+    complaintDetails.incident.reporter?.name ??
+    translateOr(t, "CS_COMMON_END_USER", "the end user");
+  const outOfWarrantyHelperText = getOutOfWarrantyHelperText(t, action, endUserName);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -198,38 +285,23 @@ export function ComplaintActionDialog({
           </div>
 
           {showDocuments ? (
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
-                {requiresQuotation
-                  ? translateOr(
-                      t,
-                      "WF_QUOTATION_DOCUMENT",
-                      "Quotation document",
-                    )
-                  : translateOr(t, "INCIDENT_UPLOAD_IMAGE", "Supporting documents")}
-                {actionConfig.documents === "required" ? " *" : null}
-              </label>
-              <input
-                type="file"
-                accept=".png,.jpg,.jpeg,.pdf,image/*,application/pdf"
-                multiple={!requiresQuotation}
-                disabled={isUploading}
-                onChange={(event) => {
-                  if (event.target.files?.length) {
-                    void handleUpload(event.target.files);
-                    event.target.value = "";
-                  }
-                }}
-              />
-              {uploads.length > 0 ? (
-                <p className="text-xs text-primary">
-                  {uploads.length} file(s) attached
-                </p>
-              ) : null}
-            </div>
+            <ActionDocumentsField
+              requiresQuotation={requiresQuotation}
+              documentsRequired={actionConfig.documents === "required"}
+              uploadCount={uploads.length}
+              isUploading={isUploading}
+              onUpload={handleUpload}
+              t={t}
+            />
           ) : null}
 
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
+
+          {outOfWarrantyHelperText ? (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              {outOfWarrantyHelperText}
+            </p>
+          ) : null}
         </div>
 
         <div className="mt-6 flex justify-end gap-3">

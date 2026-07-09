@@ -12,7 +12,7 @@ export function buildDefaultInboxRoleFilters(
     return {
       wfFilters: { assignee: [{ code: userUuid }] },
       pgrfilters: {
-        incidentType: [],
+        assetType: [],
         facility: [],
         state: [],
         district: [],
@@ -25,7 +25,7 @@ export function buildDefaultInboxRoleFilters(
   return {
     wfFilters: { assignee: [{ code: "" }] },
     pgrfilters: {
-      incidentType: [],
+      assetType: [],
       facility: [],
       state: [],
       district: [],
