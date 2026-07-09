@@ -25,7 +25,7 @@ export function ComplaintSummarySection({
             <dt className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
               {t(row.labelKey)}
             </dt>
-            <dd className="text-sm text-foreground">
+            <dd className="text-sm break-words text-foreground">
               {translateDetailValue(row.value, t)}
             </dd>
           </div>

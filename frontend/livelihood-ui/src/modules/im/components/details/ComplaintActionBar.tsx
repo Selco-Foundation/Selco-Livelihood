@@ -1,11 +1,14 @@
-import { useTranslate } from "@/shared";
+import { useAuthStore, useTranslate } from "@/shared";
 import { Button } from "@/ui";
 import { ChevronDown } from "lucide-react";
 import { useMemo, useState } from "react";
 import { SUPPORTED_WORKFLOW_ACTION_SET } from "../../constants/workflow-actions";
 import type { ComplaintDetailsData, WorkflowDetailsData } from "../../types/incident-details";
 import { isClosedTicket } from "../../utils/complaint-details";
+import { isEndUser } from "../../utils/access";
 import { ComplaintActionDialog } from "./ComplaintActionDialog";
+
+const MAX_END_USER_REOPEN_COUNT = 2;
 
 interface ComplaintActionBarProps {
   complaintDetails: ComplaintDetailsData;
@@ -24,16 +27,30 @@ export function ComplaintActionBar({
   onActionComplete,
 }: ComplaintActionBarProps) {
   const { t } = useTranslate();
+  const user = useAuthStore((state) => state.user);
   const [menuOpen, setMenuOpen] = useState(false);
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
 
-  const availableActions = useMemo(
+  const reopenCount = useMemo(
     () =>
-      (workflowDetails.nextActions ?? []).filter((entry) =>
-        SUPPORTED_WORKFLOW_ACTION_SET.has(entry.action),
-      ),
-    [workflowDetails.nextActions],
+      workflowDetails.timeline.filter(
+        (checkpoint) => checkpoint.performedAction === "REOPEN",
+      ).length,
+    [workflowDetails.timeline],
   );
+
+  const availableActions = useMemo(() => {
+    const supported = (workflowDetails.nextActions ?? []).filter((entry) =>
+      SUPPORTED_WORKFLOW_ACTION_SET.has(entry.action),
+    );
+
+    const reopenLimitReached =
+      isEndUser(user?.roles) && reopenCount >= MAX_END_USER_REOPEN_COUNT;
+
+    return reopenLimitReached
+      ? supported.filter((entry) => entry.action !== "REOPEN")
+      : supported;
+  }, [workflowDetails.nextActions, user?.roles, reopenCount]);
 
   const showActions =
     !isClosedTicket(complaintDetails.incident.applicationStatus) &&

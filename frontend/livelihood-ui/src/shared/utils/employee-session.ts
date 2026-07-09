@@ -47,6 +47,5 @@ export async function hydrateEmployeeJurisdictions(
   return {
     hrmsUser,
     boundaries,
-    currentBoundary: boundaries,
   };
 }

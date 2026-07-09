@@ -92,8 +92,13 @@ export function ComplaintDetailsPage() {
     applyCheckpoint?.thumbnailsToShow?.videos ?? complaintDetails.videos;
 
   const handleActionComplete = async () => {
-    await revalidate();
-    if (isAssigneeScopedUser(user?.roles)) {
+    const refreshedWorkflow = await revalidate();
+    const currentAssigneeUuid = refreshedWorkflow?.processInstances?.[0]?.assignes?.[0]?.uuid;
+    const stillAssignedToCurrentUser = Boolean(
+      user?.uuid && currentAssigneeUuid === user.uuid,
+    );
+
+    if (isAssigneeScopedUser(user?.roles) && !stillAssignedToCurrentUser) {
       await navigate({ to: inboxPath });
     }
   };
@@ -110,11 +115,6 @@ export function ComplaintDetailsPage() {
 
       <PageHeader
         title={translateOr(t, "CS_HEADER_TICKET_DETAILS", "Ticket Details")}
-        description={translateOr(
-          t,
-          "CS_COMPLAINT_DETAILS_PAGE_DESC",
-          "Review ticket information, attachments, and workflow history.",
-        )}
       />
 
       <ComplaintSummarySection complaintDetails={complaintDetails} />
