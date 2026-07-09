@@ -91,8 +91,3 @@ export interface ComplaintTypeOption {
   serviceCode?: string;
 }
 
-export interface SystemFunctionalityOption {
-  code: string;
-  name: string;
-  active?: boolean;
-}

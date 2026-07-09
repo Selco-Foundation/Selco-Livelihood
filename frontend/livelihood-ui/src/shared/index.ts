@@ -15,6 +15,11 @@ export {
 } from "./api/boundary";
 export { fetchFacilities, type FacilitySummary } from "./api/facility";
 export {
+  fetchMdmsMasters,
+  fetchLanguages,
+  type SupportedLanguage,
+} from "./api/mdms";
+export {
   contextPath,
   getConfig,
   getConfigString,
@@ -26,6 +31,7 @@ export { queryClient } from "./query/query-client";
 export { QueryProvider } from "./query/provider";
 export { useBoundary } from "./hooks/use-boundary";
 export { useFacility } from "./hooks/use-facility";
+export { useLanguages } from "./hooks/use-languages";
 export { useAuthStore, type AuthUser } from "./stores/auth-store";
 export { useJurisdictionStore } from "./stores/jurisdiction-store";
 export { useLocaleStore } from "./stores/locale-store";
@@ -34,6 +40,15 @@ export { I18nProvider } from "./i18n/provider";
 export { initI18n, loadModules, reloadModule, setLocale, i18n } from "./i18n";
 export { useTranslate } from "./i18n/useTranslate";
 export { useModuleI18n } from "./i18n/useModuleI18n";
+export { persistActiveLocale, readActiveLocale } from "./i18n/locale-persistence";
+export {
+  getAllKnownModules,
+  getLoadedModulesForLocale,
+  markModuleLoaded,
+  readModulePayload,
+  removeModuleFromLocale,
+  writeModulePayload,
+} from "./i18n/module-cache";
 export {
   convertToLocale,
   convertToLocaleData,

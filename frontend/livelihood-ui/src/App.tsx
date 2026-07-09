@@ -11,7 +11,7 @@ export function App() {
       <I18nProvider>
         <QueryProvider>
           <RouterProvider router={router} />
-          <Toaster richColors closeButton position="top-right" />
+          <Toaster />
         </QueryProvider>
       </I18nProvider>
     </TooltipProvider>

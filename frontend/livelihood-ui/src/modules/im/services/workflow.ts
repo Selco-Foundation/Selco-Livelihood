@@ -1,4 +1,4 @@
-import { apiClient, tenantId, type AuthUser } from "@/shared";
+import { apiClient, fetchMdmsMasters, tenantId, type AuthUser } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
 import type { VerificationDocument } from "../types/create-incident";
 import type {
@@ -10,7 +10,6 @@ import type {
   WorkflowProcessSearchResponse,
   WorkflowTimelineCheckpoint,
 } from "../types/incident-details";
-import { fetchMdmsMasters } from "./mdms";
 import { resolveVerificationMedia } from "./incident-details";
 import { formatEpochToDate } from "../utils/date-format";
 import { LIVELIHOOD_INCIDENT_BUSINESS_SERVICE } from "../constants/workflow";
