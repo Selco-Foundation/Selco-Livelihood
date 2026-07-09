@@ -66,3 +66,30 @@ export async function fetchLanguages(
     nativeLabel: language.nativeLabel ?? language.label,
   }));
 }
+
+export interface LoginBannerImage {
+  image: string;
+  title: string;
+  discription: string;
+}
+
+function isLoginBannerImage(value: unknown): value is LoginBannerImage {
+  const record = value as Partial<LoginBannerImage> | null;
+  return Boolean(record && typeof record.image === "string");
+}
+
+export async function fetchLoginBannerImages(
+  accessToken?: string,
+  user?: AuthUser | null,
+): Promise<LoginBannerImage[]> {
+  const masters = await fetchMdmsMasters(
+    tenantId(),
+    "commonUiConfig",
+    ["LoginBannerImages"],
+    accessToken,
+    user,
+  );
+  const images = (masters.LoginBannerImages as unknown[]) ?? [];
+
+  return images.filter(isLoginBannerImage);
+}
