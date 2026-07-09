@@ -39,6 +39,10 @@
   --color-sla: var(--sla);
   --color-sla-foreground: var(--sla-foreground);
   --color-page: var(--page);
+  --color-ink-950: var(--ink-950);
+  --color-ink-600: var(--ink-600);
+  --color-ink-400: var(--ink-400);
+  --color-ink-300: var(--ink-300);
 }
 
 :root {
@@ -51,30 +55,34 @@
   --card-foreground: hsl(160 30% 12%);
   --popover: hsl(0 0% 100%);
   --popover-foreground: hsl(160 30% 12%);
-  /* Forest green primary */
-  --primary: hsl(152 45% 28%);
+  /* Brand primary green — (#134738) */
+  --primary: hsl(163 58% 18%);
   --primary-foreground: hsl(0 0% 100%);
   --secondary: hsl(120 20% 94%);
   --secondary-foreground: hsl(160 30% 18%);
   --muted: hsl(120 15% 93%);
   --muted-foreground: hsl(160 8% 42%);
   --accent: hsl(140 35% 92%);
-  --accent-foreground: hsl(152 45% 22%);
+  --accent-foreground: hsl(163 58% 18%);
   --destructive: hsl(0 72% 51%);
   --border: hsl(140 12% 88%);
   --input: hsl(140 12% 88%);
-  --ring: hsl(152 45% 28%);
+  --ring: hsl(163 58% 18%);
   /* SLA badge */
   --sla: hsl(140 40% 90%);
-  --sla-foreground: hsl(152 45% 28%);
+  --sla-foreground: hsl(163 58% 18%);
   --sidebar: hsl(0 0% 98%);
   --sidebar-foreground: hsl(240 5.3% 26.1%);
-  --sidebar-primary: hsl(152 45% 28%);
+  --sidebar-primary: hsl(163 58% 18%);
   --sidebar-primary-foreground: hsl(0 0% 100%);
   --sidebar-accent: hsl(120 20% 94%);
   --sidebar-accent-foreground: hsl(160 30% 18%);
   --sidebar-border: hsl(140 12% 88%);
-  --sidebar-ring: hsl(152 45% 28%);
+  --sidebar-ring: hsl(163 58% 18%);
+  --ink-950: #1c1c1c;
+  --ink-600: #51525c;
+  --ink-400: #a0a0ab;
+  --ink-300: #d1d1d6;
 }
 
 .dark {
@@ -85,7 +93,7 @@
   --card-foreground: hsl(120 15% 96%);
   --popover: hsl(160 18% 12%);
   --popover-foreground: hsl(120 15% 96%);
-  --primary: hsl(152 40% 42%);
+  --primary: hsl(163 50% 38%);
   --primary-foreground: hsl(0 0% 100%);
   --secondary: hsl(160 15% 16%);
   --secondary-foreground: hsl(120 15% 96%);
@@ -96,17 +104,17 @@
   --destructive: hsl(0 62.8% 45%);
   --border: hsl(160 12% 20%);
   --input: hsl(160 12% 20%);
-  --ring: hsl(152 40% 42%);
+  --ring: hsl(163 50% 38%);
   --sla: hsl(152 25% 18%);
   --sla-foreground: hsl(140 45% 72%);
   --sidebar: hsl(160 20% 10%);
   --sidebar-foreground: hsl(120 15% 96%);
-  --sidebar-primary: hsl(152 40% 42%);
+  --sidebar-primary: hsl(163 50% 38%);
   --sidebar-primary-foreground: hsl(0 0% 100%);
   --sidebar-accent: hsl(160 15% 16%);
   --sidebar-accent-foreground: hsl(120 15% 96%);
   --sidebar-border: hsl(160 12% 20%);
-  --sidebar-ring: hsl(152 40% 42%);
+  --sidebar-ring: hsl(163 50% 38%);
 }
 
 @layer base {
@@ -120,6 +128,10 @@
 }
 
 @layer components {
+  .font-poppins {
+    font-family: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  }
+
   .livelihood-card {
     @apply rounded-lg border border-border bg-card shadow-sm;
   }
@@ -134,7 +146,7 @@
 
   .livelihood-radio:checked {
     @apply border-primary;
-    background-image: radial-gradient(circle, hsl(152 45% 28%) 40%, transparent 45%);
+    background-image: radial-gradient(circle, hsl(163 58% 18%) 40%, transparent 45%);
   }
 
   .livelihood-sla-badge {
