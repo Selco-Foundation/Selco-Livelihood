@@ -80,7 +80,9 @@ export function ComplaintTable({
                 <tr
                   key={`${row.incidentId}-${row.tenantId}`}
                   className="cursor-pointer border-b border-border/70 hover:bg-muted/40"
-                  onClick={() => void navigate({ to: detailsPath })}
+                  onClick={() => {
+                    navigate({ to: detailsPath }).catch(() => {});
+                  }}
                 >
                   <td className="px-5 py-4">
                     <div>
