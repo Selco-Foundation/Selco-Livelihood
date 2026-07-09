@@ -72,9 +72,18 @@ export function useComplaintDetails(incidentId: string, tenantId: string) {
       queryClient.invalidateQueries({ queryKey: ["im-inbox-summary"] }),
     ]);
 
-    // `invalidateQueries` waits for the active `workflowQuery` above to refetch,
-    // so the cache already holds the post-action assignee by the time we read it.
-    return queryClient.getQueryData<WorkflowDetailsData>(workflowQueryKey);
+    // `invalidateQueries` waits for the active `workflowQuery` above to settle, but
+    // resolves even if that refetch failed — react-query keeps the last successful
+    // data around on error, so a naive `getQueryData` read would silently hand back
+    // the stale pre-action assignee. Check the query state's error first.
+    const workflowQueryState =
+      queryClient.getQueryState<WorkflowDetailsData>(workflowQueryKey);
+
+    if (!workflowQueryState || workflowQueryState.error) {
+      return undefined;
+    }
+
+    return workflowQueryState.data;
   };
 
   return {
