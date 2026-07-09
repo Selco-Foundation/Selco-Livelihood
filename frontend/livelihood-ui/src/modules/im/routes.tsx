@@ -17,6 +17,11 @@ export interface InboxRouteSearch {
   nearing?: string;
 }
 
+function toFiniteNumber(value: unknown, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 /**
  * Parent route component for all IM pages.
  * Blocks rendering until the rainmaker-im translation module is loaded
@@ -70,8 +75,8 @@ export function createImRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
         search.filter && typeof search.filter === "object"
           ? (search.filter as ImInboxFilters)
           : undefined,
-      pageOffset: Number(search.pageOffset ?? 0),
-      pageSize: Number(search.pageSize ?? 10),
+      pageOffset: toFiniteNumber(search.pageOffset, 0),
+      pageSize: toFiniteNumber(search.pageSize, 10),
       nearing:
         search.nearing === undefined || search.nearing === null
           ? undefined
