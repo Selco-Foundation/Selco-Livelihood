@@ -37,6 +37,7 @@ import {
 } from "@/ui";
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Home, LogOut } from "lucide-react";
+import { LanguageSwitcher } from "@/modules/core";
 
 export function AppShell() {
   const navItems = getModuleNavItems();
@@ -144,6 +145,9 @@ export function AppShell() {
         <header className="flex h-14 items-center gap-3 border-b px-4">
           <SidebarTrigger />
           <h2 className="text-sm font-medium text-muted-foreground">Employee workspace</h2>
+          <div className="ml-auto flex items-center gap-2">
+            <LanguageSwitcher />
+          </div>
         </header>
         <main className="flex-1 bg-page p-6">
           <Outlet />

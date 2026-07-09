@@ -30,6 +30,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { LanguageSwitcher } from "../../components/LanguageSwitcher";
 
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -137,7 +138,10 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-page p-4">
+    <div className="relative flex min-h-screen items-center justify-center bg-page p-4">
+      <div className="absolute right-4 top-4">
+        <LanguageSwitcher />
+      </div>
       <Card className="livelihood-card w-full max-w-md">
         <CardHeader>
           <CardTitle>Livelihood UI</CardTitle>

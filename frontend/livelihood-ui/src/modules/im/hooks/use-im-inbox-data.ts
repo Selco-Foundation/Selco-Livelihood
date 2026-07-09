@@ -15,6 +15,7 @@ import {
   normalizeInboxResponse,
 } from "../utils/inbox-transform";
 import { buildSummaryRoleFilters } from "./inbox-defaults";
+import { fetchAssetTypes } from "../services/mdms";
 
 export function useImInboxSummary() {
   const accessToken = useAuthStore((state) => state.accessToken);
@@ -104,22 +105,6 @@ export function useImInboxData(searchParams: ImInboxSearchParams) {
   });
 }
 
-export function useImMdms() {
-  const accessToken = useAuthStore((state) => state.accessToken);
-  const user = useAuthStore((state) => state.user);
-  const stateTenantId = tenantId();
-
-  return useQuery({
-    queryKey: ["im-mdms", stateTenantId],
-    enabled: Boolean(accessToken),
-    staleTime: Number.POSITIVE_INFINITY,
-    queryFn: async () => {
-      const { fetchSystemFunctionality } = await import("../services/mdms");
-      return fetchSystemFunctionality(accessToken!, user);
-    },
-  });
-}
-
 export function useImAssetTypes() {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
@@ -131,7 +116,6 @@ export function useImAssetTypes() {
     enabled: Boolean(accessToken),
     staleTime: Number.POSITIVE_INFINITY,
     queryFn: async () => {
-      const { fetchAssetTypes } = await import("../services/mdms");
       return fetchAssetTypes(accessToken!, user, t);
     },
   });
