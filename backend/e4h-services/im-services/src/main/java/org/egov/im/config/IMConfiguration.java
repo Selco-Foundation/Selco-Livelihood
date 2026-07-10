@@ -342,7 +342,7 @@ public class IMConfiguration {
     @Value("${im.livelihood.tenant.id:livelihood}")
     private String livelihoodTenantId;
 
-    @Value("${livelihood.mobile.app.link:https://setu4livelihood-dev.selcofoundation.org}")
+    @Value("${livelihood.mobile.app.link}")
     private String livelihoodMobileAppLink;
 
     @Value("${livelihood.localization.module:rainmaker-livelihood}")
