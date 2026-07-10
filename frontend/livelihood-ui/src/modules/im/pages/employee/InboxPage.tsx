@@ -120,7 +120,7 @@ export function InboxPage() {
 
         <ImBreadcrumbs
           items={[
-            { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Home"), to: homePath },
+            { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: homePath },
             { label: translateOr(t, "ES_IM_INBOX", "View all tickets") },
           ]}
         />
