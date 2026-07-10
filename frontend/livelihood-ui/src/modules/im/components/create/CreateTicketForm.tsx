@@ -14,13 +14,13 @@ import { DuplicateTicketsDialog } from "./DuplicateTicketsDialog";
 import { FormSectionCard } from "./FormSectionCard";
 import { FormSelectField } from "./FormSelectField";
 import { MediaUploadZone } from "./MediaUploadZone";
+import { TicketSubmittedDialog } from "./TicketSubmittedDialog";
 
 interface CreateTicketFormProps {
   inboxPath: string;
-  responsePath: string;
 }
 
-export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormProps) {
+export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
   const navigate = useNavigate();
   const {
     t,
@@ -58,7 +58,11 @@ export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormPr
     maxVideoCount,
     maxVideoSizeMb,
     maxCommentLength,
-  } = useCreateIncidentForm(inboxPath, responsePath);
+    submittedResponse,
+  } = useCreateIncidentForm(inboxPath);
+
+  const submittedIncidentId =
+    submittedResponse?.IncidentWrappers?.[0]?.incident?.incidentId;
 
   const handleSubmit = () => {
     setSubmitError(null);
@@ -85,6 +89,10 @@ export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormPr
           onContinue={() => setDuplicateTickets([])}
           onCancel={() => void navigate({ to: inboxPath })}
         />
+      ) : null}
+
+      {submittedIncidentId ? (
+        <TicketSubmittedDialog incidentId={submittedIncidentId} inboxPath={inboxPath} />
       ) : null}
 
       <form

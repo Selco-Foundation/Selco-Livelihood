@@ -4,7 +4,6 @@ import {
   useTranslate,
 } from "@/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { searchAssetsForFacility } from "../services/asset-search";
 import { searchFacilitiesByJurisdiction } from "../services/facility-search";
@@ -13,6 +12,7 @@ import { createIncident, searchPotentialDuplicates } from "../services/incident"
 import { fetchServiceDefsForMenuPath } from "../services/mdms";
 import type {
   CreateIncidentFormValues,
+  CreateIncidentResponse,
   SelectOption,
   UploadedMediaEntry,
 } from "../types/create-incident";
@@ -103,9 +103,8 @@ function buildMediaErrorMessage(
       );
 }
 
-export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
+export function useCreateIncidentForm(inboxPath: string) {
   const { t } = useTranslate();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const accessToken = useAuthStore((state) => state.accessToken);
@@ -124,6 +123,8 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
   >([]);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [disableUpload, setDisableUpload] = useState(true);
+  const [submittedResponse, setSubmittedResponse] =
+    useState<CreateIncidentResponse | null>(null);
 
   const facilityCriteria = useMemo(
     () =>
@@ -390,14 +391,10 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
         setSubmitError(message);
         return;
       }
-      sessionStorage.setItem(
-        "livelihood-im-create-response",
-        JSON.stringify(response),
-      );
       sessionStorage.removeItem(DRAFT_STORAGE_KEY);
       await queryClient.invalidateQueries({ queryKey: ["im-inbox"] });
       await queryClient.invalidateQueries({ queryKey: ["im-inbox-summary"] });
-      void navigate({ to: responsePath });
+      setSubmittedResponse(response);
     },
   });
 
@@ -521,6 +518,7 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
     saveDraft,
     validate,
     inboxPath,
+    submittedResponse,
     handleEndUserChange,
     handleAssetChange,
     handleComplaintTypeChange,

@@ -18,7 +18,6 @@ export function CreateIncidentPage() {
   const basePath = `/${contextPath()}`;
   const homePath = employeeHomePath();
   const inboxPath = `${basePath}${IM_ROUTES.inbox}`;
-  const responsePath = `${basePath}${IM_ROUTES.createResponse}`;
 
   return (
     <div className="space-y-6">
@@ -34,7 +33,7 @@ export function CreateIncidentPage() {
         ]}
       />
 
-      <CreateTicketForm inboxPath={inboxPath} responsePath={responsePath} />
+      <CreateTicketForm inboxPath={inboxPath} />
     </div>
   );
 }
