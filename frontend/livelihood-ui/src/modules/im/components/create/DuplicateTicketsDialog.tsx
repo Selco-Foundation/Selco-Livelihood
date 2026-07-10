@@ -49,10 +49,10 @@ export function DuplicateTicketsDialog({
           {t("IM_ALERT_POTENTIAL_DUPLICATES_ACTION_DESC")}
         </p>
         <div className="mt-6 flex justify-center gap-3">
-          <Button type="button" variant="outline" onClick={onContinue}>
+          <Button type="button" variant="outline" size="lg" onClick={onContinue}>
             {t("TL_COMMON_YES")}
           </Button>
-          <Button type="button" onClick={onCancel}>
+          <Button type="button" size="lg" onClick={onCancel}>
             {t("TL_COMMON_NO")}
           </Button>
         </div>

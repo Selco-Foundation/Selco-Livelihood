@@ -51,6 +51,14 @@
   --color-ink-600: var(--ink-600);
   --color-ink-400: var(--ink-400);
   --color-ink-300: var(--ink-300);
+  /* Figma button spec tokens */
+  --color-brand-primary: var(--brand-primary);
+  --color-primary-800: var(--primary-800);
+  --color-primary-700: var(--primary-700);
+  --color-primary-400: var(--primary-400);
+  --color-neutral-25: var(--neutral-25);
+  --color-neutral-300: var(--ink-300);
+  --color-neutral-400: var(--ink-400);
 }
 
 :root {
@@ -104,6 +112,12 @@
   --ink-600: #51525c;
   --ink-400: #a0a0ab;
   --ink-300: #d1d1d6;
+  /* Figma "Buttons" spec — Brand/Primary scale + Neutral-25 */
+  --brand-primary: #1a6b2f;
+  --primary-800: #0a2b13;
+  --primary-700: #10401c;
+  --primary-400: #438755;
+  --neutral-25: #ffffff;
 }
 
 .dark {

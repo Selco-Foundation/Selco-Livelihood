@@ -14,7 +14,7 @@ import { buildDefaultInboxRoleFilters } from "../../hooks/inbox-defaults";
 import { useImInboxData } from "../../hooks/use-im-inbox-summary";
 import type { InboxRouteSearch } from "../../routes";
 import type { ImInboxFilters } from "../../types/inbox";
-import { canCreateIncident, isEndUser } from "../../utils/access";
+import { canCreateIncident } from "../../utils/access";
 
 function translateOr(
   t: (key: string) => string,
@@ -54,7 +54,7 @@ export function InboxPage() {
 
   const { data: complaints, isLoading } = useImInboxData(inboxParams);
   const totalRecords = complaints?.total ?? 0;
-  const canCreateTicket = canCreateIncident(user?.roles) && isEndUser(user?.roles);
+  const canCreateTicket = canCreateIncident(user?.roles);
 
   const handleFilterChange = (nextFilters: ImInboxFilters) => {
     // InboxFilter's internal state-combining effect fires once on every mount

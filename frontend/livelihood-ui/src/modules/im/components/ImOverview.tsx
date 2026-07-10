@@ -47,7 +47,7 @@ export function ImOverview() {
         description={translateOr(
           t,
           "ES_IM_OVERVIEW_SUBTITLE",
-          "Here's what's happening with your tickets and registered assets today.",
+          "Manage your issue resolution tickets and track your registered assets across the platform",
         )}
         action={
           <div className="flex items-center gap-3">

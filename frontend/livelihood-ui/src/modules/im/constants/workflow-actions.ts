@@ -38,7 +38,7 @@ export const WORKFLOW_ACTION_CONFIG: Record<SupportedWorkflowAction, WorkflowAct
     documents: "none",
     reasonMaster: "RejectReasons",
   },
-  REOPEN: { comment: "required", documents: "none" },
+  REOPEN: { comment: "required", documents: "optional" },
 };
 
 export function isSupportedWorkflowAction(
