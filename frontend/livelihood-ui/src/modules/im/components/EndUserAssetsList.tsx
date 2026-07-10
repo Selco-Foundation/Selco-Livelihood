@@ -1,5 +1,5 @@
 import { useTranslate } from "@/shared";
-import { Badge, Card } from "@/ui";
+import { Card } from "@/ui";
 import { Package } from "lucide-react";
 import { useState } from "react";
 import type { EndUserAsset } from "../hooks/use-end-user-assets";
@@ -28,37 +28,31 @@ function AssetThumbnail({ asset }: { asset: EndUserAsset }) {
       <img
         src={asset.imageUrl}
         alt={asset.name}
-        className="h-16 w-16 shrink-0 rounded-lg object-cover"
+        className="h-10 w-10 shrink-0 rounded-lg object-cover"
         onError={() => setFailed(true)}
       />
     );
   }
 
   return (
-    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-      <Package className="h-6 w-6" />
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+      <Package className="h-5 w-5" />
     </div>
   );
 }
 
 function AssetBlock({ asset }: { asset: EndUserAsset }) {
-  const { t } = useTranslate();
   const subtitle = assetSubtitle(asset);
 
   return (
-    <Card className="livelihood-card flex-row items-center gap-4 border-border p-4 shadow-none">
+    <Card className="livelihood-card max-w-fit flex-row items-center gap-3 border-border p-3 shadow-none">
       <AssetThumbnail asset={asset} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-base leading-6 font-semibold text-ink-950">{asset.name}</p>
+        <p className="truncate text-sm leading-5 font-semibold text-ink-950">{asset.name}</p>
         {subtitle ? (
-          <p className="truncate text-sm leading-[21px] text-ink-600">{subtitle}</p>
+          <p className="truncate text-xs leading-4 text-ink-600">{subtitle}</p>
         ) : null}
       </div>
-      <Badge variant={asset.isOperational ? "success" : "secondary"} className="shrink-0">
-        {asset.isOperational
-          ? translateOr(t, "ES_IM_ASSET_OPERATIONAL", "Operational")
-          : translateOr(t, "ES_IM_ASSET_NOT_OPERATIONAL", "Not Operational")}
-      </Badge>
     </Card>
   );
 }
@@ -81,7 +75,7 @@ export function EndUserAssetsList({ assets, isLoading }: EndUserAssetsListProps)
             {translateOr(t, "ES_IM_NO_ASSETS_FOUND", "No assets found")}
           </p>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-3">
             {assets.map((asset) => (
               <AssetBlock key={asset.assetId} asset={asset} />
             ))}
