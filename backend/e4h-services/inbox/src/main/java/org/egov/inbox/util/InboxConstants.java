@@ -74,4 +74,6 @@ public class InboxConstants {
     public static final String STATE_SLA = "stateSLA";
 
     public static final String TOTAL_SLA_REMAINING = "totalSlaRemaining";
+
+    public static final String NEARING_SLA_PARAM = "nearingSLA";
 }

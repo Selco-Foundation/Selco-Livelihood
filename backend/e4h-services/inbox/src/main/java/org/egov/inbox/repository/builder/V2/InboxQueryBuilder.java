@@ -33,12 +33,30 @@ import static org.egov.inbox.util.InboxConstants.*;
 @Component
 public class InboxQueryBuilder implements QueryBuilderInterface {
 
+    /**
+     * Current-state SLA nearing breach: {@code slaRemaining / stateSla <= 30%}.
+     * Aligns with LLD, UI display ({@code slaRemaining}), and im-services-analytics cron output.
+     * Overdue tickets ({@code slaRemaining <= 0}) are included.
+     */
     private static final String NEARING_SLA_PAINLESS_SCRIPT =
-            "doc.containsKey('Data.totalSlaRemaining') && " +
-                    "doc.containsKey('Data.definedTotalSla') && " +
-                    "doc['Data.definedTotalSla'].size() > 0 && " +
-                    "doc['Data.definedTotalSla'].value > 0 && " +
-                    "((double) doc['Data.totalSlaRemaining'].value / doc['Data.definedTotalSla'].value) <= 0.3";
+            "long stateSla = 0; " +
+                    "if (doc.containsKey('Data.stateSla') && doc['Data.stateSla'].size() > 0) { " +
+                    "  stateSla = doc['Data.stateSla'].value; " +
+                    "} else if (doc.containsKey('Data.stateSLA') && doc['Data.stateSLA'].size() > 0) { " +
+                    "  stateSla = doc['Data.stateSLA'].value; " +
+                    "} " +
+                    "return doc.containsKey('Data.slaRemaining') && doc['Data.slaRemaining'].size() > 0 " +
+                    "&& stateSla > 0 " +
+                    "&& ((double) doc['Data.slaRemaining'].value / stateSla) <= 0.3";
+
+    private static final List<String> NEARING_SLA_EXCLUDED_STATUSES = Arrays.asList(
+            "RESOLVED",
+            "CLOSED_AFTER_RESOLUTION",
+            "CLOSED_AFTER_DECLINE",
+            "CLOSEDAFTERRESOLUTION",
+            "CLOSEDAFTERREJECTION",
+            "REJECTED"
+    );
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -122,25 +140,18 @@ public class InboxQueryBuilder implements QueryBuilderInterface {
         innerBoolClause.put(MUST_KEY, mergedMustClause);
 
         // Add SLA filter if required
-        if (params.containsKey("nearingSLA") && isSLA) {
+        if (params.containsKey(NEARING_SLA_PARAM) && isSLA) {
             log.info("⏳ Applying SLA filter (nearingSLA enabled)");
 
             Map<String, Object> query = (Map<String, Object>) baseEsQuery.get("query");
             Map<String, Object> boolClause = (Map<String, Object>) query.get("bool");
 
-            List<Map<String, Object>> mustNotClauseList =
-                    (List<Map<String, Object>>) boolClause.getOrDefault("must_not", new ArrayList<>());
+            List<Object> mustNotClauseList = new ArrayList<>(
+                    (Collection<?>) boolClause.getOrDefault("must_not", new ArrayList<>()));
 
-            Map<String, Object> terminateClause = new HashMap<>();
-            terminateClause.put("term", Collections.singletonMap("Data.currentProcessInstance.state.isTerminateState", true));
-            mustNotClauseList.add(terminateClause);
-
-            Map<String, Object> excludeIncidentTerm = new HashMap<>();
-            excludeIncidentTerm.put("term", Collections.singletonMap("Data.currentProcessInstance.businessService.keyword", "Incident"));
-            mustNotClauseList.add(excludeIncidentTerm);
-
+            appendNearingSlaExclusions(mustNotClauseList);
             boolClause.put("must_not", mustNotClauseList);
-            log.debug("🚫 Added SLA exclusions: terminated tickets + Incident service");
+            log.debug("🚫 Added SLA exclusions for nearing filter");
 
             Map<String, Object> scriptInner = new HashMap<>();
             scriptInner.put("source", NEARING_SLA_PAINLESS_SCRIPT);
@@ -149,7 +160,8 @@ public class InboxQueryBuilder implements QueryBuilderInterface {
             Map<String, Object> scriptClause = new HashMap<>();
             scriptClause.put("script", scriptInner);
 
-            mustClauseList.add(Collections.singletonMap("script", scriptClause));
+            mergedMustClause.add(Collections.singletonMap("script", scriptClause));
+            innerBoolClause.put(MUST_KEY, mergedMustClause);
             log.debug("⏱️ Added SLA painless script filter");
         }
 
@@ -486,36 +498,43 @@ public class InboxQueryBuilder implements QueryBuilderInterface {
     private void addModuleSearchCriteriaToBaseQuery(Map<String, Object> params, Map<String, String> nameToPathMap,
                                                     Map<String, SearchParam.Operator> nameToOperator, List<Object> mustClauseList) {
         params.keySet().forEach(key -> {
-            if (!(key.equals(SORT_ORDER_CONSTANT) || key.equals(SORT_BY_CONSTANT))) {
+            if (isReservedModuleSearchParam(key)) {
+                return;
+            }
 
-                SearchParam.Operator operator = nameToOperator.get(key);
-                if (operator != null && operator.equals(SearchParam.Operator.WILDCARD)) {
-                    List<Map<String, Object>> mustClauseChild = null;
+            SearchParam.Operator operator = nameToOperator.get(key);
+            if (operator != null && operator.equals(SearchParam.Operator.WILDCARD)) {
+                List<Map<String, Object>> mustClauseChild = null;
 
-                    mustClauseChild = (List<Map<String, Object>>) prepareMustClauseWildCardChild(params, key,
-                            nameToPathMap, nameToOperator);
+                mustClauseChild = (List<Map<String, Object>>) prepareMustClauseWildCardChild(params, key,
+                        nameToPathMap, nameToOperator);
 
-                    if (CollectionUtils.isEmpty(mustClauseChild)) {
-                        log.info("Error occurred while preparing filter for must clause. Filter for key " + key
-                                + " will not be added.");
-                    } else {
-                        mustClauseList.addAll(mustClauseChild);
-                    }
+                if (CollectionUtils.isEmpty(mustClauseChild)) {
+                    log.info("Error occurred while preparing filter for must clause. Filter for key " + key
+                            + " will not be added.");
                 } else {
-
-                    Map<String, Object> mustClauseChild = null;
-                    mustClauseChild = (Map<String, Object>) prepareMustClauseChild(params, key, nameToPathMap,
-                            nameToOperator);
-                    if (CollectionUtils.isEmpty(mustClauseChild)) {
-                        log.info("Error occurred while preparing filter for must clause. Filter for key " + key
-                                + " will not be added.");
-                    } else {
-                        mustClauseList.add(mustClauseChild);
-                    }
-
+                    mustClauseList.addAll(mustClauseChild);
                 }
+            } else {
+
+                Map<String, Object> mustClauseChild = null;
+                mustClauseChild = (Map<String, Object>) prepareMustClauseChild(params, key, nameToPathMap,
+                        nameToOperator);
+                if (CollectionUtils.isEmpty(mustClauseChild)) {
+                    log.info("Error occurred while preparing filter for must clause. Filter for key " + key
+                            + " will not be added.");
+                } else {
+                    mustClauseList.add(mustClauseChild);
+                }
+
             }
         });
+    }
+
+    private boolean isReservedModuleSearchParam(String key) {
+        return SORT_ORDER_CONSTANT.equals(key)
+                || SORT_BY_CONSTANT.equals(key)
+                || NEARING_SLA_PARAM.equals(key);
     }
 
     private void addJurisdictionSearchCriteriaToBaseQuery(Map<String, Object> params, Map<String, String> nameToPathMap,
@@ -555,10 +574,16 @@ public class InboxQueryBuilder implements QueryBuilderInterface {
 
     @Override
     public Map<String, Object> getStatusCountQuery(InboxRequest inboxRequest) {
-        Map<String, Object> baseEsQuery = getESQuery(inboxRequest, Boolean.FALSE, Boolean.FALSE);
+        boolean applyNearingSlaFilter = isNearingSlaSearch(inboxRequest);
+        Map<String, Object> baseEsQuery = getESQuery(inboxRequest, Boolean.FALSE, applyNearingSlaFilter);
         appendStatusCountAggsNode(baseEsQuery);
         log.info("status query====", baseEsQuery);
         return baseEsQuery;
+    }
+
+    private boolean isNearingSlaSearch(InboxRequest inboxRequest) {
+        Map<String, Object> moduleSearchCriteria = inboxRequest.getInbox().getModuleSearchCriteria();
+        return moduleSearchCriteria != null && moduleSearchCriteria.containsKey(NEARING_SLA_PARAM);
     }
 
     @Override
@@ -571,13 +596,7 @@ public class InboxQueryBuilder implements QueryBuilderInterface {
         // Ensure must_not clause exists
         List<Object> mustNotClauseList = (List<Object>) bool.getOrDefault("must_not", new ArrayList<>());
 
-        // Add isTerminateState filter to must_not
-        Map<String, Object> terminateTerm = new HashMap<>();
-        terminateTerm.put("Data.currentProcessInstance.state.isTerminateState", true);
-        Map<String, Object> mustNotTermWrapper = new HashMap<>();
-        mustNotTermWrapper.put("term", terminateTerm);
-        mustNotClauseList.add(mustNotTermWrapper);
-
+        appendNearingSlaExclusions(mustNotClauseList);
         bool.put("must_not", mustNotClauseList);
 
         // Add to must clause
@@ -799,6 +818,23 @@ public class InboxQueryBuilder implements QueryBuilderInterface {
             path = "Data." + key + ".keyword";
 
         return path;
+    }
+
+    private void appendNearingSlaExclusions(List<Object> mustNotClauseList) {
+        Map<String, Object> terminateClause = new HashMap<>();
+        terminateClause.put("term", Collections.singletonMap("Data.currentProcessInstance.state.isTerminateState", true));
+        mustNotClauseList.add(terminateClause);
+
+        Map<String, Object> excludeIncidentTerm = new HashMap<>();
+        excludeIncidentTerm.put("term", Collections.singletonMap("Data.currentProcessInstance.businessService.keyword", "Incident"));
+        mustNotClauseList.add(excludeIncidentTerm);
+
+        Map<String, Object> excludedStatuses = new HashMap<>();
+        excludedStatuses.put("terms", Collections.singletonMap(
+                "Data.incident.applicationStatus.keyword",
+                NEARING_SLA_EXCLUDED_STATUSES
+        ));
+        mustNotClauseList.add(excludedStatuses);
     }
 
 }
