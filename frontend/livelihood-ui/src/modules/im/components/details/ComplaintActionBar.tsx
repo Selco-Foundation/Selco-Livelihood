@@ -113,7 +113,7 @@ export function ComplaintActionBar({
                     <button
                       key={action.action}
                       type="button"
-                      className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-accent"
+                      className="w-full cursor-pointer rounded-md px-3 py-2 text-left text-sm hover:bg-accent"
                       onClick={() => {
                         setSelectedAction(action.action);
                         setMenuOpen(false);
