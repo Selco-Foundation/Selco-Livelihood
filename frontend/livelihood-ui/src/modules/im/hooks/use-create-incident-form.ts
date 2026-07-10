@@ -304,6 +304,14 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
     [accessToken, employeeTenantId, imageUploads.length, t, videoUploads.length],
   );
 
+  const removeUpload = useCallback(
+    (kind: "image" | "video", fileStoreId: string) => {
+      const setUploads = kind === "image" ? setImageUploads : setVideoUploads;
+      setUploads((prev) => prev.filter((item) => item.fileStoreId !== fileStoreId));
+    },
+    [],
+  );
+
   const validate = useCallback(() => {
     const errors: FieldErrors = {};
     if (!form.endUser) {
@@ -499,6 +507,7 @@ export function useCreateIncidentForm(inboxPath: string, responsePath: string) {
     imageUploads,
     videoUploads,
     uploadFiles,
+    removeUpload,
     isImageUploading,
     isVideoUploading,
     disableUpload,

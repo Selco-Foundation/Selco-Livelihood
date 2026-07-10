@@ -17,3 +17,14 @@ export function getFileName(src: string): string {
   const clean = src.split("?")[0].split("#")[0];
   return decodeURIComponent(clean.split("/").pop() ?? src);
 }
+
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  const kb = bytes / 1024;
+  if (kb < 1024) {
+    return `${Math.round(kb)} KB`;
+  }
+  return `${(kb / 1024).toFixed(1)} MB`;
+}
