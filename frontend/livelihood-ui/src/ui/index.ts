@@ -97,6 +97,14 @@ export {
   DropdownMenuTrigger,
 } from "./components/ui/dropdown-menu";
 export { Skeleton } from "./components/ui/skeleton";
+export { Checkbox } from "./components/ui/checkbox";
+export {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverTrigger,
+} from "./components/ui/popover";
+export { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
 export { DataTable } from "./components/data-table";
 export { StatTile } from "./components/stat-tile";
 export type { StatTileProps } from "./components/stat-tile";

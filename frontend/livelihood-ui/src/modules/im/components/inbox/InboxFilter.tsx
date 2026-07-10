@@ -6,7 +6,16 @@ import {
   useJurisdictionStore,
   useTranslate,
 } from "@/shared";
-import { Separator, cn } from "@/ui";
+import {
+  Checkbox,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  ScrollArea,
+  Separator,
+  cn,
+} from "@/ui";
 import { ChevronDown, Filter } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { ORDERED_INBOX_STATUSES } from "../../constants/inbox-statuses";
@@ -36,52 +45,12 @@ function codesOf(items: Array<{ code: string }>): Set<string> {
   return new Set(items.map((item) => item.code));
 }
 
+type PgrFilterKey = "assetType" | "facility" | "state" | "district" | "block";
+
 interface InboxFilterProps {
   complaints?: InboxDataResult;
   searchParams: { filters?: ImInboxFilters };
   onFilterChange: (filters: ImInboxFilters) => void;
-}
-
-function FilterSelect({
-  label,
-  value,
-  options,
-  onChange,
-  disabled,
-  allLabel,
-}: {
-  label: string;
-  value: string;
-  options: FilterOption[];
-  onChange: (code: string) => void;
-  disabled?: boolean;
-  allLabel: string;
-}) {
-  return (
-    <div className="min-w-0 space-y-1.5">
-      <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </label>
-      <div className="relative">
-        <select
-          className="livelihood-filter-select disabled:cursor-not-allowed disabled:opacity-50"
-          value={value}
-          disabled={disabled}
-          onChange={(event) => onChange(event.target.value)}
-        >
-          <option value="" className="cursor-pointer">
-            {allLabel}
-          </option>
-          {options.map((option) => (
-            <option key={option.code} value={option.code} className="cursor-pointer">
-              {option.name}
-            </option>
-          ))}
-        </select>
-        <ChevronDown className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" />
-      </div>
-    </div>
-  );
 }
 
 export function InboxFilter({
@@ -113,7 +82,11 @@ export function InboxFilter({
       : assignedToOptions[1],
   );
 
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<PgrFilterKey | "applicationStatus">(
+    "assetType",
+  );
+  const [categorySearch, setCategorySearch] = useState("");
 
   const emptyPgrFilters = {
     assetType: [] as Array<{ code: string; name?: string; key?: string }>,
@@ -209,9 +182,11 @@ export function InboxFilter({
       setDistrictMenu([]);
       return;
     }
-    const selectedState = pgrfilters.state?.[0];
-    const districts = selectedState
-      ? boundaryData.districts.filter((district) => district.parentCode === selectedState.code)
+    const selectedStateCodes = pgrfilters.state.map((item) => item.code);
+    const districts = selectedStateCodes.length
+      ? boundaryData.districts.filter(
+          (district) => district.parentCode && selectedStateCodes.includes(district.parentCode),
+        )
       : boundaryData.districts;
 
     setDistrictMenu(
@@ -229,15 +204,19 @@ export function InboxFilter({
       setBlockMenu([]);
       return;
     }
-    const selectedState = pgrfilters.state?.[0];
-    const selectedDistrict = pgrfilters.district?.[0];
+    const selectedStateCodes = pgrfilters.state.map((item) => item.code);
+    const selectedDistrictCodes = pgrfilters.district.map((item) => item.code);
 
     let blocks = boundaryData.blocks;
-    if (selectedDistrict) {
-      blocks = blocks.filter((block) => block.parentCode === selectedDistrict.code);
-    } else if (selectedState && boundaryData.districts) {
+    if (selectedDistrictCodes.length) {
+      blocks = blocks.filter(
+        (block) => block.parentCode && selectedDistrictCodes.includes(block.parentCode),
+      );
+    } else if (selectedStateCodes.length && boundaryData.districts) {
       const districtCodes = codesOf(
-        boundaryData.districts.filter((district) => district.parentCode === selectedState.code),
+        boundaryData.districts.filter(
+          (district) => district.parentCode && selectedStateCodes.includes(district.parentCode),
+        ),
       );
       blocks = blocks.filter((block) => block.parentCode && districtCodes.has(block.parentCode));
     }
@@ -253,23 +232,29 @@ export function InboxFilter({
   }, [pgrfilters.state, pgrfilters.district, boundaryData, t]);
 
   useEffect(() => {
-    const selectedState = pgrfilters.state?.[0];
-    const selectedDistrict = pgrfilters.district?.[0];
-    const selectedBlock = pgrfilters.block?.[0];
+    const selectedStateCodes = pgrfilters.state.map((item) => item.code);
+    const selectedDistrictCodes = pgrfilters.district.map((item) => item.code);
+    const selectedBlockCodes = pgrfilters.block.map((item) => item.code);
 
     let facilities = facilityOptions;
-    if (selectedBlock) {
-      facilities = facilities.filter((facility) => facility.parentCode === selectedBlock.code);
-    } else if (selectedDistrict && boundaryData?.blocks) {
+    if (selectedBlockCodes.length) {
+      facilities = facilities.filter(
+        (facility) => facility.parentCode && selectedBlockCodes.includes(facility.parentCode),
+      );
+    } else if (selectedDistrictCodes.length && boundaryData?.blocks) {
       const blockCodes = codesOf(
-        boundaryData.blocks.filter((block) => block.parentCode === selectedDistrict.code),
+        boundaryData.blocks.filter(
+          (block) => block.parentCode && selectedDistrictCodes.includes(block.parentCode),
+        ),
       );
       facilities = facilities.filter(
         (facility) => facility.parentCode && blockCodes.has(facility.parentCode),
       );
-    } else if (selectedState && boundaryData?.districts && boundaryData?.blocks) {
+    } else if (selectedStateCodes.length && boundaryData?.districts && boundaryData?.blocks) {
       const districtCodes = codesOf(
-        boundaryData.districts.filter((district) => district.parentCode === selectedState.code),
+        boundaryData.districts.filter(
+          (district) => district.parentCode && selectedStateCodes.includes(district.parentCode),
+        ),
       );
       const blockCodes = codesOf(
         boundaryData.blocks.filter(
@@ -289,7 +274,14 @@ export function InboxFilter({
         }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     );
-  }, [pgrfilters.state, pgrfilters.district, pgrfilters.block, facilityOptions, boundaryData, t]);
+  }, [
+    pgrfilters.state,
+    pgrfilters.district,
+    pgrfilters.block,
+    facilityOptions,
+    boundaryData,
+    t,
+  ]);
 
   useEffect(() => {
     if (!showAssigneeFilter) {
@@ -313,8 +305,6 @@ export function InboxFilter({
     onFilterChange({ pgrQuery, wfQuery, wfFilters, pgrfilters });
   }, [pgrfilters, wfFilters]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const allLabel = t("ES_COMMON_ALL");
-
   const hasActiveFilters =
     Object.values(pgrfilters).some((value) => value.length > 0) ||
     (showAssigneeFilter && selectAssigned.code !== assignedToOptions[1].code);
@@ -327,25 +317,187 @@ export function InboxFilter({
         ? assignedToOptions[0]
         : assignedToOptions[1],
     );
-    setShowAdvancedFilters(false);
   }
+
+  function toggleArrayFilter(
+    category: PgrFilterKey,
+    option: { code: string; name?: string },
+  ) {
+    setPgrFilters((prev) => {
+      const current = prev[category];
+      const exists = current.some((item) => item.code === option.code);
+      return {
+        ...prev,
+        [category]: exists
+          ? current.filter((item) => item.code !== option.code)
+          : [...current, option],
+      };
+    });
+  }
+
+  function isStatusGroupChecked(statuses: readonly string[]) {
+    return statuses.every((code) =>
+      pgrfilters.applicationStatus.some((item) => item.code === code),
+    );
+  }
+
+  function toggleStatusGroup(statuses: readonly string[]) {
+    setPgrFilters((prev) => {
+      const isChecked = statuses.every((code) =>
+        prev.applicationStatus.some((item) => item.code === code),
+      );
+      if (isChecked) {
+        return {
+          ...prev,
+          applicationStatus: prev.applicationStatus.filter(
+            (item) => !statuses.includes(item.code),
+          ),
+        };
+      }
+      const existingCodes = new Set(prev.applicationStatus.map((item) => item.code));
+      return {
+        ...prev,
+        applicationStatus: [
+          ...prev.applicationStatus,
+          ...statuses.filter((code) => !existingCodes.has(code)).map((code) => ({ code })),
+        ],
+      };
+    });
+  }
+
+  const categories = [
+    { key: "assetType" as const, label: t("CS_ASSET_TYPE"), options: assetTypeMenu },
+    ...(showGeoFilters
+      ? [
+          { key: "state" as const, label: t("CS_STATE"), options: stateMenu },
+          { key: "district" as const, label: t("CS_DISTRICT"), options: districtMenu },
+          { key: "block" as const, label: t("CS_BLOCK"), options: blockMenu },
+          {
+            key: "facility" as const,
+            label: translateOr(t, "INCIDENT_END_USER", "End User"),
+            options: facilityMenu,
+          },
+        ]
+      : []),
+    {
+      key: "applicationStatus" as const,
+      label: translateOr(t, "ES_IM_FILTER_STATUS", "Ticket Status"),
+      options: statusMenu,
+    },
+  ];
+
+  const activeCategoryData = categories.find((category) => category.key === activeCategory);
+  const searchLower = categorySearch.trim().toLowerCase();
+  const visibleOptions = (activeCategoryData?.options ?? []).filter((option) =>
+    searchLower ? option.name.toLowerCase().includes(searchLower) : true,
+  );
 
   return (
     <div className="livelihood-card p-5">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-5">
-          <button
-            type="button"
-            onClick={() => setShowAdvancedFilters((prev) => !prev)}
-            className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border border-primary px-3 text-sm font-semibold text-primary"
+          <Popover
+            open={filtersOpen}
+            onOpenChange={(open) => {
+              setFiltersOpen(open);
+              if (open) {
+                setCategorySearch("");
+              }
+            }}
           >
-            <Filter className="size-4" />
-            {translateOr(t, "ES_IM_FILTERS", "Filters")}
-            <Separator orientation="vertical" className="h-4 bg-ink-400" />
-            <ChevronDown
-              className={`size-4 text-ink-400 transition-transform ${showAdvancedFilters ? "rotate-180" : ""}`}
-            />
-          </button>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border border-primary px-3 text-sm font-semibold text-primary"
+              >
+                <Filter className="size-4" />
+                {translateOr(t, "ES_IM_FILTERS", "Filters")}
+                <Separator orientation="vertical" className="h-4" />
+                <ChevronDown
+                  className={cn("size-4 transition-transform", filtersOpen && "rotate-180")}
+                />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-auto p-0">
+              <div className="flex">
+                <div className="w-40 shrink-0 border-r border-border py-2">
+                  {categories.map((category) => (
+                    <button
+                      key={category.key}
+                      type="button"
+                      onClick={() => {
+                        setActiveCategory(category.key);
+                        setCategorySearch("");
+                      }}
+                      className={cn(
+                        "block w-full border-l-2 px-4 py-2 text-left text-sm transition-colors",
+                        activeCategory === category.key
+                          ? "border-primary font-semibold text-primary"
+                          : "border-transparent text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {category.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="w-64 shrink-0 space-y-3 p-3">
+                  <Input
+                    value={categorySearch}
+                    onChange={(event) => setCategorySearch(event.target.value)}
+                    placeholder={translateOr(t, "ES_COMMON_SEARCH", "Search")}
+                  />
+                  <ScrollArea className="h-56 pr-3">
+                    <div className="space-y-3">
+                      {visibleOptions.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          {translateOr(t, "ES_COMMON_NO_OPTIONS", "No options found")}
+                        </p>
+                      ) : activeCategory === "applicationStatus" ? (
+                        visibleOptions.map((option) => {
+                          const group = ORDERED_INBOX_STATUSES.find(
+                            (item) => item.code === option.code,
+                          );
+                          const statuses = group?.statuses ?? [option.code];
+                          return (
+                            <label
+                              key={option.code}
+                              className="flex cursor-pointer items-center gap-2 text-sm font-semibold"
+                            >
+                              <Checkbox
+                                className="size-5 rounded-md border-2 border-primary"
+                                checked={isStatusGroupChecked(statuses)}
+                                onCheckedChange={() => toggleStatusGroup(statuses)}
+                              />
+                              {option.name}
+                            </label>
+                          );
+                        })
+                      ) : (
+                        visibleOptions.map((option) => (
+                          <label
+                            key={option.code}
+                            className="flex cursor-pointer items-center gap-2 text-sm font-semibold"
+                          >
+                            <Checkbox
+                              className="size-5 rounded-md border-2 border-primary"
+                              checked={pgrfilters[activeCategory as PgrFilterKey].some(
+                                (item) => item.code === option.code,
+                              )}
+                              onCheckedChange={() =>
+                                toggleArrayFilter(activeCategory as PgrFilterKey, option)
+                              }
+                            />
+                            {option.name}
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
 
           {showAssigneeFilter
             ? assignedToOptions.map((option) => (
@@ -371,144 +523,12 @@ export function InboxFilter({
             "text-sm transition-colors",
             hasActiveFilters
               ? "cursor-pointer text-foreground hover:text-primary"
-              : "text-ink-400",
+              : "text-muted-foreground/50",
           )}
         >
           {translateOr(t, "ES_IM_CLEAR_ALL_FILTERS", "clear all filters")}
         </button>
       </div>
-
-      {showAdvancedFilters ? <div className="my-5 border-t border-border" /> : null}
-
-      {showAdvancedFilters ? (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <FilterSelect
-          label={t("CS_ASSET_TYPE")}
-          value={pgrfilters.assetType[0]?.code ?? ""}
-          options={assetTypeMenu}
-          allLabel={allLabel}
-          onChange={(code) => {
-            if (!code) {
-              setPgrFilters((prev) => ({ ...prev, assetType: [] }));
-              return;
-            }
-            const option = assetTypeMenu.find((item) => item.code === code);
-            setPgrFilters((prev) => ({
-              ...prev,
-              assetType: option ? [{ code: option.code, name: option.name }] : [],
-            }));
-          }}
-        />
-
-        {showGeoFilters ? (
-          <>
-            <FilterSelect
-              label={t("CS_STATE")}
-              value={pgrfilters.state[0]?.code ?? ""}
-              options={stateMenu}
-              allLabel={allLabel}
-              onChange={(code) => {
-                if (!code) {
-                  setPgrFilters((prev) => ({
-                    ...prev,
-                    state: [],
-                    district: [],
-                    block: [],
-                    facility: [],
-                  }));
-                  return;
-                }
-                const option = stateMenu.find((item) => item.code === code);
-                setPgrFilters((prev) => ({
-                  ...prev,
-                  state: option ? [option] : [],
-                  district: [],
-                  block: [],
-                  facility: [],
-                }));
-              }}
-            />
-
-            <FilterSelect
-              label={t("CS_DISTRICT")}
-              value={pgrfilters.district[0]?.code ?? ""}
-              options={districtMenu}
-              allLabel={allLabel}
-              onChange={(code) => {
-                if (!code) {
-                  setPgrFilters((prev) => ({ ...prev, district: [], block: [], facility: [] }));
-                  return;
-                }
-                const option = districtMenu.find((item) => item.code === code);
-                setPgrFilters((prev) => ({
-                  ...prev,
-                  district: option ? [option] : [],
-                  block: [],
-                  facility: [],
-                }));
-              }}
-            />
-
-            <FilterSelect
-              label={t("CS_BLOCK")}
-              value={pgrfilters.block[0]?.code ?? ""}
-              options={blockMenu}
-              allLabel={allLabel}
-              onChange={(code) => {
-                if (!code) {
-                  setPgrFilters((prev) => ({ ...prev, block: [], facility: [] }));
-                  return;
-                }
-                const option = blockMenu.find((item) => item.code === code);
-                setPgrFilters((prev) => ({
-                  ...prev,
-                  block: option ? [option] : [],
-                  facility: [],
-                }));
-              }}
-            />
-
-            <FilterSelect
-              label={t("CS_HEALTH_CARE")}
-              value={pgrfilters.facility[0]?.code ?? ""}
-              options={facilityMenu}
-              allLabel={allLabel}
-              onChange={(code) => {
-                if (!code) {
-                  setPgrFilters((prev) => ({ ...prev, facility: [] }));
-                  return;
-                }
-                const option = facilityMenu.find((item) => item.code === code);
-                setPgrFilters((prev) => ({
-                  ...prev,
-                  facility: option ? [option] : [],
-                }));
-              }}
-            />
-          </>
-        ) : null}
-
-        <FilterSelect
-          label={t("ES_IM_FILTER_STATUS")}
-          value={pgrfilters.applicationStatus[0]?.code ?? ""}
-          options={statusMenu}
-          allLabel={allLabel}
-          onChange={(code) => {
-            if (!code) {
-              setPgrFilters((prev) => ({ ...prev, applicationStatus: [] }));
-              return;
-            }
-            const statusGroup = ORDERED_INBOX_STATUSES.find((item) => item.code === code);
-            setPgrFilters((prev) => ({
-              ...prev,
-              applicationStatus: statusGroup
-                ? statusGroup.statuses.map((status) => ({ code: status }))
-                : [{ code }],
-            }));
-          }}
-        />
-      </div>
-      ) : null}
     </div>
   );
 }
