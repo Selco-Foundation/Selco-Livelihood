@@ -160,7 +160,7 @@ export function AppShell() {
           </AlertDialog>
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset className="min-h-0 overflow-y-auto rounded-tl-[48px] rounded-bl-[48px] bg-page pt-12 pr-20 pb-10 pl-10">
+      <SidebarInset className="min-h-0 [scrollbar-gutter:stable] overflow-y-auto rounded-tl-[48px] rounded-bl-[48px] bg-page pt-12 pr-8 pb-10 pl-8">
         <Outlet />
       </SidebarInset>
     </SidebarProvider>

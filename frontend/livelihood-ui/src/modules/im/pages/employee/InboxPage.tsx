@@ -13,7 +13,7 @@ import { buildDefaultInboxRoleFilters } from "../../hooks/inbox-defaults";
 import { useImInboxData } from "../../hooks/use-im-inbox-summary";
 import type { InboxRouteSearch } from "../../routes";
 import type { ImInboxFilters } from "../../types/inbox";
-import { canCreateIncident } from "../../utils/access";
+import { canCreateIncident, isEndUser } from "../../utils/access";
 
 function translateOr(
   t: (key: string) => string,
@@ -53,7 +53,7 @@ export function InboxPage() {
 
   const { data: complaints, isLoading } = useImInboxData(inboxParams);
   const totalRecords = complaints?.total ?? 0;
-  const canCreateTicket = canCreateIncident(user?.roles);
+  const canCreateTicket = canCreateIncident(user?.roles) && isEndUser(user?.roles);
 
   const handleFilterChange = (nextFilters: ImInboxFilters) => {
     // InboxFilter's internal state-combining effect fires once on every mount
@@ -81,30 +81,43 @@ export function InboxPage() {
     });
   };
 
+  const handlePageSizeChange = (nextPageSize: number) => {
+    void navigate({
+      search: (prev: InboxRouteSearch) => ({
+        ...prev,
+        pageSize: nextPageSize,
+        pageOffset: 0,
+      }),
+      replace: true,
+    });
+  };
+
   const homePath = employeeHomePath();
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-6">
-      <ImBreadcrumbs
-        items={[
-          { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: homePath },
-          { label: translateOr(t, "ES_IM_INBOX", "Inbox") },
-        ]}
-      />
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <PageHeader
+          title={translateOr(t, "ES_IM_ALL_TICKETS", "All Tickets")}
+          action={
+            canCreateTicket ? (
+              <Button asChild size="sm" className="gap-1.5 rounded-md px-3">
+                <Link to={`${basePath}/incident/create`}>
+                  <Plus className="size-4" />
+                  {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise Ticket")}
+                </Link>
+              </Button>
+            ) : null
+          }
+        />
 
-      <PageHeader
-        title={translateOr(t, "ES_IM_ALL_TICKETS", "All Tickets")}
-        action={
-          canCreateTicket ? (
-            <Button asChild className="gap-2 rounded-md px-5">
-              <Link to={`${basePath}/incident/create`}>
-                <Plus className="size-4" />
-                {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise new ticket")}
-              </Link>
-            </Button>
-          ) : null
-        }
-      />
+        <ImBreadcrumbs
+          items={[
+            { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Home"), to: homePath },
+            { label: translateOr(t, "ES_IM_INBOX", "View all tickets") },
+          ]}
+        />
+      </div>
 
       <DesktopInbox
         data={complaints}
@@ -114,6 +127,7 @@ export function InboxPage() {
         onNextPage={() => goToOffset(pageOffset + pageSize)}
         onPrevPage={() => goToOffset(pageOffset - pageSize)}
         onPageChange={(page) => goToOffset(page * pageSize)}
+        onPageSizeChange={handlePageSizeChange}
         currentPage={Math.floor(pageOffset / pageSize)}
         totalRecords={totalRecords}
         pageSizeLimit={pageSize}

@@ -6,7 +6,8 @@ import {
   useJurisdictionStore,
   useTranslate,
 } from "@/shared";
-import { ChevronDown } from "lucide-react";
+import { Separator } from "@/ui";
+import { ChevronDown, Filter } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { ORDERED_INBOX_STATUSES } from "../../constants/inbox-statuses";
 import { buildDefaultInboxRoleFilters } from "../../hooks/inbox-defaults";
@@ -14,6 +15,15 @@ import { useImAssetTypes } from "../../hooks/use-im-inbox-summary";
 import type { ImInboxFilters, InboxDataResult } from "../../types/inbox";
 import { isAssigneeScopedUser, isEndUser } from "../../utils/access";
 import { buildFilterQueryFromState } from "../../utils/inbox-filters";
+
+function translateOr(
+  t: (key: string) => string,
+  key: string,
+  fallback: string,
+): string {
+  const value = t(key);
+  return value === key ? fallback : value;
+}
 
 interface FilterOption {
   code: string;
@@ -85,8 +95,8 @@ export function InboxFilter({
 
   const assignedToOptions = useMemo(
     () => [
-      { code: "ASSIGNED_TO_ME", name: t("ASSIGNED_TO_ME") },
-      { code: "ASSIGNED_TO_ALL", name: t("ASSIGNED_TO_ALL") },
+      { code: "ASSIGNED_TO_ME", name: translateOr(t, "ASSIGNED_TO_ME", "My Tickets") },
+      { code: "ASSIGNED_TO_ALL", name: translateOr(t, "ASSIGNED_TO_ALL", "All Tickets") },
     ],
     [t],
   );
@@ -94,12 +104,15 @@ export function InboxFilter({
   const defaultFilters = buildDefaultInboxRoleFilters(user);
   const showGeoFilters = !isEndUser(roles);
   const showAssigneeFilter = !isAssigneeScopedUser(roles);
+  const showAssignedRadios = showAssigneeFilter && isEndUser(roles);
 
   const [selectAssigned, setSelectAssigned] = useState(
     searchParams.filters?.wfFilters?.assignee?.[0]?.code === userUuid
       ? assignedToOptions[0]
       : assignedToOptions[1],
   );
+
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   const emptyPgrFilters = {
     assetType: [] as Array<{ code: string; name?: string; key?: string }>,
@@ -301,32 +314,62 @@ export function InboxFilter({
 
   const allLabel = t("ES_COMMON_ALL");
 
+  function handleClearAllFilters() {
+    setPgrFilters({ ...emptyPgrFilters, ...defaultFilters.pgrfilters });
+    setWfFilters(defaultFilters.wfFilters!);
+    setSelectAssigned(
+      defaultFilters.wfFilters?.assignee?.[0]?.code === userUuid
+        ? assignedToOptions[0]
+        : assignedToOptions[1],
+    );
+    setShowAdvancedFilters(false);
+  }
+
   return (
     <div className="livelihood-card p-5">
-      {showAssigneeFilter ? (
-        <>
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {t("ES_COMMON_FILTER_BY")}:
-            </span>
-            {assignedToOptions.map((option) => (
-              <label key={option.code} className="flex cursor-pointer items-center gap-2 text-sm">
-                <input
-                  type="radio"
-                  name="assignedTo"
-                  className="livelihood-radio"
-                  checked={selectAssigned.code === option.code}
-                  onChange={() => setSelectAssigned(option)}
-                />
-                <span>{option.name}</span>
-              </label>
-            ))}
-          </div>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-5">
+          <button
+            type="button"
+            onClick={() => setShowAdvancedFilters((prev) => !prev)}
+            className="inline-flex h-8 items-center gap-2 rounded-md border border-primary px-3 text-sm font-semibold text-primary"
+          >
+            <Filter className="size-4" />
+            {translateOr(t, "ES_IM_FILTERS", "Filters")}
+            <Separator orientation="vertical" className="h-4 bg-ink-400" />
+            <ChevronDown
+              className={`size-4 text-ink-400 transition-transform ${showAdvancedFilters ? "rotate-180" : ""}`}
+            />
+          </button>
 
-          <div className="my-5 border-t border-border" />
-        </>
-      ) : null}
+          {showAssignedRadios
+            ? assignedToOptions.map((option) => (
+                <label key={option.code} className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="assignedTo"
+                    className="livelihood-radio"
+                    checked={selectAssigned.code === option.code}
+                    onChange={() => setSelectAssigned(option)}
+                  />
+                  <span>{option.name}</span>
+                </label>
+              ))
+            : null}
+        </div>
 
+        <button
+          type="button"
+          onClick={handleClearAllFilters}
+          className="text-sm text-ink-400 hover:text-muted-foreground"
+        >
+          {translateOr(t, "ES_IM_CLEAR_ALL_FILTERS", "clear all filters")}
+        </button>
+      </div>
+
+      {showAdvancedFilters ? <div className="my-5 border-t border-border" /> : null}
+
+      {showAdvancedFilters ? (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <FilterSelect
           label={t("CS_ASSET_TYPE")}
@@ -454,6 +497,7 @@ export function InboxFilter({
           }}
         />
       </div>
+      ) : null}
     </div>
   );
 }

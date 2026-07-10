@@ -3,6 +3,7 @@ import { Skeleton } from "@/ui";
 import type { ImInboxFilters, InboxDataResult } from "../../types/inbox";
 import { ComplaintTable } from "./ComplaintTable";
 import { InboxFilter } from "./InboxFilter";
+import { InboxPagination } from "./InboxPagination";
 
 interface DesktopInboxProps {
   data?: InboxDataResult;
@@ -17,6 +18,7 @@ interface DesktopInboxProps {
   totalRecords: number;
   pageSizeLimit: number;
   onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
 }
 
 export function DesktopInbox({
@@ -30,6 +32,7 @@ export function DesktopInbox({
   totalRecords,
   pageSizeLimit,
   onPageChange,
+  onPageSizeChange,
 }: DesktopInboxProps) {
   const { t } = useTranslate();
 
@@ -51,21 +54,25 @@ export function DesktopInbox({
             {t("CS_INBOX_NOTHING_TO_SHOW")}
           </div>
         ) : data?.combinedRes?.length ? (
-          <ComplaintTable
-            data={data.combinedRes}
-            currentPage={currentPage}
-            totalRecords={totalRecords}
-            pageSizeLimit={pageSizeLimit}
-            onNextPage={onNextPage}
-            onPrevPage={onPrevPage}
-            onPageChange={onPageChange}
-          />
+          <ComplaintTable data={data.combinedRes} />
         ) : (
           <div className="px-6 py-16 text-center text-sm text-muted-foreground">
             {t("CS_COMMON_ERROR_LOADING_RESULTS")}
           </div>
         )}
       </div>
+
+      {data?.combinedRes?.length ? (
+        <InboxPagination
+          currentPage={currentPage}
+          totalRecords={totalRecords}
+          pageSizeLimit={pageSizeLimit}
+          onNextPage={onNextPage}
+          onPrevPage={onPrevPage}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
+        />
+      ) : null}
     </div>
   );
 }
