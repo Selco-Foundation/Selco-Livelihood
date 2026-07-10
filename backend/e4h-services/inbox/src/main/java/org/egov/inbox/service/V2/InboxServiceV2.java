@@ -298,7 +298,8 @@ public class InboxServiceV2 {
         List<BusinessService> businessServices = workflowService.getBusinessServices(inboxRequest);
         log.debug("🔧 Retrieved {} business services", businessServices.size());
 
-        Map<String, Object> finalQueryBody = queryBuilder.getESQuery(inboxRequest, Boolean.TRUE, Boolean.TRUE);
+        boolean applyNearingSlaFilter = isNearingSlaSearch(inboxRequest);
+        Map<String, Object> finalQueryBody = queryBuilder.getESQuery(inboxRequest, Boolean.TRUE, applyNearingSlaFilter);
 
         try {
             String q = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(finalQueryBody);
@@ -308,7 +309,7 @@ public class InboxServiceV2 {
         }
 
         StringBuilder uri = getURI(indexName, SEARCH_PATH);
-        log.info("🌐 Calling ES at URI={} for Inbox", uri);
+        log.info("🌐 Calling ES at URI={} for Inbox | nearingSlaFilter={}", uri, applyNearingSlaFilter);
 
         Object result = serviceRequestRepository.fetchESResult(uri, finalQueryBody);
 
@@ -381,7 +382,8 @@ public class InboxServiceV2 {
     public Integer getTotalApplicationCount(InboxRequest inboxRequest, String indexName) {
         log.debug("➡️ Fetching total Application count for index: {}", indexName);
 
-        Map<String, Object> finalQueryBody = queryBuilder.getESQuery(inboxRequest, Boolean.FALSE, Boolean.FALSE);
+        boolean applyNearingSlaFilter = isNearingSlaSearch(inboxRequest);
+        Map<String, Object> finalQueryBody = queryBuilder.getESQuery(inboxRequest, Boolean.FALSE, applyNearingSlaFilter);
         try {
             log.debug("ES Query (Application Count): {}", mapper.writeValueAsString(finalQueryBody));
         } catch (JsonProcessingException e) {
@@ -583,12 +585,12 @@ public class InboxServiceV2 {
             Long serviceSla = getApplicationServiceSla(businessServiceSlaMap, stateUuidVsSlaMap, inbox.getBusinessObject());
             inbox.getBusinessObject().put(SERVICESLA_KEY, serviceSla);
             inbox.getBusinessObject().put(SLA_REMAINING, dataBusinessObject.get(SLA_REMAINING));
-            inbox.getBusinessObject().put(STATE_SLA, dataBusinessObject.get(STATE_SLA));
+            inbox.getBusinessObject().put(STATE_SLA, resolveStateSlaFromIndex(dataBusinessObject));
             inbox.getBusinessObject().put(TOTAL_SLA_REMAINING, dataBusinessObject.get(TOTAL_SLA_REMAINING));
 
             log.debug("📌 Parsed inbox item with serviceSla={} | stateSla={} | slaRemaining={}",
                     serviceSla,
-                    dataBusinessObject.get(STATE_SLA),
+                    resolveStateSlaFromIndex(dataBusinessObject),
                     dataBusinessObject.get(SLA_REMAINING));
 
             inboxItemList.add(inbox);
@@ -783,5 +785,21 @@ public class InboxServiceV2 {
             throw new CustomException("EG_INBOX_GET_FIELDS_ERR", "Error while processing JSON.");
         }
         return listOfFields;
+    }
+
+    private boolean isNearingSlaSearch(InboxRequest inboxRequest) {
+        Map<String, Object> moduleSearchCriteria = inboxRequest.getInbox().getModuleSearchCriteria();
+        return moduleSearchCriteria != null && moduleSearchCriteria.containsKey(NEARING_SLA_PARAM);
+    }
+
+    /**
+     * Cron/indexer write {@code Data.stateSla}; legacy configs may use {@code Data.stateSLA}.
+     */
+    private Object resolveStateSlaFromIndex(Map<String, Object> dataBusinessObject) {
+        Object stateSla = dataBusinessObject.get("stateSla");
+        if (stateSla == null) {
+            stateSla = dataBusinessObject.get(STATE_SLA);
+        }
+        return stateSla;
     }
 }

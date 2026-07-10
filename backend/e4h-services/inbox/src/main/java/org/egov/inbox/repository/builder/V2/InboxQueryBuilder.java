@@ -33,14 +33,21 @@ import static org.egov.inbox.util.InboxConstants.*;
 @Component
 public class InboxQueryBuilder implements QueryBuilderInterface {
 
+    /**
+     * Current-state SLA nearing breach: {@code slaRemaining / stateSla <= 30%}.
+     * Aligns with LLD, UI display ({@code slaRemaining}), and im-services-analytics cron output.
+     * Overdue tickets ({@code slaRemaining <= 0}) are included.
+     */
     private static final String NEARING_SLA_PAINLESS_SCRIPT =
-            "doc.containsKey('Data.totalSlaRemaining') && " +
-                    "doc.containsKey('Data.definedTotalSla') && " +
-                    "doc['Data.definedTotalSla'].size() > 0 && " +
-                    "doc['Data.definedTotalSla'].value > 0 && " +
-                    "doc['Data.totalSlaRemaining'].size() > 0 && " +
-                    "doc['Data.totalSlaRemaining'].value > 0 && " +
-                    "((double) doc['Data.totalSlaRemaining'].value / doc['Data.definedTotalSla'].value) <= 0.3";
+            "long stateSla = 0; " +
+                    "if (doc.containsKey('Data.stateSla') && doc['Data.stateSla'].size() > 0) { " +
+                    "  stateSla = doc['Data.stateSla'].value; " +
+                    "} else if (doc.containsKey('Data.stateSLA') && doc['Data.stateSLA'].size() > 0) { " +
+                    "  stateSla = doc['Data.stateSLA'].value; " +
+                    "} " +
+                    "return doc.containsKey('Data.slaRemaining') && doc['Data.slaRemaining'].size() > 0 " +
+                    "&& stateSla > 0 " +
+                    "&& ((double) doc['Data.slaRemaining'].value / stateSla) <= 0.3";
 
     private static final List<String> NEARING_SLA_EXCLUDED_STATUSES = Arrays.asList(
             "RESOLVED",
@@ -567,10 +574,16 @@ public class InboxQueryBuilder implements QueryBuilderInterface {
 
     @Override
     public Map<String, Object> getStatusCountQuery(InboxRequest inboxRequest) {
-        Map<String, Object> baseEsQuery = getESQuery(inboxRequest, Boolean.FALSE, Boolean.FALSE);
+        boolean applyNearingSlaFilter = isNearingSlaSearch(inboxRequest);
+        Map<String, Object> baseEsQuery = getESQuery(inboxRequest, Boolean.FALSE, applyNearingSlaFilter);
         appendStatusCountAggsNode(baseEsQuery);
         log.info("status query====", baseEsQuery);
         return baseEsQuery;
+    }
+
+    private boolean isNearingSlaSearch(InboxRequest inboxRequest) {
+        Map<String, Object> moduleSearchCriteria = inboxRequest.getInbox().getModuleSearchCriteria();
+        return moduleSearchCriteria != null && moduleSearchCriteria.containsKey(NEARING_SLA_PARAM);
     }
 
     @Override
