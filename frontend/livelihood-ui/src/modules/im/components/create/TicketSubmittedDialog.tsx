@@ -2,6 +2,7 @@ import { employeeHomePath, useTranslate } from "@/shared";
 import { Button } from "@/ui";
 import { Link } from "@tanstack/react-router";
 import { CheckCircle2 } from "lucide-react";
+import { createPortal } from "react-dom";
 
 function translateOr(t: (key: string) => string, key: string, fallback: string) {
   const value = t(key);
@@ -20,7 +21,7 @@ export function TicketSubmittedDialog({
   const { t } = useTranslate();
   const homePath = employeeHomePath();
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-3xl border border-border bg-card p-8 text-center shadow-lg">
         <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-accent text-primary">
@@ -57,6 +58,7 @@ export function TicketSubmittedDialog({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -9,6 +9,7 @@ import {
   Video,
 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
+import { createPortal } from "react-dom";
 import { useCreateIncidentForm } from "../../hooks/use-create-incident-form";
 import { DuplicateTicketsDialog } from "./DuplicateTicketsDialog";
 import { FormSectionCard } from "./FormSectionCard";
@@ -77,11 +78,14 @@ export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
 
   return (
     <>
-      {createMutation.isPending ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <Loader2 className="size-10 animate-spin text-primary" />
-        </div>
-      ) : null}
+      {createMutation.isPending
+        ? createPortal(
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+              <Loader2 className="size-10 animate-spin text-primary" />
+            </div>,
+            document.body,
+          )
+        : null}
 
       {duplicateTickets.length > 0 ? (
         <DuplicateTicketsDialog
