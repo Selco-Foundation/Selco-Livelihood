@@ -18,9 +18,11 @@ export function FormSectionCard({
   divider,
   children,
 }: FormSectionCardProps) {
+  const alignmentClass = description ? "items-start" : "items-center";
+
   return (
     <section className="livelihood-card p-6">
-      <div className={divider ? "flex items-start gap-3" : "mb-6 flex items-start gap-3"}>
+      <div className={divider ? `flex ${alignmentClass} gap-3` : `mb-6 flex ${alignmentClass} gap-3`}>
         <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-accent text-primary">
           <Icon className="size-5" />
         </div>

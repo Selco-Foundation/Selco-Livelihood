@@ -103,7 +103,7 @@ export function ComplaintTimelineSection({
   return (
     <FormSectionCard
       icon={History}
-      title={translateOr(t, "CS_COMPLAINT_DETAILS_HISTORY", "Ticket history")}
+      title={translateOr(t, "CS_COMPLAINT_DETAILS_HISTORY", "Timeline")}
       titleClassName="text-base font-semibold text-ink-950"
       divider
     >
