@@ -78,6 +78,38 @@ public class IMConstants {
 
     public static final String ROLE_LIVELIHOOD_POC = "LIVELIHOOD_POC";
 
+    public static final String LIVELIHOOD_LOCALIZATION_MODULE = "rainmaker-livelihood";
+
+    public static final String LIVELIHOOD_URL_SMS_MESSAGE = "LIVELIHOOD_URL_SMS_MESSAGE";
+
+    public static final String LIVELIHOOD_DATE_PATTERN = "dd-MM-yyyy";
+
+    public static final String LIV_TPL_001 = "LIV-TPL-001";
+
+    public static final String LIV_TPL_002 = "LIV-TPL-002";
+
+    public static final String LIV_TPL_003 = "LIV-TPL-003";
+
+    public static final String LIV_TPL_004 = "LIV-TPL-004";
+
+    public static final String LIV_TPL_007 = "LIV-TPL-007";
+
+    public static final String LIV_TPL_008 = "LIV-TPL-008";
+
+    public static final String LIV_TPL_009 = "LIV-TPL-009";
+
+    public static final String LIV_TPL_011 = "LIV-TPL-011";
+
+    public static final String LIV_TPL_012 = "LIV-TPL-012";
+
+    public static final String LIV_TPL_014 = "LIV-TPL-014";
+
+    public static final String LIV_TPL_017 = "LIV-TPL-017";
+
+    public static final String LIV_TPL_032 = "LIV-TPL-032";
+
+    public static final String LIV_TPL_033 = "LIV-TPL-033";
+
     public static final String POC_ACCESS_DENIED_CODE = "POC_ACCESS_DENIED";
 
     public static final String POC_ACCESS_DENIED_MSG =
