@@ -13,7 +13,7 @@ export interface StatTileProps {
 
 export function StatTile({ icon, iconClassName, label, value, link }: StatTileProps) {
   const card = (
-    <Card className="livelihood-card flex-row items-center gap-3 border-border px-4 py-5 shadow-sm">
+    <Card className="livelihood-card min-w-64 max-w-xs flex-row items-center gap-3 border-border px-4 py-5 shadow-sm">
       <div
         className={cn(
           "flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary",
@@ -34,7 +34,7 @@ export function StatTile({ icon, iconClassName, label, value, link }: StatTilePr
   }
 
   return (
-    <Link to={link} className="block transition-opacity hover:opacity-90">
+    <Link to={link} className="block min-w-64 max-w-xs transition-opacity hover:opacity-90">
       {card}
     </Link>
   );
