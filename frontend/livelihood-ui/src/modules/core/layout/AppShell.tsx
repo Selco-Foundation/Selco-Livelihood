@@ -78,7 +78,7 @@ export function AppShell() {
               className="h-full w-full object-contain"
             />
           </div>
-          <SidebarSeparator className="mx-0 h-[4px] w-full bg-white/40" />
+          <SidebarSeparator className="mx-0 h-[5px] w-full bg-white/60" />
         </SidebarHeader>
         <SidebarContent className="px-2 md:px-7">
           <SidebarGroup className="p-0">
@@ -127,7 +127,7 @@ export function AppShell() {
               </p>
             </div>
           </div>
-          <SidebarSeparator className="mx-0 w-full" />
+          <SidebarSeparator className="mx-0 h-[5px] w-full bg-white/60" />
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button

@@ -21,8 +21,8 @@ export function TicketSubmittedDialog({
   const homePath = employeeHomePath();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-lg bg-card p-8 text-center shadow-lg">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-3xl border border-border bg-card p-8 text-center shadow-lg">
         <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-accent text-primary">
           <CheckCircle2 className="size-8" />
         </div>
