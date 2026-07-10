@@ -91,7 +91,7 @@ function ActionDocumentsField({
   const maxFilesReached = uploads.length >= maxFiles;
   const label = requiresQuotation
     ? translateOr(t, "WF_QUOTATION_DOCUMENT", "Quotation document")
-    : translateOr(t, "INCIDENT_UPLOAD_IMAGE", "Upload Files");
+    : translateOr(t, "WF_UPLOAD_FILES", "Upload Files");
   const accept = requiresQuotation
     ? ".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     : ".png,.jpg,.jpeg,.pdf,image/*,application/pdf";
@@ -402,11 +402,12 @@ export function ComplaintActionDialog({
         </div>
 
         <div className="mt-6 flex justify-center gap-3">
-          <Button type="button" variant="outline" onClick={onClose}>
+          <Button type="button" variant="outline" size="lg" onClick={onClose}>
             {t("TL_COMMON_CANCEL")}
           </Button>
           <Button
             type="button"
+            size="lg"
             disabled={mutation.isPending || isUploading}
             onClick={() => {
               setError(null);

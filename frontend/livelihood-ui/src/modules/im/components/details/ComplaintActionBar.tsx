@@ -1,6 +1,5 @@
 import { useAuthStore, useTranslate } from "@/shared";
-import { Button, Separator } from "@/ui";
-import { ChevronDown } from "lucide-react";
+import { Button, SplitButton } from "@/ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SUPPORTED_WORKFLOW_ACTION_SET } from "../../constants/workflow-actions";
 import type { ComplaintDetailsData, WorkflowDetailsData } from "../../types/incident-details";
@@ -84,6 +83,7 @@ export function ComplaintActionBar({
         {singleAction ? (
           <Button
             type="button"
+            size="lg"
             className="gap-2"
             onClick={() => setSelectedAction(singleAction.action)}
           >
@@ -98,15 +98,12 @@ export function ComplaintActionBar({
               </p>
             </div>
             <div className="relative" ref={menuRef}>
-              <Button
-                type="button"
-                className="gap-2"
-                onClick={() => setMenuOpen((open) => !open)}
-              >
-                {t("WF_TAKE_ACTION")}
-                <Separator orientation="vertical" className="h-4 bg-primary-foreground/30" />
-                <ChevronDown className="size-4" />
-              </Button>
+              <SplitButton
+                label={t("WF_TAKE_ACTION")}
+                size="lg"
+                onLabelClick={() => setMenuOpen((open) => !open)}
+                triggerAriaExpanded={menuOpen}
+              />
               {menuOpen ? (
                 <div className="absolute right-0 bottom-full z-20 mb-2 min-w-[220px] rounded-lg border border-border bg-card p-1 shadow-lg">
                   {availableActions.map((action) => (

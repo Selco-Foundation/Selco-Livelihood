@@ -53,7 +53,7 @@ export function ComplaintDetailsPage() {
     return (
       <div className="space-y-4">
         <p className="text-sm text-destructive">{t("CS_COMMON_SOMETHING_WENT_WRONG")}</p>
-        <Button asChild variant="outline">
+        <Button asChild variant="outline" size="lg">
           <Link to={inboxPath}>{translateOr(t, "ES_IM_VIEW_INBOX", "View inbox")}</Link>
         </Button>
       </div>
@@ -74,7 +74,7 @@ export function ComplaintDetailsPage() {
         <p className="text-sm text-destructive">
           {translateOr(t, "CS_COMMON_COMPLAINT_NOT_FOUND", "Ticket not found")}
         </p>
-        <Button asChild variant="outline">
+        <Button asChild variant="outline" size="lg">
           <Link to={inboxPath}>{translateOr(t, "ES_IM_VIEW_INBOX", "View inbox")}</Link>
         </Button>
       </div>

@@ -78,7 +78,7 @@ export function AppShell() {
               className="h-full w-full object-contain"
             />
           </div>
-          <SidebarSeparator className="mx-0 w-full" />
+          <SidebarSeparator className="mx-0 h-[4px] w-full bg-white/40" />
         </SidebarHeader>
         <SidebarContent className="px-2 md:px-7">
           <SidebarGroup className="p-0">
@@ -125,7 +125,6 @@ export function AppShell() {
               <p className="truncate text-sm font-medium">
                 {user?.name ?? user?.userName ?? "User"}
               </p>
-              <p className="truncate text-xs text-sidebar-foreground/70">{user?.userName}</p>
             </div>
           </div>
           <SidebarSeparator className="mx-0 w-full" />
@@ -133,6 +132,7 @@ export function AppShell() {
             <AlertDialogTrigger asChild>
               <Button
                 variant="outline"
+                size="sm"
                 className="w-full justify-center gap-2 text-foreground md:justify-start"
               >
                 <LogOut />

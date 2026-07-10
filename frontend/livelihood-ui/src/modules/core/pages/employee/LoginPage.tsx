@@ -220,11 +220,7 @@ export function LoginPage() {
                 />
               </div>
 
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="h-10 w-full rounded-lg bg-primary text-base leading-[24px] font-semibold text-white hover:bg-primary/90"
-              >
+              <Button type="submit" size="lg" disabled={isSubmitting} className="w-full">
                 {isSubmitting ? t("CORE_LOGIN_BUTTON_LOADING") : t("CORE_LOGIN_BUTTON")}
               </Button>
             </form>
