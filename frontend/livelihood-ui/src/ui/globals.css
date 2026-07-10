@@ -166,7 +166,7 @@
   }
 
   .livelihood-filter-select {
-    @apply h-10 w-full appearance-none rounded-md border border-input bg-card px-3 pr-9 text-sm text-foreground;
+    @apply h-10 w-full cursor-pointer appearance-none rounded-md border border-input bg-card px-3 pr-9 text-sm text-foreground;
   }
 
   .livelihood-radio {

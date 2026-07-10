@@ -45,7 +45,7 @@ export function ComplaintTable({ data }: ComplaintTableProps) {
               {columns.map((column) => (
                 <th
                   key={column.key}
-                  className="px-5 py-3.5 text-left text-[11px] font-semibold tracking-wide text-muted-foreground uppercase"
+                  className="px-5 py-3 text-left text-sm font-semibold text-ink-950"
                 >
                   {column.label}
                 </th>

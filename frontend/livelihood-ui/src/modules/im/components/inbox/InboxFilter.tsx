@@ -6,7 +6,7 @@ import {
   useJurisdictionStore,
   useTranslate,
 } from "@/shared";
-import { Separator } from "@/ui";
+import { Separator, cn } from "@/ui";
 import { ChevronDown, Filter } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { ORDERED_INBOX_STATUSES } from "../../constants/inbox-statuses";
@@ -69,9 +69,11 @@ function FilterSelect({
           disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
         >
-          <option value="">{allLabel}</option>
+          <option value="" className="cursor-pointer">
+            {allLabel}
+          </option>
           {options.map((option) => (
-            <option key={option.code} value={option.code}>
+            <option key={option.code} value={option.code} className="cursor-pointer">
               {option.name}
             </option>
           ))}
@@ -104,7 +106,6 @@ export function InboxFilter({
   const defaultFilters = buildDefaultInboxRoleFilters(user);
   const showGeoFilters = !isEndUser(roles);
   const showAssigneeFilter = !isAssigneeScopedUser(roles);
-  const showAssignedRadios = showAssigneeFilter && isEndUser(roles);
 
   const [selectAssigned, setSelectAssigned] = useState(
     searchParams.filters?.wfFilters?.assignee?.[0]?.code === userUuid
@@ -314,6 +315,10 @@ export function InboxFilter({
 
   const allLabel = t("ES_COMMON_ALL");
 
+  const hasActiveFilters =
+    Object.values(pgrfilters).some((value) => value.length > 0) ||
+    (showAssigneeFilter && selectAssigned.code !== assignedToOptions[1].code);
+
   function handleClearAllFilters() {
     setPgrFilters({ ...emptyPgrFilters, ...defaultFilters.pgrfilters });
     setWfFilters(defaultFilters.wfFilters!);
@@ -332,7 +337,7 @@ export function InboxFilter({
           <button
             type="button"
             onClick={() => setShowAdvancedFilters((prev) => !prev)}
-            className="inline-flex h-8 items-center gap-2 rounded-md border border-primary px-3 text-sm font-semibold text-primary"
+            className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border border-primary px-3 text-sm font-semibold text-primary"
           >
             <Filter className="size-4" />
             {translateOr(t, "ES_IM_FILTERS", "Filters")}
@@ -342,7 +347,7 @@ export function InboxFilter({
             />
           </button>
 
-          {showAssignedRadios
+          {showAssigneeFilter
             ? assignedToOptions.map((option) => (
                 <label key={option.code} className="flex cursor-pointer items-center gap-2 text-sm">
                   <input
@@ -360,8 +365,14 @@ export function InboxFilter({
 
         <button
           type="button"
+          disabled={!hasActiveFilters}
           onClick={handleClearAllFilters}
-          className="text-sm text-ink-400 hover:text-muted-foreground"
+          className={cn(
+            "text-sm transition-colors",
+            hasActiveFilters
+              ? "cursor-pointer text-foreground hover:text-primary"
+              : "text-ink-400",
+          )}
         >
           {translateOr(t, "ES_IM_CLEAR_ALL_FILTERS", "clear all filters")}
         </button>

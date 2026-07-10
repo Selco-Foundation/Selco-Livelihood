@@ -7,6 +7,7 @@ import {
 import { Button, PageHeader } from "@/ui";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
+import { LanguageSwitcher } from "@/modules/core";
 import { ImBreadcrumbs } from "../../components/ImBreadcrumbs";
 import { DesktopInbox } from "../../components/inbox/DesktopInbox";
 import { buildDefaultInboxRoleFilters } from "../../hooks/inbox-defaults";
@@ -100,14 +101,20 @@ export function InboxPage() {
         <PageHeader
           title={translateOr(t, "ES_IM_ALL_TICKETS", "All Tickets")}
           action={
-            canCreateTicket ? (
-              <Button asChild size="sm" className="gap-1.5 rounded-md px-3">
-                <Link to={`${basePath}/incident/create`}>
-                  <Plus className="size-4" />
-                  {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise Ticket")}
-                </Link>
-              </Button>
-            ) : null
+            <div className="flex items-center gap-3">
+              <LanguageSwitcher />
+              {canCreateTicket ? (
+                <>
+                  <span aria-hidden="true" className="h-8 w-px bg-border" />
+                  <Button asChild size="sm" className="gap-1.5 rounded-md px-3">
+                    <Link to={`${basePath}/incident/create`}>
+                      <Plus className="size-4" />
+                      {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise Ticket")}
+                    </Link>
+                  </Button>
+                </>
+              ) : null}
+            </div>
           }
         />
 

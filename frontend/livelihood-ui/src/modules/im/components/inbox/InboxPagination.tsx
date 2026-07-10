@@ -52,7 +52,7 @@ export function InboxPagination({
             onChange={(event) => onPageSizeChange(Number(event.target.value))}
           >
             {PAGE_SIZE_OPTIONS.map((size) => (
-              <option key={size} value={size}>
+              <option key={size} value={size} className="cursor-pointer">
                 {size}
               </option>
             ))}
@@ -65,7 +65,7 @@ export function InboxPagination({
           type="button"
           disabled={!canGoPrev}
           onClick={onPrevPage}
-          className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+          className="inline-flex cursor-pointer items-center gap-1 rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
         >
           <ChevronLeft className="size-4" />
           {t("CS_COMMON_PREVIOUS")}
@@ -77,7 +77,7 @@ export function InboxPagination({
             type="button"
             onClick={() => onPageChange(page)}
             className={cn(
-              "flex size-8 items-center justify-center rounded-md text-sm transition-colors",
+              "flex size-8 cursor-pointer items-center justify-center rounded-md text-sm transition-colors",
               page === currentPage
                 ? "bg-primary font-medium text-primary-foreground"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -91,7 +91,7 @@ export function InboxPagination({
           type="button"
           disabled={!canGoNext}
           onClick={onNextPage}
-          className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+          className="inline-flex cursor-pointer items-center gap-1 rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
         >
           {t("CS_COMMON_NEXT")}
           <ChevronRight className="size-4" />
