@@ -3,7 +3,7 @@ import {
   assertEmployeeRolesAllowed,
   employeeHomePath,
   filterRolesForEmployeeTenant,
-  getConfigString,
+  getConfig,
   hydrateEmployeeJurisdictions,
   loginUser,
   tenantId,
@@ -73,6 +73,10 @@ export function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const bannerImages = useLoginBannerImages();
+  const logos = getConfig("LOGO_LIST") as
+    | Array<{ url: string; alt: string }>
+    | undefined;
+  const logo = logos?.[0];
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -143,8 +147,8 @@ export function LoginPage() {
       <div className="relative flex min-h-screen w-full flex-col items-center justify-center px-8 py-8 lg:w-[60%] lg:min-w-[480px]">
         <div className="absolute inset-x-8 top-8 flex items-center justify-between">
           <img
-            src={getConfigString("SELCO_LOGO")}
-            alt="Selco Foundation Logo"
+            src={logo?.url}
+            alt={logo?.alt ?? "Selco Foundation Logo"}
             className="h-[68px] w-auto object-contain"
           />
           <LanguageSwitcher />

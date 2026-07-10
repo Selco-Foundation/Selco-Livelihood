@@ -44,11 +44,15 @@ export function ImOverview() {
     <div className="space-y-6">
       <PageHeader
         title={welcomeTitle}
-        description={translateOr(
-          t,
-          "ES_IM_OVERVIEW_SUBTITLE",
-          "Manage your issue resolution tickets and track your registered assets across the platform",
-        )}
+        description={
+          endUser
+            ? translateOr(
+                t,
+                "ES_IM_OVERVIEW_SUBTITLE",
+                "Manage your issue resolution tickets and track your registered assets across the platform",
+              )
+            : translateOr(t, "ES_IM_OVERVIEW_SUBTITLE_SHORT", "Manage tickets")
+        }
         action={
           <div className="flex items-center gap-3">
             <LanguageSwitcher />

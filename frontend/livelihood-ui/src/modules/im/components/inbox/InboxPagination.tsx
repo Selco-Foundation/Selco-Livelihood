@@ -1,6 +1,6 @@
 import { useTranslate } from "@/shared";
 import { cn } from "@/ui";
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronDown } from "lucide-react";
 
 function translateOr(
   t: (key: string) => string,
@@ -60,14 +60,14 @@ export function InboxPagination({
           <ChevronDown className="pointer-events-none absolute top-1/2 right-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
         </div>
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2">
         <button
           type="button"
           disabled={!canGoPrev}
           onClick={onPrevPage}
-          className="inline-flex cursor-pointer items-center gap-1 rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+          className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-lg px-3 py-1 text-base font-medium text-neutral-500 transition-colors disabled:pointer-events-none disabled:opacity-40"
         >
-          <ChevronLeft className="size-4" />
+          <ArrowLeft className="size-6" strokeWidth={1.5} />
           {t("CS_COMMON_PREVIOUS")}
         </button>
 
@@ -77,10 +77,10 @@ export function InboxPagination({
             type="button"
             onClick={() => onPageChange(page)}
             className={cn(
-              "flex size-8 cursor-pointer items-center justify-center rounded-md text-sm transition-colors",
+              "flex h-8 w-[34px] cursor-pointer items-center justify-center rounded-lg text-base font-medium transition-colors",
               page === currentPage
-                ? "bg-primary font-medium text-primary-foreground"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                ? "bg-primary-700 text-neutral-25"
+                : "border border-neutral-300 bg-neutral-100 text-neutral-700 hover:border-primary-200 hover:bg-primary-100",
             )}
           >
             {page + 1}
@@ -91,10 +91,10 @@ export function InboxPagination({
           type="button"
           disabled={!canGoNext}
           onClick={onNextPage}
-          className="inline-flex cursor-pointer items-center gap-1 rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+          className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-lg px-3 py-1 text-base font-medium text-ink-950 transition-colors disabled:pointer-events-none disabled:opacity-40"
         >
           {t("CS_COMMON_NEXT")}
-          <ChevronRight className="size-4" />
+          <ArrowRight className="size-6" strokeWidth={1.5} />
         </button>
       </div>
     </div>

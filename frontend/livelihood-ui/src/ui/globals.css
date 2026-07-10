@@ -57,8 +57,13 @@
   --color-primary-700: var(--primary-700);
   --color-primary-400: var(--primary-400);
   --color-neutral-25: var(--neutral-25);
+  --color-neutral-100: var(--neutral-100);
   --color-neutral-300: var(--ink-300);
   --color-neutral-400: var(--ink-400);
+  --color-neutral-500: var(--neutral-500);
+  --color-neutral-700: var(--neutral-700);
+  --color-primary-100: var(--primary-100);
+  --color-primary-200: var(--primary-200);
 }
 
 :root {
@@ -118,6 +123,11 @@
   --primary-700: #10401c;
   --primary-400: #438755;
   --neutral-25: #ffffff;
+  --neutral-100: #f4f4f5;
+  --neutral-500: #70707b;
+  --neutral-700: #3f3f46;
+  --primary-100: #beddc5;
+  --primary-200: #95c0a0;
 }
 
 .dark {
