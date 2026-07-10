@@ -131,6 +131,10 @@ public class PrioritySLAService {
             return;
         }
         boolean isAClosedTicket = isTerminalOrResolvedState(state);
+        if (isAClosedTicket) {
+            totalSlaRemaining = 0L;
+            slaRemaining = 0L;
+        }
 
         String incidentId = incidentIdObj.toString();
         if (transform) {
