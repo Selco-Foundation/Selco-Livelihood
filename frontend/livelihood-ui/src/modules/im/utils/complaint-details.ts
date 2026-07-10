@@ -19,12 +19,12 @@ export function buildComplaintDetailRows(
       labelKey: "CS_ADDCOMPLAINT_TICKET_TYPE",
       value: `SERVICEDEFS.${incident.incidentType.toUpperCase()}`,
     },
-    { labelKey: "CS_ADDCOMPLAINT_DISTRICT", value: incident.district ?? "-" },
-    { labelKey: "CS_ADDCOMPLAINT_BLOCK", value: incident.block ?? "-" },
     {
       labelKey: "CS_ADDCOMPLAINT_ASSET",
       value: incident.boundaryCode ? `BOUNDARY_${incident.boundaryCode}` : "-",
     },
+    { labelKey: "CS_ADDCOMPLAINT_BLOCK", value: incident.block ?? "-" },
+    { labelKey: "CS_ADDCOMPLAINT_DISTRICT", value: incident.district ?? "-" },
     { labelKey: "CS_COMPLAINT_COMMENTS", value: incident.comments?.length?  incident.comments :  "-" },
     {
       labelKey: "CS_COMPLAINT_FILED_DATE",
