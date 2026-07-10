@@ -31,11 +31,6 @@ export function CreateIncidentPage() {
 
       <PageHeader
         title={translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise a New Ticket")}
-        description={translateOr(
-          t,
-          "ES_IM_CREATE_DESCRIPTION",
-          "Report an issue with your equipment or facility. We'll connect you with the right support team.",
-        )}
       />
 
       <CreateTicketForm inboxPath={inboxPath} responsePath={responsePath} />

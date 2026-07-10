@@ -56,6 +56,11 @@ export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormPr
     handleAssetChange,
     handleComplaintTypeChange,
     updateField,
+    maxImageCount,
+    maxImageSizeMb,
+    maxVideoCount,
+    maxVideoSizeMb,
+    maxCommentLength,
   } = useCreateIncidentForm(inboxPath, responsePath);
 
   const handleSubmit = () => {
@@ -185,20 +190,36 @@ export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormPr
                   "INCIDENT_COMMENTS_PLACEHOLDER",
                   "Add any additional comments here...",
                 )}
-                maxLength={256}
+                maxLength={maxCommentLength}
                 value={form.comments}
                 onChange={(event) => updateField("comments", event.target.value)}
               />
+              <div className="flex items-center justify-between gap-2">
+                {fieldErrors.comments ? (
+                  <p className="text-xs text-destructive">{fieldErrors.comments}</p>
+                ) : (
+                  <span />
+                )}
+                <p className="text-xs text-muted-foreground">
+                  {form.comments.length}/{maxCommentLength}
+                </p>
+              </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
               <MediaUploadZone
                 label={translateOr(t, "INCIDENT_UPLOAD_IMAGE", "Upload Images")}
                 hint={translateOr(t, "INCIDENT_TAP_UPLOAD_IMAGES", "Tap to upload images")}
+                helperText={translateOr(
+                  t,
+                  "INCIDENT_IMAGE_UPLOAD_HELPER",
+                  `Up to ${maxImageCount} images, JPG/JPEG/PNG, ${maxImageSizeMb}MB max each`,
+                )}
+                error={fieldErrors.image}
                 icon={Camera}
                 accept=".png,.jpg,.jpeg,image/*"
                 multiple
-                disabled={disableUpload}
+                disabled={disableUpload || imageUploads.length >= maxImageCount}
                 uploading={isImageUploading}
                 files={imageUploads.map((item) => item.file.name)}
                 onSelect={(files) => void uploadFiles(files, "image")}
@@ -206,9 +227,15 @@ export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormPr
               <MediaUploadZone
                 label={translateOr(t, "INCIDENT_UPLOAD_VIDEO", "Upload Videos")}
                 hint={translateOr(t, "INCIDENT_TAP_UPLOAD_VIDEOS", "Tap to upload videos")}
+                helperText={translateOr(
+                  t,
+                  "INCIDENT_VIDEO_UPLOAD_HELPER",
+                  `Up to ${maxVideoCount} videos, MP4/MOV/AVI/WMV, ${maxVideoSizeMb}MB max each`,
+                )}
+                error={fieldErrors.video}
                 icon={Video}
                 accept=".mp4,.avi,.mov,.wmv,video/*"
-                disabled={disableUpload}
+                disabled={disableUpload || videoUploads.length >= maxVideoCount}
                 uploading={isVideoUploading}
                 files={videoUploads.map((item) => item.file.name)}
                 onSelect={(files) => void uploadFiles(files, "video")}

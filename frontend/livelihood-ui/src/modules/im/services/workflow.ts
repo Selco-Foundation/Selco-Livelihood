@@ -207,17 +207,7 @@ export async function fetchWorkflowDetails(
     user,
   );
   const merged = mergeCommentEvents(withMedia);
-  let timeline = buildTimeline(merged);
-
-  const createCheckpoint = timeline.find(
-    (checkpoint) => checkpoint.performedAction === "CREATE",
-  );
-  if (createCheckpoint) {
-    timeline.push({
-      ...createCheckpoint,
-      status: "COMPLAINT_FILED",
-    });
-  }
+  const timeline = buildTimeline(merged);
 
   return {
     timeline,

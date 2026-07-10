@@ -12,6 +12,7 @@ export interface IncidentFilterInput {
   total?: number;
   applicationStatus?: string;
   services?: string[];
+  assetType?: string;
   incidentType?: string;
   incidentSubType?: string;
   facility?: string;
@@ -57,6 +58,7 @@ export function buildIncidentInboxFilters(
     sortOrder,
     applicationStatus,
     services,
+    assetType,
     incidentType,
     incidentSubType,
     facility,
@@ -84,6 +86,10 @@ export function buildIncidentInboxFilters(
     workflowFilters.status = convertStatus;
   } else if (applicationStatus) {
     workflowFilters.status = splitCsv(applicationStatus);
+  }
+
+  if (assetType) {
+    searchFilters.assetType = splitCsv(assetType);
   }
 
   if (incidentType) {
@@ -174,7 +180,6 @@ export function flattenInboxFilters(
       pgrQuery?: Record<string, string>;
       wfQuery?: Record<string, string>;
     };
-    search?: Record<string, string> | string;
     limit?: number;
     offset?: number;
     nearingSLA?: boolean;
@@ -183,16 +188,11 @@ export function flattenInboxFilters(
 ): IncidentFilterInput {
   const pgrQuery = searchParams.filters?.pgrQuery ?? {};
   const wfQuery = searchParams.filters?.wfQuery ?? {};
-  const search =
-    typeof searchParams.search === "object" && searchParams.search
-      ? searchParams.search
-      : {};
 
   return {
     ...defaults,
     ...pgrQuery,
     ...wfQuery,
-    ...search,
     limit: searchParams.limit,
     offset: searchParams.offset,
     nearingSLA: searchParams.nearingSLA,

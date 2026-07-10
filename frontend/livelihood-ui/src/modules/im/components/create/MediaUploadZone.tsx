@@ -1,10 +1,12 @@
 import { cn } from "@/ui";
-import type { LucideIcon } from "lucide-react";
+import { Info, type LucideIcon } from "lucide-react";
 import { useId, useRef } from "react";
 
 interface MediaUploadZoneProps {
   label: string;
   hint: string;
+  helperText?: string;
+  error?: string;
   icon: LucideIcon;
   accept: string;
   multiple?: boolean;
@@ -17,6 +19,8 @@ interface MediaUploadZoneProps {
 export function MediaUploadZone({
   label,
   hint,
+  helperText,
+  error,
   icon: Icon,
   accept,
   multiple = false,
@@ -66,6 +70,14 @@ export function MediaUploadZone({
           }
         }}
       />
+      {error ? (
+        <p className="flex items-center gap-1 text-xs text-destructive">
+          <Info className="size-3.5 shrink-0" />
+          {error}
+        </p>
+      ) : helperText ? (
+        <p className="text-xs text-muted-foreground">{helperText}</p>
+      ) : null}
     </div>
   );
 }

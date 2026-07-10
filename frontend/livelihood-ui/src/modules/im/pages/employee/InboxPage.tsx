@@ -5,27 +5,15 @@ import {
   useTranslate,
 } from "@/shared";
 import { Button, PageHeader } from "@/ui";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
 import { ImBreadcrumbs } from "../../components/ImBreadcrumbs";
 import { DesktopInbox } from "../../components/inbox/DesktopInbox";
 import { buildDefaultInboxRoleFilters } from "../../hooks/inbox-defaults";
 import { useImInboxData } from "../../hooks/use-im-inbox-summary";
+import type { InboxRouteSearch } from "../../routes";
 import type { ImInboxFilters } from "../../types/inbox";
 import { canCreateIncident } from "../../utils/access";
-
-function parseFilterParam(filter?: string): ImInboxFilters | null {
-  if (!filter) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(filter) as { filters?: ImInboxFilters };
-    return parsed.filters ?? null;
-  } catch {
-    return null;
-  }
-}
 
 function translateOr(
   t: (key: string) => string,
@@ -40,61 +28,27 @@ export function InboxPage() {
   const { t } = useTranslate();
   const user = useAuthStore((state) => state.user);
   const basePath = `/${contextPath()}/employee/im`;
-  const routeSearch = useSearchParams();
+
+  // The inbox route's path is computed at runtime via contextPath(), so there's no
+  // static `Route` export to use the fully-typed search API here — read/write the
+  // current route's search loosely instead, narrowed to how this page actually
+  // calls it (a search-updater navigate, staying on the current route).
+  const search = useSearch({ strict: false }) as InboxRouteSearch;
+  const navigate = useNavigate() as (opts: {
+    search: (prev: InboxRouteSearch) => InboxRouteSearch;
+    replace?: boolean;
+  }) => Promise<void>;
 
   const defaultFilters = buildDefaultInboxRoleFilters(user);
-  const parsedFilter = parseFilterParam(routeSearch.filter);
-
-  const [searchParams, setSearchParams] = useState<{
-    filters?: ImInboxFilters;
-    search?: Record<string, string> | string;
-    sort?: Record<string, unknown>;
-  }>(
-    parsedFilter
-      ? { filters: parsedFilter }
-      : {
-          filters: defaultFilters,
-          search: "",
-          sort: {},
-        },
-  );
-
-  const [pageOffset, setPageOffset] = useState(routeSearch.pageOffset || 0);
-  const [pageSize, setPageSize] = useState(routeSearch.pageSize || 10);
-  const prevSearchParamsRef = useRef(JSON.stringify(searchParams));
-  const prevPageSizeRef = useRef(pageSize);
-
-  useEffect(() => {
-    const query = new URLSearchParams();
-    if (routeSearch.nearing === "1") {
-      query.set("nearing", "1");
-    }
-    query.set("filter", JSON.stringify(searchParams));
-    query.set("pageSize", String(pageSize));
-    query.set("pageOffset", String(pageOffset));
-
-    const nextSearch = query.toString();
-    const currentSearch = window.location.search.replace(/^\?/, "");
-    if (nextSearch !== currentSearch) {
-      const nextUrl = `${window.location.pathname}?${nextSearch}`;
-      window.history.replaceState(null, "", nextUrl);
-    }
-  }, [searchParams, pageSize, pageOffset, routeSearch.nearing]);
-
-  useEffect(() => {
-    const current = JSON.stringify(searchParams);
-    if (prevSearchParamsRef.current !== current || prevPageSizeRef.current !== pageSize) {
-      setPageOffset(0);
-      prevSearchParamsRef.current = current;
-      prevPageSizeRef.current = pageSize;
-    }
-  }, [searchParams, pageSize]);
+  const filters = search.filter ?? defaultFilters;
+  const pageOffset = search.pageOffset ?? 0;
+  const pageSize = search.pageSize ?? 10;
 
   const inboxParams = {
-    ...searchParams,
+    filters,
     limit: pageSize,
     offset: pageOffset,
-    ...(routeSearch.nearing === "1" ? { nearingSLA: true } : {}),
+    ...(search.nearing === "1" ? { nearingSLA: true } : {}),
   };
 
   const { data: complaints, isLoading } = useImInboxData(inboxParams);
@@ -102,7 +56,29 @@ export function InboxPage() {
   const canCreateTicket = canCreateIncident(user?.roles);
 
   const handleFilterChange = (nextFilters: ImInboxFilters) => {
-    setSearchParams((prev) => ({ ...prev, filters: nextFilters }));
+    // InboxFilter's internal state-combining effect fires once on every mount
+    // (including on page reload) even when nothing actually changed — only reset
+    // pagination when the filters genuinely differ from what's already persisted,
+    // otherwise a reload would always snap back to the first page.
+    const hasChanged = JSON.stringify(nextFilters) !== JSON.stringify(filters);
+    void navigate({
+      search: (prev: InboxRouteSearch) => ({
+        ...prev,
+        filter: nextFilters,
+        pageOffset: hasChanged ? 0 : prev.pageOffset,
+      }),
+      replace: true,
+    });
+  };
+
+  const goToOffset = (nextOffset: number) => {
+    void navigate({
+      search: (prev: InboxRouteSearch) => ({
+        ...prev,
+        pageOffset: Math.max(0, nextOffset),
+      }),
+      replace: true,
+    });
   };
 
   const homePath = employeeHomePath();
@@ -118,11 +94,6 @@ export function InboxPage() {
 
       <PageHeader
         title={translateOr(t, "ES_IM_ALL_TICKETS", "All Tickets")}
-        description={translateOr(
-          t,
-          "ES_IM_INBOX_DESCRIPTION",
-          "View and track all your service requests.",
-        )}
         action={
           canCreateTicket ? (
             <Button asChild className="gap-2 rounded-md px-5">
@@ -139,24 +110,14 @@ export function InboxPage() {
         data={complaints}
         isLoading={isLoading}
         onFilterChange={handleFilterChange}
-        searchParams={searchParams}
-        onNextPage={() => setPageOffset((prev) => prev + pageSize)}
-        onPrevPage={() => setPageOffset((prev) => Math.max(0, prev - pageSize))}
-        onPageChange={(page) => setPageOffset(page * pageSize)}
+        searchParams={{ filters }}
+        onNextPage={() => goToOffset(pageOffset + pageSize)}
+        onPrevPage={() => goToOffset(pageOffset - pageSize)}
+        onPageChange={(page) => goToOffset(page * pageSize)}
         currentPage={Math.floor(pageOffset / pageSize)}
         totalRecords={totalRecords}
         pageSizeLimit={pageSize}
       />
     </div>
   );
-}
-
-function useSearchParams() {
-  const params = new URLSearchParams(window.location.search);
-  return {
-    filter: params.get("filter") ?? undefined,
-    pageOffset: Number(params.get("pageOffset") ?? 0),
-    pageSize: Number(params.get("pageSize") ?? 10),
-    nearing: params.get("nearing") ?? undefined,
-  };
 }
