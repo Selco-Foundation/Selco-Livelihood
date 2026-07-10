@@ -81,12 +81,14 @@ export function ImOverview() {
           value={isLoading ? "-" : (data?.nearingSlaCount ?? "-")}
           link={`${basePath}/inbox?nearing=1`}
         />
-        <StatTile
-          icon={<CheckCircle2 className="h-6 w-6" />}
-          iconClassName="bg-success text-success-foreground"
-          label={translateOr(t, "ES_IM_TOTAL_RESOLVED", "Resolved")}
-          value={isLoading ? "-" : (data?.resolvedCount ?? "-")}
-        />
+        {endUser ? (
+          <StatTile
+            icon={<CheckCircle2 className="h-6 w-6" />}
+            iconClassName="bg-success text-success-foreground"
+            label={translateOr(t, "ES_IM_TOTAL_RESOLVED", "Resolved")}
+            value={isLoading ? "-" : (data?.resolvedCount ?? "-")}
+          />
+        ) : null}
       </div>
       {endUser ? (
         <EndUserAssetsList assets={assets} isLoading={isAssetsLoading} />
