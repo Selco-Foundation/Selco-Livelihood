@@ -71,7 +71,7 @@ export function AppShell() {
         className="w-(--sidebar-width-icon) items-center md:w-(--sidebar-width) md:items-stretch"
       >
         <SidebarHeader className="items-center gap-6 px-2 pt-12 pb-5 md:px-7">
-          <div className="flex h-10 w-10 items-center justify-center rounded-[3px] bg-white p-1 md:h-[58px] md:w-[60px]">
+          <div className="flex h-10 w-10 items-center justify-center rounded-[3px] p-1 md:h-[80px] md:w-[80px]">
             <img
               src={getConfigString("SELCO_LOGO")}
               alt="Selco Foundation Logo"
@@ -87,10 +87,13 @@ export function AppShell() {
                 {allNavItems.map((item) => {
                   const Icon = item.icon;
                   const homePath = `${basePath}/employee`;
+                  const matchAgainst = [item.to, ...(item.matchPrefixes ?? [])];
                   const isActive =
                     item.to === homePath
                       ? pathname === item.to
-                      : pathname === item.to || pathname.startsWith(`${item.to}/`);
+                      : matchAgainst.some(
+                          (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+                        );
 
                   return (
                     <SidebarMenuItem key={item.id}>

@@ -81,7 +81,7 @@ function ActionDocumentsField({
     <div className="space-y-2">
       <label className="text-sm font-medium text-foreground">
         {label}
-        {documentsRequired ? " *" : null}
+        {documentsRequired ? <span className="text-destructive"> *</span> : null}
       </label>
       <input
         type="file"
@@ -244,9 +244,15 @@ export function ComplaintActionDialog({
   const outOfWarrantyHelperText = getOutOfWarrantyHelperText(t, action, endUserName);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-card p-6 shadow-lg">
-        <h2 className="text-lg font-semibold text-foreground">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-card p-6 shadow-lg"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h2 className="text-lg font-bold text-foreground">
           {t(`CS_ACTION_${action}`)}
         </h2>
 
@@ -275,10 +281,13 @@ export function ComplaintActionDialog({
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-foreground">
               {t("WF_COMMON_COMMENTS")}
-              {actionConfig.comment === "required" ? " *" : null}
+              {actionConfig.comment === "required" ? (
+                <span className="text-destructive"> *</span>
+              ) : null}
             </label>
             <textarea
               className="min-h-[100px] w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
+              placeholder={translateOr(t, "WF_COMMENTS_PLACEHOLDER", "Describe the issue in detail...")}
               value={comments}
               onChange={(event) => setComments(event.target.value)}
             />
@@ -304,7 +313,7 @@ export function ComplaintActionDialog({
           ) : null}
         </div>
 
-        <div className="mt-6 flex justify-end gap-3">
+        <div className="mt-6 flex justify-center gap-3">
           <Button type="button" variant="outline" onClick={onClose}>
             {t("TL_COMMON_CANCEL")}
           </Button>

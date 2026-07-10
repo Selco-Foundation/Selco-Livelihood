@@ -118,6 +118,7 @@ export function createImRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
         label: "Inbox",
         to: inboxPath,
         icon: Inbox,
+        matchPrefixes: [`/${basePath}${IM_ROUTES.complaintDetails}`],
       },
     ],
   };

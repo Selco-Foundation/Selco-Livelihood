@@ -3,10 +3,8 @@ import { Button, PageHeader } from "@/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useMemo } from "react";
+import { LanguageSwitcher } from "@/modules/core";
 import { ImBreadcrumbs } from "../../components/ImBreadcrumbs";
-import {
-  ComplaintActionBar,
-} from "../../components/details/ComplaintActionBar";
 import { ComplaintMediaSection } from "../../components/details/ComplaintMediaSection";
 import { ComplaintSummarySection } from "../../components/details/ComplaintSummarySection";
 import { ComplaintTimelineSection } from "../../components/details/ComplaintTimelineSection";
@@ -53,7 +51,7 @@ export function ComplaintDetailsPage() {
 
   if (!incidentId || !tenantId) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4">
+      <div className="space-y-4">
         <p className="text-sm text-destructive">{t("CS_COMMON_SOMETHING_WENT_WRONG")}</p>
         <Button asChild variant="outline">
           <Link to={inboxPath}>{translateOr(t, "ES_IM_VIEW_INBOX", "View inbox")}</Link>
@@ -72,7 +70,7 @@ export function ComplaintDetailsPage() {
 
   if (isError || !complaintDetails || !workflowDetails) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4">
+      <div className="space-y-4">
         <p className="text-sm text-destructive">
           {translateOr(t, "CS_COMMON_COMPLAINT_NOT_FOUND", "Ticket not found")}
         </p>
@@ -104,18 +102,21 @@ export function ComplaintDetailsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-[960px] space-y-6">
-      <ImBreadcrumbs
-        items={[
-          { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: homePath },
-          { label: translateOr(t, "ES_IM_INBOX", "Inbox"), to: inboxPath },
-          { label: incidentId },
-        ]}
-      />
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <PageHeader
+          title={translateOr(t, "CS_HEADER_TICKET_DETAILS", "Ticket Details")}
+          action={<LanguageSwitcher />}
+        />
 
-      <PageHeader
-        title={translateOr(t, "CS_HEADER_TICKET_DETAILS", "Ticket Details")}
-      />
+        <ImBreadcrumbs
+          items={[
+            { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: homePath },
+            { label: translateOr(t, "ES_IM_INBOX", "Inbox"), to: inboxPath },
+            { label: incidentId },
+          ]}
+        />
+      </div>
 
       <ComplaintSummarySection complaintDetails={complaintDetails} />
 
@@ -126,10 +127,6 @@ export function ComplaintDetailsPage() {
 
       <ComplaintTimelineSection
         timeline={workflowDetails.timeline}
-        complaintDetails={complaintDetails}
-      />
-
-      <ComplaintActionBar
         complaintDetails={complaintDetails}
         workflowDetails={workflowDetails}
         onActionComplete={handleActionComplete}
