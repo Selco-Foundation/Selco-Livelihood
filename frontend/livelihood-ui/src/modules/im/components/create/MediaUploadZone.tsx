@@ -25,9 +25,9 @@ function UploadedFileThumbnail({
   kind,
   icon: Icon,
 }: {
-  entry: UploadedMediaEntry;
-  kind: "image" | "video";
-  icon: LucideIcon;
+  readonly entry: UploadedMediaEntry;
+  readonly kind: "image" | "video";
+  readonly icon: LucideIcon;
 }) {
   const previewUrl = useMemo(
     () => (kind === "image" ? URL.createObjectURL(entry.file) : null),
@@ -65,10 +65,10 @@ function UploadedFileCard({
   icon,
   onRemove,
 }: {
-  entry: UploadedMediaEntry;
-  kind: "image" | "video";
-  icon: LucideIcon;
-  onRemove: (fileStoreId: string) => void;
+  readonly entry: UploadedMediaEntry;
+  readonly kind: "image" | "video";
+  readonly icon: LucideIcon;
+  readonly onRemove: (fileStoreId: string) => void;
 }) {
   return (
     <div className="flex items-center gap-3 rounded-lg border border-input bg-card p-3">

@@ -6,7 +6,7 @@ import { isEndUser } from "../../utils/access";
 import { translateDetailValue } from "../../utils/complaint-details";
 
 interface ComplaintTableProps {
-  data: InboxRow[];
+  readonly data: InboxRow[];
 }
 
 function SlaBadge({ value, overdueLabel }: { value: string; overdueLabel: string }) {

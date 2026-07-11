@@ -14,13 +14,13 @@ function translateOr(
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
 interface InboxPaginationProps {
-  currentPage: number;
-  totalRecords: number;
-  pageSizeLimit: number;
-  onNextPage: () => void;
-  onPrevPage: () => void;
-  onPageChange: (page: number) => void;
-  onPageSizeChange: (size: number) => void;
+  readonly currentPage: number;
+  readonly totalRecords: number;
+  readonly pageSizeLimit: number;
+  readonly onNextPage: () => void;
+  readonly onPrevPage: () => void;
+  readonly onPageChange: (page: number) => void;
+  readonly onPageSizeChange: (size: number) => void;
 }
 
 export function InboxPagination({

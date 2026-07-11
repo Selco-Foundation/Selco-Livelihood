@@ -4,15 +4,15 @@ import { ChevronDown } from "lucide-react"
 import { cn } from "@/ui/lib/utils"
 
 interface SplitButtonProps {
-  label: React.ReactNode
-  onLabelClick?: React.MouseEventHandler<HTMLButtonElement>
-  onTriggerClick?: React.MouseEventHandler<HTMLButtonElement>
-  variant?: "default" | "outline"
-  size?: "sm" | "default" | "lg"
-  disabled?: boolean
-  className?: string
-  triggerAriaLabel?: string
-  triggerAriaExpanded?: boolean
+  readonly label: React.ReactNode
+  readonly onLabelClick?: React.MouseEventHandler<HTMLButtonElement>
+  readonly onTriggerClick?: React.MouseEventHandler<HTMLButtonElement>
+  readonly variant?: "default" | "outline"
+  readonly size?: "sm" | "default" | "lg"
+  readonly disabled?: boolean
+  readonly className?: string
+  readonly triggerAriaLabel?: string
+  readonly triggerAriaExpanded?: boolean
 }
 
 // Figma "Button / Primary Split" and "Button / Secondary Split" — two joined

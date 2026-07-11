@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface LoginCarouselProps {
-  slides: LoginBannerImage[];
+  readonly slides: LoginBannerImage[];
 }
 
 const MAX_VISIBLE_DOTS = 4;

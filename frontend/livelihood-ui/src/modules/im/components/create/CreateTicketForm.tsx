@@ -18,7 +18,7 @@ import { MediaUploadZone } from "./MediaUploadZone";
 import { TicketSubmittedDialog } from "./TicketSubmittedDialog";
 
 interface CreateTicketFormProps {
-  inboxPath: string;
+  readonly inboxPath: string;
 }
 
 export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
