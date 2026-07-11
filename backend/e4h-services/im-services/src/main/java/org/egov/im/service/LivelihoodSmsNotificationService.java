@@ -66,6 +66,10 @@ public class LivelihoodSmsNotificationService {
             Map.entry(LIV_TPL_014,
                     "Your livelihood support ticket for {ticket_type} with ID {incidentId} submitted on {date} has been declined "
                             + "by the vendor. Please contact your Program POC for further assistance or track ticket details on {url} - SELCO Foundation"),
+            Map.entry(LIV_TPL_016,
+                    "Your livelihood support ticket for {ticket_type} with ID {incidentId} submitted on {date} has been declined "
+                            + "by the SELCO Foundation. For further assistance, please reach out to your local coordinator or track ticket "
+                            + "details on {url} - SELCO Foundation"),
             Map.entry(LIV_TPL_017,
                     "Livelihood ticket for {ticket_type} with ID {incidentId} submitted on {date} has been assigned to you. "
                             + "Please take necessary action or track ticket details on {url} - SELCO Foundation"),

@@ -354,8 +354,9 @@ public class IMService {
         log.trace("Validating update request");
         validator.validateUpdate(request, mdmsData);
 
+        Incident existingIncident = null;
         if (livelihoodTenantUtil.isLivelihood(tenantId)) {
-            Incident existingIncident = fetchExistingIncident(request.getIncident().getId(), tenantId);
+            existingIncident = fetchExistingIncident(request.getIncident().getId(), tenantId);
             livelihoodUpdateService.prepareUpdate(request, existingIncident);
         }
 
@@ -466,7 +467,7 @@ public class IMService {
         }
 
         if (livelihoodTenantUtil.isLivelihood(tenantId)) {
-            livelihoodNotificationService.notifyOnUpdate(request, startingStatus);
+            livelihoodNotificationService.notifyOnUpdate(request, startingStatus, existingIncident);
         }
 
         return request;

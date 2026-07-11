@@ -44,6 +44,10 @@ public class IMConstants {
 
     public static final String LIVELIHOOD_WF_DECLINE = "DECLINE";
 
+    public static final String LIVELIHOOD_WF_DECLINE_POC = "DECLINE_POC";
+
+    public static final String LIVELIHOOD_WF_ASSIGN_VENDOR = "ASSIGN_VENDOR";
+
     public static final String LIVELIHOOD_WF_AUTO_CLOSE = "AUTO_CLOSE";
 
     /** 72-hour reopen window after resolution. */
@@ -103,6 +107,8 @@ public class IMConstants {
     public static final String LIV_TPL_012 = "LIV-TPL-012";
 
     public static final String LIV_TPL_014 = "LIV-TPL-014";
+
+    public static final String LIV_TPL_016 = "LIV-TPL-016";
 
     public static final String LIV_TPL_017 = "LIV-TPL-017";
 

@@ -82,9 +82,15 @@ public class LivelihoodNotificationService {
      * Livelihood workflow notifications on vendor/POC actions.
      */
     public void notifyOnUpdate(IncidentRequest request, String previousStatus) {
+        notifyOnUpdate(request, previousStatus, null);
+    }
+
+    public void notifyOnUpdate(IncidentRequest request, String previousStatus, Incident persistedIncident) {
         if (request == null || request.getIncident() == null || request.getWorkflow() == null) {
             return;
         }
+        enrichNotificationContext(request, persistedIncident);
+
         String action = request.getWorkflow().getAction();
         if (StringUtils.isBlank(action)) {
             return;
@@ -109,10 +115,20 @@ public class LivelihoodNotificationService {
                     notifyPocOutOfWarranty(request);
                 }
             }
-            case "DECLINE" -> {
+            case LIVELIHOOD_WF_DECLINE -> {
                 if (LIVELIHOOD_CLOSED_AFTER_DECLINE.equalsIgnoreCase(newStatus)) {
                     notifyComplainantSms(request, LIV_TPL_014);
                     notifyPocVendorDeclined(request);
+                }
+            }
+            case LIVELIHOOD_WF_DECLINE_POC -> {
+                if (LIVELIHOOD_CLOSED_AFTER_DECLINE.equalsIgnoreCase(newStatus)) {
+                    log.info("Sending POC decline SMS template={} incidentId={}",
+                            LIV_TPL_016, request.getIncident().getIncidentId());
+                    notifyComplainantSms(request, LIV_TPL_016);
+                } else {
+                    log.warn("Skipped POC decline SMS for incidentId={} action={} status={}",
+                            request.getIncident().getIncidentId(), normalizedAction, newStatus);
                 }
             }
             case "REOPEN" -> {
@@ -120,16 +136,14 @@ public class LivelihoodNotificationService {
                     notifyVendorSms(request, LIV_TPL_017);
                 }
             }
-            case "REASSIGN" -> {
+            case REASSIGN, LIVELIHOOD_WF_ASSIGN_VENDOR -> {
                 if (LIVELIHOOD_OUT_OF_SCOPE_PENDING_VENDOR.equalsIgnoreCase(newStatus)) {
-                    notifyComplainantSms(request, LIV_TPL_007);
-                    notifyVendorSms(request, LIV_TPL_008);
+                    notifyOosReassignment(request);
                 }
             }
-            case "AUTO_CLOSE" -> {
+            case LIVELIHOOD_WF_AUTO_CLOSE -> {
                 if (LIVELIHOOD_CLOSED_AFTER_RESOLUTION.equalsIgnoreCase(newStatus)) {
-                    log.debug("Skipping optional SMS for auto-close on incidentId={}",
-                            request.getIncident().getIncidentId());
+                    notifyComplainantSms(request, LIV_TPL_012);
                 }
             }
             default -> { }
@@ -172,6 +186,46 @@ public class LivelihoodNotificationService {
         }
         notifyComplainantSms(request, LIV_TPL_032, Map.of("reason", OOW_END_USER_REMINDER_REASON));
         notifyVendorSms(request, LIV_TPL_033, Map.of("reason", OOW_VENDOR_REMINDER_REASON));
+    }
+
+    private void notifyOosReassignment(IncidentRequest request) {
+        notifyComplainantSms(request, LIV_TPL_007);
+        notifyVendorSms(request, LIV_TPL_008);
+    }
+
+    /**
+     * Update payloads are often partial; merge persisted incident fields needed for SMS/email recipients.
+     */
+    private void enrichNotificationContext(IncidentRequest request, Incident persisted) {
+        if (persisted == null || request.getIncident() == null) {
+            return;
+        }
+        Incident incident = request.getIncident();
+        mergeIfBlank(incident.getIncidentId(), incident::setIncidentId, persisted.getIncidentId());
+        mergeIfBlank(incident.getBoundaryCode(), incident::setBoundaryCode, persisted.getBoundaryCode());
+        mergeIfBlank(incident.getFacilityId(), incident::setFacilityId, persisted.getFacilityId());
+        mergeIfBlank(incident.getAssetId(), incident::setAssetId, persisted.getAssetId());
+        mergeIfBlank(incident.getIncidentType(), incident::setIncidentType, persisted.getIncidentType());
+        mergeIfBlank(incident.getAccountId(), incident::setAccountId, persisted.getAccountId());
+
+        if (incident.getCreatedOnBehalf() == null) {
+            incident.setCreatedOnBehalf(persisted.getCreatedOnBehalf());
+        }
+
+        if (incident.getAuditDetails() == null
+                || incident.getAuditDetails().getCreatedTime() == null) {
+            incident.setAuditDetails(persisted.getAuditDetails());
+        }
+
+        if (incident.getReporter() == null && persisted.getReporter() != null) {
+            incident.setReporter(persisted.getReporter());
+        }
+    }
+
+    private static void mergeIfBlank(String current, java.util.function.Consumer<String> setter, String value) {
+        if (StringUtils.isBlank(current) && StringUtils.isNotBlank(value)) {
+            setter.accept(value);
+        }
     }
 
     private void notifyComplainantSms(IncidentRequest request, String templateCode) {
@@ -299,12 +353,47 @@ public class LivelihoodNotificationService {
             }
         }
 
-        Map<String, String> complainant = hrmsUtil.findComplainantAtBoundary(
-                request.getRequestInfo(),
-                request.getIncident().getTenantId(),
-                request.getIncident().getBoundaryCode()
-        );
-        return complainant.get("mobile");
+        if (StringUtils.isNotBlank(request.getIncident().getAccountId())) {
+            String mobile = fetchUserMobile(
+                    request.getIncident().getAccountId(),
+                    request.getRequestInfo(),
+                    request.getIncident().getTenantId()
+            );
+            if (StringUtils.isNotBlank(mobile)) {
+                return mobile;
+            }
+        }
+
+        String facilityBoundary = resolveFacilityBoundaryForComplainant(request.getIncident());
+        if (StringUtils.isBlank(facilityBoundary)) {
+            log.warn("Complainant mobile not found for incidentId={} — missing boundary",
+                    request.getIncident().getIncidentId());
+            return null;
+        }
+
+        try {
+            Map<String, String> complainant = hrmsUtil.findComplainantAtBoundary(
+                    request.getRequestInfo(),
+                    request.getIncident().getTenantId(),
+                    facilityBoundary
+            );
+            return complainant.get("mobile");
+        } catch (Exception e) {
+            log.warn("Complainant HRMS lookup failed for incidentId={}", request.getIncident().getIncidentId(), e);
+            return null;
+        }
+    }
+
+    private String resolveFacilityBoundaryForComplainant(Incident incident) {
+        String assetBoundary = incident.getBoundaryCode();
+        String assetId = incident.getAssetId();
+        if (StringUtils.isNotBlank(assetBoundary) && StringUtils.isNotBlank(assetId)) {
+            String suffix = "_" + assetId;
+            if (assetBoundary.endsWith(suffix)) {
+                return assetBoundary.substring(0, assetBoundary.length() - suffix.length());
+            }
+        }
+        return assetBoundary;
     }
 
     private void notifyPoc(IncidentRequest request) {
