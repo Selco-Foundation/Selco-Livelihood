@@ -45,6 +45,11 @@ function codesOf(items: Array<{ code: string }>): Set<string> {
   return new Set(items.map((item) => item.code));
 }
 
+function pruneToValidCodes<T extends { code: string }>(items: T[], validCodes: Set<string>): T[] {
+  const filtered = items.filter((item) => validCodes.has(item.code));
+  return filtered.length === items.length ? items : filtered;
+}
+
 function areAllStatusesSelected(
   selected: Array<{ code: string }>,
   statuses: readonly string[],
@@ -205,6 +210,12 @@ export function InboxFilter({
         }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     );
+
+    const validDistrictCodes = codesOf(districts);
+    setPgrFilters((prev) => {
+      const pruned = pruneToValidCodes(prev.district, validDistrictCodes);
+      return pruned === prev.district ? prev : { ...prev, district: pruned };
+    });
   }, [pgrfilters.state, boundaryData, t]);
 
   useEffect(() => {
@@ -237,6 +248,12 @@ export function InboxFilter({
         }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     );
+
+    const validBlockCodes = codesOf(blocks);
+    setPgrFilters((prev) => {
+      const pruned = pruneToValidCodes(prev.block, validBlockCodes);
+      return pruned === prev.block ? prev : { ...prev, block: pruned };
+    });
   }, [pgrfilters.state, pgrfilters.district, boundaryData, t]);
 
   useEffect(() => {
@@ -282,6 +299,12 @@ export function InboxFilter({
         }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     );
+
+    const validFacilityCodes = codesOf(facilities);
+    setPgrFilters((prev) => {
+      const pruned = pruneToValidCodes(prev.facility, validFacilityCodes);
+      return pruned === prev.facility ? prev : { ...prev, facility: pruned };
+    });
   }, [
     pgrfilters.state,
     pgrfilters.district,
