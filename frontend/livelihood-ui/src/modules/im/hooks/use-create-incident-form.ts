@@ -67,13 +67,13 @@ function buildMediaErrorMessage(
       ? translateOr(
           t,
           "INCIDENT_IMAGE_COUNT_EXCEEDED",
-          `You can upload up to ${maxCount} images`,
-        )
+          "You can upload up to {MAX_COUNT} images",
+        ).replace("{MAX_COUNT}", String(maxCount))
       : translateOr(
           t,
           "INCIDENT_VIDEO_COUNT_EXCEEDED",
-          `You can upload up to ${maxCount} videos`,
-        );
+          "You can upload up to {MAX_COUNT} videos",
+        ).replace("{MAX_COUNT}", String(maxCount));
   }
 
   if (error.code === "SIZE") {

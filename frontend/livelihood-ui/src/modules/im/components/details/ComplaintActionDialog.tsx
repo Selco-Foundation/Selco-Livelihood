@@ -121,9 +121,12 @@ function ActionDocumentsField({
           ? translateOr(
               t,
               "WF_MAX_FILES_REACHED",
-              `You can upload up to ${maxFiles} files`,
-            )
-          : translateOr(t, "WF_MAX_FILES_HINT", `Up to ${maxFiles} files`)}
+              "You can upload up to {MAX_COUNT} files",
+            ).replace("{MAX_COUNT}", String(maxFiles))
+          : translateOr(t, "WF_MAX_FILES_HINT", "You can upload up to {MAX_COUNT} files").replace(
+              "{MAX_COUNT}",
+              String(maxFiles),
+            )}
       </p>
       <input
         ref={inputRef}
@@ -269,8 +272,8 @@ export function ComplaintActionDialog({
         translateOr(
           t,
           "WF_MAX_FILES_REACHED",
-          `You can upload up to ${MAX_IMAGE_COUNT} files`,
-        ),
+          "You can upload up to {MAX_COUNT} files",
+        ).replace("{MAX_COUNT}", String(MAX_IMAGE_COUNT)),
       );
       return;
     }
