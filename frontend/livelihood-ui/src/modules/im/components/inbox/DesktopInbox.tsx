@@ -62,7 +62,7 @@ export function DesktopInbox({
         )}
       </div>
 
-      {data?.combinedRes?.length ? (
+      {totalRecords > 0 ? (
         <InboxPagination
           currentPage={currentPage}
           totalRecords={totalRecords}
