@@ -333,10 +333,25 @@ export function ComplaintActionDialog({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4 backdrop-blur-sm"
       onClick={onClose}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " " || event.key === "Escape") {
+          onClose();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={translateOr(t, "CS_COMMON_CLOSE", "Close")}
     >
       <div
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-border bg-card px-6 py-5 shadow-lg"
         onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            onClose();
+          }
+        }}
+        role="dialog"
+        aria-modal="true"
       >
         <h2 className="text-xl leading-[30px] font-semibold text-ink-950">
           {t(`CS_ACTION_${action}`)}
