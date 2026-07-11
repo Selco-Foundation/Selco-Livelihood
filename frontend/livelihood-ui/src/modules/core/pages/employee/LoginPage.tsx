@@ -3,20 +3,17 @@ import {
   assertEmployeeRolesAllowed,
   employeeHomePath,
   filterRolesForEmployeeTenant,
+  getConfig,
   hydrateEmployeeJurisdictions,
   loginUser,
   tenantId,
   useAuthStore,
   useJurisdictionStore,
   useTranslate,
+  useLoginBannerImages,
 } from "@/shared";
 import {
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Form,
   FormControl,
   FormField,
@@ -27,10 +24,12 @@ import {
   toast,
 } from "@/ui";
 import { useNavigate } from "@tanstack/react-router";
+import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { LanguageSwitcher } from "../../components/LanguageSwitcher";
+import { LoginCarousel } from "../../components/LoginCarousel";
 
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -72,6 +71,12 @@ export function LoginPage() {
   const setSession = useAuthStore((state) => state.setSession);
   const setJurisdictionData = useJurisdictionStore((state) => state.setJurisdictionData);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const bannerImages = useLoginBannerImages();
+  const logos = getConfig("LOGO_LIST") as
+    | Array<{ url: string; alt: string }>
+    | undefined;
+  const logo = logos?.[0];
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -112,7 +117,7 @@ export function LoginPage() {
       });
       setJurisdictionData(jurisdictionData);
 
-      toast.success("Signed in successfully");
+      toast.success(t("CORE_LOGIN_SUCCESS_TOAST"));
       await navigate({ to: resolveRedirectPath(from) });
     } catch (error) {
       const message =
@@ -138,55 +143,102 @@ export function LoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-page p-4">
-      <div className="absolute right-4 top-4">
-        <LanguageSwitcher />
-      </div>
-      <Card className="livelihood-card w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Livelihood UI</CardTitle>
-        </CardHeader>
-        <CardContent>
+    <div className="font-poppins flex min-h-screen bg-white">
+      <div className="relative flex min-h-screen w-full flex-col items-center justify-center px-8 py-8 lg:w-[60%] lg:min-w-[480px]">
+        <div className="absolute inset-x-8 top-8 flex items-center justify-between">
+          <img
+            src={logo?.url}
+            alt={logo?.alt ?? "Selco Foundation Logo"}
+            className="h-[68px] w-auto object-contain"
+          />
+          <LanguageSwitcher />
+        </div>
+
+        <div className="flex w-full max-w-[360px] flex-col gap-5">
+          <div className="flex flex-col gap-1">
+            <h1 className="text-[32px] font-semibold leading-[48px] text-ink-950">
+              {t("CORE_LOGIN_WELCOME_TITLE")}
+            </h1>
+            <p className="text-sm leading-[21px] text-ink-600">
+              {t("CORE_LOGIN_SUBTITLE")}
+            </p>
+          </div>
+
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="username"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Username</FormLabel>
-                    <FormControl>
-                      <Input autoComplete="username" placeholder="username" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="password"
-                        autoComplete="current-password"
-                        placeholder="••••••••"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? "Signing in..." : "Sign in"}
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex w-full flex-col gap-5">
+              <div className="flex flex-col gap-4">
+                <FormField
+                  control={form.control}
+                  name="username"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-sm leading-[21px] font-medium text-ink-950">
+                        {t("CORE_LOGIN_USERNAME_LABEL")} <span className="text-destructive">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          autoComplete="username"
+                          placeholder={t("CORE_LOGIN_USERNAME_PLACEHOLDER")}
+                          className="h-9 rounded border-ink-300 px-3 py-2 text-sm leading-[21px] text-ink-950 placeholder:text-ink-400"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-sm leading-[21px] font-medium text-ink-950">
+                        {t("CORE_LOGIN_PASSWORD_LABEL")} <span className="text-destructive">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Input
+                            type={showPassword ? "text" : "password"}
+                            autoComplete="current-password"
+                            placeholder={t("CORE_LOGIN_PASSWORD_PLACEHOLDER")}
+                            className="h-9 rounded border-ink-300 px-3 py-2 pr-10 text-sm leading-[21px] text-ink-950 placeholder:text-ink-400"
+                            {...field}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword((current) => !current)}
+                            aria-label={
+                              showPassword
+                                ? translateOr(t, "CORE_LOGIN_PASSWORD_HIDE", "Hide password")
+                                : translateOr(t, "CORE_LOGIN_PASSWORD_SHOW", "Show password")
+                            }
+                            className="absolute inset-y-0 right-3 flex cursor-pointer items-center text-ink-400"
+                          >
+                            {showPassword ? (
+                              <EyeOff className="size-5" />
+                            ) : (
+                              <Eye className="size-5" />
+                            )}
+                          </button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <Button type="submit" size="lg" disabled={isSubmitting} className="w-full">
+                {isSubmitting ? t("CORE_LOGIN_BUTTON_LOADING") : t("CORE_LOGIN_BUTTON")}
               </Button>
             </form>
           </Form>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+
+      <div className="hidden py-6 pr-6 lg:block lg:w-[40%] lg:min-w-[520px]">
+        <LoginCarousel slides={bannerImages} />
+      </div>
     </div>
   );
 }

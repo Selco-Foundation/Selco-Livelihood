@@ -6,7 +6,6 @@ import { ImOverview } from "./components/ImOverview";
 import { IM_ROUTES } from "./constants/routes";
 import { ComplaintDetailsPage } from "./pages/employee/ComplaintDetailsPage";
 import { CreateIncidentPage } from "./pages/employee/CreateIncidentPage";
-import { CreateIncidentResponsePage } from "./pages/employee/CreateIncidentResponsePage";
 import { InboxPage } from "./pages/employee/InboxPage";
 import type { ImInboxFilters } from "./types/inbox";
 
@@ -46,7 +45,6 @@ export function createImRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
   const imRoot = `/${basePath}${IM_ROUTES.imRoot}`;
   const inboxPath = `/${basePath}${IM_ROUTES.inbox}`;
   const createPath = `/${basePath}${IM_ROUTES.createIncident}`;
-  const createResponsePath = `/${basePath}${IM_ROUTES.createResponse}`;
   const complaintDetailsPath = `/${basePath}${IM_ROUTES.complaintDetails}/$incidentId/$tenantId`;
 
   // Parent route — loads rainmaker-im translations before any IM page renders
@@ -91,12 +89,6 @@ export function createImRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
     component: CreateIncidentPage,
   });
 
-  const createIncidentResponseRoute = createRoute({
-    getParentRoute: () => imParentRoute,
-    path: createResponsePath,
-    component: CreateIncidentResponsePage,
-  });
-
   const complaintDetailsRoute = createRoute({
     getParentRoute: () => imParentRoute,
     path: complaintDetailsPath,
@@ -109,7 +101,6 @@ export function createImRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
       imIndexRoute,
       inboxRoute,
       createIncidentRoute,
-      createIncidentResponseRoute,
       complaintDetailsRoute,
     ],
     navItems: [
@@ -118,6 +109,7 @@ export function createImRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
         label: "Inbox",
         to: inboxPath,
         icon: Inbox,
+        matchPrefixes: [`/${basePath}${IM_ROUTES.complaintDetails}`],
       },
     ],
   };

@@ -5,7 +5,10 @@ import {
   useTranslate,
 } from "@/shared";
 import { useQuery } from "@tanstack/react-query";
-import { LIVELIHOOD_INCIDENT_BUSINESS_SERVICE } from "../constants/workflow";
+import {
+  LIVELIHOOD_INCIDENT_BUSINESS_SERVICE,
+  RESOLVED_APPLICATION_STATUSES,
+} from "../constants/workflow";
 import { searchInbox } from "../services/inbox";
 import type { ImInboxSearchParams } from "../types/inbox";
 import { hasImAccess } from "../utils/access";
@@ -13,6 +16,7 @@ import { flattenInboxFilters } from "../utils/inbox-filters";
 import {
   combineInboxResponses,
   normalizeInboxResponse,
+  sumStatusCounts,
 } from "../utils/inbox-transform";
 import { buildSummaryRoleFilters } from "./inbox-defaults";
 import { fetchAssetTypes } from "../services/mdms";
@@ -47,9 +51,14 @@ export function useImInboxSummary() {
         user,
       );
       const normalized = normalizeInboxResponse(data);
+      const resolvedCount = sumStatusCounts(
+        normalized.statusArray,
+        RESOLVED_APPLICATION_STATUSES,
+      );
       return {
         totalCount: normalized.total,
         nearingSlaCount: normalized.nearingSlaCount,
+        resolvedCount,
         statusMap: normalized.statusArray,
       };
     },
