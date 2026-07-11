@@ -45,6 +45,14 @@ function codesOf(items: Array<{ code: string }>): Set<string> {
   return new Set(items.map((item) => item.code));
 }
 
+function areAllStatusesSelected(
+  selected: Array<{ code: string }>,
+  statuses: readonly string[],
+): boolean {
+  const selectedCodes = codesOf(selected);
+  return statuses.every((code) => selectedCodes.has(code));
+}
+
 type PgrFilterKey = "assetType" | "facility" | "state" | "district" | "block";
 
 interface InboxFilterProps {
@@ -336,16 +344,12 @@ export function InboxFilter({
   }
 
   function isStatusGroupChecked(statuses: readonly string[]) {
-    return statuses.every((code) =>
-      pgrfilters.applicationStatus.some((item) => item.code === code),
-    );
+    return areAllStatusesSelected(pgrfilters.applicationStatus, statuses);
   }
 
   function toggleStatusGroup(statuses: readonly string[]) {
     setPgrFilters((prev) => {
-      const isChecked = statuses.every((code) =>
-        prev.applicationStatus.some((item) => item.code === code),
-      );
+      const isChecked = areAllStatusesSelected(prev.applicationStatus, statuses);
       if (isChecked) {
         return {
           ...prev,
