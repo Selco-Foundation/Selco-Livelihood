@@ -1,6 +1,7 @@
 import { contextPath, useTranslate } from "@/shared";
 import { Button } from "@/ui";
 import { Link } from "@tanstack/react-router";
+import { createPortal } from "react-dom";
 
 interface DuplicateTicket {
   ticketId: string;
@@ -21,7 +22,7 @@ export function DuplicateTicketsDialog({
   const { t } = useTranslate();
   const basePath = `/${contextPath()}/employee/im`;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-lg bg-card p-6 shadow-lg">
         <h2 className="text-center text-lg font-semibold">
@@ -49,14 +50,15 @@ export function DuplicateTicketsDialog({
           {t("IM_ALERT_POTENTIAL_DUPLICATES_ACTION_DESC")}
         </p>
         <div className="mt-6 flex justify-center gap-3">
-          <Button type="button" variant="outline" onClick={onContinue}>
+          <Button type="button" variant="outline" size="lg" onClick={onContinue}>
             {t("TL_COMMON_YES")}
           </Button>
-          <Button type="button" onClick={onCancel}>
+          <Button type="button" size="lg" onClick={onCancel}>
             {t("TL_COMMON_NO")}
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

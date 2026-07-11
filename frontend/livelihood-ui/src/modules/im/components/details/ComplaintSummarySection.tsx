@@ -17,15 +17,14 @@ export function ComplaintSummarySection({
     <FormSectionCard
       icon={ClipboardList}
       title={t("CS_HEADER_TICKET_DETAILS")}
-      description={t("CS_HEADER_INCIDENT_SUMMARY")}
+      titleClassName="text-base font-semibold text-ink-950"
+      divider
     >
       <dl className="grid gap-4 sm:grid-cols-2">
         {complaintDetails.rows.map((row) => (
           <div key={row.labelKey} className="min-w-0 space-y-1">
-            <dt className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-              {t(row.labelKey)}
-            </dt>
-            <dd className="text-sm break-words text-foreground">
+            <dt className="text-sm font-normal text-ink-600">{t(row.labelKey)}</dt>
+            <dd className="text-sm font-medium break-words text-ink-950">
               {translateDetailValue(row.value, t)}
             </dd>
           </div>

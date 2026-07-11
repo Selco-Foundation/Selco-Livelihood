@@ -8,11 +8,6 @@ interface ComplaintMediaSectionProps {
   videos: ComplaintVideoEntry[];
 }
 
-function translateOr(t: (key: string) => string, key: string, fallback: string) {
-  const value = t(key);
-  return value === key ? fallback : value;
-}
-
 export function ComplaintMediaSection({
   images,
   videos,
@@ -27,11 +22,8 @@ export function ComplaintMediaSection({
     <FormSectionCard
       icon={ImageIcon}
       title={t("CS_COMMON_ATTACHMENTS")}
-      description={translateOr(
-        t,
-        "INCIDENT_UPLOADED_MEDIA_DESC",
-        "Photos and videos attached to this ticket",
-      )}
+      titleClassName="text-base font-semibold text-ink-950"
+      divider
     >
       <ComplaintMediaList images={images} videos={videos} />
     </FormSectionCard>

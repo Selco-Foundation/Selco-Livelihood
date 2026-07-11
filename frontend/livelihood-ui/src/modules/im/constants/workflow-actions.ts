@@ -30,7 +30,7 @@ export const WORKFLOW_ACTION_CONFIG: Record<SupportedWorkflowAction, WorkflowAct
   },
   OUT_OF_WARRANTY: { comment: "optional", documents: "required" },
   REVISE_QUOTATION: { comment: "optional", documents: "required" },
-  DECLINE: { comment: "required", documents: "none" },
+  DECLINE: { comment: "required", documents: "optional" },
   REASSIGN: { comment: "optional", documents: "optional" },
   ASSIGN_VENDOR: { comment: "optional", documents: "optional" },
   DECLINE_POC: {
@@ -38,7 +38,7 @@ export const WORKFLOW_ACTION_CONFIG: Record<SupportedWorkflowAction, WorkflowAct
     documents: "none",
     reasonMaster: "RejectReasons",
   },
-  REOPEN: { comment: "required", documents: "none" },
+  REOPEN: { comment: "required", documents: "optional" },
 };
 
 export function isSupportedWorkflowAction(

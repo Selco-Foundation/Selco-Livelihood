@@ -1,6 +1,8 @@
 export { cn } from "./lib/utils";
 
 export { Button, buttonVariants } from "./components/ui/button";
+export { SplitButton } from "./components/ui/split-button";
+export type { SplitButtonProps } from "./components/ui/split-button";
 export { Input } from "./components/ui/input";
 export { Label } from "./components/ui/label";
 export {
@@ -66,6 +68,7 @@ export {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
+  SidebarSeparator,
   SidebarTrigger,
   useSidebar,
 } from "./components/ui/sidebar";
@@ -96,6 +99,14 @@ export {
   DropdownMenuTrigger,
 } from "./components/ui/dropdown-menu";
 export { Skeleton } from "./components/ui/skeleton";
+export { Checkbox } from "./components/ui/checkbox";
+export {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverTrigger,
+} from "./components/ui/popover";
+export { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
 export { DataTable } from "./components/data-table";
 export { StatTile } from "./components/stat-tile";
 export type { StatTileProps } from "./components/stat-tile";

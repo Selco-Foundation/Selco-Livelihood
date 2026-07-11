@@ -18,22 +18,22 @@ export function CreateIncidentPage() {
   const basePath = `/${contextPath()}`;
   const homePath = employeeHomePath();
   const inboxPath = `${basePath}${IM_ROUTES.inbox}`;
-  const responsePath = `${basePath}${IM_ROUTES.createResponse}`;
 
   return (
-    <div className="mx-auto max-w-[960px] space-y-6">
+    <div className="space-y-6">
+      <PageHeader
+        title={translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise a Ticket")}
+      />
+
       <ImBreadcrumbs
         items={[
           { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: homePath },
-          { label: translateOr(t, "ES_IM_TICKET_CREATE", "Ticket create") },
+          { label: translateOr(t, "ES_IM_INBOX", "View all tickets"), to: inboxPath },
+          { label: translateOr(t, "ES_IM_TICKET_CREATE", "Raise ticket") },
         ]}
       />
 
-      <PageHeader
-        title={translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise a New Ticket")}
-      />
-
-      <CreateTicketForm inboxPath={inboxPath} responsePath={responsePath} />
+      <CreateTicketForm inboxPath={inboxPath} />
     </div>
   );
 }
