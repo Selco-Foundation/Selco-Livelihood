@@ -17,7 +17,7 @@ import {
   cn,
 } from "@/ui";
 import { ChevronDown, Filter } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ORDERED_INBOX_STATUSES } from "../../constants/inbox-statuses";
 import { buildDefaultInboxRoleFilters } from "../../hooks/inbox-defaults";
 import { useImAssetTypes } from "../../hooks/use-im-inbox-summary";
@@ -396,6 +396,49 @@ export function InboxFilter({
     searchLower ? option.name.toLowerCase().includes(searchLower) : true,
   );
 
+  let optionsContent: ReactNode;
+  if (visibleOptions.length === 0) {
+    optionsContent = (
+      <p className="text-sm text-muted-foreground">
+        {translateOr(t, "ES_COMMON_NO_OPTIONS", "No options found")}
+      </p>
+    );
+  } else if (activeCategory === "applicationStatus") {
+    optionsContent = visibleOptions.map((option) => {
+      const group = ORDERED_INBOX_STATUSES.find((item) => item.code === option.code);
+      const statuses = group?.statuses ?? [option.code];
+      return (
+        <label
+          key={option.code}
+          className="flex cursor-pointer items-center gap-2 text-sm font-semibold"
+        >
+          <Checkbox
+            className="size-5 rounded-md border-2 border-primary"
+            checked={isStatusGroupChecked(statuses)}
+            onCheckedChange={() => toggleStatusGroup(statuses)}
+          />
+          {option.name}
+        </label>
+      );
+    });
+  } else {
+    optionsContent = visibleOptions.map((option) => (
+      <label
+        key={option.code}
+        className="flex cursor-pointer items-center gap-2 text-sm font-semibold"
+      >
+        <Checkbox
+          className="size-5 rounded-md border-2 border-primary"
+          checked={pgrfilters[activeCategory as PgrFilterKey].some(
+            (item) => item.code === option.code,
+          )}
+          onCheckedChange={() => toggleArrayFilter(activeCategory as PgrFilterKey, option)}
+        />
+        {option.name}
+      </label>
+    ));
+  }
+
   return (
     <div className="livelihood-card p-5">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -452,51 +495,7 @@ export function InboxFilter({
                     placeholder={translateOr(t, "ES_COMMON_SEARCH", "Search")}
                   />
                   <ScrollArea className="h-56 pr-3">
-                    <div className="space-y-3">
-                      {visibleOptions.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">
-                          {translateOr(t, "ES_COMMON_NO_OPTIONS", "No options found")}
-                        </p>
-                      ) : activeCategory === "applicationStatus" ? (
-                        visibleOptions.map((option) => {
-                          const group = ORDERED_INBOX_STATUSES.find(
-                            (item) => item.code === option.code,
-                          );
-                          const statuses = group?.statuses ?? [option.code];
-                          return (
-                            <label
-                              key={option.code}
-                              className="flex cursor-pointer items-center gap-2 text-sm font-semibold"
-                            >
-                              <Checkbox
-                                className="size-5 rounded-md border-2 border-primary"
-                                checked={isStatusGroupChecked(statuses)}
-                                onCheckedChange={() => toggleStatusGroup(statuses)}
-                              />
-                              {option.name}
-                            </label>
-                          );
-                        })
-                      ) : (
-                        visibleOptions.map((option) => (
-                          <label
-                            key={option.code}
-                            className="flex cursor-pointer items-center gap-2 text-sm font-semibold"
-                          >
-                            <Checkbox
-                              className="size-5 rounded-md border-2 border-primary"
-                              checked={pgrfilters[activeCategory as PgrFilterKey].some(
-                                (item) => item.code === option.code,
-                              )}
-                              onCheckedChange={() =>
-                                toggleArrayFilter(activeCategory as PgrFilterKey, option)
-                              }
-                            />
-                            {option.name}
-                          </label>
-                        ))
-                      )}
-                    </div>
+                    <div className="space-y-3">{optionsContent}</div>
                   </ScrollArea>
                 </div>
               </div>
