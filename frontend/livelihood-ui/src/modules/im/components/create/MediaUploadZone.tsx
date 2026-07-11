@@ -1,8 +1,14 @@
+import { useTranslate } from "@/shared";
 import { cn } from "@/ui";
 import { CheckCircle2, Info, Trash2, type LucideIcon } from "lucide-react";
 import { useEffect, useId, useMemo, useRef } from "react";
 import type { UploadedMediaEntry } from "../../types/create-incident";
 import { formatFileSize } from "../../utils/file";
+
+function translateOr(t: (key: string) => string, key: string, fallback: string) {
+  const value = t(key);
+  return value === key ? fallback : value;
+}
 
 interface MediaUploadZoneProps {
   label: string;
@@ -70,6 +76,8 @@ function UploadedFileCard({
   readonly icon: LucideIcon;
   readonly onRemove: (fileStoreId: string) => void;
 }) {
+  const { t } = useTranslate();
+
   return (
     <div className="flex items-center gap-3 rounded-lg border border-input bg-card p-3">
       <UploadedFileThumbnail entry={entry} kind={kind} icon={icon} />
@@ -79,7 +87,7 @@ function UploadedFileCard({
           <span>{formatFileSize(entry.file.size)}</span>
           <span>•</span>
           <CheckCircle2 className="size-3.5 text-primary" />
-          <span>Complete</span>
+          <span>{translateOr(t, "CS_COMMON_COMPLETE", "Complete")}</span>
         </div>
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
           <div className="h-full w-full rounded-full bg-primary" />
@@ -112,6 +120,7 @@ export function MediaUploadZone({
   onSelect,
   onRemove,
 }: MediaUploadZoneProps) {
+  const { t } = useTranslate();
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -134,7 +143,7 @@ export function MediaUploadZone({
           <Icon className="size-5" />
         </div>
         <span className="text-sm text-muted-foreground">
-          {uploading ? "Uploading..." : hint}
+          {uploading ? translateOr(t, "CS_COMMON_UPLOADING", "Uploading...") : hint}
         </span>
       </button>
       <input
