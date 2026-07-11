@@ -102,7 +102,7 @@ export function AppShell() {
                         isActive={isActive}
                         className="justify-center rounded-lg md:justify-start"
                       >
-                        <Link to={item.to}>
+                        <Link to={item.to} aria-label={item.label}>
                           {Icon ? <Icon /> : null}
                           <span className="hidden md:inline">{item.label}</span>
                         </Link>
