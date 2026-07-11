@@ -207,7 +207,11 @@ export function LoginPage() {
                           <button
                             type="button"
                             onClick={() => setShowPassword((current) => !current)}
-                            aria-label={showPassword ? "Hide password" : "Show password"}
+                            aria-label={
+                              showPassword
+                                ? translateOr(t, "CORE_LOGIN_PASSWORD_HIDE", "Hide password")
+                                : translateOr(t, "CORE_LOGIN_PASSWORD_SHOW", "Show password")
+                            }
                             className="absolute inset-y-0 right-3 flex cursor-pointer items-center text-ink-400"
                           >
                             {showPassword ? (
