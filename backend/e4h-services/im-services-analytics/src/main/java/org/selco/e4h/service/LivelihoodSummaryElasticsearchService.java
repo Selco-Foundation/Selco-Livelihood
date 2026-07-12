@@ -31,6 +31,17 @@ public class LivelihoodSummaryElasticsearchService {
     private static final String FIELD_LAST_MODIFIED = "Data.incident.auditDetails.lastModifiedTime";
     private static final String FIELD_SLA_REMAINING = "Data.slaRemaining";
 
+    /**
+     * Open states that carry an actionable SLA for POC digests.
+     * Excludes RESOLVED (72h auto-close only) and closed statuses.
+     */
+    private static final List<String> SLA_ACTIVE_STATUSES = List.of(
+            LIVELIHOOD_PENDING_FOR_RESOLUTION,
+            LIVELIHOOD_OUT_OF_SCOPE_PENDING_POC,
+            LIVELIHOOD_OUT_OF_SCOPE_PENDING_VENDOR,
+            LIVELIHOOD_OUT_OF_WARRANTY_PENDING_VENDOR
+    );
+
     private static final String NEARING_SLA_SCRIPT =
             "long stateSla = 0; "
                     + "if (doc.containsKey('Data.stateSla') && doc['Data.stateSla'].size() > 0) { "
@@ -53,7 +64,8 @@ public class LivelihoodSummaryElasticsearchService {
 
     public int countSlaBreaches(String tenantId, long fromMs, long toMs, List<String> boundaryPrefixes) {
         List<Map<String, Object>> must = baseMust(tenantId, boundaryPrefixes);
-        must.add(termsClause(FIELD_STATUS, List.of(LIVELIHOOD_PENDING_FOR_RESOLUTION)));
+        // All open SLA-bearing states — digests go to POC, not vendor-only resolution SLA.
+        must.add(termsClause(FIELD_STATUS, SLA_ACTIVE_STATUSES));
         must.add(rangeClause(FIELD_LAST_MODIFIED, fromMs, toMs));
         must.add(rangeLte(FIELD_SLA_REMAINING, 0));
         return executeCount(must, List.of());
@@ -61,7 +73,7 @@ public class LivelihoodSummaryElasticsearchService {
 
     public int countSlaNearing(String tenantId, List<String> boundaryPrefixes) {
         List<Map<String, Object>> must = baseMust(tenantId, boundaryPrefixes);
-        must.add(termsClause(FIELD_STATUS, List.of(LIVELIHOOD_PENDING_FOR_RESOLUTION)));
+        must.add(termsClause(FIELD_STATUS, SLA_ACTIVE_STATUSES));
         must.add(scriptClause(NEARING_SLA_SCRIPT));
         return executeCount(must, List.of());
     }

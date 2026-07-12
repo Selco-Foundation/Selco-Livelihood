@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.egov.im.config.IMConfiguration;
+import org.egov.im.util.LivelihoodIssueTypeUtil;
 import org.egov.im.util.NotificationUtil;
 import org.egov.im.web.models.Incident;
 import org.egov.im.web.models.IncidentRequest;
@@ -80,6 +81,7 @@ public class LivelihoodSmsNotificationService {
 
     private final IMConfiguration config;
     private final NotificationUtil notificationUtil;
+    private final LivelihoodIssueTypeUtil livelihoodIssueTypeUtil;
 
     public void sendSms(IncidentRequest request, String mobileNumber, String templateCode) {
         sendSms(request, mobileNumber, templateCode, Map.of());
@@ -137,9 +139,12 @@ public class LivelihoodSmsNotificationService {
 
     public Map<String, String> buildPlaceholders(IncidentRequest request) {
         Incident incident = request.getIncident();
+        String assetType = resolveAssetType(incident);
         Map<String, String> placeholders = new HashMap<>();
-        placeholders.put("ticket_type", nullToEmpty(incident.getIncidentType()));
-        placeholders.put("equipment_type", nullToEmpty(incident.getIncidentType()));
+        // Word doc "Equipment / Issue Type" → use asset/machine category, not issue code.
+        placeholders.put("ticket_type", assetType);
+        placeholders.put("equipment_type", assetType);
+        placeholders.put("asset_type", assetType);
         placeholders.put("incidentId", nullToEmpty(incident.getIncidentId()));
         placeholders.put("ticket_id", nullToEmpty(incident.getIncidentId()));
         placeholders.put("date", formatRaisedDate(incident));
@@ -150,6 +155,14 @@ public class LivelihoodSmsNotificationService {
         placeholders.put("out_of_scope_reason", resolveOutOfScopeReason(request));
         placeholders.put("quotation_link", resolveQuotationLink(request));
         return placeholders;
+    }
+
+    private String resolveAssetType(Incident incident) {
+        String assetCategory = livelihoodIssueTypeUtil.extractAssetCategory(incident);
+        if (StringUtils.isNotBlank(assetCategory)) {
+            return assetCategory.trim();
+        }
+        return nullToEmpty(incident.getIncidentType());
     }
 
     private String resolveAppUrl(IncidentRequest request) {

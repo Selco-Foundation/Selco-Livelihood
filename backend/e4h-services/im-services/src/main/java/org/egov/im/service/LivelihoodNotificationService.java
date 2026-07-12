@@ -118,8 +118,9 @@ public class LivelihoodNotificationService {
             }
             case LIVELIHOOD_WF_DECLINE_POC -> {
                 if (LIVELIHOOD_CLOSED_AFTER_DECLINE.equalsIgnoreCase(newStatus)) {
-                    log.info("Sending POC decline SMS template={} incidentId={}",
-                            LIV_TPL_016, request.getIncident().getIncidentId());
+                    log.info("Sending closed-without-resolution / POC-decline SMS templates={} / {} incidentId={}",
+                            LIV_TPL_012, LIV_TPL_016, request.getIncident().getIncidentId());
+                    notifyComplainantSms(request, LIV_TPL_012);
                     notifyComplainantSms(request, LIV_TPL_016);
                     sendPocEmail(request, LIV_TPL_013, Map.of("reason", resolveDeclineReason(request)));
                 } else {
@@ -137,14 +138,17 @@ public class LivelihoodNotificationService {
     }
 
     /**
-     * LLD: vendor SLA breached — vendor SMS (LIV-TPL-004) and POC escalation email.
+     * Vendor SLA breached — vendor SMS (LIV-TPL-004) and POC email (LIV-TPL-005).
      */
     public void notifyVendorSlaBreached(IncidentRequest request) {
         notifyVendorSms(request, LIV_TPL_004);
         notifyPocSlaBreached(request);
     }
 
-    private void notifyPocSlaBreached(IncidentRequest request) {
+    /**
+     * POC SLA breached (e.g. OUT_OF_SCOPE_PENDING_POC) — POC email only (LIV-TPL-005).
+     */
+    public void notifyPocSlaBreached(IncidentRequest request) {
         sendPocEmail(request, LIV_TPL_005);
     }
 
@@ -195,6 +199,11 @@ public class LivelihoodNotificationService {
 
         if (incident.getReporter() == null && persisted.getReporter() != null) {
             incident.setReporter(persisted.getReporter());
+        }
+
+        // Preserve assetCategory (and other details) for SMS/email placeholders on partial updates.
+        if (incident.getAdditionalDetail() == null && persisted.getAdditionalDetail() != null) {
+            incident.setAdditionalDetail(persisted.getAdditionalDetail());
         }
     }
 
