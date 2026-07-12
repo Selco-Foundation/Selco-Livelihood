@@ -3,7 +3,12 @@ import {
   BLANK_SLA_STATUSES,
   ROLE_STATUS_MAPPING,
 } from "../constants/workflow";
-import type { InboxItem, InboxRow, InboxSearchResponse } from "../types/inbox";
+import type {
+  InboxItem,
+  InboxRow,
+  InboxSearchResponse,
+  InboxStatusMapEntry,
+} from "../types/inbox";
 
 const SLA_MS_PER_DAY = 8 * 60 * 60 * 1000;
 
@@ -69,4 +74,14 @@ export function normalizeInboxResponse(data: InboxSearchResponse) {
     statusArray: data.statusMap ?? [],
     nearingSlaCount: data.nearingSlaCount,
   };
+}
+
+export function sumStatusCounts(
+  statusArray: InboxStatusMapEntry[] | undefined,
+  statuses: readonly string[],
+): number {
+  return (statusArray ?? []).reduce(
+    (sum, entry) => (statuses.includes(entry.statusid) ? sum + (entry.count ?? 0) : sum),
+    0,
+  );
 }

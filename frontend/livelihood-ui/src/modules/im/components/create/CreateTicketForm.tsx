@@ -1,28 +1,27 @@
 import { Button } from "@/ui";
 import {
   Camera,
-  ClipboardList,
+  Factory,
+  FileText,
   Info,
   Loader2,
-  Factory,
-  RotateCcw,
   Send,
-  Shield,
   Video,
 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
+import { createPortal } from "react-dom";
 import { useCreateIncidentForm } from "../../hooks/use-create-incident-form";
 import { DuplicateTicketsDialog } from "./DuplicateTicketsDialog";
 import { FormSectionCard } from "./FormSectionCard";
 import { FormSelectField } from "./FormSelectField";
 import { MediaUploadZone } from "./MediaUploadZone";
+import { TicketSubmittedDialog } from "./TicketSubmittedDialog";
 
 interface CreateTicketFormProps {
-  inboxPath: string;
-  responsePath: string;
+  readonly inboxPath: string;
 }
 
-export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormProps) {
+export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
   const navigate = useNavigate();
   const {
     t,
@@ -40,6 +39,7 @@ export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormPr
     imageUploads,
     videoUploads,
     uploadFiles,
+    removeUpload,
     isImageUploading,
     isVideoUploading,
     disableUpload,
@@ -49,8 +49,6 @@ export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormPr
     submitError,
     setSubmitError,
     createMutation,
-    clearForm,
-    saveDraft,
     validate,
     handleEndUserChange,
     handleAssetChange,
@@ -61,7 +59,11 @@ export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormPr
     maxVideoCount,
     maxVideoSizeMb,
     maxCommentLength,
-  } = useCreateIncidentForm(inboxPath, responsePath);
+    submittedResponse,
+  } = useCreateIncidentForm(inboxPath);
+
+  const submittedIncidentId =
+    submittedResponse?.IncidentWrappers?.[0]?.incident?.incidentId;
 
   const handleSubmit = () => {
     setSubmitError(null);
@@ -76,11 +78,14 @@ export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormPr
 
   return (
     <>
-      {createMutation.isPending ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <Loader2 className="size-10 animate-spin text-primary" />
-        </div>
-      ) : null}
+      {createMutation.isPending
+        ? createPortal(
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+              <Loader2 className="size-10 animate-spin text-primary" />
+            </div>,
+            document.body,
+          )
+        : null}
 
       {duplicateTickets.length > 0 ? (
         <DuplicateTicketsDialog
@@ -88,6 +93,10 @@ export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormPr
           onContinue={() => setDuplicateTickets([])}
           onCancel={() => void navigate({ to: inboxPath })}
         />
+      ) : null}
+
+      {submittedIncidentId ? (
+        <TicketSubmittedDialog incidentId={submittedIncidentId} inboxPath={inboxPath} />
       ) : null}
 
       <form
@@ -147,7 +156,7 @@ export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormPr
         </FormSectionCard>
 
         <FormSectionCard
-          icon={ClipboardList}
+          icon={FileText}
           title={translateOr(t, "TICKET_DETAILS", "Ticket Details")}
           description={translateOr(
             t,
@@ -221,8 +230,10 @@ export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormPr
                 multiple
                 disabled={disableUpload || imageUploads.length >= maxImageCount}
                 uploading={isImageUploading}
-                files={imageUploads.map((item) => item.file.name)}
+                uploads={imageUploads}
+                kind="image"
                 onSelect={(files) => void uploadFiles(files, "image")}
+                onRemove={(fileStoreId) => removeUpload("image", fileStoreId)}
               />
               <MediaUploadZone
                 label={translateOr(t, "INCIDENT_UPLOAD_VIDEO", "Upload Videos")}
@@ -237,8 +248,10 @@ export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormPr
                 accept=".mp4,.avi,.mov,.wmv,video/*"
                 disabled={disableUpload || videoUploads.length >= maxVideoCount}
                 uploading={isVideoUploading}
-                files={videoUploads.map((item) => item.file.name)}
+                uploads={videoUploads}
+                kind="video"
                 onSelect={(files) => void uploadFiles(files, "video")}
+                onRemove={(fileStoreId) => removeUpload("video", fileStoreId)}
               />
             </div>
           </div>
@@ -250,32 +263,15 @@ export function CreateTicketForm({ inboxPath, responsePath }: CreateTicketFormPr
           </p>
         ) : null}
 
-        <div className="flex flex-col gap-4 rounded-lg border border-border bg-card px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Shield className="size-4 shrink-0 text-primary" />
-            {translateOr(
-              t,
-              "INCIDENT_DATA_SAFE",
-              "Your data is safe and used only to resolve your ticket",
-            )}
-          </p>
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            <Button type="button" variant="ghost" className="gap-2" onClick={clearForm}>
-              <RotateCcw className="size-4" />
-              {translateOr(t, "INCIDENT_CLEAR_FORM", "Clear form")}
-            </Button>
-            <Button type="button" variant="outline" onClick={saveDraft}>
-              {translateOr(t, "INCIDENT_SAVE_DRAFT", "Save draft")}
-            </Button>
-            <Button
-              type="submit"
-              className="gap-2"
-              disabled={!canSubmit || createMutation.isPending}
-            >
-              <Send className="size-4" />
-              {translateOr(t, "FILE_INCIDENT", "Submit ticket")}
-            </Button>
-          </div>
+        <div className="flex justify-end">
+          <Button
+            type="submit"
+            className="gap-2"
+            disabled={!canSubmit || createMutation.isPending}
+          >
+            <Send className="size-4" />
+            {translateOr(t, "FILE_INCIDENT", "Submit ticket")}
+          </Button>
         </div>
       </form>
     </>

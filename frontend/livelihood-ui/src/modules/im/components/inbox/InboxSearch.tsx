@@ -39,7 +39,9 @@ export function InboxSearch({ onSearch, initialApplicationNumber = "" }: InboxSe
           />
         </div>
         <div className="flex items-center gap-3">
-          <Button type="submit">{t("ES_COMMON_SEARCH")}</Button>
+          <Button type="submit" size="lg">
+            {t("ES_COMMON_SEARCH")}
+          </Button>
           <button
             type="button"
             onClick={clearSearch}

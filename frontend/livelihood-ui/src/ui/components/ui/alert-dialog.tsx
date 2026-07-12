@@ -119,7 +119,7 @@ function AlertDialogAction({
 }: React.ComponentProps<typeof AlertDialogPrimitive.Action>) {
   return (
     <AlertDialogPrimitive.Action asChild>
-      <Button data-slot="alert-dialog-action" className={className} {...props} />
+      <Button data-slot="alert-dialog-action" size="lg" className={className} {...props} />
     </AlertDialogPrimitive.Action>
   )
 }
@@ -133,6 +133,7 @@ function AlertDialogCancel({
       <Button
         data-slot="alert-dialog-cancel"
         variant="outline"
+        size="lg"
         className={className}
         {...props}
       />

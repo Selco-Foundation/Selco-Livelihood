@@ -1,7 +1,8 @@
 import { useAuthStore, useTranslate } from "@/shared";
 import { Button } from "@/ui";
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { Files, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import {
   getWorkflowActionConfig,
   isQuotationRequiredAction,
@@ -18,6 +19,7 @@ import {
   updateIncidentAction,
 } from "../../services/workflow";
 import { buildUploadedDocuments } from "../../utils/create-incident-documents";
+import { MAX_IMAGE_COUNT } from "../../utils/media-validation";
 import { FormSelectField } from "../create/FormSelectField";
 
 interface ComplaintActionDialogProps {
@@ -53,41 +55,86 @@ function getOutOfWarrantyHelperText(
   ).replace("{endUserName}", endUserName);
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  const kb = bytes / 1024;
+  if (kb < 1024) {
+    return `${Math.round(kb)} KB`;
+  }
+  return `${(kb / 1024).toFixed(1)} MB`;
+}
+
 interface ActionDocumentsFieldProps {
   requiresQuotation: boolean;
   documentsRequired: boolean;
-  uploadCount: number;
+  uploads: UploadedMediaEntry[];
   isUploading: boolean;
+  maxFiles: number;
   onUpload: (files: FileList) => Promise<void>;
+  onRemove: (index: number) => void;
   t: (key: string) => string;
 }
 
 function ActionDocumentsField({
   requiresQuotation,
   documentsRequired,
-  uploadCount,
+  uploads,
   isUploading,
+  maxFiles,
   onUpload,
+  onRemove,
   t,
 }: ActionDocumentsFieldProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const maxFilesReached = uploads.length >= maxFiles;
   const label = requiresQuotation
     ? translateOr(t, "WF_QUOTATION_DOCUMENT", "Quotation document")
-    : translateOr(t, "INCIDENT_UPLOAD_IMAGE", "Supporting documents");
+    : translateOr(t, "WF_UPLOAD_FILES", "Upload Files");
   const accept = requiresQuotation
     ? ".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     : ".png,.jpg,.jpeg,.pdf,image/*,application/pdf";
 
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium text-foreground">
+      <label className="text-sm font-medium text-ink-950">
         {label}
-        {documentsRequired ? " *" : null}
+        {documentsRequired ? <span className="text-destructive"> *</span> : null}
       </label>
+
+      <button
+        type="button"
+        disabled={isUploading || maxFilesReached}
+        onClick={() => inputRef.current?.click()}
+        className="flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded border-2 border-dashed border-ink-300 bg-card py-6 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <span className="flex size-10 items-center justify-center rounded-full border border-[#D2EBD8] bg-accent text-primary">
+          <Files className="size-5" />
+        </span>
+        <span className="text-sm text-ink-950">
+          {translateOr(t, "WF_TAP_TO_UPLOAD", "Tap to upload files")}
+        </span>
+      </button>
+      <p className="text-xs text-ink-400">
+        {maxFilesReached
+          ? translateOr(
+              t,
+              "WF_MAX_FILES_REACHED",
+              "You can upload up to {MAX_COUNT} files",
+            ).replace("{MAX_COUNT}", String(maxFiles))
+          : translateOr(t, "WF_MAX_FILES_HINT", "You can upload up to {MAX_COUNT} files").replace(
+              "{MAX_COUNT}",
+              String(maxFiles),
+            )}
+      </p>
       <input
+        ref={inputRef}
         type="file"
+        className="hidden"
         accept={accept}
         multiple={!requiresQuotation}
-        disabled={isUploading}
+        disabled={isUploading || maxFilesReached}
         onChange={(event) => {
           if (event.target.files?.length) {
             onUpload(event.target.files).catch(() => {});
@@ -95,8 +142,32 @@ function ActionDocumentsField({
           }
         }}
       />
-      {uploadCount > 0 ? (
-        <p className="text-xs text-primary">{uploadCount} file(s) attached</p>
+
+      {uploads.length > 0 ? (
+        <div className="space-y-3">
+          {uploads.map((upload, index) => (
+            <div
+              key={`${upload.file.name}-${index}`}
+              className="flex items-center gap-3 rounded border border-ink-300 p-4"
+            >
+              <span className="flex size-10 shrink-0 items-center justify-center rounded bg-muted text-[10px] font-bold text-muted-foreground uppercase">
+                {upload.file.name.split(".").pop()}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-ink-600">{upload.file.name}</p>
+                <p className="text-sm text-ink-600">{formatFileSize(upload.file.size)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onRemove(index)}
+                aria-label={translateOr(t, "CS_COMMON_REMOVE", "Remove")}
+                className="shrink-0 cursor-pointer text-ink-400 hover:text-destructive"
+              >
+                <Trash2 className="size-5" />
+              </button>
+            </div>
+          ))}
+        </div>
       ) : null}
     </div>
   );
@@ -194,8 +265,21 @@ export function ComplaintActionDialog({
     if (!accessToken) {
       return;
     }
+
+    const filesToUpload = Array.from(files);
+    if (uploads.length + filesToUpload.length > MAX_IMAGE_COUNT) {
+      setError(
+        translateOr(
+          t,
+          "WF_MAX_FILES_REACHED",
+          "You can upload up to {MAX_COUNT} files",
+        ).replace("{MAX_COUNT}", String(MAX_IMAGE_COUNT)),
+      );
+      return;
+    }
+
     if (requiresQuotation) {
-      const hasImage = Array.from(files).some((file) =>
+      const hasImage = filesToUpload.some((file) =>
         file.type.startsWith("image/"),
       );
       if (hasImage) {
@@ -209,10 +293,11 @@ export function ComplaintActionDialog({
         return;
       }
     }
+    setError(null);
     setIsUploading(true);
     try {
       const uploaded: UploadedMediaEntry[] = [];
-      for (const file of Array.from(files)) {
+      for (const file of filesToUpload) {
         const result = await uploadIncidentFile(
           file,
           complaintDetails.tenantId,
@@ -230,6 +315,10 @@ export function ComplaintActionDialog({
     }
   };
 
+  const handleRemoveUpload = (index: number) => {
+    setUploads((prev) => prev.filter((_, entryIndex) => entryIndex !== index));
+  };
+
   if (!actionConfig) {
     return null;
   }
@@ -244,9 +333,30 @@ export function ComplaintActionDialog({
   const outOfWarrantyHelperText = getOutOfWarrantyHelperText(t, action, endUserName);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-card p-6 shadow-lg">
-        <h2 className="text-lg font-semibold text-foreground">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4 backdrop-blur-sm"
+      onClick={onClose}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " " || event.key === "Escape") {
+          onClose();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={translateOr(t, "CS_COMMON_CLOSE", "Close")}
+    >
+      <div
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-border bg-card px-6 py-5 shadow-lg"
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            onClose();
+          }
+        }}
+        role="dialog"
+        aria-modal="true"
+      >
+        <h2 className="text-xl leading-[30px] font-semibold text-ink-950">
           {t(`CS_ACTION_${action}`)}
         </h2>
 
@@ -273,12 +383,15 @@ export function ComplaintActionDialog({
           ) : null}
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">
+            <label className="text-sm font-medium text-ink-950">
               {t("WF_COMMON_COMMENTS")}
-              {actionConfig.comment === "required" ? " *" : null}
+              {actionConfig.comment === "required" ? (
+                <span className="text-destructive"> *</span>
+              ) : null}
             </label>
             <textarea
-              className="min-h-[100px] w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
+              className="min-h-[100px] w-full rounded border border-ink-300 bg-card px-3 py-2 text-sm placeholder:text-ink-300"
+              placeholder={translateOr(t, "WF_COMMENTS_PLACEHOLDER", "Describe the issue in detail...")}
               value={comments}
               onChange={(event) => setComments(event.target.value)}
             />
@@ -288,9 +401,11 @@ export function ComplaintActionDialog({
             <ActionDocumentsField
               requiresQuotation={requiresQuotation}
               documentsRequired={actionConfig.documents === "required"}
-              uploadCount={uploads.length}
+              uploads={uploads}
               isUploading={isUploading}
+              maxFiles={MAX_IMAGE_COUNT}
               onUpload={handleUpload}
+              onRemove={handleRemoveUpload}
               t={t}
             />
           ) : null}
@@ -304,12 +419,13 @@ export function ComplaintActionDialog({
           ) : null}
         </div>
 
-        <div className="mt-6 flex justify-end gap-3">
-          <Button type="button" variant="outline" onClick={onClose}>
+        <div className="mt-6 flex justify-center gap-3">
+          <Button type="button" variant="outline" size="lg" onClick={onClose}>
             {t("TL_COMMON_CANCEL")}
           </Button>
           <Button
             type="button"
+            size="lg"
             disabled={mutation.isPending || isUploading}
             onClick={() => {
               setError(null);
