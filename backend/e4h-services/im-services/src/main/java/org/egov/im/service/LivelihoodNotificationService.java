@@ -49,7 +49,8 @@ public class LivelihoodNotificationService {
     }
 
     /**
-     * LLD: ticket created (auto-assigned) — SMS to facility manager, SMS to vendor, email to POC (self-create only).
+     * Ticket create notifications. Only end user (self) or Program POC (on behalf) can create —
+     * vendors never create. Vendor receives assignment SMS after auto-assign.
      */
     public void notifyOnCreate(IncidentRequest request) {
         if (request == null || request.getIncident() == null) {
@@ -61,11 +62,13 @@ public class LivelihoodNotificationService {
         }
 
         if (Boolean.TRUE.equals(incident.getCreatedOnBehalf())) {
+            // POC raised on behalf of end user (LIV-TPL-002 / 003)
             notifyComplainantSms(request, LIV_TPL_002);
             notifyVendorSms(request, LIV_TPL_003);
         } else {
+            // End user self-create (LIV-TPL-001 / 018). Doc matrix asks for vendor SMS but
+            // provides no vendor template for self-create — only send documented templates.
             notifyComplainantSms(request, LIV_TPL_001);
-            notifyVendorSms(request, LIV_TPL_017);
             notifyPoc(request);
         }
     }
@@ -124,19 +127,9 @@ public class LivelihoodNotificationService {
                             request.getIncident().getIncidentId(), normalizedAction, newStatus);
                 }
             }
-            case "REOPEN" -> {
-                if (LIVELIHOOD_PENDING_FOR_RESOLUTION.equalsIgnoreCase(newStatus)) {
-                    notifyVendorSms(request, LIV_TPL_017);
-                }
-            }
             case REASSIGN, LIVELIHOOD_WF_ASSIGN_VENDOR -> {
                 if (LIVELIHOOD_OUT_OF_SCOPE_PENDING_VENDOR.equalsIgnoreCase(newStatus)) {
                     notifyOosReassignment(request);
-                }
-            }
-            case LIVELIHOOD_WF_AUTO_CLOSE -> {
-                if (LIVELIHOOD_CLOSED_AFTER_RESOLUTION.equalsIgnoreCase(newStatus)) {
-                    notifyComplainantSms(request, LIV_TPL_012);
                 }
             }
             default -> { }

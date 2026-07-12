@@ -61,8 +61,8 @@ public class LivelihoodSmsNotificationService {
                             + "We hope your issue has been addressed. Not satisfied with the resolution? You can change ticket "
                             + "status on {url} - SELCO Foundation"),
             Map.entry(LIV_TPL_012,
-                    "Your livelihood support ticket for {ticket_type} with ID {incidentId} submitted on {date} has been closed. "
-                            + "For further assistance, please contact the SELCO team or track ticket details on {url} - SELCO Foundation"),
+                    "Your livelihood support ticket for {ticket_type} with ID {incidentId} submitted on {date} has been closed "
+                            + "without resolution. For further assistance, please contact the SELCO team or track ticket details on {url} - SELCO Foundation"),
             Map.entry(LIV_TPL_014,
                     "Your livelihood support ticket for {ticket_type} with ID {incidentId} submitted on {date} has been declined "
                             + "by the vendor. Please contact your Program POC for further assistance or track ticket details on {url} - SELCO Foundation"),
@@ -70,9 +70,6 @@ public class LivelihoodSmsNotificationService {
                     "Your livelihood support ticket for {ticket_type} with ID {incidentId} submitted on {date} has been declined "
                             + "by the SELCO Foundation. For further assistance, please reach out to your local coordinator or track ticket "
                             + "details on {url} - SELCO Foundation"),
-            Map.entry(LIV_TPL_017,
-                    "Livelihood ticket for {ticket_type} with ID {incidentId} submitted on {date} has been assigned to you. "
-                            + "Please take necessary action or track ticket details on {url} - SELCO Foundation"),
             Map.entry(LIV_TPL_032,
                     "A follow-up action is required for your livelihood support ticket for {ticket_type} with ID {incidentId}. "
                             + "Reason: {reason}. Please respond at the earliest or track ticket details on {url} - SELCO Foundation"),

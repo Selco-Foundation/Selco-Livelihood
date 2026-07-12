@@ -140,7 +140,9 @@ public class LivelihoodPocSummaryEmailService {
         }
         LocalDate today = LocalDate.now(IST);
         if (weekly) {
-            LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+            // Cron runs Monday 09:00 IST for the previous completed Mon–Sun week.
+            LocalDate thisMonday = today.with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+            LocalDate weekStart = thisMonday.minusWeeks(1);
             LocalDate weekEnd = weekStart.plusDays(6);
             long from = weekStart.atStartOfDay(IST).toInstant().toEpochMilli();
             long to = weekEnd.plusDays(1).atStartOfDay(IST).toInstant().toEpochMilli() - 1;
