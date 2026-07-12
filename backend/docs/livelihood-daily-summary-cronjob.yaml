@@ -1,0 +1,22 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: livelihood-daily-summary
+  namespace: default  # Change to your namespace
+spec:
+  # Schedule: every day at 23:00 IST (end of day summary for current IST calendar day)
+  # Cron format: minute hour day month day-of-week
+  # timeZone: "Asia/Kolkata" handles IST conversion automatically
+  schedule: "0 23 * * *"  # 23:00 IST, daily
+  timeZone: "Asia/Kolkata"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: livelihood-daily-summary
+            image: livelihood-daily-summary-cron:latest  # Your Docker image
+            imagePullPolicy: IfNotPresent
+          restartPolicy: OnFailure
