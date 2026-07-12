@@ -442,7 +442,8 @@ public class WorkflowService {
             assignComplainantForResolve(workflow, request);
         } else if (LIVELIHOOD_WF_OUT_OF_SCOPE.equals(normalized)) {
             reassignWorkflow(workflow, request, ROLE_LIVELIHOOD_POC);
-        } else if (LIVELIHOOD_WF_DECLINE.equals(normalized)) {
+        } else if (LIVELIHOOD_WF_DECLINE.equals(normalized)
+                || LIVELIHOOD_WF_DECLINE_POC.equals(normalized)) {
             clearAssigneesForTerminalAction(workflow);
         } else if (LIVELIHOOD_WF_OUT_OF_WARRANTY.equals(normalized)) {
             keepActingVendorAssigned(workflow, request);
