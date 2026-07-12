@@ -50,22 +50,28 @@ public class LivelihoodPocSummaryEmailService {
             log.warn("No active LIVELIHOOD_POC employees found for tenantId={}", tenantId);
             return 0;
         }
+        log.info("Livelihood {} summary: {} POC(s) tenantId={} windowMs=[{}..{}]",
+                weekly ? "weekly" : "daily", pocs.size(), tenantId, window.fromMs(), window.toMs());
 
         int sent = 0;
         for (LivelihoodPocRecipient poc : pocs) {
             List<String> prefixes = pocDirectoryService.toBoundaryPrefixes(poc.getStateBoundaryCodes());
             if (prefixes.isEmpty()) {
+                log.warn("Skipping POC {} — no jurisdiction boundaries", poc.getEmail());
                 continue;
             }
+            log.info("POC {} boundaries={} prefixes={}", poc.getEmail(), poc.getStateBoundaryCodes(), prefixes);
             Map<String, String> basePlaceholders = buildBasePlaceholders(poc, window, appUrl);
 
             for (LivelihoodSummaryEventType eventType : LivelihoodSummaryEventType.values()) {
                 int count = summaryCountService.count(
                         eventType, tenantId, window.fromMs(), window.toMs(), prefixes);
+                String templateCode = eventType.templateCode(weekly);
                 if (count <= 0) {
+                    log.info("Skip {} for {} count={}", templateCode, poc.getEmail(), count);
                     continue;
                 }
-                String templateCode = eventType.templateCode(weekly);
+                log.info("Send {} to {} count={}", templateCode, poc.getEmail(), count);
                 Map<String, String> placeholders = new HashMap<>(basePlaceholders);
                 placeholders.put("count", String.valueOf(count));
 
