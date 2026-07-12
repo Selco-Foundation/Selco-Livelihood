@@ -3,6 +3,7 @@ package org.selco.e4h.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.selco.e4h.util.ElasticSearchClient;
+import org.selco.e4h.util.LivelihoodBoundaryScopeUtil;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -132,7 +133,11 @@ public class LivelihoodSummaryElasticsearchService {
         if (boundaryPrefix == null) {
             return null;
         }
-        String normalized = boundaryPrefix.trim().toLowerCase(Locale.ROOT);
+        // ES keyword is case-sensitive; Livelihood stores INDIA_KARNATAKA (uppercase).
+        String normalized = LivelihoodBoundaryScopeUtil.toEsStateCode(boundaryPrefix.trim());
+        if (normalized == null) {
+            return null;
+        }
         if (normalized.endsWith("_%")) {
             normalized = normalized.substring(0, normalized.length() - 2);
         }

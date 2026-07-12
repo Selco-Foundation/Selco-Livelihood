@@ -19,9 +19,15 @@ public final class LivelihoodBoundaryScopeUtil {
             return Collections.emptyList();
         }
         return stateBoundaryCodes.stream()
-                .map(code -> toStateBoundaryCode(code).toLowerCase(Locale.ROOT) + "_%")
+                .map(LivelihoodBoundaryScopeUtil::toEsStateCode)
+                .filter(StringUtils::hasText)
                 .distinct()
                 .collect(Collectors.toList());
+    }
+
+    public static String toEsStateCode(String boundaryCode) {
+        String code = toStateBoundaryCode(boundaryCode);
+        return StringUtils.hasText(code) ? code.toUpperCase(Locale.ROOT) : code;
     }
 
     public static String toStateBoundaryCode(String boundaryCode) {
