@@ -337,6 +337,9 @@ export function ComplaintActionDialog({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4 backdrop-blur-sm"
       onClick={onClose}
       onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) {
+          return;
+        }
         if (event.key === "Enter" || event.key === " " || event.key === "Escape") {
           onClose();
         }
