@@ -5,7 +5,7 @@ import {
   useAuthStore,
   useTranslate,
 } from "@/shared";
-import { Button, PageHeader, StatTile } from "@/ui";
+import { Button, StatTile } from "@/ui";
 import { Link } from "@tanstack/react-router";
 import { Clock, FileText, Plus } from "lucide-react";
 import { useEffect } from "react";
@@ -24,9 +24,6 @@ export function ImOverview() {
   const { assets, isLoading: isAssetsLoading } = useEndUserAssets({ enabled: endUser });
   const canCreate = canCreateIncident(user?.roles);
   const displayName = user?.name ?? user?.userName ?? "";
-  const welcomeTitle = displayName
-    ? `${translateOr(t, "ES_IM_WELCOME", "Welcome")}, ${displayName}`
-    : translateOr(t, "ES_IM_WELCOME", "Welcome");
 
   useEffect(() => {
     void loadModules(["rainmaker-im"]);
@@ -38,35 +35,37 @@ export function ImOverview() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={welcomeTitle}
-        description={
-          endUser
-            ? translateOr(
-                t,
-                "ES_IM_OVERVIEW_SUBTITLE",
-                "Manage your issue resolution tickets and track your registered assets across the platform",
-              )
-            : translateOr(t, "ES_IM_OVERVIEW_SUBTITLE_SHORT", "Manage tickets")
-        }
-        action={
-          <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl leading-9 font-semibold text-ink-950 lg:text-[32px] lg:leading-[48px]">
+          {translateOr(t, "ES_IM_WELCOME", "Welcome")}
+          {displayName ? <span className="hidden lg:inline">, {displayName}</span> : null}
+        </h1>
+        <div className="flex shrink-0 items-center gap-3">
+          <div className="hidden items-center gap-3 lg:flex">
             <LanguageSwitcher />
-            {canCreate ? (
-              <>
-                <span aria-hidden="true" className="h-8 w-px bg-border" />
-                <Button asChild size="sm" className="gap-1.5 rounded-md px-4 text-sm font-semibold">
-                  <Link to={`${basePath}/incident/create`}>
-                    <Plus className="size-4" />
-                    {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise new ticket")}
-                  </Link>
-                </Button>
-              </>
-            ) : null}
+            {canCreate ? <span aria-hidden="true" className="h-8 w-px bg-border" /> : null}
           </div>
-        }
-      />
-      <div className="flex flex-wrap gap-4">
+          {canCreate ? (
+            <Button asChild size="sm" className="gap-1.5 rounded-full px-4 text-sm font-semibold lg:rounded-md">
+              <Link to={`${basePath}/incident/create`}>
+                <Plus className="size-4" />
+                <span className="lg:hidden">{translateOr(t, "ES_IM_RAISE_TICKET_SHORT", "Raise Ticket")}</span>
+                <span className="hidden lg:inline">{translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise new ticket")}</span>
+              </Link>
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      <p className="hidden text-sm leading-[21px] text-ink-600 lg:block">
+        {endUser
+          ? translateOr(
+              t,
+              "ES_IM_OVERVIEW_SUBTITLE",
+              "Manage your issue resolution tickets and track your registered assets across the platform",
+            )
+          : translateOr(t, "ES_IM_OVERVIEW_SUBTITLE_SHORT", "Manage tickets")}
+      </p>
+      <div className="flex gap-3 lg:flex-wrap lg:gap-4">
         <StatTile
           icon={<FileText className="h-6 w-6" />}
           iconClassName="bg-info text-info-foreground"
