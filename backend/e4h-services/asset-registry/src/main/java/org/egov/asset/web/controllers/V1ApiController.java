@@ -147,7 +147,8 @@ public class V1ApiController {
     public ResponseEntity<QrResolveResponse> resolveQr(
             @Parameter(in = ParameterIn.DEFAULT, description = "QR payload with tenantId and assetId", required = true, schema = @Schema())
             @Valid @RequestBody QrResolveRequest body) {
-        log.info("Received QR resolve request | tenantId={} assetId={}", body.getTenantId(), body.getAssetId());
+        log.info("Received QR resolve request | tenantId={} facilityId={} assetId={}",
+                body.getTenantId(), body.getFacilityId(), body.getAssetId());
         QrResolveResponse response = qrResolveService.resolve(body);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }

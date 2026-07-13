@@ -18,8 +18,9 @@ import org.springframework.stereotype.Service;
 import java.util.Map;
 
 /**
- * QR → asset → facility → COMPLAINANT mobile resolve for OTP-based login (Issue #5 Phase 2).
- * Does not send OTP or issue tokens — client uses user-otp + OAuth.
+ * QR → facility → COMPLAINANT mobile resolve for OTP-based login.
+ * End user is facility-level; assets are linked to the facility.
+ * Optional assetId returns scanned asset context for post-login pre-select.
  */
 @Service
 @RequiredArgsConstructor
@@ -33,20 +34,47 @@ public class QrResolveService {
 
     public QrResolveResponse resolve(QrResolveRequest request) {
         String tenantId = trim(request.getTenantId());
-        String assetId = resolveAssetId(request);
-
-        if (StringUtils.isBlank(tenantId) || StringUtils.isBlank(assetId)) {
+        if (StringUtils.isBlank(tenantId)) {
             throw new CustomException(ErrorConstants.INVALID_QR_CODE, ErrorConstants.INVALID_QR_MSG);
         }
 
-        log.info("QR resolve started | tenantId={} assetId={}", tenantId, assetId);
+        String facilityId = trim(request.getFacilityId());
+        String assetId = trim(request.getAssetId());
+        ScannedAssetSummary scannedAsset = null;
 
-        Asset asset = assetService.getAssetById(tenantId, assetId);
-        if (StringUtils.isBlank(asset.getFacilityID())) {
-            throw new CustomException(ErrorConstants.QR_FACILITY_NOT_FOUND_CODE, ErrorConstants.QR_FACILITY_NOT_FOUND_MSG);
+        // Optional asset path: asset → facility (same end user as facility QR)
+        if (StringUtils.isNotBlank(assetId)) {
+            Asset asset = assetService.getAssetById(tenantId, assetId);
+            if (StringUtils.isBlank(asset.getFacilityID())) {
+                throw new CustomException(ErrorConstants.QR_FACILITY_NOT_FOUND_CODE, ErrorConstants.QR_FACILITY_NOT_FOUND_MSG);
+            }
+            if (StringUtils.isNotBlank(facilityId) && !facilityId.equalsIgnoreCase(asset.getFacilityID().trim())) {
+                throw new CustomException(ErrorConstants.INVALID_QR_CODE,
+                        "assetId does not belong to the provided facilityId");
+            }
+            facilityId = asset.getFacilityID().trim();
+            scannedAsset = ScannedAssetSummary.builder()
+                    .assetId(asset.getAssetId())
+                    .facilityID(asset.getFacilityID())
+                    .itemCode(asset.getItemCode())
+                    .name(asset.getName())
+                    .vendorId(asset.getVendorId())
+                    .boundaryCode(asset.getBoundaryCode())
+                    .serialNumber(asset.getSerialNumber())
+                    .build();
         }
 
-        Map<String, String> facility = facilityUtil.resolveFacilityDetails(tenantId, asset.getFacilityID());
+        if (StringUtils.isBlank(facilityId) && StringUtils.isNotBlank(request.getQrPayload())) {
+            facilityId = request.getQrPayload().trim();
+        }
+
+        if (StringUtils.isBlank(facilityId)) {
+            throw new CustomException(ErrorConstants.INVALID_QR_CODE, ErrorConstants.INVALID_QR_MSG);
+        }
+
+        log.info("QR resolve started | tenantId={} facilityId={} assetId={}", tenantId, facilityId, assetId);
+
+        Map<String, String> facility = facilityUtil.resolveFacilityDetails(tenantId, facilityId);
         if (facility == null || StringUtils.isBlank(facility.get("boundaryCode"))) {
             throw new CustomException(ErrorConstants.QR_FACILITY_NOT_FOUND_CODE, ErrorConstants.QR_FACILITY_NOT_FOUND_MSG);
         }
@@ -61,40 +89,18 @@ public class QrResolveService {
             throw new CustomException(ErrorConstants.MOBILE_NOT_REGISTERED_CODE, ErrorConstants.MOBILE_NOT_REGISTERED_MSG);
         }
 
-        ScannedAssetSummary scannedAsset = ScannedAssetSummary.builder()
-                .assetId(asset.getAssetId())
-                .facilityID(asset.getFacilityID())
-                .itemCode(asset.getItemCode())
-                .name(asset.getName())
-                .vendorId(asset.getVendorId())
-                .boundaryCode(asset.getBoundaryCode())
-                .serialNumber(asset.getSerialNumber())
-                .build();
-
         QrResolveResponse response = QrResolveResponse.builder()
                 .responseInfo(responseInfoFactory.createResponseInfoFromRequestInfo(requestInfo, true))
                 .userName(mobile)
                 .mobileNumber(mobile)
                 .userUuid(complainant.get("uuid"))
-                .facilityId(firstNonBlank(facility.get("facilityId"), asset.getFacilityID()))
+                .facilityId(firstNonBlank(facility.get("facilityId"), facilityId))
                 .facilityBoundaryCode(facilityBoundary)
                 .scannedAsset(scannedAsset)
                 .build();
 
-        log.info("QR resolve succeeded | assetId={} facilityId={} userUuid={}",
-                assetId, response.getFacilityId(), response.getUserUuid());
+        log.info("QR resolve succeeded | facilityId={} userUuid={}", response.getFacilityId(), response.getUserUuid());
         return response;
-    }
-
-    private String resolveAssetId(QrResolveRequest request) {
-        if (StringUtils.isNotBlank(request.getAssetId())) {
-            return request.getAssetId().trim();
-        }
-        // Phase-2: qrPayload may be a plain assetId (or URL-decoded token that is the assetId).
-        if (StringUtils.isNotBlank(request.getQrPayload())) {
-            return request.getQrPayload().trim();
-        }
-        return null;
     }
 
     private String trim(String value) {

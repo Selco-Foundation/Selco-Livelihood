@@ -191,11 +191,11 @@ public class ErrorConstants {
     // QR resolve / OTP login
     public static final String INVALID_QR_CODE = "INVALID_QR";
     public static final String INVALID_QR_MSG =
-            "QR payload is invalid. Provide tenantId and assetId, or contact support.";
+            "QR payload is invalid. Provide tenantId and facilityId (or assetId), or contact support.";
 
     public static final String QR_FACILITY_NOT_FOUND_CODE = "FACILITY_NOT_FOUND";
     public static final String QR_FACILITY_NOT_FOUND_MSG =
-            "No facility found for the scanned asset. Contact support.";
+            "No facility found for the scanned QR. Contact support.";
 
     public static final String COMPLAINANT_NOT_FOUND_CODE = "COMPLAINANT_NOT_FOUND";
     public static final String COMPLAINANT_NOT_FOUND_MSG =
@@ -203,7 +203,7 @@ public class ErrorConstants {
 
     public static final String MOBILE_NOT_REGISTERED_CODE = "MOBILE_NOT_REGISTERED";
     public static final String MOBILE_NOT_REGISTERED_MSG =
-            "No phone number is registered against the scanned asset. Contact support.";
+            "No phone number is registered for the end user. Contact support.";
 
     public static final String HRMS_COMPLAINANT_ERROR_CODE = "HRMS_COMPLAINANT_ERROR";
     public static final String HRMS_COMPLAINANT_ERROR_MSG =

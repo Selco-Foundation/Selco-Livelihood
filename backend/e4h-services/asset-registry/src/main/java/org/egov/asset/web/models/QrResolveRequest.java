@@ -9,8 +9,9 @@ import org.egov.common.contract.request.RequestInfo;
 import org.springframework.validation.annotation.Validated;
 
 /**
- * Request for QR → end-user (COMPLAINANT) resolve used by OTP login.
- * QR encodes assetId; backend resolves facility manager mobile for OTP pre-fill.
+ * Request for QR → facility end-user (COMPLAINANT) resolve used by OTP login.
+ * Primary key is facilityId (end user is created at facility level).
+ * Optional assetId pre-selects a linked asset after login.
  */
 @Validated
 @Data
@@ -25,12 +26,17 @@ public class QrResolveRequest {
     @JsonProperty("tenantId")
     private String tenantId;
 
+    /** Preferred — QR encodes facilityId (1 end user per facility). */
+    @JsonProperty("facilityId")
+    private String facilityId;
+
+    /** Optional — when QR is stuck on a specific asset; resolves via asset → facility. */
     @JsonProperty("assetId")
     private String assetId;
 
     /**
-     * Optional alternate payload field (base64 / signed token). When present without assetId,
-     * treated as plain assetId string for Phase-2 OTP login.
+     * Optional alternate payload. When present without facilityId/assetId,
+     * treated as facilityId for Phase-2 OTP login.
      */
     @JsonProperty("qrPayload")
     private String qrPayload;

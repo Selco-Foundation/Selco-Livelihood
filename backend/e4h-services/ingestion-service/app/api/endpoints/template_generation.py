@@ -861,6 +861,172 @@ async def get_facility_QR_for_autologin(
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+
+@router.post(
+    '/livelihoodFacilityQRGeneration',
+    summary='Generate Livelihood facility QR codes for OTP login',
+    response_description='ZIP of PNG QR codes (one per facility)',
+)
+async def get_livelihood_facility_qr_for_otp_login(
+        payload: dict = Body(
+            ...,
+            description=(
+                "RequestInfo + optional filters. "
+                "QR encodes facilityId for OTP login "
+                "(end user is facility-level; assets are linked to the facility)."
+            ),
+        ),
+):
+    """
+    Generate printable QR codes for Livelihood facility end-user OTP login.
+
+    Each QR encodes:
+      {baseUrl}/{contextPath}/employee/user/qr-login?tenantId=livelihood&facilityId={facilityId}
+
+    On scan the UI calls asset-registry qr/_resolve → user-otp → OAuth.
+    """
+    request_info = request_info_from_json(payload.get("RequestInfo", {}))
+    tenant_id = payload.get("tenantId") or LIVELIHOOD_TENANT_ID
+    base_url = (payload.get("baseUrl") or os.getenv(
+        "LIVELIHOOD_UI_BASE_URL",
+        "https://setu4livelihood-dev.selcofoundation.org",
+    )).rstrip("/")
+    context_path = (payload.get("contextPath") or os.getenv("LIVELIHOOD_UI_CONTEXT_PATH", "livelihood")).strip("/")
+    boundary_code = payload.get("boundaryCode")
+    facility_ids = payload.get("facilityIds") or []
+    if isinstance(facility_ids, str):
+        facility_ids = [facility_ids]
+
+    if not facility_service_url:
+        raise HTTPException(status_code=500, detail="FACILITY_SERVICE_URL is not configured")
+
+    facility_client = FacilityServiceClient(facility_service_url)
+    temp_dir = tempfile.mkdtemp()
+    generated = 0
+    skipped = 0
+
+    try:
+        facilities = []
+        if facility_ids:
+            for fid in facility_ids:
+                if not fid:
+                    continue
+                result = facility_client.search_facility(tenant_id=tenant_id, facility_id=str(fid).strip())
+                facilities.extend(result.get("facilities") or [])
+        else:
+            result = facility_client.search_facility(tenant_id=tenant_id, boundary_code=boundary_code)
+            facilities = result.get("facilities") or []
+
+        if not facilities:
+            raise HTTPException(status_code=404, detail="No facilities found for the given filters")
+
+        # Deduplicate by facility_id
+        seen = set()
+        unique_facilities = []
+        for facility in facilities:
+            fid = facility.get("facility_id") or facility.get("facilityId")
+            if not fid or fid in seen:
+                continue
+            seen.add(fid)
+            unique_facilities.append(facility)
+
+        for facility in unique_facilities:
+            facility_id = facility.get("facility_id") or facility.get("facilityId")
+            facility_name = (
+                facility.get("facility_name")
+                or facility.get("facilityName")
+                or facility_id
+            )
+            phone = facility.get("facility_poc_phone") or facility.get("facilityPocPhone") or ""
+            boundary = facility.get("boundaryCode") or facility.get("boundary_code") or "unknown"
+
+            # Folder: boundary / facility name (sanitized)
+            safe_boundary = _sanitize_path_segment(boundary)
+            safe_name = _sanitize_path_segment(facility_name)
+            qr_folder = os.path.join(temp_dir, safe_boundary, safe_name)
+            os.makedirs(qr_folder, exist_ok=True)
+
+            login_url = (
+                f"{base_url}/{context_path}/employee/user/qr-login"
+                f"?tenantId={tenant_id}&facilityId={facility_id}"
+            )
+
+            qr = qrcode.make(login_url).convert("RGB")
+            width, height = qr.size
+            font_size = 28
+            padding = 10
+            try:
+                font = ImageFont.truetype("DejaVuSans-Bold.ttf", font_size)
+            except Exception:
+                font = ImageFont.load_default()
+
+            label = facility_name
+            if phone:
+                label = f"{facility_name} | {phone}"
+
+            bbox = ImageDraw.Draw(Image.new("RGB", (1, 1))).textbbox((0, 0), label, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            canvas_width = max(width, text_width + 2 * padding)
+            new_height = height + text_height + 2 * padding
+            combined = Image.new("RGB", (canvas_width, new_height), "white")
+            combined.paste(qr, ((canvas_width - width) // 2, 0))
+            draw = ImageDraw.Draw(combined)
+            draw.text(
+                ((canvas_width - text_width) // 2, height + padding),
+                label,
+                font=font,
+                fill="black",
+            )
+
+            qr_filename = f"{_sanitize_path_segment(facility_id)}.png"
+            combined.save(os.path.join(qr_folder, qr_filename))
+            generated += 1
+
+            # Also write a small sidecar with the encoded URL for ops/debug
+            with open(os.path.join(qr_folder, f"{_sanitize_path_segment(facility_id)}.url.txt"), "w", encoding="utf-8") as f:
+                f.write(login_url)
+
+        if generated == 0:
+            raise HTTPException(status_code=404, detail="No QR codes generated")
+
+        zip_path = os.path.join(tempfile.gettempdir(), f"livelihood_facility_qr_codes_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip")
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+            for root, _, files in os.walk(temp_dir):
+                for file in files:
+                    abs_file = os.path.join(root, file)
+                    rel_path = os.path.relpath(abs_file, temp_dir)
+                    zipf.write(abs_file, arcname=rel_path)
+
+        logger.info(
+            "Livelihood facility QR generation done | tenantId=%s generated=%s skipped=%s requestMsgId=%s",
+            tenant_id,
+            generated,
+            skipped,
+            getattr(request_info, "msg_id", None) if request_info else None,
+        )
+
+        return FileResponse(
+            path=zip_path,
+            filename="livelihood_facility_qr_codes.zip",
+            media_type="application/zip",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Livelihood facility QR generation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def _sanitize_path_segment(value: str) -> str:
+    if not value:
+        return "unknown"
+    cleaned = "".join(c if c.isalnum() or c in ("-", "_", ".") else "_" for c in str(value).strip())
+    return cleaned[:120] or "unknown"
+
+
 @router.post('/amcConfigurationTemplate',
             summary='Generate AMC configuration ingestion template',
             response_description="Returns Excel template with facility asset metadata for AMC configurations")
