@@ -187,4 +187,25 @@ public class ErrorConstants {
 
     public static final String ASSET_BOUNDARY_ENRICHMENT_CODE = "ERR_ASSET_BOUNDARY_ENRICHMENT";
     public static final String ASSET_BOUNDARY_ENRICHMENT_MSG = "Asset ID must be generated before assigning asset boundary code";
+
+    // QR resolve / OTP login
+    public static final String INVALID_QR_CODE = "INVALID_QR";
+    public static final String INVALID_QR_MSG =
+            "QR payload is invalid. Provide tenantId and assetId, or contact support.";
+
+    public static final String QR_FACILITY_NOT_FOUND_CODE = "FACILITY_NOT_FOUND";
+    public static final String QR_FACILITY_NOT_FOUND_MSG =
+            "No facility found for the scanned asset. Contact support.";
+
+    public static final String COMPLAINANT_NOT_FOUND_CODE = "COMPLAINANT_NOT_FOUND";
+    public static final String COMPLAINANT_NOT_FOUND_MSG =
+            "No facility manager (COMPLAINANT) found for the facility. Contact support.";
+
+    public static final String MOBILE_NOT_REGISTERED_CODE = "MOBILE_NOT_REGISTERED";
+    public static final String MOBILE_NOT_REGISTERED_MSG =
+            "No phone number is registered against the scanned asset. Contact support.";
+
+    public static final String HRMS_COMPLAINANT_ERROR_CODE = "HRMS_COMPLAINANT_ERROR";
+    public static final String HRMS_COMPLAINANT_ERROR_MSG =
+            "Failed to resolve facility manager from HRMS";
 }

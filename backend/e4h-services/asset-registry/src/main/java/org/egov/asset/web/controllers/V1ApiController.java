@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.egov.asset.service.AssetService;
+import org.egov.asset.service.QrResolveService;
 import org.egov.asset.util.LivelihoodPocScopeService;
 import org.egov.asset.web.models.*;
 import org.egov.asset.web.validator.AssetValidator;
@@ -37,14 +38,18 @@ public class V1ApiController {
 
     private final LivelihoodPocScopeService livelihoodPocScopeService;
 
+    private final QrResolveService qrResolveService;
+
     @Autowired
     public V1ApiController(ObjectMapper objectMapper, HttpServletRequest request, AssetValidator validator,
-                           AssetService assetService, LivelihoodPocScopeService livelihoodPocScopeService) {
+                           AssetService assetService, LivelihoodPocScopeService livelihoodPocScopeService,
+                           QrResolveService qrResolveService) {
         this.objectMapper = objectMapper;
         this.request = request;
         this.validator = validator;
         this.assetService = assetService;
         this.livelihoodPocScopeService = livelihoodPocScopeService;
+        this.qrResolveService = qrResolveService;
     }
 
     @RequestMapping(value = "/v1/asset/bulk/_create", method = RequestMethod.POST)
@@ -132,6 +137,19 @@ public class V1ApiController {
         }
 
         return new ResponseEntity<Object>(HttpStatus.NOT_IMPLEMENTED);
+    }
+
+    /**
+     * QR → asset + facility manager mobile for OTP login (unauthenticated).
+     * Client then calls /user-otp/v1/_send and /user/oauth/token with the OTP.
+     */
+    @RequestMapping(value = "/v1/asset/qr/_resolve", method = RequestMethod.POST)
+    public ResponseEntity<QrResolveResponse> resolveQr(
+            @Parameter(in = ParameterIn.DEFAULT, description = "QR payload with tenantId and assetId", required = true, schema = @Schema())
+            @Valid @RequestBody QrResolveRequest body) {
+        log.info("Received QR resolve request | tenantId={} assetId={}", body.getTenantId(), body.getAssetId());
+        QrResolveResponse response = qrResolveService.resolve(body);
+        return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
     @RequestMapping(value = "/v1/asset/_search", method = RequestMethod.POST)
