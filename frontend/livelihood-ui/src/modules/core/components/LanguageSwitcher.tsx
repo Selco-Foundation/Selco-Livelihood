@@ -7,10 +7,14 @@ import {
   DropdownMenuTrigger,
   toast,
 } from "@/ui";
-import { ChevronDown, Globe } from "lucide-react";
+import {ChevronDown, Languages} from "lucide-react";
 import { useState } from "react";
 
-export function LanguageSwitcher() {
+interface LanguageSwitcherProps {
+  compact?: boolean;
+}
+
+export function LanguageSwitcher({ compact = false }: LanguageSwitcherProps = {}) {
   const currentLocale = useLocaleStore((state) => state.locale);
   const languages = useLanguages();
   const [isSwitching, setIsSwitching] = useState(false);
@@ -41,11 +45,23 @@ export function LanguageSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" disabled={isSwitching} className="gap-1">
-          <Globe className="size-4 opacity-60" />
-          <span className="hidden lg:inline">{current?.nativeLabel ?? "Language"}</span>
-          <ChevronDown className="size-4 opacity-60" />
-        </Button>
+        {compact ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            disabled={isSwitching}
+            aria-label={current?.nativeLabel ?? "Language"}
+            className="text-current hover:bg-white/10 hover:text-current"
+          >
+            <Languages className="size-5" />
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm" disabled={isSwitching} className="gap-1">
+            <Languages className="size-4 opacity-60" />
+            <span className="hidden lg:inline">{current?.nativeLabel ?? "Language"}</span>
+            <ChevronDown className="size-4 opacity-60" />
+          </Button>
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {languages.map((language) => (

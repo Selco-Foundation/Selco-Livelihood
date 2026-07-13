@@ -34,10 +34,19 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarSeparator,
+  cn,
   toast,
 } from "@/ui";
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Home, LogOut } from "lucide-react";
+import { LanguageSwitcher } from "../components/LanguageSwitcher";
+
+function isNavItemActive(item: NavItem, pathname: string, homePath: string): boolean {
+  const matchAgainst = [item.to, ...(item.matchPrefixes ?? [])];
+  return item.to === homePath
+    ? pathname === item.to
+    : matchAgainst.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
 
 export function AppShell() {
   const navItems = getModuleNavItems();
@@ -54,11 +63,12 @@ export function AppShell() {
     user?.userName?.slice(0, 2).toUpperCase() ??
     "LU";
 
+  const homePath = `${basePath}/employee`;
   const allNavItems: NavItem[] = [
     {
       id: "overview",
       label: "Overview",
-      to: `${basePath}/employee`,
+      to: homePath,
       icon: Home,
     },
     ...navItems,
@@ -69,7 +79,7 @@ export function AppShell() {
       <Sidebar
         collapsible="none"
         style={{ borderRight: "none" }}
-        className="w-(--sidebar-width-icon) items-center md:w-(--sidebar-width) md:items-stretch"
+        className="hidden w-(--sidebar-width-icon) items-center md:w-(--sidebar-width) md:items-stretch lg:flex"
       >
         <SidebarHeader className="items-center gap-6 px-2 pt-12 pb-5 md:px-7">
           <div className="flex h-10 w-10 items-center justify-center rounded-[3px] p-1 md:h-[80px] md:w-[80px]">
@@ -87,14 +97,7 @@ export function AppShell() {
               <SidebarMenu>
                 {allNavItems.map((item) => {
                   const Icon = item.icon;
-                  const homePath = `${basePath}/employee`;
-                  const matchAgainst = [item.to, ...(item.matchPrefixes ?? [])];
-                  const isActive =
-                    item.to === homePath
-                      ? pathname === item.to
-                      : matchAgainst.some(
-                          (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-                        );
+                  const isActive = isNavItemActive(item, pathname, homePath);
 
                   return (
                     <SidebarMenuItem key={item.id}>
@@ -164,9 +167,42 @@ export function AppShell() {
           </AlertDialog>
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset className="min-h-0 [scrollbar-gutter:stable] overflow-y-auto rounded-tl-[48px] rounded-bl-[48px] bg-page pt-12 pr-8 pb-10 pl-8">
-        <Outlet />
-      </SidebarInset>
+
+      <div className="flex min-h-0 w-full flex-1 flex-col lg:contents">
+        <header className="flex shrink-0 items-center justify-between bg-sidebar px-4 py-4 text-sidebar-foreground lg:hidden">
+          <span className="text-lg font-semibold">
+            {translateOr(t, "CORE_APP_TITLE", "SELCO Livelihood")}
+          </span>
+          <LanguageSwitcher compact />
+        </header>
+
+        <SidebarInset className="min-h-0 flex-1 [scrollbar-gutter:stable] overflow-y-auto bg-page px-4 py-4 lg:rounded-tl-[48px] lg:rounded-bl-[48px] lg:pt-12 lg:pr-8 lg:pb-10 lg:pl-8">
+          <Outlet />
+        </SidebarInset>
+
+        <nav className="flex shrink-0 items-center justify-around gap-2 border-t border-border bg-white px-4 py-2 lg:hidden">
+          {allNavItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = isNavItemActive(item, pathname, homePath);
+
+            return (
+              <Link
+                key={item.id}
+                to={item.to}
+                aria-label={item.label}
+                className={cn(
+                  "flex items-center justify-center rounded-full p-3 transition-colors",
+                  isActive
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {Icon ? <Icon className="size-5" /> : null}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
     </SidebarProvider>
   );
 }
