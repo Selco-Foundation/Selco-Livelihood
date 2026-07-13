@@ -1,4 +1,4 @@
-import { useTranslate } from "@/shared";
+import { translateOr, useTranslate } from "@/shared";
 import { Skeleton } from "@/ui";
 import type { ImInboxFilters, InboxDataResult } from "../../types/inbox";
 import { ComplaintTable } from "./ComplaintTable";
@@ -51,13 +51,13 @@ export function DesktopInbox({
           </div>
         ) : data && data.combinedRes.length === 0 ? (
           <div className="px-6 py-16 text-center text-sm text-muted-foreground">
-            {t("CS_INBOX_NOTHING_TO_SHOW")}
+            {translateOr(t, "CS_INBOX_NOTHING_TO_SHOW", "No Tickets Found")}
           </div>
         ) : data?.combinedRes?.length ? (
           <ComplaintTable data={data.combinedRes} />
         ) : (
           <div className="px-6 py-16 text-center text-sm text-muted-foreground">
-            {t("CS_COMMON_ERROR_LOADING_RESULTS")}
+            {translateOr(t, "CS_COMMON_ERROR_LOADING_RESULTS", "Unable to load results")}
           </div>
         )}
       </div>

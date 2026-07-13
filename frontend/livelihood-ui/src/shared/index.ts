@@ -43,6 +43,7 @@ export { I18nProvider } from "./i18n/provider";
 export { initI18n, loadModules, reloadModule, setLocale, i18n } from "./i18n";
 export { useTranslate } from "./i18n/useTranslate";
 export { useModuleI18n } from "./i18n/useModuleI18n";
+export { translateOr } from "./i18n/translate-or";
 export { persistActiveLocale, readActiveLocale } from "./i18n/locale-persistence";
 export {
   getAllKnownModules,

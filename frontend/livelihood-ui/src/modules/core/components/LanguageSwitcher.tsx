@@ -1,4 +1,4 @@
-import { setLocale, useLanguages, useLocaleStore, useTranslate } from "@/shared";
+import { setLocale, translateOr, useLanguages, useLocaleStore, useTranslate } from "@/shared";
 import {
   Button,
   DropdownMenu,
@@ -28,10 +28,10 @@ export function LanguageSwitcher() {
     try {
       await setLocale(code);
     } catch (error) {
-      toast.error(t("CORE_LANGUAGE_SWITCH_FAILURE_TOAST"), {
+      toast.error(translateOr(t, "CORE_LANGUAGE_SWITCH_FAILURE_TOAST", "Failed to change language"), {
         description: error instanceof Error
           ? error.message
-          : t("CORE_LANGUAGE_SWITCH_ERROR_GENERIC"),
+          : translateOr(t, "CORE_LANGUAGE_SWITCH_ERROR_GENERIC", "Please try again."),
       });
     } finally {
       setIsSwitching(false);

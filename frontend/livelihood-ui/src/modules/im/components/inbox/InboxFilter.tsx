@@ -1,5 +1,6 @@
 import {
   aggregateBoundaryCodes,
+  translateOr,
   useAuthStore,
   useBoundary,
   useFacility,
@@ -24,15 +25,6 @@ import { useImAssetTypes } from "../../hooks/use-im-inbox-summary";
 import type { ImInboxFilters, InboxDataResult } from "../../types/inbox";
 import { isAssigneeScopedUser, isEndUser } from "../../utils/access";
 import { buildFilterQueryFromState } from "../../utils/inbox-filters";
-
-function translateOr(
-  t: (key: string) => string,
-  key: string,
-  fallback: string,
-): string {
-  const value = t(key);
-  return value === key ? fallback : value;
-}
 
 interface FilterOption {
   code: string;
@@ -140,7 +132,7 @@ export function InboxFilter({
     () =>
       ORDERED_INBOX_STATUSES.map((status) => ({
         code: status.code,
-        name: t(`CS_COMMON_${status.code}`),
+        name: translateOr(t, `CS_COMMON_${status.code}`, status.code),
       })),
     [t],
   );
@@ -182,7 +174,7 @@ export function InboxFilter({
         if (!unique.has(state.code)) {
           unique.set(state.code, {
             code: state.code,
-            name: t(`BOUNDARY_${state.code}`),
+            name: translateOr(t, `BOUNDARY_${state.code}`, state.code),
           });
         }
       }
@@ -206,7 +198,7 @@ export function InboxFilter({
       districts
         .map((district) => ({
           code: district.code,
-          name: t(`BOUNDARY_${district.code}`),
+          name: translateOr(t, `BOUNDARY_${district.code}`, district.code),
         }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     );
@@ -244,7 +236,7 @@ export function InboxFilter({
       blocks
         .map((block) => ({
           code: block.code,
-          name: t(`BOUNDARY_${block.code}`),
+          name: translateOr(t, `BOUNDARY_${block.code}`, block.code),
         }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     );
@@ -295,7 +287,7 @@ export function InboxFilter({
       facilities
         .map((facility) => ({
           code: facility.code,
-          name: t(`BOUNDARY_${facility.code}`),
+          name: translateOr(t, `BOUNDARY_${facility.code}`, facility.code),
         }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     );
@@ -393,12 +385,12 @@ export function InboxFilter({
   }
 
   const categories = [
-    { key: "assetType" as const, label: t("CS_ASSET_TYPE"), options: assetTypeMenu },
+    { key: "assetType" as const, label: translateOr(t, "CS_ASSET_TYPE", "Asset Type"), options: assetTypeMenu },
     ...(showGeoFilters
       ? [
-          { key: "state" as const, label: t("CS_STATE"), options: stateMenu },
-          { key: "district" as const, label: t("CS_DISTRICT"), options: districtMenu },
-          { key: "block" as const, label: t("CS_BLOCK"), options: blockMenu },
+          { key: "state" as const, label: translateOr(t, "CS_STATE", "State"), options: stateMenu },
+          { key: "district" as const, label: translateOr(t, "CS_DISTRICT", "District"), options: districtMenu },
+          { key: "block" as const, label: translateOr(t, "CS_BLOCK", "Block"), options: blockMenu },
           {
             key: "facility" as const,
             label: translateOr(t, "INCIDENT_END_USER", "End User"),

@@ -7,6 +7,7 @@ import {
   hydrateEmployeeJurisdictions,
   loginUser,
   tenantId,
+  translateOr,
   useAuthStore,
   useJurisdictionStore,
   useTranslate,
@@ -37,11 +38,6 @@ const loginSchema = z.object({
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
-
-function translateOr(t: (key: string) => string, key: string, fallback: string) {
-  const value = t(key);
-  return value === key ? fallback : value;
-}
 
 function extractOAuthErrorDescription(error: unknown): string | undefined {
   const response = (
@@ -117,7 +113,7 @@ export function LoginPage() {
       });
       setJurisdictionData(jurisdictionData);
 
-      toast.success(t("CORE_LOGIN_SUCCESS_TOAST"));
+      toast.success(translateOr(t, "CORE_LOGIN_SUCCESS_TOAST", "Signed in successfully"));
       await navigate({ to: resolveRedirectPath(from) });
     } catch (error) {
       const message =
@@ -167,10 +163,10 @@ export function LoginPage() {
 
           <div className="flex flex-col gap-1 text-center lg:text-left">
             <h1 className="text-[28px] font-semibold leading-[40px] text-ink-950 lg:text-[32px] lg:leading-[48px]">
-              {t("CORE_LOGIN_WELCOME_TITLE")}
+              {translateOr(t, "CORE_LOGIN_WELCOME_TITLE", "Welcome")}
             </h1>
             <p className="text-sm leading-[21px] text-ink-600">
-              {t("CORE_LOGIN_SUBTITLE")}
+              {translateOr(t, "CORE_LOGIN_SUBTITLE", "Please enter your details to login.")}
             </p>
           </div>
 
@@ -183,12 +179,17 @@ export function LoginPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-sm leading-[21px] font-medium text-ink-950">
-                        {t("CORE_LOGIN_USERNAME_LABEL")} <span className="text-destructive">*</span>
+                        {translateOr(t, "CORE_LOGIN_USERNAME_LABEL", "Username")}{" "}
+                        <span className="text-destructive">*</span>
                       </FormLabel>
                       <FormControl>
                         <Input
                           autoComplete="username"
-                          placeholder={t("CORE_LOGIN_USERNAME_PLACEHOLDER")}
+                          placeholder={translateOr(
+                            t,
+                            "CORE_LOGIN_USERNAME_PLACEHOLDER",
+                            "Enter your username",
+                          )}
                           className="h-9 rounded border-ink-300 px-3 py-2 text-sm leading-[21px] text-ink-950 placeholder:text-ink-400"
                           {...field}
                         />
@@ -203,14 +204,19 @@ export function LoginPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-sm leading-[21px] font-medium text-ink-950">
-                        {t("CORE_LOGIN_PASSWORD_LABEL")} <span className="text-destructive">*</span>
+                        {translateOr(t, "CORE_LOGIN_PASSWORD_LABEL", "Password")}{" "}
+                        <span className="text-destructive">*</span>
                       </FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Input
                             type={showPassword ? "text" : "password"}
                             autoComplete="current-password"
-                            placeholder={t("CORE_LOGIN_PASSWORD_PLACEHOLDER")}
+                            placeholder={translateOr(
+                              t,
+                              "CORE_LOGIN_PASSWORD_PLACEHOLDER",
+                              "Enter your password",
+                            )}
                             className="h-9 rounded border-ink-300 px-3 py-2 pr-10 text-sm leading-[21px] text-ink-950 placeholder:text-ink-400"
                             {...field}
                           />
@@ -239,7 +245,9 @@ export function LoginPage() {
               </div>
 
               <Button type="submit" size="lg" disabled={isSubmitting} className="w-full">
-                {isSubmitting ? t("CORE_LOGIN_BUTTON_LOADING") : t("CORE_LOGIN_BUTTON")}
+                {isSubmitting
+                  ? translateOr(t, "CORE_LOGIN_BUTTON_LOADING", "Logging in...")
+                  : translateOr(t, "CORE_LOGIN_BUTTON", "Log in")}
               </Button>
             </form>
           </Form>

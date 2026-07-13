@@ -1,4 +1,4 @@
-import type { AuthUser } from "@/shared";
+import { translateOr, type AuthUser } from "@/shared";
 import {
   BLANK_SLA_STATUSES,
   ROLE_STATUS_MAPPING,
@@ -39,7 +39,10 @@ export function combineInboxResponses(
       slaValue = "-";
     } else if (isEndUser) {
       const totalSla = businessObject?.totalSlaRemaining ?? 0;
-      slaValue = totalSla < 0 ? t("SLA_OVERDUE") : Math.ceil(totalSla / SLA_MS_PER_DAY);
+      slaValue =
+        totalSla < 0
+          ? translateOr(t, "SLA_OVERDUE", "Overdue")
+          : Math.ceil(totalSla / SLA_MS_PER_DAY);
     } else if (assigneeUuid && currentUserUuid === assigneeUuid) {
       const sla = businessObject?.slaRemaining ?? 0;
       slaValue = Math.ceil(sla / SLA_MS_PER_DAY);

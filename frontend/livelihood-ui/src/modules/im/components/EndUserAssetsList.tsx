@@ -1,13 +1,8 @@
-import { useTranslate } from "@/shared";
+import { translateOr, useTranslate } from "@/shared";
 import { Card } from "@/ui";
 import { Package } from "lucide-react";
 import { useState } from "react";
 import type { EndUserAsset } from "../hooks/use-end-user-assets";
-
-function translateOr(t: (key: string) => string, key: string, fallback: string) {
-  const value = t(key);
-  return value === key ? fallback : value;
-}
 
 interface EndUserAssetsListProps {
   assets: EndUserAsset[];

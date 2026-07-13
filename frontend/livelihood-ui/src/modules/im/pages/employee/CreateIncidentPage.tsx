@@ -1,17 +1,8 @@
-import { contextPath, employeeHomePath, useTranslate } from "@/shared";
+import { contextPath, employeeHomePath, translateOr, useTranslate } from "@/shared";
 import { PageHeader } from "@/ui";
 import { ImBreadcrumbs } from "../../components/ImBreadcrumbs";
 import { CreateTicketForm } from "../../components/create/CreateTicketForm";
 import { IM_ROUTES } from "../../constants/routes";
-
-function translateOr(
-  t: (key: string) => string,
-  key: string,
-  fallback: string,
-): string {
-  const value = t(key);
-  return value === key ? fallback : value;
-}
 
 export function CreateIncidentPage() {
   const { t } = useTranslate();

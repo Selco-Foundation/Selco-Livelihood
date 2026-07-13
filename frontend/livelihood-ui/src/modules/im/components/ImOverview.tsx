@@ -1,6 +1,7 @@
 import {
   contextPath,
   loadModules,
+  translateOr,
   useAuthStore,
   useTranslate,
 } from "@/shared";
@@ -13,11 +14,6 @@ import { EndUserAssetsList } from "./EndUserAssetsList";
 import { useEndUserAssets } from "../hooks/use-end-user-assets";
 import { useImInboxSummary } from "../hooks/use-im-inbox-summary";
 import { canCreateIncident, hasImAccess, isEndUser } from "../utils/access";
-
-function translateOr(t: (key: string) => string, key: string, fallback: string) {
-  const value = t(key);
-  return value === key ? fallback : value;
-}
 
 export function ImOverview() {
   const { t } = useTranslate();
@@ -74,14 +70,14 @@ export function ImOverview() {
         <StatTile
           icon={<FileText className="h-6 w-6" />}
           iconClassName="bg-info text-info-foreground"
-          label={t("TOTAL_IM")}
+          label={translateOr(t, "TOTAL_IM", "Total")}
           value={isLoading ? "-" : (data?.totalCount ?? "-")}
           link={`${basePath}/inbox`}
         />
         <StatTile
           icon={<Clock className="h-6 w-6" />}
           iconClassName="bg-warning text-warning-foreground"
-          label={t("TOTAL_NEARING_SLA")}
+          label={translateOr(t, "TOTAL_NEARING_SLA", "Nearing SLA")}
           value={isLoading ? "-" : (data?.nearingSlaCount ?? "-")}
           link={`${basePath}/inbox?nearing=1`}
         />

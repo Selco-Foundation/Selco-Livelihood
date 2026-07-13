@@ -3,6 +3,7 @@ import {
   contextPath,
   employeeLoginPath,
   getConfigString,
+  translateOr,
   useAuthStore,
   useJurisdictionStore,
   useTranslate,
@@ -152,7 +153,7 @@ export function AppShell() {
                   onClick={() => {
                     clearSession();
                     clearJurisdiction();
-                    toast.success(t("CORE_LOGOUT_SUCCESS_TOAST"));
+                    toast.success(translateOr(t, "CORE_LOGOUT_SUCCESS_TOAST", "Signed out successfully"));
                     void navigate({ to: employeeLoginPath() });
                   }}
                 >

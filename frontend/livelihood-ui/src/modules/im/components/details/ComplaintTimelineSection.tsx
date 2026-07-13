@@ -1,4 +1,4 @@
-import { useTranslate } from "@/shared";
+import { translateOr, useTranslate } from "@/shared";
 import { cn } from "@/ui";
 import { History } from "lucide-react";
 import type {
@@ -36,11 +36,13 @@ function TimelineCaption({
   let reasonLabel: string | null = null;
 
   if (action === "OUT_OF_SCOPE") {
-    reasonText = t(String(outOfScopeReasons.shift() ?? ""));
-    reasonLabel = t("WF_OUT_OF_SCOPE_REASON");
+    const outOfScopeCode = String(outOfScopeReasons.shift() ?? "");
+    reasonText = translateOr(t, outOfScopeCode, outOfScopeCode);
+    reasonLabel = translateOr(t, "WF_OUT_OF_SCOPE_REASON", "Out of scope reason");
   } else if (action === "DECLINE_POC") {
-    reasonText = t(String(declineReasons.shift() ?? ""));
-    reasonLabel = t("WF_DECLINE_REASON");
+    const declineCode = String(declineReasons.shift() ?? "");
+    reasonText = translateOr(t, declineCode, declineCode);
+    reasonLabel = translateOr(t, "WF_DECLINE_REASON", "Decline reason");
   }
 
   return (
@@ -62,7 +64,9 @@ function TimelineCaption({
 
       {checkpoint.wfComment?.map((comment, index) => (
         <div key={`${comment}-${index}`}>
-          <p className="font-medium text-foreground">{t("WF_COMMON_COMMENTS")}</p>
+          <p className="font-medium text-foreground">
+            {translateOr(t, "WF_COMMON_COMMENTS", "Comments")}
+          </p>
           <p className="break-words">{comment}</p>
         </div>
       ))}
@@ -71,7 +75,9 @@ function TimelineCaption({
       (checkpoint.thumbnailsToShow?.fullImage?.length ||
         checkpoint.thumbnailsToShow?.videos?.length) ? (
         <div className="space-y-2">
-          <p className="font-medium text-foreground">{t("CS_COMMON_ATTACHMENTS")}</p>
+          <p className="font-medium text-foreground">
+            {translateOr(t, "CS_COMMON_ATTACHMENTS", "Attachments")}
+          </p>
           <ComplaintMediaList
             images={checkpoint.thumbnailsToShow?.fullImage ?? []}
             videos={checkpoint.thumbnailsToShow?.videos ?? []}
@@ -81,11 +87,6 @@ function TimelineCaption({
       ) : null}
     </div>
   );
-}
-
-function translateOr(t: (key: string) => string, key: string, fallback: string) {
-  const value = t(key);
-  return value === key ? fallback : value;
 }
 
 export function ComplaintTimelineSection({

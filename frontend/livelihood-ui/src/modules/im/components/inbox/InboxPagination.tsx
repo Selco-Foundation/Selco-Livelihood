@@ -1,15 +1,6 @@
-import { useTranslate } from "@/shared";
+import { translateOr, useTranslate } from "@/shared";
 import { cn } from "@/ui";
 import { ArrowLeft, ArrowRight, ChevronDown } from "lucide-react";
-
-function translateOr(
-  t: (key: string) => string,
-  key: string,
-  fallback: string,
-): string {
-  const value = t(key);
-  return value === key ? fallback : value;
-}
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
@@ -68,7 +59,7 @@ export function InboxPagination({
           className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-lg px-3 py-1 text-base font-medium text-neutral-500 transition-colors disabled:pointer-events-none disabled:opacity-40"
         >
           <ArrowLeft className="size-6" strokeWidth={1.5} />
-          {t("CS_COMMON_PREVIOUS")}
+          {translateOr(t, "CS_COMMON_PREVIOUS", "Previous")}
         </button>
 
         {pageNumbers.map((page) => (
@@ -93,7 +84,7 @@ export function InboxPagination({
           onClick={onNextPage}
           className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-lg px-3 py-1 text-base font-medium text-ink-950 transition-colors disabled:pointer-events-none disabled:opacity-40"
         >
-          {t("CS_COMMON_NEXT")}
+          {translateOr(t, "CS_COMMON_NEXT", "Next")}
           <ArrowRight className="size-6" strokeWidth={1.5} />
         </button>
       </div>

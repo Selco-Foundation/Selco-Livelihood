@@ -1,4 +1,4 @@
-import { useAuthStore, useTranslate } from "@/shared";
+import { translateOr, useAuthStore, useTranslate } from "@/shared";
 import { Button } from "@/ui";
 import { useMutation } from "@tanstack/react-query";
 import { Files, Trash2 } from "lucide-react";
@@ -27,11 +27,6 @@ interface ComplaintActionDialogProps {
   complaintDetails: ComplaintDetailsData;
   onClose: () => void;
   onComplete: () => Promise<void>;
-}
-
-function translateOr(t: (key: string) => string, key: string, fallback: string) {
-  const value = t(key);
-  return value === key ? fallback : value;
 }
 
 function getReasonLabel(t: (key: string) => string, action: string): string {
@@ -237,7 +232,7 @@ export function ComplaintActionDialog({
         const message =
           response?.Errors?.[0]?.message ??
           response?.message ??
-          t("CS_COMMON_SOMETHING_WENT_WRONG");
+          translateOr(t, "CS_COMMON_SOMETHING_WENT_WRONG", "Something went wrong!");
         setError(message);
         return;
       }
@@ -256,7 +251,7 @@ export function ComplaintActionDialog({
               )
             : code === "REASON_REQUIRED"
               ? translateOr(t, "WF_REASON_REQUIRED", "Please select a reason")
-              : t("CS_COMMON_SOMETHING_WENT_WRONG");
+              : translateOr(t, "CS_COMMON_SOMETHING_WENT_WRONG", "Something went wrong!");
       setError(message);
     },
   });
@@ -360,7 +355,7 @@ export function ComplaintActionDialog({
         aria-modal="true"
       >
         <h2 className="text-xl leading-[30px] font-semibold text-ink-950">
-          {t(`CS_ACTION_${action}`)}
+          {translateOr(t, `CS_ACTION_${action}`, action)}
         </h2>
 
         <div className="mt-4 space-y-4">
@@ -369,10 +364,13 @@ export function ComplaintActionDialog({
               label={reasonLabel}
               required
               value={selectedReason?.code ?? ""}
-              options={reasonOptions.map((reason) => ({
-                code: reason.code ?? reason.localizedCode ?? "",
-                name: t(reason.localizedCode ?? reason.code ?? ""),
-              }))}
+              options={reasonOptions.map((reason) => {
+                const fallbackName = reason.code ?? reason.localizedCode ?? "";
+                return {
+                  code: reason.code ?? reason.localizedCode ?? "",
+                  name: translateOr(t, reason.localizedCode ?? reason.code ?? "", fallbackName),
+                };
+              })}
               onChange={(option) =>
                 setSelectedReason(
                   reasonOptions.find(
@@ -387,7 +385,7 @@ export function ComplaintActionDialog({
 
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-ink-950">
-              {t("WF_COMMON_COMMENTS")}
+              {translateOr(t, "WF_COMMON_COMMENTS", "Comments")}
               {actionConfig.comment === "required" ? (
                 <span className="text-destructive"> *</span>
               ) : null}
@@ -424,7 +422,7 @@ export function ComplaintActionDialog({
 
         <div className="mt-6 flex justify-center gap-3">
           <Button type="button" variant="outline" size="lg" onClick={onClose}>
-            {t("TL_COMMON_CANCEL")}
+            {translateOr(t, "TL_COMMON_CANCEL", "Cancel")}
           </Button>
           <Button
             type="button"
@@ -435,7 +433,9 @@ export function ComplaintActionDialog({
               mutation.mutate();
             }}
           >
-            {mutation.isPending ? t("CS_COMMON_SUBMITTING") : t("CS_COMMON_SUBMIT")}
+            {mutation.isPending
+              ? translateOr(t, "CS_COMMON_SUBMITTING", "Submitting...")
+              : translateOr(t, "CS_COMMON_SUBMIT", "Submit")}
           </Button>
         </div>
       </div>

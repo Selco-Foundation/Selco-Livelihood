@@ -1,6 +1,7 @@
 import {
   contextPath,
   employeeHomePath,
+  translateOr,
   useAuthStore,
   useTranslate,
 } from "@/shared";
@@ -15,15 +16,6 @@ import { useImInboxData } from "../../hooks/use-im-inbox-summary";
 import type { InboxRouteSearch } from "../../routes";
 import type { ImInboxFilters } from "../../types/inbox";
 import { canCreateIncident } from "../../utils/access";
-
-function translateOr(
-  t: (key: string) => string,
-  key: string,
-  fallback: string,
-): string {
-  const value = t(key);
-  return value === key ? fallback : value;
-}
 
 export function InboxPage() {
   const { t } = useTranslate();

@@ -161,3 +161,4 @@ export async function setLocale(
 
 export { i18n };
 export { useModuleI18n } from "./useModuleI18n";
+export { translateOr } from "./translate-or";

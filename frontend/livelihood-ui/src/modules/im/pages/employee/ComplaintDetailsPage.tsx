@@ -1,4 +1,4 @@
-import { contextPath, employeeHomePath, useAuthStore, useTranslate } from "@/shared";
+import { contextPath, employeeHomePath, translateOr, useAuthStore, useTranslate } from "@/shared";
 import { Button, PageHeader } from "@/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
@@ -11,15 +11,6 @@ import { ComplaintTimelineSection } from "../../components/details/ComplaintTime
 import { IM_ROUTES } from "../../constants/routes";
 import { useComplaintDetails } from "../../hooks/use-complaint-details";
 import { isAssigneeScopedUser } from "../../utils/access";
-
-function translateOr(
-  t: (key: string) => string,
-  key: string,
-  fallback: string,
-): string {
-  const value = t(key);
-  return value === key ? fallback : value;
-}
 
 function useComplaintRouteParams() {
   return useMemo(() => {
@@ -52,7 +43,9 @@ export function ComplaintDetailsPage() {
   if (!incidentId || !tenantId) {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-destructive">{t("CS_COMMON_SOMETHING_WENT_WRONG")}</p>
+        <p className="text-sm text-destructive">
+          {translateOr(t, "CS_COMMON_SOMETHING_WENT_WRONG", "Something went wrong!")}
+        </p>
         <Button asChild variant="outline" size="lg">
           <Link to={inboxPath}>{translateOr(t, "ES_IM_VIEW_INBOX", "View inbox")}</Link>
         </Button>
