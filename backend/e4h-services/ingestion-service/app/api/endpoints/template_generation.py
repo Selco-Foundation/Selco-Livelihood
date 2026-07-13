@@ -889,7 +889,7 @@ async def get_livelihood_facility_qr_for_otp_login(
     tenant_id = payload.get("tenantId") or LIVELIHOOD_TENANT_ID
     base_url = (payload.get("baseUrl") or os.getenv(
         "LIVELIHOOD_UI_BASE_URL",
-        "https://setu4livelihood-dev.selcofoundation.org",
+        "https://setu4livelihood-dev.selcofoundation.org/livelihood-ui/",
     )).rstrip("/")
     context_path = (payload.get("contextPath") or os.getenv("LIVELIHOOD_UI_CONTEXT_PATH", "livelihood")).strip("/")
     boundary_code = payload.get("boundaryCode")

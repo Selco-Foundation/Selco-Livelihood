@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import org.egov.common.contract.response.ResponseInfo;
 
 /**
- * Response for QR resolve — username/mobile for OTP pre-fill + scanned asset context.
+ * Response for QR resolve — login username + OTP mobile can differ for HRMS employees.
  * Does not issue an auth token; client sends OTP via user-otp then logs in via OAuth.
  */
 @Data
@@ -20,12 +20,16 @@ public class QrResolveResponse {
     @JsonProperty("ResponseInfo")
     private ResponseInfo responseInfo;
 
-    /** DIGIT login username (registered phone number). */
+    /** DIGIT OAuth username (often employee code / user.userName — may differ from mobile). */
     @JsonProperty("userName")
     private String userName;
 
+    /** Phone for OTP SMS (user.mobileNumber). */
     @JsonProperty("mobileNumber")
     private String mobileNumber;
+
+    @JsonProperty("name")
+    private String name;
 
     @JsonProperty("userUuid")
     private String userUuid;

@@ -84,22 +84,26 @@ public class QrResolveService {
 
         Map<String, String> complainant = hrmsUtil.findComplainantAtBoundary(requestInfo, tenantId, facilityBoundary);
 
-        String mobile = firstNonBlank(complainant.get("mobile"), facility.get("facilityPocPhone"));
-        if (StringUtils.isBlank(mobile)) {
+        // OTP SMS goes to registered mobile; OAuth username is often employee code and may differ.
+        String mobileNumber = firstNonBlank(complainant.get("mobile"), facility.get("facilityPocPhone"));
+        if (StringUtils.isBlank(mobileNumber)) {
             throw new CustomException(ErrorConstants.MOBILE_NOT_REGISTERED_CODE, ErrorConstants.MOBILE_NOT_REGISTERED_MSG);
         }
+        String loginUserName = firstNonBlank(complainant.get("userName"), mobileNumber);
 
         QrResolveResponse response = QrResolveResponse.builder()
                 .responseInfo(responseInfoFactory.createResponseInfoFromRequestInfo(requestInfo, true))
-                .userName(mobile)
-                .mobileNumber(mobile)
+                .userName(loginUserName)
+                .mobileNumber(mobileNumber)
+                .name(complainant.get("name"))
                 .userUuid(complainant.get("uuid"))
                 .facilityId(firstNonBlank(facility.get("facilityId"), facilityId))
                 .facilityBoundaryCode(facilityBoundary)
                 .scannedAsset(scannedAsset)
                 .build();
 
-        log.info("QR resolve succeeded | facilityId={} userUuid={}", response.getFacilityId(), response.getUserUuid());
+        log.info("QR resolve succeeded | facilityId={} userUuid={} userName={} mobileNumber={}",
+                response.getFacilityId(), response.getUserUuid(), loginUserName, mobileNumber);
         return response;
     }
 
