@@ -7,6 +7,7 @@ import {
 import { Button, PageHeader } from "@/ui";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
+import { LanguageSwitcher } from "@/modules/core";
 import { ImBreadcrumbs } from "../../components/ImBreadcrumbs";
 import { DesktopInbox } from "../../components/inbox/DesktopInbox";
 import { buildDefaultInboxRoleFilters } from "../../hooks/inbox-defaults";
@@ -81,30 +82,49 @@ export function InboxPage() {
     });
   };
 
+  const handlePageSizeChange = (nextPageSize: number) => {
+    void navigate({
+      search: (prev: InboxRouteSearch) => ({
+        ...prev,
+        pageSize: nextPageSize,
+        pageOffset: 0,
+      }),
+      replace: true,
+    });
+  };
+
   const homePath = employeeHomePath();
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-6">
-      <ImBreadcrumbs
-        items={[
-          { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: homePath },
-          { label: translateOr(t, "ES_IM_INBOX", "Inbox") },
-        ]}
-      />
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <PageHeader
+          title={translateOr(t, "ES_IM_ALL_TICKETS", "All Tickets")}
+          action={
+            <div className="flex items-center gap-3">
+              <LanguageSwitcher />
+              {canCreateTicket ? (
+                <>
+                  <span aria-hidden="true" className="h-8 w-px bg-border" />
+                  <Button asChild size="sm" className="gap-1.5 rounded-md px-3">
+                    <Link to={`${basePath}/incident/create`}>
+                      <Plus className="size-4" />
+                      {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise Ticket")}
+                    </Link>
+                  </Button>
+                </>
+              ) : null}
+            </div>
+          }
+        />
 
-      <PageHeader
-        title={translateOr(t, "ES_IM_ALL_TICKETS", "All Tickets")}
-        action={
-          canCreateTicket ? (
-            <Button asChild className="gap-2 rounded-md px-5">
-              <Link to={`${basePath}/incident/create`}>
-                <Plus className="size-4" />
-                {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise new ticket")}
-              </Link>
-            </Button>
-          ) : null
-        }
-      />
+        <ImBreadcrumbs
+          items={[
+            { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: homePath },
+            { label: translateOr(t, "ES_IM_INBOX", "View all tickets") },
+          ]}
+        />
+      </div>
 
       <DesktopInbox
         data={complaints}
@@ -114,6 +134,7 @@ export function InboxPage() {
         onNextPage={() => goToOffset(pageOffset + pageSize)}
         onPrevPage={() => goToOffset(pageOffset - pageSize)}
         onPageChange={(page) => goToOffset(page * pageSize)}
+        onPageSizeChange={handlePageSizeChange}
         currentPage={Math.floor(pageOffset / pageSize)}
         totalRecords={totalRecords}
         pageSizeLimit={pageSize}

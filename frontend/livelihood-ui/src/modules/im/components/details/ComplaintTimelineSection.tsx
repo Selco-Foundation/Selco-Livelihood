@@ -3,14 +3,18 @@ import { cn } from "@/ui";
 import { History } from "lucide-react";
 import type {
   ComplaintDetailsData,
+  WorkflowDetailsData,
   WorkflowTimelineCheckpoint,
 } from "../../types/incident-details";
 import { FormSectionCard } from "../create/FormSectionCard";
+import { ComplaintActionBar } from "./ComplaintActionBar";
 import { ComplaintMediaList } from "./ComplaintMediaList";
 
 interface ComplaintTimelineSectionProps {
   timeline: WorkflowTimelineCheckpoint[];
   complaintDetails: ComplaintDetailsData;
+  workflowDetails: WorkflowDetailsData;
+  onActionComplete: () => Promise<void>;
 }
 
 function TimelineCaption({
@@ -40,7 +44,7 @@ function TimelineCaption({
   }
 
   return (
-    <div className="mt-3 space-y-3 text-sm text-muted-foreground">
+    <div className="mt-3 space-y-3 text-xs text-muted-foreground">
       {checkpoint.auditDetails?.lastModified ? (
         <p>{checkpoint.auditDetails.lastModified}</p>
       ) : null}
@@ -87,6 +91,8 @@ function translateOr(t: (key: string) => string, key: string, fallback: string) 
 export function ComplaintTimelineSection({
   timeline,
   complaintDetails,
+  workflowDetails,
+  onActionComplete,
 }: ComplaintTimelineSectionProps) {
   const { t } = useTranslate();
 
@@ -97,12 +103,9 @@ export function ComplaintTimelineSection({
   return (
     <FormSectionCard
       icon={History}
-      title={translateOr(t, "CS_COMPLAINT_DETAILS_HISTORY", "Ticket history")}
-      description={translateOr(
-        t,
-        "CS_COMPLAINT_DETAILS_HISTORY_DESC",
-        "Track updates and actions taken on this ticket",
-      )}
+      title={translateOr(t, "CS_COMPLAINT_DETAILS_HISTORY", "Timeline")}
+      titleClassName="text-base font-semibold text-ink-950"
+      divider
     >
       <ol className="space-y-0">
         {timeline.map((checkpoint, index) => {
@@ -120,7 +123,7 @@ export function ComplaintTimelineSection({
                 <div
                   className={cn(
                     "z-10 flex size-3 rounded-full",
-                    isLatest ? "bg-primary" : "bg-muted-foreground/40",
+                    isLatest ? "bg-success-foreground" : "bg-muted-foreground/40",
                   )}
                 />
                 {!isLastRendered ? (
@@ -128,7 +131,12 @@ export function ComplaintTimelineSection({
                 ) : null}
               </div>
               <div className="min-w-0 flex-1 pt-[-2px]">
-                <p className="text-sm font-semibold text-foreground">
+                <p
+                  className={cn(
+                    "text-sm font-semibold",
+                    isLatest ? "text-success-foreground" : "text-ink-950",
+                  )}
+                >
                   {translateOr(t, actionKey, action)}
                 </p>
                 <TimelineCaption
@@ -140,6 +148,12 @@ export function ComplaintTimelineSection({
           );
         })}
       </ol>
+
+      <ComplaintActionBar
+        complaintDetails={complaintDetails}
+        workflowDetails={workflowDetails}
+        onActionComplete={onActionComplete}
+      />
     </FormSectionCard>
   );
 }

@@ -5,7 +5,10 @@ import {
   useTranslate,
 } from "@/shared";
 import { useQuery } from "@tanstack/react-query";
-import { LIVELIHOOD_INCIDENT_BUSINESS_SERVICE } from "../constants/workflow";
+import {
+  LIVELIHOOD_INCIDENT_BUSINESS_SERVICE,
+  RESOLVED_APPLICATION_STATUSES,
+} from "../constants/workflow";
 import { searchInbox } from "../services/inbox";
 import type { ImInboxSearchParams } from "../types/inbox";
 import { hasImAccess } from "../utils/access";
@@ -13,8 +16,10 @@ import { flattenInboxFilters } from "../utils/inbox-filters";
 import {
   combineInboxResponses,
   normalizeInboxResponse,
+  sumStatusCounts,
 } from "../utils/inbox-transform";
 import { buildSummaryRoleFilters } from "./inbox-defaults";
+import { fetchAssetTypes } from "../services/mdms";
 
 export function useImInboxSummary() {
   const accessToken = useAuthStore((state) => state.accessToken);
@@ -46,9 +51,14 @@ export function useImInboxSummary() {
         user,
       );
       const normalized = normalizeInboxResponse(data);
+      const resolvedCount = sumStatusCounts(
+        normalized.statusArray,
+        RESOLVED_APPLICATION_STATUSES,
+      );
       return {
         totalCount: normalized.total,
         nearingSlaCount: normalized.nearingSlaCount,
+        resolvedCount,
         statusMap: normalized.statusArray,
       };
     },
@@ -104,22 +114,6 @@ export function useImInboxData(searchParams: ImInboxSearchParams) {
   });
 }
 
-export function useImMdms() {
-  const accessToken = useAuthStore((state) => state.accessToken);
-  const user = useAuthStore((state) => state.user);
-  const stateTenantId = tenantId();
-
-  return useQuery({
-    queryKey: ["im-mdms", stateTenantId],
-    enabled: Boolean(accessToken),
-    staleTime: Number.POSITIVE_INFINITY,
-    queryFn: async () => {
-      const { fetchSystemFunctionality } = await import("../services/mdms");
-      return fetchSystemFunctionality(accessToken!, user);
-    },
-  });
-}
-
 export function useImAssetTypes() {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
@@ -131,7 +125,6 @@ export function useImAssetTypes() {
     enabled: Boolean(accessToken),
     staleTime: Number.POSITIVE_INFINITY,
     queryFn: async () => {
-      const { fetchAssetTypes } = await import("../services/mdms");
       return fetchAssetTypes(accessToken!, user, t);
     },
   });
