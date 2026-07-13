@@ -144,8 +144,8 @@ export function LoginPage() {
 
   return (
     <div className="font-poppins flex min-h-screen bg-white">
-      <div className="relative flex min-h-screen w-full flex-col items-center justify-center px-8 py-8 lg:w-[60%] lg:min-w-[480px]">
-        <div className="absolute inset-x-8 top-8 flex items-center justify-between">
+      <div className="relative flex min-h-screen w-full flex-col items-center px-6 py-10 lg:w-[60%] lg:min-w-[480px] lg:justify-center lg:px-8 lg:py-8">
+        <div className="absolute inset-x-8 top-8 hidden items-center justify-between lg:flex">
           <img
             src={logo?.url}
             alt={logo?.alt ?? "Selco Foundation Logo"}
@@ -154,9 +154,19 @@ export function LoginPage() {
           <LanguageSwitcher />
         </div>
 
-        <div className="flex w-full max-w-[360px] flex-col gap-5">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-[32px] font-semibold leading-[48px] text-ink-950">
+        <div className="absolute top-4 right-4 lg:hidden">
+          <LanguageSwitcher />
+        </div>
+
+        <div className="mt-20 flex w-full max-w-[360px] flex-col gap-5 lg:mt-0">
+          <img
+            src={logo?.url}
+            alt={logo?.alt ?? "Selco Foundation Logo"}
+            className="mx-auto h-28 w-auto object-contain lg:hidden"
+          />
+
+          <div className="flex flex-col gap-1 text-center lg:text-left">
+            <h1 className="text-[28px] font-semibold leading-[40px] text-ink-950 lg:text-[32px] lg:leading-[48px]">
               {t("CORE_LOGIN_WELCOME_TITLE")}
             </h1>
             <p className="text-sm leading-[21px] text-ink-600">

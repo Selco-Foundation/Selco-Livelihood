@@ -43,7 +43,7 @@ export function LanguageSwitcher() {
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" disabled={isSwitching} className="gap-1">
           <Globe className="size-4 opacity-60" />
-          <span>{current?.nativeLabel ?? "Language"}</span>
+          <span className="hidden lg:inline">{current?.nativeLabel ?? "Language"}</span>
           <ChevronDown className="size-4 opacity-60" />
         </Button>
       </DropdownMenuTrigger>
