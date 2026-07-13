@@ -80,7 +80,7 @@ async function ensureI18nInstance(locale: string): Promise<void> {
 
   await i18n.use(initReactI18next).init({
     lng: locale,
-    fallbackLng: false,
+    fallbackLng: "en_IN",
     debug: false,
     ns: [TRANSLATIONS_NS],
     defaultNS: TRANSLATIONS_NS,
