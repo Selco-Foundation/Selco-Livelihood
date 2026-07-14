@@ -45,6 +45,7 @@ function SplitButton({
   // only Pressed splits into two shades (label vs. a darker trigger segment).
   const labelClasses = cn(
     segmentBase,
+    "flex-1",
     s.height,
     s.radiusL,
     s.labelPx,

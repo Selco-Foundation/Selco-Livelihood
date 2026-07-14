@@ -92,10 +92,11 @@ export function ComplaintActionBar({
                 {translateOr(t, "WF_TAKE_ACTION_DESC", "Choose an action to update this ticket")}
               </p>
             </div>
-            <div className="relative" ref={menuRef}>
+            <div className="relative w-full sm:w-auto" ref={menuRef}>
               <SplitButton
                 label={translateOr(t, "WF_TAKE_ACTION", "Take action")}
                 size="lg"
+                className="flex w-full sm:inline-flex sm:w-auto"
                 onLabelClick={() => setMenuOpen((open) => !open)}
                 triggerAriaExpanded={menuOpen}
               />
