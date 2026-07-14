@@ -99,7 +99,11 @@ export function ComplaintDetailsPage() {
       <div className="space-y-1">
         <PageHeader
           title={translateOr(t, "CS_HEADER_TICKET_DETAILS", "Ticket Details")}
-          action={<LanguageSwitcher />}
+          action={
+            <div className="hidden lg:block">
+              <LanguageSwitcher />
+            </div>
+          }
         />
 
         <ImBreadcrumbs

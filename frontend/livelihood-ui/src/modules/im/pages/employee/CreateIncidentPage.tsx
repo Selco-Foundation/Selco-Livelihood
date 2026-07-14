@@ -1,4 +1,5 @@
 import { contextPath, employeeHomePath, translateOr, useTranslate } from "@/shared";
+import { LanguageSwitcher } from "@/modules/core";
 import { PageHeader } from "@/ui";
 import { ImBreadcrumbs } from "../../components/ImBreadcrumbs";
 import { CreateTicketForm } from "../../components/create/CreateTicketForm";
@@ -14,6 +15,7 @@ export function CreateIncidentPage() {
     <div className="space-y-6">
       <PageHeader
         title={translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise a Ticket")}
+        action={<LanguageSwitcher />}
       />
 
       <ImBreadcrumbs
