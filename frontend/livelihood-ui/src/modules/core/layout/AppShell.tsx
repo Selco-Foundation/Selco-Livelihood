@@ -104,7 +104,7 @@ export function AppShell() {
                       <SidebarMenuButton
                         asChild
                         isActive={isActive}
-                        className="justify-center rounded-lg md:justify-start"
+                        className="justify-center rounded-lg hover:bg-transparent hover:text-sidebar-foreground hover:underline active:bg-transparent active:text-sidebar-foreground md:justify-start"
                       >
                         <Link to={item.to} aria-label={item.label}>
                           {Icon ? <Icon /> : null}

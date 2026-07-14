@@ -68,9 +68,8 @@
 
 :root {
   --radius: 0.5rem;
-  /* Pale mint page background */
-  --page: hsl(120 18% 96%);
-  --background: hsl(120 18% 96%);
+  --page: hsl(0 0% 98%);
+  --background: hsl(0 0% 98%);
   --foreground: hsl(160 30% 12%);
   --card: hsl(0 0% 100%);
   --card-foreground: hsl(160 30% 12%);
