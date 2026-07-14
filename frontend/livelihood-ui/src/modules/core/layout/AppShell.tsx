@@ -171,7 +171,7 @@ export function AppShell() {
                 className="w-[280px] border-none bg-[#134738] p-0 text-white"
               >
                 <SheetTitle className="sr-only">
-                  {translateOr(t, "CORE_APP_TITLE", "SELCO Livelihood")}
+                  {translateOr(t, "CORE_APP_TITLE", "Setu")}
                 </SheetTitle>
                 <SheetDescription className="sr-only">
                   {translateOr(t, "CORE_NAV_MENU_DESCRIPTION", "App navigation menu")}
@@ -212,37 +212,35 @@ export function AppShell() {
                   </div>
 
                   <div className="flex flex-col gap-3">
-                    <div className="h-px w-full bg-white/40" />
-                    <div className="flex items-center justify-between">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <Avatar className="h-8 w-8 border-[1.5px] border-white/40">
-                          <AvatarFallback className="bg-white/15 text-white">
-                            {initials}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="truncate text-sm font-medium text-white">
-                          {user?.name ?? user?.userName ?? "User"}
-                        </span>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="Sign out"
-                        className="shrink-0 text-white hover:bg-white/10 hover:text-white"
-                        onClick={() => {
-                          setMobileNavOpen(false);
-                          setConfirmOpen(true);
-                        }}
-                      >
-                        <LogOut className="size-5" />
-                      </Button>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Avatar className="h-8 w-8 border-[1.5px] border-white/40">
+                        <AvatarFallback className="bg-white/15 text-white">
+                          {initials}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="truncate text-sm font-medium text-white">
+                        {user?.name ?? user?.userName ?? "User"}
+                      </span>
                     </div>
+                    <div className="h-px w-full bg-white/40" />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-center gap-2 text-foreground"
+                      onClick={() => {
+                        setMobileNavOpen(false);
+                        setConfirmOpen(true);
+                      }}
+                    >
+                      <LogOut className="size-4" />
+                      <span>Sign out</span>
+                    </Button>
                   </div>
                 </div>
               </SheetContent>
             </Sheet>
             <span className="text-lg font-semibold">
-              {translateOr(t, "CORE_APP_TITLE", "SELCO Livelihood")}
+              {translateOr(t, "CORE_APP_TITLE", "Setu")}
             </span>
           </div>
           <LanguageSwitcher compact />
