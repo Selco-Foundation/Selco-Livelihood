@@ -15,7 +15,11 @@ export function CreateIncidentPage() {
     <div className="space-y-6">
       <PageHeader
         title={translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise a Ticket")}
-        action={<LanguageSwitcher />}
+        action={
+          <div className="hidden lg:block">
+            <LanguageSwitcher />
+          </div>
+        }
       />
 
       <ImBreadcrumbs
