@@ -94,41 +94,39 @@ export function InboxPage() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <div className="hidden lg:block">
-          <PageHeader
-            title={translateOr(t, "ES_IM_ALL_TICKETS", "All Tickets")}
-            action={
-              <div className="flex items-center gap-3">
-                <LanguageSwitcher />
-                {canCreateTicket ? (
-                  <>
-                    <span aria-hidden="true" className="h-8 w-px bg-border" />
-                    <Button asChild size="sm" className="gap-1.5 rounded-md px-3">
-                      <Link to={`${basePath}/incident/create`}>
-                        <Plus className="size-4" />
-                        {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise Ticket")}
-                      </Link>
-                    </Button>
-                  </>
-                ) : null}
-              </div>
-            }
-          />
-          <ImBreadcrumbs items={breadcrumbItems} />
-        </div>
+      <div className="hidden space-y-1 lg:block">
+        <PageHeader
+          title={translateOr(t, "ES_IM_ALL_TICKETS", "All Tickets")}
+          action={
+            <div className="flex items-center gap-3">
+              <LanguageSwitcher />
+              {canCreateTicket ? (
+                <>
+                  <span aria-hidden="true" className="h-8 w-px bg-border" />
+                  <Button asChild size="sm" className="gap-1.5 rounded-md px-3">
+                    <Link to={`${basePath}/incident/create`}>
+                      <Plus className="size-4" />
+                      {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise Ticket")}
+                    </Link>
+                  </Button>
+                </>
+              ) : null}
+            </div>
+          }
+        />
+        <ImBreadcrumbs items={breadcrumbItems} />
+      </div>
 
-        <div className="flex items-center justify-between gap-3 lg:hidden">
-          <ImBreadcrumbs items={breadcrumbItems} />
-          {canCreateTicket ? (
-            <Button asChild size="sm" className="shrink-0 gap-1.5 rounded-full px-4">
-              <Link to={`${basePath}/incident/create`}>
-                <Plus className="size-4" />
-                {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise Ticket")}
-              </Link>
-            </Button>
-          ) : null}
-        </div>
+      <div className="flex items-center justify-between gap-3 lg:hidden">
+        <ImBreadcrumbs items={breadcrumbItems} />
+        {canCreateTicket ? (
+          <Button asChild size="sm" className="shrink-0 gap-1.5 rounded-full px-4">
+            <Link to={`${basePath}/incident/create`}>
+              <Plus className="size-4" />
+              {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise Ticket")}
+            </Link>
+          </Button>
+        ) : null}
       </div>
 
       <DesktopInbox
