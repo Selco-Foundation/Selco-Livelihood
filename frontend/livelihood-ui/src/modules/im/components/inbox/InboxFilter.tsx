@@ -8,6 +8,7 @@ import {
   useTranslate,
 } from "@/shared";
 import {
+  Button,
   Checkbox,
   Input,
   Popover,
@@ -15,6 +16,12 @@ import {
   PopoverTrigger,
   ScrollArea,
   Separator,
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
   cn,
 } from "@/ui";
 import { ChevronDown, Filter } from "lucide-react";
@@ -87,7 +94,13 @@ export function InboxFilter({
       : assignedToOptions[1],
   );
 
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  // Two independent open states, not one shared boolean: the desktop Popover's
+  // content portals to document.body regardless of its trigger's CSS visibility,
+  // so sharing a single `open` state with the mobile Sheet opens both Radix
+  // overlays at once and their dismiss-on-outside-click layers fight, closing
+  // one another immediately.
+  const [desktopFiltersOpen, setDesktopFiltersOpen] = useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<PgrFilterKey | "applicationStatus">(
     "assetType",
   );
@@ -455,34 +468,110 @@ export function InboxFilter({
   }
 
   return (
-    <div className="livelihood-card p-5">
+    <div className="lg:rounded-lg lg:border lg:border-border lg:bg-card lg:p-5 lg:shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-5">
-          <Popover
-            open={filtersOpen}
-            onOpenChange={(open) => {
-              setFiltersOpen(open);
-              if (open) {
-                setCategorySearch("");
-              }
-            }}
-          >
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border border-primary px-3 text-sm font-semibold text-primary"
+          <div className="hidden lg:block">
+            <Popover
+              open={desktopFiltersOpen}
+              onOpenChange={(open) => {
+                setDesktopFiltersOpen(open);
+                if (open) {
+                  setCategorySearch("");
+                }
+              }}
+            >
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border border-primary px-3 text-sm font-semibold text-primary"
+                >
+                  <Filter className="size-4" />
+                  {translateOr(t, "ES_IM_FILTERS", "Filters")}
+                  <Separator orientation="vertical" className="h-4" />
+                  <ChevronDown
+                    className={cn(
+                      "size-4 transition-transform",
+                      desktopFiltersOpen && "rotate-180",
+                    )}
+                  />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-auto p-0">
+                <div className="flex">
+                  <div className="w-40 shrink-0 border-r border-border py-2">
+                    {categories.map((category) => (
+                      <button
+                        key={category.key}
+                        type="button"
+                        onClick={() => {
+                          setActiveCategory(category.key);
+                          setCategorySearch("");
+                        }}
+                        className={cn(
+                          "block w-full border-l-2 px-4 py-2 text-left text-sm transition-colors",
+                          activeCategory === category.key
+                            ? "border-primary font-semibold text-primary"
+                            : "border-transparent text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {category.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="w-64 shrink-0 space-y-3 p-3">
+                    <Input
+                      value={categorySearch}
+                      onChange={(event) => setCategorySearch(event.target.value)}
+                      placeholder={translateOr(t, "ES_COMMON_SEARCH", "Search")}
+                    />
+                    <ScrollArea className="h-56 pr-3">
+                      <div className="space-y-3">{optionsContent}</div>
+                    </ScrollArea>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          <div className="lg:hidden">
+            <Sheet
+              open={mobileFiltersOpen}
+              onOpenChange={(open) => {
+                setMobileFiltersOpen(open);
+                if (open) {
+                  setCategorySearch("");
+                }
+              }}
+            >
+              <SheetTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border border-primary px-3 text-sm font-semibold text-primary"
+                >
+                  <Filter className="size-4" />
+                  <Separator orientation="vertical" className="h-4" />
+                  <ChevronDown
+                    className={cn(
+                      "size-4 transition-transform",
+                      mobileFiltersOpen && "rotate-180",
+                    )}
+                  />
+                </button>
+              </SheetTrigger>
+              <SheetContent
+                side="bottom"
+                showCloseButton={false}
+                className="max-h-[85vh] rounded-t-2xl p-0"
               >
-                <Filter className="size-4" />
-                {translateOr(t, "ES_IM_FILTERS", "Filters")}
-                <Separator orientation="vertical" className="h-4" />
-                <ChevronDown
-                  className={cn("size-4 transition-transform", filtersOpen && "rotate-180")}
-                />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-auto p-0">
-              <div className="flex">
-                <div className="w-40 shrink-0 border-r border-border py-2">
+                <div className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-border" />
+                <SheetHeader className="shrink-0 pb-0">
+                  <SheetTitle className="text-lg">
+                    {translateOr(t, "ES_IM_FILTERS", "Filters")}
+                  </SheetTitle>
+                </SheetHeader>
+                <div className="flex shrink-0 gap-6 overflow-x-auto border-b border-border px-4">
                   {categories.map((category) => (
                     <button
                       key={category.key}
@@ -492,30 +581,48 @@ export function InboxFilter({
                         setCategorySearch("");
                       }}
                       className={cn(
-                        "block w-full border-l-2 px-4 py-2 text-left text-sm transition-colors",
+                        "shrink-0 border-b-2 px-1 py-2 text-sm font-medium whitespace-nowrap transition-colors",
                         activeCategory === category.key
-                          ? "border-primary font-semibold text-primary"
-                          : "border-transparent text-muted-foreground hover:text-foreground",
+                          ? "border-primary text-primary"
+                          : "border-transparent text-muted-foreground",
                       )}
                     >
                       {category.label}
                     </button>
                   ))}
                 </div>
-
-                <div className="w-64 shrink-0 space-y-3 p-3">
+                <div className="flex-1 space-y-3 overflow-y-auto p-4">
                   <Input
                     value={categorySearch}
                     onChange={(event) => setCategorySearch(event.target.value)}
                     placeholder={translateOr(t, "ES_COMMON_SEARCH", "Search")}
                   />
-                  <ScrollArea className="h-56 pr-3">
-                    <div className="space-y-3">{optionsContent}</div>
-                  </ScrollArea>
+                  <div className="space-y-3">{optionsContent}</div>
                 </div>
-              </div>
-            </PopoverContent>
-          </Popover>
+                <SheetFooter className="flex-row gap-3 border-t border-border">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    disabled={!hasActiveFilters}
+                    onClick={() => {
+                      handleClearAllFilters();
+                      setMobileFiltersOpen(false);
+                    }}
+                  >
+                    {translateOr(t, "ES_IM_CLEAR_ALL_FILTERS", "Clear all filters")}
+                  </Button>
+                  <Button
+                    type="button"
+                    className="flex-1"
+                    onClick={() => setMobileFiltersOpen(false)}
+                  >
+                    {translateOr(t, "ES_IM_APPLY_FILTERS", "Apply filters")}
+                  </Button>
+                </SheetFooter>
+              </SheetContent>
+            </Sheet>
+          </div>
 
           {showAssigneeFilter
             ? assignedToOptions.map((option) => (
@@ -538,7 +645,7 @@ export function InboxFilter({
           disabled={!hasActiveFilters}
           onClick={handleClearAllFilters}
           className={cn(
-            "text-sm transition-colors",
+            "hidden text-sm transition-colors lg:block",
             hasActiveFilters
               ? "cursor-pointer text-foreground hover:text-primary"
               : "text-muted-foreground/50",
