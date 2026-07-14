@@ -420,9 +420,24 @@ export function InboxFilter({
 
   const activeCategoryData = categories.find((category) => category.key === activeCategory);
   const searchLower = categorySearch.trim().toLowerCase();
-  const visibleOptions = (activeCategoryData?.options ?? []).filter((option) =>
-    searchLower ? option.name.toLowerCase().includes(searchLower) : true,
-  );
+
+  function isOptionSelected(option: { code: string; name?: string }) {
+    if (activeCategory === "applicationStatus") {
+      const group = ORDERED_INBOX_STATUSES.find((item) => item.code === option.code);
+      return isStatusGroupChecked(group?.statuses ?? [option.code]);
+    }
+    return pgrfilters[activeCategory as PgrFilterKey].some((item) => item.code === option.code);
+  }
+
+  const visibleOptions = (activeCategoryData?.options ?? [])
+    .filter((option) => (searchLower ? option.name.toLowerCase().includes(searchLower) : true))
+    .slice()
+    .sort((a, b) => {
+      const aSelected = isOptionSelected(a);
+      const bSelected = isOptionSelected(b);
+      if (aSelected !== bSelected) return aSelected ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
 
   let optionsContent: ReactNode;
   if (visibleOptions.length === 0) {
