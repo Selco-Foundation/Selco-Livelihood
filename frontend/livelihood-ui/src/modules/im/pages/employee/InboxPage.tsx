@@ -124,7 +124,7 @@ export function InboxPage() {
           <div className="flex items-start justify-between gap-3">
             <ImBreadcrumbs items={breadcrumbItems} />
             {canCreateTicket ? (
-              <Button asChild size="sm" className="shrink-0 gap-1.5 rounded-full px-4">
+              <Button asChild size="sm" className="shrink-0 gap-1.5 rounded-md px-4">
                 <Link to={`${basePath}/incident/create`}>
                   <Plus className="size-4" />
                   {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise Ticket")}

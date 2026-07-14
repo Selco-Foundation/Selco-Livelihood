@@ -47,7 +47,7 @@ export function ImOverview() {
               {canCreate ? <span aria-hidden="true" className="h-8 w-px bg-border" /> : null}
             </div>
             {canCreate ? (
-              <Button asChild size="sm" className="gap-1.5 rounded-full px-4 text-sm font-semibold lg:rounded-md">
+              <Button asChild size="sm" className="gap-1.5 rounded-md px-4 text-sm font-semibold">
                 <Link to={`${basePath}/incident/create`}>
                   <Plus className="size-4" />
                   <span className="lg:hidden">{translateOr(t, "ES_IM_RAISE_TICKET_SHORT", "Raise Ticket")}</span>
