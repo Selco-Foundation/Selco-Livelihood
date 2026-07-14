@@ -96,23 +96,33 @@ export function ComplaintDetailsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <PageHeader
-          title={translateOr(t, "CS_HEADER_TICKET_DETAILS", "Ticket Details")}
-          action={
-            <div className="hidden lg:block">
-              <LanguageSwitcher />
-            </div>
-          }
-        />
+      <div>
+        <div className="hidden space-y-1 lg:block">
+          <PageHeader
+            title={translateOr(t, "CS_HEADER_TICKET_DETAILS", "Ticket Details")}
+            action={<LanguageSwitcher />}
+          />
 
-        <ImBreadcrumbs
-          items={[
-            { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: homePath },
-            { label: translateOr(t, "ES_IM_INBOX", "Inbox"), to: inboxPath },
-            { label: incidentId },
-          ]}
-        />
+          <ImBreadcrumbs
+            items={[
+              { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: homePath },
+              { label: translateOr(t, "ES_IM_INBOX", "Inbox"), to: inboxPath },
+              { label: incidentId },
+            ]}
+          />
+        </div>
+
+        <div className="space-y-1 lg:hidden">
+          <PageHeader title={translateOr(t, "CS_HEADER_TICKET_DETAILS", "Ticket Details")} />
+
+          <ImBreadcrumbs
+            items={[
+              { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: homePath },
+              { label: translateOr(t, "ES_IM_INBOX", "Inbox"), to: inboxPath },
+              { label: incidentId },
+            ]}
+          />
+        </div>
       </div>
 
       <ComplaintSummarySection complaintDetails={complaintDetails} />
