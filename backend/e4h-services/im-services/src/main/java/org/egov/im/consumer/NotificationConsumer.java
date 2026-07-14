@@ -13,6 +13,8 @@ import org.egov.im.service.NotificationService;
 import org.egov.im.util.LivelihoodTenantUtil;
 import org.egov.im.util.IMConstants;
 import static org.egov.im.util.IMConstants.LIVELIHOOD_BUSINESSSERVICE;
+import static org.egov.im.util.IMConstants.LIVELIHOOD_OUT_OF_SCOPE_PENDING_POC;
+import static org.egov.im.util.IMConstants.LIVELIHOOD_OUT_OF_SCOPE_PENDING_VENDOR;
 import static org.egov.im.util.IMConstants.LIVELIHOOD_OUT_OF_WARRANTY_PENDING_VENDOR;
 import static org.egov.im.util.IMConstants.LIVELIHOOD_PENDING_FOR_RESOLUTION;
 import static org.egov.im.util.IMConstants.LIVELIHOOD_RESOLVED;
@@ -121,20 +123,36 @@ public class NotificationConsumer {
 
             if (livelihood && LIVELIHOOD_OUT_OF_WARRANTY_PENDING_VENDOR.equalsIgnoreCase(
                     existing.getApplicationStatus())) {
-                IncidentRequest reminderRequest = new IncidentRequest();
-                reminderRequest.setIncident(existing);
-                reminderRequest.setRequestInfo(requestInfo);
-                reminderRequest.setWorkflow(incidentWorkflow);
-                livelihoodNotificationService.processOowRemindersIfDue(reminderRequest);
+                IncidentRequest oowRequest = new IncidentRequest();
+                oowRequest.setIncident(existing);
+                oowRequest.setRequestInfo(requestInfo);
+                oowRequest.setWorkflow(incidentWorkflow);
+                // Mid-window (day 7 / T-2d): follow-up SMS. Actual SLA expiry: vendor+POC breach.
+                if (isSlaStillOpen(incidents.get(0))) {
+                    livelihoodNotificationService.processOowRemindersIfDue(oowRequest);
+                } else {
+                    livelihoodNotificationService.notifyVendorSlaBreached(oowRequest);
+                }
                 return;
             }
 
-            if (livelihood && LIVELIHOOD_PENDING_FOR_RESOLUTION.equalsIgnoreCase(existing.getApplicationStatus())) {
+            if (livelihood && isVendorSlaBreachStatus(existing.getApplicationStatus())) {
                 IncidentRequest slaRequest = new IncidentRequest();
                 slaRequest.setIncident(existing);
                 slaRequest.setRequestInfo(requestInfo);
                 slaRequest.setWorkflow(incidentWorkflow);
                 livelihoodNotificationService.notifyVendorSlaBreached(slaRequest);
+                return;
+            }
+
+            // POC-owned 3d OOS SLA — Word doc SLA breached → POC email only (no vendor).
+            if (livelihood && LIVELIHOOD_OUT_OF_SCOPE_PENDING_POC.equalsIgnoreCase(
+                    existing.getApplicationStatus())) {
+                IncidentRequest pocSlaRequest = new IncidentRequest();
+                pocSlaRequest.setIncident(existing);
+                pocSlaRequest.setRequestInfo(requestInfo);
+                pocSlaRequest.setWorkflow(incidentWorkflow);
+                livelihoodNotificationService.notifyPocSlaBreached(pocSlaRequest);
                 return;
             }
 
@@ -161,6 +179,39 @@ public class NotificationConsumer {
 		log.info("Proceeding for Update call2");
             imService.update(incidentRequest);
 	}
+    }
+
+    /**
+     * Vendor-owned SLA states (Word doc SLA breached → vendor 004 + POC 005).
+     */
+    private static boolean isVendorSlaBreachStatus(String status) {
+        if (status == null) {
+            return false;
+        }
+        return LIVELIHOOD_PENDING_FOR_RESOLUTION.equalsIgnoreCase(status)
+                || LIVELIHOOD_OUT_OF_SCOPE_PENDING_VENDOR.equalsIgnoreCase(status)
+                || LIVELIHOOD_OUT_OF_WARRANTY_PENDING_VENDOR.equalsIgnoreCase(status);
+    }
+
+    /**
+     * True when workflow business SLA remaining is still positive (mid-window OOW reminders).
+     * Null remaining keeps reminder path (day 7 / T-2d when SLA field is not on the instance).
+     * Zero/negative → breached.
+     */
+    private static boolean isSlaStillOpen(IncidentWrapper wrapper) {
+        if (wrapper == null) {
+            return true;
+        }
+        List<ProcessInstance> history = wrapper.getProcessHistory();
+        if (history == null || history.isEmpty()) {
+            return true;
+        }
+        ProcessInstance current = history.get(history.size() - 1);
+        Long remaining = current.getBusinesssServiceSla();
+        if (remaining == null) {
+            return true;
+        }
+        return remaining > 0;
     }
 
     private void enrichVendorAssigneeIfMissing(IncidentWrapper wrapper, Workflow workflow) {

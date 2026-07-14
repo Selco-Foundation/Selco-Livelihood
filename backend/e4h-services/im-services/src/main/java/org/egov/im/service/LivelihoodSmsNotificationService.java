@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.egov.im.config.IMConfiguration;
+import org.egov.im.util.LivelihoodIssueTypeUtil;
 import org.egov.im.util.NotificationUtil;
 import org.egov.im.web.models.Incident;
 import org.egov.im.web.models.IncidentRequest;
@@ -61,8 +62,8 @@ public class LivelihoodSmsNotificationService {
                             + "We hope your issue has been addressed. Not satisfied with the resolution? You can change ticket "
                             + "status on {url} - SELCO Foundation"),
             Map.entry(LIV_TPL_012,
-                    "Your livelihood support ticket for {ticket_type} with ID {incidentId} submitted on {date} has been closed. "
-                            + "For further assistance, please contact the SELCO team or track ticket details on {url} - SELCO Foundation"),
+                    "Your livelihood support ticket for {ticket_type} with ID {incidentId} submitted on {date} has been closed "
+                            + "without resolution. For further assistance, please contact the SELCO team or track ticket details on {url} - SELCO Foundation"),
             Map.entry(LIV_TPL_014,
                     "Your livelihood support ticket for {ticket_type} with ID {incidentId} submitted on {date} has been declined "
                             + "by the vendor. Please contact your Program POC for further assistance or track ticket details on {url} - SELCO Foundation"),
@@ -70,9 +71,6 @@ public class LivelihoodSmsNotificationService {
                     "Your livelihood support ticket for {ticket_type} with ID {incidentId} submitted on {date} has been declined "
                             + "by the SELCO Foundation. For further assistance, please reach out to your local coordinator or track ticket "
                             + "details on {url} - SELCO Foundation"),
-            Map.entry(LIV_TPL_017,
-                    "Livelihood ticket for {ticket_type} with ID {incidentId} submitted on {date} has been assigned to you. "
-                            + "Please take necessary action or track ticket details on {url} - SELCO Foundation"),
             Map.entry(LIV_TPL_032,
                     "A follow-up action is required for your livelihood support ticket for {ticket_type} with ID {incidentId}. "
                             + "Reason: {reason}. Please respond at the earliest or track ticket details on {url} - SELCO Foundation"),
@@ -83,6 +81,7 @@ public class LivelihoodSmsNotificationService {
 
     private final IMConfiguration config;
     private final NotificationUtil notificationUtil;
+    private final LivelihoodIssueTypeUtil livelihoodIssueTypeUtil;
 
     public void sendSms(IncidentRequest request, String mobileNumber, String templateCode) {
         sendSms(request, mobileNumber, templateCode, Map.of());
@@ -140,9 +139,12 @@ public class LivelihoodSmsNotificationService {
 
     public Map<String, String> buildPlaceholders(IncidentRequest request) {
         Incident incident = request.getIncident();
+        String assetType = resolveAssetType(incident);
         Map<String, String> placeholders = new HashMap<>();
-        placeholders.put("ticket_type", nullToEmpty(incident.getIncidentType()));
-        placeholders.put("equipment_type", nullToEmpty(incident.getIncidentType()));
+        // Word doc "Equipment / Issue Type" → use asset/machine category, not issue code.
+        placeholders.put("ticket_type", assetType);
+        placeholders.put("equipment_type", assetType);
+        placeholders.put("asset_type", assetType);
         placeholders.put("incidentId", nullToEmpty(incident.getIncidentId()));
         placeholders.put("ticket_id", nullToEmpty(incident.getIncidentId()));
         placeholders.put("date", formatRaisedDate(incident));
@@ -153,6 +155,14 @@ public class LivelihoodSmsNotificationService {
         placeholders.put("out_of_scope_reason", resolveOutOfScopeReason(request));
         placeholders.put("quotation_link", resolveQuotationLink(request));
         return placeholders;
+    }
+
+    private String resolveAssetType(Incident incident) {
+        String assetCategory = livelihoodIssueTypeUtil.extractAssetCategory(incident);
+        if (StringUtils.isNotBlank(assetCategory)) {
+            return assetCategory.trim();
+        }
+        return nullToEmpty(incident.getIncidentType());
     }
 
     private String resolveAppUrl(IncidentRequest request) {
