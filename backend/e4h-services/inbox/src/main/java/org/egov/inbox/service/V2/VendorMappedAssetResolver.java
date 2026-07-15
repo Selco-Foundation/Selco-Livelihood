@@ -172,23 +172,15 @@ public class VendorMappedAssetResolver {
         body.put("criteria", criteria);
 
         try {
-            Object response = serviceRequestRepository.fetchResult(new StringBuilder(uri), body);
-            if (response instanceof List) {
-                return castToListOfMaps(response);
-            }
-            Map<String, Object> responseMap = castToMap(response);
-            if (responseMap.containsKey("Assets")) {
-                return castToListOfMaps(responseMap.get("Assets"));
-            }
-            if (responseMap.containsKey("assets")) {
-                return castToListOfMaps(responseMap.get("assets"));
-            }
-            return Collections.emptyList();
+            // asset-registry returns a bare JSON array (not a Map wrapper)
+            List response = serviceRequestRepository.fetchListResult(new StringBuilder(uri), body);
+            return castToListOfMaps(response);
         } catch (CustomException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Failed to search assets for vendorId={}", vendorId, e);
-            throw new CustomException("ASSET_REGISTRY_ERROR", "Failed to search assets for vendor scope");
+            log.error("Failed to search assets for vendorId={} uri={}", vendorId, uri, e);
+            throw new CustomException("ASSET_REGISTRY_ERROR",
+                    "Failed to search assets for vendor scope: " + e.getMessage());
         }
     }
 
