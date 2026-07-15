@@ -19,7 +19,11 @@ import {
   updateIncidentAction,
 } from "../../services/workflow";
 import { buildUploadedDocuments } from "../../utils/create-incident-documents";
-import { MAX_IMAGE_COUNT } from "../../utils/media-validation";
+import {
+  MAX_IMAGE_COUNT,
+  MAX_QUOTATION_SIZE_MB,
+  validateQuotationFiles,
+} from "../../utils/media-validation";
 import { FormSelectField } from "../create/FormSelectField";
 
 interface ComplaintActionDialogProps {
@@ -274,16 +278,26 @@ export function ComplaintActionDialog({
     }
 
     if (requiresQuotation) {
-      const hasImage = filesToUpload.some((file) =>
-        file.type.startsWith("image/"),
-      );
-      if (hasImage) {
+      const quotationError = validateQuotationFiles(filesToUpload);
+      if (quotationError?.code === "FORMAT") {
         setError(
           translateOr(
             t,
             "WF_QUOTATION_IMAGE_NOT_ALLOWED",
             "Quotation must be a document (PDF or Word), not an image",
           ),
+        );
+        return;
+      }
+      if (quotationError?.code === "SIZE") {
+        setError(
+          translateOr(
+            t,
+            "WF_QUOTATION_FILE_TOO_LARGE",
+            "{fileName} exceeds the {MAX_SIZE}MB size limit",
+          )
+            .replace("{fileName}", quotationError.fileName ?? "")
+            .replace("{MAX_SIZE}", String(MAX_QUOTATION_SIZE_MB)),
         );
         return;
       }
