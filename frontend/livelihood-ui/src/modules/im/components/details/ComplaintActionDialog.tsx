@@ -20,7 +20,7 @@ import {
 } from "../../services/workflow";
 import { buildUploadedDocuments } from "../../utils/create-incident-documents";
 import { MAX_IMAGE_COUNT } from "../../utils/media-validation";
-import { FormSelectField } from "../create/FormSelectField";
+import { FormComboboxField } from "../create/FormComboboxField";
 
 interface ComplaintActionDialogProps {
   action: string;
@@ -360,7 +360,7 @@ export function ComplaintActionDialog({
 
         <div className="mt-4 space-y-4">
           {actionConfig.reasonMaster ? (
-            <FormSelectField
+            <FormComboboxField
               label={reasonLabel}
               required
               value={selectedReason?.code ?? ""}

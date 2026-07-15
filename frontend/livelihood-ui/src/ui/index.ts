@@ -108,6 +108,24 @@ export {
 } from "./components/ui/popover";
 export { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
 export {
+  Combobox,
+  ComboboxInput,
+  ComboboxContent,
+  ComboboxList,
+  ComboboxItem,
+  ComboboxGroup,
+  ComboboxLabel,
+  ComboboxCollection,
+  ComboboxEmpty,
+  ComboboxSeparator,
+  ComboboxChips,
+  ComboboxChip,
+  ComboboxChipsInput,
+  ComboboxTrigger,
+  ComboboxValue,
+  useComboboxAnchor,
+} from "./components/ui/combobox";
+export {
   Sheet,
   SheetClose,
   SheetContent,
