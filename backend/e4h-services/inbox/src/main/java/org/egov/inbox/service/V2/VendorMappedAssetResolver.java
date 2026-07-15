@@ -13,6 +13,7 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -35,7 +36,7 @@ public class VendorMappedAssetResolver {
 
     public List<String> resolveMappedAssetIds(RequestInfo requestInfo, String tenantId, String userUuid) {
         if (requestInfo == null || StringUtils.isBlank(tenantId) || StringUtils.isBlank(userUuid)) {
-            return List.of();
+            return Collections.emptyList();
         }
         Set<String> vendorKeys = resolveVendorOrgKeys(requestInfo, tenantId, userUuid.trim());
         Set<String> assetIds = searchAssetIdsByVendorKeys(requestInfo, tenantId, vendorKeys);
@@ -73,7 +74,7 @@ public class VendorMappedAssetResolver {
 
         Map<String, Object> criteria = new HashMap<>();
         criteria.put("tenantId", tenantId);
-        criteria.put("userIds", List.of(userUuid));
+        criteria.put("userIds", Collections.singletonList(userUuid));
 
         Map<String, Object> body = new HashMap<>();
         body.put("RequestInfo", requestInfo);
@@ -82,7 +83,7 @@ public class VendorMappedAssetResolver {
         Map<String, Object> response = castToMap(serviceRequestRepository.fetchResult(new StringBuilder(uri), body));
         List<Map<String, Object>> orgUsers = castToListOfMaps(response.get("OrgUsers"));
         if (CollectionUtils.isEmpty(orgUsers)) {
-            return List.of();
+            return Collections.emptyList();
         }
 
         List<String> organisationIds = new ArrayList<>();
@@ -182,7 +183,7 @@ public class VendorMappedAssetResolver {
             if (responseMap.containsKey("assets")) {
                 return castToListOfMaps(responseMap.get("assets"));
             }
-            return List.of();
+            return Collections.emptyList();
         } catch (CustomException e) {
             throw e;
         } catch (Exception e) {
@@ -194,7 +195,7 @@ public class VendorMappedAssetResolver {
     @SuppressWarnings("unchecked")
     private Map<String, Object> castToMap(Object value) {
         if (value == null) {
-            return Map.of();
+            return Collections.emptyMap();
         }
         return objectMapper.convertValue(value, Map.class);
     }
@@ -202,7 +203,7 @@ public class VendorMappedAssetResolver {
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> castToListOfMaps(Object value) {
         if (value == null) {
-            return List.of();
+            return Collections.emptyList();
         }
         return objectMapper.convertValue(value, List.class);
     }
