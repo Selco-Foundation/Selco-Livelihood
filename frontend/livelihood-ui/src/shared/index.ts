@@ -6,7 +6,16 @@ export {
   type LocalizationMessage,
   type LocalizationResponse,
 } from "./api/localization";
-export { loginUser, type LoginPayload, type LoginResponse } from "./api/auth";
+export {
+  loginUser,
+  sendPasswordResetOtp,
+  resetPasswordWithOtp,
+  extractPasswordResetErrorMessage,
+  type LoginPayload,
+  type LoginResponse,
+  type SendPasswordResetOtpPayload,
+  type ResetPasswordWithOtpPayload,
+} from "./api/auth";
 export { searchHrmsEmployee, type HrmsEmployee } from "./api/hrms";
 export {
   fetchBoundaryRelations,
@@ -28,7 +37,12 @@ export {
   isGlobalConfigLoaded,
   tenantId,
 } from "./config/global-config";
-export { employeeHomePath, employeeLoginPath } from "./config/routes";
+export {
+  employeeHomePath,
+  employeeLoginPath,
+  employeeForgotPasswordPath,
+  employeeChangePasswordPath,
+} from "./config/routes";
 export { queryClient } from "./query/query-client";
 export { QueryProvider } from "./query/provider";
 export { useBoundary } from "./hooks/use-boundary";

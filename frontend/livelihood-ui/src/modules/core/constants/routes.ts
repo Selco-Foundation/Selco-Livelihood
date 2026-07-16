@@ -1,4 +1,6 @@
 export const CORE_ROUTES = {
   employeeHome: "/employee",
   employeeLogin: "/employee/user/login",
+  employeeForgotPassword: "/employee/user/forgot-password",
+  employeeChangePassword: "/employee/user/change-password",
 } as const;
