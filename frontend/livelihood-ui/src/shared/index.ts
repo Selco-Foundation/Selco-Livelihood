@@ -10,12 +10,19 @@ export {
   loginUser,
   sendPasswordResetOtp,
   resetPasswordWithOtp,
-  extractPasswordResetErrorMessage,
   type LoginPayload,
   type LoginResponse,
   type SendPasswordResetOtpPayload,
   type ResetPasswordWithOtpPayload,
 } from "./api/auth";
+export { extractApiErrorMessage } from "./api/errors";
+export {
+  searchCurrentUser,
+  updateUserProfile,
+  changePasswordInSession,
+  type EmployeeProfile,
+  type ChangePasswordInSessionPayload,
+} from "./api/user-profile";
 export { searchHrmsEmployee, type HrmsEmployee } from "./api/hrms";
 export {
   fetchBoundaryRelations,
@@ -42,6 +49,7 @@ export {
   employeeLoginPath,
   employeeForgotPasswordPath,
   employeeChangePasswordPath,
+  employeeProfilePath,
 } from "./config/routes";
 export { queryClient } from "./query/query-client";
 export { QueryProvider } from "./query/provider";

@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   employeeLoginPath,
-  extractPasswordResetErrorMessage,
+  extractApiErrorMessage,
   resetPasswordWithOtp,
   sendPasswordResetOtp,
   tenantId,
@@ -85,7 +85,7 @@ export function ChangePasswordPage() {
     } catch (error) {
       toast.error(translateOr(t, "CS_FORGOT_PASSWORD_OTP_FAILED", "Failed to send OTP"), {
         description:
-          extractPasswordResetErrorMessage(error) ??
+          extractApiErrorMessage(error) ??
           translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again."),
       });
     }
@@ -106,7 +106,7 @@ export function ChangePasswordPage() {
     } catch (error) {
       toast.error(translateOr(t, "CORE_CHANGE_PASSWORD_FAILED", "Failed to update password"), {
         description:
-          extractPasswordResetErrorMessage(error) ??
+          extractApiErrorMessage(error) ??
           translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again."),
       });
     } finally {
