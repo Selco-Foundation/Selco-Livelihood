@@ -30,7 +30,7 @@ import { ORDERED_INBOX_STATUSES } from "../../constants/inbox-statuses";
 import { buildDefaultInboxRoleFilters } from "../../hooks/inbox-defaults";
 import { useImAssetTypes } from "../../hooks/use-im-inbox-summary";
 import type { ImInboxFilters, InboxDataResult } from "../../types/inbox";
-import { isAssigneeScopedUser, isEndUser } from "../../utils/access";
+import { isEndUser } from "../../utils/access";
 import { buildFilterQueryFromState } from "../../utils/inbox-filters";
 
 interface FilterOption {
@@ -86,7 +86,6 @@ export function InboxFilter({
 
   const defaultFilters = buildDefaultInboxRoleFilters(user);
   const showGeoFilters = !isEndUser(roles);
-  const showAssigneeFilter = !isAssigneeScopedUser(roles);
 
   const [selectAssigned, setSelectAssigned] = useState(
     searchParams.filters?.wfFilters?.assignee?.[0]?.code === userUuid
@@ -320,21 +319,12 @@ export function InboxFilter({
   ]);
 
   useEffect(() => {
-    if (!showAssigneeFilter) {
-      if (userUuid) {
-        setWfFilters((prev) => ({
-          ...prev,
-          assignee: [{ code: userUuid }],
-        }));
-      }
-      return;
-    }
     const code = selectAssigned.code === "ASSIGNED_TO_ME" ? userUuid : "";
     setWfFilters((prev) => ({
       ...prev,
-      assignee: [{ code }],
+      assignee: code ? [{ code }] : [],
     }));
-  }, [selectAssigned, showAssigneeFilter, userUuid]);
+  }, [selectAssigned, userUuid]);
 
   useEffect(() => {
     const { pgrQuery, wfQuery } = buildFilterQueryFromState({ pgrfilters, wfFilters });
@@ -343,7 +333,7 @@ export function InboxFilter({
 
   const hasActiveFilters =
     Object.values(pgrfilters).some((value) => value.length > 0) ||
-    (showAssigneeFilter && selectAssigned.code !== assignedToOptions[1].code);
+    selectAssigned.code !== assignedToOptions[1].code;
 
   function handleClearAllFilters() {
     setPgrFilters({ ...emptyPgrFilters, ...defaultFilters.pgrfilters });
@@ -639,20 +629,18 @@ export function InboxFilter({
             </Sheet>
           </div>
 
-          {showAssigneeFilter
-            ? assignedToOptions.map((option) => (
-                <label key={option.code} className="flex cursor-pointer items-center gap-2 text-sm">
-                  <input
-                    type="radio"
-                    name="assignedTo"
-                    className="livelihood-radio"
-                    checked={selectAssigned.code === option.code}
-                    onChange={() => setSelectAssigned(option)}
-                  />
-                  <span>{option.name}</span>
-                </label>
-              ))
-            : null}
+          {assignedToOptions.map((option) => (
+            <label key={option.code} className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="assignedTo"
+                className="livelihood-radio"
+                checked={selectAssigned.code === option.code}
+                onChange={() => setSelectAssigned(option)}
+              />
+              <span>{option.name}</span>
+            </label>
+          ))}
         </div>
 
         <button
