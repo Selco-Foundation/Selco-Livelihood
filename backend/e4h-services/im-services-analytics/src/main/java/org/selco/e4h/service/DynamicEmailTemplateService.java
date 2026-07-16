@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.egov.common.contract.request.RequestInfo;
 import org.selco.e4h.config.ConsumerConfiguration;
+import org.selco.e4h.config.LivelihoodSummaryProperties;
 import org.selco.e4h.util.CommonUtility;
 import org.selco.e4h.web.models.EscalationTicket;
 import org.springframework.core.io.ClassPathResource;
@@ -31,12 +32,44 @@ public class DynamicEmailTemplateService {
     
     // Role code constants
     private static final String ROLE_STATE_POC = "STATE_POC";
+    private static final String ROLE_LIVELIHOOD_POC = "LIVELIHOOD_POC";
     private static final String ROLE_CENTRAL_POC = "CENTRAL_POC";
     private static final String ROLE_CENTRAL_ONM_PROJECT_MANAGER = "CENTRAL_ONM_PROJECT_MANAGER";
     private static final String ROLE_SENIOR_PROGRAM_MANAGER = "SENIOR_PROGRAM_MANAGER";
 
     private final ConsumerConfiguration consumerConfiguration;
     private final CommonUtility commonUtility;
+    private final LivelihoodSummaryProperties livelihoodProperties;
+
+    private boolean isLivelihood() {
+        return livelihoodProperties.isLivelihoodDeployment();
+    }
+
+    private String appName() {
+        return isLivelihood() ? "Setu 4 Livelihoods" : "Saura-eMitra";
+    }
+
+    private String appUrl() {
+        if (isLivelihood()
+                && livelihoodProperties.getMobileAppLink() != null
+                && !livelihoodProperties.getMobileAppLink().isBlank()) {
+            return livelihoodProperties.getMobileAppLink();
+        }
+        return commonUtility.generateSauraEmitraUrl();
+    }
+
+    private String fileStoreTenantId() {
+        return isLivelihood() ? livelihoodProperties.getLivelihoodTenantId() : "in";
+    }
+
+    private String dashboardUrl() {
+        if (isLivelihood()
+                && livelihoodProperties.getMobileAppLink() != null
+                && !livelihoodProperties.getMobileAppLink().isBlank()) {
+            return livelihoodProperties.getMobileAppLink();
+        }
+        return commonUtility.generateStateDashboardUrl();
+    }
     
     static {
         // Set timezone to IST for date formatting
@@ -118,8 +151,7 @@ public class DynamicEmailTemplateService {
         variables.put("ESCALATION_SECTIONS", escalationSections);
         
         // Generate state-specific dashboard URL
-        // All states use the common dashboard URL since tenantId is "in" for all
-        variables.put("DASHBOARD_URL", commonUtility.generateStateDashboardUrl());
+        variables.put("DASHBOARD_URL", dashboardUrl());
 
         // Role-specific intro line with resolved placeholders
         String introLine = generateIntroLine(
@@ -192,9 +224,8 @@ public class DynamicEmailTemplateService {
         section.append("  <tr><td class=\"sp-16\"></td></tr>\n");
         
         // Download button - always show if file store ID is available (even for zero counts)
-        // All files are uploaded to tenant "in", so use "in" for download URLs regardless of state tenant ID
         if (fileStoreId != null && !fileStoreId.isEmpty()) {
-            String downloadUrl = commonUtility.generateDownloadUrl(fileStoreId, "in", 
+            String downloadUrl = commonUtility.generateDownloadUrl(fileStoreId, fileStoreTenantId(),
                 consumerConfiguration.getFileStoreBaseUrl(), consumerConfiguration.getFileStoreDownloadEndpoint());
             section.append("  <tr>\n");
             section.append("    <td align=\"center\">\n");
@@ -214,11 +245,12 @@ public class DynamicEmailTemplateService {
     }
 
     private String generateIntroLine(String recipientRole, String stateName, String asOfDate) {
-        if (ROLE_STATE_POC.equals(recipientRole)) {
-            return "Please find below the daily summary of the issues reported in <strong>" + stateName + "</strong> on Saura-eMitra as of <strong>" + asOfDate + "</strong>.";
+        if (ROLE_STATE_POC.equals(recipientRole) || ROLE_LIVELIHOOD_POC.equals(recipientRole)) {
+            return "Please find below the daily summary of the issues reported in <strong>" + stateName
+                    + "</strong> on " + appName() + " as of <strong>" + asOfDate + "</strong>.";
         }
-        // Default/other roles
-        return "Please find below the daily summary of the issues escalated to you in <strong>" + stateName + "</strong> on Saura-eMitra as of <strong>" + asOfDate + "</strong>.";
+        return "Please find below the daily summary of the issues escalated to you in <strong>" + stateName
+                + "</strong> on " + appName() + " as of <strong>" + asOfDate + "</strong>.";
     }
 
     /**
@@ -278,13 +310,19 @@ public class DynamicEmailTemplateService {
      * Role-specific workflow states based on escalation matrix
      */
     private List<String> getCommonWorkflowStates(String level, String recipientRole) {
+        if (isLivelihood()) {
+            return getLivelihoodWorkflowStates(level, recipientRole);
+        }
+
         List<String> commonStates = new ArrayList<>();
         
         // Role-specific workflow states based on escalation matrix
         switch (recipientRole) {
             case ROLE_SENIOR_PROGRAM_MANAGER:
-                // Senior Program Manager should only see "Out of Warranty - Pending with State Manager"
+                // Senior Program Manager: aged SLA breaches on OOS/OOW states
                 if ("LEVEL_TWO".equals(level)) {
+                    commonStates.add("OUT_OF_WARRANTY_PENDING_VENDOR");
+                    commonStates.add("OUT_OF_SCOPE_PENDING_POC");
                     commonStates.add("PENDING_ASSIGNMENT_OUT_OF_WARRANTY");
                 }
                 break;
@@ -326,6 +364,24 @@ public class DynamicEmailTemplateService {
         
         return commonStates;
     }
+
+    private List<String> getLivelihoodWorkflowStates(String level, String recipientRole) {
+        List<String> states = new ArrayList<>();
+        if (ROLE_LIVELIHOOD_POC.equals(recipientRole)) {
+            if ("LEVEL_ZERO".equals(level)) {
+                states.add("PENDING_FOR_RESOLUTION");
+            } else if ("LEVEL_ONE".equals(level)) {
+                states.add("PENDING_FOR_RESOLUTION");
+                states.add("OUT_OF_SCOPE_PENDING_POC");
+                states.add("OUT_OF_SCOPE_PENDING_VENDOR");
+                states.add("OUT_OF_WARRANTY_PENDING_VENDOR");
+            }
+        } else if (ROLE_SENIOR_PROGRAM_MANAGER.equals(recipientRole) && "LEVEL_TWO".equals(level)) {
+            states.add("OUT_OF_WARRANTY_PENDING_VENDOR");
+            states.add("OUT_OF_SCOPE_PENDING_POC");
+        }
+        return states;
+    }
     
     /**
      * Get section title based on escalation level and role
@@ -349,6 +405,7 @@ public class DynamicEmailTemplateService {
         
         switch (recipientRole) {
             case ROLE_STATE_POC:
+            case ROLE_LIVELIHOOD_POC:
                 expectedLevels.add("LEVEL_ZERO"); // My Tickets
                 expectedLevels.add("LEVEL_ONE");  // L1 Escalation
                 break;
@@ -383,8 +440,6 @@ public class DynamicEmailTemplateService {
      * Get call to action text based on escalation level and role
      */
     private String getCallToAction(String level, String recipientRole, String tenantId) {
-        String sauraEmitraUrl = commonUtility.generateSauraEmitraUrl();
-
         // Senior Program Manager (SPM)
         if (ROLE_SENIOR_PROGRAM_MANAGER.equals(recipientRole)) {
             if ("LEVEL_TWO".equals(level)) {
@@ -404,7 +459,9 @@ public class DynamicEmailTemplateService {
         // Central POC
         if (ROLE_CENTRAL_POC.equals(recipientRole)) {
             if ("LEVEL_ONE".equals(level)) {
-                return "Kindly take immediate action on these tickets to resolve the issues in the health centers. Thank you!";
+                return isLivelihood()
+                        ? "Kindly take immediate action on these tickets. Thank you!"
+                        : "Kindly take immediate action on these tickets to resolve the issues in the health centers. Thank you!";
             }
             if ("LEVEL_TWO".equals(level)) {
                 return "Please resolve these tickets promptly, as they have been unresolved for too long. Thank you!";
@@ -412,13 +469,16 @@ public class DynamicEmailTemplateService {
             return "Kindly take immediate action on these tickets.";
         }
 
-        // State POC
-        if (ROLE_STATE_POC.equals(recipientRole)) {
+        // State / Program POC
+        if (ROLE_STATE_POC.equals(recipientRole) || ROLE_LIVELIHOOD_POC.equals(recipientRole)) {
             if ("LEVEL_ZERO".equals(level)) {
-                return "Kindly go to <a href=\"" + sauraEmitraUrl + "\" target=\"_blank\" rel=\"noopener\" style=\"color: #f08400; text-decoration: underline;\">Saura eMitra</a> take immediate action on these tickets to help the health centers. Thank you.";
+                return "Kindly go to <a href=\"" + appUrl() + "\" target=\"_blank\" rel=\"noopener\" style=\"color: #f08400; text-decoration: underline;\">"
+                        + appName() + "</a> and take immediate action on these tickets. Thank you.";
             }
             if ("LEVEL_ONE".equals(level)) {
-                return "Kindly take immediate action on these tickets to resolve the issues in the health centers. Thank you!";
+                return isLivelihood()
+                        ? "Kindly take immediate action on these tickets in " + appName() + ". Thank you!"
+                        : "Kindly take immediate action on these tickets to resolve the issues in the health centers. Thank you!";
             }
             return "Kindly coordinate with the respective teams to resolve these tickets promptly.";
         }
@@ -482,16 +542,17 @@ public class DynamicEmailTemplateService {
         
         switch (recipientRole) {
             case ROLE_STATE_POC:
-                return String.format("Saura-eMitra Daily Escalation - State POC — %s — %s", stateName, asOfDate);
-            
+            case ROLE_LIVELIHOOD_POC:
+                return String.format("%s Daily Escalation - Program POC — %s — %s", appName(), stateName, asOfDate);
+
             case ROLE_CENTRAL_POC:
-                return String.format("Saura-eMitra Daily Escalation - Central POC — %s — %s", stateName, asOfDate);
-            
+                return String.format("%s Daily Escalation - Central POC — %s — %s", appName(), stateName, asOfDate);
+
             case ROLE_CENTRAL_ONM_PROJECT_MANAGER:
-                return String.format("Saura-eMitra Daily Escalation - Central O&M Project Manager — %s — %s", stateName, asOfDate);
-            
+                return String.format("%s Daily Escalation - Central O&M Project Manager — %s — %s", appName(), stateName, asOfDate);
+
             case ROLE_SENIOR_PROGRAM_MANAGER:
-                return String.format("Saura-eMitra Daily Escalation - SPM — %s — %s", stateName, asOfDate);
+                return String.format("%s Daily Escalation - Senior Program Manager — %s — %s", appName(), stateName, asOfDate);
             
             default:
                 return String.format("Daily SLA Escalation Email – %s – %s", stateName, asOfDate);

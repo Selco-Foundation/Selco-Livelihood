@@ -96,25 +96,39 @@ public class IMConstants {
 
     public static final String LIV_TPL_004 = "LIV-TPL-004";
 
+    public static final String LIV_TPL_005 = "LIV-TPL-005";
+
+    public static final String LIV_TPL_006 = "LIV-TPL-006";
+
     public static final String LIV_TPL_007 = "LIV-TPL-007";
 
     public static final String LIV_TPL_008 = "LIV-TPL-008";
 
     public static final String LIV_TPL_009 = "LIV-TPL-009";
 
+    public static final String LIV_TPL_010 = "LIV-TPL-010";
+
     public static final String LIV_TPL_011 = "LIV-TPL-011";
 
     public static final String LIV_TPL_012 = "LIV-TPL-012";
 
+    public static final String LIV_TPL_013 = "LIV-TPL-013";
+
     public static final String LIV_TPL_014 = "LIV-TPL-014";
+
+    public static final String LIV_TPL_015 = "LIV-TPL-015";
 
     public static final String LIV_TPL_016 = "LIV-TPL-016";
 
-    public static final String LIV_TPL_017 = "LIV-TPL-017";
+    public static final String LIV_TPL_018 = "LIV-TPL-018";
+
+    public static final String LIVELIHOOD_EMAIL_SUBJECT_SUFFIX = "-SUBJECT";
 
     public static final String LIV_TPL_032 = "LIV-TPL-032";
 
     public static final String LIV_TPL_033 = "LIV-TPL-033";
+
+    public static final String LIVELIHOOD_APP_NAME = "Setu 4 Livelihoods";
 
     public static final String POC_ACCESS_DENIED_CODE = "POC_ACCESS_DENIED";
 

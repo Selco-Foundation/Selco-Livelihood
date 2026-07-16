@@ -1,6 +1,7 @@
 import {
   contextPath,
   employeeHomePath,
+  translateOr,
   useAuthStore,
   useTranslate,
 } from "@/shared";
@@ -15,15 +16,6 @@ import { useImInboxData } from "../../hooks/use-im-inbox-summary";
 import type { InboxRouteSearch } from "../../routes";
 import type { ImInboxFilters } from "../../types/inbox";
 import { canCreateIncident } from "../../utils/access";
-
-function translateOr(
-  t: (key: string) => string,
-  key: string,
-  fallback: string,
-): string {
-  const value = t(key);
-  return value === key ? fallback : value;
-}
 
 export function InboxPage() {
   const { t } = useTranslate();
@@ -95,35 +87,52 @@ export function InboxPage() {
 
   const homePath = employeeHomePath();
 
+  const breadcrumbItems = [
+    { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: homePath },
+    { label: translateOr(t, "ES_IM_INBOX", "View all tickets") },
+  ];
+
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <PageHeader
-          title={translateOr(t, "ES_IM_ALL_TICKETS", "All Tickets")}
-          action={
-            <div className="flex items-center gap-3">
-              <LanguageSwitcher />
-              {canCreateTicket ? (
-                <>
-                  <span aria-hidden="true" className="h-8 w-px bg-border" />
-                  <Button asChild size="sm" className="gap-1.5 rounded-md px-3">
-                    <Link to={`${basePath}/incident/create`}>
-                      <Plus className="size-4" />
-                      {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise Ticket")}
-                    </Link>
-                  </Button>
-                </>
-              ) : null}
-            </div>
-          }
-        />
+      <div>
+        <div className="hidden space-y-1 lg:block">
+          <PageHeader
+            title={translateOr(t, "ES_IM_ALL_TICKETS", "All Tickets")}
+            action={
+              <div className="flex items-center gap-3">
+                <LanguageSwitcher />
+                {canCreateTicket ? (
+                  <>
+                    <span aria-hidden="true" className="h-8 w-px bg-border" />
+                    <Button asChild size="sm" className="gap-1.5 rounded-md px-3">
+                      <Link to={`${basePath}/incident/create`}>
+                        <Plus className="size-4" />
+                        {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise Ticket")}
+                      </Link>
+                    </Button>
+                  </>
+                ) : null}
+              </div>
+            }
+          />
+          <ImBreadcrumbs items={breadcrumbItems} />
+        </div>
 
-        <ImBreadcrumbs
-          items={[
-            { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: homePath },
-            { label: translateOr(t, "ES_IM_INBOX", "View all tickets") },
-          ]}
-        />
+        <div className="space-y-1 lg:hidden">
+          <PageHeader title={translateOr(t, "ES_IM_ALL_TICKETS", "All Tickets")} />
+
+          <div className="flex items-start justify-between gap-3">
+            <ImBreadcrumbs items={breadcrumbItems} />
+            {canCreateTicket ? (
+              <Button asChild size="sm" className="shrink-0 gap-1.5 rounded-md px-4">
+                <Link to={`${basePath}/incident/create`}>
+                  <Plus className="size-4" />
+                  {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise Ticket")}
+                </Link>
+              </Button>
+            ) : null}
+          </div>
+        </div>
       </div>
 
       <DesktopInbox

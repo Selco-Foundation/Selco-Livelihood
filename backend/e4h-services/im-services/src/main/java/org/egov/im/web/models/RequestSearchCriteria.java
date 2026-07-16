@@ -119,6 +119,13 @@ public class RequestSearchCriteria {
     @JsonIgnore
     private String assigneeUserId;
 
+    /**
+     * Internal vendor scope: incidents whose {@code assetId} is in this set.
+     * {@code null} = no asset scope; empty set = scoped vendor with no mapped assets.
+     */
+    @JsonIgnore
+    private Set<String> assetIds;
+
 
     public enum SortOrder {
         ASC,
@@ -136,7 +143,7 @@ public class RequestSearchCriteria {
     private String accountId;
 
     public boolean isEmpty(){
-        if (StringUtils.isNotBlank(assigneeUserId)) {
+        if (StringUtils.isNotBlank(assigneeUserId) || this.assetIds != null) {
             return false;
         }
         return (this.tenantId==null && this.serviceCode==null && this.mobileNumber==null && this.incidentId==null

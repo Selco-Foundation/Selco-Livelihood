@@ -1,13 +1,8 @@
-import { employeeHomePath, useTranslate } from "@/shared";
+import { employeeHomePath, translateOr, useTranslate } from "@/shared";
 import { Button } from "@/ui";
 import { Link } from "@tanstack/react-router";
 import { CheckCircle2 } from "lucide-react";
 import { createPortal } from "react-dom";
-
-function translateOr(t: (key: string) => string, key: string, fallback: string) {
-  const value = t(key);
-  return value === key ? fallback : value;
-}
 
 interface TicketSubmittedDialogProps {
   incidentId: string;

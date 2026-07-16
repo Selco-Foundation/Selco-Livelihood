@@ -193,6 +193,27 @@ public class ElasticSearchClient {
     }
 
     /**
+     * Count documents matching a bool query (size=0, track_total_hits).
+     * Used by Livelihood summary digest metrics.
+     */
+    public int countDocuments(Map<String, Object> boolQuery) {
+        String uri = getBaseUrl() + "/" + INDEX_NAME + "/" + SEARCH_PATH;
+        Map<String, Object> body = new HashMap<>();
+        body.put("query", boolQuery);
+        body.put("size", 0);
+        body.put("track_total_hits", true);
+
+        HttpEntity<Object> entity = new HttpEntity<>(body, updateService.buildHeaders());
+        try {
+            Map<String, Object> response = restTemplate.postForObject(uri, entity, Map.class);
+            return parseESTotalHits(response);
+        } catch (Exception e) {
+            log.error("Failed to count documents on index '{}'", INDEX_NAME, e);
+            return 0;
+        }
+    }
+
+    /**
      * Generic search method for custom queries
      * Used by SLABreachDetectionService for escalation queries
      */

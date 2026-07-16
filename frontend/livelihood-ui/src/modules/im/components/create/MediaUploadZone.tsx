@@ -1,14 +1,9 @@
-import { useTranslate } from "@/shared";
+import { translateOr, useTranslate } from "@/shared";
 import { cn } from "@/ui";
 import { CheckCircle2, Info, Trash2, type LucideIcon } from "lucide-react";
 import { useEffect, useId, useMemo, useRef } from "react";
 import type { UploadedMediaEntry } from "../../types/create-incident";
 import { formatFileSize } from "../../utils/file";
-
-function translateOr(t: (key: string) => string, key: string, fallback: string) {
-  const value = t(key);
-  return value === key ? fallback : value;
-}
 
 interface MediaUploadZoneProps {
   label: string;

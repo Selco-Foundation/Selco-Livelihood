@@ -1,4 +1,4 @@
-import { useTranslate } from "@/shared";
+import { translateOr, useTranslate } from "@/shared";
 import {getAttachmentKind, getFileName} from "@/modules/im/utils/file";
 import {FileIcon, FileText} from "lucide-react";
 
@@ -11,11 +11,6 @@ interface ComplaintMediaListProps {
   images: string[];
   videos: ComplaintVideoEntry[];
   imageGridClassName?: string;
-}
-
-function translateOr(t: (key: string) => string, key: string, fallback: string) {
-  const value = t(key);
-  return value === key ? fallback : value;
 }
 
 export function ComplaintMediaList({

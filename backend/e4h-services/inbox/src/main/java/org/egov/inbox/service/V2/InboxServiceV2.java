@@ -794,13 +794,20 @@ public class InboxServiceV2 {
 
     /**
      * Vendor inbox shows all tickets for assets mapped to the vendor organisation,
-     * including RESOLVED / OUT_OF_SCOPE, not only currently assigned tickets.
-     * Jurisdiction filters are kept — vendors are state-scoped.
+     * including RESOLVED / OUT_OF_SCOPE. When the UI sends an assignee filter,
+     * keep only the current vendor's own UUID so "My Tickets" works without
+     * allowing cross-user assignee searches. Jurisdiction filters are kept.
      */
     private void applyVendorMappedAssetScope(InboxRequest inboxRequest) {
         ProcessInstanceSearchCriteria processCriteria = inboxRequest.getInbox().getProcessSearchCriteria();
+        String userUuid = inboxRequest.getRequestInfo().getUserInfo().getUuid();
         if (processCriteria != null) {
-            processCriteria.setAssignee(null);
+            String assignee = StringUtils.trimToNull(processCriteria.getAssignee());
+            if (assignee == null) {
+                processCriteria.setAssignee(null);
+            } else if (!StringUtils.equals(assignee, userUuid)) {
+                processCriteria.setAssignee(userUuid);
+            }
         }
 
         HashMap<String, Object> moduleSearchCriteria = inboxRequest.getInbox().getModuleSearchCriteria();
@@ -810,7 +817,6 @@ public class InboxServiceV2 {
         }
 
         String tenantId = inboxRequest.getInbox().getTenantId();
-        String userUuid = inboxRequest.getRequestInfo().getUserInfo().getUuid();
         List<String> mappedAssetIds = vendorMappedAssetResolver.resolveMappedAssetIds(
                 inboxRequest.getRequestInfo(), tenantId, userUuid);
 

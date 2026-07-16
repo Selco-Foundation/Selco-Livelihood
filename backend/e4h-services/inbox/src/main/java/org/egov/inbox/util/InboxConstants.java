@@ -76,4 +76,8 @@ public class InboxConstants {
     public static final String TOTAL_SLA_REMAINING = "totalSlaRemaining";
 
     public static final String NEARING_SLA_PARAM = "nearingSLA";
+
+    public static final String ASSET_ID_PARAM = "assetId";
+
+    public static final String NO_MAPPED_ASSETS_SENTINEL = "__NO_MAPPED_ASSETS__";
 }

@@ -20,4 +20,7 @@ public class AssetSearchCriteria {
 
     @JsonProperty("facilityID")
     private String facilityID;
+
+    @JsonProperty("vendorId")
+    private String vendorId;
 }
