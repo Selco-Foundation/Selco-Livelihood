@@ -291,6 +291,11 @@ public class IMService {
             return new ArrayList<>();
         }
 
+        if (criteria.getAssetIds() != null && criteria.getAssetIds().isEmpty()) {
+            log.debug("Vendor has no mapped assets, returning empty list");
+            return new ArrayList<>();
+        }
+
         if(criteria.getMobileNumber()!=null && CollectionUtils.isEmpty(criteria.getUserIds())) {
             log.debug("Mobile number provided but no userIds found, returning empty list");
             return new ArrayList<>();
@@ -314,7 +319,10 @@ public class IMService {
         if (livelihoodTenantUtil.isLivelihood(criteria.getTenantId())) {
             workflowService.enrichProcessHistory(requestInfo, enrichedServiceWrappers);
         }
-        if (StringUtils.isNotBlank(criteria.getAssigneeUserId())) {
+        if (criteria.getAssetIds() != null) {
+            enrichedServiceWrappers = livelihoodVendorScopeService.filterByMappedAssets(
+                    enrichedServiceWrappers, criteria.getAssetIds());
+        } else if (StringUtils.isNotBlank(criteria.getAssigneeUserId())) {
             enrichedServiceWrappers = livelihoodVendorScopeService.filterByAssignee(
                     enrichedServiceWrappers, criteria.getAssigneeUserId());
         }
@@ -522,6 +530,11 @@ public class IMService {
 
         if (criteria.isEmpty()) {
             log.debug("Count criteria is empty, returning 0");
+            return 0;
+        }
+
+        if (criteria.getAssetIds() != null && criteria.getAssetIds().isEmpty()) {
+            log.debug("Vendor has no mapped assets, returning count 0");
             return 0;
         }
 
