@@ -24,6 +24,11 @@ export {
   type EmployeeProfile,
   type ChangePasswordInSessionPayload,
 } from "./api/user-profile";
+export {
+  resolveQrLogin,
+  type QrLoginResolveParams,
+  type QrLoginResolveResponse,
+} from "./api/qr-login";
 export { searchHrmsEmployee, type HrmsEmployee } from "./api/hrms";
 export {
   fetchBoundaryRelations,

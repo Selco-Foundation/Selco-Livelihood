@@ -38,6 +38,9 @@ export function createCoreRoutes(rootRoute: AnyRoute) {
     path: employeeLogin,
     validateSearch: (search: Record<string, unknown>) => ({
       from: typeof search.from === "string" ? search.from : undefined,
+      username: typeof search.username === "string" ? search.username : undefined,
+      tenantId: typeof search.tenantId === "string" ? search.tenantId : undefined,
+      facilityId: typeof search.facilityId === "string" ? search.facilityId : undefined,
     }),
     beforeLoad: () => {
       if (useAuthStore.getState().isAuthenticated) {
