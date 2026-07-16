@@ -29,6 +29,8 @@ public class HRMSUtil {
     private static final String HRMS_EMP_UUID_JSONPATH = "$.Employees.*.user.uuid";
     private static final String HRMS_EMP_NAME_JSONPATH = "$.Employees.*.user.name";
     private static final String HRMS_EMP_MOBILE_JSONPATH = "$.Employees.*.user.mobileNumber";
+    /** Login id used by OAuth / E4H QR (employee code), may differ from mobile. */
+    private static final String HRMS_EMP_CODE_JSONPATH = "$.Employees.*.code";
     private static final String HRMS_EMP_USERNAME_JSONPATH = "$.Employees.*.user.userName";
 
     private final ServiceRequestRepository serviceRequestRepository;
@@ -63,13 +65,19 @@ public class HRMSUtil {
 
             List<String> names = safeRead(response, HRMS_EMP_NAME_JSONPATH);
             List<String> mobiles = safeRead(response, HRMS_EMP_MOBILE_JSONPATH);
+            List<String> codes = safeRead(response, HRMS_EMP_CODE_JSONPATH);
             List<String> userNames = safeRead(response, HRMS_EMP_USERNAME_JSONPATH);
+
+            String loginUserName = firstNonBlank(codes);
+            if (StringUtils.isBlank(loginUserName)) {
+                loginUserName = firstNonBlank(userNames);
+            }
 
             Map<String, String> complainant = new HashMap<>();
             complainant.put("uuid", uuids.get(0));
             complainant.put("name", firstNonBlank(names));
             complainant.put("mobile", firstNonBlank(mobiles));
-            complainant.put("userName", firstNonBlank(userNames));
+            complainant.put("userName", loginUserName);
             complainant.put("tenantId", tenantId);
             return complainant;
         } catch (CustomException e) {
