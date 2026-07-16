@@ -13,18 +13,22 @@ export interface StatTileProps {
 
 export function StatTile({ icon, iconClassName, label, value, link }: StatTileProps) {
   const card = (
-    <Card className="livelihood-card min-w-64 max-w-xs flex-row items-center gap-3 border-border px-4 py-5 shadow-sm">
+    <Card className="livelihood-card min-w-0 flex-1 flex-col items-center gap-2 border-border px-3 py-4 text-center shadow-sm lg:max-w-xs lg:min-w-64 lg:flex-none lg:flex-row lg:items-center lg:gap-3 lg:px-4 lg:py-5 lg:text-left">
       <div
         className={cn(
-          "flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary",
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary lg:h-12 lg:w-12",
           iconClassName,
         )}
       >
         {icon}
       </div>
       <div>
-        <p className="text-base leading-6 font-normal text-ink-600">{label}</p>
-        <p className="text-2xl leading-9 font-normal text-ink-950">{value}</p>
+        <p className="text-xs leading-4 font-normal text-ink-600 lg:text-base lg:leading-6">
+          {label}
+        </p>
+        <p className="text-xl leading-7 font-normal text-ink-950 lg:text-2xl lg:leading-9">
+          {value}
+        </p>
       </div>
     </Card>
   );
@@ -34,7 +38,10 @@ export function StatTile({ icon, iconClassName, label, value, link }: StatTilePr
   }
 
   return (
-    <Link to={link} className="block min-w-64 max-w-xs transition-opacity hover:opacity-90">
+    <Link
+      to={link}
+      className="block min-w-0 flex-1 transition-opacity hover:opacity-90 lg:max-w-xs lg:min-w-64 lg:flex-none"
+    >
       {card}
     </Link>
   );

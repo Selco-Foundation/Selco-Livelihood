@@ -3,6 +3,7 @@ import {
   contextPath,
   employeeLoginPath,
   getConfigString,
+  translateOr,
   useAuthStore,
   useJurisdictionStore,
   useTranslate,
@@ -17,10 +18,14 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
   Avatar,
   AvatarFallback,
   Button,
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+  SheetTrigger,
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -33,10 +38,20 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarSeparator,
+  cn,
   toast,
 } from "@/ui";
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Home, LogOut } from "lucide-react";
+import { Home, LogOut, Menu } from "lucide-react";
+import { useState } from "react";
+import { LanguageSwitcher } from "../components/LanguageSwitcher";
+
+function isNavItemActive(item: NavItem, pathname: string, homePath: string): boolean {
+  const matchAgainst = [item.to, ...(item.matchPrefixes ?? [])];
+  return item.to === homePath
+    ? pathname === item.to
+    : matchAgainst.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
 
 export function AppShell() {
   const navItems = getModuleNavItems();
@@ -47,17 +62,20 @@ export function AppShell() {
   const clearJurisdiction = useJurisdictionStore((state) => state.clearJurisdiction);
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const { t } = useTranslate();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const initials =
     user?.name?.slice(0, 2).toUpperCase() ??
     user?.userName?.slice(0, 2).toUpperCase() ??
     "LU";
 
+  const homePath = `${basePath}/employee`;
   const allNavItems: NavItem[] = [
     {
       id: "overview",
       label: "Overview",
-      to: `${basePath}/employee`,
+      to: homePath,
       icon: Home,
     },
     ...navItems,
@@ -68,7 +86,7 @@ export function AppShell() {
       <Sidebar
         collapsible="none"
         style={{ borderRight: "none" }}
-        className="w-(--sidebar-width-icon) items-center md:w-(--sidebar-width) md:items-stretch"
+        className="hidden w-(--sidebar-width-icon) items-center md:w-(--sidebar-width) md:items-stretch lg:flex"
       >
         <SidebarHeader className="items-center gap-6 px-2 pt-12 pb-5 md:px-7">
           <div className="flex h-10 w-10 items-center justify-center rounded-[3px] p-1 md:h-[80px] md:w-[80px]">
@@ -86,21 +104,14 @@ export function AppShell() {
               <SidebarMenu>
                 {allNavItems.map((item) => {
                   const Icon = item.icon;
-                  const homePath = `${basePath}/employee`;
-                  const matchAgainst = [item.to, ...(item.matchPrefixes ?? [])];
-                  const isActive =
-                    item.to === homePath
-                      ? pathname === item.to
-                      : matchAgainst.some(
-                          (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-                        );
+                  const isActive = isNavItemActive(item, pathname, homePath);
 
                   return (
                     <SidebarMenuItem key={item.id}>
                       <SidebarMenuButton
                         asChild
                         isActive={isActive}
-                        className="justify-center rounded-lg md:justify-start"
+                        className="justify-center rounded-lg hover:bg-transparent hover:text-sidebar-foreground hover:underline active:bg-transparent active:text-sidebar-foreground md:justify-start"
                       >
                         <Link to={item.to} aria-label={item.label}>
                           {Icon ? <Icon /> : null}
@@ -128,44 +139,141 @@ export function AppShell() {
             </div>
           </div>
           <SidebarSeparator className="mx-0 h-[5px] w-full bg-white/60" />
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full justify-center gap-2 text-foreground md:justify-start"
-              >
-                <LogOut />
-                <span className="hidden md:inline">Sign out</span>
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Sign out</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to sign out?
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => {
-                    clearSession();
-                    clearJurisdiction();
-                    toast.success(t("CORE_LOGOUT_SUCCESS_TOAST"));
-                    void navigate({ to: employeeLoginPath() });
-                  }}
-                >
-                  Sign out
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-center gap-2 text-foreground md:justify-start"
+            onClick={() => setConfirmOpen(true)}
+          >
+            <LogOut />
+            <span className="hidden md:inline">Sign out</span>
+          </Button>
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset className="min-h-0 [scrollbar-gutter:stable] overflow-y-auto rounded-tl-[48px] rounded-bl-[48px] bg-page pt-12 pr-8 pb-10 pl-8">
-        <Outlet />
-      </SidebarInset>
+
+      <div className="flex min-h-0 w-full flex-1 flex-col lg:contents">
+        <header className="flex shrink-0 items-center justify-between bg-sidebar px-4 py-4 text-sidebar-foreground lg:hidden">
+          <div className="flex items-center gap-2">
+            <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+              <SheetTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Open menu"
+                  className="text-current hover:bg-white/10 hover:text-current"
+                >
+                  <Menu className="size-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent
+                side="left"
+                showCloseButton={false}
+                className="w-[280px] border-none bg-[#134738] p-0 text-white"
+              >
+                <SheetTitle className="sr-only">
+                  {translateOr(t, "CORE_APP_TITLE", "Setu")}
+                </SheetTitle>
+                <SheetDescription className="sr-only">
+                  {translateOr(t, "CORE_NAV_MENU_DESCRIPTION", "App navigation menu")}
+                </SheetDescription>
+                <div className="flex h-full flex-col justify-between px-7 pt-12 pb-7">
+                  <div className="flex flex-col gap-5">
+                    <div className="flex flex-col items-center gap-6">
+                      <img
+                        src={getConfigString("SELCO_LOGO")}
+                        alt="Selco Foundation Logo"
+                        className="h-15 w-15 object-contain"
+                      />
+                      <div className="h-px w-full bg-white/60" />
+                    </div>
+                    <nav className="flex flex-col gap-4">
+                      {allNavItems.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = isNavItemActive(item, pathname, homePath);
+
+                        return (
+                          <Link
+                            key={item.id}
+                            to={item.to}
+                            onClick={() => setMobileNavOpen(false)}
+                            className={cn(
+                              "flex items-center gap-2 rounded-lg px-3 py-2 text-sm",
+                              isActive
+                                ? "bg-white font-semibold text-[#134738]"
+                                : "font-medium text-white",
+                            )}
+                          >
+                            {Icon ? <Icon className="size-5" /> : null}
+                            {item.label}
+                          </Link>
+                        );
+                      })}
+                    </nav>
+                  </div>
+
+                  <div className="flex flex-col gap-3">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Avatar className="h-8 w-8 border-[1.5px] border-white/40">
+                        <AvatarFallback className="bg-white/15 text-white">
+                          {initials}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="truncate text-sm font-medium text-white">
+                        {user?.name ?? user?.userName ?? "User"}
+                      </span>
+                    </div>
+                    <div className="h-px w-full bg-white/40" />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-center gap-2 text-foreground"
+                      onClick={() => {
+                        setMobileNavOpen(false);
+                        setConfirmOpen(true);
+                      }}
+                    >
+                      <LogOut className="size-4" />
+                      <span>Sign out</span>
+                    </Button>
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
+            <span className="text-lg font-semibold">
+              {translateOr(t, "CORE_APP_TITLE", "Setu")}
+            </span>
+          </div>
+          <LanguageSwitcher compact />
+        </header>
+
+        <SidebarInset className="min-h-0 flex-1 [scrollbar-gutter:stable] overflow-y-auto bg-page px-4 py-4 lg:rounded-tl-[48px] lg:rounded-bl-[48px] lg:pt-12 lg:pr-8 lg:pb-10 lg:pl-8">
+          <Outlet />
+        </SidebarInset>
+      </div>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sign out</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to sign out?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                clearSession();
+                clearJurisdiction();
+                toast.success(translateOr(t, "CORE_LOGOUT_SUCCESS_TOAST", "Signed out successfully"));
+                void navigate({ to: employeeLoginPath() });
+              }}
+            >
+              Sign out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SidebarProvider>
   );
 }

@@ -72,15 +72,12 @@ export function useImInboxData(searchParams: ImInboxSearchParams) {
   const boundaries = useJurisdictionStore((state) => state.boundaries);
   const { t } = useTranslate();
 
-  const filters = {
-    ...flattenInboxFilters(searchParams, {
-      limit: searchParams.limit ?? 10,
-      offset: searchParams.offset ?? 0,
-      services: [LIVELIHOOD_INCIDENT_BUSINESS_SERVICE],
-      sortOrder: "DESC",
-    }),
-    ...buildSummaryRoleFilters(user),
-  };
+  const filters = flattenInboxFilters(searchParams, {
+    limit: searchParams.limit ?? 10,
+    offset: searchParams.offset ?? 0,
+    services: [LIVELIHOOD_INCIDENT_BUSINESS_SERVICE],
+    sortOrder: "DESC",
+  });
 
   const enabled = Boolean(accessToken && employeeTenantId && hasImAccess(user?.roles));
   const jurisdiction = boundaries ?? { country: ["-"] };

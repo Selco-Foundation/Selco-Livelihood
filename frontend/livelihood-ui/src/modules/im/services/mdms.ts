@@ -1,4 +1,4 @@
-import { fetchMdmsMasters, tenantId, type AuthUser } from "@/shared";
+import { fetchMdmsMasters, tenantId, translateOr, type AuthUser } from "@/shared";
 import type { ComplaintTypeOption } from "../types/inbox";
 import { SelectOption } from "../types/create-incident";
 
@@ -34,7 +34,7 @@ export async function fetchAssetTypes(
     if (item.active === false || !item.category || categories.has(item.category)) {
       continue;
     }
-    categories.set(item.category, t(`ASSETTYPE_${item.category}`));
+    categories.set(item.category, translateOr(t, `ASSETTYPE_${item.category}`, item.category));
   }
 
   return [...categories.entries()]
@@ -64,7 +64,11 @@ export async function fetchServiceDefsForMenuPath(
       key: def.serviceCode ?? "",
       serviceCode: def.serviceCode,
       menuPath: def.menuPath,
-      name: t(`SERVICEDEFS.${(def.serviceCode ?? "").toUpperCase()}`),
+      name: translateOr(
+        t,
+        `SERVICEDEFS.${(def.serviceCode ?? "").toUpperCase()}`,
+        def.serviceCode ?? "",
+      ),
     }))
     .filter((item) => item.key)
     .sort((a, b) => a.name.localeCompare(b.name));

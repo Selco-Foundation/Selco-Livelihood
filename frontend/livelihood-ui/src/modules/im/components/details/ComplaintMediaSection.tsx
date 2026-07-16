@@ -1,4 +1,4 @@
-import { useTranslate } from "@/shared";
+import { translateOr, useTranslate } from "@/shared";
 import { ImageIcon } from "lucide-react";
 import { FormSectionCard } from "../create/FormSectionCard";
 import { ComplaintMediaList, type ComplaintVideoEntry } from "./ComplaintMediaList";
@@ -21,7 +21,7 @@ export function ComplaintMediaSection({
   return (
     <FormSectionCard
       icon={ImageIcon}
-      title={t("CS_COMMON_ATTACHMENTS")}
+      title={translateOr(t, "CS_COMMON_ATTACHMENTS", "Attachments")}
       titleClassName="text-base font-semibold text-ink-950"
       divider
     >

@@ -45,6 +45,7 @@ function SplitButton({
   // only Pressed splits into two shades (label vs. a darker trigger segment).
   const labelClasses = cn(
     segmentBase,
+    "flex-1",
     s.height,
     s.radiusL,
     s.labelPx,
@@ -104,7 +105,9 @@ function SplitButton({
         aria-haspopup="menu"
         aria-expanded={triggerAriaExpanded}
       >
-        <ChevronDown className="size-5" />
+        <ChevronDown
+          className={cn("size-5 transition-transform", triggerAriaExpanded && "rotate-180")}
+        />
       </button>
     </div>
   )

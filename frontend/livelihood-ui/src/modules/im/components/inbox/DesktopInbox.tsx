@@ -1,9 +1,10 @@
-import { useTranslate } from "@/shared";
+import { translateOr, useTranslate } from "@/shared";
 import { Skeleton } from "@/ui";
 import type { ImInboxFilters, InboxDataResult } from "../../types/inbox";
 import { ComplaintTable } from "./ComplaintTable";
 import { InboxFilter } from "./InboxFilter";
 import { InboxPagination } from "./InboxPagination";
+import { MobileComplaintList } from "./MobileComplaintList";
 
 interface DesktopInboxProps {
   data?: InboxDataResult;
@@ -44,23 +45,28 @@ export function DesktopInbox({
         searchParams={searchParams}
       />
 
-      <div className="livelihood-card overflow-hidden">
-        {isLoading ? (
-          <div className="p-6">
-            <Skeleton className="h-64 w-full" />
+      {isLoading ? (
+        <div className="livelihood-card p-6">
+          <Skeleton className="h-64 w-full" />
+        </div>
+      ) : data && data.combinedRes.length === 0 ? (
+        <div className="livelihood-card px-6 py-16 text-center text-sm text-muted-foreground">
+          {translateOr(t, "CS_INBOX_NOTHING_TO_SHOW", "No Tickets Found")}
+        </div>
+      ) : data?.combinedRes?.length ? (
+        <>
+          <div className="hidden livelihood-card overflow-hidden lg:block">
+            <ComplaintTable data={data.combinedRes} />
           </div>
-        ) : data && data.combinedRes.length === 0 ? (
-          <div className="px-6 py-16 text-center text-sm text-muted-foreground">
-            {t("CS_INBOX_NOTHING_TO_SHOW")}
+          <div className="lg:hidden">
+            <MobileComplaintList data={data.combinedRes} />
           </div>
-        ) : data?.combinedRes?.length ? (
-          <ComplaintTable data={data.combinedRes} />
-        ) : (
-          <div className="px-6 py-16 text-center text-sm text-muted-foreground">
-            {t("CS_COMMON_ERROR_LOADING_RESULTS")}
-          </div>
-        )}
-      </div>
+        </>
+      ) : (
+        <div className="livelihood-card px-6 py-16 text-center text-sm text-muted-foreground">
+          {translateOr(t, "CS_COMMON_ERROR_LOADING_RESULTS", "Unable to load results")}
+        </div>
+      )}
 
       {totalRecords > 0 ? (
         <InboxPagination
