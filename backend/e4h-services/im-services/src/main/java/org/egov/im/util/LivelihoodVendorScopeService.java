@@ -1,6 +1,7 @@
 package org.egov.im.util;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.common.contract.request.Role;
@@ -15,15 +16,19 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.egov.im.util.IMConstants.*;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class LivelihoodVendorScopeService {
 
     private final LivelihoodTenantUtil livelihoodTenantUtil;
+    private final VendorRegistryUtil vendorRegistryUtil;
+    private final AssetRegistryUtil assetRegistryUtil;
 
     public boolean isVendorUser(RequestInfo requestInfo) {
         if (requestInfo == null || requestInfo.getUserInfo() == null
@@ -41,6 +46,10 @@ public class LivelihoodVendorScopeService {
         return livelihoodTenantUtil.isLivelihood(tenantId) && isVendorUser(requestInfo);
     }
 
+    /**
+     * Scope vendor search to all tickets on assets mapped to the vendor organisation,
+     * regardless of current workflow assignee / status (RESOLVED, OOS, etc.).
+     */
     public void applySearchScope(RequestInfo requestInfo, RequestSearchCriteria criteria) {
         if (!shouldEnforceVendorScope(requestInfo, criteria.getTenantId())) {
             return;
@@ -48,7 +57,14 @@ public class LivelihoodVendorScopeService {
         if (requestInfo.getUserInfo() == null || StringUtils.isBlank(requestInfo.getUserInfo().getUuid())) {
             throw new CustomException(VENDOR_ACCESS_DENIED_CODE, VENDOR_ACCESS_DENIED_MSG);
         }
-        criteria.setAssigneeUserId(requestInfo.getUserInfo().getUuid());
+        String userUuid = requestInfo.getUserInfo().getUuid();
+        Set<String> vendorKeys = vendorRegistryUtil.resolveVendorOrgKeysForUser(
+                requestInfo, criteria.getTenantId(), userUuid);
+        Set<String> assetIds = assetRegistryUtil.searchAssetIdsByVendorKeys(
+                requestInfo, criteria.getTenantId(), vendorKeys);
+        criteria.setAssetIds(assetIds);
+        criteria.setAssigneeUserId(null);
+        log.info("Vendor search scoped to {} mapped asset(s) for user={}", assetIds.size(), userUuid);
     }
 
     public boolean allowsVendorSearchWithoutExtraParams(RequestInfo requestInfo, RequestSearchCriteria criteria) {
@@ -78,6 +94,21 @@ public class LivelihoodVendorScopeService {
         }
         return wrappers.stream()
                 .filter(wrapper -> isAssignedTo(wrapper, assigneeUserId))
+                .collect(Collectors.toList());
+    }
+
+    public List<IncidentWrapper> filterByMappedAssets(List<IncidentWrapper> wrappers, Set<String> assetIds) {
+        if (assetIds == null || CollectionUtils.isEmpty(wrappers)) {
+            return wrappers;
+        }
+        if (assetIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return wrappers.stream()
+                .filter(wrapper -> wrapper != null
+                        && wrapper.getIncident() != null
+                        && StringUtils.isNotBlank(wrapper.getIncident().getAssetId())
+                        && assetIds.contains(wrapper.getIncident().getAssetId()))
                 .collect(Collectors.toList());
     }
 

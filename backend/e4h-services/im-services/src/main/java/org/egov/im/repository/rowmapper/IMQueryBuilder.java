@@ -172,6 +172,18 @@ public class IMQueryBuilder {
             addToPreparedStatement(preparedStmtList, ids);
         }
 
+        Set<String> assetIds = criteria.getAssetIds();
+        if (assetIds != null) {
+            if (assetIds.isEmpty()) {
+                addClauseIfRequired(preparedStmtList, builder);
+                builder.append(" 1=0 ");
+            } else {
+                addClauseIfRequired(preparedStmtList, builder);
+                builder.append(" ser.asset_id IN (").append(createQuery(assetIds)).append(")");
+                addToPreparedStatement(preparedStmtList, assetIds);
+            }
+        }
+
         //When UI tries to fetch "escalated" complaints count.
         if(criteria.getSlaDeltaMaxLimit() != null && criteria.getSlaDeltaMinLimit() == null){
             addClauseIfRequired(preparedStmtList, builder);
