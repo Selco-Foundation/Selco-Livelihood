@@ -1,6 +1,6 @@
-import { contextPath, employeeHomePath, translateOr, useAuthStore, useTranslate } from "@/shared";
+import { contextPath, employeeHomePath, translateOr, useTranslate } from "@/shared";
 import { Button, PageHeader } from "@/ui";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useMemo } from "react";
 import { LanguageSwitcher } from "@/modules/core";
@@ -10,7 +10,6 @@ import { ComplaintSummarySection } from "../../components/details/ComplaintSumma
 import { ComplaintTimelineSection } from "../../components/details/ComplaintTimelineSection";
 import { IM_ROUTES } from "../../constants/routes";
 import { useComplaintDetails } from "../../hooks/use-complaint-details";
-import { isAssigneeScopedUser } from "../../utils/access";
 
 function useComplaintRouteParams() {
   return useMemo(() => {
@@ -25,8 +24,6 @@ function useComplaintRouteParams() {
 
 export function ComplaintDetailsPage() {
   const { t } = useTranslate();
-  const navigate = useNavigate();
-  const user = useAuthStore((state) => state.user);
   const { incidentId, tenantId } = useComplaintRouteParams();
   const basePath = `/${contextPath()}`;
   const homePath = employeeHomePath();
@@ -83,15 +80,7 @@ export function ComplaintDetailsPage() {
     applyCheckpoint?.thumbnailsToShow?.videos ?? complaintDetails.videos;
 
   const handleActionComplete = async () => {
-    const refreshedWorkflow = await revalidate();
-    const currentAssigneeUuid = refreshedWorkflow?.processInstances?.[0]?.assignes?.[0]?.uuid;
-    const stillAssignedToCurrentUser = Boolean(
-      user?.uuid && currentAssigneeUuid === user.uuid,
-    );
-
-    if (isAssigneeScopedUser(user?.roles) && !stillAssignedToCurrentUser) {
-      await navigate({ to: inboxPath });
-    }
+    await revalidate();
   };
 
   return (
