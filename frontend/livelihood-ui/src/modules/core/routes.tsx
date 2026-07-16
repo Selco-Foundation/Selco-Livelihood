@@ -6,6 +6,7 @@ import { LoginPage } from "./pages/employee/LoginPage";
 import { HomePage } from "./pages/employee/HomePage";
 import { ForgotPasswordPage } from "./pages/employee/ForgotPasswordPage";
 import { ChangePasswordPage } from "./pages/employee/ChangePasswordPage";
+import { ProfilePage } from "./pages/employee/ProfilePage";
 import { CORE_ROUTES } from "./constants/routes";
 
 export function createCoreRoutes(rootRoute: AnyRoute) {
@@ -98,6 +99,13 @@ export function createCoreRoutes(rootRoute: AnyRoute) {
     component: HomePage,
   });
 
+  const employeeProfile = `/${basePath}${CORE_ROUTES.employeeProfile}`;
+  const employeeProfileRoute = createRoute({
+    getParentRoute: () => employeeLayoutRoute,
+    path: employeeProfile,
+    component: ProfilePage,
+  });
+
   return {
     routes: [
       indexRoute,
@@ -107,6 +115,7 @@ export function createCoreRoutes(rootRoute: AnyRoute) {
       employeeChangePasswordRoute,
       employeeLayoutRoute,
       employeeHomeRoute,
+      employeeProfileRoute,
     ],
     navItems: [],
     employeeLayoutRoute,

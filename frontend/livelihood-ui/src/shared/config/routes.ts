@@ -15,3 +15,7 @@ export function employeeForgotPasswordPath(): string {
 export function employeeChangePasswordPath(): string {
   return `/${contextPath()}/employee/user/change-password`;
 }
+
+export function employeeProfilePath(): string {
+  return `/${contextPath()}/employee/profile`;
+}

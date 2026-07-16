@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   employeeChangePasswordPath,
   employeeLoginPath,
-  extractPasswordResetErrorMessage,
+  extractApiErrorMessage,
   sendPasswordResetOtp,
   tenantId,
   translateOr,
@@ -55,7 +55,7 @@ export function ForgotPasswordPage() {
     } catch (error) {
       toast.error(translateOr(t, "CS_FORGOT_PASSWORD_OTP_FAILED", "Failed to send OTP"), {
         description:
-          extractPasswordResetErrorMessage(error) ??
+          extractApiErrorMessage(error) ??
           translateOr(t, "ES_INVALID_LOGIN_CREDENTIALS", "Check your mobile number and try again."),
       });
     } finally {

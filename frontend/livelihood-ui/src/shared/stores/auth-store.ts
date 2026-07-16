@@ -21,6 +21,7 @@ interface AuthState {
     user?: AuthUser | null;
     employeeTenantId?: string | null;
   }) => void;
+  setUser: (user: AuthUser) => void;
   clearSession: () => void;
 }
 
@@ -40,6 +41,7 @@ export const useAuthStore = create<AuthState>()(
           employeeTenantId: employeeTenantId ?? user?.tenantId ?? null,
           isAuthenticated: Boolean(accessToken),
         }),
+      setUser: (user) => set({ user }),
       clearSession: () =>
         set({
           accessToken: null,
