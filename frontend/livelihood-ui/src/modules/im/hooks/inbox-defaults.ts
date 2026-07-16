@@ -23,7 +23,7 @@ export function buildDefaultInboxRoleFilters(
   }
 
   return {
-    wfFilters: { assignee: [{ code: "" }] },
+    wfFilters: { assignee: [] },
     pgrfilters: {
       assetType: [],
       facility: [],

@@ -266,6 +266,7 @@ export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
         <div className="flex justify-end">
           <Button
             type="submit"
+            size="lg"
             className="gap-2"
             disabled={!canSubmit || createMutation.isPending}
           >

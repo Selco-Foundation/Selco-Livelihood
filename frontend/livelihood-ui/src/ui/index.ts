@@ -107,6 +107,16 @@ export {
   PopoverTrigger,
 } from "./components/ui/popover";
 export { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
+export {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "./components/ui/sheet";
 export { DataTable } from "./components/data-table";
 export { StatTile } from "./components/stat-tile";
 export type { StatTileProps } from "./components/stat-tile";

@@ -1,4 +1,5 @@
 import {
+  translateOr,
   useAuthStore,
   useJurisdictionStore,
   useTranslate,
@@ -47,11 +48,6 @@ const EMPTY_FORM: CreateIncidentFormValues = {
   complaintType: null,
   comments: "",
 };
-
-function translateOr(t: (key: string) => string, key: string, fallback: string) {
-  const value = t(key);
-  return value === key ? fallback : value;
-}
 
 function buildMediaErrorMessage(
   t: (key: string) => string,
@@ -387,7 +383,7 @@ export function useCreateIncidentForm(inboxPath: string) {
         const message =
           response?.Errors?.[0]?.message ??
           response?.message ??
-          t("CS_COMMON_SOMETHING_WENT_WRONG");
+          translateOr(t, "CS_COMMON_SOMETHING_WENT_WRONG", "Something went wrong!");
         setSubmitError(message);
         return;
       }
