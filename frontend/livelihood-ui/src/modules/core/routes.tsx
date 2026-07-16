@@ -4,12 +4,16 @@ import type { AnyRoute } from "@tanstack/react-router";
 import { AppShell } from "./layout/AppShell";
 import { LoginPage } from "./pages/employee/LoginPage";
 import { HomePage } from "./pages/employee/HomePage";
+import { ForgotPasswordPage } from "./pages/employee/ForgotPasswordPage";
+import { ChangePasswordPage } from "./pages/employee/ChangePasswordPage";
 import { CORE_ROUTES } from "./constants/routes";
 
 export function createCoreRoutes(rootRoute: AnyRoute) {
   const basePath = contextPath();
   const employeeHome = `/${basePath}${CORE_ROUTES.employeeHome}`;
   const employeeLogin = `/${basePath}${CORE_ROUTES.employeeLogin}`;
+  const employeeForgotPassword = `/${basePath}${CORE_ROUTES.employeeForgotPassword}`;
+  const employeeChangePassword = `/${basePath}${CORE_ROUTES.employeeChangePassword}`;
 
   const indexRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -41,6 +45,37 @@ export function createCoreRoutes(rootRoute: AnyRoute) {
     component: LoginPage,
   });
 
+  const employeeForgotPasswordRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: employeeForgotPassword,
+    beforeLoad: () => {
+      if (useAuthStore.getState().isAuthenticated) {
+        throw redirect({ to: employeeHome });
+      }
+    },
+    component: ForgotPasswordPage,
+  });
+
+  const employeeChangePasswordRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: employeeChangePassword,
+    validateSearch: (search: Record<string, unknown>) => ({
+      mobileNumber:
+        typeof search.mobileNumber === "string" || typeof search.mobileNumber === "number"
+          ? String(search.mobileNumber)
+          : undefined,
+    }),
+    beforeLoad: ({ search }) => {
+      if (useAuthStore.getState().isAuthenticated) {
+        throw redirect({ to: employeeHome });
+      }
+      if (!search.mobileNumber) {
+        throw redirect({ to: employeeForgotPassword });
+      }
+    },
+    component: ChangePasswordPage,
+  });
+
   const employeeLayoutRoute = createRoute({
     getParentRoute: () => rootRoute,
     id: "employee-layout",
@@ -68,6 +103,8 @@ export function createCoreRoutes(rootRoute: AnyRoute) {
       indexRoute,
       contextRootRoute,
       employeeLoginRoute,
+      employeeForgotPasswordRoute,
+      employeeChangePasswordRoute,
       employeeLayoutRoute,
       employeeHomeRoute,
     ],
