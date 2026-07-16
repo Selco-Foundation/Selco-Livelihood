@@ -881,9 +881,7 @@ async def get_livelihood_facility_qr_for_otp_login(
     Generate printable QR codes for Livelihood facility end-user OTP login.
 
     Each QR encodes:
-      {baseUrl}/{contextPath}/employee/user/qr-login?tenantId=livelihood&facilityId={facilityId}
-
-    On scan the UI calls asset-registry qr/_resolve → user-otp → OAuth.
+      {baseUrl}/employee/user/login?tenantId=livelihood&facilityId={facilityId}
     """
     request_info = request_info_from_json(payload.get("RequestInfo", {}))
     tenant_id = payload.get("tenantId") or LIVELIHOOD_TENANT_ID
@@ -891,7 +889,6 @@ async def get_livelihood_facility_qr_for_otp_login(
         "LIVELIHOOD_UI_BASE_URL",
         "https://setu4livelihood-dev.selcofoundation.org/livelihood-ui/",
     )).rstrip("/")
-    context_path = (payload.get("contextPath") or os.getenv("LIVELIHOOD_UI_CONTEXT_PATH", "livelihood")).strip("/")
     boundary_code = payload.get("boundaryCode")
     facility_ids = payload.get("facilityIds") or []
     if isinstance(facility_ids, str):
@@ -947,7 +944,7 @@ async def get_livelihood_facility_qr_for_otp_login(
             os.makedirs(qr_folder, exist_ok=True)
 
             login_url = (
-                f"{base_url}/{context_path}/employee/user/qr-login"
+                f"{base_url}/employee/user/login"
                 f"?tenantId={tenant_id}&facilityId={facility_id}"
             )
 
