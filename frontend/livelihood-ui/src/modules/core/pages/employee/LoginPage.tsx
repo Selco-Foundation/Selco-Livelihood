@@ -1,11 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   assertEmployeeRolesAllowed,
+  employeeForgotPasswordPath,
   employeeHomePath,
   filterRolesForEmployeeTenant,
   getConfig,
   hydrateEmployeeJurisdictions,
   loginUser,
+  resolveQrLogin,
   tenantId,
   translateOr,
   useAuthStore,
@@ -24,13 +26,14 @@ import {
   Input,
   toast,
 } from "@/ui";
-import { useNavigate } from "@tanstack/react-router";
-import { Eye, EyeOff } from "lucide-react";
-import { useState } from "react";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { LanguageSwitcher } from "../../components/LanguageSwitcher";
-import { LoginCarousel } from "../../components/LoginCarousel";
+import { AuthLayout } from "../../components/AuthLayout";
+import { PasswordFormField } from "../../components/PasswordFormField";
+import type { LoginRouteSearch } from "../../routes";
 
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -63,11 +66,16 @@ function resolveRedirectPath(from?: string): string {
 export function LoginPage() {
   const { t } = useTranslate();
   const navigate = useNavigate();
-  const from = new URLSearchParams(window.location.search).get("from") ?? undefined;
+  const search = useSearch({ strict: false }) as LoginRouteSearch;
+  const from = search.from;
+  const prefillUsername = search.username ?? "";
+  const qrTenantId = search.tenantId;
+  const qrFacilityId = search.facilityId;
   const setSession = useAuthStore((state) => state.setSession);
   const setJurisdictionData = useJurisdictionStore((state) => state.setJurisdictionData);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isResolvingQr, setIsResolvingQr] = useState(Boolean(qrTenantId && qrFacilityId));
   const bannerImages = useLoginBannerImages();
   const logos = getConfig("LOGO_LIST") as
     | Array<{ url: string; alt: string }>
@@ -77,10 +85,48 @@ export function LoginPage() {
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      username: "",
+      username: prefillUsername,
       password: "",
     },
   });
+
+  useEffect(() => {
+    if (!qrTenantId || !qrFacilityId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    resolveQrLogin({ tenantId: qrTenantId, facilityId: qrFacilityId })
+      .then((result) => {
+        if (!cancelled) {
+          form.setValue("username", result.userName);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          toast.error(translateOr(t, "CORE_QR_LOGIN_FAILED", "Sign in failed"), {
+            description: translateOr(
+              t,
+              "CORE_QR_LOGIN_FAILED_DESC",
+              "We couldn't recognize this QR code. Please log in manually.",
+            ),
+          });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsResolvingQr(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // Only ever needs to run once per mount for the tenantId/facilityId this
+    // page was opened with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onSubmit = async (values: LoginFormValues) => {
     setIsSubmitting(true);
@@ -139,124 +185,77 @@ export function LoginPage() {
   };
 
   return (
-    <div className="font-poppins flex min-h-screen bg-white">
-      <div className="relative flex min-h-screen w-full flex-col items-center px-6 py-10 lg:w-[60%] lg:min-w-[480px] lg:justify-center lg:px-8 lg:py-8">
-        <div className="absolute inset-x-8 top-8 hidden items-center justify-between lg:flex">
-          <img
-            src={logo?.url}
-            alt={logo?.alt ?? "Selco Foundation Logo"}
-            className="h-[68px] w-auto object-contain"
-          />
-          <LanguageSwitcher />
+    <AuthLayout
+      title={translateOr(t, "CORE_LOGIN_WELCOME_TITLE", "Welcome")}
+      subtitle={translateOr(t, "CORE_LOGIN_SUBTITLE", "Please enter your details to login.")}
+    >
+
+      {isResolvingQr ? (
+        <div className="flex items-center gap-2 rounded border border-ink-300 bg-card px-3 py-2 text-sm text-ink-600">
+          <Loader2 className="size-4 shrink-0 animate-spin" />
+          {translateOr(t, "CORE_QR_LOGIN_RESOLVING", "Reading QR code details...")}
         </div>
+      ) : null}
 
-        <div className="absolute top-4 right-4 lg:hidden">
-          <LanguageSwitcher />
-        </div>
-
-        <div className="mt-20 flex w-full max-w-[360px] flex-col gap-5 lg:mt-0">
-          <img
-            src={logo?.url}
-            alt={logo?.alt ?? "Selco Foundation Logo"}
-            className="mx-auto h-28 w-auto object-contain lg:hidden"
-          />
-
-          <div className="flex flex-col gap-1 text-center lg:text-left">
-            <h1 className="text-[28px] font-semibold leading-[40px] text-ink-950 lg:text-[32px] lg:leading-[48px]">
-              {translateOr(t, "CORE_LOGIN_WELCOME_TITLE", "Welcome")}
-            </h1>
-            <p className="text-sm leading-[21px] text-ink-600">
-              {translateOr(t, "CORE_LOGIN_SUBTITLE", "Please enter your details to login.")}
-            </p>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="flex w-full flex-col gap-5">
+          <div className="flex flex-col gap-4">
+            <FormField
+              control={form.control}
+              name="username"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-sm leading-[21px] font-medium text-ink-950">
+                    {translateOr(t, "CORE_LOGIN_USERNAME_LABEL", "Username")}{" "}
+                    <span className="text-destructive">*</span>
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      autoComplete="username"
+                      disabled={isResolvingQr}
+                      placeholder={translateOr(
+                        t,
+                        "CORE_LOGIN_USERNAME_PLACEHOLDER",
+                        "Enter your username",
+                      )}
+                      className="h-9 rounded border-ink-300 px-3 py-2 text-sm leading-[21px] text-ink-950 placeholder:text-ink-400"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <PasswordFormField
+              control={form.control}
+              name="password"
+              disabled={isResolvingQr}
+              label={translateOr(t, "CORE_LOGIN_PASSWORD_LABEL", "Password")}
+              placeholder={translateOr(t, "CORE_LOGIN_PASSWORD_PLACEHOLDER", "Enter your password")}
+              autoComplete="current-password"
+              headerExtra={
+                <Link
+                  to={employeeForgotPasswordPath()}
+                  className="text-sm leading-[21px] font-medium text-primary hover:underline"
+                >
+                  {translateOr(t, "CORE_LOGIN_FORGOT_PASSWORD", "Forgot Password?")}
+                </Link>
+              }
+            />
           </div>
 
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="flex w-full flex-col gap-5">
-              <div className="flex flex-col gap-4">
-                <FormField
-                  control={form.control}
-                  name="username"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-sm leading-[21px] font-medium text-ink-950">
-                        {translateOr(t, "CORE_LOGIN_USERNAME_LABEL", "Username")}{" "}
-                        <span className="text-destructive">*</span>
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          autoComplete="username"
-                          placeholder={translateOr(
-                            t,
-                            "CORE_LOGIN_USERNAME_PLACEHOLDER",
-                            "Enter your username",
-                          )}
-                          className="h-9 rounded border-ink-300 px-3 py-2 text-sm leading-[21px] text-ink-950 placeholder:text-ink-400"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-sm leading-[21px] font-medium text-ink-950">
-                        {translateOr(t, "CORE_LOGIN_PASSWORD_LABEL", "Password")}{" "}
-                        <span className="text-destructive">*</span>
-                      </FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Input
-                            type={showPassword ? "text" : "password"}
-                            autoComplete="current-password"
-                            placeholder={translateOr(
-                              t,
-                              "CORE_LOGIN_PASSWORD_PLACEHOLDER",
-                              "Enter your password",
-                            )}
-                            className="h-9 rounded border-ink-300 px-3 py-2 pr-10 text-sm leading-[21px] text-ink-950 placeholder:text-ink-400"
-                            {...field}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword((current) => !current)}
-                            aria-label={
-                              showPassword
-                                ? translateOr(t, "CORE_LOGIN_PASSWORD_HIDE", "Hide password")
-                                : translateOr(t, "CORE_LOGIN_PASSWORD_SHOW", "Show password")
-                            }
-                            className="absolute inset-y-0 right-3 flex cursor-pointer items-center text-ink-400"
-                          >
-                            {showPassword ? (
-                              <EyeOff className="size-5" />
-                            ) : (
-                              <Eye className="size-5" />
-                            )}
-                          </button>
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <Button type="submit" size="lg" disabled={isSubmitting} className="w-full">
-                {isSubmitting
-                  ? translateOr(t, "CORE_LOGIN_BUTTON_LOADING", "Logging in...")
-                  : translateOr(t, "CORE_LOGIN_BUTTON", "Log in")}
-              </Button>
-            </form>
-          </Form>
-        </div>
-      </div>
-
-      <div className="hidden py-6 pr-6 lg:block lg:w-[40%] lg:min-w-[520px]">
-        <LoginCarousel slides={bannerImages} />
-      </div>
-    </div>
+          <Button
+            type="submit"
+            size="lg"
+            disabled={isSubmitting || isResolvingQr}
+            className="w-full"
+          >
+            {isSubmitting
+              ? translateOr(t, "CORE_LOGIN_BUTTON_LOADING", "Logging in...")
+              : translateOr(t, "CORE_LOGIN_BUTTON", "Log in")}
+          </Button>
+        </form>
+      </Form>
+    </AuthLayout>
   );
 }

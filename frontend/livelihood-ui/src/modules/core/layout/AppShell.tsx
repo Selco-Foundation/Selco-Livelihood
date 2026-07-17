@@ -2,7 +2,10 @@ import { getModuleNavItems } from "@/module-registry";
 import {
   contextPath,
   employeeLoginPath,
+  employeeProfilePath,
   getConfigString,
+  logoutUser,
+  tenantId,
   translateOr,
   useAuthStore,
   useJurisdictionStore,
@@ -58,6 +61,8 @@ export function AppShell() {
   const basePath = `/${contextPath()}`;
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const employeeTenantId = useAuthStore((state) => state.employeeTenantId);
   const clearSession = useAuthStore((state) => state.clearSession);
   const clearJurisdiction = useJurisdictionStore((state) => state.clearJurisdiction);
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -126,7 +131,10 @@ export function AppShell() {
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter className="gap-3 px-2 pb-12 md:px-7">
-          <div className="flex items-center justify-center gap-2 md:justify-start">
+          <Link
+            to={employeeProfilePath()}
+            className="flex items-center justify-center gap-2 rounded-lg transition-opacity hover:opacity-80 md:justify-start"
+          >
             <Avatar className="h-11 w-11 border-[1.5px] border-ink-300">
               <AvatarFallback className="bg-white/15 text-sidebar-foreground">
                 {initials}
@@ -137,7 +145,7 @@ export function AppShell() {
                 {user?.name ?? user?.userName ?? "User"}
               </p>
             </div>
-          </div>
+          </Link>
           <SidebarSeparator className="mx-0 h-[5px] w-full bg-white/60" />
           <Button
             variant="outline"
@@ -212,7 +220,11 @@ export function AppShell() {
                   </div>
 
                   <div className="flex flex-col gap-3">
-                    <div className="flex min-w-0 items-center gap-2">
+                    <Link
+                      to={employeeProfilePath()}
+                      onClick={() => setMobileNavOpen(false)}
+                      className="flex min-w-0 items-center gap-2 transition-opacity hover:opacity-80"
+                    >
                       <Avatar className="h-8 w-8 border-[1.5px] border-white/40">
                         <AvatarFallback className="bg-white/15 text-white">
                           {initials}
@@ -221,7 +233,7 @@ export function AppShell() {
                       <span className="truncate text-sm font-medium text-white">
                         {user?.name ?? user?.userName ?? "User"}
                       </span>
-                    </div>
+                    </Link>
                     <div className="h-px w-full bg-white/40" />
                     <Button
                       variant="outline"
@@ -262,11 +274,19 @@ export function AppShell() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
-                clearSession();
-                clearJurisdiction();
-                toast.success(translateOr(t, "CORE_LOGOUT_SUCCESS_TOAST", "Signed out successfully"));
-                void navigate({ to: employeeLoginPath() });
+              onClick={async () => {
+                try {
+                  if (accessToken) {
+                    await logoutUser(accessToken, employeeTenantId ?? tenantId());
+                  }
+                } catch {
+                  // best-effort: proceed with local sign-out even if the server call fails
+                } finally {
+                  clearSession();
+                  clearJurisdiction();
+                  toast.success(translateOr(t, "CORE_LOGOUT_SUCCESS_TOAST", "Signed out successfully"));
+                  void navigate({ to: employeeLoginPath() });
+                }
               }}
             >
               Sign out
