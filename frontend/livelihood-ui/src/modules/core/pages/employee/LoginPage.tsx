@@ -4,13 +4,16 @@ import {
   employeeForgotPasswordPath,
   employeeHomePath,
   filterRolesForEmployeeTenant,
+  getConfig,
   hydrateEmployeeJurisdictions,
   loginUser,
+  resolveQrLogin,
   tenantId,
   translateOr,
   useAuthStore,
   useJurisdictionStore,
   useTranslate,
+  useLoginBannerImages,
 } from "@/shared";
 import {
   Button,
@@ -23,12 +26,14 @@ import {
   Input,
   toast,
 } from "@/ui";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { AuthLayout } from "../../components/AuthLayout";
 import { PasswordFormField } from "../../components/PasswordFormField";
+import type { LoginRouteSearch } from "../../routes";
 
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -61,18 +66,67 @@ function resolveRedirectPath(from?: string): string {
 export function LoginPage() {
   const { t } = useTranslate();
   const navigate = useNavigate();
-  const from = new URLSearchParams(window.location.search).get("from") ?? undefined;
+  const search = useSearch({ strict: false }) as LoginRouteSearch;
+  const from = search.from;
+  const prefillUsername = search.username ?? "";
+  const qrTenantId = search.tenantId;
+  const qrFacilityId = search.facilityId;
   const setSession = useAuthStore((state) => state.setSession);
   const setJurisdictionData = useJurisdictionStore((state) => state.setJurisdictionData);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [isResolvingQr, setIsResolvingQr] = useState(Boolean(qrTenantId && qrFacilityId));
+  const bannerImages = useLoginBannerImages();
+  const logos = getConfig("LOGO_LIST") as
+    | Array<{ url: string; alt: string }>
+    | undefined;
+  const logo = logos?.[0];
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      username: "",
+      username: prefillUsername,
       password: "",
     },
   });
+
+  useEffect(() => {
+    if (!qrTenantId || !qrFacilityId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    resolveQrLogin({ tenantId: qrTenantId, facilityId: qrFacilityId })
+      .then((result) => {
+        if (!cancelled) {
+          form.setValue("username", result.userName);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          toast.error(translateOr(t, "CORE_QR_LOGIN_FAILED", "Sign in failed"), {
+            description: translateOr(
+              t,
+              "CORE_QR_LOGIN_FAILED_DESC",
+              "We couldn't recognize this QR code. Please log in manually.",
+            ),
+          });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsResolvingQr(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // Only ever needs to run once per mount for the tenantId/facilityId this
+    // page was opened with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onSubmit = async (values: LoginFormValues) => {
     setIsSubmitting(true);
@@ -135,6 +189,14 @@ export function LoginPage() {
       title={translateOr(t, "CORE_LOGIN_WELCOME_TITLE", "Welcome")}
       subtitle={translateOr(t, "CORE_LOGIN_SUBTITLE", "Please enter your details to login.")}
     >
+
+      {isResolvingQr ? (
+        <div className="flex items-center gap-2 rounded border border-ink-300 bg-card px-3 py-2 text-sm text-ink-600">
+          <Loader2 className="size-4 shrink-0 animate-spin" />
+          {translateOr(t, "CORE_QR_LOGIN_RESOLVING", "Reading QR code details...")}
+        </div>
+      ) : null}
+
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex w-full flex-col gap-5">
           <div className="flex flex-col gap-4">
@@ -150,6 +212,7 @@ export function LoginPage() {
                   <FormControl>
                     <Input
                       autoComplete="username"
+                      disabled={isResolvingQr}
                       placeholder={translateOr(
                         t,
                         "CORE_LOGIN_USERNAME_PLACEHOLDER",
@@ -166,6 +229,7 @@ export function LoginPage() {
             <PasswordFormField
               control={form.control}
               name="password"
+              disabled={isResolvingQr}
               label={translateOr(t, "CORE_LOGIN_PASSWORD_LABEL", "Password")}
               placeholder={translateOr(t, "CORE_LOGIN_PASSWORD_PLACEHOLDER", "Enter your password")}
               autoComplete="current-password"
@@ -180,7 +244,12 @@ export function LoginPage() {
             />
           </div>
 
-          <Button type="submit" size="lg" disabled={isSubmitting} className="w-full">
+          <Button
+            type="submit"
+            size="lg"
+            disabled={isSubmitting || isResolvingQr}
+            className="w-full"
+          >
             {isSubmitting
               ? translateOr(t, "CORE_LOGIN_BUTTON_LOADING", "Logging in...")
               : translateOr(t, "CORE_LOGIN_BUTTON", "Log in")}
