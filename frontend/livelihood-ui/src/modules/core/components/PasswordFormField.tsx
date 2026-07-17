@@ -11,6 +11,7 @@ interface PasswordFormFieldProps<TFieldValues extends FieldValues> {
   readonly placeholder?: string;
   readonly autoComplete?: string;
   readonly headerExtra?: ReactNode;
+  readonly disabled?: boolean;
 }
 
 export function PasswordFormField<TFieldValues extends FieldValues>({
@@ -20,6 +21,7 @@ export function PasswordFormField<TFieldValues extends FieldValues>({
   placeholder,
   autoComplete = "new-password",
   headerExtra,
+  disabled,
 }: PasswordFormFieldProps<TFieldValues>) {
   const { t } = useTranslate();
   const [showPassword, setShowPassword] = useState(false);
@@ -42,18 +44,20 @@ export function PasswordFormField<TFieldValues extends FieldValues>({
                 type={showPassword ? "text" : "password"}
                 autoComplete={autoComplete}
                 placeholder={placeholder}
+                disabled={disabled}
                 className="h-9 rounded border-ink-300 px-3 py-2 pr-10 text-sm leading-[21px] text-ink-950 placeholder:text-ink-400"
                 {...field}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((current) => !current)}
+                disabled={disabled}
                 aria-label={
                   showPassword
                     ? translateOr(t, "CORE_LOGIN_PASSWORD_HIDE", "Hide password")
                     : translateOr(t, "CORE_LOGIN_PASSWORD_SHOW", "Show password")
                 }
-                className="absolute inset-y-0 right-3 flex cursor-pointer items-center text-ink-400"
+                className="absolute inset-y-0 right-3 flex cursor-pointer items-center text-ink-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
               </button>

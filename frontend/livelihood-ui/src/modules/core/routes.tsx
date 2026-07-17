@@ -10,6 +10,13 @@ import { ProfilePage } from "./pages/employee/ProfilePage";
 import { ProfileChangePasswordPage } from "./pages/employee/ProfileChangePasswordPage";
 import { CORE_ROUTES } from "./constants/routes";
 
+export interface LoginRouteSearch {
+  from?: string;
+  username?: string;
+  tenantId?: string;
+  facilityId?: string;
+}
+
 export function createCoreRoutes(rootRoute: AnyRoute) {
   const basePath = contextPath();
   const employeeHome = `/${basePath}${CORE_ROUTES.employeeHome}`;
@@ -36,8 +43,11 @@ export function createCoreRoutes(rootRoute: AnyRoute) {
   const employeeLoginRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: employeeLogin,
-    validateSearch: (search: Record<string, unknown>) => ({
+    validateSearch: (search: Record<string, unknown>): LoginRouteSearch => ({
       from: typeof search.from === "string" ? search.from : undefined,
+      username: typeof search.username === "string" ? search.username : undefined,
+      tenantId: typeof search.tenantId === "string" ? search.tenantId : undefined,
+      facilityId: typeof search.facilityId === "string" ? search.facilityId : undefined,
     }),
     beforeLoad: () => {
       if (useAuthStore.getState().isAuthenticated) {
