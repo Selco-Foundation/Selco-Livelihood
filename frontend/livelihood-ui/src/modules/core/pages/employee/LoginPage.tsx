@@ -24,11 +24,11 @@ import {
   toast,
 } from "@/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { AuthLayout } from "../../components/AuthLayout";
+import { PasswordFormField } from "../../components/PasswordFormField";
 
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -65,7 +65,6 @@ export function LoginPage() {
   const setSession = useAuthStore((state) => state.setSession);
   const setJurisdictionData = useJurisdictionStore((state) => state.setJurisdictionData);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -164,59 +163,20 @@ export function LoginPage() {
                 </FormItem>
               )}
             />
-            <FormField
+            <PasswordFormField
               control={form.control}
               name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-baseline justify-between">
-                    <FormLabel className="text-sm leading-[21px] font-medium text-ink-950">
-                      <span>
-                        {translateOr(t, "CORE_LOGIN_PASSWORD_LABEL", "Password")}{" "}
-                        <span className="text-destructive">*</span>
-                      </span>
-                    </FormLabel>
-                    <Link
-                      to={employeeForgotPasswordPath()}
-                      className="text-sm leading-[21px] font-medium text-primary hover:underline"
-                    >
-                      {translateOr(t, "CORE_LOGIN_FORGOT_PASSWORD", "Forgot Password?")}
-                    </Link>
-                  </div>
-                  <FormControl>
-                    <div className="relative">
-                      <Input
-                        type={showPassword ? "text" : "password"}
-                        autoComplete="current-password"
-                        placeholder={translateOr(
-                          t,
-                          "CORE_LOGIN_PASSWORD_PLACEHOLDER",
-                          "Enter your password",
-                        )}
-                        className="h-9 rounded border-ink-300 px-3 py-2 pr-10 text-sm leading-[21px] text-ink-950 placeholder:text-ink-400"
-                        {...field}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((current) => !current)}
-                        aria-label={
-                          showPassword
-                            ? translateOr(t, "CORE_LOGIN_PASSWORD_HIDE", "Hide password")
-                            : translateOr(t, "CORE_LOGIN_PASSWORD_SHOW", "Show password")
-                        }
-                        className="absolute inset-y-0 right-3 flex cursor-pointer items-center text-ink-400"
-                      >
-                        {showPassword ? (
-                          <EyeOff className="size-5" />
-                        ) : (
-                          <Eye className="size-5" />
-                        )}
-                      </button>
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+              label={translateOr(t, "CORE_LOGIN_PASSWORD_LABEL", "Password")}
+              placeholder={translateOr(t, "CORE_LOGIN_PASSWORD_PLACEHOLDER", "Enter your password")}
+              autoComplete="current-password"
+              headerExtra={
+                <Link
+                  to={employeeForgotPasswordPath()}
+                  className="text-sm leading-[21px] font-medium text-primary hover:underline"
+                >
+                  {translateOr(t, "CORE_LOGIN_FORGOT_PASSWORD", "Forgot Password?")}
+                </Link>
+              }
             />
           </div>
 

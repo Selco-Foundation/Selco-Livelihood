@@ -20,13 +20,13 @@ import {
   toast,
 } from "@/ui";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Eye, EyeOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { AuthLayout } from "../../components/AuthLayout";
 import { OtpInput } from "../../components/OtpInput";
 import { PasswordChangedDialog } from "../../components/PasswordChangedDialog";
+import { PasswordFormField } from "../../components/PasswordFormField";
 
 const changePasswordSchema = z
   .object({
@@ -51,8 +51,6 @@ export function ChangePasswordPage() {
 
   const [otp, setOtp] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(RESEND_COOLDOWN_SECONDS);
   const [isResendingOtp, setIsResendingOtp] = useState(false);
@@ -178,90 +176,28 @@ export function ChangePasswordPage() {
             )}
           />
 
-          <FormField
+          <PasswordFormField
             control={form.control}
             name="newPassword"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-sm leading-[21px] font-medium text-ink-950">
-                  {translateOr(t, "CORE_CHANGE_PASSWORD_NEW_LABEL", "New Password")}{" "}
-                  <span className="text-destructive">*</span>
-                </FormLabel>
-                <FormControl>
-                  <div className="relative">
-                    <Input
-                      type={showNewPassword ? "text" : "password"}
-                      autoComplete="new-password"
-                      placeholder={translateOr(
-                        t,
-                        "CORE_CHANGE_PASSWORD_NEW_PLACEHOLDER",
-                        "Enter your new password",
-                      )}
-                      className="h-9 rounded border-ink-300 px-3 py-2 pr-10 text-sm leading-[21px] text-ink-950 placeholder:text-ink-400"
-                      {...field}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowNewPassword((current) => !current)}
-                      aria-label={
-                        showNewPassword
-                          ? translateOr(t, "CORE_LOGIN_PASSWORD_HIDE", "Hide password")
-                          : translateOr(t, "CORE_LOGIN_PASSWORD_SHOW", "Show password")
-                      }
-                      className="absolute inset-y-0 right-3 flex cursor-pointer items-center text-ink-400"
-                    >
-                      {showNewPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
-                    </button>
-                  </div>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
+            label={translateOr(t, "CORE_CHANGE_PASSWORD_NEW_LABEL", "New Password")}
+            placeholder={translateOr(
+              t,
+              "CORE_CHANGE_PASSWORD_NEW_PLACEHOLDER",
+              "Enter your new password",
             )}
+            autoComplete="new-password"
           />
 
-          <FormField
+          <PasswordFormField
             control={form.control}
             name="confirmPassword"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-sm leading-[21px] font-medium text-ink-950">
-                  {translateOr(t, "CORE_CHANGE_PASSWORD_CONFIRM_LABEL", "Confirm Password")}{" "}
-                  <span className="text-destructive">*</span>
-                </FormLabel>
-                <FormControl>
-                  <div className="relative">
-                    <Input
-                      type={showConfirmPassword ? "text" : "password"}
-                      autoComplete="new-password"
-                      placeholder={translateOr(
-                        t,
-                        "CORE_CHANGE_PASSWORD_CONFIRM_PLACEHOLDER",
-                        "Re-enter your new password",
-                      )}
-                      className="h-9 rounded border-ink-300 px-3 py-2 pr-10 text-sm leading-[21px] text-ink-950 placeholder:text-ink-400"
-                      {...field}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword((current) => !current)}
-                      aria-label={
-                        showConfirmPassword
-                          ? translateOr(t, "CORE_LOGIN_PASSWORD_HIDE", "Hide password")
-                          : translateOr(t, "CORE_LOGIN_PASSWORD_SHOW", "Show password")
-                      }
-                      className="absolute inset-y-0 right-3 flex cursor-pointer items-center text-ink-400"
-                    >
-                      {showConfirmPassword ? (
-                        <EyeOff className="size-5" />
-                      ) : (
-                        <Eye className="size-5" />
-                      )}
-                    </button>
-                  </div>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
+            label={translateOr(t, "CORE_CHANGE_PASSWORD_CONFIRM_LABEL", "Confirm Password")}
+            placeholder={translateOr(
+              t,
+              "CORE_CHANGE_PASSWORD_CONFIRM_PLACEHOLDER",
+              "Re-enter your new password",
             )}
+            autoComplete="new-password"
           />
 
           <Button type="submit" size="lg" disabled={isSubmitting} className="w-full">
@@ -273,7 +209,11 @@ export function ChangePasswordPage() {
       </Form>
 
       {isSuccess ? (
-        <PasswordChangedDialog onConfirm={() => void navigate({ to: employeeLoginPath() })} />
+        <PasswordChangedDialog
+          onConfirm={() => {
+            navigate({ to: employeeLoginPath() });
+          }}
+        />
       ) : null}
     </AuthLayout>
   );

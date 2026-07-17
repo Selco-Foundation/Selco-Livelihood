@@ -28,7 +28,7 @@ import { z } from "zod";
 
 const profileSchema = z
   .object({
-    name: z.string().min(1, "Name is required"),
+    name: z.string().trim().min(1, "Name is required"),
     email: z.string().optional(),
   })
   .refine((data) => !data.email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email), {

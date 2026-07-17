@@ -9,24 +9,13 @@ import {
   useJurisdictionStore,
   useTranslate,
 } from "@/shared";
-import {
-  Button,
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Input,
-  PageHeader,
-  toast,
-} from "@/ui";
+import { Button, Form, PageHeader, toast } from "@/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { PasswordChangedDialog } from "../../components/PasswordChangedDialog";
+import { PasswordFormField } from "../../components/PasswordFormField";
 
 const changePasswordSchema = z
   .object({
@@ -51,9 +40,6 @@ export function ProfileChangePasswordPage() {
   const clearJurisdiction = useJurisdictionStore((state) => state.clearJurisdiction);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
   const form = useForm<ChangePasswordFormValues>({
@@ -73,7 +59,8 @@ export function ProfileChangePasswordPage() {
   const canSave = Boolean(currentPasswordValue && newPasswordValue && confirmPasswordValue);
 
   const onSubmit = async (values: ChangePasswordFormValues) => {
-    if (!employeeTenantId || !accessToken) {
+    const userName = user?.userName;
+    if (!employeeTenantId || !accessToken || !userName) {
       return;
     }
 
@@ -85,7 +72,7 @@ export function ProfileChangePasswordPage() {
           existingPassword: values.currentPassword,
           newPassword: values.newPassword,
           confirmPassword: values.confirmPassword,
-          username: user?.userName ?? "",
+          username: userName,
           tenantId: employeeTenantId,
         },
         accessToken,
@@ -111,120 +98,25 @@ export function ProfileChangePasswordPage() {
       <section className="livelihood-card max-w-2xl space-y-6 p-6">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
-            <FormField
+            <PasswordFormField
               control={form.control}
               name="currentPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-sm leading-[21px] font-medium text-ink-950">
-                    {translateOr(t, "CORE_PROFILE_CURRENT_PASSWORD_LABEL", "Current Password")}{" "}
-                    <span className="text-destructive">*</span>
-                  </FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <Input
-                        type={showCurrentPassword ? "text" : "password"}
-                        autoComplete="current-password"
-                        className="h-9 rounded border-ink-300 px-3 py-2 pr-10 text-sm leading-[21px] text-ink-950"
-                        {...field}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowCurrentPassword((current) => !current)}
-                        aria-label={
-                          showCurrentPassword
-                            ? translateOr(t, "CORE_LOGIN_PASSWORD_HIDE", "Hide password")
-                            : translateOr(t, "CORE_LOGIN_PASSWORD_SHOW", "Show password")
-                        }
-                        className="absolute inset-y-0 right-3 flex cursor-pointer items-center text-ink-400"
-                      >
-                        {showCurrentPassword ? (
-                          <EyeOff className="size-5" />
-                        ) : (
-                          <Eye className="size-5" />
-                        )}
-                      </button>
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+              label={translateOr(t, "CORE_PROFILE_CURRENT_PASSWORD_LABEL", "Current Password")}
+              autoComplete="current-password"
             />
 
-            <FormField
+            <PasswordFormField
               control={form.control}
               name="newPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-sm leading-[21px] font-medium text-ink-950">
-                    {translateOr(t, "CORE_PROFILE_NEW_PASSWORD_LABEL", "New Password")}{" "}
-                    <span className="text-destructive">*</span>
-                  </FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <Input
-                        type={showNewPassword ? "text" : "password"}
-                        autoComplete="new-password"
-                        className="h-9 rounded border-ink-300 px-3 py-2 pr-10 text-sm leading-[21px] text-ink-950"
-                        {...field}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowNewPassword((current) => !current)}
-                        aria-label={
-                          showNewPassword
-                            ? translateOr(t, "CORE_LOGIN_PASSWORD_HIDE", "Hide password")
-                            : translateOr(t, "CORE_LOGIN_PASSWORD_SHOW", "Show password")
-                        }
-                        className="absolute inset-y-0 right-3 flex cursor-pointer items-center text-ink-400"
-                      >
-                        {showNewPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
-                      </button>
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+              label={translateOr(t, "CORE_PROFILE_NEW_PASSWORD_LABEL", "New Password")}
+              autoComplete="new-password"
             />
 
-            <FormField
+            <PasswordFormField
               control={form.control}
               name="confirmPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-sm leading-[21px] font-medium text-ink-950">
-                    {translateOr(t, "CORE_PROFILE_CONFIRM_PASSWORD_LABEL", "Confirm New Password")}{" "}
-                    <span className="text-destructive">*</span>
-                  </FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <Input
-                        type={showConfirmPassword ? "text" : "password"}
-                        autoComplete="new-password"
-                        className="h-9 rounded border-ink-300 px-3 py-2 pr-10 text-sm leading-[21px] text-ink-950"
-                        {...field}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirmPassword((current) => !current)}
-                        aria-label={
-                          showConfirmPassword
-                            ? translateOr(t, "CORE_LOGIN_PASSWORD_HIDE", "Hide password")
-                            : translateOr(t, "CORE_LOGIN_PASSWORD_SHOW", "Show password")
-                        }
-                        className="absolute inset-y-0 right-3 flex cursor-pointer items-center text-ink-400"
-                      >
-                        {showConfirmPassword ? (
-                          <EyeOff className="size-5" />
-                        ) : (
-                          <Eye className="size-5" />
-                        )}
-                      </button>
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+              label={translateOr(t, "CORE_PROFILE_CONFIRM_PASSWORD_LABEL", "Confirm New Password")}
+              autoComplete="new-password"
             />
 
             <div className="flex items-center gap-4">
@@ -249,7 +141,7 @@ export function ProfileChangePasswordPage() {
           onConfirm={() => {
             clearSession();
             clearJurisdiction();
-            void navigate({ to: employeeLoginPath() });
+            navigate({ to: employeeLoginPath() });
           }}
         />
       ) : null}
