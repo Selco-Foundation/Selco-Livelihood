@@ -579,7 +579,8 @@ public class EscalationController {
             String csvContent = csvGenerationService.generateEscalationCsv(filteredTickets);
             String stateName = commonUtility.getStateDisplayName(state);
             String csvFileName = csvGenerationService.generateCsvFileName("daily", item.getEscalationLevel(), stateName);
-            String csvFileStoreId = uploadCsvToFileStore(csvContent, csvFileName, "in", requestInfo);
+            String csvFileStoreId = uploadCsvToFileStore(csvContent, csvFileName,
+                    masterDataService.resolveNotificationTenantId(tenantId), requestInfo);
             
             if (csvFileStoreId != null) {
                 csvFileStoreIds.add(csvFileStoreId);
@@ -670,7 +671,8 @@ public class EscalationController {
             // Use "AllStates" for country-level escalations
             String csvContent = csvGenerationService.generateEscalationCsv(filteredTickets);
             String csvFileName = csvGenerationService.generateCsvFileName("daily", item.getEscalationLevel(), "AllStates");
-            String csvFileStoreId = uploadCsvToFileStore(csvContent, csvFileName, "in", requestInfo);
+            String csvFileStoreId = uploadCsvToFileStore(csvContent, csvFileName,
+                    masterDataService.resolveNotificationTenantId(tenantId), requestInfo);
             
             if (csvFileStoreId != null) {
                 csvFileStoreIds.add(csvFileStoreId);
@@ -928,7 +930,7 @@ public class EscalationController {
             email.put("subject", subject);
             email.put("body", body);
             email.put("isHTML", true);
-            email.put("tenantId", tenantId);
+            email.put("tenantId", masterDataService.resolveNotificationTenantId(tenantId));
             
             // Note: CSV files are not attached as email attachments anymore
             // Download functionality is provided via download buttons in the email template

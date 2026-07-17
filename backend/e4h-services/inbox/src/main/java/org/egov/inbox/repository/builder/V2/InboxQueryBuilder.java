@@ -814,8 +814,13 @@ public class InboxQueryBuilder implements QueryBuilderInterface {
 
         String path = nameToPathMap.get(key);
 
-        if (StringUtils.isEmpty(path))
-            path = "Data." + key + ".keyword";
+        if (StringUtils.isEmpty(path)) {
+            if (ASSET_ID_PARAM.equals(key)) {
+                path = "Data.incident.assetId.keyword";
+            } else {
+                path = "Data." + key + ".keyword";
+            }
+        }
 
         return path;
     }

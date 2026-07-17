@@ -11,9 +11,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
@@ -46,6 +49,97 @@ public class VendorRegistryUtil {
             log.error("Failed to resolve vendor user for code={}", vendorCode, e);
             throw new CustomException("VENDOR_REGISTRY_ERROR", "Failed to resolve vendor from vendor-registry");
         }
+    }
+
+    /**
+     * Keys used on {@code asset.vendor_id}: organisation UUID, organisation code, and the vendor user UUID.
+     */
+    public Set<String> resolveVendorOrgKeysForUser(RequestInfo requestInfo, String tenantId, String userUuid) {
+        Set<String> keys = new LinkedHashSet<>();
+        if (userUuid == null || userUuid.isBlank()) {
+            return keys;
+        }
+        keys.add(userUuid.trim());
+
+        if (config.getVendorHost() == null || config.getVendorHost().isBlank()) {
+            log.warn("egov.vendor.host is not configured; cannot resolve organisations for vendor user {}", userUuid);
+            return keys;
+        }
+
+        try {
+            List<String> organisationIds = findOrganisationIdsByUserUuid(userUuid.trim(), tenantId, requestInfo);
+            keys.addAll(organisationIds);
+            for (String organisationId : organisationIds) {
+                String code = findOrganisationCodeById(organisationId, tenantId, requestInfo);
+                if (code != null && !code.isBlank()) {
+                    keys.add(code.trim());
+                }
+            }
+        } catch (Exception e) {
+            log.error("Failed to resolve vendor organisations for userUuid={}", userUuid, e);
+            throw new CustomException("VENDOR_REGISTRY_ERROR", "Failed to resolve vendor organisations from vendor-registry");
+        }
+        return keys;
+    }
+
+    private List<String> findOrganisationIdsByUserUuid(String userUuid, String tenantId, RequestInfo requestInfo) {
+        String uri = UriComponentsBuilder
+                .fromUriString(config.getVendorHost() + config.getVendorOrganisationUserSearchPath())
+                .queryParam("limit", 50)
+                .queryParam("offset", 0)
+                .queryParam("tenantId", tenantId)
+                .toUriString();
+
+        Map<String, Object> criteria = new HashMap<>();
+        criteria.put("tenantId", tenantId);
+        criteria.put("userIds", List.of(userUuid));
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("RequestInfo", requestInfo);
+        body.put("OrgUser", criteria);
+
+        Map<String, Object> response = castToMap(serviceRequestRepository.fetchResult(new StringBuilder(uri), body));
+        List<Map<String, Object>> orgUsers = castToListOfMaps(response.get("OrgUsers"));
+        if (CollectionUtils.isEmpty(orgUsers)) {
+            return List.of();
+        }
+
+        List<String> organisationIds = new ArrayList<>();
+        for (Map<String, Object> orgUser : orgUsers) {
+            if (Boolean.TRUE.equals(orgUser.get("isDeleted"))) {
+                continue;
+            }
+            Object organisationId = orgUser.get("organizationId");
+            if (organisationId != null && !organisationId.toString().isBlank()) {
+                organisationIds.add(organisationId.toString());
+            }
+        }
+        return organisationIds;
+    }
+
+    private String findOrganisationCodeById(String organisationId, String tenantId, RequestInfo requestInfo) {
+        String uri = config.getVendorHost() + config.getVendorOrganisationSearchPath();
+
+        Map<String, Object> searchCriteria = new HashMap<>();
+        searchCriteria.put("tenantId", tenantId);
+        searchCriteria.put("id", organisationId);
+
+        Map<String, Object> pagination = new HashMap<>();
+        pagination.put("limit", 1);
+        pagination.put("offset", 0);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("RequestInfo", requestInfo);
+        body.put("SearchCriteria", searchCriteria);
+        body.put("Pagination", pagination);
+
+        Map<String, Object> response = castToMap(serviceRequestRepository.fetchResult(new StringBuilder(uri), body));
+        List<Map<String, Object>> organisations = castToListOfMaps(response.get("organisations"));
+        if (CollectionUtils.isEmpty(organisations)) {
+            return null;
+        }
+        Object code = organisations.get(0).get("code");
+        return code != null ? code.toString() : null;
     }
 
     private String findOrganisationIdByCode(String vendorCode, String tenantId, RequestInfo requestInfo) {

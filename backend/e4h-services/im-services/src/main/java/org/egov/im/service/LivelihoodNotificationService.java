@@ -5,22 +5,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.common.contract.request.User;
-import org.egov.im.config.IMConfiguration;
-import org.egov.im.producer.Producer;
 import org.egov.im.repository.ServiceRequestRepository;
 import org.egov.im.util.HRMSUtil;
-import org.egov.im.util.NotificationUtil;
 import org.egov.im.web.models.Incident;
 import org.egov.im.web.models.IncidentRequest;
-import org.egov.im.web.models.Notification.SMSRequest;
 import org.egov.im.web.models.RequestInfoWrapper;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -31,29 +24,34 @@ import static org.egov.im.util.IMConstants.*;
 @Slf4j
 public class LivelihoodNotificationService {
 
-    private final NotificationUtil notificationUtil;
+    private static final String OOW_END_USER_REMINDER_REASON =
+            "Awaiting your out-of-warranty decision on the vendor quotation";
+    private static final String OOW_VENDOR_REMINDER_REASON = "Awaiting end-user decision on the quotation";
+
+    private final LivelihoodSmsNotificationService livelihoodSmsNotificationService;
+    private final LivelihoodEmailNotificationService livelihoodEmailNotificationService;
     private final NotificationService notificationService;
-    private final IMConfiguration config;
     private final HRMSUtil hrmsUtil;
     private final ServiceRequestRepository repository;
-    private final Producer producer;
 
     public LivelihoodNotificationService(
-            NotificationUtil notificationUtil,
+            LivelihoodSmsNotificationService livelihoodSmsNotificationService,
+            LivelihoodEmailNotificationService livelihoodEmailNotificationService,
             @Lazy NotificationService notificationService,
-            IMConfiguration config,
             HRMSUtil hrmsUtil,
-            ServiceRequestRepository repository,
-            Producer producer
+            ServiceRequestRepository repository
     ) {
-        this.notificationUtil = notificationUtil;
+        this.livelihoodSmsNotificationService = livelihoodSmsNotificationService;
+        this.livelihoodEmailNotificationService = livelihoodEmailNotificationService;
         this.notificationService = notificationService;
-        this.config = config;
         this.hrmsUtil = hrmsUtil;
         this.repository = repository;
-        this.producer = producer;
     }
 
+    /**
+     * Ticket create notifications. Only end user (self) or Program POC (on behalf) can create —
+     * vendors never create. Vendor receives assignment SMS after auto-assign.
+     */
     public void notifyOnCreate(IncidentRequest request) {
         if (request == null || request.getIncident() == null) {
             return;
@@ -63,21 +61,31 @@ public class LivelihoodNotificationService {
             return;
         }
 
-        notifyVendor(request);
         if (Boolean.TRUE.equals(incident.getCreatedOnBehalf())) {
-            notifyComplainantOnBehalf(request);
+            // POC raised on behalf of end user (LIV-TPL-002 / 003)
+            notifyComplainantSms(request, LIV_TPL_002);
+            notifyVendorSms(request, LIV_TPL_003);
         } else {
+            // End user self-create (LIV-TPL-001 / 018). Doc matrix asks for vendor SMS but
+            // provides no vendor template for self-create — only send documented templates.
+            notifyComplainantSms(request, LIV_TPL_001);
             notifyPoc(request);
         }
     }
 
     /**
-     * Livelihood workflow notifications on vendor/POC actions (#36).
+     * Livelihood workflow notifications on vendor/POC actions.
      */
     public void notifyOnUpdate(IncidentRequest request, String previousStatus) {
+        notifyOnUpdate(request, previousStatus, null);
+    }
+
+    public void notifyOnUpdate(IncidentRequest request, String previousStatus, Incident persistedIncident) {
         if (request == null || request.getIncident() == null || request.getWorkflow() == null) {
             return;
         }
+        enrichNotificationContext(request, persistedIncident);
+
         String action = request.getWorkflow().getAction();
         if (StringUtils.isBlank(action)) {
             return;
@@ -88,44 +96,67 @@ public class LivelihoodNotificationService {
         switch (normalizedAction) {
             case "RESOLVE" -> {
                 if (LIVELIHOOD_RESOLVED.equalsIgnoreCase(newStatus)) {
-                    notifyComplainantResolved(request);
+                    notifyComplainantSms(request, LIV_TPL_011);
                 }
             }
             case "OUT_OF_SCOPE" -> {
                 if (LIVELIHOOD_OUT_OF_SCOPE_PENDING_POC.equalsIgnoreCase(newStatus)) {
                     notifyPocOutOfScope(request);
-                    notifyComplainantOutOfScope(request);
                 }
             }
             case "OUT_OF_WARRANTY" -> {
                 if (LIVELIHOOD_OUT_OF_WARRANTY_PENDING_VENDOR.equalsIgnoreCase(newStatus)) {
-                    notifyComplainantOutOfWarranty(request);
+                    notifyComplainantSms(request, LIV_TPL_009);
                     notifyPocOutOfWarranty(request);
                 }
             }
-            case "DECLINE" -> {
+            case LIVELIHOOD_WF_DECLINE -> {
                 if (LIVELIHOOD_CLOSED_AFTER_DECLINE.equalsIgnoreCase(newStatus)) {
+                    notifyComplainantSms(request, LIV_TPL_014);
                     notifyPocVendorDeclined(request);
                 }
             }
-            case "REOPEN" -> {
-                if (LIVELIHOOD_PENDING_FOR_RESOLUTION.equalsIgnoreCase(newStatus)) {
-                    notifyVendorReopened(request);
+            case LIVELIHOOD_WF_DECLINE_POC -> {
+                if (LIVELIHOOD_CLOSED_AFTER_DECLINE.equalsIgnoreCase(newStatus)) {
+                    log.info("Sending closed-without-resolution / POC-decline SMS templates={} / {} incidentId={}",
+                            LIV_TPL_012, LIV_TPL_016, request.getIncident().getIncidentId());
+                    notifyComplainantSms(request, LIV_TPL_012);
+                    notifyComplainantSms(request, LIV_TPL_016);
+                    sendPocEmail(request, LIV_TPL_013, Map.of("reason", resolveDeclineReason(request)));
+                } else {
+                    log.warn("Skipped POC decline notifications for incidentId={} action={} status={}",
+                            request.getIncident().getIncidentId(), normalizedAction, newStatus);
                 }
             }
-            case "REASSIGN" -> {
-                // POC reassignment: do not notify the original vendor (#36)
-                log.debug("Skipping vendor notification for POC reassignment on incidentId={}",
-                        request.getIncident().getIncidentId());
+            case REASSIGN, LIVELIHOOD_WF_ASSIGN_VENDOR -> {
+                if (LIVELIHOOD_OUT_OF_SCOPE_PENDING_VENDOR.equalsIgnoreCase(newStatus)) {
+                    notifyOosReassignment(request);
+                }
             }
             default -> { }
         }
     }
 
     /**
-     * Sends OOW reminder SMS at day 7 and T-2 days (14-day window). Invoked from auto-escalation consumer.
+     * Vendor SLA breached — vendor SMS (LIV-TPL-004) and POC email (LIV-TPL-005).
      */
-    public void processOowRemindersIfDue(IncidentRequest request, long slaRemainingMs) {
+    public void notifyVendorSlaBreached(IncidentRequest request) {
+        notifyVendorSms(request, LIV_TPL_004);
+        notifyPocSlaBreached(request);
+    }
+
+    /**
+     * POC SLA breached (e.g. OUT_OF_SCOPE_PENDING_POC) — POC email only (LIV-TPL-005).
+     */
+    public void notifyPocSlaBreached(IncidentRequest request) {
+        sendPocEmail(request, LIV_TPL_005);
+    }
+
+    /**
+     * LLD: OOW reminder (day 7, T-2d) — SMS to facility manager and vendor.
+     * Triggered by auto-escalation when ticket is in OUT_OF_WARRANTY_PENDING_VENDOR.
+     */
+    public void processOowRemindersIfDue(IncidentRequest request) {
         if (request == null || request.getIncident() == null) {
             return;
         }
@@ -133,113 +164,116 @@ public class LivelihoodNotificationService {
                 request.getIncident().getApplicationStatus())) {
             return;
         }
-        if (config.getIsSMSEnabled() == null || !config.getIsSMSEnabled()) {
+        notifyComplainantSms(request, LIV_TPL_032, Map.of("reason", OOW_END_USER_REMINDER_REASON));
+        notifyVendorSms(request, LIV_TPL_033, Map.of("reason", OOW_VENDOR_REMINDER_REASON));
+    }
+
+    private void notifyOosReassignment(IncidentRequest request) {
+        notifyComplainantSms(request, LIV_TPL_007);
+        notifyVendorSms(request, LIV_TPL_008);
+    }
+
+    /**
+     * Update payloads are often partial; merge persisted incident fields needed for SMS/email recipients.
+     */
+    private void enrichNotificationContext(IncidentRequest request, Incident persisted) {
+        if (persisted == null || request.getIncident() == null) {
             return;
         }
+        Incident incident = request.getIncident();
+        mergeIfBlank(incident.getIncidentId(), incident::setIncidentId, persisted.getIncidentId());
+        mergeIfBlank(incident.getBoundaryCode(), incident::setBoundaryCode, persisted.getBoundaryCode());
+        mergeIfBlank(incident.getFacilityId(), incident::setFacilityId, persisted.getFacilityId());
+        mergeIfBlank(incident.getAssetId(), incident::setAssetId, persisted.getAssetId());
+        mergeIfBlank(incident.getIncidentType(), incident::setIncidentType, persisted.getIncidentType());
+        mergeIfBlank(incident.getAccountId(), incident::setAccountId, persisted.getAccountId());
 
-        long fourteenDaysMs = 14L * 24 * 60 * 60 * 1000;
-        long sevenDaysMs = 7L * 24 * 60 * 60 * 1000;
-        long twoDaysMs = 2L * 24 * 60 * 60 * 1000;
-
-        boolean day7Reminder = slaRemainingMs <= (fourteenDaysMs - sevenDaysMs)
-                && slaRemainingMs > (fourteenDaysMs - sevenDaysMs - 24 * 60 * 60 * 1000);
-        boolean tMinus2Reminder = slaRemainingMs <= twoDaysMs
-                && slaRemainingMs > (twoDaysMs - 24 * 60 * 60 * 1000);
-
-        if (!day7Reminder && !tMinus2Reminder) {
-            return;
+        if (incident.getCreatedOnBehalf() == null) {
+            incident.setCreatedOnBehalf(persisted.getCreatedOnBehalf());
         }
 
-        String reminderLabel = day7Reminder ? "7-day" : "T-2 day";
-        notifyComplainantSms(request, String.format(
-                "Reminder (%s): Ticket %s for %s is awaiting your out-of-warranty decision. "
-                        + "Please review the vendor quotation.",
-                reminderLabel, request.getIncident().getIncidentId(), request.getIncident().getFacilityId()
-        ));
-        notifyVendorSms(request, String.format(
-                "Reminder (%s): Ticket %s is in out-of-warranty pending state. "
-                        + "Awaiting end-user decision.",
-                reminderLabel, request.getIncident().getIncidentId()
-        ));
+        if (incident.getAuditDetails() == null
+                || incident.getAuditDetails().getCreatedTime() == null) {
+            incident.setAuditDetails(persisted.getAuditDetails());
+        }
+
+        if (incident.getReporter() == null && persisted.getReporter() != null) {
+            incident.setReporter(persisted.getReporter());
+        }
+
+        // Preserve assetCategory (and other details) for SMS/email placeholders on partial updates.
+        if (incident.getAdditionalDetail() == null && persisted.getAdditionalDetail() != null) {
+            incident.setAdditionalDetail(persisted.getAdditionalDetail());
+        }
     }
 
-    private void notifyComplainantResolved(IncidentRequest request) {
-        notifyComplainantSms(request, String.format(
-                "Your ticket %s has been resolved by the vendor. "
-                        + "You may reopen within 72 hours if the issue persists.",
-                request.getIncident().getIncidentId()
-        ));
+    private static void mergeIfBlank(String current, java.util.function.Consumer<String> setter, String value) {
+        if (StringUtils.isBlank(current) && StringUtils.isNotBlank(value)) {
+            setter.accept(value);
+        }
     }
 
-    private void notifyVendorReopened(IncidentRequest request) {
-        notifyVendorSms(request, String.format(
-                "Ticket %s has been reopened by the facility manager for asset %s at %s. "
-                        + "Please review and resolve within 7 days. Comment: %s",
-                request.getIncident().getIncidentId(),
-                request.getIncident().getAssetId(),
-                request.getIncident().getFacilityId(),
-                StringUtils.defaultIfBlank(request.getWorkflow().getComments(), "N/A")
-        ));
+    private void notifyComplainantSms(IncidentRequest request, String templateCode) {
+        notifyComplainantSms(request, templateCode, Map.of());
     }
 
-    private void notifyComplainantOutOfScope(IncidentRequest request) {
-        String reason = resolveOutOfScopeReason(request);
-        notifyComplainantSms(request, String.format(
-                "Your ticket %s has been marked out of scope by the vendor. Reason: %s. "
-                        + "A program officer will review it.",
-                request.getIncident().getIncidentId(), reason
-        ));
+    private void notifyComplainantSms(IncidentRequest request, String templateCode, Map<String, String> extras) {
+        try {
+            String mobile = resolveComplainantMobile(request);
+            if (StringUtils.isBlank(mobile)) {
+                log.warn("Complainant mobile not found for incidentId={}", request.getIncident().getIncidentId());
+                return;
+            }
+            livelihoodSmsNotificationService.sendSms(request, mobile, templateCode, extras);
+        } catch (Exception e) {
+            log.error("Failed complainant SMS for incidentId={}", request.getIncident().getIncidentId(), e);
+        }
     }
 
-    private void notifyComplainantOutOfWarranty(IncidentRequest request) {
-        String quotationLink = buildQuotationLink(request);
-        notifyComplainantSms(request, String.format(
-                "Your ticket %s is out of warranty. Vendor quotation is available%s. "
-                        + "Please review and decide off-platform.",
-                request.getIncident().getIncidentId(),
-                StringUtils.isNotBlank(quotationLink) ? " at " + quotationLink : ""
-        ));
+    private void notifyVendorSms(IncidentRequest request, String templateCode) {
+        notifyVendorSms(request, templateCode, Map.of());
+    }
+
+    private void notifyVendorSms(IncidentRequest request, String templateCode, Map<String, String> extras) {
+        List<String> assignees = request.getWorkflow() != null ? request.getWorkflow().getAssignes() : null;
+        if (CollectionUtils.isEmpty(assignees)) {
+            log.warn("No vendor assignee for SMS template {} incidentId={}", templateCode,
+                    request.getIncident().getIncidentId());
+            return;
+        }
+        try {
+            String mobile = fetchUserMobile(assignees.get(0), request.getRequestInfo(), request.getIncident().getTenantId());
+            if (StringUtils.isBlank(mobile)) {
+                return;
+            }
+            livelihoodSmsNotificationService.sendSms(request, mobile, templateCode, extras);
+        } catch (Exception e) {
+            log.error("Failed vendor SMS for incidentId={}", request.getIncident().getIncidentId(), e);
+        }
     }
 
     private void notifyPocOutOfScope(IncidentRequest request) {
-        String reason = resolveOutOfScopeReason(request);
-        sendPocEmail(request,
-                "Out of scope – action required: " + request.getIncident().getIncidentId(),
-                String.format(
-                        "Vendor marked ticket %s as out of scope.%nReason: %s%nFacility: %s%nAsset: %s%n"
-                                + "Please review within 3 days.",
-                        request.getIncident().getIncidentId(),
-                        reason,
-                        request.getIncident().getFacilityId(),
-                        request.getIncident().getAssetId()
-                ));
+        sendPocEmail(request, LIV_TPL_006,
+                Map.of("out_of_scope_reason", resolveOutOfScopeReason(request)));
     }
 
     private void notifyPocOutOfWarranty(IncidentRequest request) {
-        String quotationLink = buildQuotationLink(request);
-        sendPocEmail(request,
-                "Out of warranty quotation uploaded: " + request.getIncident().getIncidentId(),
-                String.format(
-                        "Vendor uploaded an out-of-warranty quotation for ticket %s.%nFacility: %s%nAsset: %s%n"
-                                + "Quotation: %s%nEnd-user has been notified.",
-                        request.getIncident().getIncidentId(),
-                        request.getIncident().getFacilityId(),
-                        request.getIncident().getAssetId(),
-                        StringUtils.defaultIfBlank(quotationLink, "see ticket attachments")
-                ));
+        sendPocEmail(request, LIV_TPL_010);
     }
 
     private void notifyPocVendorDeclined(IncidentRequest request) {
-        sendPocEmail(request,
-                "Ticket closed after OOW decline: " + request.getIncident().getIncidentId(),
-                String.format(
-                        "Vendor closed ticket %s after out-of-warranty rejection.%nComment: %s",
-                        request.getIncident().getIncidentId(),
-                        StringUtils.defaultIfBlank(request.getWorkflow().getComments(), "N/A")
-                ));
+        sendPocEmail(request, LIV_TPL_015, Map.of("reason", resolveDeclineReason(request)));
     }
 
-    private void sendPocEmail(IncidentRequest request, String subject, String body) {
+    private void notifyPoc(IncidentRequest request) {
+        sendPocEmail(request, LIV_TPL_018);
+    }
+
+    private void sendPocEmail(IncidentRequest request, String templateCode) {
+        sendPocEmail(request, templateCode, Map.of());
+    }
+
+    private void sendPocEmail(IncidentRequest request, String templateCode, Map<String, String> extras) {
         try {
             String pocEmail = fetchPocEmail(
                     request.getIncident().getTenantId(),
@@ -250,50 +284,18 @@ public class LivelihoodNotificationService {
                 log.warn("POC email not found for incidentId={}", request.getIncident().getIncidentId());
                 return;
             }
-            sendEmailViaKafka(pocEmail, subject, body, request.getIncident().getTenantId());
+            livelihoodEmailNotificationService.sendEmail(request, pocEmail, templateCode, extras);
         } catch (Exception e) {
-            log.error("Failed to send POC email for incidentId={}", request.getIncident().getIncidentId(), e);
+            log.error("Failed to send POC email template={} incidentId={}",
+                    templateCode, request.getIncident().getIncidentId(), e);
         }
     }
 
-    private void notifyComplainantSms(IncidentRequest request, String message) {
-        if (config.getIsSMSEnabled() == null || !config.getIsSMSEnabled()) {
-            return;
+    private String resolveDeclineReason(IncidentRequest request) {
+        if (request.getWorkflow() != null && StringUtils.isNotBlank(request.getWorkflow().getComments())) {
+            return request.getWorkflow().getComments();
         }
-        try {
-            String mobile = resolveComplainantMobile(request);
-            if (StringUtils.isBlank(mobile)) {
-                return;
-            }
-            notificationUtil.sendSMS(
-                    request.getIncident().getTenantId(),
-                    Collections.singletonList(SMSRequest.builder().mobileNumber(mobile).message(message).build())
-            );
-        } catch (Exception e) {
-            log.error("Failed complainant SMS for incidentId={}", request.getIncident().getIncidentId(), e);
-        }
-    }
-
-    private void notifyVendorSms(IncidentRequest request, String message) {
-        if (config.getIsSMSEnabled() == null || !config.getIsSMSEnabled()) {
-            return;
-        }
-        List<String> assignees = request.getWorkflow() != null ? request.getWorkflow().getAssignes() : null;
-        if (CollectionUtils.isEmpty(assignees)) {
-            return;
-        }
-        try {
-            String mobile = fetchUserMobile(assignees.get(0), request.getRequestInfo(), request.getIncident().getTenantId());
-            if (StringUtils.isBlank(mobile)) {
-                return;
-            }
-            notificationUtil.sendSMS(
-                    request.getIncident().getTenantId(),
-                    Collections.singletonList(SMSRequest.builder().mobileNumber(mobile).message(message).build())
-            );
-        } catch (Exception e) {
-            log.error("Failed vendor SMS for incidentId={}", request.getIncident().getIncidentId(), e);
-        }
+        return "Not specified";
     }
 
     private String resolveOutOfScopeReason(IncidentRequest request) {
@@ -304,73 +306,6 @@ public class LivelihoodNotificationService {
             return request.getWorkflow().getComments();
         }
         return "Not specified";
-    }
-
-    private String buildQuotationLink(IncidentRequest request) {
-        if (request.getWorkflow() == null || CollectionUtils.isEmpty(request.getWorkflow().getVerificationDocuments())) {
-            return "";
-        }
-        return request.getWorkflow().getVerificationDocuments().stream()
-                .filter(doc -> doc != null && StringUtils.isNotBlank(doc.getFileStoreId()))
-                .map(doc -> String.format("%s?tenantId=%s&fileStoreId=%s",
-                        config.getFileStoreDownloadEndpoint(),
-                        request.getIncident().getTenantId(),
-                        doc.getFileStoreId()))
-                .findFirst()
-                .orElse("");
-    }
-
-    private void notifyVendor(IncidentRequest request) {
-        if (config.getIsSMSEnabled() == null || !config.getIsSMSEnabled()) {
-            return;
-        }
-        List<String> assignees = request.getWorkflow() != null ? request.getWorkflow().getAssignes() : null;
-        if (CollectionUtils.isEmpty(assignees)) {
-            return;
-        }
-
-        try {
-            String vendorUuid = assignees.get(0);
-            String mobile = fetchUserMobile(vendorUuid, request.getRequestInfo(), request.getIncident().getTenantId());
-            if (StringUtils.isBlank(mobile)) {
-                log.warn("Vendor mobile not found for uuid={}", vendorUuid);
-                return;
-            }
-
-            String message = buildVendorSmsMessage(request);
-            if (StringUtils.isNotBlank(message)) {
-                notificationUtil.sendSMS(
-                        request.getIncident().getTenantId(),
-                        Collections.singletonList(SMSRequest.builder().mobileNumber(mobile).message(message).build())
-                );
-            }
-        } catch (Exception e) {
-            log.error("Failed to send vendor SMS for incidentId={}", request.getIncident().getIncidentId(), e);
-        }
-    }
-
-    private void notifyComplainantOnBehalf(IncidentRequest request) {
-        if (config.getIsSMSEnabled() == null || !config.getIsSMSEnabled()) {
-            return;
-        }
-
-        try {
-            String mobile = resolveComplainantMobile(request);
-            if (StringUtils.isBlank(mobile)) {
-                log.warn("Complainant mobile not found for on-behalf incidentId={}",
-                        request.getIncident().getIncidentId());
-                return;
-            }
-
-            String message = buildComplainantOnBehalfSmsMessage(request);
-            notificationUtil.sendSMS(
-                    request.getIncident().getTenantId(),
-                    Collections.singletonList(SMSRequest.builder().mobileNumber(mobile).message(message).build())
-            );
-        } catch (Exception e) {
-            log.error("Failed to send on-behalf complainant SMS for incidentId={}",
-                    request.getIncident().getIncidentId(), e);
-        }
     }
 
     private String resolveComplainantMobile(IncidentRequest request) {
@@ -389,71 +324,47 @@ public class LivelihoodNotificationService {
             }
         }
 
-        Map<String, String> complainant = hrmsUtil.findComplainantAtBoundary(
-                request.getRequestInfo(),
-                request.getIncident().getTenantId(),
-                request.getIncident().getBoundaryCode()
-        );
-        return complainant.get("mobile");
-    }
-
-    private void notifyPoc(IncidentRequest request) {
-        try {
-            String boundaryCode = request.getIncident().getBoundaryCode();
-            String tenantId = request.getIncident().getTenantId();
-            String pocEmail = fetchPocEmail(tenantId, boundaryCode, request.getRequestInfo());
-            if (StringUtils.isBlank(pocEmail)) {
-                log.warn("POC email not found for tenantId={} boundaryCode={}", tenantId, boundaryCode);
-                return;
+        if (StringUtils.isNotBlank(request.getIncident().getAccountId())) {
+            String mobile = fetchUserMobile(
+                    request.getIncident().getAccountId(),
+                    request.getRequestInfo(),
+                    request.getIncident().getTenantId()
+            );
+            if (StringUtils.isNotBlank(mobile)) {
+                return mobile;
             }
+        }
 
-            String subject = "New Livelihood ticket: " + request.getIncident().getIncidentId();
-            String body = buildPocEmailBody(request);
-            sendEmailViaKafka(pocEmail, subject, body, tenantId);
+        String facilityBoundary = resolveFacilityBoundaryForComplainant(request.getIncident());
+        if (StringUtils.isBlank(facilityBoundary)) {
+            log.warn("Complainant mobile not found for incidentId={} — missing boundary",
+                    request.getIncident().getIncidentId());
+            return null;
+        }
+
+        try {
+            Map<String, String> complainant = hrmsUtil.findComplainantAtBoundary(
+                    request.getRequestInfo(),
+                    request.getIncident().getTenantId(),
+                    facilityBoundary
+            );
+            return complainant.get("mobile");
         } catch (Exception e) {
-            log.error("Failed to send POC email for incidentId={}", request.getIncident().getIncidentId(), e);
+            log.warn("Complainant HRMS lookup failed for incidentId={}", request.getIncident().getIncidentId(), e);
+            return null;
         }
     }
 
-    private String buildVendorSmsMessage(IncidentRequest request) {
-        Incident incident = request.getIncident();
-        return String.format(
-                "New ticket %s assigned to you for asset %s at facility %s. Issue: %s",
-                incident.getIncidentId(),
-                incident.getAssetId(),
-                incident.getFacilityId(),
-                incident.getIncidentType()
-        );
-    }
-
-    private String buildComplainantOnBehalfSmsMessage(IncidentRequest request) {
-        Incident incident = request.getIncident();
-        return String.format(
-                "A support ticket %s has been raised on your behalf for facility %s. Issue: %s. "
-                        + "A vendor has been assigned to resolve it.",
-                incident.getIncidentId(),
-                incident.getFacilityId(),
-                incident.getIncidentType()
-        );
-    }
-
-    private String buildPocEmailBody(IncidentRequest request) {
-        Incident incident = request.getIncident();
-        return String.format(
-                "A new Livelihood support ticket has been created.%n%n"
-                        + "Ticket ID: %s%n"
-                        + "Facility: %s%n"
-                        + "Asset: %s%n"
-                        + "Issue: %s%n"
-                        + "Status: %s%n"
-                        + "Entry channel: %s%n",
-                incident.getIncidentId(),
-                incident.getFacilityId(),
-                incident.getAssetId(),
-                incident.getIncidentType(),
-                incident.getApplicationStatus(),
-                incident.getEntryChannel()
-        );
+    private String resolveFacilityBoundaryForComplainant(Incident incident) {
+        String assetBoundary = incident.getBoundaryCode();
+        String assetId = incident.getAssetId();
+        if (StringUtils.isNotBlank(assetBoundary) && StringUtils.isNotBlank(assetId)) {
+            String suffix = "_" + assetId;
+            if (assetBoundary.endsWith(suffix)) {
+                return assetBoundary.substring(0, assetBoundary.length() - suffix.length());
+            }
+        }
+        return assetBoundary;
     }
 
     private String fetchUserMobile(String uuid, RequestInfo requestInfo, String tenantId) {
@@ -477,20 +388,5 @@ public class LivelihoodNotificationService {
             log.error("Failed to fetch POC email from HRMS for boundaryCode={}", boundaryCode, e);
         }
         return null;
-    }
-
-    private void sendEmailViaKafka(String emailId, String subject, String body, String tenantId) {
-        Map<String, Object> email = new HashMap<>();
-        email.put("emailTo", new HashSet<>(Collections.singletonList(emailId)));
-        email.put("subject", subject);
-        email.put("body", body);
-        email.put("tenantId", tenantId);
-
-        Map<String, Object> emailRequest = new HashMap<>();
-        emailRequest.put("requestInfo", new HashMap<>());
-        emailRequest.put("email", email);
-
-        producer.push(tenantId, config.getNotificationEmailTopic(), emailRequest);
-        log.info("Published Livelihood POC email to topic {} for {}", config.getNotificationEmailTopic(), emailId);
     }
 }

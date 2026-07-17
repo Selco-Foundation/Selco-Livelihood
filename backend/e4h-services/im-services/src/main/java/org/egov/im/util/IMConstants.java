@@ -44,6 +44,10 @@ public class IMConstants {
 
     public static final String LIVELIHOOD_WF_DECLINE = "DECLINE";
 
+    public static final String LIVELIHOOD_WF_DECLINE_POC = "DECLINE_POC";
+
+    public static final String LIVELIHOOD_WF_ASSIGN_VENDOR = "ASSIGN_VENDOR";
+
     public static final String LIVELIHOOD_WF_AUTO_CLOSE = "AUTO_CLOSE";
 
     /** 72-hour reopen window after resolution. */
@@ -77,6 +81,54 @@ public class IMConstants {
     public static final String ROLE_LIVELIHOOD_VENDOR = "LIVELIHOOD_VENDOR";
 
     public static final String ROLE_LIVELIHOOD_POC = "LIVELIHOOD_POC";
+
+    public static final String LIVELIHOOD_LOCALIZATION_MODULE = "rainmaker-livelihood";
+
+    public static final String LIVELIHOOD_URL_SMS_MESSAGE = "LIVELIHOOD_URL_SMS_MESSAGE";
+
+    public static final String LIVELIHOOD_DATE_PATTERN = "dd-MM-yyyy";
+
+    public static final String LIV_TPL_001 = "LIV-TPL-001";
+
+    public static final String LIV_TPL_002 = "LIV-TPL-002";
+
+    public static final String LIV_TPL_003 = "LIV-TPL-003";
+
+    public static final String LIV_TPL_004 = "LIV-TPL-004";
+
+    public static final String LIV_TPL_005 = "LIV-TPL-005";
+
+    public static final String LIV_TPL_006 = "LIV-TPL-006";
+
+    public static final String LIV_TPL_007 = "LIV-TPL-007";
+
+    public static final String LIV_TPL_008 = "LIV-TPL-008";
+
+    public static final String LIV_TPL_009 = "LIV-TPL-009";
+
+    public static final String LIV_TPL_010 = "LIV-TPL-010";
+
+    public static final String LIV_TPL_011 = "LIV-TPL-011";
+
+    public static final String LIV_TPL_012 = "LIV-TPL-012";
+
+    public static final String LIV_TPL_013 = "LIV-TPL-013";
+
+    public static final String LIV_TPL_014 = "LIV-TPL-014";
+
+    public static final String LIV_TPL_015 = "LIV-TPL-015";
+
+    public static final String LIV_TPL_016 = "LIV-TPL-016";
+
+    public static final String LIV_TPL_018 = "LIV-TPL-018";
+
+    public static final String LIVELIHOOD_EMAIL_SUBJECT_SUFFIX = "-SUBJECT";
+
+    public static final String LIV_TPL_032 = "LIV-TPL-032";
+
+    public static final String LIV_TPL_033 = "LIV-TPL-033";
+
+    public static final String LIVELIHOOD_APP_NAME = "Setu 4 Livelihoods";
 
     public static final String POC_ACCESS_DENIED_CODE = "POC_ACCESS_DENIED";
 

@@ -64,6 +64,9 @@ public class InboxServiceV2 {
     @Autowired
     private HashService hashService;
 
+    @Autowired
+    private VendorMappedAssetResolver vendorMappedAssetResolver;
+
 
     /**
      *
@@ -95,11 +98,8 @@ public class InboxServiceV2 {
                 .collect(Collectors.toList());
         log.debug("👤 User roles found: {} | isVendor={}", roles, isVendor);
 
-        if (isVendor && StringUtils.isBlank(inboxRequest.getInbox().getProcessSearchCriteria().getAssignee())) {
-            inboxRequest.getInbox().getProcessSearchCriteria()
-                    .setAssignee(inboxRequest.getRequestInfo().getUserInfo().getUuid());
-            log.debug("Auto-set inbox assignee to logged-in vendor uuid={}",
-                    inboxRequest.getRequestInfo().getUserInfo().getUuid());
+        if (isVendor) {
+            applyVendorMappedAssetScope(inboxRequest);
         }
 
         // Gestion du tenantId pour les vendors
@@ -790,6 +790,43 @@ public class InboxServiceV2 {
     private boolean isNearingSlaSearch(InboxRequest inboxRequest) {
         Map<String, Object> moduleSearchCriteria = inboxRequest.getInbox().getModuleSearchCriteria();
         return moduleSearchCriteria != null && moduleSearchCriteria.containsKey(NEARING_SLA_PARAM);
+    }
+
+    /**
+     * Vendor inbox shows all tickets for assets mapped to the vendor organisation,
+     * including RESOLVED / OUT_OF_SCOPE. When the UI sends an assignee filter,
+     * keep only the current vendor's own UUID so "My Tickets" works without
+     * allowing cross-user assignee searches. Jurisdiction filters are kept.
+     */
+    private void applyVendorMappedAssetScope(InboxRequest inboxRequest) {
+        ProcessInstanceSearchCriteria processCriteria = inboxRequest.getInbox().getProcessSearchCriteria();
+        String userUuid = inboxRequest.getRequestInfo().getUserInfo().getUuid();
+        if (processCriteria != null) {
+            String assignee = StringUtils.trimToNull(processCriteria.getAssignee());
+            if (assignee == null) {
+                processCriteria.setAssignee(null);
+            } else if (!StringUtils.equals(assignee, userUuid)) {
+                processCriteria.setAssignee(userUuid);
+            }
+        }
+
+        HashMap<String, Object> moduleSearchCriteria = inboxRequest.getInbox().getModuleSearchCriteria();
+        if (moduleSearchCriteria == null) {
+            moduleSearchCriteria = new HashMap<>();
+            inboxRequest.getInbox().setModuleSearchCriteria(moduleSearchCriteria);
+        }
+
+        String tenantId = inboxRequest.getInbox().getTenantId();
+        List<String> mappedAssetIds = vendorMappedAssetResolver.resolveMappedAssetIds(
+                inboxRequest.getRequestInfo(), tenantId, userUuid);
+
+        if (CollectionUtils.isEmpty(mappedAssetIds)) {
+            moduleSearchCriteria.put(ASSET_ID_PARAM, Collections.singletonList(NO_MAPPED_ASSETS_SENTINEL));
+            log.info("Vendor {} has no mapped assets — inbox returns empty scope", userUuid);
+        } else {
+            moduleSearchCriteria.put(ASSET_ID_PARAM, mappedAssetIds);
+            log.info("Vendor inbox scoped to {} mapped asset(s)", mappedAssetIds.size());
+        }
     }
 
     /**

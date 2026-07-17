@@ -342,6 +342,12 @@ public class IMConfiguration {
     @Value("${im.livelihood.tenant.id:livelihood}")
     private String livelihoodTenantId;
 
+    @Value("${livelihood.mobile.app.link}")
+    private String livelihoodMobileAppLink;
+
+    @Value("${livelihood.localization.module:rainmaker-livelihood}")
+    private String livelihoodLocalizationModule;
+
     @Value("${egov.kafka.notification.email.topic:egov.core.notification.email}")
     private String notificationEmailTopic;
 

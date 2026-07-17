@@ -3,6 +3,7 @@ package org.selco.e4h.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.egov.common.contract.request.RequestInfo;
+import org.selco.e4h.config.LivelihoodSummaryProperties;
 import org.selco.e4h.util.ElasticSearchClient;
 import org.selco.e4h.web.models.EscalationLevel;
 import org.selco.e4h.web.models.EscalationTicket;
@@ -23,6 +24,9 @@ public class SLABreachDetectionService {
     
     private final ElasticSearchClient elasticSearchClient;
     private final EscalationMasterDataService escalationMasterDataService;
+    private final LivelihoodSummaryProperties livelihoodProperties;
+
+    private static final String FIELD_TENANT = "Data.tenantId.keyword";
     
     // Cache for escalation level configurations from MDMS
     private Map<String, EscalationLevel> escalationLevelCache = new HashMap<>();
@@ -292,7 +296,9 @@ public class SLABreachDetectionService {
         Map<String, Object> bool = new HashMap<>();
         List<Map<String, Object>> must = new ArrayList<>();
 
-        // Filter by tenant - use prefix match to include state and all its sub-tenants
+        addLivelihoodTenantFilterIfNeeded(must);
+
+        // Filter by state boundary - use prefix match to include state and all its sub-tenants
         Map<String, Object> tenantFilter = new HashMap<>();
         Map<String, Object> tenantPrefix = new HashMap<>();
         tenantPrefix.put("Data.incident.boundary.stateCode.keyword", state);
@@ -469,6 +475,8 @@ public class SLABreachDetectionService {
         Map<String, Object> bool = new HashMap<>();
         List<Map<String, Object>> must = new ArrayList<>();
         
+        addLivelihoodTenantFilterIfNeeded(must);
+
         // Filter by workflow states
         Map<String, Object> statusFilter = new HashMap<>();
         Map<String, Object> statusTerms = new HashMap<>();
@@ -490,6 +498,17 @@ public class SLABreachDetectionService {
         log.debug("SLA breach query for country level with escalation level {}: {}", 
             escalationLevel, query);
         return query;
+    }
+
+    private void addLivelihoodTenantFilterIfNeeded(List<Map<String, Object>> must) {
+        if (!livelihoodProperties.isLivelihoodDeployment()) {
+            return;
+        }
+        Map<String, Object> tenantFilter = new HashMap<>();
+        Map<String, Object> tenantTerm = new HashMap<>();
+        tenantTerm.put(FIELD_TENANT, livelihoodProperties.getLivelihoodTenantId());
+        tenantFilter.put("term", tenantTerm);
+        must.add(tenantFilter);
     }
 
 }
