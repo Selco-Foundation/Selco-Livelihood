@@ -55,6 +55,7 @@ export function ChangePasswordPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(RESEND_COOLDOWN_SECONDS);
+  const [isResendingOtp, setIsResendingOtp] = useState(false);
 
   useEffect(() => {
     if (resendCooldown <= 0) {
@@ -78,6 +79,11 @@ export function ChangePasswordPage() {
   });
 
   const handleResendOtp = async () => {
+    if (isResendingOtp) {
+      return;
+    }
+
+    setIsResendingOtp(true);
     try {
       await sendPasswordResetOtp({ mobileNumber, tenantId: tenantId() });
       toast.success(translateOr(t, "CORE_CHANGE_PASSWORD_OTP_RESENT", "OTP resent"));
@@ -88,10 +94,17 @@ export function ChangePasswordPage() {
           extractApiErrorMessage(error) ??
           translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again."),
       });
+    } finally {
+      setIsResendingOtp(false);
     }
   };
 
   const onSubmit = async (values: ChangePasswordFormValues) => {
+    if (!/^\d{4}$/.test(otp)) {
+      toast.error(translateOr(t, "CORE_CHANGE_PASSWORD_OTP_INVALID", "Enter the 4-digit OTP"));
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -130,7 +143,7 @@ export function ChangePasswordPage() {
             <button
               type="button"
               onClick={() => void handleResendOtp()}
-              disabled={resendCooldown > 0}
+              disabled={resendCooldown > 0 || isResendingOtp}
               className="self-start cursor-pointer text-sm leading-[21px] font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:text-ink-400 disabled:no-underline"
             >
               {resendCooldown > 0

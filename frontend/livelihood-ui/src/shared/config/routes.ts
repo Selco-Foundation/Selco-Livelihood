@@ -19,3 +19,7 @@ export function employeeChangePasswordPath(): string {
 export function employeeProfilePath(): string {
   return `/${contextPath()}/employee/profile`;
 }
+
+export function employeeProfileChangePasswordPath(): string {
+  return `/${contextPath()}/employee/profile/change-password`;
+}

@@ -50,6 +50,7 @@ export {
   employeeForgotPasswordPath,
   employeeChangePasswordPath,
   employeeProfilePath,
+  employeeProfileChangePasswordPath,
 } from "./config/routes";
 export { queryClient } from "./query/query-client";
 export { QueryProvider } from "./query/provider";
