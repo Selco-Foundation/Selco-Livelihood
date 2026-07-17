@@ -1,5 +1,6 @@
 import { getConfigString } from "../config/global-config";
 import { apiClient } from "./client";
+import { createRequestInfo } from "./request-info";
 
 export interface LoginPayload {
   username: string;
@@ -57,6 +58,17 @@ export async function sendPasswordResetOtp(payload: SendPasswordResetOtpPayload)
       },
     },
     { params: { tenantId: payload.tenantId } },
+  );
+}
+
+export async function logoutUser(accessToken: string, tenantId: string): Promise<void> {
+  await apiClient.post(
+    "/user/_logout",
+    {
+      RequestInfo: createRequestInfo(accessToken),
+      access_token: accessToken,
+    },
+    { params: { tenantId } },
   );
 }
 

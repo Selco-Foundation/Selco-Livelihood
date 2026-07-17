@@ -8,6 +8,7 @@ export {
 } from "./api/localization";
 export {
   loginUser,
+  logoutUser,
   sendPasswordResetOtp,
   resetPasswordWithOtp,
   type LoginPayload,

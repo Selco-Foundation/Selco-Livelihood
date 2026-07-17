@@ -4,6 +4,8 @@ import {
   employeeLoginPath,
   employeeProfilePath,
   getConfigString,
+  logoutUser,
+  tenantId,
   translateOr,
   useAuthStore,
   useJurisdictionStore,
@@ -59,6 +61,8 @@ export function AppShell() {
   const basePath = `/${contextPath()}`;
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const employeeTenantId = useAuthStore((state) => state.employeeTenantId);
   const clearSession = useAuthStore((state) => state.clearSession);
   const clearJurisdiction = useJurisdictionStore((state) => state.clearJurisdiction);
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -270,11 +274,19 @@ export function AppShell() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
-                clearSession();
-                clearJurisdiction();
-                toast.success(translateOr(t, "CORE_LOGOUT_SUCCESS_TOAST", "Signed out successfully"));
-                void navigate({ to: employeeLoginPath() });
+              onClick={async () => {
+                try {
+                  if (accessToken) {
+                    await logoutUser(accessToken, employeeTenantId ?? tenantId());
+                  }
+                } catch {
+                  // best-effort: proceed with local sign-out even if the server call fails
+                } finally {
+                  clearSession();
+                  clearJurisdiction();
+                  toast.success(translateOr(t, "CORE_LOGOUT_SUCCESS_TOAST", "Signed out successfully"));
+                  void navigate({ to: employeeLoginPath() });
+                }
               }}
             >
               Sign out
