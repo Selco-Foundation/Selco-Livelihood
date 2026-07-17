@@ -26,13 +26,14 @@ import {
   Input,
   toast,
 } from "@/ui";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { AuthLayout } from "../../components/AuthLayout";
 import { PasswordFormField } from "../../components/PasswordFormField";
+import type { LoginRouteSearch } from "../../routes";
 
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -65,10 +66,11 @@ function resolveRedirectPath(from?: string): string {
 export function LoginPage() {
   const { t } = useTranslate();
   const navigate = useNavigate();
-  const from = new URLSearchParams(window.location.search).get("from") ?? undefined;
-  const prefillUsername = new URLSearchParams(window.location.search).get("username") ?? "";
-  const qrTenantId = new URLSearchParams(window.location.search).get("tenantId") ?? undefined;
-  const qrFacilityId = new URLSearchParams(window.location.search).get("facilityId") ?? undefined;
+  const search = useSearch({ strict: false }) as LoginRouteSearch;
+  const from = search.from;
+  const prefillUsername = search.username ?? "";
+  const qrTenantId = search.tenantId;
+  const qrFacilityId = search.facilityId;
   const setSession = useAuthStore((state) => state.setSession);
   const setJurisdictionData = useJurisdictionStore((state) => state.setJurisdictionData);
   const [isSubmitting, setIsSubmitting] = useState(false);
