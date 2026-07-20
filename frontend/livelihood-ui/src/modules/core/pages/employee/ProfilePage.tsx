@@ -22,21 +22,26 @@ import {
   toast,
 } from "@/ui";
 import { Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-const profileSchema = z
-  .object({
-    name: z.string().trim().min(1, "Name is required"),
-    email: z.string().optional(),
-  })
-  .refine((data) => !data.email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email), {
-    message: "Enter a valid email address",
-    path: ["email"],
-  });
+function createProfileSchema(t: (key: string) => string) {
+  return z
+    .object({
+      name: z
+        .string()
+        .trim()
+        .min(1, translateOr(t, "CORE_PROFILE_NAME_REQUIRED", "Name is required")),
+      email: z.string().optional(),
+    })
+    .refine((data) => !data.email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email), {
+      message: translateOr(t, "CORE_PROFILE_EMAIL_INVALID", "Enter a valid email address"),
+      path: ["email"],
+    });
+}
 
-type ProfileFormValues = z.infer<typeof profileSchema>;
+type ProfileFormValues = z.infer<ReturnType<typeof createProfileSchema>>;
 
 export function ProfilePage() {
   const { t } = useTranslate();
@@ -48,6 +53,7 @@ export function ProfilePage() {
   const [profile, setProfile] = useState<EmployeeProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const profileSchema = useMemo(() => createProfileSchema(t), [t]);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),

@@ -20,7 +20,7 @@ import {
   toast,
 } from "@/ui";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { AuthLayout } from "../../components/AuthLayout";
@@ -28,18 +28,29 @@ import { OtpInput } from "../../components/OtpInput";
 import { PasswordChangedDialog } from "../../components/PasswordChangedDialog";
 import { PasswordFormField } from "../../components/PasswordFormField";
 
-const changePasswordSchema = z
-  .object({
-    userName: z.string().min(1, "Username is required"),
-    newPassword: z.string().min(1, "New password is required"),
-    confirmPassword: z.string().min(1, "Confirm password is required"),
-  })
-  .refine((data) => data.newPassword === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  });
+function createChangePasswordSchema(t: (key: string) => string) {
+  return z
+    .object({
+      userName: z
+        .string()
+        .min(1, translateOr(t, "CORE_CHANGE_PASSWORD_USERNAME_REQUIRED", "Username is required")),
+      newPassword: z
+        .string()
+        .min(1, translateOr(t, "CORE_CHANGE_PASSWORD_NEW_REQUIRED", "New password is required")),
+      confirmPassword: z
+        .string()
+        .min(
+          1,
+          translateOr(t, "CORE_CHANGE_PASSWORD_CONFIRM_REQUIRED", "Confirm password is required"),
+        ),
+    })
+    .refine((data) => data.newPassword === data.confirmPassword, {
+      message: translateOr(t, "CORE_CHANGE_PASSWORD_MISMATCH", "Passwords do not match"),
+      path: ["confirmPassword"],
+    });
+}
 
-type ChangePasswordFormValues = z.infer<typeof changePasswordSchema>;
+type ChangePasswordFormValues = z.infer<ReturnType<typeof createChangePasswordSchema>>;
 
 const RESEND_COOLDOWN_SECONDS = 30;
 
@@ -54,6 +65,7 @@ export function ChangePasswordPage() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(RESEND_COOLDOWN_SECONDS);
   const [isResendingOtp, setIsResendingOtp] = useState(false);
+  const changePasswordSchema = useMemo(() => createChangePasswordSchema(t), [t]);
 
   useEffect(() => {
     if (resendCooldown <= 0) {
@@ -127,7 +139,7 @@ export function ChangePasswordPage() {
 
   return (
     <AuthLayout
-      title={translateOr(t, "CORE_CHANGE_PASSWORD_TITLE", "Reset Password")}
+      title={translateOr(t, "CORE_RESET_PASSWORD_TITLE", "Reset Password")}
       subtitle={`${translateOr(t, "CORE_CHANGE_PASSWORD_OTP_SENT", "OTP sent to")} +91 - ${mobileNumber}`}
     >
       <Form {...form}>

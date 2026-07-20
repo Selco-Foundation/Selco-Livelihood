@@ -1,4 +1,4 @@
-import { getConfig, useLoginBannerImages } from "@/shared";
+import { getConfig, translateOr, useLoginBannerImages, useTranslate } from "@/shared";
 import type { ReactNode } from "react";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { LoginCarousel } from "./LoginCarousel";
@@ -13,6 +13,8 @@ export function AuthLayout({ title, subtitle, children }: AuthLayoutProps) {
   const bannerImages = useLoginBannerImages();
   const logos = getConfig("LOGO_LIST") as Array<{ url: string; alt: string }> | undefined;
   const logo = logos?.[0];
+  const { t } = useTranslate();
+  const logoAlt = logo?.alt ?? translateOr(t, "CORE_LOGO_ALT", "Selco Foundation Logo");
 
   return (
     <div className="font-poppins flex min-h-screen bg-white">
@@ -20,7 +22,7 @@ export function AuthLayout({ title, subtitle, children }: AuthLayoutProps) {
         <div className="absolute inset-x-8 top-8 hidden items-center justify-between lg:flex">
           <img
             src={logo?.url}
-            alt={logo?.alt ?? "Selco Foundation Logo"}
+            alt={logoAlt}
             className="h-[68px] w-auto object-contain"
           />
           <LanguageSwitcher />
@@ -33,7 +35,7 @@ export function AuthLayout({ title, subtitle, children }: AuthLayoutProps) {
         <div className="mt-20 flex w-full max-w-[360px] flex-col gap-5 lg:mt-0">
           <img
             src={logo?.url}
-            alt={logo?.alt ?? "Selco Foundation Logo"}
+            alt={logoAlt}
             className="mx-auto h-28 w-auto object-contain lg:hidden"
           />
 

@@ -28,19 +28,21 @@ import {
 } from "@/ui";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { AuthLayout } from "../../components/AuthLayout";
 import { PasswordFormField } from "../../components/PasswordFormField";
 import type { LoginRouteSearch } from "../../routes";
 
-const loginSchema = z.object({
-  username: z.string().min(1, "Username is required"),
-  password: z.string().min(1, "Password is required"),
-});
+function createLoginSchema(t: (key: string) => string) {
+  return z.object({
+    username: z.string().min(1, translateOr(t, "CORE_LOGIN_USERNAME_REQUIRED", "Username is required")),
+    password: z.string().min(1, translateOr(t, "CORE_LOGIN_PASSWORD_REQUIRED", "Password is required")),
+  });
+}
 
-type LoginFormValues = z.infer<typeof loginSchema>;
+type LoginFormValues = z.infer<ReturnType<typeof createLoginSchema>>;
 
 function extractOAuthErrorDescription(error: unknown): string | undefined {
   const response = (
@@ -81,6 +83,7 @@ export function LoginPage() {
     | Array<{ url: string; alt: string }>
     | undefined;
   const logo = logos?.[0];
+  const loginSchema = useMemo(() => createLoginSchema(t), [t]);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),

@@ -11,24 +11,35 @@ import {
 } from "@/shared";
 import { Button, Form, PageHeader, toast } from "@/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { PasswordChangedDialog } from "../../components/PasswordChangedDialog";
 import { PasswordFormField } from "../../components/PasswordFormField";
 
-const changePasswordSchema = z
-  .object({
-    currentPassword: z.string().min(1, "Current password is required"),
-    newPassword: z.string().min(1, "New password is required"),
-    confirmPassword: z.string().min(1, "Confirm password is required"),
-  })
-  .refine((data) => data.newPassword === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  });
+function createChangePasswordSchema(t: (key: string) => string) {
+  return z
+    .object({
+      currentPassword: z
+        .string()
+        .min(1, translateOr(t, "CORE_PROFILE_CURRENT_PASSWORD_REQUIRED", "Current password is required")),
+      newPassword: z
+        .string()
+        .min(1, translateOr(t, "CORE_PROFILE_NEW_PASSWORD_REQUIRED", "New password is required")),
+      confirmPassword: z
+        .string()
+        .min(
+          1,
+          translateOr(t, "CORE_PROFILE_CONFIRM_PASSWORD_REQUIRED", "Confirm password is required"),
+        ),
+    })
+    .refine((data) => data.newPassword === data.confirmPassword, {
+      message: translateOr(t, "CORE_PROFILE_PASSWORD_MISMATCH", "Passwords do not match"),
+      path: ["confirmPassword"],
+    });
+}
 
-type ChangePasswordFormValues = z.infer<typeof changePasswordSchema>;
+type ChangePasswordFormValues = z.infer<ReturnType<typeof createChangePasswordSchema>>;
 
 export function ProfileChangePasswordPage() {
   const { t } = useTranslate();
@@ -41,6 +52,7 @@ export function ProfileChangePasswordPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const changePasswordSchema = useMemo(() => createChangePasswordSchema(t), [t]);
 
   const form = useForm<ChangePasswordFormValues>({
     resolver: zodResolver(changePasswordSchema),

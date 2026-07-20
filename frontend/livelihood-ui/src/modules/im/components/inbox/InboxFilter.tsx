@@ -615,7 +615,7 @@ export function InboxFilter({
                       setMobileFiltersOpen(false);
                     }}
                   >
-                    {translateOr(t, "ES_IM_CLEAR_ALL_FILTERS", "Clear all filters")}
+                    {translateOr(t, "ES_IM_CLEAR_ALL_FILTERS", "clear all filters")}
                   </Button>
                   <Button
                     type="button"
