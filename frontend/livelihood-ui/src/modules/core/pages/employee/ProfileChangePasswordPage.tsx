@@ -3,6 +3,7 @@ import {
   changePasswordInSession,
   employeeLoginPath,
   employeeProfilePath,
+  extractApiErrorDescription,
   extractApiErrorMessage,
   translateOr,
   useAuthStore,
@@ -93,9 +94,16 @@ export function ProfileChangePasswordPage() {
 
       setIsSuccess(true);
     } catch (error) {
+      const apiMessage = extractApiErrorMessage(error);
+      const apiDescription = extractApiErrorDescription(error);
+      const combinedApiDetail =
+        apiMessage && apiDescription
+          ? `${apiMessage} - ${apiDescription}`
+          : (apiDescription ?? apiMessage);
+
       toast.error(translateOr(t, "CORE_CHANGE_PASSWORD_FAILED", "Failed to update password"), {
         description:
-          extractApiErrorMessage(error) ??
+          combinedApiDetail ??
           translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again."),
       });
     } finally {

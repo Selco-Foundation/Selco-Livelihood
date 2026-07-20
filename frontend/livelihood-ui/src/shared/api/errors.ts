@@ -16,3 +16,17 @@ export function extractApiErrorMessage(error: unknown): string | undefined {
     data?.error?.message
   );
 }
+
+export function extractApiErrorDescription(error: unknown): string | undefined {
+  const data = (
+    error as {
+      response?: {
+        data?: {
+          Errors?: Array<{ description?: string }>;
+        };
+      };
+    }
+  )?.response?.data;
+
+  return Array.isArray(data?.Errors) ? data?.Errors[0]?.description : undefined;
+}
