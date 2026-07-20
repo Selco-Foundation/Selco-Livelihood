@@ -336,8 +336,8 @@ export function useCreateIncidentForm(inboxPath: string) {
       errors.comments = translateOr(
         t,
         "INCIDENT_COMMENTS_MAX_LENGTH",
-        `Comments must be ${MAX_COMMENT_LENGTH} characters or fewer`,
-      );
+        "Comments cannot exceed {MAX_COUNT} characters.",
+      ).replace("{MAX_COUNT}", String(MAX_COMMENT_LENGTH));
     }
     setFieldErrors((prev) => ({ ...prev, ...errors }));
     return Object.keys(errors).length === 0;
