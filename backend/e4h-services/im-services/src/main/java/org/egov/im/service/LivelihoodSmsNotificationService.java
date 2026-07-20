@@ -62,8 +62,8 @@ public class LivelihoodSmsNotificationService {
                             + "We hope your issue has been addressed. Not satisfied with the resolution? You can change ticket "
                             + "status on {url} - SELCO Foundation"),
             Map.entry(LIV_TPL_012,
-                    "Your livelihood support ticket for {ticket_type} with ID {incidentId} submitted on {date} has been closed "
-                            + "without resolution. For further assistance, please contact the SELCO team or track ticket details on {url} - SELCO Foundation"),
+                    "Your livelihood support ticket for {ticket_type} with ID {incidentId} submitted on {date} has been closed. "
+                            + "For further assistance, please contact the SELCO team or track ticket details on {url} - SELCO Foundation"),
             Map.entry(LIV_TPL_014,
                     "Your livelihood support ticket for {ticket_type} with ID {incidentId} submitted on {date} has been declined "
                             + "by the vendor. Please contact your Program POC for further assistance or track ticket details on {url} - SELCO Foundation"),
@@ -128,10 +128,14 @@ public class LivelihoodSmsNotificationService {
         );
         String template = notificationUtil.getCustomizedMsgForPlaceholder(localizationMessage, templateCode);
         if (StringUtils.isNotBlank(template)) {
+            log.debug("Livelihood SMS template {} loaded from localization module={}",
+                    templateCode, config.getLivelihoodLocalizationModule());
             return template;
         }
         template = DEFAULT_TEMPLATES.get(templateCode);
-        if (StringUtils.isBlank(template)) {
+        if (StringUtils.isNotBlank(template)) {
+            log.warn("Livelihood SMS template {} not found in localization — using inline fallback", templateCode);
+        } else {
             log.warn("No Livelihood SMS template found for code {}", templateCode);
         }
         return template;
