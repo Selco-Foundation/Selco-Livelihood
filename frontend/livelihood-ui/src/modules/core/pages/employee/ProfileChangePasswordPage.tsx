@@ -15,6 +15,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { LanguageSwitcher } from "../../components/LanguageSwitcher";
 import { PasswordChangedDialog } from "../../components/PasswordChangedDialog";
 import { PasswordFormField } from "../../components/PasswordFormField";
 
@@ -113,7 +114,15 @@ export function ProfileChangePasswordPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={translateOr(t, "CORE_CHANGE_PASSWORD_TITLE", "Change Password")} />
+      <div className="hidden lg:block">
+        <PageHeader
+          title={translateOr(t, "CORE_CHANGE_PASSWORD_TITLE", "Change Password")}
+          action={<LanguageSwitcher />}
+        />
+      </div>
+      <div className="lg:hidden">
+        <PageHeader title={translateOr(t, "CORE_CHANGE_PASSWORD_TITLE", "Change Password")} />
+      </div>
 
       <section className="livelihood-card max-w-2xl space-y-6 p-6">
         <Form {...form}>

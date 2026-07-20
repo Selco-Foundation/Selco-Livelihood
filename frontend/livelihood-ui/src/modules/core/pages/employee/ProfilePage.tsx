@@ -9,6 +9,7 @@ import {
   useTranslate,
   type EmployeeProfile,
 } from "@/shared";
+import { LanguageSwitcher } from "../../components/LanguageSwitcher";
 import {
   Button,
   Form,
@@ -153,7 +154,15 @@ export function ProfilePage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={translateOr(t, "CORE_PROFILE_TITLE", "Profile")} />
+      <div className="hidden lg:block">
+        <PageHeader
+          title={translateOr(t, "CORE_PROFILE_TITLE", "Profile")}
+          action={<LanguageSwitcher />}
+        />
+      </div>
+      <div className="lg:hidden">
+        <PageHeader title={translateOr(t, "CORE_PROFILE_TITLE", "Profile")} />
+      </div>
 
       <section className="livelihood-card max-w-2xl space-y-6 p-6">
         <Form {...form}>
