@@ -355,7 +355,7 @@ export function ComplaintActionDialog({
       aria-label={translateOr(t, "CS_COMMON_CLOSE", "Close")}
     >
       <div
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-border bg-card px-6 py-5 shadow-lg"
+        className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-3xl border border-border bg-card px-6 py-5 shadow-lg"
         onClick={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
