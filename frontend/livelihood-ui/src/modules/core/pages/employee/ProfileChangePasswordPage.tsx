@@ -16,27 +16,26 @@ import { z } from "zod";
 import { LanguageSwitcher } from "../../components/LanguageSwitcher";
 import { PasswordChangedDialog } from "../../components/PasswordChangedDialog";
 import { PasswordFormField } from "../../components/PasswordFormField";
+import {
+  passwordConfirmationShape,
+  refinePasswordConfirmation,
+} from "../../utils/password-confirmation-schema";
 
 function createChangePasswordSchema(t: (key: string) => string) {
-  return z
-    .object({
+  return refinePasswordConfirmation(
+    z.object({
       currentPassword: z
         .string()
         .min(1, translateOr(t, "CORE_PROFILE_CURRENT_PASSWORD_REQUIRED", "Current password is required")),
-      newPassword: z
-        .string()
-        .min(1, translateOr(t, "CORE_PROFILE_NEW_PASSWORD_REQUIRED", "New password is required")),
-      confirmPassword: z
-        .string()
-        .min(
-          1,
-          translateOr(t, "CORE_PROFILE_CONFIRM_PASSWORD_REQUIRED", "Confirm password is required"),
-        ),
-    })
-    .refine((data) => data.newPassword === data.confirmPassword, {
-      message: translateOr(t, "CORE_PROFILE_PASSWORD_MISMATCH", "Passwords do not match"),
-      path: ["confirmPassword"],
-    });
+      ...passwordConfirmationShape(t, {
+        newRequiredKey: "CORE_PROFILE_NEW_PASSWORD_REQUIRED",
+        confirmRequiredKey: "CORE_PROFILE_CONFIRM_PASSWORD_REQUIRED",
+        mismatchKey: "CORE_PROFILE_PASSWORD_MISMATCH",
+      }),
+    }),
+    t,
+    "CORE_PROFILE_PASSWORD_MISMATCH",
+  );
 }
 
 type ChangePasswordFormValues = z.infer<ReturnType<typeof createChangePasswordSchema>>;

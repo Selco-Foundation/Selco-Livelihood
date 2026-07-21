@@ -27,27 +27,26 @@ import { AuthLayout } from "../../components/AuthLayout";
 import { OtpInput } from "../../components/OtpInput";
 import { PasswordChangedDialog } from "../../components/PasswordChangedDialog";
 import { PasswordFormField } from "../../components/PasswordFormField";
+import {
+  passwordConfirmationShape,
+  refinePasswordConfirmation,
+} from "../../utils/password-confirmation-schema";
 
 function createChangePasswordSchema(t: (key: string) => string) {
-  return z
-    .object({
+  return refinePasswordConfirmation(
+    z.object({
       userName: z
         .string()
         .min(1, translateOr(t, "CORE_CHANGE_PASSWORD_USERNAME_REQUIRED", "Username is required")),
-      newPassword: z
-        .string()
-        .min(1, translateOr(t, "CORE_CHANGE_PASSWORD_NEW_REQUIRED", "New password is required")),
-      confirmPassword: z
-        .string()
-        .min(
-          1,
-          translateOr(t, "CORE_CHANGE_PASSWORD_CONFIRM_REQUIRED", "Confirm password is required"),
-        ),
-    })
-    .refine((data) => data.newPassword === data.confirmPassword, {
-      message: translateOr(t, "CORE_CHANGE_PASSWORD_MISMATCH", "Passwords do not match"),
-      path: ["confirmPassword"],
-    });
+      ...passwordConfirmationShape(t, {
+        newRequiredKey: "CORE_CHANGE_PASSWORD_NEW_REQUIRED",
+        confirmRequiredKey: "CORE_CHANGE_PASSWORD_CONFIRM_REQUIRED",
+        mismatchKey: "CORE_CHANGE_PASSWORD_MISMATCH",
+      }),
+    }),
+    t,
+    "CORE_CHANGE_PASSWORD_MISMATCH",
+  );
 }
 
 type ChangePasswordFormValues = z.infer<ReturnType<typeof createChangePasswordSchema>>;
