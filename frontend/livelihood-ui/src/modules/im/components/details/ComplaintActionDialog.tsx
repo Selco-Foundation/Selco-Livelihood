@@ -20,6 +20,7 @@ import {
 } from "../../services/workflow";
 import { buildUploadedDocuments } from "../../utils/create-incident-documents";
 import {
+  MAX_COMMENT_LENGTH,
   MAX_IMAGE_COUNT,
   MAX_QUOTATION_SIZE_MB,
   validateQuotationFiles,
@@ -213,6 +214,9 @@ export function ComplaintActionDialog({
       if (actionConfig.comment === "required" && !comments.trim()) {
         throw new Error("COMMENT_REQUIRED");
       }
+      if (comments.trim().length > MAX_COMMENT_LENGTH) {
+        throw new Error("COMMENT_TOO_LONG");
+      }
       if (actionConfig.reasonMaster && !selectedReason) {
         throw new Error("REASON_REQUIRED");
       }
@@ -247,15 +251,21 @@ export function ComplaintActionDialog({
       const message =
         code === "COMMENT_REQUIRED"
           ? translateOr(t, "WF_COMMENT_REQUIRED", "Please enter a comment")
-          : code === "FILES_REQUIRED"
+          : code === "COMMENT_TOO_LONG"
             ? translateOr(
                 t,
-                "WF_QUOTATION_REQUIRED",
-                "Please upload a quotation document",
-              )
-            : code === "REASON_REQUIRED"
-              ? translateOr(t, "WF_REASON_REQUIRED", "Please select a reason")
-              : translateOr(t, "CS_COMMON_SOMETHING_WENT_WRONG", "Something went wrong!");
+                "WF_COMMENT_MAX_LENGTH",
+                "Comments cannot exceed {MAX_COUNT} characters.",
+              ).replace("{MAX_COUNT}", String(MAX_COMMENT_LENGTH))
+            : code === "FILES_REQUIRED"
+              ? translateOr(
+                  t,
+                  "WF_QUOTATION_REQUIRED",
+                  "Please upload a quotation document",
+                )
+              : code === "REASON_REQUIRED"
+                ? translateOr(t, "WF_REASON_REQUIRED", "Please select a reason")
+                : translateOr(t, "CS_COMMON_SOMETHING_WENT_WRONG", "Something went wrong!");
       setError(message);
     },
   });
@@ -407,9 +417,13 @@ export function ComplaintActionDialog({
             <textarea
               className="min-h-[100px] w-full rounded border border-ink-300 bg-card px-3 py-2 text-sm placeholder:text-ink-300"
               placeholder={translateOr(t, "WF_COMMENTS_PLACEHOLDER", "Describe the issue in detail...")}
+              maxLength={MAX_COMMENT_LENGTH}
               value={comments}
               onChange={(event) => setComments(event.target.value)}
             />
+            <p className="text-right text-xs text-muted-foreground">
+              {comments.length}/{MAX_COMMENT_LENGTH}
+            </p>
           </div>
 
           {showDocuments ? (
