@@ -568,7 +568,7 @@ export function InboxFilter({
               <SheetContent
                 side="bottom"
                 showCloseButton={false}
-                className="max-h-[85vh] rounded-t-2xl p-0"
+                className="max-h-[85dvh] rounded-t-2xl p-0"
               >
                 <div className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-border" />
                 <SheetHeader className="shrink-0 pb-0">
@@ -615,7 +615,7 @@ export function InboxFilter({
                       setMobileFiltersOpen(false);
                     }}
                   >
-                    {translateOr(t, "ES_IM_CLEAR_ALL_FILTERS", "Clear all filters")}
+                    {translateOr(t, "ES_IM_CLEAR_ALL_FILTERS", "clear all filters")}
                   </Button>
                   <Button
                     type="button"

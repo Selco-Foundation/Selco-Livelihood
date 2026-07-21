@@ -51,7 +51,7 @@ export function ImOverview() {
                 <Link to={`${basePath}/incident/create`}>
                   <Plus className="size-4" />
                   <span className="lg:hidden">{translateOr(t, "ES_IM_RAISE_TICKET_SHORT", "Raise Ticket")}</span>
-                  <span className="hidden lg:inline">{translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise new ticket")}</span>
+                  <span className="hidden lg:inline">{translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise New Ticket")}</span>
                 </Link>
               </Button>
             ) : null}
