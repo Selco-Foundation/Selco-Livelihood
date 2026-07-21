@@ -1,4 +1,4 @@
-import { contextPath, useModuleI18n } from "@/shared";
+import { contextPath, translateOr, useModuleI18n, useTranslate } from "@/shared";
 import type { AnyRoute } from "@tanstack/react-router";
 import { createRoute, Outlet, redirect } from "@tanstack/react-router";
 import { Inbox } from "lucide-react";
@@ -28,11 +28,12 @@ function toFiniteNumber(value: unknown, fallback: number): number {
  */
 function ImModuleWrapper() {
   const { isLoading } = useModuleI18n("im");
+  const { t } = useTranslate();
 
   if (isLoading) {
     return (
       <div className="flex min-h-[200px] items-center justify-center text-sm text-muted-foreground">
-        Loading...
+        {translateOr(t, "CORE_COMMON_LOADING", "Loading...")}
       </div>
     );
   }
@@ -107,6 +108,7 @@ export function createImRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
       {
         id: "im-inbox",
         label: "Inbox",
+        labelKey: "ES_IM_INBOX",
         to: inboxPath,
         icon: Inbox,
         matchPrefixes: [`/${basePath}${IM_ROUTES.complaintDetails}`],

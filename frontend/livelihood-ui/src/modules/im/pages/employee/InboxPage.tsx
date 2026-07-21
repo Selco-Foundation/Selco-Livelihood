@@ -89,7 +89,7 @@ export function InboxPage() {
 
   const breadcrumbItems = [
     { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: homePath },
-    { label: translateOr(t, "ES_IM_INBOX", "View all tickets") },
+    { label: translateOr(t, "ES_IM_INBOX", "Inbox") },
   ];
 
   return (
@@ -107,7 +107,7 @@ export function InboxPage() {
                     <Button asChild size="sm" className="gap-1.5 rounded-md px-3">
                       <Link to={`${basePath}/incident/create`}>
                         <Plus className="size-4" />
-                        {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise Ticket")}
+                        {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise New Ticket")}
                       </Link>
                     </Button>
                   </>
@@ -127,7 +127,7 @@ export function InboxPage() {
               <Button asChild size="sm" className="shrink-0 gap-1.5 rounded-md px-4">
                 <Link to={`${basePath}/incident/create`}>
                   <Plus className="size-4" />
-                  {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise Ticket")}
+                  {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise New Ticket")}
                 </Link>
               </Button>
             ) : null}

@@ -3,7 +3,6 @@ import {
   changePasswordInSession,
   employeeLoginPath,
   employeeProfilePath,
-  extractApiErrorMessage,
   translateOr,
   useAuthStore,
   useJurisdictionStore,
@@ -11,24 +10,35 @@ import {
 } from "@/shared";
 import { Button, Form, PageHeader, toast } from "@/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { LanguageSwitcher } from "../../components/LanguageSwitcher";
 import { PasswordChangedDialog } from "../../components/PasswordChangedDialog";
 import { PasswordFormField } from "../../components/PasswordFormField";
+import {
+  passwordConfirmationShape,
+  refinePasswordConfirmation,
+} from "../../utils/password-confirmation-schema";
 
-const changePasswordSchema = z
-  .object({
-    currentPassword: z.string().min(1, "Current password is required"),
-    newPassword: z.string().min(1, "New password is required"),
-    confirmPassword: z.string().min(1, "Confirm password is required"),
-  })
-  .refine((data) => data.newPassword === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  });
+function createChangePasswordSchema(t: (key: string) => string) {
+  return refinePasswordConfirmation(
+    z.object({
+      currentPassword: z
+        .string()
+        .min(1, translateOr(t, "CORE_PROFILE_CURRENT_PASSWORD_REQUIRED", "Current password is required")),
+      ...passwordConfirmationShape(t, {
+        newRequiredKey: "CORE_PROFILE_NEW_PASSWORD_REQUIRED",
+        confirmRequiredKey: "CORE_PROFILE_CONFIRM_PASSWORD_REQUIRED",
+        mismatchKey: "CORE_PROFILE_PASSWORD_MISMATCH",
+      }),
+    }),
+    t,
+    "CORE_PROFILE_PASSWORD_MISMATCH",
+  );
+}
 
-type ChangePasswordFormValues = z.infer<typeof changePasswordSchema>;
+type ChangePasswordFormValues = z.infer<ReturnType<typeof createChangePasswordSchema>>;
 
 export function ProfileChangePasswordPage() {
   const { t } = useTranslate();
@@ -41,6 +51,7 @@ export function ProfileChangePasswordPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const changePasswordSchema = useMemo(() => createChangePasswordSchema(t), [t]);
 
   const form = useForm<ChangePasswordFormValues>({
     resolver: zodResolver(changePasswordSchema),
@@ -80,12 +91,8 @@ export function ProfileChangePasswordPage() {
       );
 
       setIsSuccess(true);
-    } catch (error) {
-      toast.error(translateOr(t, "CORE_CHANGE_PASSWORD_FAILED", "Failed to update password"), {
-        description:
-          extractApiErrorMessage(error) ??
-          translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again."),
-      });
+    } catch {
+      toast.error(translateOr(t, "CORE_CHANGE_PASSWORD_FAILED", "Failed to update password"));
     } finally {
       setIsSubmitting(false);
     }
@@ -93,7 +100,15 @@ export function ProfileChangePasswordPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={translateOr(t, "CORE_CHANGE_PASSWORD_TITLE", "Change Password")} />
+      <div className="hidden lg:block">
+        <PageHeader
+          title={translateOr(t, "CORE_CHANGE_PASSWORD_TITLE", "Change Password")}
+          action={<LanguageSwitcher />}
+        />
+      </div>
+      <div className="lg:hidden">
+        <PageHeader title={translateOr(t, "CORE_CHANGE_PASSWORD_TITLE", "Change Password")} />
+      </div>
 
       <section className="livelihood-card max-w-2xl space-y-6 p-6">
         <Form {...form}>

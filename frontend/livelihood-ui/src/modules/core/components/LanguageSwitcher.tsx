@@ -50,7 +50,7 @@ export function LanguageSwitcher({ compact = false }: LanguageSwitcherProps = {}
             variant="ghost"
             size="icon-sm"
             disabled={isSwitching}
-            aria-label={current?.nativeLabel ?? "Language"}
+            aria-label={current?.nativeLabel ?? translateOr(t, "CORE_LANGUAGE_FALLBACK", "Language")}
             className="text-current hover:bg-white/10 hover:text-current"
           >
             <Languages className="size-5" />
@@ -58,7 +58,7 @@ export function LanguageSwitcher({ compact = false }: LanguageSwitcherProps = {}
         ) : (
           <Button variant="outline" size="sm" disabled={isSwitching} className="gap-1">
             <Languages className="size-4 opacity-60" />
-            <span className="hidden lg:inline">{current?.nativeLabel ?? "Language"}</span>
+            <span className="hidden lg:inline">{current?.nativeLabel ?? translateOr(t, "CORE_LANGUAGE_FALLBACK", "Language")}</span>
             <ChevronDown className="size-4 opacity-60" />
           </Button>
         )}

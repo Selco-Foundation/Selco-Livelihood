@@ -80,6 +80,7 @@ export function AppShell() {
     {
       id: "overview",
       label: "Overview",
+      labelKey: "CORE_COMMON_OVERVIEW",
       to: homePath,
       icon: Home,
     },
@@ -97,7 +98,7 @@ export function AppShell() {
           <div className="flex h-10 w-10 items-center justify-center rounded-[3px] p-1 md:h-[80px] md:w-[80px]">
             <img
               src={getConfigString("SELCO_LOGO")}
-              alt="Selco Foundation Logo"
+              alt={translateOr(t, "CORE_LOGO_ALT", "Selco Foundation Logo")}
               className="h-full w-full object-contain"
             />
           </div>
@@ -110,6 +111,9 @@ export function AppShell() {
                 {allNavItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = isNavItemActive(item, pathname, homePath);
+                  const label = item.labelKey
+                    ? translateOr(t, item.labelKey, item.label)
+                    : item.label;
 
                   return (
                     <SidebarMenuItem key={item.id}>
@@ -118,9 +122,9 @@ export function AppShell() {
                         isActive={isActive}
                         className="justify-center rounded-lg hover:bg-transparent hover:text-sidebar-foreground hover:underline active:bg-transparent active:text-sidebar-foreground md:justify-start"
                       >
-                        <Link to={item.to} aria-label={item.label}>
+                        <Link to={item.to} aria-label={label}>
                           {Icon ? <Icon /> : null}
-                          <span className="hidden md:inline">{item.label}</span>
+                          <span className="hidden md:inline">{label}</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -142,7 +146,7 @@ export function AppShell() {
             </Avatar>
             <div className="hidden min-w-0 flex-1 md:block">
               <p className="truncate text-sm font-medium">
-                {user?.name ?? user?.userName ?? "User"}
+                {user?.name ?? user?.userName ?? translateOr(t, "CORE_COMMON_USER_FALLBACK", "User")}
               </p>
             </div>
           </Link>
@@ -154,7 +158,9 @@ export function AppShell() {
             onClick={() => setConfirmOpen(true)}
           >
             <LogOut />
-            <span className="hidden md:inline">Sign out</span>
+            <span className="hidden md:inline">
+              {translateOr(t, "CORE_COMMON_LOGOUT_DIALOGUE_HEADER", "Sign out")}
+            </span>
           </Button>
         </SidebarFooter>
       </Sidebar>
@@ -167,7 +173,7 @@ export function AppShell() {
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  aria-label="Open menu"
+                  aria-label={translateOr(t, "CORE_NAV_OPEN_MENU", "Open menu")}
                   className="text-current hover:bg-white/10 hover:text-current"
                 >
                   <Menu className="size-5" />
@@ -189,7 +195,7 @@ export function AppShell() {
                     <div className="flex flex-col items-center gap-6">
                       <img
                         src={getConfigString("SELCO_LOGO")}
-                        alt="Selco Foundation Logo"
+                        alt={translateOr(t, "CORE_LOGO_ALT", "Selco Foundation Logo")}
                         className="h-15 w-15 object-contain"
                       />
                       <div className="h-px w-full bg-white/60" />
@@ -198,6 +204,9 @@ export function AppShell() {
                       {allNavItems.map((item) => {
                         const Icon = item.icon;
                         const isActive = isNavItemActive(item, pathname, homePath);
+                        const label = item.labelKey
+                          ? translateOr(t, item.labelKey, item.label)
+                          : item.label;
 
                         return (
                           <Link
@@ -212,7 +221,7 @@ export function AppShell() {
                             )}
                           >
                             {Icon ? <Icon className="size-5" /> : null}
-                            {item.label}
+                            {label}
                           </Link>
                         );
                       })}
@@ -231,7 +240,7 @@ export function AppShell() {
                         </AvatarFallback>
                       </Avatar>
                       <span className="truncate text-sm font-medium text-white">
-                        {user?.name ?? user?.userName ?? "User"}
+                        {user?.name ?? user?.userName ?? translateOr(t, "CORE_COMMON_USER_FALLBACK", "User")}
                       </span>
                     </Link>
                     <div className="h-px w-full bg-white/40" />
@@ -245,7 +254,9 @@ export function AppShell() {
                       }}
                     >
                       <LogOut className="size-4" />
-                      <span>Sign out</span>
+                      <span>
+                        {translateOr(t, "CORE_COMMON_LOGOUT_DIALOGUE_HEADER", "Sign out")}
+                      </span>
                     </Button>
                   </div>
                 </div>
@@ -266,13 +277,19 @@ export function AppShell() {
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Sign out</AlertDialogTitle>
+            <AlertDialogTitle>
+              {translateOr(t, "CORE_COMMON_LOGOUT_DIALOGUE_HEADER", "Sign out")}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to sign out?
+              {translateOr(
+                t,
+                "CORE_COMMON_LOGOUT_DIALOGUE_MESSAGE",
+                "Are you sure you want to sign out?",
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{translateOr(t, "CORE_COMMON_CANCEL", "Cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={async () => {
                 try {
@@ -289,7 +306,7 @@ export function AppShell() {
                 }
               }}
             >
-              Sign out
+              {translateOr(t, "CORE_COMMON_LOGOUT_DIALOGUE_HEADER", "Sign out")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

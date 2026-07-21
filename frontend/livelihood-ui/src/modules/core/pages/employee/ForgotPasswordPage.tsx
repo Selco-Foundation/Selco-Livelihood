@@ -20,21 +20,33 @@ import {
   toast,
 } from "@/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { AuthLayout } from "../../components/AuthLayout";
 
-const forgotPasswordSchema = z.object({
-  mobileNumber: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit mobile number"),
-});
+function createForgotPasswordSchema(t: (key: string) => string) {
+  return z.object({
+    mobileNumber: z
+      .string()
+      .regex(
+        /^[6-9]\d{9}$/,
+        translateOr(
+          t,
+          "CORE_FORGOT_PASSWORD_MOBILE_INVALID",
+          "Enter a valid 10-digit mobile number",
+        ),
+      ),
+  });
+}
 
-type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
+type ForgotPasswordFormValues = z.infer<ReturnType<typeof createForgotPasswordSchema>>;
 
 export function ForgotPasswordPage() {
   const { t } = useTranslate();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const forgotPasswordSchema = useMemo(() => createForgotPasswordSchema(t), [t]);
 
   const form = useForm<ForgotPasswordFormValues>({
     resolver: zodResolver(forgotPasswordSchema),
