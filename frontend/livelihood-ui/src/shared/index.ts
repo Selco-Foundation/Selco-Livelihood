@@ -16,7 +16,7 @@ export {
   type SendPasswordResetOtpPayload,
   type ResetPasswordWithOtpPayload,
 } from "./api/auth";
-export { extractApiErrorDescription, extractApiErrorMessage } from "./api/errors";
+export { extractApiErrorMessage } from "./api/errors";
 export {
   searchCurrentUser,
   updateUserProfile,

@@ -131,12 +131,8 @@ export function ProfilePage() {
 
       form.reset(values);
       toast.success(translateOr(t, "CORE_PROFILE_UPDATE_SUCCESS", "Profile updated successfully"));
-    } catch (error) {
-      toast.error(translateOr(t, "CORE_PROFILE_UPDATE_FAILED", "Failed to update profile"), {
-        description:
-          extractApiErrorMessage(error) ??
-          translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again."),
-      });
+    } catch {
+      toast.error(translateOr(t, "CORE_PROFILE_UPDATE_FAILED", "Failed to update profile"));
     } finally {
       setIsSubmitting(false);
     }
