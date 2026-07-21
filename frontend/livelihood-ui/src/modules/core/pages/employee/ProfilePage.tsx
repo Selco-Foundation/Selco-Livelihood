@@ -9,6 +9,7 @@ import {
   useTranslate,
   type EmployeeProfile,
 } from "@/shared";
+import { LanguageSwitcher } from "../../components/LanguageSwitcher";
 import {
   Button,
   Form,
@@ -22,21 +23,26 @@ import {
   toast,
 } from "@/ui";
 import { Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-const profileSchema = z
-  .object({
-    name: z.string().trim().min(1, "Name is required"),
-    email: z.string().optional(),
-  })
-  .refine((data) => !data.email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email), {
-    message: "Enter a valid email address",
-    path: ["email"],
-  });
+function createProfileSchema(t: (key: string) => string) {
+  return z
+    .object({
+      name: z
+        .string()
+        .trim()
+        .min(1, translateOr(t, "CORE_PROFILE_NAME_REQUIRED", "Name is required")),
+      email: z.string().optional(),
+    })
+    .refine((data) => !data.email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email), {
+      message: translateOr(t, "CORE_PROFILE_EMAIL_INVALID", "Enter a valid email address"),
+      path: ["email"],
+    });
+}
 
-type ProfileFormValues = z.infer<typeof profileSchema>;
+type ProfileFormValues = z.infer<ReturnType<typeof createProfileSchema>>;
 
 export function ProfilePage() {
   const { t } = useTranslate();
@@ -48,6 +54,7 @@ export function ProfilePage() {
   const [profile, setProfile] = useState<EmployeeProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const profileSchema = useMemo(() => createProfileSchema(t), [t]);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -124,12 +131,8 @@ export function ProfilePage() {
 
       form.reset(values);
       toast.success(translateOr(t, "CORE_PROFILE_UPDATE_SUCCESS", "Profile updated successfully"));
-    } catch (error) {
-      toast.error(translateOr(t, "CORE_PROFILE_UPDATE_FAILED", "Failed to update profile"), {
-        description:
-          extractApiErrorMessage(error) ??
-          translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again."),
-      });
+    } catch {
+      toast.error(translateOr(t, "CORE_PROFILE_UPDATE_FAILED", "Failed to update profile"));
     } finally {
       setIsSubmitting(false);
     }
@@ -147,7 +150,15 @@ export function ProfilePage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={translateOr(t, "CORE_PROFILE_TITLE", "Profile")} />
+      <div className="hidden lg:block">
+        <PageHeader
+          title={translateOr(t, "CORE_PROFILE_TITLE", "Profile")}
+          action={<LanguageSwitcher />}
+        />
+      </div>
+      <div className="lg:hidden">
+        <PageHeader title={translateOr(t, "CORE_PROFILE_TITLE", "Profile")} />
+      </div>
 
       <section className="livelihood-card max-w-2xl space-y-6 p-6">
         <Form {...form}>
