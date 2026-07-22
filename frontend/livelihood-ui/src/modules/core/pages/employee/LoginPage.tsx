@@ -4,7 +4,6 @@ import {
   employeeForgotPasswordPath,
   employeeHomePath,
   filterRolesForEmployeeTenant,
-  getConfig,
   hydrateEmployeeJurisdictions,
   loginUser,
   resolveQrLogin,
@@ -13,7 +12,6 @@ import {
   useAuthStore,
   useJurisdictionStore,
   useTranslate,
-  useLoginBannerImages,
 } from "@/shared";
 import {
   Button,
@@ -76,13 +74,7 @@ export function LoginPage() {
   const setSession = useAuthStore((state) => state.setSession);
   const setJurisdictionData = useJurisdictionStore((state) => state.setJurisdictionData);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [isResolvingQr, setIsResolvingQr] = useState(Boolean(qrTenantId && qrFacilityId));
-  const bannerImages = useLoginBannerImages();
-  const logos = getConfig("LOGO_LIST") as
-    | Array<{ url: string; alt: string }>
-    | undefined;
-  const logo = logos?.[0];
   const loginSchema = useMemo(() => createLoginSchema(t), [t]);
 
   const form = useForm<LoginFormValues>({
