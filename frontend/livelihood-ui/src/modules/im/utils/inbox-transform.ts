@@ -40,7 +40,10 @@ export function combineInboxResponses(
     } else if (isEndUser) {
       const totalSla = businessObject?.totalSlaRemaining ?? 0;
       slaValue = totalSla < 0 ? SLA_OVERDUE_MARKER : Math.ceil(totalSla / SLA_MS_PER_DAY);
-    } else if (assigneeUuid && currentUserUuid === assigneeUuid) {
+    } else if (
+      assigneeUuid &&
+      (currentUserUuid === assigneeUuid || currentUserRoles?.includes("LIVELIHOOD_POC"))
+    ) {
       const sla = businessObject?.slaRemaining ?? 0;
       slaValue = Math.ceil(sla / SLA_MS_PER_DAY);
     } else if (!assigneeUuid) {
