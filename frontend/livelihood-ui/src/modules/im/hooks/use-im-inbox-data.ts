@@ -115,14 +115,13 @@ export function useImAssetTypes() {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
   const stateTenantId = tenantId();
-  const { t } = useTranslate();
 
   return useQuery({
     queryKey: ["im-asset-types", stateTenantId],
     enabled: Boolean(accessToken),
     staleTime: Number.POSITIVE_INFINITY,
     queryFn: async () => {
-      return fetchAssetTypes(accessToken!, user, t);
+      return fetchAssetTypes(accessToken!, user);
     },
   });
 }
