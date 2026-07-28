@@ -10,6 +10,9 @@ export const APPLICATION_STATUS = {
   CLOSED_AFTER_DECLINE: "CLOSED_AFTER_DECLINE",
 } as const;
 
+/** Sentinel stored in InboxRow.sla for an overdue ticket; translated at render time. */
+export const SLA_OVERDUE_MARKER = "OVERDUE";
+
 export const BLANK_SLA_STATUSES = [
   APPLICATION_STATUS.RESOLVED,
   APPLICATION_STATUS.CLOSED_AFTER_RESOLUTION,

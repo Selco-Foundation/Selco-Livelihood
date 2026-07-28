@@ -1,7 +1,8 @@
-import { translateOr, type AuthUser } from "@/shared";
+import type { AuthUser } from "@/shared";
 import {
   BLANK_SLA_STATUSES,
   ROLE_STATUS_MAPPING,
+  SLA_OVERDUE_MARKER,
 } from "../constants/workflow";
 import type {
   InboxItem,
@@ -15,7 +16,6 @@ const SLA_MS_PER_DAY = 8 * 60 * 60 * 1000;
 export function combineInboxResponses(
   items: InboxItem[],
   currentUser: AuthUser | null | undefined,
-  t: (key: string) => string,
 ): InboxRow[] {
   const currentUserUuid = currentUser?.uuid;
   const currentUserRoles = currentUser?.roles?.map((role) => role.code).filter(Boolean) as string[];
@@ -39,10 +39,7 @@ export function combineInboxResponses(
       slaValue = "-";
     } else if (isEndUser) {
       const totalSla = businessObject?.totalSlaRemaining ?? 0;
-      slaValue =
-        totalSla < 0
-          ? translateOr(t, "SLA_OVERDUE", "Overdue")
-          : Math.ceil(totalSla / SLA_MS_PER_DAY);
+      slaValue = totalSla < 0 ? SLA_OVERDUE_MARKER : Math.ceil(totalSla / SLA_MS_PER_DAY);
     } else if (assigneeUuid && currentUserUuid === assigneeUuid) {
       const sla = businessObject?.slaRemaining ?? 0;
       slaValue = Math.ceil(sla / SLA_MS_PER_DAY);

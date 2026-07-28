@@ -1,6 +1,7 @@
 import { contextPath, translateOr, useAuthStore, useTranslate } from "@/shared";
 import { cn } from "@/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { SLA_OVERDUE_MARKER } from "../../constants/workflow";
 import type { InboxRow } from "../../types/inbox";
 import { isEndUser } from "../../utils/access";
 import { translateDetailValue } from "../../utils/complaint-details";
@@ -10,8 +11,11 @@ interface ComplaintTableProps {
 }
 
 function SlaBadge({ value, overdueLabel }: { value: string; overdueLabel: string }) {
-  if (value === "-" || value === overdueLabel) {
-    return <span className="livelihood-sla-badge-muted">{value === overdueLabel ? value : "-"}</span>;
+  if (value === "-") {
+    return <span className="livelihood-sla-badge-muted">-</span>;
+  }
+  if (value === SLA_OVERDUE_MARKER) {
+    return <span className="livelihood-sla-badge-muted">{overdueLabel}</span>;
   }
   return <span className="livelihood-sla-badge">{value}</span>;
 }
