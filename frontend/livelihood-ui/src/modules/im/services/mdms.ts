@@ -17,7 +17,6 @@ interface ItemCode {
 export async function fetchAssetTypes(
   accessToken: string,
   user: AuthUser | null | undefined,
-  t: (key: string) => string,
 ): Promise<SelectOption[]> {
   const stateTenantId = tenantId();
   const masters = await fetchMdmsMasters(
@@ -28,18 +27,18 @@ export async function fetchAssetTypes(
     user,
   );
   const items = (masters.ItemCode as ItemCode[]) ?? [];
-  const categories = new Map<string, string>();
+  const categories = new Set<string>();
 
   for (const item of items) {
-    if (item.active === false || !item.category || categories.has(item.category)) {
+    if (item.active === false || !item.category) {
       continue;
     }
-    categories.set(item.category, translateOr(t, `ASSETTYPE_${item.category}`, item.category));
+    categories.add(item.category);
   }
 
-  return [...categories.entries()]
-    .map(([code, name]) => ({ code, name }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  return [...categories]
+    .sort((a, b) => a.localeCompare(b))
+    .map((category) => ({ code: category, name: category }));
 }
 
 export async function fetchServiceDefsForMenuPath(

@@ -136,8 +136,14 @@ export function InboxFilter({
   const { data: assetTypes } = useImAssetTypes();
 
   const assetTypeMenu = useMemo(
-    () => (assetTypes ?? []).map((item) => ({ code: item.code, name: item.name })),
-    [assetTypes],
+    () =>
+      (assetTypes ?? [])
+        .map((item) => ({
+          code: item.code,
+          name: translateOr(t, `ASSETTYPE_${item.code}`, item.code),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [assetTypes, t],
   );
 
   const statusMenu = useMemo(
