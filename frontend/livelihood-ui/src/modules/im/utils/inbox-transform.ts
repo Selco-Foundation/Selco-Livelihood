@@ -45,12 +45,12 @@ export function combineInboxResponses(
       (currentUserUuid === assigneeUuid || currentUserRoles?.includes("LIVELIHOOD_POC"))
     ) {
       const sla = businessObject?.slaRemaining ?? 0;
-      slaValue = Math.ceil(sla / SLA_MS_PER_DAY);
+      slaValue = sla < 0 ? SLA_OVERDUE_MARKER : Math.ceil(sla / SLA_MS_PER_DAY);
     } else if (!assigneeUuid) {
       const requiredRoles = ROLE_STATUS_MAPPING[incident.applicationStatus];
       if (requiredRoles?.some((role) => currentUserRoles?.includes(role))) {
         const sla = businessObject?.slaRemaining ?? 0;
-        slaValue = Math.ceil(sla / SLA_MS_PER_DAY);
+        slaValue = sla < 0 ? SLA_OVERDUE_MARKER : Math.ceil(sla / SLA_MS_PER_DAY);
       }
     }
 
