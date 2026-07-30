@@ -92,7 +92,7 @@ function UploadedFileCard({
         type="button"
         onClick={() => onRemove(entry.fileStoreId)}
         className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-        aria-label="Remove file"
+        aria-label={translateOr(t, "CS_COMMON_REMOVE", "Remove")}
       >
         <Trash2 className="size-4" />
       </button>

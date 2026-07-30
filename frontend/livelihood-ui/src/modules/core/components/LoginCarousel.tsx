@@ -1,4 +1,4 @@
-import type { LoginBannerImage } from "@/shared";
+import { translateOr, useTranslate, type LoginBannerImage } from "@/shared";
 import { cn } from "@/ui";
 import { ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -25,6 +25,7 @@ interface OutgoingSlide {
 }
 
 export function LoginCarousel({ slides }: LoginCarouselProps) {
+  const { t } = useTranslate();
   const [activeIndex, setActiveIndex] = useState(0);
   const [direction, setDirection] = useState<"next" | "prev">("next");
   const [outgoing, setOutgoing] = useState<OutgoingSlide | null>(null);
@@ -106,7 +107,7 @@ export function LoginCarousel({ slides }: LoginCarouselProps) {
         <div className="absolute inset-x-8 bottom-6 flex items-center justify-center gap-10">
           <button
             type="button"
-            aria-label="Previous slide"
+            aria-label={translateOr(t, "CORE_LOGIN_CAROUSEL_PREVIOUS", "Previous slide")}
             onClick={goToPrevious}
             className="flex size-9 cursor-pointer items-center justify-center text-ink-950 transition-colors hover:text-primary"
           >
@@ -118,7 +119,11 @@ export function LoginCarousel({ slides }: LoginCarouselProps) {
               <button
                 key={index}
                 type="button"
-                aria-label={`Go to slide ${index + 1}`}
+                aria-label={translateOr(
+                  t,
+                  "CORE_LOGIN_CAROUSEL_GOTO",
+                  "Go to slide {SLIDE_NUMBER}",
+                ).replace("{SLIDE_NUMBER}", String(index + 1))}
                 onClick={() => goToSlide(index)}
                 className={cn(
                   "size-3 cursor-pointer rounded-full transition-colors",
@@ -130,7 +135,7 @@ export function LoginCarousel({ slides }: LoginCarouselProps) {
 
           <button
             type="button"
-            aria-label="Next slide"
+            aria-label={translateOr(t, "CORE_LOGIN_CAROUSEL_NEXT", "Next slide")}
             onClick={goToNext}
             className="flex size-9 cursor-pointer items-center justify-center text-ink-950 transition-colors hover:text-primary"
           >
