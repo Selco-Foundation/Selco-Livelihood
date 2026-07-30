@@ -2,6 +2,7 @@ import { contextPath, translateOr, useAuthStore, useTranslate } from "@/shared";
 import { Card } from "@/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { Clock } from "lucide-react";
+import { SLA_OVERDUE_MARKER } from "../../constants/workflow";
 import type { InboxRow } from "../../types/inbox";
 import { isEndUser } from "../../utils/access";
 import { translateDetailValue } from "../../utils/complaint-details";
@@ -26,6 +27,7 @@ export function MobileComplaintList({ data }: MobileComplaintListProps) {
   const slaLabel = isEndUser(user?.roles)
     ? translateOr(t, "WF_INBOX_HEADER_DAYS_REMAINING", "Days Remaining")
     : translateOr(t, "WF_INBOX_HEADER_SLA_DAYS_REMAINING", "SLA Days Remaining");
+  const overdueLabel = translateOr(t, "SLA_OVERDUE", "Overdue");
 
   return (
     <div className="space-y-3">
@@ -69,7 +71,10 @@ export function MobileComplaintList({ data }: MobileComplaintListProps) {
             />
             <p className="flex items-center gap-1.5 text-sm text-ink-600">
               <Clock className="size-4 shrink-0" />
-              {slaLabel}: <span className="font-semibold text-ink-950">{row.sla}</span>
+              {slaLabel}:{" "}
+              <span className="font-semibold text-ink-950">
+                {row.sla === SLA_OVERDUE_MARKER ? overdueLabel : row.sla}
+              </span>
             </p>
           </Card>
         );
