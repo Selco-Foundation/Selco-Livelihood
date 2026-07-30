@@ -1,9 +1,4 @@
-import {
-  tenantId,
-  useAuthStore,
-  useJurisdictionStore,
-  useTranslate,
-} from "@/shared";
+import { tenantId, useAuthStore, useJurisdictionStore } from "@/shared";
 import { useQuery } from "@tanstack/react-query";
 import {
   LIVELIHOOD_INCIDENT_BUSINESS_SERVICE,
@@ -70,7 +65,6 @@ export function useImInboxData(searchParams: ImInboxSearchParams) {
   const user = useAuthStore((state) => state.user);
   const employeeTenantId = useAuthStore((state) => state.employeeTenantId);
   const boundaries = useJurisdictionStore((state) => state.boundaries);
-  const { t } = useTranslate();
 
   const filters = flattenInboxFilters(searchParams, {
     limit: searchParams.limit ?? 10,
@@ -101,7 +95,7 @@ export function useImInboxData(searchParams: ImInboxSearchParams) {
         user,
       );
       const normalized = normalizeInboxResponse(data);
-      const combinedRes = combineInboxResponses(normalized.items, user, t);
+      const combinedRes = combineInboxResponses(normalized.items, user);
       return {
         combinedRes,
         total: normalized.total,
