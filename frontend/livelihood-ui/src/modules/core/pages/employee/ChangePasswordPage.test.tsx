@@ -1,3 +1,27 @@
+/**
+ * Unit tests for ChangePasswordPage.
+ *
+ * ChangePasswordPage renders the OTP + new-password form employees land on
+ * after requesting a password reset (mobile number arrives via the
+ * `mobileNumber` search param). It validates the 4-digit OTP client-side
+ * before calling `resetPasswordWithOtp`, shows a `PasswordChangedDialog` on
+ * success, and runs a 30s resend cooldown (`RESEND_COOLDOWN_SECONDS`) backed
+ * by a `setInterval` timer.
+ *
+ * Testing approach:
+ * - The component reads route search params and navigates on success, so it
+ *   is rendered inside a real TanStack Router (`RouterProvider`) with a
+ *   memory history seeded with `?mobileNumber=...`, plus a `QueryClientProvider`
+ *   and a bare `I18nextProvider` (empty resources — `translateOr` fallback
+ *   strings are asserted on instead of translation keys).
+ * - Fake timers (`vi.useFakeTimers`) drive the resend cooldown deterministically;
+ *   `userEvent` is configured with `advanceTimers` so user interactions and
+ *   the cooldown ticker can coexist in the same test.
+ * - `authApi.resetPasswordWithOtp` / `sendPasswordResetOtp` are spied on
+ *   per-test to control success/failure without hitting a real API, and
+ *   `mdmsApi.fetchLoginBannerImages` (used by `AuthLayout`) is stubbed in
+ *   `beforeEach` so it never fires an unhandled network call.
+ */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
@@ -74,12 +98,23 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+// ChangePasswordPage: OTP + new-password reset form. Reads `mobileNumber`
+// from the route search params to display "OTP sent to +91 - <number>",
+// requires a 4-digit OTP before it will call resetPasswordWithOtp, validates
+// the new/confirm password fields via the shared password-confirmation
+// schema, and shows PasswordChangedDialog on a successful reset.
 describe("ChangePasswordPage", () => {
+  // `mobileNumber` comes from the route's `?mobileNumber=` search param and is
+  // interpolated directly into the AuthLayout subtitle ("OTP sent to +91 -
+  // <number>"), so rendering with a given number should surface it verbatim.
   it("shows the OTP-sent message with the mobile number", async () => {
     renderPage("9999999999");
     expect(await screen.findByText(/9999999999/)).toBeInTheDocument();
   });
 
+  // The OTP field only gates submission once it matches /^\d{4}$/; here the
+  // OTP is left empty (all other fields valid) so the component must short-
+  // circuit before ever calling resetPasswordWithOtp.
   it("rejects submission with an invalid (non-4-digit) OTP", async () => {
     const { toast } = await import("@/ui");
     const toastErrorSpy = vi.spyOn(toast, "error").mockImplementation(() => "");
@@ -104,6 +139,10 @@ describe("ChangePasswordPage", () => {
     expect(resetSpy).not.toHaveBeenCalled();
   });
 
+  // Filling all 4 OTP boxes with digits and matching passwords should pass
+  // both the client-side OTP regex check and the zod schema, letting
+  // onSubmit call the (mocked) resetPasswordWithOtp and flip isSuccess,
+  // which mounts PasswordChangedDialog.
   it("submits successfully with a valid OTP and shows the success dialog", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     vi.spyOn(authApi, "resetPasswordWithOtp").mockResolvedValue(undefined);
@@ -126,6 +165,9 @@ describe("ChangePasswordPage", () => {
     expect(await screen.findByText("Password updated successfully")).toBeInTheDocument();
   });
 
+  // newPassword and confirmPassword deliberately differ; the shared
+  // refinePasswordConfirmation schema rejects this before the OTP check
+  // even runs, so the mismatch message must surface without an OTP typed.
   it("shows a mismatch error when passwords differ", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderPage();
@@ -139,6 +181,9 @@ describe("ChangePasswordPage", () => {
     expect(await screen.findByText("Passwords do not match")).toBeInTheDocument();
   });
 
+  // The resend button starts disabled for RESEND_COOLDOWN_SECONDS (30s) and
+  // its label counts down; advancing fake timers by exactly 30s should let
+  // resendCooldown reach 0 and re-enable the button with the "Resend OTP" label.
   it("disables the resend button during the cooldown, then enables it", async () => {
     renderPage();
     await screen.findByPlaceholderText("Enter your username");
@@ -155,6 +200,9 @@ describe("ChangePasswordPage", () => {
     );
   });
 
+  // Once the cooldown expires the button is clickable and re-invokes
+  // sendPasswordResetOtp (handleResendOtp), which on success resets
+  // resendCooldown back to RESEND_COOLDOWN_SECONDS.
   it("resends the OTP and resets the cooldown when clicked", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     const otpSpy = vi.spyOn(authApi, "sendPasswordResetOtp").mockResolvedValue(undefined);

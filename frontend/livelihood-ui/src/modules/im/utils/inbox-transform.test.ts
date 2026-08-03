@@ -1,3 +1,23 @@
+/**
+ * Unit tests for src/modules/im/utils/inbox-transform.ts.
+ *
+ * Covers three pure, framework-free helper functions used to turn raw
+ * inbox-search API payloads into view-model rows for the IM inbox table:
+ *  - combineInboxResponses: the SLA/role/permission business logic that
+ *    decides what each row's SLA value, task owner, asset label, and
+ *    "potential duplicate" flag should read as.
+ *  - normalizeInboxResponse: defaults out an optional API response shape.
+ *  - sumStatusCounts: aggregates status-map counts for a set of statuses.
+ *
+ * Testing approach: since these are plain functions with no React
+ * rendering, i18n provider, or network calls involved, no mocking,
+ * providers, or wrappers are needed - test data is built with small
+ * `buildItem`/`buildUser` factories and asserted on directly. The `t`
+ * translate function is faked with `noopT`, an identity function that
+ * just returns the key it's given; this is enough to exercise the
+ * `translateOr(t, "SLA_OVERDUE", "Overdue")` fallback path without
+ * pulling in a real i18n setup.
+ */
 import { describe, expect, it } from "vitest";
 import type { AuthUser } from "@/shared";
 import type { InboxItem, InboxStatusMapEntry } from "../types/inbox";
@@ -27,7 +47,27 @@ function buildUser(overrides: Partial<AuthUser> = {}): AuthUser {
 
 const noopT = (key: string) => key;
 
+// combineInboxResponses maps raw InboxItem[] entries (as returned by the
+// search API) into InboxRow[] for the table. It expects the current user
+// (or null/undefined for a logged-out/unknown state) plus a translate
+// function, and derives each row's `sla` value from a priority of rules:
+//   1. blank-SLA statuses (resolved/closed) always show "-", regardless
+//      of any slaRemaining/totalSlaRemaining present on the item.
+//   2. "end users" (every role is EMPLOYEE or COMPLAINANT) use
+//      totalSlaRemaining, showing a translated "Overdue" label when
+//      negative, otherwise the remaining days rounded up.
+//   3. otherwise, if the current user is the assigned owner, use
+//      slaRemaining (days remaining, rounded up).
+//   4. otherwise, if the ticket is unassigned, use slaRemaining only when
+//      the user holds a role listed in ROLE_STATUS_MAPPING for that
+//      ticket's applicationStatus; unassigned + ineligible role, or
+//      assigned to someone else, falls through to the "-" default.
+// It also derives assetLabel (from boundaryCode), taskOwner/endUser name
+// fallbacks, and a potentialDuplicate flag that's only ever true for
+// LIVELIHOOD_POC users on incidents flagged as a duplicate.
 describe("combineInboxResponses", () => {
+  // BLANK_SLA_STATUSES takes precedence over every other rule, even though
+  // this item has a non-zero slaRemaining - the status alone forces "-".
   it("shows '-' for SLA when the status is a blank-SLA (resolved/closed) status", () => {
     const items = [
       buildItem(

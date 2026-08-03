@@ -1,6 +1,24 @@
+/**
+ * Unit tests for `createRequestInfo` (src/shared/api/request-info.ts).
+ *
+ * `createRequestInfo` is a pure utility that builds a RequestInfo object for
+ * API calls. It always includes apiId: "Rainmaker". It conditionally includes
+ * authToken (only when accessToken is provided) and userInfo (only when a user
+ * object is provided and not null). Missing keys are omitted entirely rather
+ * than set to undefined, allowing callers to spread the result cleanly into
+ * request payloads without polluting the body with null/undefined fields.
+ *
+ * Testing approach: Pure function, no side effects or external dependencies.
+ * Tests verify the conditional presence/absence of authToken and userInfo keys,
+ * the correct apiId value, and that spreading the result never introduces
+ * unwanted undefined fields.
+ */
 import { describe, expect, it } from "vitest";
 import { createRequestInfo } from "./request-info";
 
+// createRequestInfo(accessToken?, user?) returns { apiId: "Rainmaker", ... }
+// with authToken included only when accessToken is provided, and userInfo
+// included only when user is provided and not null.
 describe("createRequestInfo", () => {
   it("always includes apiId", () => {
     expect(createRequestInfo()).toEqual({ apiId: "Rainmaker" });

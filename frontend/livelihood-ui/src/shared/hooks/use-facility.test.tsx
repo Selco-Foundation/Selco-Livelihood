@@ -1,3 +1,14 @@
+/**
+ * Unit tests for the useFacility hook in src/shared/hooks/use-facility.ts
+ *
+ * Covers:
+ * - Query is disabled when employeeTenantId is missing, even with a valid token
+ * - Query is disabled when boundaryCodes array is empty
+ * - Query fetches facilities when authenticated with both tenant ID and codes
+ *
+ * Approach: Wrapped with QueryClientProvider to test react-query behavior.
+ * Uses auth store mocks to control preconditions and facility API spies to verify fetches.
+ */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -19,6 +30,11 @@ afterEach(() => {
 });
 
 describe("useFacility", () => {
+  /**
+   * Hook fetches a paginated list of facilities matching supplied boundary codes
+   * when authenticated with both an access token and an employeeTenantId.
+   * Query is disabled if either precondition is missing.
+   */
   it("does not fetch when there is no employeeTenantId, even with a token", () => {
     seedAuthenticatedSession({ tenantId: undefined });
     const fetchSpy = vi.spyOn(facilityApi, "fetchFacilities");

@@ -1,3 +1,9 @@
+/**
+ * Unit tests for jurisdiction boundary utilities.
+ *
+ * Covers: aggregateBoundaryCodes(), aggregateBoundaryTypes(), buildJurisdictionBoundaries()
+ * Testing approach: Direct unit tests of pure transformation functions; no mocks or providers needed.
+ */
 import { describe, expect, it } from "vitest";
 import {
   aggregateBoundaryCodes,
@@ -5,6 +11,10 @@ import {
   buildJurisdictionBoundaries,
 } from "./boundary-util";
 
+/**
+ * aggregateBoundaryCodes: Flattens all boundary codes from a JurisdictionBoundaries object.
+ * Inputs: boundaries (Record<string, string[]> | null | undefined). Returns a flat array of codes.
+ */
 describe("aggregateBoundaryCodes", () => {
   it("returns an empty array for null input", () => {
     expect(aggregateBoundaryCodes(null)).toEqual([]);
@@ -21,6 +31,10 @@ describe("aggregateBoundaryCodes", () => {
   });
 });
 
+/**
+ * aggregateBoundaryTypes: Extracts the boundary type keys from a JurisdictionBoundaries object.
+ * Inputs: boundaries (Record<string, string[]> | null | undefined). Returns an array of type keys.
+ */
 describe("aggregateBoundaryTypes", () => {
   it("returns an empty array for null input", () => {
     expect(aggregateBoundaryTypes(null)).toEqual([]);
@@ -34,6 +48,12 @@ describe("aggregateBoundaryTypes", () => {
   });
 });
 
+/**
+ * buildJurisdictionBoundaries: Groups jurisdiction entries by their boundary type (case-insensitive).
+ * Inputs: jurisdictions (Array<{ boundaryType?, boundary? }> | undefined). Returns Record<string, string[]>.
+ * Skips entries missing boundaryType or boundary; lower-cases the type as the grouping key;
+ * accumulates multiple boundaries under the same type into an array.
+ */
 describe("buildJurisdictionBoundaries", () => {
   it("returns an empty object for undefined input", () => {
     expect(buildJurisdictionBoundaries(undefined)).toEqual({});

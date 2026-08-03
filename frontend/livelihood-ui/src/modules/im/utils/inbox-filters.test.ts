@@ -6,6 +6,26 @@ import {
   flattenInboxFilters,
 } from "./inbox-filters";
 
+/**
+ * Unit tests for src/modules/im/utils/inbox-filters.ts.
+ *
+ * These utilities are pure, framework-free functions that translate the incident
+ * inbox's UI/query-param filter state into the request shapes consumed by the
+ * search (PGR-style) and workflow (egov-workflow) backends, and back again. Since
+ * there is no I/O, DOM, or React involved, the tests exercise the functions
+ * directly with plain object fixtures and assert on the returned plain objects --
+ * no mocking, rendering, or providers/wrappers are required. Coverage focuses on
+ * the branch-heavy business rules: CSV splitting, the wfStatus/applicationStatus
+ * intersection (including its "no overlap" fallback), the facility > block >
+ * district > state precedence chain, and the default-merging behavior in
+ * flattenInboxFilters.
+ */
+
+// buildIncidentInboxFilters(filtersArg, tenantId) takes the raw incident inbox
+// filter state (from query params/UI) plus the current tenant and produces the
+// { searchFilters, workflowFilters, ...pagination } shape sent to the backend.
+// Most fields are optional; the function must tolerate an empty filtersArg and
+// still stamp tenantId/moduleName on both filter groups.
 describe("buildIncidentInboxFilters", () => {
   it("always sets tenantId and the base workflow filters", () => {
     const result = buildIncidentInboxFilters({}, "livelihood");
@@ -16,6 +36,9 @@ describe("buildIncidentInboxFilters", () => {
     });
   });
 
+  // IncidentWrappers is a flag used only by the wrapper/incident-detail flow: when
+  // set, incidentId is deliberately repurposed as the applicationNumber search
+  // filter so the wrapper view can look the incident up by its id.
   it("sets applicationNumber in searchFilters when IncidentWrappers + incidentId are set", () => {
     const result = buildIncidentInboxFilters(
       { IncidentWrappers: true, incidentId: "INC-1" },
@@ -34,6 +57,10 @@ describe("buildIncidentInboxFilters", () => {
     expect(result.workflowFilters.status).toEqual(["OPEN"]);
   });
 
+  // When both wfStatus (the workflow's own status filter) and applicationStatus
+  // (a status filter coming from another part of the UI) are present, only the
+  // statuses common to both should be requested, so the two filters narrow
+  // rather than widen the result set.
   it("intersects wfStatus with applicationStatus when both are given", () => {
     const result = buildIncidentInboxFilters(
       { wfStatus: "OPEN,CLOSED,PENDING", applicationStatus: "CLOSED,PENDING" },
@@ -42,6 +69,11 @@ describe("buildIncidentInboxFilters", () => {
     expect(result.workflowFilters.status).toEqual(["CLOSED", "PENDING"]);
   });
 
+  // If the intersection above is empty (the two status filters don't overlap at
+  // all), the function deliberately falls back to [""] rather than an empty
+  // array -- an empty array would be dropped/ignored by the backend query and
+  // effectively return all statuses, whereas [""] forces a status filter that
+  // matches nothing, correctly reflecting "no incidents satisfy both filters".
   it("falls back to [''] when the wfStatus/applicationStatus intersection is empty", () => {
     const result = buildIncidentInboxFilters(
       { wfStatus: "OPEN", applicationStatus: "CLOSED" },
@@ -65,6 +97,9 @@ describe("buildIncidentInboxFilters", () => {
     expect(result.searchFilters.incidentSubType).toEqual(["ST1", "ST2"]);
   });
 
+  // Facility, block, district, and state form a location hierarchy (most to
+  // least specific) but the backend only accepts one of them at a time, so the
+  // function picks the most specific one supplied and ignores the rest.
   it("prefers facility over block/district/state when facility is set", () => {
     const result = buildIncidentInboxFilters(
       { facility: "F1", block: "B1", district: "D1", state: "S1" },
@@ -108,6 +143,10 @@ describe("buildIncidentInboxFilters", () => {
     expect(result.workflowFilters.businessService).toEqual(["LivelihoodIncident"]);
   });
 
+  // nearingSLA is a boolean UI toggle ("show incidents nearing their SLA
+  // deadline"), but the backend expects a millisecond time window; the function
+  // translates true into a fixed 3-day (3 * 24h) window and omits the field
+  // entirely (rather than sending 0/false) when the toggle is off.
   it("converts nearingSLA to a 3-day millisecond window", () => {
     const result = buildIncidentInboxFilters({ nearingSLA: true }, "livelihood");
     expect(result.searchFilters.nearingSLA).toBe(3 * 24 * 60 * 60 * 1000);
@@ -131,6 +170,13 @@ describe("buildIncidentInboxFilters", () => {
   });
 });
 
+// buildFilterQueryFromState(filters) converts the multi-select filter state kept
+// in the UI (pgrfilters/wfFilters, each a map of property -> array of
+// { code } option objects, as produced by checkbox/dropdown filter panels) into
+// flat, comma-joined query-string-friendly maps (pgrQuery/wfQuery) for the PGR
+// search and workflow requests respectively. It is defensive about malformed
+// input: non-array values are skipped and an empty selection yields no key for
+// that property.
 describe("buildFilterQueryFromState", () => {
   it("returns empty queries when no filters are given", () => {
     expect(buildFilterQueryFromState({})).toEqual({ pgrQuery: {}, wfQuery: {} });
@@ -148,6 +194,10 @@ describe("buildFilterQueryFromState", () => {
     expect(result.pgrQuery.state).toBeUndefined();
   });
 
+  // The filter state comes from external/URL-driven data, so a property value
+  // could be malformed (e.g. a raw string instead of the expected array of
+  // { code } options); the function must guard with Array.isArray and skip it
+  // rather than throwing or emitting a garbage query value.
   it("skips a property whose value isn't an array", () => {
     const result = buildFilterQueryFromState({
       pgrfilters: { state: "not-an-array" as unknown as Array<{ code: string }> },

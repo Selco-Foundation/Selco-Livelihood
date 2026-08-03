@@ -1,3 +1,10 @@
+/**
+ * Unit tests for employee session utilities (role filtering, authorization, jurisdiction hydration).
+ *
+ * Covers: filterRolesForEmployeeTenant(), assertEmployeeRolesAllowed(), hydrateEmployeeJurisdictions()
+ * Testing approach: Mocks the HRMS API and window.globalConfigs; tests state transformations and
+ * validation logic. No provider wrapper needed as these are pure utility functions.
+ */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as hrmsApi from "../api/hrms";
 import type { AuthUser } from "../stores/auth-store";
@@ -12,6 +19,10 @@ afterEach(() => {
   window.globalConfigs = { getConfig: () => undefined };
 });
 
+/**
+ * filterRolesForEmployeeTenant: Filters a user's roles to only those matching the given employeeTenantId.
+ * Inputs: user (AuthUser), employeeTenantId (string). Spreads the rest of the user object unchanged.
+ */
 describe("filterRolesForEmployeeTenant", () => {
   it("keeps only roles matching the employee tenant", () => {
     const user: AuthUser = {
@@ -38,6 +49,11 @@ describe("filterRolesForEmployeeTenant", () => {
   });
 });
 
+/**
+ * assertEmployeeRolesAllowed: Checks if the user has any blocked roles (from window.globalConfigs "INVALIDROLES").
+ * Throws "ES_ERROR_USER_NOT_PERMITTED" if a blocked role is found. Inputs: user (AuthUser).
+ * Gracefully handles non-array INVALIDROLES config.
+ */
 describe("assertEmployeeRolesAllowed", () => {
   it("does not throw when there are no configured blocked roles", () => {
     expect(() =>
@@ -67,6 +83,11 @@ describe("assertEmployeeRolesAllowed", () => {
   });
 });
 
+/**
+ * hydrateEmployeeJurisdictions: Fetches the employee's jurisdiction boundaries from HRMS via the API.
+ * Inputs: user (AuthUser with userName), accessToken (string). Returns { hrmsUser, boundaries }.
+ * Throws if userName is missing, HRMS employee not found, or jurisdictions are empty.
+ */
 describe("hydrateEmployeeJurisdictions", () => {
   it("throws when the user has no userName", async () => {
     await expect(hydrateEmployeeJurisdictions({ uuid: "u1" }, "token")).rejects.toThrow(

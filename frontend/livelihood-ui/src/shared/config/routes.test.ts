@@ -1,3 +1,14 @@
+/**
+ * Unit tests for the employee route path builders in src/shared/config/routes.ts
+ *
+ * Covers:
+ * - employeeHomePath(), employeeLoginPath(), employeeForgotPasswordPath(),
+ *   employeeChangePasswordPath(), employeeProfilePath(), employeeProfileChangePasswordPath()
+ * - Verification that paths respect the default context path ("livelihood-ui")
+ * - Verification that paths respect a custom context path from global config
+ *
+ * Approach: Direct function calls with global config mocking via window.globalConfigs
+ */
 import { afterEach, describe, expect, it } from "vitest";
 import {
   employeeChangePasswordPath,
@@ -13,6 +24,11 @@ afterEach(() => {
 });
 
 describe("employee path builders", () => {
+  /**
+   * These functions build navigation paths by joining a dynamic context path
+   * (from global config or defaulting to "livelihood-ui") with hard-coded route segments.
+   * Tests verify both default and configured behaviors.
+   */
   it("build paths under the default livelihood-ui context path", () => {
     expect(employeeHomePath()).toBe("/livelihood-ui/employee");
     expect(employeeLoginPath()).toBe("/livelihood-ui/employee/user/login");

@@ -1,3 +1,11 @@
+/**
+ * Unit tests for the DataTable component (TanStack Table wrapper).
+ *
+ * Covers: DataTable<T> rendering of columns, rows, empty state with customizable message.
+ * Testing approach: Renders the component with test data and mocked column definitions;
+ * verifies header/cell content and empty message. No provider wrapper needed as DataTable is
+ * a self-contained generic component with no external context dependencies.
+ */
 import { render, screen } from "@testing-library/react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { describe, expect, it } from "vitest";
@@ -13,6 +21,11 @@ const columns: ColumnDef<Row, unknown>[] = [
   { accessorKey: "name", header: "Name" },
 ];
 
+/**
+ * DataTable: A generic tabular component that renders TanStack Table columns and rows.
+ * Inputs: columns (ColumnDef[]), data (TData[]), emptyMessage (optional, defaults to "No results.").
+ * Shows the emptyMessage when data is empty; renders a header row and one body row per data item.
+ */
 describe("DataTable", () => {
   it("renders a header cell per column", () => {
     render(<DataTable columns={columns} data={[]} />);

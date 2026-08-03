@@ -1,3 +1,7 @@
+// No colocated .test.ts file for this module: it holds only ambient
+// `interface`/`declare` global type augmentations with no import/export
+// statements, so it cannot be imported as a module and has no runtime
+// code a test could exercise.
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {

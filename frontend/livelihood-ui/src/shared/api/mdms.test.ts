@@ -1,3 +1,21 @@
+/**
+ * Unit tests for `fetchMdmsMasters`, `fetchLanguages`, and `fetchLoginBannerImages`
+ * (src/shared/api/mdms.ts).
+ *
+ * `fetchMdmsMasters` is a generic MDMS (Master Data Management Service) endpoint
+ * caller that queries a module for master data and returns the module's subtree
+ * from the response (or an empty object if absent). `fetchLanguages` and
+ * `fetchLoginBannerImages` are convenience wrappers that call fetchMdmsMasters
+ * with fixed module/master names, then filter the result using type-guard helpers
+ * (isSupportedLanguage, isLoginBannerImage) to ensure code/label/image fields
+ * are present before building the final array.
+ *
+ * Mocking strategy: `apiClient.post` is spied on with `vi.spyOn` and stubbed
+ * via `mockAxiosSuccess` so no real HTTP call is made. Each test supplies a
+ * shaped response and verifies field filtering, fallback to empty arrays, and
+ * nativeLabel defaulting. No providers/wrappers needed since these are plain
+ * async data-fetching functions.
+ */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mockAxiosSuccess } from "@/test/mocks/api-responses";
 import { apiClient } from "./client";
@@ -7,6 +25,9 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+// fetchMdmsMasters(stateTenantId, moduleCode, masterNames, accessToken?, user?)
+// posts an MDMS search request and returns the response's MdmsRes[moduleCode]
+// subtree, or an empty object if the module key is missing or undefined.
 describe("fetchMdmsMasters", () => {
   it("returns the module's master data keyed by module name", async () => {
     vi.spyOn(apiClient, "post").mockReturnValue(
@@ -24,6 +45,9 @@ describe("fetchMdmsMasters", () => {
   });
 });
 
+// fetchLanguages(accessToken?, user?) wraps fetchMdmsMasters and filters the
+// Languages array, keeping only entries with both code and label, defaulting
+// nativeLabel to label if absent.
 describe("fetchLanguages", () => {
   it("filters out entries missing code or label", async () => {
     vi.spyOn(apiClient, "post").mockReturnValue(
@@ -65,6 +89,8 @@ describe("fetchLanguages", () => {
   });
 });
 
+// fetchLoginBannerImages(accessToken?, user?) wraps fetchMdmsMasters and filters
+// the LoginBannerImages array, keeping only entries with an image field.
 describe("fetchLoginBannerImages", () => {
   it("filters out entries missing an image field", async () => {
     vi.spyOn(apiClient, "post").mockReturnValue(

@@ -1,3 +1,17 @@
+/**
+ * Unit tests for i18n module caching in src/shared/i18n/module-cache.ts
+ *
+ * Covers:
+ * - Tracking which modules have been loaded per locale
+ * - Reading/writing i18n resource payloads to localStorage
+ * - Removing modules and payloads from cache
+ * - Tracking all known modules globally
+ * - Graceful handling of corrupted or missing localStorage data
+ * - Silent failure on localStorage quota exceeded errors
+ *
+ * Approach: Direct function calls with localStorage manipulation.
+ * Tests verify both happy paths and error recovery (corrupt JSON, quota errors, etc).
+ */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   getAllKnownModules,
@@ -14,6 +28,12 @@ afterEach(() => {
 });
 
 describe("getLoadedModulesForLocale / markModuleLoaded", () => {
+  /**
+   * These functions maintain a per-locale registry of loaded translation modules in localStorage.
+   * markModuleLoaded() adds a module to a locale's loaded list and to a global all-modules list.
+   * getLoadedModulesForLocale() retrieves the list for a specific locale.
+   * Deduplication is automatic; marking the same module twice produces a single entry.
+   */
   it("returns an empty array when nothing has been loaded yet", () => {
     expect(getLoadedModulesForLocale("en_IN")).toEqual([]);
   });
@@ -41,6 +61,10 @@ describe("getLoadedModulesForLocale / markModuleLoaded", () => {
 });
 
 describe("removeModuleFromLocale", () => {
+  /**
+   * Unloads a module for a specific locale: removes it from the loaded modules list
+   * and deletes its cached payload from localStorage.
+   */
   it("removes the module from that locale's loaded list", () => {
     markModuleLoaded("en_IN", "rainmaker-common");
     removeModuleFromLocale("en_IN", "rainmaker-common");
@@ -55,6 +79,11 @@ describe("removeModuleFromLocale", () => {
 });
 
 describe("readModulePayload / writeModulePayload", () => {
+  /**
+   * Store i18n resource payloads (translation dictionaries) in localStorage under
+   * locale-specific keys. Handles JSON serialization/deserialization with graceful
+   * fallback to null on corruption. Silently ignores localStorage quota exceeded errors.
+   */
   it("returns null when nothing has been written", () => {
     expect(readModulePayload("en_IN", "rainmaker-common")).toBeNull();
   });

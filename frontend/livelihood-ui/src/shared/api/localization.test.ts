@@ -1,3 +1,19 @@
+/**
+ * Unit tests for `messagesToResourceMap` and `fetchLocalization` (src/shared/api/localization.ts).
+ *
+ * `messagesToResourceMap` is a pure utility that reduces an array of
+ * { code, message } objects into a flat record keyed by code. `fetchLocalization`
+ * queries the localization service for UI message translations across one or more
+ * modules (joined by comma) and applies the resourceMap reducer to the response.
+ * It returns an empty object without calling the API when modules list is empty,
+ * and falls back to an empty object if the response omits the messages array.
+ *
+ * Mocking strategy: `messagesToResourceMap` is tested directly (pure function,
+ * no dependencies). `fetchLocalization` uses `vi.spyOn(apiClient, "post")` with
+ * `mockAxiosSuccess` to stub the HTTP transport. Tests verify module name
+ * formatting, empty-module early return, message mapping, and fallback behavior.
+ * No providers/wrappers needed since these are plain functions/async utilities.
+ */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mockAxiosSuccess } from "@/test/mocks/api-responses";
 import { apiClient } from "./client";
@@ -7,6 +23,9 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+// messagesToResourceMap(messages) reduces an array of { code, message } objects
+// into a flat record { code: message, ... }, with last-one-wins behavior on
+// duplicate codes and an empty object for an empty input.
 describe("messagesToResourceMap", () => {
   it("reduces messages into a code -> message record", () => {
     expect(

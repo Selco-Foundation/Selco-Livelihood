@@ -1,3 +1,17 @@
+/**
+ * Unit tests for locale utility functions in src/shared/i18n/locale-utils.ts
+ *
+ * Covers: 19 pure functions that transform locale codes, tenant names, and i18n keys.
+ * These functions handle:
+ * - Locale composition/normalization (getDefaultLanguage, normalizeLocale, etc.)
+ * - Tenant ID transformation (toTenantLocale, toTenantLocale, etc.)
+ * - i18n key building from values and namespaces (convertToLocale, getMohallaLocale, etc.)
+ * - Dropdown data enrichment and sorting (convertToLocaleData, sortDropdownNames)
+ * - Module namespace mapping (namespaceToDigitModule, getDefaultLocalizationModules)
+ *
+ * Approach: Direct function calls with global config mocking.
+ * No provider wrapper needed; all functions are pure or rely only on window.globalConfigs.
+ */
 import { afterEach, describe, expect, it } from "vitest";
 import {
   checkForNotNull,
@@ -25,6 +39,11 @@ afterEach(() => {
 });
 
 describe("getLocaleRegion / getLocaleDefault / getDefaultLanguage", () => {
+  /**
+   * These functions read locale region and language default from global config,
+   * falling back to "IN" and "en" respectively. getDefaultLanguage() combines
+   * both into a single language tag (e.g., "en_IN", "kn_KA").
+   */
   it("fall back to IN/en when no global config is set", () => {
     expect(getLocaleRegion()).toBe("IN");
     expect(getLocaleDefault()).toBe("en");
@@ -41,6 +60,10 @@ describe("getLocaleRegion / getLocaleDefault / getDefaultLanguage", () => {
 });
 
 describe("normalizeLocale", () => {
+  /**
+   * Ensures a locale code includes the region (from config).
+   * Appends it if missing, otherwise leaves the locale as-is.
+   */
   it("appends the region when the locale doesn't already include it", () => {
     expect(normalizeLocale("en")).toBe("en_IN");
   });
@@ -51,12 +74,20 @@ describe("normalizeLocale", () => {
 });
 
 describe("toTenantLocale", () => {
+  /**
+   * Transforms a dot-delimited tenant ID (e.g., "livelihood.selco") into an
+   * i18n-friendly format: underscores + uppercase ("LIVELIHOOD_SELCO").
+   */
   it("replaces dots with underscores and upper-cases", () => {
     expect(toTenantLocale("livelihood.selco")).toBe("LIVELIHOOD_SELCO");
   });
 });
 
 describe("checkForNotNull", () => {
+  /**
+   * Checks if a string is non-empty and not undefined.
+   * Used as a guard before locale/value transformations.
+   */
   it("returns false for an empty string / undefined", () => {
     expect(checkForNotNull("")).toBe(false);
     expect(checkForNotNull(undefined)).toBe(false);
@@ -68,6 +99,11 @@ describe("checkForNotNull", () => {
 });
 
 describe("stringReplaceAll", () => {
+  /**
+   * Replaces all occurrences of a substring (uses replaceAll where available, falls back
+   * to a loop-based approach for older environments). Includes guard against infinite loops
+   * when the searcher is an empty string.
+   */
   it("replaces every occurrence of the searcher", () => {
     expect(stringReplaceAll("a.b.c", ".", "_")).toBe("a_b_c");
   });
@@ -82,6 +118,10 @@ describe("stringReplaceAll", () => {
 });
 
 describe("convertDotValues", () => {
+  /**
+   * Converts a dot-delimited value to underscores (e.g., "foo.bar" -> "foo_bar").
+   * Returns "NA" for empty/null values as a sentinel for missing data.
+   */
   it("returns NA for an empty value", () => {
     expect(convertDotValues("")).toBe("NA");
   });
@@ -92,6 +132,11 @@ describe("convertDotValues", () => {
 });
 
 describe("convertToLocale", () => {
+  /**
+   * Builds an i18n key by combining a prefix and upper-cased value:
+   * e.g., convertToLocale("foo.bar", "KEY") -> "KEY_FOO_BAR".
+   * Returns "COMMON_NA" sentinel when the value is empty.
+   */
   it("returns COMMON_NA when the value is empty", () => {
     expect(convertToLocale("", "KEY")).toBe("COMMON_NA");
   });
@@ -102,6 +147,11 @@ describe("convertToLocale", () => {
 });
 
 describe("getMohallaLocale", () => {
+  /**
+   * Builds a revenue-scoped i18n key for a mohalla (neighborhood) value.
+   * Format: TENANT_REVENUE_VALUE (e.g., "MY_TENANT_REVENUE_MOHALLA_ONE").
+   * Returns "COMMON_NA" if tenant or value is empty.
+   */
   it("returns COMMON_NA when the tenant converts to NA", () => {
     expect(getMohallaLocale("value", "")).toBe("COMMON_NA");
   });
@@ -118,6 +168,11 @@ describe("getMohallaLocale", () => {
 });
 
 describe("getCityLocale", () => {
+  /**
+   * Builds a tenant-scoped i18n key for a city value.
+   * Format: TENANT_TENANTS_VALUE (e.g., "TENANT_TENANTS_MY_CITY").
+   * Returns "COMMON_NA" if the value is empty.
+   */
   it("returns COMMON_NA when the value is empty", () => {
     expect(getCityLocale("")).toBe("COMMON_NA");
   });
@@ -128,6 +183,12 @@ describe("getCityLocale", () => {
 });
 
 describe("getLocalityCode", () => {
+  /**
+   * Formats a locality code (admin/ward) string or object with tenant scope.
+   * If the code already contains an underscore, it's treated as pre-formatted and returned as-is.
+   * Otherwise, prefixes with TENANT_ADMIN_. Accepts string or {code: string} object.
+   * Returns "COMMON_NA" if object has no code.
+   */
   it("returns the string as-is when it already contains an underscore", () => {
     expect(getLocalityCode("ADMIN_FOO", "tenant")).toBe("ADMIN_FOO");
   });
@@ -150,6 +211,12 @@ describe("getLocalityCode", () => {
 });
 
 describe("getRevenueLocalityCode", () => {
+  /**
+   * Formats a revenue/village locality code with tenant scope.
+   * If the code already contains an underscore, it's treated as pre-formatted and returned as-is.
+   * Otherwise, prefixes with TENANT_REVENUE_. Accepts string or {code: string} object.
+   * Returns "COMMON_NA" if object has no code.
+   */
   it("returns the string as-is when it already contains an underscore", () => {
     expect(getRevenueLocalityCode("REVENUE_FOO", "tenant")).toBe("REVENUE_FOO");
   });
@@ -170,6 +237,11 @@ describe("getRevenueLocalityCode", () => {
 });
 
 describe("getTransformedLocale", () => {
+  /**
+   * Normalizes a label for i18n use: numbers pass through, strings are trimmed,
+   * upper-cased, and have punctuation (dots, colons, hyphens, slashes) replaced with underscores.
+   * Returns empty string for undefined/empty input.
+   */
   it("passes numbers through unchanged", () => {
     expect(getTransformedLocale(42)).toBe(42);
   });
@@ -185,6 +257,11 @@ describe("getTransformedLocale", () => {
 });
 
 describe("convertToLocaleData", () => {
+  /**
+   * Enriches an array of objects (e.g., dropdown options) with an i18text field
+   * derived from their code and a KEY prefix. Optionally applies a translator function
+   * (e.g., react-i18next's t) to the resulting key.
+   */
   it("attaches an i18text field derived from the code", () => {
     expect(convertToLocaleData([{ code: "foo" }], "KEY")).toEqual([
       { code: "foo", i18text: "KEY_FOO" },
@@ -204,6 +281,10 @@ describe("convertToLocaleData", () => {
 });
 
 describe("sortDropdownNames", () => {
+  /**
+   * Sorts an array of dropdown options by the translated value of a specified key field.
+   * Creates a new sorted copy without mutating the original array.
+   */
   it("sorts options by the translated value of the option key", () => {
     const t = (code: string) => code;
     const options = [{ i18nKey: "Zebra" }, { i18nKey: "Apple" }];
@@ -222,6 +303,13 @@ describe("sortDropdownNames", () => {
 });
 
 describe("namespaceToDigitModule", () => {
+  /**
+   * Maps i18n namespace codes to DIGIT localization module names.
+   * "common" and "translations" -> "rainmaker-common"
+   * "state" -> "rainmaker-{stateTenant}" (e.g., "rainmaker-livelihood")
+   * Existing "rainmaker-*" prefixed namespaces pass through unchanged.
+   * Other namespaces get "rainmaker-" prefix added.
+   */
   it("maps common/translations to rainmaker-common", () => {
     expect(namespaceToDigitModule("common", "tenant")).toBe("rainmaker-common");
     expect(namespaceToDigitModule("translations", "tenant")).toBe("rainmaker-common");
@@ -241,6 +329,11 @@ describe("namespaceToDigitModule", () => {
 });
 
 describe("getDefaultLocalizationModules", () => {
+  /**
+   * Returns the standard set of i18n modules to load on app initialization:
+   * always rainmaker-common (shared UI strings) plus a state-tenant-specific module
+   * derived from stateTenantId (e.g., "LIVELIHOOD" -> "rainmaker-livelihood").
+   */
   it("returns rainmaker-common plus the state-specific module", () => {
     expect(getDefaultLocalizationModules("LIVELIHOOD")).toEqual([
       "rainmaker-common",

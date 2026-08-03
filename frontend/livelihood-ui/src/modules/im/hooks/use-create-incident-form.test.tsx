@@ -1,3 +1,34 @@
+/**
+ * Unit tests for `useCreateIncidentForm`, the hook backing the "create incident"
+ * form in the Incident Management (IM) module.
+ *
+ * Coverage:
+ * - `validate()` field-level rules (required end user/asset/complaint type, max comment length)
+ * - `canSubmit` derived state
+ * - `uploadFiles()` media validation + delegation to the image/video upload services
+ * - auto-selecting the end user (and enabling uploads) when jurisdiction search returns
+ *   exactly one facility
+ * - sessionStorage draft persistence (restore on mount, corrupt-draft recovery, saveDraft)
+ * - `createMutation`'s onSuccess handling of both the error-shaped and success-shaped
+ *   incident-create responses
+ *
+ * Testing approach:
+ * - The hook depends on React Query (facility/asset/mdms lookups) and react-i18next
+ *   (`useTranslate`), so every test renders via `renderHook` wrapped in a real
+ *   `QueryClientProvider` + `I18nextProvider` (see `createWrapper`) rather than mocking
+ *   those hooks away — this keeps the query lifecycle (loading -> data) and translation
+ *   fallback behavior (`translateOr`) exercised the same way the real app uses them.
+ *   The test i18n instance is given empty translation resources on purpose, so
+ *   `translateOr` falls through to its English default strings, which is what the
+ *   assertions check against.
+ * - All network-touching services (facility search, asset search, mdms service defs,
+ *   duplicate-ticket search, file/video upload, incident create) are mocked with
+ *   `vi.spyOn` per-test/per-suite rather than via module-level `vi.mock`, so each test
+ *   can freely override just the responses it cares about.
+ * - Auth/jurisdiction global stores are reset and reseeded in `beforeEach` so tests don't
+ *   leak state, and `sessionStorage` (used for draft persistence) is cleared before/after
+ *   every test for the same reason.
+ */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import i18next from "i18next";
@@ -34,6 +65,9 @@ function createWrapper() {
   };
 }
 
+// Helper that drives the hook's three change handlers (end user, asset, complaint
+// type) to put the form into a submittable state, mirroring the sequence a user
+// would follow in the UI. Shared by every suite below that needs a "valid form".
 function selectValidFields(result: { current: ReturnType<typeof useCreateIncidentForm> }) {
   act(() => {
     result.current.handleEndUserChange({
@@ -78,6 +112,10 @@ afterEach(() => {
   resetAuthStore();
 });
 
+// `validate()` builds a FieldErrors object from the current form state: endUser,
+// asset, and complaintType are required; comments must not exceed
+// MAX_COMMENT_LENGTH. It merges the computed errors into `fieldErrors` state and
+// returns true only when no errors were produced.
 describe("validate", () => {
   it("flags endUser, asset, and complaintType as required when empty", () => {
     const { result } = renderHook(() => useCreateIncidentForm("/im/inbox"), {
@@ -95,6 +133,8 @@ describe("validate", () => {
     expect(result.current.fieldErrors.complaintType).toBeTruthy();
   });
 
+  // MAX_COMMENT_LENGTH is 1000 (see media-validation.ts); one character over that
+  // boundary must trip the comments field error.
   it("flags comments exceeding the max length", () => {
     const { result } = renderHook(() => useCreateIncidentForm("/im/inbox"), {
       wrapper: createWrapper(),
@@ -125,6 +165,10 @@ describe("validate", () => {
   });
 });
 
+// `canSubmit` is a memoized boolean: true only when endUser, asset, and
+// complaintType are all set AND neither image nor video upload is in flight.
+// Unlike `validate`, it never touches `fieldErrors` — it's purely derived state
+// used to enable/disable the submit button.
 describe("canSubmit", () => {
   it("is false when required fields are missing", () => {
     const { result } = renderHook(() => useCreateIncidentForm("/im/inbox"), {
@@ -144,11 +188,21 @@ describe("canSubmit", () => {
   });
 });
 
+// `uploadFiles(files, kind)` runs `validateMediaFiles` (count/size/format rules)
+// before doing anything else. On failure it sets `fieldErrors[kind]` and returns
+// without calling any upload service. On success it clears that field error, then
+// uploads each file sequentially via `uploadIncidentFile` (images) or
+// `uploadIncidentVideo` (videos), appending the results to `imageUploads` /
+// `videoUploads` respectively.
 describe("uploadFiles", () => {
+  // Minimal FileList stand-in: jsdom doesn't let tests construct a real FileList,
+  // so this fakes just the shape `uploadFiles` relies on (`length` + `item()`).
   function buildFileList(files: File[]): FileList {
     return { length: files.length, item: (i: number) => files[i] ?? null, ...files } as unknown as FileList;
   }
 
+  // MAX_IMAGE_COUNT is 5, so 6 files should fail the count check in
+  // validateMediaFiles before uploadIncidentFile is ever invoked.
   it("sets a field error and does not call the upload service when validation fails (too many images)", async () => {
     const uploadSpy = vi.spyOn(fileUploadService, "uploadIncidentFile");
     const { result } = renderHook(() => useCreateIncidentForm("/im/inbox"), {
@@ -183,6 +237,8 @@ describe("uploadFiles", () => {
     expect(result.current.imageUploads[0].fileStoreId).toBe("fs-1");
   });
 
+  // `kind === "video"` must route through `uploadIncidentVideo` rather than the
+  // image upload service, and results go to `videoUploads`, not `imageUploads`.
   it("uses the video upload service for video kind", async () => {
     const videoUploadSpy = vi
       .spyOn(fileUploadService, "uploadIncidentVideo")
@@ -203,6 +259,12 @@ describe("uploadFiles", () => {
   });
 });
 
+// A `useEffect` in the hook watches `facilities` (from the jurisdiction facility
+// search query): when the search resolves to exactly one facility and no end user
+// has been chosen yet, it auto-fills `form.endUser` with that facility, resets
+// asset/complaintType, and flips `disableUpload` to false. `showEndUserDropdown`
+// is also derived from `facilities.length !== 1`, so a single-facility result
+// hides the dropdown too.
 describe("auto-select single facility", () => {
   it("auto-selects the end user and enables uploads when exactly one facility is returned", async () => {
     vi.spyOn(facilityService, "searchFacilitiesByJurisdiction").mockResolvedValue({
@@ -227,6 +289,12 @@ describe("auto-select single facility", () => {
   });
 });
 
+// The hook persists an in-progress form to sessionStorage under
+// DRAFT_STORAGE_KEY ("livelihood-im-create-draft"). On mount, a `useEffect` reads
+// that key, JSON-parses it, and merges any saved `form` fields over EMPTY_FORM;
+// a parse failure clears the corrupt key instead of throwing. `saveDraft()`
+// writes the current form (plus uploaded file IDs) back to the same key, and a
+// successful incident submission removes it (see the createMutation suite below).
 describe("draft persistence", () => {
   it("restores a previously saved draft on mount", async () => {
     window.sessionStorage.setItem(
@@ -249,6 +317,9 @@ describe("draft persistence", () => {
     expect(result.current.form.complaintType?.code).toBe("C1");
   });
 
+  // The stored value is deliberately invalid JSON so the effect's try/catch
+  // branch is exercised: it must swallow the parse error, not crash the render,
+  // and must remove the bad entry so a future mount doesn't retry it.
   it("clears a corrupt draft instead of throwing", () => {
     window.sessionStorage.setItem("livelihood-im-create-draft", "{not valid json");
 
@@ -275,7 +346,17 @@ describe("draft persistence", () => {
   });
 });
 
+// `createMutation`'s `onSuccess` callback branches on the shape of the
+// incident-create response: when `IncidentWrappers` is absent, the call is
+// treated as a failure (e.g. a duplicate-ticket rejection) and `submitError` is
+// set from `Errors[0].message` (falling back to `response.message`, then a
+// translated generic error). When `IncidentWrappers` is present, it's treated as
+// success: the sessionStorage draft is cleared, the inbox queries are
+// invalidated, and `submittedResponse` is set.
 describe("createMutation.onSuccess", () => {
+  // The mocked response includes `Errors` but no `IncidentWrappers`, which is the
+  // condition the hook uses to detect a failed submission (e.g. server-side
+  // duplicate detection) rather than a thrown exception.
   it("sets submitError when the response has no IncidentWrappers", async () => {
     vi.spyOn(incidentService, "createIncident").mockResolvedValue({
       Errors: [{ message: "DUPLICATE" }],
@@ -293,6 +374,9 @@ describe("createMutation.onSuccess", () => {
     await waitFor(() => expect(result.current.submitError).toBe("DUPLICATE"));
   });
 
+  // A pre-existing (even empty "{}") draft in sessionStorage must be removed once
+  // the response carries `IncidentWrappers`, confirming the success branch clears
+  // the draft rather than leaving stale state behind for the next visit.
   it("sets submittedResponse and clears the draft when the response has IncidentWrappers", async () => {
     window.sessionStorage.setItem("livelihood-im-create-draft", "{}");
     vi.spyOn(incidentService, "createIncident").mockResolvedValue({

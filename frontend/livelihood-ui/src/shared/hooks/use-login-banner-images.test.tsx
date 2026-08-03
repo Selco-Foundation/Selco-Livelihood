@@ -1,3 +1,13 @@
+/**
+ * Unit tests for the useLoginBannerImages hook in src/shared/hooks/use-login-banner-images.ts
+ *
+ * Covers:
+ * - Returns empty array before the query resolves
+ * - Returns fetched banner images once the query resolves
+ *
+ * Approach: Wrapped with QueryClientProvider to test react-query behavior.
+ * Uses MDMS API mocks to control fetch timing and returned banner data.
+ */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -19,6 +29,10 @@ afterEach(() => {
 });
 
 describe("useLoginBannerImages", () => {
+  /**
+   * Hook fetches login banner images from MDMS with a default empty array.
+   * Returns empty array while loading, then the fetched images once resolved.
+   */
   it("returns an empty array before the query resolves", () => {
     vi.spyOn(mdmsApi, "fetchLoginBannerImages").mockImplementation(() => new Promise(() => {}));
     const { result } = renderHook(() => useLoginBannerImages(), { wrapper: createWrapper() });

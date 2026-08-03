@@ -1,3 +1,11 @@
+/**
+ * Unit tests for useTranslate hook.
+ *
+ * Covers: useTranslate() — returns translation function + locale utility functions.
+ * Testing approach: Wraps the hook in a custom I18nextProvider with a fresh i18next instance
+ * to isolate from the global i18n singleton. No mocking of i18next methods needed as we use
+ * a real minimal i18next instance.
+ */
 import { renderHook } from "@testing-library/react";
 import i18next from "i18next";
 import type { ReactNode } from "react";
@@ -19,6 +27,11 @@ function createWrapper() {
   };
 }
 
+/**
+ * useTranslate: React hook that exposes the i18next translation function (t), ready flag, i18n instance,
+ * and locale utility functions (getTransformedLocale, convertToLocale, sortDropdownNames, etc.).
+ * Binds sortDropdownNames to the hook's own t function so sorting respects current locale.
+ */
 describe("useTranslate", () => {
   it("exposes t/ready/i18n plus the locale helper functions", () => {
     const { result } = renderHook(() => useTranslate(), { wrapper: createWrapper() });

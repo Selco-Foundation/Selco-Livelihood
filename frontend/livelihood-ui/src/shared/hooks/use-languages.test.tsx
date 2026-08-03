@@ -1,3 +1,15 @@
+/**
+ * Unit tests for the useLanguages hook in src/shared/hooks/use-languages.ts
+ *
+ * Covers:
+ * - Fallback to English when the query is still loading
+ * - Fallback to English when the API returns an empty array
+ * - Returning fetched languages once the query resolves with data
+ *
+ * Approach: Wrapped with QueryClientProvider to test react-query behavior.
+ * Uses staleTime: Infinity to ensure data persists without refetch. MDMS API mocked
+ * to control fetch timing and returned language data.
+ */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -19,6 +31,11 @@ afterEach(() => {
 });
 
 describe("useLanguages", () => {
+  /**
+   * Hook fetches supported languages from MDMS with a fallback to English.
+   * Returns the fallback (not empty data) when the query is loading or when
+   * the API returns an empty array.
+   */
   it("returns the fallback (English) while the query hasn't resolved yet", () => {
     vi.spyOn(mdmsApi, "fetchLanguages").mockImplementation(() => new Promise(() => {}));
 

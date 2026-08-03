@@ -1,3 +1,34 @@
+/**
+ * Unit tests for ComplaintActionDialog.
+ *
+ * ComplaintActionDialog renders a modal that lets a user act on a complaint
+ * (e.g. RESOLVE, DECLINE_POC, OUT_OF_SCOPE, OUT_OF_WARRANTY). Its behaviour
+ * branches on the per-action config returned by getWorkflowActionConfig:
+ *  - whether a comment is required and capped at MAX_COMMENT_LENGTH,
+ *  - whether a reason must be picked from an MDMS-backed dropdown
+ *    (fetched via fetchReasonOptions),
+ *  - whether supporting documents/a quotation must be uploaded
+ *    (via uploadIncidentFile, with quotation-specific format/size rules),
+ *  - and it renders nothing at all for actions unknown to the workflow config.
+ * On submit it validates client-side, calls updateIncidentAction, and either
+ * surfaces a translated/business error or invokes onComplete on success.
+ *
+ * Testing approach:
+ *  - The dialog is rendered inside a real QueryClientProvider (useMutation
+ *    needs one) and a real I18nextProvider seeded with empty translation
+ *    resources, so translateOr's English fallback strings are what actually
+ *    render and can be asserted on directly.
+ *  - seedAuthenticatedSession/resetAuthStore stub the auth store so the
+ *    component sees a logged-in user + access token without a real login flow.
+ *  - workflowService.fetchReasonOptions and workflowService.updateIncidentAction
+ *    (and fileUploadService.uploadIncidentFile) are spied on per test to
+ *    control server responses without hitting the network.
+ *  - A couple of tests deliberately bypass `userEvent` and use `fireEvent`
+ *    directly where userEvent's real-browser-like behavior (respecting the
+ *    textarea's maxLength or the file input's accept filter) would prevent
+ *    the invalid input from ever reaching the component's own validation
+ *    logic — see the inline comments on those tests.
+ */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -79,7 +110,17 @@ afterEach(() => {
   resetAuthStore();
 });
 
+// ComplaintActionDialog: a modal for actioning a complaint (RESOLVE,
+// DECLINE_POC, OUT_OF_SCOPE, OUT_OF_WARRANTY, ...). It looks up the action's
+// config via getWorkflowActionConfig to decide which fields (reason,
+// comment, documents) are shown/required, runs client-side validation in
+// its useMutation mutationFn, and calls updateIncidentAction to submit.
+// Preconditions: an authenticated user + accessToken (via useAuthStore) and
+// a ComplaintDetailsData describing the incident being actioned.
 describe("ComplaintActionDialog", () => {
+  // getWorkflowActionConfig(action) returns undefined for actions the
+  // workflow config doesn't know about, and the component short-circuits to
+  // `return null` in that case, so nothing should render.
   it("renders nothing for an unsupported action", () => {
     const { container } = renderDialog({ action: "MADE_UP_ACTION" });
     expect(container).toBeEmptyDOMElement();
@@ -100,6 +141,9 @@ describe("ComplaintActionDialog", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  // RESOLVE's action config marks the comment field as "required", so the
+  // mutationFn throws COMMENT_REQUIRED when comments.trim() is empty, and
+  // onError maps that code to the translated "Please enter a comment" text.
   it("shows a required-comment error when submitting RESOLVE with no comment", async () => {
     const user = userEvent.setup();
     renderDialog({ action: "RESOLVE" });
@@ -131,6 +175,9 @@ describe("ComplaintActionDialog", () => {
     );
   });
 
+  // Happy path: a valid comment satisfies validation, updateIncidentAction
+  // resolves with an IncidentWrappers payload (the "success" shape the
+  // component checks for in onSuccess), so onComplete should fire.
   it("submits successfully and calls onComplete", async () => {
     const user = userEvent.setup();
     vi.spyOn(workflowService, "updateIncidentAction").mockResolvedValue({
@@ -145,6 +192,9 @@ describe("ComplaintActionDialog", () => {
     await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1));
   });
 
+  // When the API responds without an IncidentWrappers array, onSuccess treats
+  // it as a business failure (not a thrown error) and surfaces
+  // response.Errors[0].message directly instead of a generic error string.
   it("shows the response's error message when the submission response has no IncidentWrappers", async () => {
     const user = userEvent.setup();
     vi.spyOn(workflowService, "updateIncidentAction").mockResolvedValue({
@@ -160,6 +210,10 @@ describe("ComplaintActionDialog", () => {
     );
   });
 
+  // DECLINE_POC's config has a reasonMaster, which both renders the reason
+  // FormSelectField (populated from fetchReasonOptions's "RejectReasons" key,
+  // matching the master name in the action config) and makes selecting a
+  // reason mandatory: submitting without one throws REASON_REQUIRED.
   it("shows a reason selector for DECLINE_POC and requires a reason before submitting", async () => {
     const user = userEvent.setup();
     vi.spyOn(workflowService, "fetchReasonOptions").mockResolvedValue({
@@ -174,6 +228,10 @@ describe("ComplaintActionDialog", () => {
     await waitFor(() => expect(screen.getByText("Please select a reason")).toBeInTheDocument());
   });
 
+  // OUT_OF_WARRANTY's config marks documents as "required" (and
+  // isQuotationRequiredAction treats it as a quotation upload), so submitting
+  // with zero uploads throws FILES_REQUIRED, which maps to the
+  // "Please upload a quotation document" message.
   it("requires a document upload for OUT_OF_WARRANTY", async () => {
     const user = userEvent.setup();
     renderDialog({ action: "OUT_OF_WARRANTY" });
@@ -185,6 +243,9 @@ describe("ComplaintActionDialog", () => {
     );
   });
 
+  // getOutOfWarrantyHelperText only produces text for the OUT_OF_WARRANTY
+  // action, and interpolates the reporter's name (falling back to
+  // "the end user" when absent) into the translated helper string.
   it("shows the out-of-warranty helper text", () => {
     renderDialog({
       action: "OUT_OF_WARRANTY",
@@ -212,6 +273,9 @@ describe("ComplaintActionDialog", () => {
     );
   });
 
+  // A PDF passes validateQuotationFiles's format/size checks, so handleUpload
+  // calls uploadIncidentFile and adds the resulting entry to `uploads`,
+  // which ActionDocumentsField then renders by file name.
   it("uploads a valid quotation file", async () => {
     const user = userEvent.setup();
     vi.spyOn(fileUploadService, "uploadIncidentFile").mockResolvedValue({ fileStoreId: "fs-1" });
@@ -223,6 +287,8 @@ describe("ComplaintActionDialog", () => {
     await waitFor(() => expect(screen.getByText("quote.pdf")).toBeInTheDocument());
   });
 
+  // handleRemoveUpload filters the uploads array by index, so after removing
+  // the only uploaded file its name should no longer be in the document.
   it("removes an uploaded file when its remove button is clicked", async () => {
     const user = userEvent.setup();
     vi.spyOn(fileUploadService, "uploadIncidentFile").mockResolvedValue({ fileStoreId: "fs-1" });

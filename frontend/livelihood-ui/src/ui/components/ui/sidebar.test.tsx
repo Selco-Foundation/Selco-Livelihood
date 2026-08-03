@@ -1,3 +1,12 @@
+/**
+ * Unit tests for the Sidebar provider and hook.
+ *
+ * Covers: SidebarProvider context, useSidebar hook, keyboard shortcut (Cmd/Ctrl+B),
+ * state toggling, and cookie persistence.
+ * Testing approach: Renders SidebarProvider with a test consumer component that reads
+ * the sidebar state via useSidebar(); simulates user interactions and keyboard events
+ * using userEvent. Tests that context throws outside the provider.
+ */
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -12,6 +21,13 @@ afterEach(() => {
   document.cookie = "sidebar_state=; path=/; max-age=0";
 });
 
+/**
+ * SidebarProvider and useSidebar: React Context provider for sidebar state management.
+ * Inputs: defaultOpen (optional, defaults to true), open/onOpenChange (optional controlled props).
+ * Manages sidebar expanded/collapsed state, mobile sheet state, and listens for Cmd/Ctrl+B keyboard shortcut.
+ * Persists state to a cookie (sidebar_state) that survives page reloads.
+ * Throws if useSidebar is called outside the provider.
+ */
 describe("SidebarProvider", () => {
   it("starts expanded by default", () => {
     render(

@@ -1,3 +1,12 @@
+/**
+ * Unit tests for the useIsMobile hook.
+ *
+ * Covers: useIsMobile() — detects if viewport width is below the mobile breakpoint (768px)
+ * and updates on media query changes.
+ * Testing approach: Mocks window.matchMedia and window.innerWidth; simulates viewport resizing
+ * and media query listener callbacks. No provider wrapper needed as this is a custom hook
+ * that only uses window APIs.
+ */
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useIsMobile } from "./use-mobile";
@@ -27,6 +36,11 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/**
+ * useIsMobile: React hook that returns a boolean indicating if the current viewport width is below 768px.
+ * Uses window.matchMedia to listen for media query changes and updates on viewport resize.
+ * Returns boolean (coerced to false if undefined).
+ */
 describe("useIsMobile", () => {
   it("returns true when the viewport is under the mobile breakpoint", () => {
     mockMatchMediaCapturingListener();

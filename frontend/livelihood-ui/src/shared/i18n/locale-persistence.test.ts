@@ -1,3 +1,14 @@
+/**
+ * Unit tests for locale persistence in src/shared/i18n/locale-persistence.ts
+ *
+ * Covers:
+ * - persistActiveLocale: updates locale store and writes to localStorage
+ * - persistActiveLocale: silently ignores localStorage quota exceeded errors
+ * - readActiveLocale: retrieves persisted locale from localStorage
+ * - readActiveLocale: falls back to default language when nothing is persisted
+ *
+ * Approach: Direct function calls with localStorage mocking and locale store verification.
+ */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useLocaleStore } from "../stores/locale-store";
 import { getDefaultLanguage } from "./locale-utils";
@@ -9,6 +20,11 @@ afterEach(() => {
 });
 
 describe("persistActiveLocale", () => {
+  /**
+   * Updates the global locale store and attempts to write the locale code to localStorage
+   * under key "livelihood.locale". Silently ignores write failures (e.g., quota exceeded in
+   * private mode) but still updates the store.
+   */
   it("updates the locale store", () => {
     persistActiveLocale("kn_IN");
     expect(useLocaleStore.getState().locale).toBe("kn_IN");
@@ -30,6 +46,10 @@ describe("persistActiveLocale", () => {
 });
 
 describe("readActiveLocale", () => {
+  /**
+   * Reads the persisted locale from localStorage key "livelihood.locale",
+   * falling back to the default language (from config) if not set.
+   */
   it("returns the persisted locale when one exists", () => {
     window.localStorage.setItem("livelihood.locale", "kn_IN");
     expect(readActiveLocale()).toBe("kn_IN");

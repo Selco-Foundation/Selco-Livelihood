@@ -1,3 +1,16 @@
+/**
+ * Unit tests for the useBoundary hook in src/shared/hooks/use-boundary.ts
+ *
+ * Covers:
+ * - Query is disabled when no access token is present
+ * - Query is disabled when codes array is empty
+ * - Query fetches boundary relations when authenticated with codes
+ * - Query key normalization: codes are sorted and deduplicated for stable cache hits
+ * - Falsy code filtering when building the stable key
+ *
+ * Approach: Wrapped with QueryClientProvider to test react-query behavior.
+ * Uses auth store mocks and API spies to control query preconditions and outcomes.
+ */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -19,6 +32,11 @@ afterEach(() => {
 });
 
 describe("useBoundary", () => {
+  /**
+   * Hook fetches boundary relations (hierarchical boundary data) for supplied codes
+   * when authenticated. Uses react-query with a stable, sorted key to cache results
+   * across re-mounts that pass codes in different orders.
+   */
   it("does not fetch when there is no access token", () => {
     resetAuthStore();
     const fetchSpy = vi.spyOn(boundaryApi, "fetchBoundaryRelations");
@@ -52,8 +70,11 @@ describe("useBoundary", () => {
   it("produces the same query key regardless of code order (stable sorted key)", async () => {
     seedAuthenticatedSession();
     const fetchSpy = vi.spyOn(boundaryApi, "fetchBoundaryRelations").mockResolvedValue({});
-    // staleTime: Infinity so a second mount serves from cache instead of
-    // refetching in the background — isolates the assertion to key stability.
+    /**
+     * Use staleTime: Infinity so a second mount serves the cached result instead of
+     * triggering a background refetch. This isolates the assertion to query-key stability:
+     * if the key is the same, react-query won't call the fetch function a second time.
+     */
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false, staleTime: Infinity } },
     });
@@ -67,8 +88,11 @@ describe("useBoundary", () => {
     fetchSpy.mockClear();
     const second = renderHook(() => useBoundary(["A1", "B1"]), { wrapper: Wrapper });
 
-    // Same stable key ("A1,B1") means react-query serves the cached result
-    // instead of re-fetching, even though the array order differs.
+    /**
+     * Codes are sorted ([A1, B1]) before building the query key,
+     * so both calls produce the same key despite different input order.
+     * React-query serves the cached result without re-fetching.
+     */
     await waitFor(() => expect(second.result.current.isSuccess).toBe(true));
     expect(fetchSpy).not.toHaveBeenCalled();
   });

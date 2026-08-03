@@ -1,3 +1,12 @@
+/**
+ * Unit tests for the authentication state store (Zustand).
+ *
+ * Covers: useAuthStore state (accessToken, refreshToken, user, employeeTenantId, isAuthenticated)
+ * and methods (setSession, setUser, clearSession).
+ * Testing approach: Direct store state access and mutation via getState().method(...);
+ * resets the persisted store via resetAuthStore() after each test.
+ * No provider wrapper needed as this is a direct Zustand store access.
+ */
 import { afterEach, describe, expect, it } from "vitest";
 import { resetAuthStore } from "@/test/mocks/auth";
 import { useAuthStore } from "./auth-store";
@@ -15,6 +24,11 @@ describe("useAuthStore", () => {
     });
   });
 
+  /**
+   * setSession: Sets the authentication state atomically. Inputs: accessToken (required),
+   * refreshToken (optional), user (optional), employeeTenantId (optional).
+   * Derives employeeTenantId from user.tenantId if not explicitly given.
+   */
   describe("setSession", () => {
     it("marks isAuthenticated true when an access token is provided", () => {
       useAuthStore.getState().setSession({ accessToken: "token-1" });
@@ -51,6 +65,10 @@ describe("useAuthStore", () => {
     });
   });
 
+  /**
+   * setUser: Updates the user field only, leaving accessToken, refreshToken, etc. untouched.
+   * Inputs: user (AuthUser object).
+   */
   describe("setUser", () => {
     it("updates only the user field", () => {
       useAuthStore.getState().setSession({ accessToken: "token-1" });
@@ -60,6 +78,10 @@ describe("useAuthStore", () => {
     });
   });
 
+  /**
+   * clearSession: Resets all authentication state to initial (logged-out) values.
+   * No inputs required.
+   */
   describe("clearSession", () => {
     it("resets all session fields to their initial values", () => {
       useAuthStore.getState().setSession({

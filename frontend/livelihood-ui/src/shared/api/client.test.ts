@@ -1,3 +1,26 @@
+/**
+ * Unit tests for the shared `apiClient` (src/shared/api/client.ts).
+ *
+ * `apiClient` is a shared axios instance with two interceptors:
+ *  - a request interceptor that attaches `Authorization: Bearer <token>` (from
+ *    the auth store) and an `X-Tenant-Id` header (from the employee tenant, or
+ *    the state-level tenant fallback) to every outgoing request, without
+ *    clobbering a caller-supplied `X-Tenant-Id`;
+ *  - a response interceptor that, on an `InvalidAccessTokenException` error
+ *    from the API, clears the auth and jurisdiction stores and redirects the
+ *    browser to the employee login page (unless already there), while still
+ *    rejecting the original error so callers can handle it too.
+ *
+ * Mocking strategy: rather than mocking axios itself, we swap out
+ * `apiClient.defaults.adapter` — the actual HTTP transport axios calls under
+ * the hood — with a fake that either captures the outgoing request config
+ * (to assert on headers the interceptor added) or synchronously rejects with
+ * a shaped error (to drive the response interceptor's error-handling branch).
+ * This exercises the real interceptor pipeline end-to-end while never making
+ * a real network call. The auth/jurisdiction Zustand stores and
+ * `window.location` are reset after every test so state never leaks between
+ * cases.
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStore, seedAuthenticatedSession } from "@/test/mocks/auth";
 import { useAuthStore } from "../stores/auth-store";
@@ -7,6 +30,9 @@ import { apiClient } from "./client";
 const originalAdapter = apiClient.defaults.adapter;
 const originalLocation = window.location;
 
+// Replaces the axios adapter with a fake that resolves with a 200 and
+// captures the final request config, so tests can assert on the headers
+// the request interceptor injected (Authorization / X-Tenant-Id).
 function mockAdapterCapturing() {
   let capturedConfig: import("axios").InternalAxiosRequestConfig | undefined;
   apiClient.defaults.adapter = vi.fn(async (config) => {
@@ -16,6 +42,10 @@ function mockAdapterCapturing() {
   return () => capturedConfig!;
 }
 
+// Replaces the axios adapter with a fake that always throws an
+// axios-error-shaped object (response.status + response.data.Errors), which
+// is the shape isInvalidAccessTokenError() in client.ts inspects to decide
+// whether to clear the session and redirect.
 function mockAdapterRejecting(status: number, errors: Array<{ message: string }>) {
   apiClient.defaults.adapter = vi.fn(async () => {
     // eslint-disable-next-line @typescript-eslint/no-throw-literal
@@ -29,6 +59,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // Restore the real adapter and window.location, and clear auth state, so
+  // no test's stubbed transport/session/navigation leaks into the next test.
   apiClient.defaults.adapter = originalAdapter;
   Object.defineProperty(window, "location", { value: originalLocation, writable: true });
   resetAuthStore();
