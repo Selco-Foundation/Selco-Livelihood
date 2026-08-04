@@ -15,14 +15,14 @@ function assetSubtitle(asset: EndUserAsset) {
   return [category, serial].filter(Boolean).join(" • ");
 }
 
-function AssetThumbnail({ asset }: { asset: EndUserAsset }) {
+function AssetThumbnail({ asset, name }: { asset: EndUserAsset; name: string }) {
   const [failed, setFailed] = useState(false);
 
   if (asset.imageUrl && !failed) {
     return (
       <img
         src={asset.imageUrl}
-        alt={asset.name}
+        alt={name}
         className="h-14 w-14 shrink-0 rounded-lg object-cover lg:h-10 lg:w-10"
         onError={() => setFailed(true)}
       />
@@ -37,14 +37,16 @@ function AssetThumbnail({ asset }: { asset: EndUserAsset }) {
 }
 
 function AssetBlock({ asset }: { asset: EndUserAsset }) {
+  const { t } = useTranslate();
+  const name = translateOr(t, `ASSETTYPE_${asset.assetTypeId}`, asset.name);
   const subtitle = assetSubtitle(asset);
 
   return (
     <Card className="livelihood-card w-full flex-row items-center gap-3 border-border p-3 shadow-none lg:max-w-fit">
-      <AssetThumbnail asset={asset} />
+      <AssetThumbnail asset={asset} name={name} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-base leading-5 font-semibold text-ink-950 lg:text-sm">
-          {asset.name}
+          {name}
         </p>
         {subtitle ? (
           <p className="truncate text-sm leading-4 text-ink-600 lg:text-xs">{subtitle}</p>

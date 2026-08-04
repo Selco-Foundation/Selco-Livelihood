@@ -180,13 +180,20 @@ export function useCreateIncidentForm(inboxPath: string) {
 
   const assetOptions = useMemo(
     () =>
-      assets.map((asset) => ({
-        code: asset.assetId,
-        name: asset.serialNumber
-          ? `${asset.name} (${asset.serialNumber})`
-          : asset.name,
-      })),
-    [assets],
+      assets.map((asset) => {
+        const assetName = translateOr(
+          t,
+          `ASSETTYPE_${asset.assetTypeId}`,
+          asset.name,
+        );
+        return {
+          code: asset.assetId,
+          name: asset.serialNumber
+            ? `${assetName} (${asset.serialNumber})`
+            : assetName,
+        };
+      }),
+    [assets, t],
   );
 
   useEffect(() => {
