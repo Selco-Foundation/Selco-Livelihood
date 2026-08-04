@@ -202,7 +202,7 @@ public class IMService {
                 .incidentRequest(request)
                 .indexView(new IndexView())
                 .build();
-        ProcessInstance updatedProcessInstance = workflowService.updateWorkflowStatus(wrapper, mdmsData);
+        ProcessInstance updatedProcessInstance = workflowService.updateWorkflowStatus(wrapper, mdmsData, true);
         ProcessInstance trimmedUpdatedProcessInstance = imUtils.trimRolesFromProcessInstance(updatedProcessInstance);
         log.trace("Publishing incident to create topic");
         producer.push(tenantId,config.getCreateTopic(),wrapper.getIncidentRequest());
@@ -253,7 +253,7 @@ public class IMService {
                 .indexView(new IndexView())
                 .build();
 
-        ProcessInstance updatedProcessInstance = workflowService.updateWorkflowStatus(wrapper, mdmsData);
+        ProcessInstance updatedProcessInstance = workflowService.updateWorkflowStatus(wrapper, mdmsData, true);
         ProcessInstance trimmedUpdatedProcessInstance = imUtils.trimRolesFromProcessInstance(updatedProcessInstance);
 
         String tenantId = request.getIncident().getTenantId();

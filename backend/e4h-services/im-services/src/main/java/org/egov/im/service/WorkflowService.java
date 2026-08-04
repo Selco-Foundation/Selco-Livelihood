@@ -117,6 +117,10 @@ public class WorkflowService {
      *
      * */
     public ProcessInstance updateWorkflowStatus(IncidentRequestWrapper wrapper, Object mdmsData) {
+        return updateWorkflowStatus(wrapper, mdmsData, false);
+    }
+
+    public ProcessInstance updateWorkflowStatus(IncidentRequestWrapper wrapper, Object mdmsData, boolean isCreate) {
         log.trace("WorkflowService::updateWorkflowStatus method invoked");
         IncidentRequest incidentRequest = wrapper.getIncidentRequest();
         Priority priority = livelihoodTenantUtil.isLivelihood(incidentRequest.getIncident().getTenantId())
@@ -134,11 +138,11 @@ public class WorkflowService {
         incidentRequest.getIncident().setApplicationStatus(newStatus);
         log.info("Workflow status updated for incident: {}. New status: {}", incidentRequest.getIncident().getIncidentId(), newStatus);
         log.trace("Enriching total SLA");
-        enrichTotalSla(wrapper, updatedProcessInstance);
+        enrichTotalSla(wrapper, updatedProcessInstance, isCreate);
         return updatedProcessInstance;
     }
 
-    private void enrichTotalSla(IncidentRequestWrapper wrapper, ProcessInstance processInstance) {
+    private void enrichTotalSla(IncidentRequestWrapper wrapper, ProcessInstance processInstance, boolean isCreate) {
         log.trace("WorkflowService::enrichTotalSla method invoked");
         IncidentRequest request = wrapper.getIncidentRequest();
         log.debug("Enriching SLA for incident: {}", request.getIncident().getIncidentId());
@@ -174,9 +178,12 @@ public class WorkflowService {
             throw new CustomException("MDMS_MISSING", "BusinessHours config missing from MDMS");
         }
 
-        //get all process instances
-        log.trace("Fetching all process instances for SLA and lifecycle calculation");
-        List<ProcessInstance> processInstances = getAllProcessInstances(tenantId,IncidentId, requestInfo);
+        // A brand-new ticket has no workflow history yet - skip the redundant
+        // history search and start from an empty (mutable) list instead of
+        // asking egov-workflow-v2 a question we already know the answer to.
+        List<ProcessInstance> processInstances = isCreate
+                ? new ArrayList<>()
+                : getAllProcessInstancesWithRetry(tenantId, IncidentId, requestInfo, processInstance);
 
         // Compute first-round resolved / declined timestamps (before any reordering)
         enrichResolvedAndDeclinedTimestamps(wrapper, processInstances);
@@ -727,7 +734,7 @@ public class WorkflowService {
         }
         if (processInstanceResponse == null || CollectionUtils.isEmpty(processInstanceResponse.getProcessInstances())) {
             log.debug("No process instances found in history for incident: {}", IncidentId);
-            return Collections.emptyList();
+            return new ArrayList<>();
         }
 
         List<ProcessInstance> processInstances =  processInstanceResponse.getProcessInstances();
@@ -748,6 +755,33 @@ public class WorkflowService {
         } else {
             return new ArrayList<>(processInstances);
         }
+    }
+
+    /**
+     * Wraps {@link #getAllProcessInstances} with a short bounded retry for the update path.
+     * The transition we just made (identified by {@code justTransitioned}'s id) may not be
+     * visible to the history search yet - retry a few times until it shows up, or give up
+     * and use whatever history is available after the last attempt.
+     */
+    // package-private for unit testing
+    List<ProcessInstance> getAllProcessInstancesWithRetry(String tenantId, String incidentId,
+            RequestInfo requestInfo, ProcessInstance justTransitioned) {
+        int maxAttempts = Math.max(1, imConfiguration.getWfProcessInstanceSearchRetryMaxAttempts());
+        long delayMs = imConfiguration.getWfProcessInstanceSearchRetryDelayMs();
+
+        List<ProcessInstance> processInstances = getAllProcessInstances(tenantId, incidentId, requestInfo);
+        for (int attempt = 1; attempt < maxAttempts && !processInstances.contains(justTransitioned); attempt++) {
+            log.debug("Process instance history for incident: {} does not yet contain transition id: {}, retrying ({}/{})",
+                    incidentId, justTransitioned.getId(), attempt, maxAttempts);
+            try {
+                Thread.sleep(delayMs);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return processInstances;
+            }
+            processInstances = getAllProcessInstances(tenantId, incidentId, requestInfo);
+        }
+        return processInstances;
     }
 
 
