@@ -95,6 +95,12 @@ public class IMConfiguration {
     @Value("${is.workflow.enabled}")
     private Boolean isWorkflowEnabled;
 
+    @Value("${egov.workflow.processinstance.search.retry.maxattempts:3}")
+    private Integer wfProcessInstanceSearchRetryMaxAttempts;
+
+    @Value("${egov.workflow.processinstance.search.retry.delayms:150}")
+    private Long wfProcessInstanceSearchRetryDelayMs;
+
 
     // im Variables
 
