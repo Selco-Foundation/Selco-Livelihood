@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.egov.im.util.IMConstants.*;
 
@@ -220,11 +221,11 @@ public class LivelihoodSmsNotificationService {
         if (request.getWorkflow() == null || CollectionUtils.isEmpty(request.getWorkflow().getVerificationDocuments())) {
             return resolveAppUrl(request);
         }
-        return request.getWorkflow().getVerificationDocuments().stream()
+        String links = request.getWorkflow().getVerificationDocuments().stream()
                 .filter(doc -> doc != null && StringUtils.isNotBlank(doc.getFileStoreId()))
                 .map(doc -> buildFileStoreUrl(request.getIncident().getTenantId(), doc.getFileStoreId()))
-                .findFirst()
-                .orElse(resolveAppUrl(request));
+                .collect(Collectors.joining(", "));
+        return StringUtils.isNotBlank(links) ? links : resolveAppUrl(request);
     }
 
     private String buildFileStoreUrl(String tenantId, String fileStoreId) {
