@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { queryClient } from "../query/query-client";
 
 export interface AuthUser {
   uuid?: string;
@@ -42,14 +43,16 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: Boolean(accessToken),
         }),
       setUser: (user) => set({ user }),
-      clearSession: () =>
+      clearSession: () => {
+        queryClient.clear();
         set({
           accessToken: null,
           refreshToken: null,
           user: null,
           employeeTenantId: null,
           isAuthenticated: false,
-        }),
+        });
+      },
     }),
     {
       name: "livelihood-auth",
