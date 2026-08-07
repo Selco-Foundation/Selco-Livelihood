@@ -57,6 +57,7 @@ class BoundaryDataProcessor:
         # Track failed operations
         self.failed_boundaries: Dict[str, str] = {}  # {full_code: error_message}
         self.failed_relationships: Dict[Tuple[str, str], str] = {}  # {(full_code, boundary_type): error_message}
+        self.successful_relationship_codes: Set[str] = set()
 
     def process_data(self):
         """Process and validate boundary data"""
@@ -85,6 +86,7 @@ class BoundaryDataProcessor:
         valid_boundaries_df = boundary_df[boundary_df["status"].isna()]
         self._organize_boundary_data(valid_boundaries_df)
         self._check_existing_boundaries()
+        self._check_existing_relationships()
         self._create_new_boundaries()
         self._create_boundary_relationships()
         self._upsert_localization_for_boundaries()
@@ -198,6 +200,48 @@ class BoundaryDataProcessor:
 
         logger.info(f"Found {len(self.existing_boundaries)} existing boundaries in the system")
 
+    def _check_existing_relationships(self):
+        """Load existing SELCO relationships for boundary codes in this ingestion."""
+        if not self.all_boundary_full_codes or not self.request_info:
+            return
+
+        chunk_size = 50
+        codes_list = list(self.all_boundary_full_codes)
+        for i in range(0, len(codes_list), chunk_size):
+            chunk = codes_list[i:i + chunk_size]
+            try:
+                response_data = self.boundary_service_client.search_boundary_relationships(
+                    request_info=self.request_info,
+                    tenant_id=LIVELIHOOD_TENANT_ID,
+                    hierarchy_type="SELCO",
+                    codes=chunk,
+                )
+                for relationship in (response_data or {}).get("BoundaryRelationship") or []:
+                    code = relationship.get("code")
+                    if code:
+                        self.successful_relationship_codes.add(code)
+            except Exception as e:
+                logger.error(f"Error checking existing boundary relationships: {e}")
+
+        logger.info(
+            "Found %d existing boundary relationships for ingested codes",
+            len(self.successful_relationship_codes),
+        )
+
+    def _ancestor_failed(self, full_code: str, parent_full_code: Optional[str]) -> bool:
+        if full_code in self.failed_boundaries:
+            return True
+        if parent_full_code and parent_full_code in self.failed_boundaries:
+            return True
+        return False
+
+    def _should_create_boundary(self, full_code: str, parent_full_code: Optional[str]) -> bool:
+        if self._ancestor_failed(full_code, parent_full_code):
+            return False
+        if self._boundary_exists(full_code):
+            return False
+        return True
+
     def _boundary_exists(self, full_code: str) -> bool:
         return full_code.casefold() in self.existing_boundaries_casefold
 
@@ -222,9 +266,8 @@ class BoundaryDataProcessor:
         for level in self.hierarchy_levels:
             for code, data in self.boundary_data[level].items():
                 full_code = data["full_code"]
-                if full_code in self.failed_boundaries:
-                    continue
-                if self._boundary_exists(full_code):
+                parent_full_code = data.get("parent")
+                if not self._should_create_boundary(full_code, parent_full_code):
                     continue
                 boundaries_to_create.append({
                     "tenantId": LIVELIHOOD_TENANT_ID,
@@ -332,28 +375,36 @@ class BoundaryDataProcessor:
         """Create boundary relationships in hierarchical order"""
         relationship_created_count = 0
 
-        # Process relationships for each level
+        # Process relationships for each level (Country -> State -> District -> Block)
         for level in self.hierarchy_levels:
             for code, data in self.boundary_data[level].items():
                 full_code = data["full_code"]
                 parent_full_code = data["parent"]
 
-                # Skip if boundary creation failed
                 if full_code in self.failed_boundaries:
+                    self.failed_relationships[(full_code, level)] = (
+                        f"Boundary entity '{full_code}' was not created: "
+                        f"{self.failed_boundaries[full_code]}"
+                    )
                     continue
 
-                # Skip for country level (no parent)
-                if level == "Country":
-                    continue
-
-                # Skip if parent creation failed
                 if parent_full_code and parent_full_code in self.failed_boundaries:
-                    self.failed_relationships[(full_code, level)] = f"Parent {parent_full_code} creation failed"
+                    self.failed_relationships[(full_code, level)] = (
+                        f"Parent boundary '{parent_full_code}' was not created: "
+                        f"{self.failed_boundaries[parent_full_code]}"
+                    )
+                    continue
+
+                if parent_full_code and parent_full_code not in self.successful_relationship_codes:
+                    self.failed_relationships[(full_code, level)] = (
+                        f"Parent relationship for '{parent_full_code}' does not exist"
+                    )
                     continue
 
                 success, error = self._create_single_relationship(full_code, level, parent_full_code)
                 if success:
                     relationship_created_count += 1
+                    self.successful_relationship_codes.add(full_code)
                 elif error:
                     self.failed_relationships[(full_code, level)] = error
 
@@ -376,7 +427,10 @@ class BoundaryDataProcessor:
                 if any(error.get("code") == "DUPLICATE_RECORD" for error in response_data["Errors"]):
                     return True, None  # Relationship already exists
                 else:
-                    error_msg = ", ".join(error.get("message") for error in response_data["Errors"])
+                    error_msg = ", ".join(
+                        error.get("message") or error.get("code") or str(error)
+                        for error in response_data["Errors"]
+                    )
                     return False, error_msg
             return True, None
 

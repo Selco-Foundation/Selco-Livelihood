@@ -117,6 +117,44 @@ class BoundaryServiceClient:
             logger.error(f"Unexpected request error during boundary search: {e}")
             raise
 
+    def search_boundary_relationships(
+        self,
+        request_info: RequestInfo,
+        tenant_id: str,
+        hierarchy_type: str,
+        codes: List[str],
+    ) -> Dict[str, Any]:
+        encoded_codes = [quote(code, safe="") for code in codes]
+        codes_param = "%2C".join(encoded_codes)
+        url = (
+            f"{self.boundary_service_url}/boundary-service/boundary-relationships/_search"
+            f"?tenantId={quote(tenant_id, safe='')}"
+            f"&hierarchyType={quote(hierarchy_type, safe='')}"
+            f"&codes={codes_param}"
+        )
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True)
+        }
+
+        try:
+            response = requests.post(url, headers=headers, json=payload, timeout=time_out)
+            response.raise_for_status()
+            return response.json() if response.content else {}
+
+        except HTTPError as e:
+            logger.error(f"HTTP error during boundary relationship search: {e}")
+            raise
+        except ConnectionError as e:
+            logger.error(f"Connection error during boundary relationship search: {e}")
+            raise
+        except Timeout as e:
+            logger.error(f"Timeout error during boundary relationship search: {e}")
+            raise
+        except RequestException as e:
+            logger.error(f"Unexpected request error during boundary relationship search: {e}")
+            raise
+
     def create_boundary_relationship(self, request_info: RequestInfo, tenant_id: str,
                                      code: str, hierarchy_type: str, boundary_type: str,
                                      parent: Optional[str] = None) -> Dict[str, Any]:
