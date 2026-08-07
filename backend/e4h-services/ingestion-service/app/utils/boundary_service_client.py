@@ -1,6 +1,7 @@
 import json
 import os
 from typing import Dict, Any, List, Optional, Tuple
+from urllib.parse import quote
 
 import requests
 from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
@@ -87,10 +88,11 @@ class BoundaryServiceClient:
             raise
 
     def search_boundaries(self, request_info: RequestInfo, tenant_id: str, codes: List[str]) -> Dict[str, Any]:
-        codes_param = "%2C".join(codes)
+        encoded_codes = [quote(code, safe="") for code in codes]
+        codes_param = "%2C".join(encoded_codes)
         url = (
             f"{self.boundary_service_url}/boundary-service/boundary/_search"
-            f"?tenantId={tenant_id}&codes={codes_param}&ignoreCase=true"
+            f"?tenantId={quote(tenant_id, safe='')}&codes={codes_param}&ignoreCase=true"
         )
         headers = {'Content-Type': 'application/json'}
         payload = {

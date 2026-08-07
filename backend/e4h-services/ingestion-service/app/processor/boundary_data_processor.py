@@ -204,6 +204,16 @@ class BoundaryDataProcessor:
     def _mark_boundary_failure(self, full_code: str, error_message: str) -> None:
         self.failed_boundaries[full_code] = error_message
 
+    def _is_duplicate_boundary_error(self, error_message: Optional[str]) -> bool:
+        if not error_message:
+            return False
+        normalized = error_message.casefold()
+        return "duplicate" in normalized or "already exist" in normalized
+
+    def _register_existing_boundary(self, full_code: str) -> None:
+        self.existing_boundaries.add(full_code)
+        self.existing_boundaries_casefold[full_code.casefold()] = full_code
+
     def _create_new_boundaries(self):
         """Create new boundaries that don't already exist"""
         boundaries_to_create = []
@@ -226,45 +236,81 @@ class BoundaryDataProcessor:
             logger.info("No new boundaries to create")
             return
 
-        # Create boundaries in chunks
+        # Create boundaries in chunks; on batch failure retry individually so
+        # existing codes (e.g. INDIA) do not block new ones (e.g. YO/HO).
         chunk_size = 50
         for i in range(0, len(boundaries_to_create), chunk_size):
             chunk = boundaries_to_create[i:i + chunk_size]
-
-            try:
-                response_data, error_message = self.boundary_service_client.create_boundaries(
-                    request_info=self.request_info,
-                    boundary_data=chunk
-                )
-
-                if error_message:
-                    for boundary in chunk:
-                        self._mark_boundary_failure(boundary["code"], error_message)
-                    continue
-
-                created_boundaries = (response_data or {}).get("Boundary") or []
-                if not created_boundaries:
-                    for boundary in chunk:
-                        self._mark_boundary_failure(
-                            boundary["code"],
-                            "Failed to create boundary (empty response from boundary service)",
-                        )
-                    continue
-
-                created_codes = {b["code"] for b in created_boundaries if b.get("code")}
-                for boundary in chunk:
-                    if boundary["code"] not in created_codes:
-                        self._mark_boundary_failure(
-                            boundary["code"],
-                            "Failed to create boundary (not returned by boundary service)",
-                        )
-                logger.info(f"Successfully created {len(created_boundaries)} boundaries")
-            except Exception as e:
-                for boundary in chunk:
-                    self._mark_boundary_failure(boundary["code"], str(e))
+            self._create_boundary_chunk(chunk, allow_individual_retry=True)
 
         logger.info(f"Attempted to create {len(boundaries_to_create)} boundaries. "
                     f"Failed: {len(self.failed_boundaries)}")
+
+    def _create_boundary_chunk(
+        self,
+        chunk: List[Dict[str, Any]],
+        *,
+        allow_individual_retry: bool,
+    ) -> None:
+        try:
+            response_data, error_message = self.boundary_service_client.create_boundaries(
+                request_info=self.request_info,
+                boundary_data=chunk,
+            )
+
+            if error_message:
+                if allow_individual_retry and len(chunk) > 1:
+                    logger.warning(
+                        "Boundary batch create failed (%s); retrying %d boundaries individually",
+                        error_message,
+                        len(chunk),
+                    )
+                    for boundary in chunk:
+                        self._create_boundary_chunk([boundary], allow_individual_retry=False)
+                    return
+
+                if self._is_duplicate_boundary_error(error_message):
+                    for boundary in chunk:
+                        self._register_existing_boundary(boundary["code"])
+                    return
+
+                for boundary in chunk:
+                    self._mark_boundary_failure(boundary["code"], error_message)
+                return
+
+            created_boundaries = (response_data or {}).get("Boundary") or []
+            if not created_boundaries:
+                if allow_individual_retry and len(chunk) > 1:
+                    for boundary in chunk:
+                        self._create_boundary_chunk([boundary], allow_individual_retry=False)
+                    return
+
+                for boundary in chunk:
+                    self._mark_boundary_failure(
+                        boundary["code"],
+                        "Failed to create boundary (empty response from boundary service)",
+                    )
+                return
+
+            created_codes = {b["code"] for b in created_boundaries if b.get("code")}
+            for boundary in chunk:
+                code = boundary["code"]
+                if code in created_codes:
+                    continue
+                if self._boundary_exists(code):
+                    continue
+                self._mark_boundary_failure(
+                    code,
+                    "Failed to create boundary (not returned by boundary service)",
+                )
+            logger.info(f"Successfully created {len(created_boundaries)} boundaries")
+        except Exception as e:
+            if allow_individual_retry and len(chunk) > 1:
+                for boundary in chunk:
+                    self._create_boundary_chunk([boundary], allow_individual_retry=False)
+                return
+            for boundary in chunk:
+                self._mark_boundary_failure(boundary["code"], str(e))
 
     def _deepest_full_code_for_row(self, row) -> Optional[str]:
         country = normalize_boundary_segment(str(row.get('Country', '')).strip())
@@ -338,19 +384,23 @@ class BoundaryDataProcessor:
             return False, str(e)
 
     def _upsert_localization_for_boundaries(self):
-        """Upsert localization messages for all boundaries"""
+        """Upsert localization messages for all boundaries in this ingestion."""
         if not self.request_info:
             logger.warning("No RequestInfo; skipping localization upsert for boundaries")
             return
+        if not localization_service_url:
+            logger.warning("LOCALIZATION_SERVICE_URL not set; skipping localization upsert for boundaries")
+            return
+
         messages = []
         for level in self.hierarchy_levels:
             for code, data in self.boundary_data[level].items():
                 full_code = data["full_code"]
-                if full_code in self.failed_boundaries:
-                    continue
                 # Human-readable label for localization (spaces preserved; leading/trailing stripped)
                 raw_display_name = data.get("localization_label") or data.get("name") or code
                 display_name = re.sub(r"\s+", " ", raw_display_name).strip()
+                if not display_name:
+                    continue
                 messages.append({
                     "code": f"BOUNDARY_{full_code}",
                     "message": display_name,
@@ -358,7 +408,15 @@ class BoundaryDataProcessor:
                     "locale": "en_IN",
                 })
         if not messages:
+            logger.warning("No boundary localization messages to upsert")
             return
+
+        logger.info(
+            "Upserting localization for %d boundary level(s), module=%s, tenant=%s",
+            len(messages),
+            LOCALIZATION_MODULE,
+            LIVELIHOOD_TENANT_ID,
+        )
         chunk_size = 50
         for i in range(0, len(messages), chunk_size):
             chunk = messages[i : i + chunk_size]
@@ -368,9 +426,18 @@ class BoundaryDataProcessor:
                     tenant_id=LIVELIHOOD_TENANT_ID,
                     messages=chunk,
                 )
-                logger.info(f"Upserted localization for {len(chunk)} boundaries")
+                logger.info(
+                    "Upserted localization for %d boundaries (sample code=%s)",
+                    len(chunk),
+                    chunk[0]["code"],
+                )
             except Exception as e:
-                logger.error(f"Localization upsert failed for boundary batch: {e}", exc_info=True)
+                logger.error(
+                    "Localization upsert failed for boundary batch starting with %s: %s",
+                    chunk[0]["code"],
+                    e,
+                    exc_info=True,
+                )
 
     def _update_dataframe_with_results(self, boundary_df):
         """Update the DataFrame with boundary creation results"""
