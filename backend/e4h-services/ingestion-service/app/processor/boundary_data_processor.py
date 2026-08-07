@@ -1,5 +1,4 @@
 import os
-import string
 from typing import List, Dict, Set, Tuple, Optional
 import re
 import pandas as pd
@@ -11,6 +10,11 @@ from app.ingest.service.data_loader import DataLoader
 from app.ingest.service.data_writer import DataWriter
 from app.ingest.service.validator import Validator
 from app.schemas.request_info import RequestInfo
+from app.utils.boundary_code_utils import (
+    build_boundary_full_code,
+    normalize_boundary_segment,
+    preserve_boundary_label,
+)
 from app.utils.boundary_service_client import BoundaryServiceClient
 from app.utils.localization_service_client import LocalizationServiceClient
 
@@ -103,15 +107,15 @@ class BoundaryDataProcessor:
     def _organize_boundary_data(self, boundary_df):
         """Organize boundary data into hierarchical structure with full codes"""
         for _, row in boundary_df.iterrows():
-            country = self.to_camel_case(str(row.get('Country', '')).strip())
-            state = self.to_camel_case(str(row.get('State', '')).strip())
-            district = self.to_camel_case(str(row.get('District', '')).strip())
-            block = self.to_camel_case(str(row.get('Block', '')).strip())
+            country = normalize_boundary_segment(str(row.get('Country', '')).strip())
+            state = normalize_boundary_segment(str(row.get('State', '')).strip())
+            district = normalize_boundary_segment(str(row.get('District', '')).strip())
+            block = normalize_boundary_segment(str(row.get('Block', '')).strip())
 
-            country_label = self.boundary_localization_label(row.get("Country"))
-            state_label = self.boundary_localization_label(row.get("State"))
-            district_label = self.boundary_localization_label(row.get("District"))
-            block_label = self.boundary_localization_label(row.get("Block"))
+            country_label = preserve_boundary_label(row.get("Country"))
+            state_label = preserve_boundary_label(row.get("State"))
+            district_label = preserve_boundary_label(row.get("District"))
+            block_label = preserve_boundary_label(row.get("Block"))
 
             # Country level
             if country:
@@ -127,7 +131,7 @@ class BoundaryDataProcessor:
 
             # State level
             if state and country:
-                full_code = f"{country}_{state}"
+                full_code = build_boundary_full_code(country, state)
                 self.all_boundary_full_codes.add(full_code)
                 if state not in self.boundary_data["State"]:
                     self.boundary_data["State"][state] = {
@@ -139,25 +143,25 @@ class BoundaryDataProcessor:
 
             # District level
             if district and state and country:
-                full_code = f"{country}_{state}_{district}"
+                full_code = build_boundary_full_code(country, state, district)
                 self.all_boundary_full_codes.add(full_code)
                 if district not in self.boundary_data["District"]:
                     self.boundary_data["District"][district] = {
                         "name": district,
                         "localization_label": district_label or district,
-                        "parent": f"{country}_{state}",
+                        "parent": build_boundary_full_code(country, state),
                         "full_code": full_code
                     }
 
             # Block level
             if block and district and state and country:
-                full_code = f"{country}_{state}_{district}_{block}"
+                full_code = build_boundary_full_code(country, state, district, block)
                 self.all_boundary_full_codes.add(full_code)
                 if block not in self.boundary_data["Block"]:
                     self.boundary_data["Block"][block] = {
                         "name": block,
                         "localization_label": block_label or block,
-                        "parent": f"{country}_{state}_{district}",
+                        "parent": build_boundary_full_code(country, state, district),
                         "full_code": full_code
                     }
 
@@ -263,17 +267,17 @@ class BoundaryDataProcessor:
                     f"Failed: {len(self.failed_boundaries)}")
 
     def _deepest_full_code_for_row(self, row) -> Optional[str]:
-        country = self.to_camel_case(str(row.get('Country', '')).strip())
-        state = self.to_camel_case(str(row.get('State', '')).strip())
-        district = self.to_camel_case(str(row.get('District', '')).strip())
-        block = self.to_camel_case(str(row.get('Block', '')).strip())
+        country = normalize_boundary_segment(str(row.get('Country', '')).strip())
+        state = normalize_boundary_segment(str(row.get('State', '')).strip())
+        district = normalize_boundary_segment(str(row.get('District', '')).strip())
+        block = normalize_boundary_segment(str(row.get('Block', '')).strip())
 
         if block and district and state and country:
-            return f"{country}_{state}_{district}_{block}"
+            return build_boundary_full_code(country, state, district, block)
         if district and state and country:
-            return f"{country}_{state}_{district}"
+            return build_boundary_full_code(country, state, district)
         if state and country:
-            return f"{country}_{state}"
+            return build_boundary_full_code(country, state)
         if country:
             return country
         return None
@@ -384,10 +388,10 @@ class BoundaryDataProcessor:
                 row_failed = True
                 row_errors.append(f"Boundary already exists: {existing_code}")
 
-            country = self.to_camel_case(str(row.get('Country', '')).strip())
-            state = self.to_camel_case(str(row.get('State', '')).strip())
-            district = self.to_camel_case(str(row.get('District', '')).strip())
-            block = self.to_camel_case(str(row.get('Block', '')).strip())
+            country = normalize_boundary_segment(str(row.get('Country', '')).strip())
+            state = normalize_boundary_segment(str(row.get('State', '')).strip())
+            district = normalize_boundary_segment(str(row.get('District', '')).strip())
+            block = normalize_boundary_segment(str(row.get('Block', '')).strip())
 
             # Check each level that exists in this row
             if country:
@@ -397,7 +401,7 @@ class BoundaryDataProcessor:
                     row_errors.append(f"Failed to create Country '{country}': {self.failed_boundaries[full_code]}")
 
             if state and country:
-                full_code = f"{country}_{state}"
+                full_code = build_boundary_full_code(country, state)
                 if full_code in self.failed_boundaries:
                     row_failed = True
                     row_errors.append(f"Failed to create State '{state}': {self.failed_boundaries[full_code]}")
@@ -407,7 +411,7 @@ class BoundaryDataProcessor:
                         f"Failed relationship for State '{state}': {self.failed_relationships[(full_code, 'State')]}")
 
             if district and state and country:
-                full_code = f"{country}_{state}_{district}"
+                full_code = build_boundary_full_code(country, state, district)
                 if full_code in self.failed_boundaries:
                     row_failed = True
                     row_errors.append(
@@ -418,7 +422,7 @@ class BoundaryDataProcessor:
                         f"Failed relationship for District '{district}': {self.failed_relationships[(full_code, 'District')]}")
 
             if block and district and state and country:
-                full_code = f"{country}_{state}_{district}_{block}"
+                full_code = build_boundary_full_code(country, state, district, block)
                 if full_code in self.failed_boundaries:
                     row_failed = True
                     row_errors.append(f"Failed to create Block '{block}': {self.failed_boundaries[full_code]}")
@@ -435,25 +439,3 @@ class BoundaryDataProcessor:
                 boundary_df.loc[index, "error"] = ""
 
         return boundary_df
-
-    def to_camel_case(self, text: str) -> str:
-        if not text or not text.strip():
-            return ""
-
-        cleaned = re.sub(r"[_\-]+", " ", text.strip())
-
-        parts = cleaned.split()
-
-        # First letter of each token uppercased; concatenated for boundary codes (no spaces)
-        return "".join(word[:1].upper() + word[1:] for word in parts)
-
-    @staticmethod
-    def boundary_localization_label(cell) -> str:
-        """Trim ends, collapse internal whitespace to single spaces, title-case each word (e.g. 'West Bengal')."""
-        if cell is None or (isinstance(cell, float) and pd.isna(cell)):
-            return ""
-        raw = str(cell).strip()
-        if not raw:
-            return ""
-        normalized = re.sub(r"\s+", " ", raw)
-        return string.capwords(normalized)

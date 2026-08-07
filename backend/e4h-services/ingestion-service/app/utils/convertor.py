@@ -959,6 +959,11 @@ def create_update_payload(search_response: dict, update_data: dict) -> dict:
     }
 
 
+def _normalize_boundary_lookup_key(message: str) -> str:
+    """Normalize a boundary label for reverse lookup (case/spacing/slash insensitive)."""
+    return message.lower().strip().replace(" ", "").replace("/", "")
+
+
 def build_localization_reverse_map(messages: List[Dict[str, Any]]) -> Dict[str, List[str]]:
     """
     Build a reverse map from normalized localization message → list of localization codes.
@@ -969,7 +974,7 @@ def build_localization_reverse_map(messages: List[Dict[str, Any]]) -> Dict[str, 
         code = (m.get("code") or "").strip()
         message = (m.get("message") or "").strip()
         if code.startswith("BOUNDARY_") and message:
-            key = message.lower().strip().replace(" ", "")
+            key = _normalize_boundary_lookup_key(message)
             if key not in reverse_map:
                 reverse_map[key] = []
             reverse_map[key].append(code)
@@ -992,7 +997,7 @@ def resolve_boundary_code(
     country = "INDIA"
 
     # --- State ---
-    state_normalized = state.strip().lower().replace(" ", "") if state else ""
+    state_normalized = _normalize_boundary_lookup_key(state) if state else ""
     if not state_normalized or state_normalized == "nan":
         return None, "State is not provided"
 
@@ -1010,7 +1015,7 @@ def resolve_boundary_code(
     state_boundary = state_matches[0].replace("BOUNDARY_", "", 1)
 
     # --- District ---
-    district_normalized = district.strip().lower().replace(" ", "") if district else ""
+    district_normalized = _normalize_boundary_lookup_key(district) if district else ""
     if not district_normalized or district_normalized == "nan":
         return None, "District is not provided"
 
@@ -1028,7 +1033,7 @@ def resolve_boundary_code(
     district_boundary = district_matches[0].replace("BOUNDARY_", "", 1)
 
     # --- Block ---
-    block_normalized = block.strip().lower().replace(" ", "") if block else ""
+    block_normalized = _normalize_boundary_lookup_key(block) if block else ""
     if not block_normalized or block_normalized == "nan":
         return None, "Block is not provided"
 
