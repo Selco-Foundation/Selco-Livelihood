@@ -960,8 +960,8 @@ def create_update_payload(search_response: dict, update_data: dict) -> dict:
 
 
 def _normalize_boundary_lookup_key(message: str) -> str:
-    """Normalize a boundary label for reverse lookup (case/spacing/slash insensitive)."""
-    return message.lower().strip().replace(" ", "").replace("/", "")
+    """Normalize a boundary label for reverse lookup (case/spacing/separator insensitive)."""
+    return message.lower().strip().replace(" ", "").replace("/", "").replace("-", "")
 
 
 def build_localization_reverse_map(messages: List[Dict[str, Any]]) -> Dict[str, List[str]]:
