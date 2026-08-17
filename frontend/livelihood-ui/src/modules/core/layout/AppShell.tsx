@@ -1,13 +1,18 @@
 import { getModuleNavItems } from "@/module-registry";
 import {
+  aggregateBoundaryCodes,
   contextPath,
   employeeLoginPath,
   employeeProfilePath,
   getConfigString,
+  getDefaultLanguage,
+  i18n,
   logoutUser,
+  setLocale,
   tenantId,
   translateOr,
   useAuthStore,
+  useBoundary,
   useJurisdictionStore,
   useTranslate,
   type NavItem,
@@ -65,6 +70,8 @@ export function AppShell() {
   const employeeTenantId = useAuthStore((state) => state.employeeTenantId);
   const clearSession = useAuthStore((state) => state.clearSession);
   const clearJurisdiction = useJurisdictionStore((state) => state.clearJurisdiction);
+  const boundaries = useJurisdictionStore((state) => state.boundaries);
+  useBoundary(aggregateBoundaryCodes(boundaries));
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const { t } = useTranslate();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -299,9 +306,14 @@ export function AppShell() {
                 } catch {
                   // best-effort: proceed with local sign-out even if the server call fails
                 } finally {
+                  try {
+                    await setLocale(getDefaultLanguage());
+                  } catch {
+                    // best-effort: proceed with sign-out even if resetting the locale fails
+                  }
                   clearSession();
                   clearJurisdiction();
-                  toast.success(translateOr(t, "CORE_LOGOUT_SUCCESS_TOAST", "Signed out successfully"));
+                  toast.success(translateOr(i18n.t, "CORE_LOGOUT_SUCCESS_TOAST", "Signed out successfully"));
                   void navigate({ to: employeeLoginPath() });
                 }
               }}

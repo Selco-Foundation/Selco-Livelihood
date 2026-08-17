@@ -1,6 +1,5 @@
 import { getConfig, translateOr, useLoginBannerImages, useTranslate } from "@/shared";
 import type { ReactNode } from "react";
-import { LanguageSwitcher } from "./LanguageSwitcher";
 import { LoginCarousel } from "./LoginCarousel";
 
 interface AuthLayoutProps {
@@ -19,17 +18,12 @@ export function AuthLayout({ title, subtitle, children }: AuthLayoutProps) {
   return (
     <div className="font-poppins flex min-h-screen bg-white">
       <div className="relative flex min-h-screen w-full flex-col items-center px-6 py-10 lg:w-[60%] lg:min-w-[480px] lg:justify-center lg:px-8 lg:py-8">
-        <div className="absolute inset-x-8 top-8 hidden items-center justify-between lg:flex">
+        <div className="absolute inset-x-8 top-8 hidden items-center lg:flex">
           <img
             src={logo?.url}
             alt={logoAlt}
             className="h-[68px] w-auto object-contain"
           />
-          <LanguageSwitcher />
-        </div>
-
-        <div className="absolute top-4 right-4 lg:hidden">
-          <LanguageSwitcher />
         </div>
 
         <div className="mt-20 flex w-full max-w-[360px] flex-col gap-5 lg:mt-0">
