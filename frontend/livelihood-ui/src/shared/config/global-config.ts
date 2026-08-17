@@ -39,7 +39,10 @@ function normalizeStateBoundaryLanguage(raw: unknown): StateBoundaryLanguage | n
   if (!raw || typeof raw !== "object") return null;
   const item = raw as Record<string, unknown>;
   if (typeof item.code !== "string" || typeof item.label !== "string") return null;
-  const nativeLabel = typeof item.nativeLabel === "string" ? item.nativeLabel : item.label;
+  const nativeLabel =
+    typeof item.nativeLabel === "string" && item.nativeLabel.trim().length > 0
+      ? item.nativeLabel
+      : item.label;
   return { code: item.code, label: item.label, nativeLabel };
 }
 
