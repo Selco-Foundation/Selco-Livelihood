@@ -38,18 +38,17 @@ export {
 export { fetchFacilities, type FacilitySummary } from "./api/facility";
 export {
   fetchMdmsMasters,
+  fetchLanguages,
   fetchLoginBannerImages,
+  type SupportedLanguage,
   type LoginBannerImage,
 } from "./api/mdms";
 export {
   contextPath,
   getConfig,
   getConfigString,
-  getStateBoundaryLanguages,
   isGlobalConfigLoaded,
   tenantId,
-  type StateBoundaryLanguage,
-  type StateBoundaryLanguageEntry,
 } from "./config/global-config";
 export {
   employeeHomePath,
@@ -61,9 +60,9 @@ export {
 } from "./config/routes";
 export { queryClient } from "./query/query-client";
 export { QueryProvider } from "./query/provider";
-export { useAvailableLanguages } from "./hooks/use-available-languages";
 export { useBoundary } from "./hooks/use-boundary";
 export { useFacility } from "./hooks/use-facility";
+export { useLanguages } from "./hooks/use-languages";
 export { useLoginBannerImages } from "./hooks/use-login-banner-images";
 export { useAuthStore, type AuthUser } from "./stores/auth-store";
 export { useJurisdictionStore } from "./stores/jurisdiction-store";
@@ -106,7 +105,6 @@ export {
   buildJurisdictionBoundaries,
   type JurisdictionBoundaries,
 } from "./utils/boundary-util";
-export { dedupeLanguages } from "./utils/boundary-languages";
 export {
   assertEmployeeRolesAllowed,
   filterRolesForEmployeeTenant,
