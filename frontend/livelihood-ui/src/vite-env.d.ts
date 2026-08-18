@@ -13,7 +13,6 @@ interface ImportMeta {
 
 interface GlobalConfigs {
   getConfig: (key: string) => string | boolean | string[] | undefined;
-  getStateBoundaryInfos?: (boundaryCodes: string[]) => Array<Record<string, unknown>>;
 }
 
 interface Window {
