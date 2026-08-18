@@ -1,4 +1,4 @@
-import { setLocale, translateOr, useAvailableLanguages, useLocaleStore, useTranslate } from "@/shared";
+import { setLocale, translateOr, useLanguages, useLocaleStore, useTranslate } from "@/shared";
 import {
   Button,
   DropdownMenu,
@@ -16,7 +16,7 @@ interface LanguageSwitcherProps {
 
 export function LanguageSwitcher({ compact = false }: LanguageSwitcherProps = {}) {
   const currentLocale = useLocaleStore((state) => state.locale);
-  const languages = useAvailableLanguages();
+  const languages = useLanguages();
   const [isSwitching, setIsSwitching] = useState(false);
   const { t } = useTranslate();
 
