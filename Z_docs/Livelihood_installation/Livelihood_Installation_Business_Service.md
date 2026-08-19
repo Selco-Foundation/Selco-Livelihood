@@ -219,6 +219,8 @@ The LLD flagged this as an open question (§3.3); having now read the full PRD (
 
 This is a UI/API-surface decision, not a workflow-config change — no alteration to the already-live `FACILITY_INSTALLATION` registration is needed or proposed.
 
+**`SUBMIT_REPORT_A`/`SUBMIT_REPORT_B` are additionally gated by a compulsory Purchase/Work Order No. check** (LLD §3.3): `field-planner-activity`'s service layer reads `installation_template.purchase_order_number` for this `bom` row's `(field_plan_id, solution_id)`, falling back to a technician-entered override on `bom.data` if the template's value is blank — if both are empty, the call is rejected before either transition is attempted, same as the pre-existing OTP-verification gate at this same Submit action. Like the `PUBLISH` gate above, this is a plain service-layer precondition, not something `egov-workflow-v2` itself enforces. `tender_number` has no equivalent check anywhere in this business service — it's optional end to end.
+
 ### 3.4 Role mapping (PRD role → platform role code → workflow action)
 
 | PRD role (§5 User Roles) | Platform HRMS role code | Action(s) it triggers | Notes |

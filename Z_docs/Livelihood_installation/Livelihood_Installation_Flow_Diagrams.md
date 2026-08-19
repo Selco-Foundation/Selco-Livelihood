@@ -425,105 +425,70 @@ installation reports are approved."
 }
 ```
 
-### Step 7 — Download Vendor Assignment Excel (Sheet 2)
+### Step 7 — Assign Vendor + Vendor Email per row (Web UI)
+
+> **⚠️ Design change:** this step was originally modeled as an Excel download/upload round-trip through `ingestion-service` (the old "Sheet 2"), matching the PRD's literal FR-07 text. It has since been moved to a direct Project Manager Web UI screen instead — `ingestion-service` is no longer involved in Vendor Assignment at all (LLD §1.1/§5.2). The sequence below reflects the current, Web-UI-based design.
 
 ```mermaid
 sequenceDiagram
     actor PM as Project Manager (Web UI)
-    participant ING as ingestion-service
-    participant FPA as field-planner-activity
-    participant DB as bom (DB)
-
-    PM->>ING: Download Vendor Assignment Excel (Sheet 2, per Machine/Solar row)
-    ING->>FPA: read bom rows (auto-created per facility_activity x asset_type)
-    FPA->>DB: SELECT bom
-    DB-->>FPA: rows
-    FPA-->>ING: bom rows (Machine + Solar, blank vendor fields)
-    alt no bom rows exist yet
-        ING-->>PM: 400 NO_BOM_ROWS — complete Sheet 1 first
-    else rows exist
-        ING-->>PM: Excel (one row per Machine/Solar per site)
-    end
-```
-
-- **API Path:** `POST /ingestion-service/template/vendorAssignmentTemplate`
-- **Service:** `ingestion-service` (reads `field-planner-activity`'s `bom` rows internally)
-- **Kafka:** No
-- **DB Write:** No (read-only) — reads `bom` rows (auto-created blank per `facility_activity` × `asset_type`, Machine + Solar)
-- **Data generated:** Excel: one row per Machine/Solar per site
-
-**Sample Request** (§6.1, multipart form)
-```
-field_plan_id: IP-2026-001
-request_info: {...}
-```
-
-**Sample Response** (§6.1)
-```
-200 OK — .xlsx, columns: Site Name (readonly), Village, State, Solution (readonly),
-Asset Type (readonly: Machine/Solar), Vendor Organisation (dropdown, filtered by State only),
-Vendor Email (dropdown)
-```
-
-**Sample Error** (illustrative — not in API Doc)
-```json
-{
-  "ResponseInfo": { "status": "failed" },
-  "Errors": [ { "code": "NO_BOM_ROWS", "message": "No Machine/Solar rows exist yet — complete Sheet 1 first" } ]
-}
-```
-
-### Step 8 — Assign Vendor + Vendor Email per row, upload
-
-```mermaid
-sequenceDiagram
-    actor PM as Project Manager (Web UI)
-    participant ING as ingestion-service
     participant FPA as field-planner-activity
     participant VR as vendor-registry
     participant KAFKA as Kafka (update-bom-topic)
     participant DB as bom (DB)
 
-    PM->>ING: Upload Sheet 2 (Vendor + Vendor Email per row)
-    ING->>ING: validate columns (VendorAssignmentSchema)
-    ING->>VR: validate vendor eligibility per row (State-jurisdiction match)
-    VR-->>ING: eligible / not eligible
-    alt any row: vendor not eligible for state
-        ING-->>PM: Whole sheet rejected — annotated .xlsx, error="Vendor not eligible for state=KA"
-    else all rows eligible
-        loop per row
-            ING->>FPA: _update bom (vendorOrgId, vendorEmail)
-            FPA->>KAFKA: publish update-bom-topic event
-            FPA-->>ING: 202-style ack — DB write pending
-            KAFKA->>DB: (persister) UPDATE bom SET vendor_org_id, vendor_email
+    PM->>FPA: Open Vendor Assignment screen for this Plan
+    FPA->>DB: SELECT bom (auto-created per facility_activity x asset_type)
+    DB-->>FPA: rows
+    alt no bom rows exist yet
+        FPA-->>PM: 400 NO_BOM_ROWS — complete Installation Scope (Sheet 1) first
+    else rows exist
+        FPA-->>PM: bom rows shown in-screen (Machine + Solar, blank vendor fields)
+        PM->>FPA: Assign Vendor Organisation + Vendor Email per row
+        FPA->>VR: validate vendor eligibility per row (State-jurisdiction match)
+        VR-->>FPA: eligible / not eligible
+        alt any row: vendor not eligible for state
+            FPA-->>PM: 400 VENDOR_NOT_ELIGIBLE — row-level error, e.g. "Vendor not eligible for state=KA"
+        else all rows eligible
+            loop per row
+                FPA->>KAFKA: publish update-bom-topic event
+                FPA-->>PM: 202-style ack — DB write pending
+                KAFKA->>DB: (persister) UPDATE bom SET vendor_org_id, vendor_email
+            end
+            FPA-->>PM: Vendor assignment confirmed
         end
-        ING-->>PM: Vendor assignment confirmed
     end
 ```
 
-- **API Path(s) / Service(s)** (§6.2, §3.2, §6.3):
-  1. `POST /ingestion-service/ingest/vendorAssignment` — **ingestion-service** (row validation against `data-ingestion.VendorAssignmentSchema`)
+- **API Path(s) / Service(s)** (illustrative — no `ingestion-service` involvement to cite here; API Doc's §6.1–§6.3 still describe the old Excel-based endpoints and haven't been updated for this design change):
+  1. `POST /v1/bom/_search` — **field-planner-activity** (fetch bom rows for this Plan, to populate the Web UI grid)
   2. `POST /organisation/v1/_search` — **vendor-registry** (jurisdiction/State eligibility check, reads `eg_org_jurisdiction`)
-  3. `POST /v1/bom/_update` — **field-planner-activity** (per-row write, called from call 1's row loop)
-- **Kafka:** **Yes** — confirmed in code: `BomService.java:197` calls `producer.push(getUpdateBOMTopic(), request)` → topic `update-bom-topic`; no JDBC write exists anywhere in `BomRepository.java` (only `_search` uses `JdbcTemplate`). Same persister-config-not-found caveat as Step 4 applies (topic not mapped in the local, stale `FieldPlanner-persister.yml`).
+  3. `POST /v1/bom/_update` — **field-planner-activity** (per-row write)
+- **Kafka:** Call 3 — **Yes**, confirmed in code: `BomService.java:197` calls `producer.push(getUpdateBOMTopic(), request)` → topic `update-bom-topic`; no JDBC write exists anywhere in `BomRepository.java` (only `_search` uses `JdbcTemplate`). Same persister-config-not-found caveat as Step 4 applies (topic not mapped in the local, stale `FieldPlanner-persister.yml`). Calls 1/2 — read-only, direct synchronous REST.
 - **DB Write:** Yes — `bom.vendor_org_id`, `bom.vendor_email` (written asynchronously via call 3's Kafka producer)
 - **Data generated:** Vendor assigned per asset row
 
-**Sample Request** (call 1, §6.2, multipart form)
-```
-field_plan_id: IP-2026-001
-vendor_assignment_file: <Sheet2-Completed.xlsx>
-request_info: {...}
+**Sample Request** (call 1, illustrative, consistent with §6.3's model)
+```json
+{ "criteria": { "tenantId": "in", "fieldPlanId": "IP-2026-001" } }
 ```
 
-**Sample Response** (call 1, §6.2 — annotated workbook)
-```
-200 OK — same .xlsx returned with status/error columns filled in per row
+**Sample Response** (call 1, illustrative)
+```json
+{
+  "BillOfMaterial": [
+    { "id": "bom-uuid-1", "activityFacilityId": "fac-act-uuid-42", "assetType": "MACHINE", "vendorOrgId": null, "vendorEmail": null }
+  ],
+  "totalCount": 1
+}
 ```
 
-**Sample Error** (call 1, §6.2)
-```
-row-level: status=failed, error="Vendor not eligible for state=KA"
+**Sample Error** (illustrative — no bom rows yet)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "NO_BOM_ROWS", "message": "No Machine/Solar rows exist yet — complete Installation Scope (Sheet 1) first" } ]
+}
 ```
 
 **Sample Request** (call 2, §3.2)
@@ -549,7 +514,20 @@ row-level: status=failed, error="Vendor not eligible for state=KA"
 }
 ```
 
-### Step 9 — Enter Tender Number & download prepopulated Installation Template
+**Sample Request** (call 3, illustrative, extract)
+```json
+{ "BillOfMaterials": [ { "id": "bom-uuid-1", "tenantId": "in", "vendorOrgId": "org-uuid-1", "vendorEmail": "ops@suntech.example" } ] }
+```
+
+**Sample Error** (call 3, illustrative — vendor not eligible for this row's state)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "VENDOR_NOT_ELIGIBLE", "message": "Vendor not eligible for state=KA" } ]
+}
+```
+
+### Step 8 — Download prepopulated Installation Template
 
 ```mermaid
 sequenceDiagram
@@ -634,17 +612,18 @@ Capacity, Technical Specifications
 }
 ```
 
-### Step 10 — Adjust Template + Tender Number, upload
+### Step 9 — Adjust Template + Tender Number / Purchase Order No., upload
 
 ```mermaid
 sequenceDiagram
     actor PM as Project Manager (Web UI)
     participant ING as ingestion-service
     participant FPA as field-planner-activity
+    participant IDGEN as egov-idgen
     participant KAFKA as Kafka (proposed topic — not yet implemented)
-    participant DB as installation_template (DB)
+    participant DB as installation_template / bom (DB)
 
-    PM->>ING: Upload adjusted Template + Tender Number
+    PM->>ING: Upload adjusted Template + Tender Number / Purchase Order No.
     ING->>ING: validate columns (InstallationTemplateSchema)
     alt any row fails validation (e.g. missing required field)
         ING-->>PM: Whole sheet rejected — annotated .xlsx, error="Capacity is required for row 3 (Motor)"
@@ -652,18 +631,28 @@ sequenceDiagram
         ING->>FPA: _create/_update installation_template
         Note over FPA,DB: confirmed absent from the codebase — no controller/service/table for installation_template exists yet (🆕 New, not yet built)
         FPA->>KAFKA: publish create/update event (recommended — same producer pattern as this service's existing bom/activity_assignments writes)
-        KAFKA->>DB: (persister) UPSERT installation_template (machine_section, solar_section, tender_number)
+        KAFKA->>DB: (persister) UPSERT installation_template (machine_section, solar_section, tender_number, purchase_order_number)
+        FPA->>DB: SELECT bom WHERE field_plan_id, solution_id (rows already exist from Vendor Assignment, Step 7)
+        DB-->>FPA: matching bom rows
+        FPA->>IDGEN: _generateIds (one Report Number per matching bom row)
+        IDGEN-->>FPA: generated report_number values
+        FPA->>KAFKA: publish update-bom-topic event(s) (report_number)
+        KAFKA->>DB: (persister) UPDATE bom SET report_number
         FPA-->>ING: saved
         ING-->>PM: Template saved per Solution
     end
 ```
 
+Note: `tender_number` may be left blank in this upload (optional). `purchase_order_number` may also be left blank here — it isn't validated at this step or at Publish (PM flow Step 10 below) — but is compulsory by the time the Field Technician submits the IC Report (Field Technician flow, Step 10), at which point it must be present either from this template upload or from the technician's own in-app entry. Unlike either of those, `report_number` is never entered by the PM or the Field Technician — it's generated automatically, right here, for every `bom` row already scoped to this `(field_plan_id, solution_id)`, the moment this upload succeeds (LLD §3.3). By the time a Field Technician opens their assigned task (Field Technician flow, Step 1), `report_number` is already populated on that row.
+
 - **API Path(s) / Service(s)** (§6.5, §6.6):
   1. `POST /ingestion-service/ingest/installationTemplate` — **ingestion-service** (row validation against `data-ingestion.InstallationTemplateSchema`)
   2. `POST /v1/installation-templates/_create` / `_update` — **field-planner-activity** (called from call 1's row loop)
-- **Kafka:** **Not yet implemented — confirmed absent from the codebase.** Repo-wide search found zero controller, service, repository, model, or DB migration referencing `installation_template`/`InstallationTemplate` anywhere; `field-planner-activity`'s only controllers are `HealthApiController`, `ActivityApiController`, `BOMApiController`. Since this is a 🆕 New endpoint (API Doc), that's expected rather than a gap. **Logical inference, not a confirmed fact:** every existing write path in this same service (`activity_assignments`, `bom` create/update) uses `producer.push(topic, entity)` with zero direct JDBC writes found anywhere in the service — so once built, `installation_template` would very likely follow the identical Kafka-producer pattern for consistency.
-- **DB Write:** Not yet implemented — `installation_template` table itself was not found in this repo's migrations
-- **Data generated:** one `installation_template` row per `(field_plan_id, solution_id)`
+  3. `POST /egov-idgen/id/_generate` — **egov-idgen** (external, one Report Number per matching `bom` row — 🆕 new usage of this existing DIGIT service, same pattern as Project ID/Plan ID generation, LLD §3.1/§3.2)
+  4. `POST /v1/bom/_update` — **field-planner-activity** (writes the generated `report_number` back onto each matching `bom` row)
+- **Kafka:** **Not yet implemented — confirmed absent from the codebase.** Repo-wide search found zero controller, service, repository, model, or DB migration referencing `installation_template`/`InstallationTemplate` anywhere; `field-planner-activity`'s only controllers are `HealthApiController`, `ActivityApiController`, `BOMApiController`. Since this is a 🆕 New endpoint (API Doc), that's expected rather than a gap. **Logical inference, not a confirmed fact:** every existing write path in this same service (`activity_assignments`, `bom` create/update) uses `producer.push(topic, entity)` with zero direct JDBC writes found anywhere in the service — so once built, `installation_template` would very likely follow the identical Kafka-producer pattern for consistency. Call 4's own `bom.report_number` write would follow the confirmed `update-bom-topic` producer pattern already used for `bom.otp_uuid` (Field Technician flow, Step 8).
+- **DB Write:** Not yet implemented — `installation_template` table itself was not found in this repo's migrations. `bom.report_number` is a new column on an existing table (§3.3), also not yet implemented.
+- **Data generated:** one `installation_template` row per `(field_plan_id, solution_id)`; one `report_number` per matching `bom` row
 
 **Sample Request** (call 1, §6.5, multipart form)
 ```
@@ -690,18 +679,36 @@ row-level: status=FAILED, error="Capacity is required for row 3 (Motor)"
     {
       "tenantId": "in", "fieldPlanId": "IP-2026-001", "solutionId": "SOL-PULVERIZER-001",
       "machineSection": { "components": [ { "name": "Motor", "quantity": 1, "make": "Crompton", "model": "CG-5HP", "capacity": "5HP" } ] },
-      "solarSection": { "components": [ { "name": "Panel", "quantity": 4, "make": "Waaree", "model": "WS-200", "capacity": "200W" } ] }
+      "solarSection": { "components": [ { "name": "Panel", "quantity": 4, "make": "Waaree", "model": "WS-200", "capacity": "200W" } ] },
+      "tenderNumber": null,
+      "purchaseOrderNumber": "PO-2026-00417"
     }
   ]
 }
 ```
+*(`tenderNumber` shown here as `null` to illustrate that it's optional — a PM can also leave `purchaseOrderNumber` `null` at this step and have the Field Technician fill it in later, per the note above.)*
 
 **Sample Response** (call 2, §6.6)
 ```json
 { "InstallationTemplate": [ { "id": "tmpl-uuid-1" } ] }
 ```
 
-### Step 11 — Run Publish validation
+**Sample Request** (call 3, illustrative — same shape as this repo's other `egov-idgen` usage, LLD §3.1)
+```json
+{ "idRequests": [ { "idName": "bom.report.number", "tenantId": "in", "format": "IC-[fy:yyyy-yy]-[SEQ_IC_REPORT]" } ] }
+```
+
+**Sample Response** (call 3, illustrative)
+```json
+{ "idResponses": [ { "idName": "bom.report.number", "id": "IC-2026-27-00842" } ] }
+```
+
+**Sample Request** (call 4, illustrative, extract)
+```json
+{ "BillOfMaterials": [ { "id": "bom-uuid-1", "tenantId": "in", "reportNumber": "IC-2026-27-00842" } ] }
+```
+
+### Step 10 — Run Publish validation
 
 ```mermaid
 sequenceDiagram
@@ -746,7 +753,7 @@ POST /v1/field-plans/IP-2026-001/_publish-validate   (empty body besides Request
 }
 ```
 
-### Step 12 — Confirm & Submit (Publish)
+### Step 11 — Confirm & Submit (Publish)
 
 ```mermaid
 sequenceDiagram
@@ -802,7 +809,7 @@ sequenceDiagram
 }
 ```
 
-### Step 13 — (system) Publish notification to Vendors
+### Step 12 — (system) Publish notification to Vendors
 
 ```mermaid
 sequenceDiagram
@@ -825,7 +832,7 @@ sequenceDiagram
     end
 ```
 
-- **API Path:** internal side effect of Step 12's `PUBLISH` transition — not separately itemized in the API Doc (§7.2 note, §11: "not itemized as a separate API since it's an internal side effect of this same transition"). Underlying mechanism: `field-planner-activity`'s `bom.vendor_email` is read directly (no itemized search path given); the email call itself goes through `im-services`' `LivelihoodEmailNotificationService`.
+- **API Path:** internal side effect of Step 11's `PUBLISH` transition — not separately itemized in the API Doc (§7.2 note, §11: "not itemized as a separate API since it's an internal side effect of this same transition"). Underlying mechanism: `field-planner-activity`'s `bom.vendor_email` is read directly (no itemized search path given); the email call itself goes through `im-services`' `LivelihoodEmailNotificationService`.
 - **Service:** `field-planner` (reads `bom.vendor_email` from `field-planner-activity`) → `im-services`
 - **Kafka:** **Yes** — `im-services`' Email notification path publishes to a Kafka topic consumed by an email consumer (API Doc §11)
 - **DB Write:** No new table — reads `bom`
@@ -890,11 +897,12 @@ sequenceDiagram
 ```json
 {
   "BillOfMaterial": [
-    { "id": "bom-uuid-1", "activityFacilityId": "fac-act-uuid-42", "assetType": "MACHINE", "vendorOrgId": "org-uuid-1", "data": {} }
+    { "id": "bom-uuid-1", "activityFacilityId": "fac-act-uuid-42", "assetType": "MACHINE", "vendorOrgId": "org-uuid-1", "reportNumber": "IC-2026-27-00842", "data": {} }
   ],
   "totalCount": 1
 }
 ```
+*(`reportNumber` arrives already populated — it was system-generated back at the Project Manager's Installation Template upload, Project Manager flow Step 9, not something this screen or the technician generates.)*
 
 **Sample Error** (illustrative — not in API Doc)
 ```json
@@ -918,15 +926,15 @@ sequenceDiagram
     alt template not found
         FPA-->>FT: 400 TEMPLATE_NOT_FOUND
     else found
-        FPA-->>FT: machine_section / solar_section (scoped to this asset_type)
+        FPA-->>FT: machine_section / solar_section (scoped to this asset_type)\n+ tender_number / purchase_order_number
     end
 ```
 
 - **API Path:** `POST /v1/installation-templates/_search`
 - **Service:** `field-planner-activity`
 - **Kafka:** No
-- **DB Write:** No (read-only) — reads `installation_template.machine_section` / `solar_section` (scoped to this row's `asset_type`)
-- **Data generated:** template line items shown in-app
+- **DB Write:** No (read-only) — reads `installation_template.machine_section` / `solar_section` (scoped to this row's `asset_type`), plus `tender_number` / `purchase_order_number`
+- **Data generated:** template line items shown in-app, plus whichever of Tender Number / Purchase Order No. the PM already filled in (either may arrive blank — see Step 4 below for what the app does then)
 
 **Sample Request** (illustrative shape, consistent with §6.6's model — API Doc doesn't itemize a `_search` sample for this)
 ```json
@@ -940,7 +948,9 @@ sequenceDiagram
     {
       "id": "tmpl-uuid-1", "fieldPlanId": "IP-2026-001", "solutionId": "SOL-PULVERIZER-001",
       "machineSection": { "components": [ { "name": "Motor", "quantity": 1, "make": "Crompton", "model": "CG-5HP", "capacity": "5HP" } ] },
-      "solarSection": { "components": [ { "name": "Panel", "quantity": 4, "make": "Waaree", "model": "WS-200", "capacity": "200W" } ] }
+      "solarSection": { "components": [ { "name": "Panel", "quantity": 4, "make": "Waaree", "model": "WS-200", "capacity": "200W" } ] },
+      "tenderNumber": null,
+      "purchaseOrderNumber": "PO-2026-00417"
     }
   ]
 }
@@ -976,6 +986,7 @@ sequenceDiagram
     actor FT as Field Technician (Android App)
 
     FT->>FT: Confirm/edit template line items (quantity + make), enter System Functionality Parameters
+    FT->>FT: Enter/edit Tender Number (optional) and Purchase Order No.\nif left blank on the template
     Note over FT: held locally on device if offline
 ```
 
@@ -983,7 +994,7 @@ sequenceDiagram
 - **Service:** none
 - **Kafka:** N/A
 - **DB Write:** No — none yet, destined for `bom.data`
-- **Data generated:** report field values held on-device
+- **Data generated:** report field values held on-device, plus a `tenderNumber`/`purchaseOrderNumber` override if the technician filled in a value the template (fetched at Step 2) left blank. Purchase Order No. is compulsory — since the app already has the template's own value from Step 2, it can warn locally if neither the template nor this entry has one filled in, though the authoritative check that actually blocks Submit is server-side, at Step 10.
 
 ### Step 5 — Capture Photos / Video
 
@@ -1153,9 +1164,11 @@ sequenceDiagram
     FPA->>KAFKA1: publish update-bom-topic event (documents[] + data)
     FPA-->>FPA: DB write pending, async
     KAFKA1->>DB1: (persister) INSERT bom_document (PHOTO/VIDEO), UPDATE bom.data
-    alt OTP not verified for this bom row
+    alt Purchase/Work Order No. missing (neither installation_template nor bom.data has one)
+        FPA-->>FT: 400 PURCHASE_ORDER_NUMBER_REQUIRED — cannot submit
+    else OTP not verified for this bom row
         FPA-->>FT: 400 OTP_NOT_VERIFIED — cannot submit
-    else OTP verified
+    else Purchase/Work Order No. present and OTP verified
         FPA->>WF: SUBMIT_REPORT_A
         WF->>KAFKA2: publish save-wf-transitions event
         WF-->>FPA: transitioned
@@ -1172,8 +1185,9 @@ sequenceDiagram
   2. `POST /v1/bom/_update` — **field-planner-activity** (writes `bom_document` rows via `documents[]`, and `bom.data`)
   3. `POST /egov-wf/process/_transition` — **egov-workflow-v2**, called **twice**: `action: "SUBMIT_REPORT_A"` then `action: "SUBMIT_REPORT_B"` (`businessService: "FACILITY_INSTALLATION"`)
 - **Kafka:** Call 2 — **Yes**, confirmed in code: `BomService.java:197` pushes to `update-bom-topic`, and `BillOfMaterial.java:48-49`'s nested `documents` field means `bom_document` rows travel in the same payload/topic as `bom.data` (no separate topic). Call 3 — **Yes**, confirmed: `StatusUpdateService.java:48` pushes both `SUBMIT_REPORT_A` and `SUBMIT_REPORT_B` transitions to `save-wf-transitions`, matching `egov-workflow-v2-persister.yml:6`. Call 1 (filestore upload) — Not specified in docs; `egov-filestore` was out of scope for this code investigation and is plain file storage, with no clear reason to expect a Kafka hop.
-- **DB Write:** Yes — `bom_document` (`documenttype='PHOTO'/'VIDEO'`), `bom.data` (async via `update-bom-topic`); `eg_wf_processinstance_v2` (2 transitions, async via `save-wf-transitions`)
+- **DB Write:** Yes — `bom_document` (`documenttype='PHOTO'/'VIDEO'`), `bom.data` (async via `update-bom-topic`, including any `tenderNumber`/`purchaseOrderNumber` override entered at Step 4); `eg_wf_processinstance_v2` (2 transitions, async via `save-wf-transitions`)
 - **Data generated:** report content persisted; workflow state → `SUBMITTED_BY_SUPERVISOR`; enters Reviewer queue
+- **Compulsory-field check:** before either workflow transition fires, `field-planner-activity` reads `purchase_order_number` off `installation_template` (joined via this `bom` row's `solution_id`/`field_plan_id`) and, if still blank, off this `bom.data`'s own override — if both are empty, the call is rejected with `PURCHASE_ORDER_NUMBER_REQUIRED` before `SUBMIT_REPORT_A` is ever attempted. This is a plain service-layer check, not a call to any other service (unlike the OTP gate, which does call out to `egov-otp`) — see LLD §3.3.
 
 **Sample Request** (call 1, §8.4, multipart)
 ```
@@ -1194,10 +1208,12 @@ module: installation
     { "id": "bom-uuid-1", "tenantId": "in",
       "documents": [ { "documentType": "PHOTO", "fileStoreId": "fs-uuid-1" } ],
       "data": { "components": [ { "name": "Motor", "quantity": 1, "make": "Crompton", "model": "CG-5HP", "installedCapacity": "5HP" } ],
-                "systemFunctionalityParameters": { "arraySizeKwp": 5.2, "noOfModules": 20 } } }
+                "systemFunctionalityParameters": { "arraySizeKwp": 5.2, "noOfModules": 20 },
+                "purchaseOrderNumber": "PO-2026-00418" } }
   ]
 }
 ```
+*(`purchaseOrderNumber` appears in `bom.data` here because the technician filled it in — `installation_template` had left it blank for this Solution; if the template already had a value, this key would be omitted and the template's value would satisfy the compulsory check below.)*
 
 **Sample Request** (call 3, §8.5 — fired twice, `action` is the only field that changes)
 ```json
@@ -1218,6 +1234,14 @@ module: installation
 {
   "ResponseInfo": { "status": "failed" },
   "Errors": [ { "code": "OTP_NOT_VERIFIED", "message": "End-user OTP must be verified before SUBMIT_REPORT_A" } ]
+}
+```
+
+**Sample Error** (illustrative — not in API Doc; e.g. attempting Submit with no Purchase/Work Order No. from either the template or this technician's own entry)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "PURCHASE_ORDER_NUMBER_REQUIRED", "message": "Purchase/Work Order No. must be entered before this report can be submitted" } ]
 }
 ```
 
@@ -1242,7 +1266,7 @@ sequenceDiagram
     end
 ```
 
-- **API Path:** internal side effect of Step 10's `SUBMIT_REPORT_B` transition — not separately itemized in the API Doc (same pattern as PM-flow Step 13). Underlying call: `im-services`' `LivelihoodEmailNotificationService`.
+- **API Path:** internal side effect of Step 10's `SUBMIT_REPORT_B` transition — not separately itemized in the API Doc (same pattern as PM-flow Step 12). Underlying call: `im-services`' `LivelihoodEmailNotificationService`.
 - **Service:** `field-planner-activity` (reads `activity_assignments`, `bom.vendor_email`) → `im-services`
 - **Kafka:** **Yes** — Email notification path is Kafka-topic-based (API Doc §11)
 - **DB Write:** No new table — reads `activity_assignments` (role `INSTALLATION_REVIEWER`) for reviewer email; reads `bom.vendor_email` direct
@@ -1715,7 +1739,7 @@ sequenceDiagram
   2. `POST /v1/bom/_search` (§6.3, existing) — reads `facility_activities`/`bom` completeness
   3. `im-services`' `LivelihoodEmailNotificationService` — Email to Senior Programme Manager
   4. `POST /v1/field-plans/_update` (implied, existing `field-planner` update) — writes `installation_breach_last_notified_time`
-- **Kafka:** **Yes** for call 3 (Email via Kafka topic, API Doc §11) **and** call 4 — confirmed in code, same producer as PM-flow Step 4/12: `FieldPlannerService.java:517` pushes every `field_plans` update to topic `update-fieldplan` (persister config for this topic not found in repo, same caveat as elsewhere). Calls 1/2 are reads (confirmed direct `JdbcTemplate` queries, no Kafka).
+- **Kafka:** **Yes** for call 3 (Email via Kafka topic, API Doc §11) **and** call 4 — confirmed in code, same producer as PM-flow Step 4/11: `FieldPlannerService.java:517` pushes every `field_plans` update to topic `update-fieldplan` (persister config for this topic not found in repo, same caveat as elsewhere). Calls 1/2 are reads (confirmed direct `JdbcTemplate` queries, no Kafka).
 - **DB Write:** Yes — `field_plans.installation_breach_last_notified_time`, written asynchronously via Kafka; reads `field_plans` (`status`, `end_date`), `facility_activities`, `bom` (approval completeness)
 - **Data generated:** weekly-gated Email to `senior_contact_email` via `im-services`
 

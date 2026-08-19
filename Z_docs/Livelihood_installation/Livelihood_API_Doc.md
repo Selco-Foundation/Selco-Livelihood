@@ -72,7 +72,7 @@ These wrappers are omitted from the samples below for brevity — assume every r
 | 5 | POST | `/ingestion-service/template/facilitySelection` | ingestion-service | 🔧 | FR-03 | Download End User Site scope Excel |
 | 6 | POST | `/ingestion-service/ingest/facilitySelection` | ingestion-service | 🔧 | FR-03 | Upload Project site-scope Excel (endpoint already exists) |
 | 7 | POST | `/v1/field-plans/_create` / `_update` | field-planner | 🔧 | FR-04 | Create/update Installation Plan |
-| 8 | POST | `/v1/activities/_assign-activity` | field-planner-activity | ♻️ | FR-04 | Assign Installation Reviewer (SPOC = Field Technician, confirmed; assigned via Vendor Assignment §4.9, not this endpoint) |
+| 8 | POST | `/v1/activities/_assign-activity` | field-planner-activity | ♻️ | FR-04 | Assign Installation Reviewer |
 | 9 | POST | `/ingestion-service/template/fieldplanFacilityIngestionTemplate` | ingestion-service | 🔧 | FR-05 | Download Installation Scope Excel (Sheet 1) |
 | 10 | POST | `/v1/field-plans/facility/bulk/_create` | field-planner | 🔧 | FR-05 | Bulk-assign Solution to sites |
 | 11 | POST | `/ingestion-service/ingest/fieldPlanfacilitiesValidateData` + `/createFieldPlanFacility` | ingestion-service | 🔧 | FR-05 | Upload Installation Scope Excel (Sheet 1) — both endpoints already exist |

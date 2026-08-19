@@ -19,7 +19,7 @@ Companion engineering doc to `Livelihood_Installation_App_PRD.pdf`. Covers: feat
 | `project` | `project` table (name, dates, `additionalDetails` JSONB, `status` + workflow via `ProjectWorkflowService`), `PROJECT_FACILITY` join table, `project_document`, `project_target` | Matches PRD **Project** entity almost exactly. `field_plans.project_id` already soft-references it — this is the platform's designated system-of-record for "Project." |
 | `field-planner` | `field_plans` (project_id, geography_scope JSONB, dates, status), `field_plan_facilities` (plan × facility join), `activities` master table, `activity_assignments` (plan × activity × assignee × role) | **`field_plans` IS the Installation Plan** — same entity, not an analogue. `activities` already has a seeded row for `code='INS', name='Installation'` with `required_roles = [INSTALLATION_SPOC, INSTALLATION_REVIEWER]` (migration `V20260331120000`), and `field_plan_facilities` already is the plan × site inclusion table FR-05/FR-06 need. The platform has already built the planning-layer scaffolding for this exact feature — it just needs a few added columns, not new tables. |
 | `field-planner-activity` | `facility_activities` (facility × activity × plan, workflow-driven `status`, `completed_at`), `bom` (freeform JSONB `data`, no uniqueness constraint on `activity_facility_id` — multiple rows per facility already schema-legal), `bom_document` (filestore attachments), PDF generation via `egov-pdf-service`, and a **fully live installation-report review/approval system**: business service `FACILITY_INSTALLATION` (config `egov.workflow.business.service`), roles `INSTALLATION_REPORT_PART_A_EDITOR`/`PART_B_EDITOR`/`APPROVER_QC_TEAM`, actions `SUBMIT_REPORT_A`/`SUBMIT_REPORT_B`/`APPROVE`/`REJECT_AND_ASSIGN_FOR_FIELD_QC`/`FLAG_FOR_QC`, all actively called from `frontend/installation-ui`'s `qc`/`fa` modules today | This **is** the IC Report system, not an analogue — `bom` is the per-report record, its workflow already implements submit→review→approve. §3.3 extends `bom` directly with asset-type/vendor/OTP columns. (A separate `docs/asset-registry/workflows/AssetInstallationWorkflow.json` business service, `asset-installation`, also exists but is **dead** — no code references it; don't confuse the two.) |
-| `ingestion-service` (Python) | Working Excel **template generation** (`template_generation.py`) + **upload parsing** with per-row `INVALID_TEMPLATE` errors (`excel_data_writer.py`) for facility/boundary/asset/staff templates | This is the *only* real Excel round-trip engine in the repo (no Java/POI implementation exists anywhere). PRD leans heavily on Excel (FR-03, FR-05, FR-07, FR-08) — directly reusable by adding new template types. |
+| `ingestion-service` (Python) | Working Excel **template generation** (`template_generation.py`) + **upload parsing** with per-row `INVALID_TEMPLATE` errors (`excel_data_writer.py`) for facility/boundary/asset/staff templates | This is the *only* real Excel round-trip engine in the repo (no Java/POI implementation exists anywhere). PRD leans heavily on Excel (FR-03, FR-05, FR-08) — directly reusable by adding new template types. FR-07 (Vendor Assignment) is the one exception — implemented as a direct Web UI screen instead, not an Excel round-trip (§5.2/§3.3), so it does not use this service. |
 | `vendor-registry` | `eg_org` (+ `org_subtype` already migrated `AMC_VENDOR → INSTALLATION_VENDOR`), `eg_org_user` (org ↔ HRMS user link, no type differentiation), `eg_org_jurisdiction` (already holds a vendor's assigned states) | **Vendor Organisation** entity already fully modeled for this feature — `eg_org_jurisdiction` covers "assigned states," and no asset-type eligibility concept is needed: confirmed there's no vendor-side Machine/Solar restriction, any vendor can be assigned to either asset type. No schema change needed here. Field Technicians are just HRMS users linked via `eg_org_user` with a new `FIELD_TECHNICIAN` role. |
 | `asset-registry` | `asset` table with `wf_status`, warranty fields, vendor/item-code/boundary-code columns already added | Correct handoff target for **Machine/Asset** (PRD FR-14) — no need to duplicate asset storage. |
 | `amc-scheduler-service` | Existing e4h-service that already runs periodic/scheduled jobs (today for AMC visit scheduling) | Reusable as the runner for both of §9 *Notification Matrix*'s weekly-summary checks ("Planned Installation breached" and "<40% complete near end date") — no need to build a new cron/scheduler component, see §3.8. |
@@ -39,7 +39,7 @@ Every entity in the PRD maps onto an existing service's domain, and the two serv
 However, the PRD's data shape (two asset rows — Machine + Solar — per site, each independently vendor-assigned, each with its own IC Report and **per-section** approval) is materially more structured than the generic `bom.data` JSONB blob or single-status `facility_activities` row can express cleanly. Rather than force-fitting this onto the generic `bom.data` blob (which must stay generic for *other* activity types like Survey), a small number of purpose-built child tables are added — but the planning layer (Plan, Site scope, Reviewer/SPOC assignment) is **not duplicated**, it directly reuses what already exists:
 
 - **`field-planner`**: `field_plans` **is** the Installation Plan (altered with a few extra columns, not replaced); `field_plan_facilities` **is** the per-site inclusion + Solution-assignment table (altered); Installation Reviewer/SPOC assignment reuses the existing `activity_assignments` table against the pre-seeded `INS` activity — **no new tables in this service at all**.
-- **`field-planner-activity`**: `bom` (existing) is altered directly to carry per-asset-type (Machine/Solar) vendor assignment + OTP + Excel-upload tracking, and its existing, already-live `FACILITY_INSTALLATION` review/approval workflow is reused as-is (not a new business service). Only `bom_section_review` (new, for per-section approval) plus `installation_template` and `installation_audit_trail` (both new, see §3.3) are added.
+- **`field-planner-activity`**: `bom` (existing) is altered directly to carry per-asset-type (Machine/Solar) vendor assignment (captured directly in a Project Manager Web UI screen, not an Excel round-trip — see §5.2/§3.3) + OTP + Excel-upload tracking (Installation Template), and its existing, already-live `FACILITY_INSTALLATION` review/approval workflow is reused as-is (not a new business service). Only `bom_section_review` (new, for per-section approval) plus `installation_template` and `installation_audit_trail` (both new, see §3.3) are added.
 - **`project`** gets two typed columns added (not a new table).
 - **`asset-registry`** gets two nullable columns added: a handoff-linkage FK plus a per-asset O&M-eligibility flag (§3.4).
 - **O&M eligibility** needs no new table or column — the PRD requires per-asset (not per-site) eligibility, so this design reuses `asset-registry`'s existing (currently unwired) `asset.is_operational` column rather than `health-facility-registry`'s site-level `facility.is_onm_ready` (see §3.4/§3.5). This same flag also now feeds a WhatsApp chatbot asset picker, not just Setu4Livelihoods' ticket-raising inbox.
@@ -65,7 +65,7 @@ However, the PRD's data shape (two asset rows — Machine + Solar — per site, 
 | 4 | Installation Plan setup | FR-04 | `field-planner` (`field_plans` altered) |
 | 5 | Installation scope & Solution assignment (Sheet 1) | FR-05 | `field-planner` (`field_plan_facilities` altered) + `ingestion-service` |
 | 6 | End user site lock validation | FR-06 | `field-planner` (`field_plan_facilities` altered) |
-| 7 | Vendor assignment (Sheet 2) | FR-07 | `field-planner-activity` (new tables) + `ingestion-service` + `vendor-registry` (no schema change — filtered by State only, any vendor can handle either asset type) |
+| 7 | Vendor assignment (Web UI) | FR-07 | `field-planner-activity` (new tables) + `vendor-registry` (no schema change — filtered by State only, any vendor can handle either asset type) |
 | 8 | Installation template configuration | FR-08 | `field-planner-activity` (new tables) + `ingestion-service` |
 | 9 | Publish Installation Plan | FR-09 | `field-planner` + `egov-workflow-v2` |
 | 10 | Task assignment & visibility (Field Technician) | FR-10 | `field-planner-activity` (new tables) |
@@ -136,7 +136,7 @@ Losing a guaranteed-random `id` means something else needs to carry a genuine co
 
 No new publish-state column: `field_plans.status` (existing, `DEFAULT 'ACTIVE'`) is reused directly for the FR-09 Draft→Published lifecycle instead of adding a `publish_status` column. This does repurpose a column shared by every `field_plans` row regardless of activity type — application code creating an Installation Plan sets `status = 'DRAFT'` explicitly on create and `status = 'PUBLISHED'` on FR-09 publish, rather than relying on the table's generic `'ACTIVE'` default, which stays the right default for non-Installation plan types using this same table.
 
-**Draft persistence across the multi-step Installation Plan setup wizard** — same principle as §3.1's Project creation note, and again no new column or table: `FieldPlannerEnrichment.enrichFieldPlanOnCreate` already sets `status = DRAFT_STATUS` on `_create`, so the `field_plans` row exists as soon as FR-04's first step (geography subset, sectors, Reviewer, dates) is submitted — before any of the Scope Excel (FR-05), Vendor Assignment Excel (FR-07), or Installation Template Excel (FR-08) round-trips happen. Each of those round-trips is itself durably saved the moment its upload succeeds, into its own table — Sheet 1 into `field_plan_facilities` (`solution_id`, `lock_status`), Sheet 2 into `bom.vendor_org_id`/`vendor_email`, the Template into `installation_template` — so a Project Manager who leaves mid-wizard and returns loses nothing: resuming is just reading which of these rows already exist for this `field_plan_id`, not a separate wizard-progress tracker. See `Livelihood_Installation_Flow_Diagrams.md` §1 (Project Manager flow) for the exact step-by-step persistence points.
+**Draft persistence across the multi-step Installation Plan setup wizard** — same principle as §3.1's Project creation note, and again no new column or table: `FieldPlannerEnrichment.enrichFieldPlanOnCreate` already sets `status = DRAFT_STATUS` on `_create`, so the `field_plans` row exists as soon as FR-04's first step (geography subset, sectors, Reviewer, dates) is submitted — before any of the Scope Excel (FR-05), Vendor Assignment (FR-07), or Installation Template Excel (FR-08) steps happen. Each of those is itself durably saved the moment it's submitted, into its own table — Scope Excel (Sheet 1) into `field_plan_facilities` (`solution_id`, `lock_status`), Vendor Assignment (a direct Web UI screen, not an Excel round-trip — §5.2) into `bom.vendor_org_id`/`vendor_email`, the Template into `installation_template` — so a Project Manager who leaves mid-wizard and returns loses nothing: resuming is just reading which of these rows already exist for this `field_plan_id`, not a separate wizard-progress tracker. See `Livelihood_Installation_Flow_Diagrams.md` §1 (Project Manager flow) for the exact step-by-step persistence points.
 
 The Installation Reviewer assigned to a Plan (FR-04) does **not** need a new column — it's an `activity_assignments` row against the pre-seeded `INS` activity: `activity_assignments(field_plan_id, activity_id='INS', assigned_to=<reviewer HRMS user id>, role='INSTALLATION_REVIEWER')`. No schema change needed here; this table already supports plan × activity × assignee × role. The `INS` activity's other pre-seeded role, `INSTALLATION_SPOC`, does **not** get a matching `activity_assignments` row — confirmed to be the Field Technician (§3.3), whose assignment is inherently per-vendor-per-facility via `bom.vendor_org_id`/`eg_org_user`, not a single plan-level assignee the way the Reviewer is.
 
@@ -157,6 +157,8 @@ FR-06's cross-plan lock check ("is this site already locked under *another* acti
 ### 3.3 `field-planner-activity` service — extend the existing `bom` / installation-report system (not new `installation_asset`/`ic_report` tables)
 
 > **PRD basis:** §7.3 FR-07 *"Vendor Assignment (Sheet 2)"* and FR-08 *"Installation Template Configuration"* (→ `installation_template` below, and `bom` alterations); §7.4 FR-10 *"Task Assignment & Visibility"* and FR-11 *"Installation Completion Report"* (→ `bom` alterations); §7.5 FR-12 *"Review Queue"* and FR-13 *"Approval & Rejection"* (→ `bom_section_review`); §7.6 FR-14 *"Asset Management Handoff & Audit Trail"* (→ `installation_audit_trail`); §6 *Core Data Entities* → "Machine/Asset", "Installation Template", "IC Report", "Handover Letter".
+>
+> **Deviation from the PRD's literal FR-07 title:** this design implements Vendor Assignment as a direct Project Manager Web UI screen, not the PRD's "Sheet 2" Excel round-trip — confirmed, superseding that PRD text (see §5.2's flowchart and `Livelihood_Installation_Flow_Diagrams.md` §1 Step 7). FR-05's Scope Excel (Sheet 1) and FR-08's Installation Template Excel are unaffected by this change and remain Excel round-trips.
 
 `facility_activities` (existing: `facility_id, activity_id, field_plan_id, status, scheduled_at, activated_at, completed_at`) is unchanged — it's still the per-site execution instance of the `INS` activity within a Plan.
 
@@ -182,6 +184,7 @@ ALTER TABLE bom
   ADD COLUMN vendor_org_id    VARCHAR(64),  -- FK by reference -> vendor-registry eg_org (existing assign_user is the individual technician; this is their employer org)
   ADD COLUMN vendor_email     VARCHAR(256),
   ADD COLUMN otp_uuid         VARCHAR(64),  -- reference id from the external egov-otp service's _create response; hash/expiry/matching all live there, not here
+  ADD COLUMN report_number    VARCHAR(64),  -- unique IC Report number; system-generated (egov-idgen, same pattern as Project ID/Plan ID, §3.1/§3.2), not entered by PM or Field Technician — see note below
   ADD CONSTRAINT uq_bom_activity_facility_asset_type UNIQUE (activity_facility_id, asset_type); -- tightens today's unenforced one-row assumption into exactly one row per asset type
 ```
 
@@ -212,7 +215,8 @@ CREATE TABLE installation_template (
   solution_id             VARCHAR(64) NOT NULL,  -- MDMS unique identifier, not a UUID we control
   machine_section         JSONB,   -- array of associated-machine line items ({slNo, product, make, capacity, quantity}) — an array, not a single object, because a Solution can have >1 associated machine (e.g. "Oil Mill" = Oil Mill press + Pounding Machine; "Multi-Stage Processing" = 2 machines) — see §3.6
   solar_section           JSONB,   -- array of solar-bundle line items grouped by category ({category, slNo, product, make, capacity, quantity} — categories per the real ICC Report: Solar Panel, Battery, Inverter/PCU, Mounting Structure, Rack/Enclosure, Junction/Protection Box, Cable, Switch/Socket/MCB, Lighting/Fan, Lightning Protection, Earthing, Safety/Docs, Fire Extinguisher, Consumables), not a flat component list — see §3.6
-  tender_number           VARCHAR(128), -- entered by Program Team / Project Manager on template download/upload, see note below
+  tender_number           VARCHAR(128), -- optional; entered by Program Team / Project Manager on template download/upload, or later by the Field Technician on-site if left blank — see note below
+  purchase_order_number   VARCHAR(128), -- compulsory; entered by Program Team / Project Manager on template download/upload, or later by the Field Technician on-site if left blank — see note below
   created_by              VARCHAR(64),
   created_time            BIGINT,
   last_modified_time      BIGINT,
@@ -224,7 +228,11 @@ CREATE TABLE installation_template (
 
 **Quantity (and Make, where left blank) stays editable one level further down, by the Field Technician on-site — this is not just a PM-level default.** The real ICC Report format carries its own note to this effect on several Solution sheets (e.g. "Sewing Machine"): *"'Make' and any blank 'Quantity' cells (dependent on string configuration, cable run length, or site layout) are to be filled in by the installing engineer on site."* Some component quantities (cable runs, mounting hardware count) are genuinely unknowable until the technician sees the site, so the Installation Template's line-item quantity/make is a PM-set **default**, not a locked value — `bom.data` (below) stores the technician's own per-line-item quantity/make, which can differ from the template's, not merely a boolean "confirmed" flag against the template.
 
-**Tender Number**: entered into the same downloaded/uploaded Installation Template Excel, in a field alongside `machine_section`/`solar_section`, and parsed by `ingestion-service` into the new `tender_number` column above on upload — same round-trip, same actor as the prepopulated spec values, not a separate flow. "Program Team" is not a role or HRMS group modeled anywhere in this platform today — the PRD's own §5 *User Roles* only defines Project Manager, Field Technician, and Installation Reviewer. Until a distinct Program Team role/group is confirmed, this design treats "Program Team / Project Manager" as one and the same actor for this field: whoever holds upload permission on this template (i.e. the Project Manager role) can enter or edit `tender_number`, with no separate permission check. If Program Team is later confirmed to be a genuinely separate HRMS group, this becomes an added role check on the same upload API, not a schema change.
+**Tender Number and Purchase/Work Order Number**: both entered into the same downloaded/uploaded Installation Template Excel, in fields alongside `machine_section`/`solar_section`, and parsed by `ingestion-service` into the new `tender_number`/`purchase_order_number` columns above on upload — same round-trip, same actor as the prepopulated spec values, not a separate flow. "Program Team" is not a role or HRMS group modeled anywhere in this platform today — the PRD's own §5 *User Roles* only defines Project Manager, Field Technician, and Installation Reviewer. Until a distinct Program Team role/group is confirmed, this design treats "Program Team / Project Manager" as one and the same actor for these fields: whoever holds upload permission on this template (i.e. the Project Manager role) can enter or edit `tender_number`/`purchase_order_number`, with no separate permission check. If Program Team is later confirmed to be a genuinely separate HRMS group, this becomes an added role check on the same upload API, not a schema change.
+
+The two fields differ in whether they're required, and in who gets the last chance to fill them: **Tender Number is optional and can be left blank indefinitely** — nothing downstream depends on its presence. **Purchase/Work Order No. is compulsory**, but not necessarily known at template-upload time (a PM may not yet have a PO cut for every Solution when the Plan is assembled), so it isn't enforced at Publish (§2.3's Publish-validation checklist does not check it) — instead, whichever of the two is still blank when the Field Technician opens the IC Report in-app (§3.3 below) becomes editable there, as a per-`bom`-row override of the template default stored in `bom.data` (same pattern as the technician's per-line-item quantity/make override, see the quantity/make note below), and `purchase_order_number`'s presence (template value or technician-entered override) is checked as a service-layer precondition immediately before `SUBMIT_REPORT_A` is fired — a Field Technician cannot submit an IC Report for a `bom` row that has no Purchase/Work Order No. from either source. `tender_number` carries no such check and can remain blank all the way through Approval.
+
+**`bom.report_number` (each `bom` row's Unique IC Report number) is not a manually-entered field at all — unlike both of the above.** Neither the Project Manager nor the Field Technician types it in; it's system-generated, `egov-idgen`-backed the same way Project ID/Plan ID are (§3.1/§3.2). It's also generated at a different point in the sequence than either the PM's or the technician's own edits to that `bom` row: the moment the PM's completed Installation Template Excel upload succeeds and `installation_template` is created/updated for that `(field_plan_id, solution_id)` (`Livelihood_Installation_Flow_Diagrams.md` §1 Step 9), `field-planner-activity` assigns a `report_number` to every existing `bom` row scoped to that same `field_plan_id`/`solution_id` (these rows already exist by this point — they're created earlier, at Vendor Assignment/FR-07 — a direct Web UI screen, per the draft-persistence note above) — not later, when the Field Technician opens or fills in that report. By the time a Field Technician opens their assigned task (§5.3 below), `report_number` is already populated; there's no in-app generation step and nothing for the technician to enter.
 
 The same download also carries **read-only site-identification columns**, one row per facility in scope under that Solution for this Plan (`field_plan_facilities` filtered by `solution_id`), purely for the PM's reference — not stored back onto `installation_template`, since none of it is new data:
 
@@ -258,7 +266,7 @@ OTP confirmation (FR-11) calls the external DIGIT `egov-otp` service — hash, e
 
 **IC Report data capture happens entirely in the Android app, by the Field Technician alone** — one actor, one submission, not split across a separate upload step. The field list matches the real, in-use IC Report format (a per-Solution workbook — Bill of Material/Associated Machines plus a "System Functionality Parameters" section of on-site electrical test measurements — confirmed against an actual sample file, `ICC_Report_Format_by_Solutionv1.xlsx`), but that format is only a reference for *what fields the app form must capture*, not a file the technician fills and hands off:
 
-- **Field Technician (Android app)**: views the assigned task, performs the installation, confirms/edits the Installation-Template-prefilled machine/solar line items directly in the app — per line item, editing **quantity** and **make** where the actual install differs from the template default (the two fields the real ICC Report itself calls out as site-dependent) — enters the on-site System Functionality Parameters directly in the app, and captures photos/video on-device. If online at that point, the technician uploads immediately — photos/video are pushed to filestore as `bom_document` rows (`documenttype = 'PHOTO'`/`'VIDEO'`), the end-user OTP is sent and verified, and the technician taps Submit. If offline, the filled report fields and captured photos/video are held locally until the technician taps Sync once back online, at which point the same upload-then-OTP-then-Submit sequence runs. Submit writes the entered fields into `bom.data` and triggers the existing `SUBMIT_REPORT_A` workflow action immediately followed by `SUBMIT_REPORT_B` (auto-chained server-side, since there's no separate supervisor stage in this design) — only then does the report enter the Installation Reviewer's queue (FR-12, the existing `SUBMITTED_BY_SUPERVISOR` state `frontend/installation-ui` already searches for).
+- **Field Technician (Android app)**: views the assigned task, performs the installation, confirms/edits the Installation-Template-prefilled machine/solar line items directly in the app — per line item, editing **quantity** and **make** where the actual install differs from the template default (the two fields the real ICC Report itself calls out as site-dependent) — enters the on-site System Functionality Parameters directly in the app, and captures photos/video on-device. The app also shows the Tender Number / Purchase Order No. carried over from `installation_template`: if either was already filled in by the Project Manager on upload, it displays read-only-by-default but still technician-editable (e.g. to correct it); if either is still blank, the technician can enter it here — **Purchase/Work Order No. must be filled before Submit will proceed (compulsory); Tender Number can be left blank.** If online at that point, the technician uploads immediately — photos/video are pushed to filestore as `bom_document` rows (`documenttype = 'PHOTO'`/`'VIDEO'`), the end-user OTP is sent and verified, and the technician taps Submit. If offline, the filled report fields and captured photos/video are held locally until the technician taps Sync once back online, at which point the same upload-then-OTP-then-Submit sequence runs. Submit writes the entered fields (including any technician-entered `tenderNumber`/`purchaseOrderNumber` override) into `bom.data`, and the service layer rejects the call with a compulsory-field error if `purchaseOrderNumber` is still empty at that point (from neither the template nor this override); once that check passes, Submit triggers the existing `SUBMIT_REPORT_A` workflow action immediately followed by `SUBMIT_REPORT_B` (auto-chained server-side, since there's no separate supervisor stage in this design) — only then does the report enter the Installation Reviewer's queue (FR-12, the existing `SUBMITTED_BY_SUPERVISOR` state `frontend/installation-ui` already searches for).
 
 **Submission notification (updated §9 Notification Matrix)**: the moment `SUBMIT_REPORT_B` fires and the report enters the Reviewer's queue is also the trigger point for two new Email notifications — no new column or table, just two calls into `im-services`' existing `LivelihoodEmailNotificationService` alongside the workflow transition:
 
@@ -455,7 +463,8 @@ erDiagram
         string solution_id
         jsonb machine_section "array of associated-machine line items, can be >1 (see §3.3/§3.6)"
         jsonb solar_section "array of solar-bundle line items grouped by category (see §3.3/§3.6)"
-        string tender_number "new, entered by Program Team / Project Manager"
+        string tender_number "new, optional, entered by Program Team / Project Manager or later by Field Technician"
+        string purchase_order_number "new, compulsory, entered by Program Team / Project Manager or later by Field Technician"
     }
     BOM {
         string id PK "existing table, altered"
@@ -463,8 +472,9 @@ erDiagram
         string asset_type "new: MACHINE | SOLAR"
         string solution_id "new"
         string vendor_org_id FK "new"
-        jsonb data "existing, holds per-line-item BOM (technician-edited quantity/make) + System Functionality Parameters"
+        jsonb data "existing, holds per-line-item BOM (technician-edited quantity/make) + System Functionality Parameters + tenderNumber/purchaseOrderNumber override"
         string otp_uuid "new, references external egov-otp service"
+        string report_number "new, system-generated (egov-idgen) at Installation Template upload, not entered by PM or Field Technician"
     }
     BOM_DOCUMENT {
         string id PK "existing table, reused as-is"
@@ -516,16 +526,14 @@ flowchart TD
     J --> K[Mark Include + pick Solution per site]
     K --> L{FR-06 lock check\n+ Solution validity pass?}
     L -- No --> J
-    L -- Yes --> M[Sites locked to this Plan.\nVendor Assignment Excel generated]
-    M --> N[Download Vendor Assignment Excel\nSheet 2 - per Machine/Solar row]
-    N --> O[Assign Vendor + Vendor Email per row]
-    O --> P{Vendor eligibility\nvalidation passes?}
-    P -- No --> N
-    P -- Yes --> Q[Enter the Tender Number & Download prepopulated Installation Template\nper unique Solution - MDMS defaults\n+ read-only site reference columns]
-    Q --> R[Adjust prefilled machine + solar sections\ne.g. add/remove quantity;\nenter Tender Number]
+    L -- Yes --> M[Sites locked to this Plan.]
+    M --> O[Assign Vendor + Vendor Email per Machine/Solar row in Web-UI]
+    O --> Q[Download prepopulated Installation Template\nper unique Solution - MDMS defaults\n+ read-only site reference columns]
+    Q --> R[Adjust prefilled machine + solar sections\ne.g. add/remove quantity;\nenter Tender Number optional +\nPurchase/Work Order No. if known]
     R --> S{Template validation passes?}
     S -- No --> Q
-    S -- Yes --> T[Run Publish validation]
+    S -- Yes --> S2[installation_template saved;\nReport Number auto-generated\nfor every bom row under this Solution]
+    S2 --> T[Run Publish validation]
     T --> U{All checks pass?}
     U -- No --> T
     U -- Yes --> V[Confirm & Submit]
@@ -546,7 +554,7 @@ flowchart TD
     B --> C[Review pre-filled site + template data\nMachine vendor sees machine section only,\nSolar vendor sees solar section only]
     C --> D[Travel to End User Site]
     D --> E[Perform installation on-site]
-    E --> F[Fill IC Report in the app:\nconfirm/edit template line items\nincl. quantity + make per component,\nenter System Functionality Parameters\nUnique Report number auto-generated in the backend]
+    E --> F[Fill IC Report in the app\n(Report Number already assigned, see PM flow):\nconfirm/edit template line items\nincl. quantity + make per component,\nenter System Functionality Parameters,\nenter Tender Number / Purchase Order No.\nif left blank by the PM]
     F --> G[Capture Photos / Video\nheld on device, not yet uploaded]
     G --> H{Internet available?}
     H -- No --> I[Save IC Report + Photos/Video\nlocally on device]
@@ -557,7 +565,10 @@ flowchart TD
     L --> M{egov-otp _validate\nreturns isValidationSuccessful?}
     M -- No --> N[Technician re-enters OTP\nwith end user]
     N --> L
-    M -- Yes --> O[Photos/Video uploaded to filestore\nas bom_document rows;\nbom.data populated;\ntriggers SUBMIT_REPORT_A then SUBMIT_REPORT_B]
+    M -- Yes --> M2{Purchase/Work Order No.\npresent - template or entered above?}
+    M2 -- No --> F2[Enter Purchase/Work Order No.\ncompulsory, cannot Submit without it]
+    F2 --> M2
+    M2 -- Yes --> O[Photos/Video uploaded to filestore\nas bom_document rows;\nbom.data populated;\ntriggers SUBMIT_REPORT_A then SUBMIT_REPORT_B]
     O --> P[Enters Installation Reviewer's queue]
     O --> P2[Email: Assigned Installation Reviewer\n+ Email: Vendor\nsee §3.9]
     P --> Q([End])
@@ -565,6 +576,8 @@ flowchart TD
 ```
 
 *Note: for a given `bom` row (i.e. a given asset type's IC Report), the Field Technician fills and submits the entire report himself, in the app — one actor, one submission per report, not split across a separate upload step. The technician's single Submit action triggers both `SUBMIT_REPORT_A` and `SUBMIT_REPORT_B` for that row (auto-chained server-side, per §3.3's role mapping) since this design has no separate Project Manager/supervisor step at this point in the flow. This is independent of the Machine-vs-Solar split above — "one submission" means one technician doesn't split Part A/B with another actor, not that Machine and Solar share a single submission.*
+
+*Note on the Purchase/Work Order No. gate (node M2 above): unlike the OTP gate, this isn't an external service call — it's a plain non-empty check on `purchase_order_number`, read first off `installation_template` and then off this `bom` row's own `bom.data` override if the technician filled it in above. Tender Number has no equivalent gate anywhere in this flow and may stay blank all the way to Approval.*
 
 ### 5.4 Installation Reviewer workflow
 
@@ -578,9 +591,7 @@ flowchart TD
     B --> C[Open a bom row's report]
     C --> D[Review each section:\nSpecs, Photos, Video, Handover Letter]
     D --> E{Mark each section\nApprove or Reject + reason\nrecorded in bom_section_review}
-    E --> F{All sections marked?}
-    F -- No --> D
-    F -- Yes --> G{Any section Rejected?}
+    E --> G{Any sections rejected?}
     G -- Yes --> H[Trigger existing REJECT_AND_ASSIGN_FOR_FIELD_QC\nRejected sections + reasons attached]
     H --> I[Field Technician notified,\nfixes and re-submits]
     I --> C
@@ -626,13 +637,13 @@ stateDiagram-v2
 |---|---|---|
 | `project` | No schema change | Reuses existing `additionalDetails.justificationCode` and idgen-backed `projectNumber`; needs an `IdFormat` MDMS registration + application-code sequence logic, not a migration |
 | `field-planner` | Alter tables (no new tables) | `field_plans` (+7 columns incl. new `uuid`, `installation_breach_last_notified_time`, `low_completion_last_notified_time`; existing `status` reused for DRAFT/PUBLISHED, existing `id` repurposed as the human-readable Plan ID via `IdGenService` instead of random UUID, = Installation Plan), `field_plan_facilities` (+2 columns, = site inclusion/Solution assignment); Reviewer/SPOC assignment reuses existing `activity_assignments` against the pre-seeded `INS` activity |
-| `field-planner-activity` | Alter existing `bom`; one new child table | `bom` (+5 columns: `asset_type`, `solution_id`, `vendor_org_id`, `vendor_email`, `otp_uuid`, + a tightened `UNIQUE(activity_facility_id, asset_type)`) carries the Machine/Solar asset tracking and IC Report content, filled entirely by the Field Technician in-app; on submission, also triggers the new Reviewer/Vendor Email notifications (§3.3/§3.9) — no schema needed for that, just an added side effect on the existing `SUBMIT_REPORT_B` transition; `bom_document` (existing) reused as-is for photos/video/Handover Letter; `bom_section_review` is the one new table; `installation_template` and `installation_audit_trail` are also new |
+| `field-planner-activity` | Alter existing `bom`; one new child table | `bom` (+6 columns: `asset_type`, `solution_id`, `vendor_org_id`, `vendor_email`, `otp_uuid`, `report_number`, + a tightened `UNIQUE(activity_facility_id, asset_type)`) carries the Machine/Solar asset tracking, per-row vendor assignment (Web UI, not Excel — see §5.2), and IC Report content, filled entirely by the Field Technician in-app; on submission, also triggers the new Reviewer/Vendor Email notifications (§3.3/§3.9) — no schema needed for that, just an added side effect on the existing `SUBMIT_REPORT_B` transition; `bom_document` (existing) reused as-is for photos/video/Handover Letter; `bom_section_review` is the one new table; `installation_template` and `installation_audit_trail` are also new |
 | `asset-registry` | Alter table | +2 nullable FK columns on `asset` |
 | `im-services` | No schema change | Ticket-creation gate calls `asset-registry`'s existing `asset.is_operational` (newly wired) — per-asset, no local table |
 | `health-facility-registry` | No schema change | `facility.is_onm_ready` (existing column) is unchanged by this design and is no longer the O&M eligibility gate this feature uses — see §3.5 |
 | `egov-mdms-service-v2` | New master data | `Installation.Solution` schema + ~500 data rows |
 | `egov-workflow-v2` | New config for one; reuse the other | `INSTALLATION_PLAN` (new); IC Report review reuses the existing, already-live `FACILITY_INSTALLATION` business service — no new config |
-| `ingestion-service` | Extend | New Excel template types: End User Site scope, Installation Scope (Sheet 1), Vendor Assignment (Sheet 2), Installation Template |
+| `ingestion-service` | Extend | New Excel template types: End User Site scope, Installation Scope (Sheet 1), Installation Template. Vendor Assignment (formerly "Sheet 2") is **not** an `ingestion-service` template — it's a direct Web UI screen against `field-planner-activity`, see §5.2/§3.3 |
 | `vendor-registry` | No schema change; role code only | No asset-type eligibility table — confirmed any vendor can be assigned to either Machine or Solar; add `FIELD_TECHNICIAN` HRMS role code; use existing `eg_org_user` link and `eg_org_jurisdiction` (State only) |
 | `egov-pdf-service` | No change | Reused via existing `BomService`-style integration for Handover Letter |
 | `amc-scheduler-service` | Two new scheduled jobs | Weekly check for Planned Installation breach (not completed by end date) → Senior Programme Manager, and weekly check for <40% completion within 10 days of end date → Program POC (§3.8) — no new table |
