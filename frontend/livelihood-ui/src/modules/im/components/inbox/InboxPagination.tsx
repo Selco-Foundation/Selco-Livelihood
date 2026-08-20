@@ -56,7 +56,7 @@ export function InboxPagination({
           type="button"
           disabled={!canGoPrev}
           onClick={onPrevPage}
-          className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-lg px-3 py-1 text-base font-medium text-neutral-500 transition-colors disabled:pointer-events-none disabled:opacity-40"
+          className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-lg px-3 py-1 text-base font-medium text-ink-950 transition-colors disabled:pointer-events-none disabled:opacity-40"
         >
           <ArrowLeft className="size-6" strokeWidth={1.5} />
           {translateOr(t, "CS_COMMON_PREVIOUS", "Previous")}
