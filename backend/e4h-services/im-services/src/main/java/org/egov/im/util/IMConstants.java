@@ -120,6 +120,8 @@ public class IMConstants {
 
     public static final String LIV_TPL_016 = "LIV-TPL-016";
 
+    public static final String LIV_TPL_017 = "LIV-TPL-017";
+
     public static final String LIV_TPL_018 = "LIV-TPL-018";
 
     public static final String LIVELIHOOD_EMAIL_SUBJECT_SUFFIX = "-SUBJECT";
