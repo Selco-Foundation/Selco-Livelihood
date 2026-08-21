@@ -66,9 +66,9 @@ public class LivelihoodNotificationService {
             notifyComplainantSms(request, LIV_TPL_002);
             notifyVendorSms(request, LIV_TPL_003);
         } else {
-            // End user self-create (LIV-TPL-001 / 018). Doc matrix asks for vendor SMS but
-            // provides no vendor template for self-create — only send documented templates.
+            // End user self-create, auto-assigned (LIV-TPL-001 / 017 / 018).
             notifyComplainantSms(request, LIV_TPL_001);
+            notifyVendorSms(request, LIV_TPL_017);
             notifyPoc(request);
         }
     }
