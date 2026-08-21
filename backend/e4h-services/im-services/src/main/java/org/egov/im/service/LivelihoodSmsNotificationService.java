@@ -72,6 +72,9 @@ public class LivelihoodSmsNotificationService {
                     "Your livelihood support ticket for {ticket_type} with ID {incidentId} submitted on {date} has been declined "
                             + "by the SELCO Foundation. For further assistance, please reach out to your local coordinator or track ticket "
                             + "details on {url} - SELCO Foundation"),
+            Map.entry(LIV_TPL_017,
+                    "Livelihood ticket for {ticket_type} with ID {incidentId} submitted on {date} has been assigned to you. "
+                            + "Please take necessary action or track ticket details on {url} - SELCO Foundation"),
             Map.entry(LIV_TPL_032,
                     "A follow-up action is required for your livelihood support ticket for {ticket_type} with ID {incidentId}. "
                             + "Reason: {reason}. Please respond at the earliest or track ticket details on {url} - SELCO Foundation"),

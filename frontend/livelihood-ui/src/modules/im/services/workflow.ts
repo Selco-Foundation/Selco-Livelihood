@@ -263,6 +263,9 @@ export async function updateIncidentAction(
   workflow.verificationDocuments = input.documents ?? [];
 
   const additionalDetail = {
+    // Preserve fields not modeled by IncidentAdditionalDetail (e.g. assetCategory) so update
+    // actions don't wipe them out — the backend replaces this column wholesale on save.
+    ...incident.additionalDetail,
     outOfScopeReason: [...(incident.additionalDetail?.outOfScopeReason ?? [])],
     declineReason: [...(incident.additionalDetail?.declineReason ?? [])],
     fileStoreId: incident.additionalDetail?.fileStoreId,
