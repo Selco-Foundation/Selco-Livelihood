@@ -1,8 +1,6 @@
 export { cn } from "./lib/utils";
 
 export { Button, buttonVariants } from "./components/ui/button";
-export { SplitButton } from "./components/ui/split-button";
-export type { SplitButtonProps } from "./components/ui/split-button";
 export { Input } from "./components/ui/input";
 export { Label } from "./components/ui/label";
 export {
@@ -130,3 +128,5 @@ export { Breadcrumbs } from "./components/breadcrumbs";
 export type { BreadcrumbEntry } from "./components/breadcrumbs";
 export { TopBar } from "./components/top-bar";
 export { LanguageSwitcher } from "./components/language-switcher";
+export { SplitButton } from "./components/split-button";
+export type { SplitButtonProps } from "./components/split-button";
