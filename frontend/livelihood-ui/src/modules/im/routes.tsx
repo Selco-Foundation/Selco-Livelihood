@@ -2,7 +2,7 @@ import { contextPath, translateOr, useModuleI18n, useTranslate } from "@/shared"
 import type { AnyRoute } from "@tanstack/react-router";
 import { createRoute, Outlet, redirect } from "@tanstack/react-router";
 import { Inbox } from "lucide-react";
-import { ImDetails, ImKpis } from "./components/ImOverview";
+import { ImDetails, ImKpis, ImOverviewActions } from "./components/ImOverview";
 import { IM_ROUTES } from "./constants/routes";
 import { ComplaintDetailsPage } from "./pages/employee/ComplaintDetailsPage";
 import { CreateIncidentPage } from "./pages/employee/CreateIncidentPage";
@@ -125,6 +125,6 @@ export function createImModule(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
     order: 1,
     routes,
     navItems,
-    overview: { kpis: ImKpis, details: ImDetails },
+    overview: { kpis: ImKpis, details: ImDetails, actions: ImOverviewActions },
   };
 }

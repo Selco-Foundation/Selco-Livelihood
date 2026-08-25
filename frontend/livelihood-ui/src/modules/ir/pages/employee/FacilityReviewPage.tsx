@@ -1,6 +1,6 @@
 import { employeeHomePath, translateOr, useAuthStore, useTranslate } from "@/shared";
-import { Breadcrumbs, Button, PageHeader, toast } from "@/ui";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { TopBar, toast } from "@/ui";
+import { useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { ReviewActionBar } from "../../components/review/ReviewActionBar";
 import { ReviewSections } from "../../components/review/ReviewSections";
@@ -67,29 +67,18 @@ export function FacilityReviewPage() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <PageHeader
-          title={detail?.entry.facilityName ?? ""}
-          action={
-            <Button asChild variant="outline" size="sm">
-              <Link to={irFacilityEntriesPath(planId)}>
-                {translateOr(t, "ES_IR_BACK_TO_SITES", "Back to Sites")}
-              </Link>
-            </Button>
-          }
-        />
-        <Breadcrumbs
-          items={[
-            { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: employeeHomePath() },
-            {
-              label: translateOr(t, "ES_IR_INSTALLATION_PLANS", "Installation Plans"),
-              to: irInstallationPlansPath(),
-            },
-            { label: planName, to: irFacilityEntriesPath(planId) },
-            { label: detail?.entry.facilityName ?? "" },
-          ]}
-        />
-      </div>
+      <TopBar
+        title={detail?.entry.facilityName ?? ""}
+        breadcrumbs={[
+          { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: employeeHomePath() },
+          {
+            label: translateOr(t, "ES_IR_INSTALLATION_PLANS", "Installation Plans"),
+            to: irInstallationPlansPath(),
+          },
+          { label: planName, to: irFacilityEntriesPath(planId) },
+          { label: detail?.entry.facilityName ?? "" },
+        ]}
+      />
 
       {isLoading ? (
         <div className="flex min-h-[200px] items-center justify-center text-sm text-muted-foreground">

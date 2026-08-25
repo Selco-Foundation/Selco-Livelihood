@@ -1,6 +1,5 @@
 import { employeeHomePath, translateOr, useAuthStore, useTranslate } from "@/shared";
-import { Breadcrumbs, Button, PageHeader } from "@/ui";
-import { Link } from "@tanstack/react-router";
+import { TopBar } from "@/ui";
 import { useMemo } from "react";
 import { FacilityEntryTable } from "../../components/facility/FacilityEntryTable";
 import { useBulkApproveFacilityEntries, useFacilityEntries } from "../../hooks/use-facility-entries";
@@ -34,28 +33,17 @@ export function FacilityEntryListPage() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <PageHeader
-          title={translateOr(t, "ES_IR_REVIEW_SITES", "Review Sites")}
-          action={
-            <Button asChild variant="outline" size="sm">
-              <Link to={irInstallationPlansPath()}>
-                {translateOr(t, "ES_IR_BACK_TO_PLANS", "Back to Installation Plans")}
-              </Link>
-            </Button>
-          }
-        />
-        <Breadcrumbs
-          items={[
-            { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: employeeHomePath() },
-            {
-              label: translateOr(t, "ES_IR_INSTALLATION_PLANS", "Installation Plans"),
-              to: irInstallationPlansPath(),
-            },
-            { label: planName },
-          ]}
-        />
-      </div>
+      <TopBar
+        title={translateOr(t, "ES_IR_REVIEW_SITES", "Review Sites")}
+        breadcrumbs={[
+          { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: employeeHomePath() },
+          {
+            label: translateOr(t, "ES_IR_INSTALLATION_PLANS", "Installation Plans"),
+            to: irInstallationPlansPath(),
+          },
+          { label: planName },
+        ]}
+      />
       <FacilityEntryTable
         planId={planId}
         entries={entries ?? []}

@@ -25,6 +25,13 @@ export interface ModuleOverview {
   kpis?: ComponentType;
   /** Richer per-module content rendered in the home page's shared Details section. */
   details?: ComponentType;
+  /**
+   * Action(s) rendered in the home page's top bar, after the language
+   * switcher — e.g. im's "Raise Ticket" button. Unlike the language switcher
+   * (baked into every page via `TopBar`), this is contextual to the home
+   * page specifically, not broadcast to every page in the module.
+   */
+  actions?: ComponentType;
 }
 
 export interface ModuleDefinition<TRoute = unknown> {

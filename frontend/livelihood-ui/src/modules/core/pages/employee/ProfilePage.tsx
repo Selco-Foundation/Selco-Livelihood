@@ -9,7 +9,6 @@ import {
   useTranslate,
   type EmployeeProfile,
 } from "@/shared";
-import { LanguageSwitcher } from "../../components/LanguageSwitcher";
 import {
   Button,
   Form,
@@ -19,7 +18,7 @@ import {
   FormLabel,
   FormMessage,
   Input,
-  PageHeader,
+  TopBar,
   toast,
 } from "@/ui";
 import { Link } from "@tanstack/react-router";
@@ -150,15 +149,7 @@ export function ProfilePage() {
 
   return (
     <div className="space-y-6">
-      <div className="hidden lg:block">
-        <PageHeader
-          title={translateOr(t, "CORE_PROFILE_TITLE", "Profile")}
-          action={<LanguageSwitcher />}
-        />
-      </div>
-      <div className="lg:hidden">
-        <PageHeader title={translateOr(t, "CORE_PROFILE_TITLE", "Profile")} />
-      </div>
+      <TopBar title={translateOr(t, "CORE_PROFILE_TITLE", "Profile")} />
 
       <section className="livelihood-card max-w-2xl space-y-6 p-6">
         <Form {...form}>
