@@ -1,8 +1,8 @@
 # Livelihood Installation App — API Design Doc
 
-Companion doc to `Livelihood_Installation_App_PRD.pdf`, `Livelihood_Installation_LLD.md`, and `Livelihood_Installation_Flow_Diagrams.md`. Lists every API needed to fulfill the PRD, cross-checked against the actual controllers and DB migrations already in this repo, so each entry is tagged **🆕 New**, **♻️ Reuse as-is**, or **🔧 Reuse + Extend**.
+Companion doc to `Livelihood_Installation_App_PRD.pdf`, `Livelihood_Installation_LLD.md`, and `Livelihood_Installation_Flow_Diagrams_Cleaned.md`. Lists every API needed to fulfill the PRD, cross-checked against the actual controllers and DB migrations already in this repo, so each entry is tagged **🆕 New**, **♻️ Reuse as-is**, or **🔧 Reuse + Extend**.
 
-**Structure of this doc**: §3 covers cross-cutting setup APIs (master data, vendor lookup, role assignment) that every flow below depends on. §4–§7 walk each actor's flow **in the same order and grouping as `Livelihood_Installation_Flow_Diagrams.md`**, so a step number there maps directly to a subsection here (e.g. Flow Diagrams "PM flow Step 8" ≡ API Doc §4.9). §8 covers the two scheduled jobs, which have no dedicated controller of their own but were previously undocumented in this file. §9 is a compact table→API cross-reference for "which table does X get written to." §10 is cross-cutting notes that don't belong to one single API.
+**Structure of this doc**: §3 covers cross-cutting setup APIs (master data, vendor lookup, role assignment) that every flow below depends on. §4–§7 walk each actor's flow **in the same order and grouping as `Livelihood_Installation_Flow_Diagrams_Cleaned.md`**, so a step number there maps directly to a subsection here (e.g. Flow Diagrams "PM flow Step 8" ≡ API Doc §4.9). §8 covers the two scheduled jobs, which have no dedicated controller of their own but were previously undocumented in this file. §9 is a compact table→API cross-reference for "which table does X get written to." §10 is cross-cutting notes that don't belong to one single API.
 
 Each API entry carries a **DB Write** line stating exactly which table/column it writes (or confirms it's read-only) — see §9 for how these were verified against the repo's migration SQL, not just the LLD's proposed schema.
 
@@ -57,7 +57,7 @@ These wrappers are omitted from the samples below for brevity — assume every r
 - `ingestion-service` has **no database of its own** — every endpoint is stateless, calling other services' create/update/search APIs per row.
 - Column definitions and validation rules for every template are **not hardcoded in Python** — they're MDMS master data, schema code `data-ingestion.<Name>Schema` (e.g. `data-ingestion.FacilityIngestionSchema`), fetched live via `MDMSClient.get_column_definitions_and_row_constraints_with_metadata()`. A new template type is added by authoring a new schema JSON (see `docs/ingestion/schema/*.json` for the existing shape) and registering it in MDMS — the generic `validate_columns()`/`validate_row_constraints()` functions in `app/utils/facility_validator.py` then work unchanged. Only the per-row payload-construction/API-call logic (`app/utils/convertor.py`-style functions) is genuinely new code per template.
 - **Upload responses are the re-annotated workbook itself, not a JSON body.** Every existing ingest endpoint returns the uploaded `.xlsx` back as a `FileResponse`, with a `status` column (`PASSED`/`FAILED`, or `success`/`failed` for per-row API-call flows) and an `error` column (deduplicated, semicolon-joined messages) filled in per row — not a JSON error list. The samples below show this as an annotated-file response rather than JSON, to match reality.
-- **Kafka**: every write path actually audited in `project`, `field-planner`, `field-planner-activity`, `egov-workflow-v2`, and `asset-registry` calls `producer.push(topic, entity)` (via `GenericRepository.save()` or a direct `Producer` field) with **zero** `INSERT`/`UPDATE`/`jdbcTemplate.update(...)` calls found in any create/update path across those five services — every DB Write below is therefore asynchronous (Kafka producer → external `egov-persister`), not a synchronous row write in the request thread. `_search` reads are the only place these services touch the DB directly. See `Livelihood_Installation_Flow_Diagrams.md` for the topic-by-topic Kafka evidence (file:line citations) — not repeated per-entry here to avoid duplicating that doc.
+- **Kafka**: every write path actually audited in `project`, `field-planner`, `field-planner-activity`, `egov-workflow-v2`, and `asset-registry` calls `producer.push(topic, entity)` (via `GenericRepository.save()` or a direct `Producer` field) with **zero** `INSERT`/`UPDATE`/`jdbcTemplate.update(...)` calls found in any create/update path across those five services — every DB Write below is therefore asynchronous (Kafka producer → external `egov-persister`), not a synchronous row write in the request thread. `_search` reads are the only place these services touch the DB directly. See `Livelihood_Installation_Flow_Diagrams_Cleaned.md` for the topic-by-topic Kafka evidence (file:line citations) — not repeated per-entry here to avoid duplicating that doc.
 
 ---
 
@@ -77,9 +77,9 @@ These wrappers are omitted from the samples below for brevity — assume every r
 | 10 | POST | `/v1/field-plans/facility/bulk/_create` | field-planner | 🔧 | FR-05 | Bulk-assign Solution to sites |
 | 11 | POST | `/ingestion-service/ingest/fieldPlanfacilitiesValidateData` + `/createFieldPlanFacility` | ingestion-service | 🔧 | FR-05 | Upload Installation Scope Excel (Sheet 1) — both endpoints already exist |
 | 12 | POST | `/v1/field-plans/facility/_lock-check` | field-planner | 🆕 | FR-06 | Check End User Site lock status |
-| 13 | POST | `/ingestion-service/template/vendorAssignmentTemplate` | ingestion-service | 🆕 | FR-07 | Download Vendor Assignment Excel (Sheet 2) |
-| 14 | POST | `/ingestion-service/ingest/vendorAssignment` | ingestion-service | 🆕 | FR-07 | Upload Vendor Assignment Excel (Sheet 2) |
-| 15 | POST | `/v1/bom/_create` / `_update` / `_search` | field-planner-activity | 🔧 | FR-07, FR-10 | Machine/Solar rows — endpoints already exist (`BOMApiController`), extend with `assetType`/`vendorOrgId` |
+| 13 | — | ~~`/ingestion-service/template/vendorAssignmentTemplate`~~ | ingestion-service | **superseded** | FR-07 | Superseded — Vendor Assignment moved to a direct Web UI screen (§4.8); `ingestion-service` is no longer involved |
+| 14 | — | ~~`/ingestion-service/ingest/vendorAssignment`~~ | ingestion-service | **superseded** | FR-07 | Superseded — see #13; Vendor Assignment now writes via `/v1/bom/_update` directly (§4.8/§4.9) |
+| 15 | POST | `/v1/bom/_create` / `_update` / `_search` | field-planner-activity | 🔧 | FR-07, FR-10 | Machine/Solar rows (one per split `facility_activities` component, §3.3) — endpoints already exist (`BOMApiController`), extend with `vendorOrgId`/`solutionId` (no `assetType` on `bom` — that discriminator lives on the parent `facility_activities.componentType`) |
 | 16 | POST | `/ingestion-service/template/installationTemplate` | ingestion-service | 🆕 | FR-08 | Download Installation Template Excel |
 | 17 | POST | `/ingestion-service/ingest/installationTemplate` | ingestion-service | 🆕 | FR-08 | Upload Installation Template Excel |
 | 18 | POST | `/v1/installation-templates/_create` / `_update` / `_search` | field-planner-activity | 🆕 | FR-08 | CRUD on Installation Templates |
@@ -89,16 +89,17 @@ These wrappers are omitted from the samples below for brevity — assume every r
 | 22 | POST | `/v1/bom/otp/_verify` | field-planner-activity | 🔧 | FR-11 | Thin wrapper over external `egov-otp` `_validate` |
 | 23 | POST | `/filestore/v1/files` | egov-filestore | ♻️ | FR-11 | Upload photo/video evidence |
 | 23b | — | (none — part of existing `/v1/bom/_update`) | field-planner-activity | ♻️ | FR-11 | Link evidence via existing `bom_document`/`documents[]`, no new endpoint |
-| 24 | POST | `/v1/bom/_update` + `/egov-wf/process/_transition` (`SUBMIT_REPORT_A` then `SUBMIT_REPORT_B`) | field-planner-activity | 🔧 | FR-11, FR-12 | Field Technician's single in-app Submit — writes `bom.data`, fires both existing actions back-to-back |
+| 24 | POST | `/v1/bom/_update` + `/v1/asset/_create` + `/egov-wf/process/_transition` (single `SUBMIT_REPORT` action) | field-planner-activity | 🔧 | FR-11, FR-12 | Field Technician's single in-app Submit — writes `bom.data`, creates the `asset` row, fires one workflow transition (not a `SUBMIT_REPORT_A`/`SUBMIT_REPORT_B` chain — no evidence in this codebase that a two-action split is required, §5.5) |
 | 25 | POST | `/v1/bom/_generate_pdf` / `_save_pdf` | field-planner-activity | ♻️ | FR-11 | Generate Handover Letter PDF — endpoints already exist |
-| 26 | POST | `/v1/bom/section-review/_create` | field-planner-activity | 🆕 | FR-13 | Submit per-section Approve/Reject |
+| 26 | POST | `/activity/v1/activities/workflow/update` | field-planner-activity | ♻️ | FR-13 | Submit per-section reasons + trigger Approve/Reject — reuses API #20's business-service actions, keyed on `facility_activities.id` (superseded a proposed new `/v1/bom/section-review/_create` endpoint, §6.2) |
 | 27 | POST | `/v1/asset/_create` / `_update` | asset-registry | ♻️ | FR-14 | Create/update handed-off Asset, extends existing `triggerInstallationCompletionSideEffects()` |
-| 28 | POST | `/v1/audit-trail/_search` | field-planner-activity | 🆕 | FR-14 | Query audit trail |
-| 29 | POST | `/v1/asset/_update` | asset-registry | ♻️ | §7.5 FR-13 (updated, asset-level) | Set existing `asset.is_operational = true` on the specific approved asset — same call as row #27, per-asset not per-site |
-| 30 | POST | `/v1/asset/_search` | asset-registry | ♻️ | §7.5 FR-13 (updated, asset-level) | Check per-asset `asset.is_operational` — used by both the ticket-raising gate (im-services) and the WhatsApp chatbot's asset picker |
+| 28 | — | ~~`/v1/audit-trail/_search`~~ | field-planner-activity | **not needed** | FR-14 | Not needed — `egov-workflow-v2`'s existing `eg_wf_processinstance_v2` already covers audit trail, no new table or endpoint (LLD §3.3) |
+| 29 | POST | `/v1/asset/_update` | asset-registry | ♻️ | §7.5 FR-13 (updated, asset-level) | Set new `asset.is_onm_ready = true` on the specific approved asset — same call as row #27, per-asset not per-site; distinct from the existing `is_operational` column |
+| 30 | POST | `/v1/asset/_search` | asset-registry | ♻️ | §7.5 FR-13 (updated, asset-level) | Check per-asset `asset.is_onm_ready` — used by both the ticket-raising gate (im-services) and the WhatsApp chatbot's asset picker |
 | 31 | POST | `/v2/request/_create` | im-services | 🔧 | §7.6 closing | Raise ticket (gated by eligibility) |
 | 32 | (implied) POST | `/v1/field-plans/_search` + `/v1/bom/_search` + `/v1/field-plans/_update` | field-planner + field-planner-activity | ♻️ | §9 Notification Matrix | Scheduled Job 1 — "Planned Installation breached" weekly summary (no new controller) |
 | 33 | (implied) POST | `/v1/field-plans/_search` + `/v1/bom/_search` + `/v1/field-plans/_update` + egov-hrms lookup | field-planner + field-planner-activity + egov-hrms | ♻️ | §9 Notification Matrix | Scheduled Job 2 — "<40% complete, 10 days prior" weekly summary (no new controller) |
+| 34 | POST | `/v1/field-plans/facility/_unassign` | field-planner | ♻️ | FR-06 (lock release) | Site unlock check — internal side effect of every Approve/Reject transition (§7.5), releases the Plan's lock claim once every sibling component is terminal-approved |
 
 ---
 
@@ -144,6 +145,13 @@ Cross-cutting APIs used throughout the flows below — solution lookup, vendor s
   }
 }
 ```
+**Error** (illustrative — not independently confirmed against MDMS's own error format)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "INVALID_MODULE_MASTER", "message": "No module/master registered for Installation/Solution" } ]
+}
+```
 
 ### 3.2 ♻️ Search / Create Vendor Organisation — API #2
 `POST /organisation/v1/_search` (existing, vendor-registry) — filter by `orgSubType: "INSTALLATION_VENDOR"` + boundary/jurisdiction (State) during Vendor Assignment (FR-07) validation. No Asset Type filter — confirmed any vendor can be assigned to either Machine or Solar, so this dimension was dropped from an earlier draft of this doc.
@@ -169,6 +177,13 @@ Cross-cutting APIs used throughout the flows below — solution lookup, vendor s
       "orgPocEmail": "ops@suntech.example", "orgPocPhone": "9900011122", "isActive": true }
   ],
   "totalCount": 1
+}
+```
+**Error** (illustrative)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "INVALID_ORG_SUB_TYPE", "message": "orgSubType must be one of the registered vendor sub-types" } ]
 }
 ```
 
@@ -197,12 +212,19 @@ Cross-cutting APIs used throughout the flows below — solution lookup, vendor s
 ```json
 { "Employees": [ { "id": 4521, "uuid": "hrms-user-uuid", "code": "EMP-2026-0451" } ] }
 ```
+**Error** (illustrative)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "DUPLICATE_EMPLOYEE_CODE", "message": "An employee with code EMP-2026-0451 already exists" } ]
+}
+```
 
 ---
 
 ## 4. Project Manager Flow
 
-Mirrors `Livelihood_Installation_Flow_Diagrams.md` §1 (Project Manager flow) step-for-step: Project → Installation Plan → Solution assignment → Vendor assignment → Installation Template → Publish.
+Mirrors `Livelihood_Installation_Flow_Diagrams_Cleaned.md` §1 (Project Manager flow) step-for-step: Project → Installation Plan → Solution assignment → Vendor assignment → Installation Template → Publish.
 
 ### 4.1 🔧 Create / Update Project — API #4 (Flow doc PM Step 1)
 `POST /project/v1/_create` and `/project/v1/_update` (existing, `project` service). No new fields needed on the request/response models — both FR-02/FR-03 requirements already have a home:
@@ -247,6 +269,14 @@ Mirrors `Livelihood_Installation_Flow_Diagrams.md` §1 (Project Manager flow) st
 ```
 *(`projectNumber` is populated server-side on create — `egov-idgen` supplies the financial-year + sequence portion, application code prepends the `justificationCode` numeric part, mirroring how `project.name` is already composed today.)*
 
+**Error** (`justificationCode` fails its `JUS-XXXXX` regex)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "INVALID_JUSTIFICATION_CODE", "message": "additionalDetails.justificationCode must match format JUS-XXXXX" } ]
+}
+```
+
 **Draft persistence**: no new mechanism needed — `ProjectValidator.validateProjectRequest` only mandates `tenantId`, so `ProjectService.createProject` persists a real `project` row immediately at Sub-step 1 (name, justification code, dates); the frontend re-enters the same in-progress project via `?projectId=...&key=...` on later steps instead of re-creating it. There's no literal `DRAFT` status value — `ProjectService.isDraftProject()` treats a `null` status as "Draft."
 
 ### 4.2 🔧 Download End User Site Selection Template — API #5 (Flow doc PM Step 2)
@@ -262,6 +292,14 @@ request_info: {"apiId":"installation-app", "authToken":"..."}
 ```
 **Response**: `.xlsx` file stream (`Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`), columns: `Site Name (readonly), Village, State, District, Block, Sector, Include (Yes/No)`.
 
+**Error** (invalid/unknown `parent_project_id`)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "INVALID_PROJECT_ID", "message": "No project found for id proj-uuid-1" } ]
+}
+```
+
 ### 4.3 🔧 Upload Project Facility Scope — API #6 (Flow doc PM Step 3)
 `POST /ingestion-service/ingest/facilitySelection` — **this endpoint already exists** (`upload_facility_selection_excel_sheet` in `app/api/endpoints/file_ingestion.py`), pairing with the existing `facilitySelection` download (§4.2). It already reads the sheet and calls `project` service's `create_project_facility()` per row — likely needs only a schema/column check (e.g. confirming the MDMS `data-ingestion.FacilitySelectionSchema` covers the geography/Include validation FR-03 needs), not new code.
 
@@ -274,6 +312,11 @@ facility_selection_file: <Sheet0-Completed.xlsx>
 request_info: {...}
 ```
 **Response**: the uploaded `.xlsx` returned as-is with `status`/`error` columns filled in per row (e.g. row 14 might get `status=FAILED`, `error="Include marked Yes but row is outside selected geography"`) — see §1's `ingestion-service` conventions note. No JSON error body.
+
+**Error** (row-level, embedded in the returned workbook, not a separate JSON body)
+```
+row 14 → status=FAILED, error="Include marked Yes but row is outside selected geography"
+```
 
 ### 4.4 🔧 Create / Update Installation Plan — API #7 (Flow doc PM Step 4, call 1)
 `POST /v1/field-plans/_create` and `_update` (existing, `field-planner`) — extend `FieldPlan` request model with `sectors[]`, `seniorContactName/Email/Phone`, and a new `uuid` field (technical identifier only). No separate `planNumber` field: `id` itself becomes the human-readable Plan ID — its generation switches from a random UUID to `IdGenService` (the same mechanism its own sibling entity, `FieldPlanFacility`, already uses), rather than adding a parallel field. No new status field either — the existing `status` field (already on `FieldPlan`, default `ACTIVE`) is reused for the Draft/Published lifecycle instead.
@@ -303,6 +346,13 @@ request_info: {...}
 ```json
 { "FieldPlan": [ { "id": "IP-2026-001", "uuid": "8f2c1e40-...-internal", "status": "DRAFT" } ] }
 ```
+**Error** (`geographyScope` missing both districts and blocks)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "INVALID_GEOGRAPHY_SCOPE", "message": "geographyScope.districts/blocks must be non-empty" } ]
+}
+```
 
 **Draft persistence**: same principle as §4.1 — `FieldPlannerEnrichment.enrichFieldPlanOnCreate` sets `status = DRAFT_STATUS` on `_create`, so the row exists as soon as the first wizard step is submitted, before Scope Excel (§4.6), Vendor Assignment Excel (§4.8), or Installation Template Excel (§4.10) round-trips happen.
 
@@ -324,6 +374,13 @@ request_info: {...}
 ```json
 { "ActivityAssignment": [ { "id": "assign-uuid-1", "status": "ACTIVE" } ] }
 ```
+**Error** (illustrative — e.g. re-assigning a Reviewer to an already-assigned activity)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "DUPLICATE_ACTIVITY_ASSIGNMENT", "message": "An INSTALLATION_REVIEWER is already assigned to activity activity-ins-uuid for this field plan" } ]
+}
+```
 
 ### 4.6 🔧 Download Installation Scope Template (Sheet 1) — API #9 (Flow doc PM Step 5)
 `POST /ingestion-service/template/fieldplanFacilityIngestionTemplate` (existing) — extend to pre-filter the Solution dropdown per FR-01 (sector + sunshine-hours already known per row) and mark `lock_status` read-only column.
@@ -336,6 +393,14 @@ field_plan_id: IP-2026-001
 request_info: {...}
 ```
 **Response**: `.xlsx`, columns: `Site Name (readonly), Village, State, District, Block, Sector (readonly), Include (Yes/No), Solution (dropdown, filtered), Lock Status (readonly)`.
+
+**Error** (invalid/unknown `field_plan_id`)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "INVALID_FIELD_PLAN_ID", "message": "No field plan found for id IP-2026-001" } ]
+}
+```
 
 ### 4.7 🔧 Upload Installation Scope (Sheet 1) — API #11, #10, #12 (Flow doc PM Step 6)
 **Two existing endpoints already implement this pattern for plain facility-to-plan linking** — `POST /ingestion-service/ingest/fieldPlanfacilitiesValidateData` (validation only, calls `project_facility_validation(..., 'data-ingestion.FieldPlanFacilityIngestionSchema')`) followed by `POST /ingestion-service/ingest/createFieldPlanFacility` (actual create/link/unlink, via `FieldPlanServiceClient.create_fieldPlan_facility_bulk`/`unlink_fieldplan_facility`). Extending them for FR-05/FR-06 means: adding a `Solution` column to the `FieldPlanFacilityIngestionSchema` MDMS schema (validated against FR-01's per-site filtered dropdown) and adding the FR-06 lock check into `createFieldPlanFacility`'s row loop (calling the Lock Check API below) before it links each site — not new endpoints. This step also internally calls:
@@ -352,6 +417,13 @@ request_info: {...}
 ```
 **Response**: the uploaded `.xlsx` returned with `status`/`error` columns filled in — e.g. a locked site gets `error="End User Site \"ABC Farmer Group\" is currently undergoing installation under Installation Plan \"IP-2026-001\". The site can be included in another Installation Plan only after all installation reports are approved."` (only once validation passes does the Project Manager proceed to the create/link call).
 
+**Error** (row-level, embedded in the returned workbook — locked site)
+```
+row-level: status=FAILED, error="End User Site \"ABC Farmer Group\" is currently undergoing installation under
+Installation Plan \"IP-2026-001\". The site can be included in another Installation Plan only after all
+installation reports are approved."
+```
+
 **Request** (bulk create, API #10)
 ```json
 {
@@ -361,6 +433,13 @@ request_info: {...}
 }
 ```
 **Response**: `202 Accepted` (async, existing Kafka-backed pattern) — `{ "ResponseInfo": { "status": "successful" } }`
+**Error** (illustrative — e.g. an unknown `solutionId`)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "INVALID_SOLUTION_ID", "message": "No MDMS Solution master found for code SOL-PULVERIZER-001" } ]
+}
+```
 
 **Request** (lock check, API #12)
 ```json
@@ -375,48 +454,98 @@ request_info: {...}
   ]
 }
 ```
+**Error** (illustrative — e.g. an unknown `facilityId`)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "INVALID_FACILITY_ID", "message": "No facility found for id site-uuid-99" } ]
+}
+```
 
 **Post-Publish Scope Edits** (PRD p.9): once `field_plans.status = 'PUBLISHED'`, edits to `field_plan_facilities` are asymmetric. `include = true → false` (removing a site) is allowed at any time — unless a `bom` row already exists for that site's `facility_activity`, in which case the edit is rejected. `include = false → true` (adding a new site) is **never** allowed on a Published Plan — a new Plan is needed instead. Both directions still go through the same Sheet 1 Excel.
 
-### 4.8 🆕 Download Vendor Assignment Template (Sheet 2) — API #13 (Flow doc PM Step 7)
-`POST /ingestion-service/template/vendorAssignmentTemplate` — new; server expands each included site's Solution into a Machine row + a Solar row before emitting the sheet.
+### 4.8 Vendor Assignment (Web UI screen) — API #15, #2 (Flow doc PM Step 7)
 
-**DB Write:** No (read-only) — reads `bom` rows (auto-created blank per `facility_activity` × `asset_type`, Machine + Solar).
+> **Supersedes API #13/#14** (the previously proposed `ingestion-service` Excel round-trip, `vendorAssignmentTemplate`/`vendorAssignment`) — Vendor Assignment is a direct Project Manager Web UI screen, not an Excel upload; `ingestion-service` is not involved in this step at all (LLD §1.1/§5.2, Flow Diagrams PM Step 7).
 
-**Request** (multipart form)
+**🔧 Search BOM (populate the grid)**: `POST /v1/bom/_search` (existing, §4.9) filtered by `fieldPlanId` — the `bom` rows themselves are already auto-created per split `facility_activities` component (Machine, Solar) by the time this screen opens (§3.3's design note); this call only reads them.
+
+**DB Write:** No (read-only) — reads `bom` filtered by `fieldPlanId`.
+
+**Request**
+```json
+{ "criteria": { "tenantId": "in", "fieldPlanId": "IP-2026-001" } }
 ```
-field_plan_id: IP-2026-001
-request_info: {...}
+**Response**
+```json
+{
+  "BillOfMaterial": [
+    { "id": "bom-uuid-1", "activityFacilityId": "fac-act-uuid-42", "assetType": "MACHINE", "vendorOrgId": null, "vendorEmail": null }
+  ],
+  "totalCount": 1
+}
 ```
-**Response**: `.xlsx`, columns: `Site Name (readonly), Village, State, Solution (readonly), Asset Type (readonly: Machine/Solar), Vendor Organisation (dropdown, filtered by State only — confirmed any vendor can be assigned to either Asset Type), Vendor Email (dropdown)`.
-
-### 4.9 Vendor Assignment (Sheet 2) + BOM CRUD — API #14, #15 (Flow doc PM Step 8)
-
-**🆕 Upload Vendor Assignment**: `POST /ingestion-service/ingest/vendorAssignment` — new endpoint. `ingestion-service` has no existing client for `field-planner-activity`/`bom` at all (its existing clients target `project`, `facility`, `asset-registry`), so a new one is needed regardless of the `bom`-reuse correction elsewhere in this doc. Still reuses the generic scaffolding: register a new `data-ingestion.VendorAssignmentSchema` MDMS schema and call the existing `validate_columns()`/`validate_row_constraints()` (§1 conventions) for validation, and reuse `ExcelDataWriter` for writing `status`/`error` back into the sheet. Internally calls `POST /v1/bom/_update` per row (row-by-row, since existing clients like `AssetServiceClient` are one-row-at-a-time, not bulk).
-
-**🔧 Create / Update / Search BOM (Machine/Solar asset rows)**: `POST /v1/bom/_create`, `_update`, `_search` — **these endpoints already exist** (`BOMApiController`, `field-planner-activity`). No new controller needed — extend the `BillOfMaterial` request model with `assetType`, `solutionId`, `vendorOrgId`, `vendorEmail` (§3.3's LLD correction: `installation_asset` was folded into `bom`, not a parallel new table). Two rows are created per facility (Machine + Solar), relying on `bom`'s existing lack of a uniqueness constraint on `activityFacilityId` — tightened by a new `UNIQUE(activity_facility_id, asset_type)` constraint. `_search` doubles as the Field Technician's task inbox (§5.1) filtered by `vendorOrgId`.
-
-**DB Write:** ✅/🆕 mixed — `bom` base columns (`id`, `activity_facility_id`, `assign_user`, `data`) exist (`V20250919180100__bom_create_ddl.sql`, `activity_facility_id` added by `V20251017141800`). But **`asset_type`, `solution_id`, `vendor_org_id`, `vendor_email`, `otp_uuid` are all 🆕** — a repo-wide search for `vendor_org_id`/`otp_uuid` returns zero hits in any `field-planner-activity` migration. So today, `_create` can persist the base BOM row, but the Vendor Assignment upload's `vendorOrgId`/`vendorEmail` (and `assetType`/`solutionId`) have nowhere to write until that `ALTER TABLE bom ADD COLUMN ...` (LLD §3.3) lands. Written asynchronously via Kafka topic `update-bom-topic` (confirmed: `BomService.java:197`, no JDBC write anywhere in `BomRepository.java`).
-
-**Request** (upload, multipart form)
+**Error** (no bom rows yet — Installation Scope, §4.7, not yet completed)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "NO_BOM_ROWS", "message": "No Machine/Solar rows exist yet — complete Installation Scope (Sheet 1) first" } ]
+}
 ```
-field_plan_id: IP-2026-001
-vendor_assignment_file: <Sheet2-Completed.xlsx>
-request_info: {...}
-```
-**Response**: the uploaded `.xlsx` returned with `status`/`error` columns filled in per row — e.g. a row assigning a vendor not jurisdiction-eligible for that state gets `status=failed`, `error="Vendor not eligible for state=KA"`.
 
-**Create request** (BOM)
+**♻️ Validate vendor eligibility per row**: `POST /organisation/v1/_search` — same call as §3.2 (State-jurisdiction filter), invoked once per row as the Project Manager assigns each Vendor Organisation. Request/Response: see §3.2.
+
+**Error** (vendor not eligible for this row's state)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "VENDOR_NOT_ELIGIBLE", "message": "Vendor not eligible for state=KA" } ]
+}
+```
+
+### 4.9 🔧 Create / Update / Search BOM (Machine/Solar asset rows) — API #15 (Flow doc PM Step 4/6/7)
+
+`POST /v1/bom/_create`, `_update`, `_search` — **these endpoints already exist** (`BOMApiController`, `field-planner-activity`). No new controller needed — extend the `BillOfMaterial` request model with `solutionId`, `vendorOrgId`, `vendorEmail` (§3.3's LLD correction: `installation_asset` was folded into `bom`, not a parallel new table). Two (or more) rows exist per site — one per split `facility_activities` component (Machine, Solar; §3.3's design note) — with a natural 1:1 relationship to `activityFacilityId`, no composite uniqueness constraint needed on `bom` itself. `_search` doubles as the Field Technician's task inbox (§5.1) filtered by `vendorOrgId`. §4.8's Vendor Assignment screen writes `vendorOrgId`/`vendorEmail` per row via `_update`, one call per row.
+
+**DB Write:** ✅/🆕 mixed — `bom` base columns (`id`, `activity_facility_id`, `assign_user`, `data`) exist (`V20250919180100__bom_create_ddl.sql`, `activity_facility_id` added by `V20251017141800`). But **`solution_id`, `vendor_org_id`, `vendor_email`, `otp_uuid` are all 🆕** (no `asset_type` column needed on `bom` at all — that discriminator lives on `facility_activities.componentType`) — a repo-wide search for `vendor_org_id`/`otp_uuid` returns zero hits in any `field-planner-activity` migration. So today, `_create` can persist the base BOM row, but §4.8's `vendorOrgId`/`vendorEmail`/`solutionId` writes have nowhere to land until that `ALTER TABLE bom ADD COLUMN ...` (LLD §3.3) lands. Written asynchronously via Kafka topic `update-bom-topic` (confirmed: `BomService.java:197`, no JDBC write anywhere in `BomRepository.java`).
+
+**Create request** (BOM — one row per split `facility_activities` component; `assetType` removed from `bom` since `facility_activities.componentType` is now the discriminator, reached via `activityFacilityId`)
 ```json
 {
   "BillOfMaterials": [
-    { "tenantId": "in", "activityFacilityId": "fac-act-uuid-42", "assetType": "MACHINE", "solutionId": "SOL-PULVERIZER-001",
+    { "tenantId": "in", "activityFacilityId": "fac-act-uuid-42", "solutionId": "SOL-PULVERIZER-001",
       "assignUser": "hrms-technician-uuid", "vendorOrgId": "org-uuid-1", "vendorEmail": "ops@suntech.example", "name": "Pulverizer BOM" },
-    { "tenantId": "in", "activityFacilityId": "fac-act-uuid-42", "assetType": "SOLAR", "solutionId": "SOL-PULVERIZER-001",
+    { "tenantId": "in", "activityFacilityId": "fac-act-uuid-43", "solutionId": "SOL-PULVERIZER-001",
       "assignUser": "hrms-technician-uuid", "vendorOrgId": "org-uuid-2", "vendorEmail": "ops@brightsolar.example", "name": "Pulverizer Solar BOM" }
   ]
 }
 ```
+*(`fac-act-uuid-42` = the Machine component's `facility_activities` row, `fac-act-uuid-43` = the Solar component's — two different split rows for the same site, not one shared row distinguished by `assetType`.)*
+**Error** (illustrative — e.g. `activityFacilityId` not found)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "INVALID_ACTIVITY_FACILITY_ID", "message": "No facility_activities row found for id fac-act-uuid-42" } ]
+}
+```
+
+**Update request** (§4.8's Vendor Assignment write, one call per row)
+```json
+{ "BillOfMaterials": [ { "id": "bom-uuid-1", "tenantId": "in", "vendorOrgId": "org-uuid-1", "vendorEmail": "ops@suntech.example" } ] }
+```
+**Update response**
+```json
+{ "ResponseInfo": { "status": "successful" } }
+```
+*(HTTP `202 Accepted` — the row is not guaranteed persisted yet at response time; it lands via the Kafka-backed persister.)*
+**Error**
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "VENDOR_NOT_ELIGIBLE", "message": "Vendor not eligible for state=KA" } ]
+}
+```
+
 **Search request** (Field Technician task inbox, reused in §5.1)
 ```json
 { "criteria": { "tenantId": "in", "vendorOrgId": "org-uuid-1" } }
@@ -425,9 +554,16 @@ request_info: {...}
 ```json
 {
   "BillOfMaterial": [
-    { "id": "bom-uuid-1", "activityFacilityId": "fac-act-uuid-42", "assetType": "MACHINE", "vendorOrgId": "org-uuid-1", "data": {} }
+    { "id": "bom-uuid-1", "activityFacilityId": "fac-act-uuid-42", "vendorOrgId": "org-uuid-1", "data": {} }
   ],
   "totalCount": 1
+}
+```
+**Error** (illustrative — e.g. unresolvable `vendorOrgId`)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "INVALID_VENDOR_ORG_ID", "message": "No vendor organisation found for org-uuid-1" } ]
 }
 ```
 
@@ -443,6 +579,14 @@ solution_code: SOL-PULVERIZER-001
 request_info: {...}
 ```
 **Response**: `.xlsx`, sections "Machine" and "Solar", columns per FR-08: `Installation Component, Quantity, Make, Model, Capacity, Technical Specifications`.
+
+**Error** (unknown `solution_code`)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "SOLUTION_NOT_FOUND", "message": "No MDMS Solution master found for code SOL-PULVERIZER-001" } ]
+}
+```
 
 ### 4.11 Upload Installation Template + CRUD — API #17, #18 (Flow doc PM Step 10)
 
@@ -461,6 +605,11 @@ request_info: {...}
 ```
 **Response**: the uploaded `.xlsx` returned with `status`/`error` columns filled in — e.g. a missing required capacity field gets `status=FAILED`, `error="Capacity is required for row 3 (Motor)"`.
 
+**Error** (row-level, embedded in the returned workbook, not a separate JSON body)
+```
+row-level: status=FAILED, error="Capacity is required for row 3 (Motor)"
+```
+
 **Request** (create)
 ```json
 {
@@ -476,6 +625,54 @@ request_info: {...}
 **Response**
 ```json
 { "InstallationTemplate": [ { "id": "tmpl-uuid-1" } ] }
+```
+**Error** (illustrative — violates the `(field_plan_id, solution_id)` unique constraint)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "DUPLICATE_INSTALLATION_TEMPLATE", "message": "An Installation Template already exists for fieldPlanId=IP-2026-001, solutionId=SOL-PULVERIZER-001" } ]
+}
+```
+
+**Also generated by this step (Flow doc PM Step 9)**: an `egov-idgen`-backed **Report Number**, one per matching `bom` row scoped to this `(field_plan_id, solution_id)`, plus that same row's `bom.data` seeded from this template's matching section (`machineSection` for `MACHINE` rows, `solarSection` for `SOLAR` rows) — both 🆕, not yet implemented (same as `installation_template` itself).
+
+**Request** (`egov-idgen`, illustrative — same mechanism as Project/Plan ID generation, §4.1/§4.4)
+```json
+{ "idRequests": [ { "idName": "bom.report.number", "tenantId": "in", "format": "IC-[fy:yyyy-yy]-[SEQ_IC_REPORT]" } ] }
+```
+**Response**
+```json
+{ "idResponses": [ { "idName": "bom.report.number", "id": "IC-2026-27-00842" } ] }
+```
+**Error** (illustrative — idgen format/sequence not registered)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "IDGEN_FORMAT_NOT_FOUND", "message": "No idgen format registered for idName=bom.report.number" } ]
+}
+```
+
+**Request** (`POST /v1/bom/_update`, writing the generated `reportNumber` + seeded `data` back onto the matching `bom` row — extract)
+```json
+{
+  "BillOfMaterials": [
+    {
+      "id": "bom-uuid-1", "tenantId": "in", "reportNumber": "IC-2026-27-00842",
+      "data": { "components": [ { "slNo": 1, "product": "Blade Type-3-HP-AC-25-kgs/hr", "make": null, "capacity": "1", "quantity": 2 } ] }
+    }
+  ]
+}
+```
+**Response**
+```json
+{ "ResponseInfo": { "status": "successful" } }
+```
+**Error** (illustrative — stale/mismatched row identity, same validator as §5.5)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "ACTIVITY_CASCADE_UPDATE_ERROR", "message": "Can only update Activity facility dates, geographyDetails and additional details if cascade FieldPlan date update true" } ]
+}
 ```
 
 ### 4.12 🆕 Publish Validation Check — API #19 (Flow doc PM Step 11)
@@ -518,6 +715,13 @@ request_info: {...}
 ```json
 { "ProcessInstances": [ { "id": "pi-uuid-1", "state": { "state": "PUBLISHED" }, "businessId": "IP-2026-001" } ] }
 ```
+**Error** (e.g. re-publishing an already-published Plan)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "INVALID_WORKFLOW_ACTION", "message": "Action PUBLISH is not valid for current state PUBLISHED" } ]
+}
+```
 
 ### 4.14 (system) Publish notification to Vendors — Flow doc PM Step 13
 Internal side effect of §4.13's `PUBLISH` transition — not a separately itemized API. Once `field_plans.status = 'PUBLISHED'` and tasks are dispatched, `field-planner` reads the Plan's `bom` rows (already vendor-assigned via §4.9) from `field-planner-activity`, de-duplicates by `vendor_email`, and emails each distinct vendor once via `im-services`' `LivelihoodEmailNotificationService` — confirmed requirement (LLD §3.9 row 5), same delivery mechanism as §5.7/§8.
@@ -536,12 +740,16 @@ Internal side effect of §4.13's `PUBLISH` transition — not a separately itemi
   }
 }
 ```
+**Error** (illustrative — fire-and-forget publish, no synchronous response contract; failure surfaces as a log/requeue, not an API error)
+```json
+{ "error": "EMAIL_DISPATCH_FAILED", "message": "SMTP relay unreachable — message requeued for retry" }
+```
 
 ---
 
 ## 5. Field Technician Task & IC Report Flow
 
-Mirrors `Livelihood_Installation_Flow_Diagrams.md` §2 (Field Technician flow). **Runs once per `bom` row** — Machine and Solar progress independently.
+Mirrors `Livelihood_Installation_Flow_Diagrams_Cleaned.md` §2 (Field Technician flow). **Runs once per `bom` row** — one per split `facility_activities` component (Solar, each Machine, per §3.3's superseded-design note) — Machine and Solar progress independently.
 
 ### 5.1 🔧 Search BOM — Task Inbox — API #15 (Flow doc FT Step 1)
 Same endpoint as §4.9 `_search` — filter by `vendorOrgId` (resolved from the logged-in Field Technician's `eg_org_user` link). No separate endpoint.
@@ -556,9 +764,17 @@ Same endpoint as §4.9 `_search` — filter by `vendorOrgId` (resolved from the 
 ```json
 {
   "BillOfMaterial": [
-    { "id": "bom-uuid-1", "activityFacilityId": "fac-act-uuid-42", "assetType": "MACHINE", "vendorOrgId": "org-uuid-1", "data": {} }
+    { "id": "bom-uuid-1", "activityFacilityId": "fac-act-uuid-42", "vendorOrgId": "org-uuid-1", "data": {} }
   ],
   "totalCount": 1
+}
+```
+*(No `assetType` on `bom` itself — which component this row belongs to is now `facility_activities.componentType`, reached via `activityFacilityId`, §6's superseded-design note.)*
+**Error** (unresolvable `vendorOrgId`)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "INVALID_VENDOR_ORG_ID", "message": "No vendor organisation found for org-uuid-1" } ]
 }
 ```
 
@@ -581,11 +797,18 @@ Same endpoint as §4.9 `_search` — filter by `vendorOrgId` (resolved from the 
 ```json
 { "otpUuid": "b3f1c2d4-...-otp-ref" }
 ```
+**Error** (e.g. mobile number missing on the facility record)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "MISSING_END_USER_MOBILE", "message": "No mobile number on file for this facility's end user" } ]
+}
+```
 
 ### 5.3 🔧 Verify OTP — API #22 (Flow doc FT Step 9)
 `POST /v1/bom/otp/_verify` — new route, same wrapper pattern: calls `egov-otp`'s `POST /otp/v1/_validate` with `bom.otp_uuid` and the entered code, and returns its `isValidationSuccessful` result directly. No local hash/expiry comparison — `egov-otp` is the source of truth.
 
-**DB Write:** No — no local `otp_verified` flag is stored; a successful verify is used immediately as the gate for §5.5's `SUBMIT_REPORT_A` transition, and that workflow transition having occurred is itself the durable record.
+**DB Write:** No — no local `otp_verified` flag is stored; a successful verify is used immediately as one of the two gates on §5.5's `SUBMIT_REPORT` transition (the other being the Purchase/Work Order No. check), and that workflow transition having occurred is itself the durable record.
 
 **Request**
 ```json
@@ -603,6 +826,7 @@ Same endpoint as §4.9 `_search` — filter by `vendorOrgId` (resolved from the 
 ```json
 { "otpVerified": false }
 ```
+*(This is the functional error case for this endpoint — `egov-otp` returns a normal 200 with `isValidationSuccessful: false` rather than an HTTP error, so `otpVerified: false` above doubles as the "error" response.)*
 
 ### 5.4 Upload & Link Photo/Video Evidence — API #23, #23b (Flow doc FT Step 10, part 1)
 **♻️ Upload**: `POST /filestore/v1/files` (standard DIGIT `egov-filestore` convention — assumed present in this deployment as-is; not independently verified in this repo scan, flagged for confirmation).
@@ -630,14 +854,22 @@ module: installation
   ]
 }
 ```
+**Error** (upload, illustrative — e.g. unsupported file type/size)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "FILE_UPLOAD_FAILED", "message": "File exceeds the maximum allowed size or is not a supported image/video type" } ]
+}
+```
 
-### 5.5 🔧 Submit IC Report (Field Technician, in-app — one actor, one submission) — API #24 (Flow doc FT Step 10, part 2)
-Two calls, both against existing endpoints, fired together as the technician's single "Submit" action:
+### 5.5 🔧 Submit IC Report (Field Technician, in-app — one actor, one submission) — API #24 (Flow doc FT Step 9)
+Three calls, fired together as the technician's single "Submit" action:
 
 1. `POST /v1/bom/_update` (existing, §4.9) — writes the confirmed/edited machine/solar spec fields and the entered System Functionality Parameters into `bom.data`, alongside the photo/video/OTP state already on the row (§5.2–5.4).
-2. `POST /egov-wf/process/_transition` (existing `FACILITY_INSTALLATION` business service, same endpoint as §6.3) — called **twice in immediate succession**, `action: "SUBMIT_REPORT_A"` then `action: "SUBMIT_REPORT_B"`, both against the same `bom.id`. There's no separate Project Manager/supervisor actor in this design (LLD §3.3's role mapping), so the technician's app triggers both transitions back-to-back rather than waiting on a second person.
+2. `POST /v1/asset/_create` (existing endpoint, `asset-registry` — new call site) — direct code trace confirmed no call anywhere in this codebase ever creates an `asset` row for the Installation flow; without this, §7.1's Approve-time `updateAssetsForFacility` search would find zero rows and silently no-op. Fired here, not at Vendor Assignment, because `serialNumber` (a required `Asset` field) is only known once the technician records it on-site. Populates `activityFacilityID`, `facilityID`, `assetTypeID`, `vendorId`, `serialNumber`, `additionalDetails.sourceBomId`, `isOperational: false`. See `Livelihood_Installation_Flow_Diagrams_Cleaned.md` §2 Step 9 for the open question on exactly which `bom.data` line items become individual asset rows.
+3. `POST /egov-wf/process/_transition` (`action: "SUBMIT_REPORT"`, a **single** action, `businessService: "FACILITY_INSTALLATION"`), called via `field-planner-activity` — **not** a `SUBMIT_REPORT_A`/`SUBMIT_REPORT_B` two-action chain: there is no version-controlled config for `FACILITY_INSTALLATION` anywhere in this repo, no current frontend code fires either of those two actions (they only appear inside a hardcoded array in `fa`/`qc`'s document-display filters, never behind a Submit button), and no code path confirms a two-action Kafka push exists in this codebase. The PRD (FR-11) itself describes exactly one actor and one action; if `FACILITY_INSTALLATION`'s real, verified config turns out to genuinely require two chained actions, that chaining should happen invisibly server-side, not as two Android-app calls. `businessId` is `activityFacilityId` (this component's split `facility_activities` row) — **not `bom.id`**. Gated on two checks before the transition fires: OTP verified (§5.3) and a Purchase/Work Order No. present (either from the Installation Template, §4.11, or the technician's own entry, Flow doc FT Step 4).
 
-**DB Write:** ✅ `bom.data` (real column, real write today) + ✅ `eg_wf_processinstance_v2` (2 transitions, confirmed via `StatusUpdateService.java:48` → topic `save-wf-transitions`). This is one of the parts of the design that already works end-to-end in the current codebase.
+**DB Write:** ✅ `bom.data` (real column, real write today) + 🆕 `asset` (new rows, `activity_facility_id`/`additional_details.sourceBomId`/`is_operational=false` — call 2 above) + ✅ `eg_wf_processinstance_v2` (one transition, confirmed via the `save-wf-transitions` path).
 
 **Request** (`_update`, extract)
 ```json
@@ -649,19 +881,69 @@ Two calls, both against existing endpoints, fired together as the technician's s
   ]
 }
 ```
-**Request** (`_transition`, called twice — `action` is the only field that changes between the two calls)
+**Response**
+```json
+{ "ResponseInfo": { "status": "successful" } }
+```
+**Error** (illustrative — stale/mismatched row identity)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "ACTIVITY_CASCADE_UPDATE_ERROR", "message": "Can only update Activity facility dates, geographyDetails and additional details if cascade FieldPlan date update true" } ]
+}
+```
+
+**Request** (asset creation, illustrative payload shape per the existing `AssetCreateRequest` model)
+```json
+{
+  "assetDetail": {
+    "asset": {
+      "tenantId": "in", "system": "Livelihood", "facilityID": "site-uuid-42", "activityFacilityID": "fac-act-uuid-42",
+      "assetTypeID": "SOL-PULVERIZER-001-MACHINE", "serialNumber": "CG5HP-88213", "vendorId": "org-uuid-1",
+      "isOperational": false, "additionalDetails": { "sourceBomId": "bom-uuid-1" }
+    }
+  }
+}
+```
+**Response**
+```json
+{ "assetDetail": { "asset": { "assetId": "asset-uuid-1", "wfStatus": "ACTIVE", "isOperational": false } } }
+```
+**Error** (illustrative — duplicate serial number)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "DUPLICATE_SERIAL_NUMBER", "message": "Asset with serialNumber CG5HP-88213 already exists" } ]
+}
+```
+
+**Request** (workflow transition, single action)
 ```json
 {
   "ProcessInstances": [
-    { "tenantId": "in", "businessService": "FACILITY_INSTALLATION", "businessId": "bom-uuid-1", "action": "SUBMIT_REPORT_A" }
+    { "tenantId": "in", "businessService": "FACILITY_INSTALLATION", "businessId": "fac-act-uuid-42", "action": "SUBMIT_REPORT" }
   ]
 }
 ```
-**Response** (final, after both transitions)
+**Response** (after the transition reaches `SUBMITTED_BY_SUPERVISOR`)
 ```json
-{ "ProcessInstances": [ { "id": "pi-uuid-3", "state": { "state": "SUBMITTED_BY_SUPERVISOR" }, "businessId": "bom-uuid-1" } ] }
+{ "ProcessInstances": [ { "id": "pi-uuid-3", "state": { "state": "SUBMITTED_BY_SUPERVISOR" }, "businessId": "fac-act-uuid-42" } ] }
 ```
-*(`SUBMITTED_BY_SUPERVISOR` is the real state name `frontend/installation-ui` already searches for to populate the Reviewer's queue, confirmed from `Activity.js`; the intermediate state between the two actions is not itemized in any checked-in config — confirm against the live `FACILITY_INSTALLATION` workflow config before implementation.)*
+*(`SUBMITTED_BY_SUPERVISOR` is the real state name `frontend/installation-ui` already searches for to populate the Reviewer's queue, confirmed from `Activity.js` — and matches the recovered `Selco.postman_collection.json` registration, `Livelihood_Installation_Business_Service.md` §3.1.)*
+**Error** (OTP not yet verified)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "OTP_NOT_VERIFIED", "message": "End-user OTP must be verified before Submit" } ]
+}
+```
+**Error** (Purchase/Work Order No. missing from both the template and this technician's own entry)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "PURCHASE_ORDER_NUMBER_REQUIRED", "message": "Purchase/Work Order No. must be entered before this report can be submitted" } ]
+}
+```
 
 ### 5.6 ♻️ Generate Handover Letter PDF — API #25
 `POST /v1/bom/_generate_pdf` (returns raw PDF) and `POST /v1/bom/_save_pdf` — **these already exist** (`BOMApiController`, same integration used for BOM's own PDF today). No new endpoint: the Handover Letter is just a different `GenerateBOMPdfRequest.system` template key against the same `bom` row, once `bom.data` has been populated by §5.5. Per the PRD's "generated from image" requirement (LLD §3.3): the mechanism is embedding — one of the technician's already-uploaded photos (§5.4) is placed into the generated PDF alongside the existing Handover Letter fields, the same way `egov-pdf-service`'s existing templates already support an image placeholder — no OCR or separate image-processing step.
@@ -676,9 +958,16 @@ Two calls, both against existing endpoints, fired together as the technician's s
 ```json
 { "filestoreId": "fs-uuid-handover-1" }
 ```
+**Error** (illustrative — referenced `bom` row or image `fileStoreId` not found)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "INVALID_FILESTORE_ID", "message": "No file found in egov-filestore for id fs-uuid-1" } ]
+}
+```
 
 ### 5.7 (system) IC Report submission notification — Flow doc FT Step 11
-Internal side effect of §5.5's `SUBMIT_REPORT_B` transition — not separately itemized as its own controller. Two new Email notifications fire at this moment (LLD §3.9 rows 1–2), via `im-services`' `LivelihoodEmailNotificationService`:
+Internal side effect of §5.5's `SUBMIT_REPORT` transition — not separately itemized as its own controller. Two new Email notifications fire at this moment (LLD §3.9 rows 1–2), via `im-services`' `LivelihoodEmailNotificationService`:
 
 - **Assigned Installation Reviewer for the Plan** — resolved via `activity_assignments` (role `INSTALLATION_REVIEWER`, §4.5) → HRMS email lookup.
 - **Vendor** — direct read of `bom.vendor_email` (§4.9) — already captured at Vendor Assignment, no lookup needed.
@@ -693,146 +982,114 @@ Internal side effect of §5.5's `SUBMIT_REPORT_B` transition — not separately 
     "tenantId": "in",
     "emailType": "IC_REPORT_SUBMITTED",
     "recipientEmail": "priya.reviewer@selco.example",
-    "templateParams": { "bomId": "bom-uuid-1", "siteName": "ABC Farmer Group", "assetType": "MACHINE" }
+    "templateParams": { "bomId": "bom-uuid-1", "activityFacilityId": "fac-act-uuid-42", "siteName": "ABC Farmer Group", "componentType": "MACHINE" }
   }
 }
+```
+**Error** (illustrative — reviewer email not resolvable)
+```json
+{ "error": "EMAIL_DISPATCH_FAILED", "message": "Reviewer email address not resolvable via activity_assignments" }
 ```
 
 ---
 
 ## 6. Installation Reviewer Flow
 
-Mirrors `Livelihood_Installation_Flow_Diagrams.md` §3 (Installation Reviewer flow). **Runs once per `bom` row** — Machine and Solar reports for a site are reviewed as separate queue entries.
+Mirrors `Livelihood_Installation_Flow_Diagrams_Cleaned.md` §3 (Installation Reviewer flow). **Runs once per `facility_activities` row** — one row per vendor-assignable component (Solar, each Machine); Machine and Solar reports for a site are reviewed as separate queue entries.
 
-### 6.1 🔧 Search BOM — Review Queue — API #15 (Flow doc Reviewer Steps 1–2)
-Same endpoint as §4.9 `_search`, filtered to `fieldPlanIds` the logged-in Installation Reviewer is assigned to (resolved via §4.5's `activity_assignments`) and to the workflow state the existing frontend already searches for pending review (`SUBMITTED_BY_SUPERVISOR`). No separate endpoint. Opening one row's full report (§4.9's model plus `bom_document`) reuses the same `_search`, filtered by `id`.
+> **📌 Superseded (2026-08-19):** §6.1's endpoint and §6.2's entire proposed endpoint have changed. An earlier draft searched/reviewed `bom` rows directly and proposed a new `bom_section_review` table + endpoint for per-section decisions. Direct code verification found the already-live QC review mechanism (`facility_activities`-keyed, `activity_facility_transaction_comment`-backed) already does everything FR-13 needs, once `facility_activities` is split per component (LLD §3.3) — so §6.2 is now pure reuse, not a new build.
 
-**DB Write:** No (read-only) — reads `bom`, `bom_document`, `activity_assignments`, `eg_wf_processinstance_v2`.
+### 6.1 🔧 Search Facility Activity — Review Queue — API #15 (Flow doc Reviewer Steps 1–2)
+`POST /activity/v1/activities/_search` — **existing, live endpoint** (`ActivityApiController.searchActivityFacility`), not the `bom` search an earlier draft used. Filtered to `fieldPlanIds` the logged-in Installation Reviewer is assigned to (resolved via §4.5's `activity_assignments`) and to `status = SUBMITTED_BY_SUPERVISOR`, both **native columns on `facility_activities`** — no join needed, unlike the superseded `bom`-based design which needed a new join just to reach `fieldPlanId`. Opening one row's full report (Step 2) reuses the same `_search`, filtered by `id`; the response already hydrates `transactions`/`comments` (confirmed in code) and includes the 1:1-linked `bom.data`/`bom_document`.
 
-**Request** (queue, scoped by assigned Plans + workflow state)
+**DB Write:** No (read-only) — reads `facility_activities`, `bom`, `bom_document`, `activity_assignments`, `activity_facility_transaction(_comment)`.
+**🔧 Extension needed:** confirm/add a `fieldPlanIds` filter on `ActivitySearchCriteria` if not already present, and enforce it server-side against the caller's own `activity_assignments` (not a client-trusted filter) — same scoping principle as the FR-12 queue story.
+
+**Request** (queue, scoped by assigned Plans + status)
 ```json
-{ "criteria": { "tenantId": "in", "fieldPlanIds": ["IP-2026-001"], "wfState": "SUBMITTED_BY_SUPERVISOR" } }
+{ "criteria": { "tenantId": "in", "fieldPlanIds": ["IP-2026-001"], "status": "SUBMITTED_BY_SUPERVISOR" } }
 ```
 **Response**
 ```json
 {
-  "BillOfMaterial": [
-    { "id": "bom-uuid-1", "activityFacilityId": "fac-act-uuid-42", "assetType": "MACHINE", "vendorOrgId": "org-uuid-1" }
+  "ActivityFacilities": [
+    { "id": "fac-act-uuid-42", "facilityId": "site-uuid-42", "fieldPlanId": "IP-2026-001", "componentType": "MACHINE", "solutionId": "SOL-PULVERIZER-001", "status": "SUBMITTED_BY_SUPERVISOR" }
   ],
   "totalCount": 1
 }
 ```
-
-### 6.2 🆕 Submit Section Review — API #26 (Flow doc Reviewer Step 3)
-`POST /v1/bom/section-review/_create` — new, `field-planner-activity`. Writes one `bom_section_review` row per section — the one piece of review granularity that doesn't already exist (the live workflow's `APPROVE`/`REJECT_AND_ASSIGN_FOR_FIELD_QC` actions are whole-report, no per-section reason). Internally triggers §6.3's workflow transition once all sections for a `bom` row are marked.
-
-**DB Write:** 🆕 the entire `bom_section_review` table — confirmed absent from the codebase (zero references to `SectionReview`/`section-review`/`bom_section_review` anywhere). Per LLD §3.3, once built: `id, tenant_id, bom_id, section_name, decision, reason, reviewed_by, reviewed_time`.
-
-**Request**
+**Error** (logged-in user has no `activity_assignments` as `INSTALLATION_REVIEWER`)
 ```json
 {
-  "BomSectionReviews": [
-    { "tenantId": "in", "bomId": "bom-uuid-1", "sectionName": "SPECS", "decision": "APPROVE" },
-    { "tenantId": "in", "bomId": "bom-uuid-1", "sectionName": "PHOTOS", "decision": "REJECT", "reason": "Panel photo is blurry, retake in daylight" },
-    { "tenantId": "in", "bomId": "bom-uuid-1", "sectionName": "VIDEO", "decision": "APPROVE" },
-    { "tenantId": "in", "bomId": "bom-uuid-1", "sectionName": "HANDOVER_LETTER", "decision": "APPROVE" }
-  ]
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "REVIEWER_NOT_ASSIGNED", "message": "Logged-in user has no activity_assignments as INSTALLATION_REVIEWER" } ]
 }
 ```
-**Response**
-```json
-{ "BomSectionReview": [ { "id": "rev-1" }, { "id": "rev-2" }, { "id": "rev-3" }, { "id": "rev-4" } ], "workflowActionTriggered": "REJECT_AND_ASSIGN_FOR_FIELD_QC" }
-```
-
-### 6.3 ♻️ Workflow Transition — Approve/Reject — API #20 (Flow doc Reviewer Steps 4A/4B)
-`POST /egov-wf/process/_transition` (existing, `egov-workflow-v2`) — same endpoint as §4.13 and §5.5, different action. **No new business-service config needed**: `FACILITY_INSTALLATION` already exists and is already live (LLD §3.3) — this reuses its real actions `APPROVE`/`REJECT_AND_ASSIGN_FOR_FIELD_QC`/`FLAG_FOR_QC`, not an invented `IC_REPORT` business service.
-
-**DB Write:** ✅ `eg_wf_processinstance_v2` transition — confirmed via the same `StatusUpdateService.java:48` → `save-wf-transitions` path as §4.13/§5.5. On rejection, a bespoke existing `activity_facility_transaction_comment` table also records the reason/comment (write path not individually verified in this pass, but architecturally consistent with every other confirmed write in this service).
-
-**Request (reject)**
+**Error** (opening one row by `id`, Flow doc Reviewer Step 2 — row not found)
 ```json
 {
-  "ProcessInstances": [
-    { "tenantId": "in", "businessService": "FACILITY_INSTALLATION", "businessId": "bom-uuid-1", "action": "REJECT_AND_ASSIGN_FOR_FIELD_QC",
-      "comment": "PHOTOS section rejected: blurry panel photo" }
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "ACTIVITY_FACILITY_NOT_FOUND", "message": "No facility_activity row found for id fac-act-uuid-42" } ]
+}
+```
+
+### 6.2 ♻️ Submit per-section reasons + trigger Approve/Reject — API #26 (Flow doc Reviewer Steps 3–4A/4B)
+`POST /activity/v1/activities/workflow/update` — **existing, live endpoint**, the same one `QCActions.js`'s `handleApprove`/`handleReject`/`handleFlagForQC` already call today. No new endpoint, no new table. Per-section marks (Specs/Photos/Video/Handover Letter) accumulate client-side (existing `Summary`/`AddRejectionReasonModal`/Redux mechanism, relabeled from today's per-asset-type sections) and are bundled into this one call's `transactions[0].comments`, tagged by section name instead of `assetType`. The overall action (`APPROVE` if no section has a reason, `REJECT_AND_ASSIGN_FOR_FIELD_QC` otherwise) is decided client-side by the same `showRejectActions` logic already in `QCActions.js` today.
+
+**DB Write:** ✅ existing — `facility_activities.status` (workflow-driven), `activity_facility_transaction`/`activity_facility_transaction_comment` (one comment per rejected section). No `bom_section_review` table, and no `installation_audit_trail` table either — `egov-workflow-v2`'s existing `eg_wf_processinstance_v2` already logs this transition (action, status, previousStatus, actor, timestamp), see LLD §3.3. Plus, on Approve only, a fix to move the existing `completed_at` stamp so it's set once, at Approve, not overwritten on every transition. On Reject, the assigned Vendor Contact is additionally notified by Email (existing `ActivityServiceUtil.sendEmailViaKafka`) and 🆕 SMS (new `egov.core.notification.sms` topic + `bom.vendor_phone` column, same pattern as four sibling services already using that topic) — see the sample SMS push below.
+
+**Request (reject — at least one section marked)**
+```json
+{
+  "activityFacilityId": "fac-act-uuid-42",
+  "workflow": { "action": "REJECT_AND_ASSIGN_FOR_FIELD_QC", "comment": "Rejected by Installation Reviewer" },
+  "transactions": [
+    { "comments": [
+      { "commentMessage": "{\"reasonCode\":\"BLURRY_PHOTO\",\"comment\":\"Panel photo is blurry, retake in daylight\"}", "assetType": "PHOTOS" }
+    ] }
   ]
 }
 ```
 **Response (reject)**
 ```json
-{ "ProcessInstances": [ { "id": "pi-uuid-2", "state": { "state": "PENDING_PART_A" }, "businessId": "bom-uuid-1" } ] }
+{ "ActivityFacility": { "id": "fac-act-uuid-42", "status": "REJECTED_BY_QC_SPOC", "componentType": "MACHINE" } }
 ```
-*(Exact state name to confirm against the live `FACILITY_INSTALLATION` config.)*
+**Sample SMS push** (🆕 new, mirrors `egov-hrms`'s `NotificationService.java:83-84`, same shared topic)
+```json
+{ "mobileNumber": "9900011122", "message": "Your IC Report for Doddaballapur SHG has been returned for correction. Please log in to the Installation App to view rejection comments and resubmit." }
+```
 
-**Request (approve, all sections passed)**
+**Request (approve — no section marked)**
 ```json
 {
-  "ProcessInstances": [
-    { "tenantId": "in", "businessService": "FACILITY_INSTALLATION", "businessId": "bom-uuid-1", "action": "APPROVE",
-      "comment": "All sections approved" }
-  ]
+  "activityFacilityId": "fac-act-uuid-42",
+  "workflow": { "action": "APPROVE", "comment": "Approved by Installation Reviewer" }
 }
 ```
 **Response (approve)**
 ```json
-{ "ProcessInstances": [ { "id": "pi-uuid-4", "state": { "state": "APPROVE" }, "businessId": "bom-uuid-1" } ] }
+{ "ActivityFacility": { "id": "fac-act-uuid-42", "status": "APPROVED_BY_QC_SPOC", "componentType": "MACHINE" } }
 ```
-
----
-
-## 7. Post-Installation: Asset Handoff, Audit Trail & O&M Eligibility
-
-Mirrors `Livelihood_Installation_Flow_Diagrams.md` §3 Steps 5–7 (system side effects of §6.3's `APPROVE` transition, plus the ticket-raising gate it feeds).
-
-### 7.1 ♻️ Create / Update Asset (handoff + per-asset O&M eligibility) — API #27, #29
-`POST /v1/asset/_create` or `/v1/asset/_update?assetID=` (existing, `asset-registry`, already implemented — not the stub endpoints) — extend request by populating the one new nullable column `sourceBomId` **and** setting the existing `isOperational` column to `true`. Called server-side by `field-planner-activity`, **extending** the existing `ActivityService.triggerInstallationCompletionSideEffects()`/`updateAssetOperationalStatus()` call path (which already invokes this same endpoint on facility-activity approval today) rather than introducing a second, separate handoff mechanism. Both fields are set in the same call, at the same trigger point: the moment that specific `bom` row (Machine or Solar) reaches `APPROVE` — the *other* asset at the same facility, if not yet approved, is left untouched.
-
-**DB Write:** ✅/🆕 mixed — `asset` table (PK `asset_id`, plus `facility_id`, `asset_type_id`, `serial_number`, `vendor_id`) exists (`V20250520141800`). `is_operational` ✅ exists (`V20250625141800`) and was **previously write-idle** — backfilled to `false` for existing rows (`V20260109141800`) but never written by application code until this design adds the write. **`source_bom_id` is 🆕** — no migration in this repo adds it; until then, the handoff link can only be stored inside the existing `additional_details` JSONB, not a real column.
-
-**Request**
+**Error** (illustrative — transition attempted from a non-pending state)
 ```json
 {
-  "assetDetail": {
-    "asset": {
-      "tenantId": "in", "system": "Livelihood", "facilityID": "site-uuid-42", "assetTypeID": "SOL-PULVERIZER-001-MACHINE",
-      "serialNumber": "CG5HP-88213", "vendorId": "org-uuid-1", "isOperational": true,
-      "additionalDetails": { "sourceBomId": "bom-uuid-1" }
-    }
-  }
-}
-```
-**Response**
-```json
-{ "assetDetail": { "asset": { "assetId": "asset-uuid-1", "wfStatus": "ACTIVE", "isOperational": true } } }
-```
-
-**Correction versus an earlier draft of this doc**: O&M eligibility is **per-asset, not per-facility** — `health-facility-registry`'s site-level `facility.isOnmReady` (migration `V20251030113000`) can't represent a site's Machine and Solar becoming independently raisable as each is approved. This design reuses `asset-registry`'s `isOperational` column instead (LLD §3.4/§3.5); `facility.isOnmReady` itself is untouched but is no longer this feature's eligibility mechanism.
-
-### 7.2 🆕 Search Audit Trail — API #28
-`POST /v1/audit-trail/_search` — new, `field-planner-activity`; read-only visibility into the FR-14-mandated audit trail (every state-changing action, actor, timestamp, before/after) that isn't already covered by `egov-workflow-v2`'s own transition history on `bom`.
-
-**DB Write:** No (read-only) — but the table it reads, `installation_audit_trail`, is itself 🆕: confirmed absent from the codebase (zero references to `AuditTrail`/`installation_audit_trail` anywhere). The corresponding *create* has no dedicated API in this doc — it would fire as an internal side effect alongside §7.1/§6.3's workflow transitions, once built. Per LLD §3.3, the proposed shape is `id, tenant_id, entity_type, entity_id, action, actor_id, before_state, after_state, created_time`.
-
-**Request**
-```json
-{ "criteria": { "tenantId": "in", "entityType": "BOM", "entityId": "bom-uuid-1" } }
-```
-**Response**
-```json
-{
-  "auditTrail": [
-    { "action": "APPROVE_SECTION", "actorId": "hrms-reviewer-uuid", "createdTime": 1721659000000,
-      "beforeState": { "status": "PENDING_PART_A" }, "afterState": { "status": "APPROVED" } }
-  ]
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "INVALID_WORKFLOW_ACTION", "message": "Action REJECT_AND_ASSIGN_FOR_FIELD_QC is not valid for current state APPROVED_BY_QC_SPOC" } ]
 }
 ```
 
-### 7.3 ♻️ Check O&M Eligibility (per-asset) — API #30
-`POST /v1/asset/_search` (existing, `asset-registry` — already used as a search filter on `isOperational` per `AssetService.java`), filtering by `facilityID` and reading back `isOperational` per asset. No separate API — this is the same call for both callers:
-- **im-services' ticket-creation gate** (§7.4) — scoped to the specific asset the end user is raising a ticket against.
-- **WhatsApp chatbot's asset picker** (new consumer, LLD §3.5) — queries this same endpoint for the end user's facility; an asset with `isOperational: false` is never offered.
+**⚠️ Reason-required enforcement not yet confirmed** — verify `AddRejectionReasonModal.js` actually requires the reason field client-side before treating this AC as already met; add a server-side `400 REASON_REQUIRED` check in this endpoint's handler as the authoritative guard either way.
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "REASON_REQUIRED", "message": "A rejection reason is required for every section marked as rejected" } ]
+}
+```
 
-**DB Write:** No (read-only) — reads `asset.is_operational`.
+### 6.3 ♻️ Confirmation-modal O&M-eligibility check — API #30 (Flow doc Reviewer Step 4B, new call site)
+`POST /v1/asset/_search` — **existing, live endpoint** (`asset-registry`, previously only wired up for the Setu4Livelihoods ticket gate and WhatsApp chatbot's asset picker, §7.3). New call site: fired client-side, filtered by the *physical* `facilityID` (not `activityFacilityID`), just before showing the Approve confirmation modal — an empty result or all `isOnmReady: false` means this is the first asset approved at the site (show the O&M-eligibility line); any `true` means a plain confirmation. Zero new backend code — this is a read-only search already exposed today, just a new place that calls it.
+
+**DB Write:** No (read-only) — reads the new `asset.is_onm_ready` (not `is_operational`) filtered by `facilityID`.
 
 **Request**
 ```json
@@ -840,13 +1097,127 @@ Mirrors `Livelihood_Installation_Flow_Diagrams.md` §3 Steps 5–7 (system side 
 ```
 **Response**
 ```json
-{ "asset": [ { "assetId": "asset-uuid-1", "facilityID": "site-uuid-42", "isOperational": true } ] }
+{ "asset": [] }
+```
+*(Empty here — this would be the first-asset-at-site variant of the modal.)*
+**Error** (illustrative — unresolvable `facilityID`)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "INVALID_FACILITY_ID", "message": "No facility found for id site-uuid-42" } ]
+}
+```
+
+### 6.4 ♻️ Workflow Transition (internal) — Approve/Reject — API #20
+`POST /egov-wf/process/_transition` (existing, `egov-workflow-v2`) — same endpoint as §4.13 and §5.5, different action. Called internally by §6.2's handler, not directly by the Reviewer's client. **No new business-service config needed**: `FACILITY_INSTALLATION` already exists and is already live — this reuses its real, recovered actions `APPROVE`/`REJECT_AND_ASSIGN_FOR_FIELD_QC` (`Livelihood_Installation_Business_Service.md` §3.1), not an invented `IC_REPORT` business service. `businessId` is now `facility_activities.id` (this component's row), not `bom.id` — superseding an earlier draft.
+
+**DB Write:** ✅ `eg_wf_processinstance_v2` transition — confirmed via `StatusUpdateService`'s `save-wf-transitions` path, same as §4.13/§5.5.
+
+**Request (reject)**
+```json
+{
+  "ProcessInstances": [
+    { "tenantId": "in", "businessService": "FACILITY_INSTALLATION", "businessId": "fac-act-uuid-42", "action": "REJECT_AND_ASSIGN_FOR_FIELD_QC",
+      "comment": "PHOTOS section rejected: blurry panel photo" }
+  ]
+}
+```
+**Response (reject)**
+```json
+{ "ProcessInstances": [ { "id": "pi-uuid-2", "state": { "state": "REJECTED_BY_QC_SPOC" }, "businessId": "fac-act-uuid-42" } ] }
+```
+
+**Request (approve, no section rejected)**
+```json
+{
+  "ProcessInstances": [
+    { "tenantId": "in", "businessService": "FACILITY_INSTALLATION", "businessId": "fac-act-uuid-42", "action": "APPROVE",
+      "comment": "All sections approved" }
+  ]
+}
+```
+**Response (approve)**
+```json
+{ "ProcessInstances": [ { "id": "pi-uuid-4", "state": { "state": "APPROVED_BY_QC_SPOC" }, "businessId": "fac-act-uuid-42" } ] }
+```
+**Error** (illustrative — transition attempted from a non-pending state)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "INVALID_WORKFLOW_ACTION", "message": "Action APPROVE is not valid for current state APPROVED_BY_QC_SPOC" } ]
+}
+```
+
+---
+
+## 7. Post-Installation: Asset Handoff, Audit Trail & O&M Eligibility
+
+Mirrors `Livelihood_Installation_Flow_Diagrams_Cleaned.md` §3 Steps 5–7 (system side effects of §6.3's `APPROVE` transition, plus the ticket-raising gate it feeds).
+
+### 7.1 🔧 Create / Update Asset (handoff + per-asset O&M eligibility) — API #27, #29
+
+> **⚠️ Correction (2026-08-20):** the claim below that `_create` "already invokes this same endpoint on facility-activity approval today" is wrong for the create half — direct code trace confirmed `ActivityService.updateAssetsForFacility`/`updateAssetOperationalStatus` **only ever calls `_search` then `_update`**, never `_create`. No call anywhere in this codebase creates an `asset` row tagged with `activityFacilityID` for the Installation flow — approval's asset-handoff side effect would find zero rows today. The fix: `field-planner-activity` needs a **new call site** to the already-implemented `_create` endpoint, at the **Field Technician's Submit action** (`Livelihood_Installation_Flow_Diagrams_Cleaned.md` §2 Step 9 — not at Vendor Assignment, since `serialNumber` is only known once the technician records it on-site), populating `activityFacilityID`, `facilityID`, `assetTypeID`, `vendorId`, `serialNumber`, and `additionalDetails.sourceBomId`, with `isOperational: false` initially (existing, unrelated flag — see below). `_update`'s existing role is unaffected — see below.
+
+`POST /v1/asset/_create` or `/v1/asset/_update?assetID=` (existing, `asset-registry`, already implemented — not the stub endpoints) — extend request by populating the one new nullable column `sourceBomId` **and** the new `isOnmReady` column, setting both to their handoff values. `_update` is called server-side by `field-planner-activity`, **extending** the existing `ActivityService.updateAssetsForFacility`/`updateAssetOperationalStatus` call path (which already invokes this same `_update` endpoint on facility-activity approval today, setting the existing, unrelated `isOperational` column — left untouched by this design) rather than introducing a second, separate handoff mechanism; `_create` is a **new call site** (see correction above), fired earlier at Submit, not at Approve. Both `sourceBomId` and `isOnmReady=true` are set at the same trigger point as before: the moment that specific `facility_activities` row (Machine or Solar) reaches `APPROVED_BY_QC_SPOC` — the *other* asset at the same facility, if not yet approved, is left untouched.
+
+**DB Write:** ✅/🆕 mixed — `asset` table (PK `asset_id`, plus `facility_id`, `asset_type_id`, `serial_number`, `vendor_id`) exists (`V20250520141800`). `is_operational` ✅ exists (`V20250625141800`), is a separate, unrelated flag, and is left untouched by this design. **`is_onm_ready` is 🆕** — new column (migration `V20260824120000`), the actual per-asset O&M-eligibility gate this design writes. **`source_bom_id` is also 🆕** — no migration in this repo adds it; until then, the handoff link can only be stored inside the existing `additional_details` JSONB, not a real column.
+
+**Request**
+```json
+{
+  "assetDetail": {
+    "asset": {
+      "tenantId": "in", "system": "Livelihood", "facilityID": "site-uuid-42", "assetTypeID": "SOL-PULVERIZER-001-MACHINE",
+      "serialNumber": "CG5HP-88213", "vendorId": "org-uuid-1", "isOperational": true, "isOnmReady": true,
+      "additionalDetails": { "sourceBomId": "bom-uuid-1" }
+    }
+  }
+}
+```
+**Response**
+```json
+{ "assetDetail": { "asset": { "assetId": "asset-uuid-1", "wfStatus": "ACTIVE", "isOperational": true, "isOnmReady": true } } }
+```
+**Error** (illustrative — duplicate serial number)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "DUPLICATE_SERIAL_NUMBER", "message": "Asset with serialNumber CG5HP-88213 already exists" } ]
+}
+```
+
+**O&M eligibility is per-asset, not per-facility** — `health-facility-registry`'s site-level `facility.isOnmReady` (migration `V20251030113000`) can't represent a site's Machine and Solar becoming independently raisable as each is approved. This design adds a new, per-asset `asset.isOnmReady` column instead (LLD §3.4/§3.5) — distinct from the existing `asset.isOperational` column, which is a separate flag and not reused for this; `facility.isOnmReady` itself is untouched but is no longer this feature's eligibility mechanism.
+
+### 7.2 No new audit trail table or endpoint needed
+`egov-workflow-v2`'s own `eg_wf_processinstance_v2` already retains one row per transition (`action`, `status`, `previousStatus`, `comment`, `assigner`, `assignee`, searchable with `history=true`) for this track's workflow-driven state changes (§6.2/§6.4), and the existing `activity_facility_transaction`/`activity_facility_transaction_comment` tables already attach rejection reason/comment text per transition — this is exactly what `frontend/installation-ui`'s `AuditTrail.js` already renders today. No `installation_audit_trail` table, and no `/v1/audit-trail/_search` endpoint (API #28, superseded — see §2), is added; see LLD §3.3. The asset `isOnmReady` flip (§7.1) and the site-lock release (§7.5) get no dedicated audit-trail entry of their own — reading their own tables (`asset`, `field_plan_facilities`) directly is sufficient.
+
+### 7.3 ♻️ Check O&M Eligibility (per-asset) — API #30
+`POST /v1/asset/_search` (existing, `asset-registry`), filtering by `facilityID` and reading back the new `isOnmReady` per asset — extended (migration `V20260824120000`), the search itself already exists. No separate API — this is the same call for both callers:
+- **im-services' ticket-creation gate** (§7.4) — scoped to the specific asset the end user is raising a ticket against.
+- **WhatsApp chatbot's asset picker** (new consumer, LLD §3.5) — queries this same endpoint for the end user's facility; an asset with `isOnmReady: false` is never offered.
+
+**DB Write:** No (read-only) — reads the new `asset.is_onm_ready` (not `is_operational`, a separate, unrelated flag).
+
+**Request**
+```json
+{ "assetSearchCriteria": { "tenantId": "in", "facilityID": "site-uuid-42" } }
+```
+**Response**
+```json
+{ "asset": [ { "assetId": "asset-uuid-1", "facilityID": "site-uuid-42", "isOnmReady": true } ] }
+```
+**Error** (illustrative — unresolvable `facilityID`)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "INVALID_FACILITY_ID", "message": "No facility found for id site-uuid-42" } ]
+}
 ```
 
 ### 7.4 🔧 Raise Ticket (extended with per-asset eligibility gate) — API #31
 `POST /v2/request/_create` (existing, `im-services` — the Setu4Livelihoods ticket-creation API you already built) — extend only the server-side handler to call §7.3 (scoped to the asset the ticket names, not just the facility) before persisting the `Incident`; no request/response shape change for the happy path, one new error code for the blocked path.
 
-**DB Write:** ✅ `im-services`' own `Incident` table (not in this feature's schema scope — pre-existing) — gated by a read of `asset.is_operational`.
+**DB Write:** ✅ `im-services`' own `Incident` table (not in this feature's schema scope — pre-existing) — gated by a read of `asset.is_onm_ready`.
 
 **Request** (unchanged shape — `assetId` was already present on `Incident` per the existing Setu4Livelihoods model, now the field this gate actually checks)
 ```json
@@ -855,7 +1226,11 @@ Mirrors `Livelihood_Installation_Flow_Diagrams.md` §3 Steps 5–7 (system side 
   "workflow": { "action": "APPLY" }
 }
 ```
-**Response (blocked — new error case)**
+**Response (happy path — asset is O&M-eligible)**
+```json
+{ "incident": { "id": "incident-uuid-1", "tenantId": "in", "status": "APPLIED", "assetId": "asset-uuid-1" } }
+```
+**Error (blocked — new error case)**
 ```json
 {
   "ResponseInfo": { "status": "failed" },
@@ -863,11 +1238,36 @@ Mirrors `Livelihood_Installation_Flow_Diagrams.md` §3 Steps 5–7 (system side 
 }
 ```
 
+### 7.5 ♻️ Site Unlock Check (system) — API #12's endpoint, reused (Flow doc Reviewer Step 7)
+`POST /v1/field-plans/facility/_unassign` (existing, `field-planner`, same endpoint family as §4.7's lock-check) — internal side effect fired by `field-planner-activity` after every Approve/Reject transition (§6.4): it re-checks whether **every** sibling `facility_activities` row sharing this `(facility_id, field_plan_id)` pair has reached a terminal-approved status (a direct, single-table query since the split-by-component design, no `bom` join needed), and only then releases this Plan's lock claim on the site. Not itemized as a separate API in the §2 summary table previously — added here since it's a distinct call with its own request/response/error shape.
+
+**DB Write:** ✅ `field_plan_facilities` lock state, confirmed via the existing `delete-fieldplan-facility-topic` producer (`FieldPlannerFacilityService.java:136`, same call for both the single `_unassign` endpoint and its bulk counterpart). No `installation_audit_trail` write — see §7.2.
+
+**Request**
+```json
+{
+  "FieldPlanFacilities": [
+    { "tenantId": "in", "fieldPlanId": "IP-2026-001", "facilityId": "site-uuid-42", "lockStatus": "UNLOCKED" }
+  ]
+}
+```
+**Response**
+```json
+{ "ResponseInfo": { "status": "successful" } }
+```
+**Error** (at least one sibling component — e.g. the Solar row — hasn't reached a terminal-approved status yet)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "SITE_STILL_LOCKED", "message": "Not every facility_activities row for facility_id=site-uuid-42, field_plan_id=IP-2026-001 has reached a terminal-approved status; site remains locked" } ]
+}
+```
+
 ---
 
 ## 8. Scheduled Notification Jobs
 
-Mirrors `Livelihood_Installation_Flow_Diagrams.md` §4. Both jobs run **daily** on the existing `amc-scheduler-service` but are gated to a **weekly** cadence per Plan by a "last notified" timestamp — no new controller of their own, both reuse existing search/update endpoints already itemized above. Previously undocumented in this file (the Flow Diagrams doc explicitly notes "neither job is itemized in the API Summary table" — that gap is closed here).
+Mirrors `Livelihood_Installation_Flow_Diagrams_Cleaned.md` §4. Both jobs run **daily** on the existing `amc-scheduler-service` but are gated to a **weekly** cadence per Plan by a "last notified" timestamp — no new controller of their own, both reuse existing search/update endpoints already itemized above. Previously undocumented in this file (the Flow Diagrams doc explicitly notes "neither job is itemized in the API Summary table" — that gap is closed here).
 
 ### 8.1 Job 1 — "Planned Installation breached" weekly summary — API #32
 Trigger: `field_plans.status = 'PUBLISHED'`, `end_date < now()`, and at least one facility in scope not yet fully installed ("fully installed" = every `bom` row for that `facility_activity` reached `APPROVE`, same completeness test as §8.2).
@@ -888,12 +1288,46 @@ Trigger: `field_plans.status = 'PUBLISHED'`, `end_date < now()`, and at least on
 ```json
 { "FieldPlan": [ { "id": "IP-2026-001", "status": "PUBLISHED", "endDate": 1724198400000, "additionalDetails": { "seniorContactEmail": "ravi.kumar@selco.example" } } ] }
 ```
+**Sample Error** (call 1, illustrative — malformed criteria)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "INVALID_SEARCH_CRITERIA", "message": "endDateBefore must be a valid epoch millis timestamp" } ]
+}
+```
+**Sample Request** (call 2, illustrative)
+```json
+{ "criteria": { "tenantId": "in", "fieldPlanId": "IP-2026-001" } }
+```
+**Sample Response** (call 2, illustrative)
+```json
+{ "totalFacilityActivities": 20, "approvedBom": 16, "completionPercent": 80 }
+```
 **Sample Kafka message** (call 3, illustrative)
 ```json
 {
   "topic": "email-send-consumer",
   "value": { "tenantId": "in", "emailType": "INSTALLATION_BREACH_WEEKLY_SUMMARY", "recipientEmail": "ravi.kumar@selco.example",
     "templateParams": { "planId": "IP-2026-001", "pendingSites": 4 } }
+}
+```
+**Sample Error** (call 3, illustrative — fire-and-forget publish, failure surfaces as a log/requeue, not an API error)
+```json
+{ "error": "EMAIL_DISPATCH_FAILED", "message": "senior_contact_email is empty on field_plans row IP-2026-001" }
+```
+**Sample Request** (call 4, illustrative)
+```json
+{ "FieldPlans": [ { "id": "IP-2026-001", "tenantId": "in", "additionalDetails": { "installationBreachLastNotifiedTime": 1721659400000 } } ] }
+```
+**Sample Response** (call 4, illustrative — `202 Accepted`, async Kafka-backed write)
+```json
+{ "ResponseInfo": { "status": "successful" } }
+```
+**Sample Error** (call 4, illustrative — stale row identity)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "INVALID_FIELD_PLAN_ID", "message": "No field plan found for id IP-2026-001" } ]
 }
 ```
 
@@ -909,6 +1343,14 @@ Trigger: `field_plans.status = 'PUBLISHED'`, currently within 10 days of `end_da
 
 **DB Write:** 🆕 `field_plans.low_completion_last_notified_time` — same gap as §8.1's timestamp column, same `update-fieldplan` producer. Reads `field_plans`, `facility_activities`, `bom`.
 
+**Sample Request** (call 1, illustrative)
+```json
+{ "criteria": { "tenantId": "in", "status": "PUBLISHED", "endDateWithinDays": 10 } }
+```
+**Sample Response** (call 1, illustrative)
+```json
+{ "FieldPlan": [ { "id": "IP-2026-001", "status": "PUBLISHED", "endDate": 1724198400000, "createdBy": "hrms-pm-uuid" } ] }
+```
 **Sample Request** (call 2, illustrative)
 ```json
 { "criteria": { "tenantId": "in", "fieldPlanId": "IP-2026-001" } }
@@ -917,12 +1359,39 @@ Trigger: `field_plans.status = 'PUBLISHED'`, currently within 10 days of `end_da
 ```json
 { "totalFacilityActivities": 20, "approvedBom": 6, "completionPercent": 30 }
 ```
+**Sample Request** (call 3, illustrative — HRMS employee lookup by uuid)
+```json
+{ "EmployeeSearchCriteria": { "tenantId": "in", "uuids": ["hrms-pm-uuid"] } }
+```
+**Sample Response** (call 3, illustrative)
+```json
+{ "Employees": [ { "uuid": "hrms-pm-uuid", "user": { "emailId": "pm.creator@selco.example" } } ] }
+```
+**Sample Error** (call 3, illustrative — Program POC not resolvable in HRMS)
+```json
+{ "error": "POC_RESOLUTION_FAILED", "message": "createdby uuid on field_plans row IP-2026-001 not found in HRMS" }
+```
 **Sample Kafka message** (call 4, illustrative)
 ```json
 {
   "topic": "email-send-consumer",
   "value": { "tenantId": "in", "emailType": "LOW_COMPLETION_WEEKLY_SUMMARY", "recipientEmail": "pm.creator@selco.example",
     "templateParams": { "planId": "IP-2026-001", "completionPercent": 30 } }
+}
+```
+**Sample Request** (call 5, illustrative)
+```json
+{ "FieldPlans": [ { "id": "IP-2026-001", "tenantId": "in", "additionalDetails": { "lowCompletionLastNotifiedTime": 1721659400000 } } ] }
+```
+**Sample Response** (call 5, illustrative — `202 Accepted`, async Kafka-backed write)
+```json
+{ "ResponseInfo": { "status": "successful" } }
+```
+**Sample Error** (call 5, illustrative — stale row identity)
+```json
+{
+  "ResponseInfo": { "status": "failed" },
+  "Errors": [ { "code": "INVALID_FIELD_PLAN_ID", "message": "No field plan found for id IP-2026-001" } ]
 }
 ```
 
@@ -938,16 +1407,15 @@ Quick-lookup companion to §3–§8 above (each of which already states its own 
 | `PROJECT_FACILITY` | `project` | ✅ live | §4.3 |
 | `field_plans` | `field-planner` | ✅ live, 🆕 6 columns pending (`sectors`, `senior_contact_*`, `published_time`, 2× `*_last_notified_time`) | §4.4, §4.13, §8.1, §8.2 |
 | `activity_assignments` | `field-planner` | ✅ live (incl. `role`, `poc_number`) | §4.5 |
-| `field_plan_facilities` | `field-planner` | ✅ live, 🆕 2 columns pending (`solution_id`, `lock_status`) | §4.7 |
-| `facility_activities` | `field-planner` | ✅ live | internal, alongside §4.7 |
+| `field_plan_facilities` | `field-planner` | ✅ live, 🆕 2 columns pending (`solution_id`, `lock_status`) | §4.7 (lock), §7.5 (unlock) |
+| `facility_activities` | `field-planner` | ✅ live, 🆕 1 column pending (`component_type`, + extended unique index — migration `V20260819120000`) | internal, alongside §4.7; keys §6's review workflow |
 | `eg_mdms_data` | `egov-mdms-service-v2` | ✅ live (generic) | seeded master data, not API-written — read by §3.1, §4.10 |
-| `bom` | `field-planner-activity` | ✅ live, 🆕 5 columns pending (`asset_type`, `solution_id`, `vendor_org_id`, `vendor_email`, `otp_uuid`) | §4.9, §5.2, §5.5 |
+| `bom` | `field-planner-activity` | ✅ live, 🆕 4 columns pending (`solution_id`, `vendor_org_id`, `vendor_email`, `otp_uuid`; no `asset_type` — superseded by `facility_activities.component_type`) | §4.8/§4.9, §5.2, §5.5 |
 | `bom_document` | `field-planner-activity` | ✅ live | §5.4, §5.6 |
-| `bom_section_review` | `field-planner-activity` | 🆕 table absent | §6.2 |
+| `activity_facility_transaction`/`activity_facility_transaction_comment` (existing, reused — not `bom_section_review`) | `field-planner-activity` | ✅ exists (`V20251015163200`) | §6.2 |
 | `installation_template` | `field-planner-activity` | 🆕 table absent | §4.11 |
-| `eg_wf_processinstance_v2` | `egov-workflow-v2` | ✅ live | §4.13, §5.5, §6.3 |
-| `asset` | `asset-registry` | ✅ live, 🆕 1 column pending (`source_bom_id`) | §7.1 |
-| `installation_audit_trail` | `field-planner-activity` | 🆕 table absent | (no create API itemized — see §7.2) |
+| `eg_wf_processinstance_v2` | `egov-workflow-v2` | ✅ live | §4.13, §5.5, §6.4 |
+| `asset` | `asset-registry` | ✅ live, 🆕 2 columns pending (`source_bom_id`, `is_onm_ready` — migration `V20260824120000`) | §5.5 (create), §7.1 (approve-time flip) |
 
 **Example thread** used consistently across §3–§9: Project `proj-uuid-1` → Plan `IP-2026-001` → Site `site-uuid-42` → Solution `SOL-PULVERIZER-001` → Vendor `org-uuid-1` → BOM `bom-uuid-1` → Asset `asset-uuid-1`.
 
@@ -961,8 +1429,8 @@ Items that don't belong to one single API above (implementation caveats, integra
 - **`egov-otp` is not vendored in this repo** — no source code, only client-side integration (`amc-scheduler-service`) and config (`egov.otp.host`, etc.) referencing it as an externally-deployed service. Confirm it's actually deployed/reachable in this platform's environment before building §5.2/§5.3 against it.
 - **`egov-filestore`'s `/filestore/v1/files` endpoint** (§5.4) is the standard DIGIT convention but was not independently located/verified in this repo scan — confirm the exact path before implementation.
 - **`asset-registry`'s bulk-create and AMC/workflow endpoints are stubs** (`NOT_IMPLEMENTED`, 501) in the current codebase — §7.1 deliberately uses the already-implemented single-asset `_create`/`_update` endpoints instead.
-- Business-service configs for `INSTALLATION_PLAN` (§4.13) and reuse of `FACILITY_INSTALLATION` (§6.3) are one-time config registrations against the existing generic `egov-workflow-v2` config-loading mechanism — not itemized as separate APIs.
-- **`FACILITY_INSTALLATION`'s exact intermediate states are not in any checked-in config file** — unlike `INSTALLATION_PLAN` (a genuinely new business service this doc defines from scratch), `FACILITY_INSTALLATION`'s states/actions live only in the live `egov-workflow-v2` database. §5.5/§6.3's response samples show plausible intermediate state names (`PENDING_PART_A`) that need confirming against the actual running configuration before implementation.
-- **Major correction, still relevant across §4.9–§7.2: an installation-report review/approval system already exists and this doc builds on it, not around it.** `installation_asset`, `ic_report`, `ic_report_document`, and `ic_report_section_review` from earlier drafts are gone — `bom` (existing, altered) absorbed the first two, `bom_document` (existing) absorbed the third, and `bom_section_review` (new) is the only genuinely new table for review granularity. The whole `IC_REPORT` business-service design was dropped in favor of the existing, live `FACILITY_INSTALLATION` business service.
+- Business-service configs for `INSTALLATION_PLAN` (§4.13) and reuse of `FACILITY_INSTALLATION` (§6.4) are one-time config registrations against the existing generic `egov-workflow-v2` config-loading mechanism — not itemized as separate APIs.
+- **`FACILITY_INSTALLATION`'s states are now recovered from a checked-in source** — `im-services`' `Selco.postman_collection.json` ("Business Service Create" saved request), superseding the earlier "not in any checked-in config file" caveat and its guessed state name (`PENDING_PART_A`). Real chain and state names are in `Livelihood_Installation_Business_Service.md` §3.1; §6.4's response samples use the recovered names (`REJECTED_BY_QC_SPOC`/`APPROVED_BY_QC_SPOC`). Still worth confirming against a live `egov-workflow-v2` instance before implementation, in case the deployed config has since diverged from this checked-in seed (the recovered seed also lacks `FLAG_FOR_QC`, which the frontend still calls — see the Business Service doc §3.1 flag).
+- **Major correction, still relevant across §4.9–§7.2: an installation-report review/approval system already exists and this doc builds on it, not around it.** `installation_asset`, `ic_report`, `ic_report_document`, and `ic_report_section_review` from earlier drafts are gone — `bom` (existing, altered) absorbed the first two, `bom_document` (existing) absorbed the third. **A later draft also dropped the `bom_section_review` new-table proposal** (§6.2) — per-section review reuses the already-existing `activity_facility_transaction`/`activity_facility_transaction_comment` tables instead, once `facility_activities` is split per vendor-assignable component (`component_type` column, `field-planner`, migration `V20260819120000`) rather than `bom` being split per asset type. The whole `IC_REPORT` business-service design was dropped in favor of the existing, live `FACILITY_INSTALLATION` business service, now keyed on `facility_activities.id` rather than a proposed `bom.id`.
 - A **separate, dead business service** (`asset-installation`, `docs/asset-registry/workflows/AssetInstallationWorkflow.json`) exists in this repo but is referenced by no code anywhere — don't confuse it with the live `FACILITY_INSTALLATION` used throughout §5–§6.
 - **IC Report content is entered directly in the Android app by the Field Technician** (§5.5) — one actor, one submission. The field list is modeled on the real sample workbook (`ICC_Report_Format_by_Solutionv1.xlsx`), but that file is a reference for what fields to capture, not a transport mechanism — there's no PM-facing Excel upload step for the report itself, and no separate `report_excel_filestore_id`/`report_uploaded_by` tracking on `bom`.
