@@ -24,6 +24,7 @@ import {
   Avatar,
   AvatarFallback,
   Button,
+  LanguageSwitcher,
   Sheet,
   SheetContent,
   SheetDescription,
@@ -47,7 +48,6 @@ import {
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Home, LogOut, Menu } from "lucide-react";
 import { useState } from "react";
-import { LanguageSwitcher } from "../components/LanguageSwitcher";
 
 function isNavItemActive(item: NavItem, pathname: string, homePath: string): boolean {
   const matchAgainst = [item.to, ...(item.matchPrefixes ?? [])];

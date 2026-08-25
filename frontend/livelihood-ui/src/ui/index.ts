@@ -126,6 +126,7 @@ export {
 export { DataTable } from "./components/data-table";
 export { StatTile } from "./components/stat-tile";
 export type { StatTileProps } from "./components/stat-tile";
-export { PageHeader } from "./components/page-header";
 export { Breadcrumbs } from "./components/breadcrumbs";
 export type { BreadcrumbEntry } from "./components/breadcrumbs";
+export { TopBar } from "./components/top-bar";
+export { LanguageSwitcher } from "./components/language-switcher";

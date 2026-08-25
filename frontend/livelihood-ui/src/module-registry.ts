@@ -14,10 +14,11 @@ export function setRegisteredModules(modules: ModuleDefinition[]) {
         isShellModule ||
         Boolean(module.overview?.kpis) ||
         Boolean(module.overview?.details) ||
+        Boolean(module.overview?.actions) ||
         module.navItems.length > 0;
       if (!hasVisibleSurface) {
         console.warn(
-          `[module-registry] Module "${module.id}" has no kpis, details, or navItems — ` +
+          `[module-registry] Module "${module.id}" has no kpis, details, actions, or navItems — ` +
             "it's registered but won't appear anywhere in the UI. This usually means a config mistake.",
         );
       }
@@ -44,9 +45,10 @@ export interface ModuleOverviewEntry {
 export interface ModuleOverviewSections {
   kpis: ModuleOverviewEntry[];
   details: ModuleOverviewEntry[];
+  actions: ModuleOverviewEntry[];
 }
 
-/** Modules ordered once, then split into the home page's two shared sections. */
+/** Modules ordered once, then split into the home page's shared sections. */
 export function getModuleOverviews(): ModuleOverviewSections {
   const ordered = [...registeredModules].sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
 
@@ -57,5 +59,8 @@ export function getModuleOverviews(): ModuleOverviewSections {
     details: ordered
       .filter((module) => module.overview?.details)
       .map((module) => ({ Component: module.overview!.details!, moduleId: module.id })),
+    actions: ordered
+      .filter((module) => module.overview?.actions)
+      .map((module) => ({ Component: module.overview!.actions!, moduleId: module.id })),
   };
 }
