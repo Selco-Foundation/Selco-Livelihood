@@ -5,10 +5,9 @@ import {
   useAuthStore,
   useTranslate,
 } from "@/shared";
-import { Breadcrumbs, Button, PageHeader } from "@/ui";
+import { Button, TopBar } from "@/ui";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
-import { LanguageSwitcher } from "@/modules/core";
 import { DesktopInbox } from "../../components/inbox/DesktopInbox";
 import { buildDefaultInboxRoleFilters } from "../../hooks/inbox-defaults";
 import { useImInboxData } from "../../hooks/use-im-inbox-summary";
@@ -93,46 +92,20 @@ export function InboxPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="hidden space-y-1 lg:block">
-          <PageHeader
-            title={translateOr(t, "ES_IM_ALL_TICKETS", "All Tickets")}
-            action={
-              <div className="flex items-center gap-3">
-                <LanguageSwitcher />
-                {canCreateTicket ? (
-                  <>
-                    <span aria-hidden="true" className="h-8 w-px bg-border" />
-                    <Button asChild size="sm" className="gap-1.5 rounded-md px-3">
-                      <Link to={`${basePath}/incident/create`}>
-                        <Plus className="size-4" />
-                        {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise New Ticket")}
-                      </Link>
-                    </Button>
-                  </>
-                ) : null}
-              </div>
-            }
-          />
-          <Breadcrumbs items={breadcrumbItems} />
-        </div>
-
-        <div className="space-y-1 lg:hidden">
-          <PageHeader title={translateOr(t, "ES_IM_ALL_TICKETS", "All Tickets")} />
-
-          <div className="flex items-start justify-between gap-3">
-            <Breadcrumbs items={breadcrumbItems} />
-            {canCreateTicket ? (
-              <Button asChild size="sm" className="shrink-0 gap-1.5 rounded-md px-4">
-                <Link to={`${basePath}/incident/create`}>
-                  <Plus className="size-4" />
-                  {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise New Ticket")}
-                </Link>
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      </div>
+      <TopBar
+        title={translateOr(t, "ES_IM_ALL_TICKETS", "All Tickets")}
+        breadcrumbs={breadcrumbItems}
+        actions={
+          canCreateTicket ? (
+            <Button asChild size="sm" className="gap-1.5 rounded-md px-3">
+              <Link to={`${basePath}/incident/create`}>
+                <Plus className="size-4" />
+                {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise New Ticket")}
+              </Link>
+            </Button>
+          ) : null
+        }
+      />
 
       <DesktopInbox
         data={complaints}
