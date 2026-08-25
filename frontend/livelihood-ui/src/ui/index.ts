@@ -117,7 +117,15 @@ export {
   SheetTitle,
   SheetTrigger,
 } from "./components/ui/sheet";
+export {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "./components/ui/accordion";
 export { DataTable } from "./components/data-table";
 export { StatTile } from "./components/stat-tile";
 export type { StatTileProps } from "./components/stat-tile";
 export { PageHeader } from "./components/page-header";
+export { Breadcrumbs } from "./components/breadcrumbs";
+export type { BreadcrumbEntry } from "./components/breadcrumbs";
