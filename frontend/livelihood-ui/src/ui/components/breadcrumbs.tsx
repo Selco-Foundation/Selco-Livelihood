@@ -6,18 +6,19 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from "@/ui";
+} from "./ui/breadcrumb";
 
-export interface ImBreadcrumbItem {
+export interface BreadcrumbEntry {
   label: string;
   to?: string;
 }
 
-interface ImBreadcrumbsProps {
-  items: ImBreadcrumbItem[];
+interface BreadcrumbsProps {
+  items: BreadcrumbEntry[];
 }
 
-export function ImBreadcrumbs({ items }: ImBreadcrumbsProps) {
+/** Module-agnostic breadcrumb trail — every module renders its own trail through this. */
+export function Breadcrumbs({ items }: BreadcrumbsProps) {
   return (
     <Breadcrumb>
       <BreadcrumbList>

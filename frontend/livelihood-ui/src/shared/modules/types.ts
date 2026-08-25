@@ -20,10 +20,17 @@ export interface NavItem {
   matchPrefixes?: string[];
 }
 
+export interface ModuleOverview {
+  /** Stat tiles rendered in the home page's shared KPIs row. */
+  kpis?: ComponentType;
+  /** Richer per-module content rendered in the home page's shared Details section. */
+  details?: ComponentType;
+}
+
 export interface ModuleDefinition<TRoute = unknown> {
   id: string;
   order?: number;
   routes: TRoute[];
   navItems: NavItem[];
-  overview?: ComponentType;
+  overview?: ModuleOverview;
 }

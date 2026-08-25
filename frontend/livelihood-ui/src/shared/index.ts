@@ -110,4 +110,4 @@ export {
   filterRolesForEmployeeTenant,
   hydrateEmployeeJurisdictions,
 } from "./utils/employee-session";
-export type { ModuleDefinition, NavItem } from "./modules/types";
+export type { ModuleDefinition, ModuleOverview, NavItem } from "./modules/types";

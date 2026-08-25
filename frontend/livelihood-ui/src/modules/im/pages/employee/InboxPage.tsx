@@ -5,11 +5,10 @@ import {
   useAuthStore,
   useTranslate,
 } from "@/shared";
-import { Button, PageHeader } from "@/ui";
+import { Breadcrumbs, Button, PageHeader } from "@/ui";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { LanguageSwitcher } from "@/modules/core";
-import { ImBreadcrumbs } from "../../components/ImBreadcrumbs";
 import { DesktopInbox } from "../../components/inbox/DesktopInbox";
 import { buildDefaultInboxRoleFilters } from "../../hooks/inbox-defaults";
 import { useImInboxData } from "../../hooks/use-im-inbox-summary";
@@ -115,14 +114,14 @@ export function InboxPage() {
               </div>
             }
           />
-          <ImBreadcrumbs items={breadcrumbItems} />
+          <Breadcrumbs items={breadcrumbItems} />
         </div>
 
         <div className="space-y-1 lg:hidden">
           <PageHeader title={translateOr(t, "ES_IM_ALL_TICKETS", "All Tickets")} />
 
           <div className="flex items-start justify-between gap-3">
-            <ImBreadcrumbs items={breadcrumbItems} />
+            <Breadcrumbs items={breadcrumbItems} />
             {canCreateTicket ? (
               <Button asChild size="sm" className="shrink-0 gap-1.5 rounded-md px-4">
                 <Link to={`${basePath}/incident/create`}>
