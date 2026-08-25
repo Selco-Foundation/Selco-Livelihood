@@ -1,10 +1,9 @@
 import { contextPath, employeeHomePath, translateOr, useTranslate } from "@/shared";
-import { Button, PageHeader } from "@/ui";
+import { Breadcrumbs, Button, PageHeader } from "@/ui";
 import { Link } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useMemo } from "react";
 import { LanguageSwitcher } from "@/modules/core";
-import { ImBreadcrumbs } from "../../components/ImBreadcrumbs";
 import { ComplaintMediaSection } from "../../components/details/ComplaintMediaSection";
 import { ComplaintSummarySection } from "../../components/details/ComplaintSummarySection";
 import { ComplaintTimelineSection } from "../../components/details/ComplaintTimelineSection";
@@ -92,7 +91,7 @@ export function ComplaintDetailsPage() {
             action={<LanguageSwitcher />}
           />
 
-          <ImBreadcrumbs
+          <Breadcrumbs
             items={[
               { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: homePath },
               { label: translateOr(t, "ES_IM_INBOX", "Inbox"), to: inboxPath },
@@ -104,7 +103,7 @@ export function ComplaintDetailsPage() {
         <div className="space-y-1 lg:hidden">
           <PageHeader title={translateOr(t, "CS_HEADER_TICKET_DETAILS", "Ticket Details")} />
 
-          <ImBreadcrumbs
+          <Breadcrumbs
             items={[
               { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: homePath },
               { label: translateOr(t, "ES_IM_INBOX", "Inbox"), to: inboxPath },
