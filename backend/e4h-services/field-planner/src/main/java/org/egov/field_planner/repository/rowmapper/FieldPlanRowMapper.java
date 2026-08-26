@@ -58,6 +58,7 @@ public class FieldPlanRowMapper implements ResultSetExtractor<List<FieldPlan>> {
         String projectId = rs.getString("fp_projectId");
         int healthFacilityNumber = rs.getInt("fp_healthFacilityNumber");
         String status = rs.getString("fp_status");
+        String sector = rs.getString("fp_sector");
         long startDate = rs.getLong("fp_startDate");
         long endDate = rs.getLong("fp_endDate");
         JsonNode geographyScope = getAdditionalDetail("fp_geographyScope", rs);
@@ -80,6 +81,7 @@ public class FieldPlanRowMapper implements ResultSetExtractor<List<FieldPlan>> {
                 .projectId(projectId)
                 .healthFacilityNumber(healthFacilityNumber)
                 .status(status)
+                .sector(sector)
                 .startDate(startDate)
                 .endDate(endDate)
                 .geographyDetails(objectMapper.convertValue(geographyScope, Map.class))
