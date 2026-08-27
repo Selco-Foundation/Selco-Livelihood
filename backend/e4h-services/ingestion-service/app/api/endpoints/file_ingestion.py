@@ -2129,8 +2129,8 @@ async def validate_facilities_excel_sheet(
         df = df.loc[:, ~df.columns.str.startswith('Unnamed')]
 
         # ----------------- Read Facility Column ----------------- #
-        if 'Facility Id' not in df.columns:
-            raise HTTPException(status_code=400, detail=f"Facility Column in '{facility_sheet_name}' not found")
+        if 'End User Id' not in df.columns:
+            raise HTTPException(status_code=400, detail=f"'End User Id' column in '{facility_sheet_name}' not found")
 
         # Ensure status/error columns exist
         if 'status' not in df.columns:
@@ -2145,7 +2145,8 @@ async def validate_facilities_excel_sheet(
             request_info_obj,
             facility_client,
             boundary_data_df,
-            'data-ingestion.FacilityIngestionSchema'
+            'data-ingestion.FacilityIngestionSchema',
+            localization_service_url,
         )
 
         # Mark rows based on validation results
@@ -2387,7 +2388,6 @@ async def create_facilities_and_update_project(
 
     # parse
     request_info = request_info_from_json(request_info)
-    mdms_client = MDMSClient(mdms_url)
 
     try:
         # ---------- save uploaded file ----------
@@ -2432,7 +2432,7 @@ async def create_facilities_and_update_project(
             return None
 
         include_col = find_col("Include in Project")
-        facility_id_col = find_col("Facility Id") or "Facility Id"
+        facility_id_col = find_col("End User Id") or "End User Id"
         status_col = find_col("status") or "status"
 
         # add result columns if missing
@@ -2441,18 +2441,16 @@ async def create_facilities_and_update_project(
         if 'Project Linking Status' not in df.columns:
             df['Project Linking Status'] = ''
 
-        facility_client = FacilityServiceClient(facility_service_url)
         project_client = ProjectServiceClient(project_service_url)
-        facility_schema = mdms_client.get_column_definitions_with_metadata(
-            request_info, 'data-ingestion.FacilityIngestionSchema'
-        )
 
         # --- NEW: fetch already linked facilities once ---
         linked_facilities_resp = project_client.search_project_facility(request_info, project_id)
         linked_facilities = linked_facilities_resp.get("ProjectFacilities", []) if linked_facilities_resp else []
         linked_facility_ids = {pf.get("facilityId") for pf in linked_facilities if pf.get("facilityId")}
 
-        creation_tasks = []
+        # This template only links existing facilities (selected via the facility ingestion
+        # template) to the project; it does not create new facilities. Rows without an
+        # End User Id are invalid and are skipped rather than creating a new facility.
         pending_bulk_links = []
         existing_or_skipped_indexes = []
         for index, row in df.iterrows():
@@ -2473,7 +2471,8 @@ async def create_facilities_and_update_project(
                 df.at[index, 'Facility Creation Status'] = "Skipped (Validation not PASSED)"
                 df.at[index, 'Project Linking Status'] = "Not Attempted"
             else:
-                creation_tasks.append((index, row.copy(), should_link))
+                df.at[index, 'Facility Creation Status'] = "Skipped (End User Id is required; new facility creation is not supported)"
+                df.at[index, 'Project Linking Status'] = "Not Attempted"
 
         for index, row, should_link, facility_id in existing_or_skipped_indexes:
             try:
@@ -2503,73 +2502,6 @@ async def create_facilities_and_update_project(
                 df.at[index, 'Facility Creation Status'] = f"Exception: {str(e)}"
                 df.at[index, 'Project Linking Status'] = "Not Attempted"
                 continue
-
-        if creation_tasks:
-            logger.info(f"Processing {len(creation_tasks)} new facilities using bulk create API")
-            bulk_payload = {
-                "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
-                "facilities": []
-            }
-            creation_meta = []
-
-            for idx, row_data, link_required in creation_tasks:
-                single_payload = create_facility_payload(request_info, row_data, False, facility_schema)
-                facilities = single_payload.get("facilities", [])
-                if facilities:
-                    bulk_payload["facilities"].append(facilities[0])
-                    creation_meta.append((idx, link_required))
-                else:
-                    df.at[idx, 'Facility Creation Status'] = "Failed: Invalid facility payload"
-                    df.at[idx, 'Project Linking Status'] = "Not Attempted"
-
-            create_resp = None
-            try:
-                if bulk_payload["facilities"]:
-                    create_resp = facility_client.create_facility(bulk_payload)
-            except Exception as exc:
-                for idx, _ in creation_meta:
-                    df.at[idx, 'Facility Creation Status'] = f"Exception during bulk create: {str(exc)}"
-                    df.at[idx, 'Project Linking Status'] = "Not Attempted"
-
-            if create_resp is not None:
-                if create_resp.status_code in (200, 201):
-                    created_facilities = []
-                    try:
-                        created_facilities = create_resp.json() or []
-                    except Exception as exc:
-                        logger.warning(f"Could not parse bulk create response JSON: {exc}")
-
-                    for result_idx, (row_idx, link_required) in enumerate(creation_meta):
-                        created_id = None
-                        if result_idx < len(created_facilities):
-                            created_id = created_facilities[result_idx].get("facility_id")
-
-                        creation_status = "Created" if created_id else "Created (id missing)"
-                        df.at[row_idx, 'Facility Creation Status'] = creation_status
-
-                        if created_id:
-                            df.at[row_idx, facility_id_col] = created_id
-                            linked_facility_ids.add(created_id)
-
-                        if link_required and created_id:
-                            pending_bulk_links.append((row_idx, created_id))
-                        elif link_required and not created_id:
-                            df.at[row_idx, 'Project Linking Status'] = "Skipped (no facility id after create)"
-                        else:
-                            df.at[row_idx, 'Project Linking Status'] = "Skipped (Include in Project != Yes)"
-                elif create_resp.status_code == 400:
-                    try:
-                        error_data = create_resp.json()
-                        error_message = error_data.get('Errors', [{}])[0].get('message', 'Unknown error')
-                    except Exception:
-                        error_message = create_resp.text
-                    for idx, _ in creation_meta:
-                        df.at[idx, 'Facility Creation Status'] = f"Failed: {error_message}"
-                        df.at[idx, 'Project Linking Status'] = "Not Attempted"
-                else:
-                    for idx, _ in creation_meta:
-                        df.at[idx, 'Facility Creation Status'] = f"Failed: {create_resp.status_code} {create_resp.text}"
-                        df.at[idx, 'Project Linking Status'] = "Not Attempted"
 
         # Bulk-link facilities to project (for include=yes rows not already linked)
         if pending_bulk_links:
