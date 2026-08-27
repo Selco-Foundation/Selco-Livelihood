@@ -42,18 +42,26 @@ export function FacilityEntryTable({
   const { t } = useTranslate();
   const navigate = useNavigate();
   const [filters, setFilters] = useState<FacilityEntryFilterState>({ district: [], block: [] });
+  const [searchText, setSearchText] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const districtOptions = useMemo(() => dedupeBoundaries(entries, "district"), [entries]);
   const blockOptions = useMemo(() => dedupeBoundaries(entries, "block"), [entries]);
 
-  const filtered = entries.filter(
-    (entry) =>
-      (filters.district.length === 0 ||
-        (entry.district?.code && filters.district.includes(entry.district.code))) &&
-      (filters.block.length === 0 ||
-        (entry.block?.code && filters.block.includes(entry.block.code))),
-  );
+  const filtered = entries.filter((entry) => {
+    const query = searchText.trim().toLowerCase();
+    const matchesSearch = query
+      ? entry.facilityName.toLowerCase().includes(query)
+      : true;
+    const matchesDistrict =
+      filters.district.length === 0 ||
+      (entry.district?.code && filters.district.includes(entry.district.code));
+    const matchesBlock =
+      filters.block.length === 0 ||
+      (entry.block?.code && filters.block.includes(entry.block.code));
+
+    return matchesSearch && matchesDistrict && matchesBlock;
+  });
 
   const selectableIds = filtered
     .filter((entry) => entry.status === "SUBMITTED_BY_SUPERVISOR")
@@ -77,6 +85,37 @@ export function FacilityEntryTable({
     });
   }
 
+  function downloadFilteredEntries() {
+    const headers = ["Facility", "Type", "Location", "Status"];
+    const rows = filtered.map((entry) => [
+      entry.facilityName,
+      entry.entryType === "MACHINE"
+        ? translateOr(t, "ES_IR_ENTRY_TYPE_MACHINE", "Machine")
+        : translateOr(t, "ES_IR_ENTRY_TYPE_SOLAR", "Solar"),
+      [entry.district?.name, entry.block?.name].filter(Boolean).join(" / "),
+      entry.status === "SUBMITTED_BY_SUPERVISOR"
+        ? translateOr(t, "ES_IR_STATUS_PENDING", "Pending Review")
+        : entry.status === "REJECTED"
+          ? translateOr(t, "ES_IR_STATUS_REJECTED", "Rejected")
+          : translateOr(t, "ES_IR_STATUS_APPROVED", "Approved"),
+    ]);
+
+    const csv = [headers, ...rows]
+      .map((row) =>
+        row
+          .map((value) => `"${String(value).replaceAll('"', '""')}"`)
+          .join(","),
+      )
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${planId}-review-sites.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   if (isLoading) {
     return (
       <div className="livelihood-card p-6">
@@ -90,7 +129,10 @@ export function FacilityEntryTable({
       <FacilityEntryFilter
         districtOptions={districtOptions}
         blockOptions={blockOptions}
+        searchText={searchText}
         onFilterChange={setFilters}
+        onSearchTextChange={setSearchText}
+        onDownload={downloadFilteredEntries}
       />
 
       {selected.size > 0 ? (

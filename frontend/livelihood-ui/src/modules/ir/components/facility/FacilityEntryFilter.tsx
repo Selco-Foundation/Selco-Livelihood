@@ -16,7 +16,7 @@ import {
   SheetTrigger,
   cn,
 } from "@/ui";
-import { ChevronDown, Filter } from "lucide-react";
+import { ChevronDown, Download, Filter, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export interface FacilityFilterOption {
@@ -34,7 +34,10 @@ export interface FacilityEntryFilterState {
 interface FacilityEntryFilterProps {
   districtOptions: FacilityFilterOption[];
   blockOptions: FacilityFilterOption[];
+  searchText: string;
   onFilterChange: (filters: FacilityEntryFilterState) => void;
+  onSearchTextChange: (searchText: string) => void;
+  onDownload: () => void;
 }
 
 const EMPTY_FILTERS: FacilityEntryFilterState = { district: [], block: [] };
@@ -42,7 +45,10 @@ const EMPTY_FILTERS: FacilityEntryFilterState = { district: [], block: [] };
 export function FacilityEntryFilter({
   districtOptions,
   blockOptions,
+  searchText,
   onFilterChange,
+  onSearchTextChange,
+  onDownload,
 }: FacilityEntryFilterProps) {
   const { t } = useTranslate();
 
@@ -116,7 +122,7 @@ export function FacilityEntryFilter({
 
   return (
     <div className="lg:rounded-lg lg:border lg:border-border lg:bg-card lg:p-5 lg:shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-5">
           <div className="hidden lg:block">
             <Popover
@@ -272,19 +278,40 @@ export function FacilityEntryFilter({
           </div>
         </div>
 
-        <button
-          type="button"
-          disabled={!hasActiveFilters}
-          onClick={handleClearAllFilters}
-          className={cn(
-            "hidden text-sm transition-colors lg:block",
-            hasActiveFilters
-              ? "cursor-pointer text-foreground hover:text-primary"
-              : "text-muted-foreground/50",
-          )}
-        >
-          {translateOr(t, "ES_IM_CLEAR_ALL_FILTERS", "clear all filters")}
-        </button>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:shrink-0">
+          <div className="relative sm:w-72">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchText}
+              onChange={(event) => onSearchTextChange(event.target.value)}
+              placeholder={translateOr(t, "ES_IR_SEARCH_END_USERS", "Search End Users")}
+              className="pl-9"
+            />
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={onDownload}
+          >
+            <Download className="size-4" />
+            {translateOr(t, "ES_COMMON_DOWNLOAD", "Download")}
+          </Button>
+          <button
+            type="button"
+            disabled={!hasActiveFilters}
+            onClick={handleClearAllFilters}
+            className={cn(
+              "hidden text-sm transition-colors lg:block",
+              hasActiveFilters
+                ? "cursor-pointer text-foreground hover:text-primary"
+                : "text-muted-foreground/50",
+            )}
+          >
+            {translateOr(t, "ES_IM_CLEAR_ALL_FILTERS", "clear all filters")}
+          </button>
+        </div>
       </div>
     </div>
   );
