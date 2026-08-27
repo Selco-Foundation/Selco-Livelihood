@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:badges/badges.dart' as badges;
+import 'package:digit_scanner/blocs/scanner.dart';
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
 import 'package:digit_ui_components/widgets/molecules/panel_cards.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
@@ -22,6 +24,7 @@ import 'package:livelihood/pages/machine_report_success_page.dart';
 import 'package:livelihood/pages/add_new_asset.dart';
 import 'package:livelihood/pages/asset_count.dart';
 import 'package:livelihood/pages/asset_summary.dart';
+import 'package:livelihood/pages/digit_scanner_page.dart';
 import 'package:livelihood/pages/installation_completion_certificate.dart';
 import 'package:livelihood/pages/installation_images.dart';
 import 'package:livelihood/pages/media_upload.dart';
@@ -748,6 +751,103 @@ void main() {
       find.byKey(const ValueKey('solar-footer-submit')),
     );
     expect(enabledSubmit.isDisabled, isFalse);
+  });
+
+  testWidgets('scanner uses the integrated E4H control hierarchy', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: BlocProvider<DigitScannerBloc>(
+          create: (_) => DigitScannerBloc(const DigitScannerState()),
+          child: DigitScannerPage(galleryPicker: () async => null),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('scanner-camera-stack')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scanner-flash-control')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scanner-top-label')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scanner-manual-link')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scanner-gallery-link')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scanner-submit-button')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scanner-gallery-button')), findsNothing);
+    expect(find.text(AppStrings.submit), findsOneWidget);
+
+    final manual = tester.getRect(
+      find.byKey(const ValueKey('scanner-manual-link')),
+    );
+    final gallery = tester.getRect(
+      find.byKey(const ValueKey('scanner-gallery-link')),
+    );
+    expect(gallery.top, greaterThan(manual.bottom));
+    expect(gallery.center.dx, closeTo(manual.center.dx, 1));
+  });
+
+  testWidgets('scanner gallery ignores duplicate launches and cancellation', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(360, 800));
+    final result = Completer<XFile?>();
+    var calls = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: BlocProvider<DigitScannerBloc>(
+          create: (_) => DigitScannerBloc(const DigitScannerState()),
+          child: DigitScannerPage(
+            galleryPicker: () {
+              calls++;
+              return result.future;
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final gallery = find.byKey(const ValueKey('scanner-gallery-link'));
+    await tester.tap(gallery);
+    await tester.tap(gallery);
+    await tester.pump();
+    expect(calls, 1);
+    result.complete(null);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('scanner-camera-stack')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scanner-result-panel')), findsOneWidget);
+  });
+
+  testWidgets('scanner manual entry replaces camera controls cleanly', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: BlocProvider<DigitScannerBloc>(
+          create: (_) => DigitScannerBloc(const DigitScannerState()),
+          child: const DigitScannerPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('scanner-manual-link')));
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('scanner-manual-page')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scanner-manual-submit')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scanner-gallery-link')), findsNothing);
+    expect(find.byKey(const ValueKey('scanner-submit-button')), findsNothing);
+    tester
+        .widget<GestureDetector>(
+          find.byKey(const ValueKey('scanner-manual-close')),
+        )
+        .onTap!();
+    await tester.pump();
+    expect(find.byKey(const ValueKey('scanner-camera-stack')), findsOneWidget);
   });
 
   testWidgets('add new asset assigns injected scanner result directly', (
