@@ -362,10 +362,10 @@ class FacilityTemplateService:
 
         for boundary in boundary_data:
             boundary_records.append({
-                "Country": localize_boundary_name(boundary.get("country", ""), localization_map),
-                "State": localize_boundary_name(boundary.get("state", ""), localization_map),
-                "District": localize_boundary_name(boundary.get("district", ""), localization_map),
-                "Block": localize_boundary_name(boundary.get("block", ""), localization_map),
+                "Country": localize_boundary_name(boundary.get("country_code", ""), localization_map),
+                "State": localize_boundary_name(boundary.get("state_code", ""), localization_map),
+                "District": localize_boundary_name(boundary.get("district_code", ""), localization_map),
+                "Block": localize_boundary_name(boundary.get("block_code", ""), localization_map),
                 "BoundaryCode": boundary.get("code", "")
             })
 

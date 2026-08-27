@@ -1013,12 +1013,15 @@ def build_boundary_localization_map(
     localization_service_url: str,
 ) -> Dict[str, str]:
     """
-    Fetches localized display names for every raw country/state/district/block code
-    appearing in boundary_list. Returns a map keyed by 'BOUNDARY_<raw_code>'.
+    Fetches localized display names for every country/state/district/block boundary code
+    appearing in boundary_list. Localization messages are keyed by the full hierarchical
+    boundary code (e.g. 'BOUNDARY_INDIA_ASSAM_BAKSA'), not by the leaf name alone, so this
+    must use each level's own boundary code (country_code/state_code/district_code/block_code)
+    rather than its display name.
     """
     all_raw_codes = set()
     for boundary in boundary_list:
-        for field in ("country", "state", "district", "block"):
+        for field in ("country_code", "state_code", "district_code", "block_code"):
             val = boundary.get(field, "")
             if val:
                 all_raw_codes.add(val)
@@ -1074,9 +1077,9 @@ def resolve_boundary_names_for_code(
             continue
         if facility_boundary_code == code or facility_boundary_code.startswith(code + "_"):
             return (
-                localize_boundary_name(boundary.get("state", ""), boundary_localization_map),
-                localize_boundary_name(boundary.get("district", ""), boundary_localization_map),
-                localize_boundary_name(boundary.get("block", ""), boundary_localization_map),
+                localize_boundary_name(boundary.get("state_code", ""), boundary_localization_map),
+                localize_boundary_name(boundary.get("district_code", ""), boundary_localization_map),
+                localize_boundary_name(boundary.get("block_code", ""), boundary_localization_map),
             )
     return "", "", ""
 
