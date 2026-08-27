@@ -24,6 +24,43 @@ function useFacilityReviewRouteParams() {
   }, []);
 }
 
+function FacilityReviewSummary({
+  entry,
+}: {
+  entry: NonNullable<ReturnType<typeof useFacilityReview>["data"]>["entry"];
+}) {
+  const { t } = useTranslate();
+  const items = [
+    {
+      label: translateOr(t, "ES_IR_STATE", "State"),
+      value: entry.state?.name ?? "-",
+    },
+    {
+      label: translateOr(t, "ES_IR_DISTRICT", "District"),
+      value: entry.district?.name ?? "-",
+    },
+    {
+      label: translateOr(t, "ES_IR_BLOCK", "Block"),
+      value: entry.block?.name ?? "-",
+    },
+    {
+      label: translateOr(t, "ES_IR_STATUS", "Status"),
+      value: translateOr(t, "ES_IR_STATUS_IN_PROGRESS", "In Progress"),
+    },
+  ];
+
+  return (
+    <div className="livelihood-card grid gap-6 px-6 py-5 sm:grid-cols-2 lg:grid-cols-4 lg:px-7">
+      {items.map((item) => (
+        <div key={item.label}>
+          <p className="text-sm leading-[21px] text-ink-600">{item.label}</p>
+          <p className="text-base leading-6 font-semibold text-ink-950">{item.value}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function FacilityReviewPage() {
   const { t } = useTranslate();
   const user = useAuthStore((state) => state.user);
@@ -90,6 +127,7 @@ export function FacilityReviewPage() {
         </p>
       ) : (
         <>
+          <FacilityReviewSummary entry={detail.entry} />
           <ReviewSections
             sections={detail.sections}
             rejectionReasons={rejectionReasons}

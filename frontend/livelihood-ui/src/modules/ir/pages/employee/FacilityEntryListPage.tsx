@@ -25,7 +25,8 @@ export function FacilityEntryListPage() {
   const { data: entries, isLoading } = useFacilityEntries(planId);
   const bulkApprove = useBulkApproveFacilityEntries(planId);
   const { data: plansData } = useInstallationPlans();
-  const planName = plansData?.plans.find((plan) => plan.planId === planId)?.planName ?? planId;
+  const plan = plansData?.plans.find((item) => item.planId === planId);
+  const planName = plan?.planName ?? planId;
 
   if (!hasIrAccess(user?.roles)) {
     return null;
@@ -44,6 +45,32 @@ export function FacilityEntryListPage() {
           { label: planName },
         ]}
       />
+      <div className="livelihood-card grid gap-6 px-6 py-5 sm:grid-cols-3 sm:px-7">
+        <div>
+          <p className="text-sm leading-[21px] text-ink-600">
+            {translateOr(t, "ES_IR_START_DATE", "Start Date")}
+          </p>
+          <p className="text-base leading-6 font-semibold text-ink-950">
+            {plan?.startDate ?? "-"}
+          </p>
+        </div>
+        <div>
+          <p className="text-sm leading-[21px] text-ink-600">
+            {translateOr(t, "ES_IR_COMPLETION_DATE", "Completion Date")}
+          </p>
+          <p className="text-base leading-6 font-semibold text-ink-950">
+            {plan?.endDate ?? "-"}
+          </p>
+        </div>
+        <div>
+          <p className="text-sm leading-[21px] text-ink-600">
+            {translateOr(t, "ES_IR_TOTAL_END_USERS_ASSIGNED", "Total End Users Assigned")}
+          </p>
+          <p className="text-base leading-6 font-semibold text-ink-950">
+            {plan?.totalFacilities ?? "-"}
+          </p>
+        </div>
+      </div>
       <FacilityEntryTable
         planId={planId}
         entries={entries ?? []}
