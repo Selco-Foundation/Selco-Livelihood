@@ -50,6 +50,9 @@ public class ActivityConfiguration {
     @Value("${egov.kafka.notification.email.topic}")
     private String notificationEmailTopic;
 
+    @Value("${egov.kafka.notification.sms.topic:egov.core.notification.sms}")
+    private String notificationSmsTopic;
+
     @Value("${egov.off.grid.single.phase.key}")
     private String bomACOffGridSinglePhase;
 
@@ -189,6 +192,24 @@ public class ActivityConfiguration {
 
     @Value("${email.activity.assignment.body}")
     private String activityEmailBody;
+
+    @Value("${email.ic.report.submitted.subject}")
+    private String icReportSubmittedSubject;
+
+    @Value("${email.ic.report.submitted.body}")
+    private String icReportSubmittedBody;
+
+    @Value("${email.ic.report.rejected.subject}")
+    private String icReportRejectedSubject;
+
+    @Value("${email.ic.report.rejected.body}")
+    private String icReportRejectedBody;
+
+    @Value("${sms.ic.report.rejected.body}")
+    private String icReportRejectedSmsBody;
+
+    @Value("${egov.fieldplan.facility.update.lock.url}")
+    private String fieldPlanFacilityUpdateLockUrl;
 
     @Value("${egov.amc.scheduler.host}")
     private String amcSchedulerHost;

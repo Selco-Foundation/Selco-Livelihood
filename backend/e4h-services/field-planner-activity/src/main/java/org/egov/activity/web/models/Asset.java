@@ -79,6 +79,12 @@ public class Asset {
     @JsonProperty("isOperational")
     private Boolean isOperational = null;
 
+    @JsonProperty("isOnmReady")
+    private Boolean isOnmReady = false;
+
+    @JsonProperty("sourceBomId")
+    private String sourceBomId = null;
+
     @JsonProperty("documents")
     private List<Document> documents = null;
 

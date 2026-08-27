@@ -18,6 +18,7 @@ import org.egov.field_planner.web.models.*;
 import org.egov.tracer.model.CustomException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.lang.reflect.Method;
@@ -27,6 +28,8 @@ import java.util.stream.Collectors;
 
 import static org.egov.common.utils.CommonUtils.*;
 import static org.egov.field_planner.Constants.GET_FIELDPLAN_ID;
+import static org.egov.field_planner.util.FieldPlannerConstants.LOCK_STATUS_LOCKED;
+import static org.egov.field_planner.util.FieldPlannerConstants.LOCK_STATUS_UNLOCKED;
 
 @Service
 @Slf4j
@@ -44,6 +47,8 @@ public class FieldPlannerFacilityService {
     private final FieldPlannerConfiguration fieldPlannerConfiguration;
     private final MDMSUtils mdmsUtils;
 
+    private final JdbcTemplate jdbcTemplate;
+
     @Qualifier("objectMapper")
     private final ObjectMapper mapper;
 
@@ -51,7 +56,7 @@ public class FieldPlannerFacilityService {
     public FieldPlannerFacilityService(
             FieldPlanFacilityRepository fieldPlanFacilityRepository, List<Validator<FieldPlanFacilityBulkRequest, FieldPlanFacility>> validators,
             FieldPlannerValidator fieldPlannerValidator, FieldPlannerEnrichment fieldPlannerEnrichment, FieldPlannerConfiguration fieldPlannerConfiguration,
-            Producer producer, FieldPlannerRepository fieldPlannerRepository, MDMSUtils mdmsUtils, ServiceRequestRepository serviceRequestClient, @Qualifier("objectMapper") ObjectMapper mapper) {
+            Producer producer, FieldPlannerRepository fieldPlannerRepository, MDMSUtils mdmsUtils, ServiceRequestRepository serviceRequestClient, @Qualifier("objectMapper") ObjectMapper mapper, JdbcTemplate jdbcTemplate) {
             this.producer = producer;
             this.fieldPlannerConfiguration = fieldPlannerConfiguration;
             this.fieldPlanFacilityRepository = fieldPlanFacilityRepository;
@@ -61,6 +66,7 @@ public class FieldPlannerFacilityService {
             this.serviceRequestClient = serviceRequestClient;
             this.mapper = mapper;
             this.fieldPlannerRepository = fieldPlannerRepository;
+            this.jdbcTemplate = jdbcTemplate;
     }
 
     public FieldPlanFacility create(FieldPlanFacilityRequest request) {
@@ -141,6 +147,46 @@ public class FieldPlannerFacilityService {
         }
 
         return fieldPlanFacilities;
+    }
+
+    /**
+     * Updates lock_status on field_plan_facilities (UNLOCKED once every IC report for the site is approved).
+     * Uses direct JDBC because there is no Kafka update mapping for this column yet.
+     */
+    public FieldPlanFacility updateLockStatus(FieldPlanFacilityRequest request) {
+        FieldPlanFacility facility = request.getFieldPlanFacility();
+        if (facility == null) {
+            throw new CustomException("INVALID_REQUEST", "FieldPlanFacility is required");
+        }
+        String lockStatus = facility.getLockStatus();
+        if (lockStatus == null || lockStatus.isBlank()) {
+            throw new CustomException("INVALID_LOCK_STATUS", "lockStatus is required (LOCKED or UNLOCKED)");
+        }
+        if (!LOCK_STATUS_LOCKED.equalsIgnoreCase(lockStatus) && !LOCK_STATUS_UNLOCKED.equalsIgnoreCase(lockStatus)) {
+            throw new CustomException("INVALID_LOCK_STATUS", "lockStatus must be LOCKED or UNLOCKED");
+        }
+        if (facility.getTenantId() == null || facility.getFieldPlanId() == null || facility.getFacilityId() == null) {
+            throw new CustomException("INVALID_REQUEST", "tenantId, fieldPlanId and facilityId are required");
+        }
+
+        int updated = jdbcTemplate.update(
+                "UPDATE field_plan_facilities SET lock_status = ?, lastmodifiedtime = ? " +
+                        "WHERE tenantid = ? AND field_plan_id = ? AND facility_id = ? AND (isdeleted IS NULL OR isdeleted = false)",
+                lockStatus.toUpperCase(),
+                System.currentTimeMillis(),
+                facility.getTenantId(),
+                facility.getFieldPlanId(),
+                facility.getFacilityId()
+        );
+        if (updated == 0) {
+            throw new CustomException("FIELD_PLAN_FACILITY_NOT_FOUND",
+                    "No field_plan_facilities row for fieldPlanId=" + facility.getFieldPlanId()
+                            + ", facilityId=" + facility.getFacilityId());
+        }
+        facility.setLockStatus(lockStatus.toUpperCase());
+        log.info("Updated lock_status={} for fieldPlanId={} facilityId={}",
+                facility.getLockStatus(), facility.getFieldPlanId(), facility.getFacilityId());
+        return facility;
     }
 
     public void validateCreateFieldPlanRequest(FieldPlanFacilityBulkRequest request) {

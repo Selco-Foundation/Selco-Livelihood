@@ -144,6 +144,11 @@ public class AssetService {
             params.add(asset.getIsOperational());
         }
 
+        if (asset.getIsOnmReady() != null) {
+            query.append(" AND is_onm_ready = ?");
+            params.add(asset.getIsOnmReady());
+        }
+
         if (asset.getFacilityID() != null && !asset.getFacilityID().isBlank()) {
             query.append(" AND facility_id = ?");
             params.add(asset.getFacilityID());
@@ -231,6 +236,11 @@ public class AssetService {
         if (asset.getWfStatus() != null && !asset.getWfStatus().isBlank()) {
             query.append(" AND wf_status = ?");
             params.add(asset.getWfStatus());
+        }
+
+        if (asset.getIsOnmReady() != null) {
+            query.append(" AND is_onm_ready = ?");
+            params.add(asset.getIsOnmReady());
         }
 
         if (asset.getFacilityID() != null && !asset.getFacilityID().isBlank()) {
