@@ -23,7 +23,9 @@ from app.utils.facility_validator import (
     facility_validation,
     collect_hfr_nin_errors_for_row,
     collect_anganwadi_poc_username_errors_for_row,
+    validate_installation_scope_solutions,
 )
+from app.utils.state_sunshine_hours_repository import fetch_state_sunshine_hours
 from fastapi import APIRouter, File, Form, UploadFile, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import FileResponse
 import psycopg2
@@ -2227,6 +2229,8 @@ async def validate_facilities_excel_sheet(
                                         description="Name of the sheet containing facility data"),
         boundary_sheet_name: str = Form(default="BoundaryCodes",
                                         description="Name of the sheet containing boundary data"),
+        fieldplan_id: str = Form(default="",
+                                 description="Field plan id; when given, its sector is used instead of the sheet's"),
         request_info: str = Form(default="")
 ):
     temp_input_file = None
@@ -2266,13 +2270,35 @@ async def validate_facilities_excel_sheet(
             df['error'] = ''
 
         # ----------------- Run Validation ----------------- #
+        # Every row here is an existing site being linked to a plan, so all rows are
+        # validated rather than only the id-less "new facility" rows.
         validation_errors = project_facility_validation(
             df,
             mdms_client,
             request_info_obj,
             facility_client,
             boundary_data_df,
-            'data-ingestion.FieldPlanFacilityIngestionSchema'
+            'data-ingestion.InstallationScopeIngestionSchema',
+            validate_all_rows=True
+        )
+
+        plan_sector = None
+        if fieldplan_id and fieldPlan_service_url:
+            try:
+                field_plans = FieldPlanServiceClient(fieldPlan_service_url).search_fieldPlan(
+                    request_info_obj, fieldplan_id
+                ).get("FieldPlans", [])
+                if field_plans:
+                    plan_sector = field_plans[0].get("sector")
+            except Exception as e:
+                logger.error(f"Error fetching field plan {fieldplan_id} for sector: {e}", exc_info=True)
+
+        validate_installation_scope_solutions(
+            df,
+            solutions=mdms_client.fetch_installation_solutions(request_info_obj),
+            sunshine_hours_by_state=fetch_state_sunshine_hours(),
+            add_err=lambda i, msg: validation_errors[i].append(msg),
+            plan_sector=plan_sector,
         )
 
         # Mark rows based on validation results

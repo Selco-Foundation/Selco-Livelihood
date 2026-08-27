@@ -5,6 +5,7 @@ import pandas as pd
 from fastapi import HTTPException
 
 from app.core.tenant import LIVELIHOOD_TENANT_ID
+from app.utils.solution_eligibility import eligible_solution_names
 
 # Same wording everywhere: MDMS pre-validation, API import, and Excel client hints.
 ERR_HFR_OR_NIN_REQUIRED_WHEN_HEALTH = (
@@ -79,10 +80,25 @@ def _is_legacy_mdms_hfr_nin_at_least_one_constraint(rc: Any) -> bool:
     return set(fields) == {"HFR ID", "NIN ID"}
 
 
+def select_unsaved_rows(df: pd.DataFrame, id_column: str = "End user Id") -> pd.DataFrame:
+    """Rows that don't yet exist in the registry, i.e. whose id cell is blank. Returns
+    every row when the id column isn't in the file at all, so a template without that
+    column is fully validated instead of raising."""
+    if id_column not in df.columns:
+        return df
+    return df[df[id_column].isna() | (df[id_column].astype(str).str.strip() == "")]
+
+
 def project_facility_validation(
-    df, mdms_client, request_info, facility_client, boundary_data, schemaName
+    df, mdms_client, request_info, facility_client, boundary_data, schemaName,
+    validate_all_rows: bool = False
 ):
-    """Main function that orchestrates all facility file validations."""
+    """Main function that orchestrates all facility file validations.
+
+    validate_all_rows: validate every row rather than only rows without an id. The
+    installation-scope sheet lists sites that already exist and are only being linked to
+    a plan, so every row carries an id and the default filter would validate nothing.
+    """
 
     # Ensure boundary_data is provided
     if boundary_data is None or boundary_data.empty:
@@ -101,10 +117,9 @@ def project_facility_validation(
     errors = [[] for _ in range(len(df))]
     add_err = lambda i, msg: errors[i].append(msg)
 
-    # Only validate rows where Facility ID is empty
-    new_rows = df[df["End user Id"].isna() | (df["End user Id"].astype(str).str.strip() == "")]
+    new_rows = df if validate_all_rows else select_unsaved_rows(df)
     if new_rows.empty:
-        return errors  # No new rows to validate
+        return errors  # No rows to validate
 
     # Reset index on new_rows to get 0-based row positions
     new_rows = new_rows.reset_index()
@@ -124,6 +139,69 @@ def project_facility_validation(
     return errors
 
 
+def _find_header(df, base_name: str) -> Optional[str]:
+    """Locate a column by its schema name, with or without the '(Mandatory)' suffix."""
+    for candidate in (base_name, f"{base_name} (Mandatory)"):
+        if candidate in df.columns:
+            return candidate
+    return None
+
+
+def validate_installation_scope_solutions(
+    df,
+    solutions: List[Dict[str, Any]],
+    sunshine_hours_by_state: Dict[str, float],
+    add_err,
+    plan_sector: Optional[str] = None,
+):
+    """Installation-scope rules for the Include/Solution pair.
+
+    A site is assigned exactly one Solution: an included site must name it, an excluded one
+    must leave it blank, and the value has to be one this site is actually eligible for --
+    recomputed here rather than trusting the uploaded workbook. plan_sector, when given,
+    overrides the sheet's Sector column, which the Project Manager could otherwise edit.
+    """
+    include_column = _find_header(df, "Included in Field Plan")
+    solution_column = _find_header(df, "Solution")
+    if not include_column or not solution_column:
+        return
+
+    sector_column = _find_header(df, "Sector")
+    state_column = _find_header(df, "State")
+
+    for i, row in enumerate(df.to_dict("records")):
+        include_raw = row.get(include_column, "")
+        include_value = "" if pd.isna(include_raw) else str(include_raw).strip().lower()
+
+        solution_raw = row.get(solution_column, "")
+        solution_value = "" if pd.isna(solution_raw) else str(solution_raw).strip()
+
+        if include_value != "yes":
+            if solution_value:
+                add_err(i, "Solution must be empty unless the site is included in the field plan")
+            continue
+
+        if not solution_value:
+            add_err(i, "Solution is required when the site is included in the field plan")
+            continue
+
+        row_sector = plan_sector
+        if not row_sector and sector_column:
+            sector_raw = row.get(sector_column, "")
+            row_sector = "" if pd.isna(sector_raw) else str(sector_raw).strip()
+
+        state_raw = row.get(state_column, "") if state_column else ""
+        state_value = "" if pd.isna(state_raw) else str(state_raw).strip()
+
+        allowed = eligible_solution_names(solutions, row_sector, state_value, sunshine_hours_by_state)
+        if solution_value not in allowed:
+            add_err(
+                i,
+                f"Solution '{solution_value}' is not valid for sector '{row_sector or ''}' "
+                f"and state '{state_value}'",
+            )
+
+
 def facility_validation(
     df, mdms_client, request_info, facility_client, boundary_data, schemaName
 ):
@@ -134,8 +212,7 @@ def facility_validation(
     errors = [[] for _ in range(len(df))]
     add_err = lambda i, msg: errors[i].append(msg)
 
-    # Only validate rows where Facility ID is empty
-    new_rows = df[df["End user Id"].isna() | (df["End user Id"].astype(str).str.strip() == "")]
+    new_rows = select_unsaved_rows(df)
     if new_rows.empty:
         return errors  # No new rows to validate
 
@@ -162,8 +239,11 @@ def validate_boundary_codes(df, allowed_boundary_codes, add_err):
     Validates that 'Boundary Code' column in df only contains values
     from allowed_boundary_codes set. Only validates rows in df passed here.
     """
+    boundary_column = "Boundary Code (Mandatory)"
+    if boundary_column not in df.columns:
+        return
 
-    for i, val in enumerate(df["Boundary Code (Mandatory)"]):
+    for i, val in enumerate(df[boundary_column]):
         if pd.isna(val) or str(val).strip() == "":
             add_err(i, "Boundary Code is mandatory")
             continue
