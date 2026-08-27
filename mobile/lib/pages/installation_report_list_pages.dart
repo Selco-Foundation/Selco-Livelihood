@@ -8,6 +8,7 @@ import '../widgets/facility_report_card.dart';
 import '../widgets/facility_search_sort_card.dart';
 import '../widgets/livelihood_app_bar.dart';
 import '../widgets/report_navigation_header.dart';
+import 'machine_form.dart';
 
 class NewReportFacilitiesPage extends StatelessWidget {
   const NewReportFacilitiesPage({super.key});
@@ -73,6 +74,22 @@ class _FacilityListPage extends StatelessWidget {
       );
   }
 
+  void _handleFacilityAction(
+    BuildContext context,
+    FacilityReportSample sample,
+  ) {
+    if (mode == FacilityReportMode.newReport &&
+        sample.assetCategory == FacilityAssetCategory.machine) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => MachineFormPage(sample: sample),
+        ),
+      );
+      return;
+    }
+    _showPlaceholder(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -118,7 +135,7 @@ class _FacilityListPage extends StatelessWidget {
                     FacilityReportCard(
                       sample: sample,
                       mode: mode,
-                      onAction: () => _showPlaceholder(context),
+                      onAction: () => _handleFacilityAction(context, sample),
                     ),
                     const SizedBox(height: spacer5),
                   ],

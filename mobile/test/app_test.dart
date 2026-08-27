@@ -1,20 +1,28 @@
+import 'dart:async';
+
 import 'package:badges/badges.dart' as badges;
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
+import 'package:digit_ui_components/widgets/molecules/panel_cards.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:livelihood/app/app_strings.dart';
 import 'package:livelihood/main.dart';
+import 'package:livelihood/models/facility_report_sample.dart';
 import 'package:livelihood/pages/installation_report_home_page.dart';
 import 'package:livelihood/pages/installation_report_list_pages.dart';
 import 'package:livelihood/pages/home_page.dart';
 import 'package:livelihood/pages/login_page.dart';
+import 'package:livelihood/pages/machine_form.dart';
+import 'package:livelihood/pages/machine_report_success_page.dart';
 import 'package:livelihood/widgets/facility_report_card.dart';
 import 'package:livelihood/widgets/facility_search_sort_card.dart';
 import 'package:livelihood/widgets/home_help_header.dart';
 import 'package:livelihood/widgets/home_item_card.dart';
 import 'package:livelihood/widgets/livelihood_app_bar.dart';
+import 'package:livelihood/widgets/machine_media_picker.dart';
 
 void main() {
   TextSpan findTextSpan(TextSpan root, String text) {
@@ -569,6 +577,416 @@ void main() {
     expect(find.byType(PendingApprovalPage), findsOneWidget);
   });
 
+  testWidgets('only the machine facility opens the machine form', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+
+    Future<void> pumpNewReports() => tester.pumpWidget(
+          MaterialApp(
+            key: UniqueKey(),
+            theme: DigitTheme.instance.mobileTheme,
+            home: const NewReportFacilitiesPage(),
+          ),
+        );
+
+    await pumpNewReports();
+    final solarAction =
+        find.byKey(const ValueKey('start-resume-report-button')).first;
+    await tester.ensureVisible(solarAction);
+    await tester.tap(solarAction);
+    await tester.pump();
+    expect(find.byType(NewReportFacilitiesPage), findsOneWidget);
+    expect(find.text(AppStrings.reportActionNotConnected), findsOneWidget);
+
+    await pumpNewReports();
+    final machineAction =
+        find.byKey(const ValueKey('start-resume-report-button')).last;
+    await tester.drag(
+      find.byType(CustomScrollView),
+      const Offset(0, -900),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(machineAction);
+    await tester.pumpAndSettle();
+    expect(find.byType(MachineFormPage), findsOneWidget);
+    expect(find.text(AppStrings.machineReportTitle), findsOneWidget);
+  });
+
+  testWidgets('machine form renders its DIGIT fields and fixed actions', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: MachineFormPage(sample: facilityReportSamples[1]),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('machine-form-card')), findsOneWidget);
+    expect(find.byKey(const ValueKey('machine-form-footer')), findsOneWidget);
+    expect(find.byKey(const ValueKey('po-number-field')), findsOneWidget);
+    expect(find.byKey(const ValueKey('machine-serial-field')), findsOneWidget);
+    expect(find.byKey(const ValueKey('invoice-number-field')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('machine-capacity-field')), findsOneWidget);
+    expect(find.byKey(const ValueKey('warranty-years-field')), findsOneWidget);
+    expect(find.byKey(const ValueKey('electric-board-picker')), findsOneWidget);
+    expect(find.byKey(const ValueKey('demo-video-picker')), findsOneWidget);
+    expect(find.byKey(const ValueKey('end-user-photo-picker')), findsOneWidget);
+    expect(find.byKey(const ValueKey('trained-yes')), findsOneWidget);
+    expect(find.byKey(const ValueKey('trained-no')), findsOneWidget);
+    expect(find.byKey(const ValueKey('machine-otp-field')), findsOneWidget);
+
+    final submit = tester.widget<DigitButton>(
+      find.byKey(const ValueKey('submit-machine-report-button')),
+    );
+    expect(submit.isDisabled, isTrue);
+  });
+
+  testWidgets('machine image picker matches E4H states and handles errors', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    var callCount = 0;
+    XFile? selected;
+
+    Future<XFile?> picker(MachineMediaKind kind, ImageSource source) async {
+      callCount++;
+      if (callCount == 1) return null;
+      if (callCount == 3) throw Exception('picker failed');
+      return XFile('/tmp/photo-$callCount.jpg', name: 'photo-$callCount.jpg');
+    }
+
+    Widget buildPicker() => MaterialApp(
+          theme: DigitTheme.instance.mobileTheme,
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) => MachineMediaPicker(
+                kind: MachineMediaKind.image,
+                selectedFile: selected,
+                pickMedia: picker,
+                onChanged: (file) => setState(() => selected = file),
+              ),
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(buildPicker());
+    final uploadControl = tester.widget<Container>(
+      find.byKey(const ValueKey('machine-media-upload-control')),
+    );
+    expect(uploadControl.constraints?.maxHeight, 120);
+    final uploadDecoration = uploadControl.decoration! as BoxDecoration;
+    final uploadBorder = uploadDecoration.border! as Border;
+    expect(uploadBorder.top.width, 1);
+    expect(
+      uploadBorder.top.color,
+      const DigitColors().light.genericInputBorder,
+    );
+    final cameraIcon = tester.widget<Icon>(find.byIcon(Icons.camera_enhance));
+    expect(cameraIcon.size, spacer10);
+    expect(cameraIcon.color, const DigitColors().light.primary1);
+    expect(find.text(AppStrings.takePhoto), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('machine-media-empty')));
+    await tester.pumpAndSettle();
+    final galleryIcon = tester.widget<Icon>(find.byIcon(Icons.perm_media));
+    expect(galleryIcon.size, spacer10);
+    expect(galleryIcon.color, const DigitColors().light.primary1);
+    await tester.tap(find.byKey(const ValueKey('machine-picker-camera')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('machine-media-empty')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('machine-media-empty')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('machine-picker-camera')));
+    await tester.pumpAndSettle();
+    final imagePreview = tester.widget<AspectRatio>(
+      find.byKey(const ValueKey('machine-media-image-preview')),
+    );
+    expect(imagePreview.aspectRatio, 3 / 2);
+    expect(find.text('photo-2.jpg'), findsNothing);
+    expect(find.byKey(const ValueKey('machine-media-replace')), findsNothing);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('machine-media-remove'))),
+      const Size(spacer6, spacer6),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('machine-media-remove')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('machine-media-empty')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('machine-media-empty')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('machine-picker-camera')));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.mediaPickerError), findsOneWidget);
+    expect(find.byKey(const ValueKey('machine-media-error')), findsOneWidget);
+    expect(find.byKey(const ValueKey('machine-media-empty')), findsOneWidget);
+  });
+
+  testWidgets('machine video picker uses the E4H video tile', (tester) async {
+    setMobileViewport(tester, const Size(390, 844));
+    XFile? selected;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) => MachineMediaPicker(
+              kind: MachineMediaKind.video,
+              selectedFile: selected,
+              pickMedia: (_, __) async =>
+                  XFile('/tmp/demo.mp4', name: 'demo.mp4'),
+              onChanged: (file) => setState(() => selected = file),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byIcon(Icons.videocam), findsOneWidget);
+    expect(find.text(AppStrings.takeVideo), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('machine-media-empty')));
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.video_library), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('machine-picker-files')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('machine-media-video-tile')),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.video_file), findsOneWidget);
+    expect(find.text('demo.mp4'), findsOneWidget);
+    expect(find.byKey(const ValueKey('machine-media-replace')), findsNothing);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('machine-media-remove'))),
+      const Size(spacer6, spacer6),
+    );
+  });
+
+  testWidgets('machine picker shows opening state and ignores duplicate taps', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    final pendingPick = Completer<XFile?>();
+    var pickCount = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: Scaffold(
+          body: MachineMediaPicker(
+            kind: MachineMediaKind.image,
+            selectedFile: null,
+            pickMedia: (_, __) {
+              pickCount++;
+              return pendingPick.future;
+            },
+            onChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('machine-media-empty')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('machine-picker-camera')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byKey(const ValueKey('machine-media-opening')), findsOneWidget);
+    expect(pickCount, 1);
+
+    await tester.tap(find.byKey(const ValueKey('machine-media-empty')));
+    await tester.pump();
+    expect(pickCount, 1);
+    expect(find.byKey(const ValueKey('machine-picker-camera')), findsNothing);
+
+    pendingPick.complete(null);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('machine-media-opening')), findsNothing);
+  });
+
+  testWidgets('machine draft and completed submit use success panels', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+
+    Future<void> pumpForm() => tester.pumpWidget(
+          MaterialApp(
+            key: UniqueKey(),
+            theme: DigitTheme.instance.mobileTheme,
+            home: MachineFormPage(
+              sample: facilityReportSamples[1],
+              pickMedia: (kind, source) async => XFile(
+                kind == MachineMediaKind.image
+                    ? '/tmp/photo.jpg'
+                    : '/tmp/video.mp4',
+                name:
+                    kind == MachineMediaKind.image ? 'photo.jpg' : 'video.mp4',
+              ),
+            ),
+          ),
+        );
+
+    await pumpForm();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('save-draft-button')),
+    );
+    await tester.tap(find.byKey(const ValueKey('save-draft-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.byType(MachineReportSuccessPage), findsOneWidget);
+    expect(find.text(AppStrings.dataSavedSuccessfully), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget.runtimeType.toString() == 'Lottie',
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.tap(
+      find.byKey(const ValueKey('machine-success-home-button')),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.byType(HomePage), findsOneWidget);
+    expect(find.byType(MachineFormPage), findsNothing);
+
+    await pumpForm();
+    Future<void> enter(String key, String value) async {
+      await tester.enterText(
+        find.descendant(
+          of: find.byKey(ValueKey(key)),
+          matching: find.byType(EditableText),
+        ),
+        value,
+      );
+      await tester.pump();
+    }
+
+    await enter('po-number-field', 'PO-100');
+    await enter('machine-capacity-field', '500 W');
+    await enter('warranty-years-field', '2');
+
+    Future<void> scrollIntoView(Finder target) async {
+      final center = tester.getCenter(target);
+      if (center.dy > 650) {
+        await tester.drag(
+          find.byType(CustomScrollView),
+          Offset(0, 600 - center.dy),
+        );
+        await tester.pumpAndSettle();
+      }
+    }
+
+    Future<void> selectMedia(String key) async {
+      final target = find.byKey(ValueKey(key));
+      await scrollIntoView(target);
+      await tester.tap(target);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('machine-picker-files')));
+      await tester.pumpAndSettle();
+    }
+
+    await selectMedia('electric-board-picker');
+    await selectMedia('demo-video-picker');
+    await selectMedia('end-user-photo-picker');
+
+    await scrollIntoView(find.byKey(const ValueKey('trained-no')));
+    await tester.tap(find.byKey(const ValueKey('trained-no')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('machine-otp-field')), findsOneWidget);
+    expect(
+      tester
+          .widget<DigitButton>(
+            find.byKey(const ValueKey('submit-machine-report-button')),
+          )
+          .isDisabled,
+      isTrue,
+    );
+
+    await enter('machine-otp-field', '1234');
+    await scrollIntoView(find.byKey(const ValueKey('verify-otp-button')));
+    await tester.tap(find.byKey(const ValueKey('verify-otp-button')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('otp-verified-message')), findsOneWidget);
+    expect(
+      tester
+          .widget<DigitButton>(
+            find.byKey(const ValueKey('submit-machine-report-button')),
+          )
+          .isDisabled,
+      isFalse,
+    );
+
+    await enter('machine-otp-field', '12345');
+    expect(find.byKey(const ValueKey('otp-verified-message')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('verify-otp-button')));
+    await tester.pump();
+    await tester.tap(
+      find.byKey(const ValueKey('submit-machine-report-button')),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.text(AppStrings.submittedSuccessfully), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget.runtimeType.toString() == 'Lottie',
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('machine success screens match E4H panel and DIGIT footer', (
+    tester,
+  ) async {
+    for (final mode in MachineReportSuccessMode.values) {
+      setMobileViewport(tester, const Size(390, 844));
+      await tester.pumpWidget(
+        MaterialApp(
+          key: ValueKey(mode),
+          theme: DigitTheme.instance.mobileTheme,
+          home: MachineReportSuccessPage(mode: mode),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+
+      expect(find.byType(AppBar), findsNothing);
+      expect(find.byType(PanelCard), findsOneWidget);
+      expect(find.byType(PoweredByDigit), findsOneWidget);
+
+      final panelCard = tester.widget<PanelCard>(find.byType(PanelCard));
+      expect(panelCard.type, PanelType.success);
+      expect(panelCard.animate, isTrue);
+      expect(panelCard.repeat, isTrue);
+      expect(panelCard.actions, hasLength(1));
+      expect(panelCard.actions!.single.type, DigitButtonType.primary);
+      expect(panelCard.actions!.single.size, DigitButtonSize.large);
+      expect(panelCard.actions!.single.mainAxisSize, isNull);
+
+      final panelPadding = tester.widget<Padding>(
+        find.byKey(const ValueKey('machine-success-panel-padding')),
+      );
+      expect(panelPadding.padding, const EdgeInsets.all(spacer2));
+
+      final footerPadding = tester.widget<Padding>(
+        find.byKey(const ValueKey('machine-success-footer')),
+      );
+      expect(footerPadding.padding, const EdgeInsets.only(bottom: spacer2));
+
+      final lottie = find.byWidgetPredicate(
+        (widget) => widget.runtimeType.toString() == 'Lottie',
+      );
+      expect(lottie, findsOneWidget);
+      expect(tester.getSize(lottie), const Size(80, 80));
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   testWidgets('DIGIT layouts do not overflow at representative mobile sizes', (
     tester,
   ) async {
@@ -593,6 +1011,13 @@ void main() {
         const PendingApprovalPage(),
         const ResubmissionNeededPage(),
         const ApprovedReportsPage(),
+        MachineFormPage(sample: facilityReportSamples[1]),
+        const MachineReportSuccessPage(
+          mode: MachineReportSuccessMode.draft,
+        ),
+        const MachineReportSuccessPage(
+          mode: MachineReportSuccessMode.submitted,
+        ),
       ]) {
         await tester.pumpWidget(
           MaterialApp(

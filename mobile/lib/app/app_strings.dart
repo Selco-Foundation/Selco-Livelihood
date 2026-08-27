@@ -101,6 +101,46 @@ abstract final class AppStrings {
   static const resubmitForApproval = 'Resubmit For Approval';
   static const reportActionNotConnected =
       'This report action is not connected yet.';
+
+  static const machineReportTitle = 'Installation Report for Machine';
+  static const poNumber = 'PO Number';
+  static const enterPoNumber = 'Enter PO Number';
+  static const machineSerialNumber = 'Machine Serial Number';
+  static const enterSerialNumber = 'Enter Serial Number';
+  static const manufacturerInvoiceNumber = 'Manufacturer Invoice Number';
+  static const enterInvoiceNumber = 'Enter Invoice Number';
+  static const machineCapacity = 'Machine Specifications/Motor Capacity';
+  static const enterCapacity = 'Enter Capacity';
+  static const warrantyYears = 'Warranty (Years)';
+  static const enterYears = 'Enter Years';
+  static const electricBoard = 'Electric Board';
+  static const rawMaterialDemo = 'Demo test with Raw Material';
+  static const photoWithEndUser = 'Photo with End User';
+  static const takePhoto = 'Take Photo';
+  static const takeVideo = 'Take Video';
+  static const camera = 'Camera';
+  static const myFiles = 'My Files';
+  static const replace = 'Replace';
+  static const trainedEndUser = 'Trained End User';
+  static const yes = 'Yes';
+  static const no = 'No';
+  static const validateTrainingOtp = 'Enter OTP to Validate Training';
+  static const enterOtp = 'Enter OTP';
+  static const verify = 'Verify';
+  static const resendOtp = 'Resend OTP';
+  static const otpRequired = 'Enter an OTP before verification.';
+  static const otpVerified = 'OTP verified successfully.';
+  static const otpResent = 'A new OTP has been requested.';
+  static const mediaPickerError = 'Could not open the media picker.';
+  static const saveAsDraft = 'Save Draft';
+  static const submitReport = 'Submit';
+  static const dataSavedSuccessfully = 'Data Saved Successfully';
+  static const dataSavedDescription =
+      'The installation report has been saved successfully.';
+  static const submittedSuccessfully = 'Submitted Successfully';
+  static const submittedDescription =
+      'The installation report has been submitted successfully.';
+  static const home = 'Home';
 }
 
 class WelcomeItemCopy {

@@ -11,6 +11,7 @@ dependencies:
   digit_ui_components: 0.2.3+1
   flutter:
     sdk: flutter
+  image_picker: 1.1.2
 
 dependency_overrides:
   camera_android_camerax: ^0.5.0
@@ -24,6 +25,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/animated_json/
     - assets/images/
 
   fonts:
