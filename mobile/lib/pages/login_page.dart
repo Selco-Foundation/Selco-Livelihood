@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../app/app_strings.dart';
 import '../widgets/livelihood_app_bar.dart';
 import '../widgets/login_consent_checkbox.dart';
+import 'home_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -64,7 +65,10 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     if (!userIdMissing && !passwordMissing) {
-      _showMessage(AppStrings.loginNotConnected);
+      FocusManager.instance.primaryFocus?.unfocus();
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => const HomePage()),
+      );
     }
   }
 
