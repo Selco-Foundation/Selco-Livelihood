@@ -22,7 +22,6 @@ import 'package:livelihood/pages/login_page.dart';
 import 'package:livelihood/pages/machine_form.dart';
 import 'package:livelihood/pages/machine_report_success_page.dart';
 import 'package:livelihood/pages/add_new_asset.dart';
-import 'package:livelihood/pages/asset_count.dart';
 import 'package:livelihood/pages/asset_summary.dart';
 import 'package:livelihood/pages/digit_scanner_page.dart';
 import 'package:livelihood/pages/installation_completion_certificate.dart';
@@ -619,8 +618,11 @@ void main() {
     await tester.ensureVisible(solarAction);
     await tester.tap(solarAction);
     await tester.pumpAndSettle();
-    expect(find.byType(AssetCountPage), findsOneWidget);
-    expect(find.text(AppStrings.assetCountTitle), findsOneWidget);
+    expect(find.byType(OverallAssetSummaryPage), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('solar-overall-summary-newReport')),
+      findsOneWidget,
+    );
 
     await pumpNewReports();
     final machineAction =
@@ -695,15 +697,58 @@ void main() {
     await pumpMode(SolarWorkflowMode.pending);
     expect(find.text('View System Parameters'), findsOneWidget);
     expect(find.byKey(const ValueKey('solar-fixed-footer')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('solar-rejection-reasons-panel')),
+      findsNothing,
+    );
 
     await pumpMode(SolarWorkflowMode.approved);
     expect(find.text('View BOM Luminaries'), findsOneWidget);
     expect(find.byKey(const ValueKey('solar-fixed-footer')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('solar-rejection-reasons-panel')),
+      findsNothing,
+    );
 
     await pumpMode(SolarWorkflowMode.resubmission);
     expect(find.text('Edit System Parameters'), findsOneWidget);
-    expect(find.byKey(const ValueKey('solar-rejection-card')), findsOneWidget);
+    expect(find.byKey(const ValueKey('solar-rejection-card')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('solar-rejection-reasons-panel')),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.error_outline), findsNothing);
+    expect(find.text(AppStrings.rejectionReasons), findsOneWidget);
+    expect(
+      find.text(AppStrings.incorrectInstallationDetails),
+      findsOneWidget,
+    );
+    expect(find.text(AppStrings.rejectedSerialReason), findsOneWidget);
     expect(find.text(AppStrings.resubmit), findsOneWidget);
+
+    final uploader = find.byKey(
+      const ValueKey('solar-overall-file-uploader'),
+    );
+    final rejectionPanel = find.byKey(
+      const ValueKey('solar-rejection-reasons-panel'),
+    );
+    expect(
+      tester.getTopLeft(rejectionPanel).dy,
+      greaterThan(tester.getTopLeft(uploader).dy),
+    );
+
+    final rejectionSurface = tester.widget<Container>(
+      find.byKey(const ValueKey('solar-rejection-reasons-surface')),
+    );
+    expect(
+      rejectionSurface.padding,
+      const EdgeInsets.symmetric(
+        horizontal: spacer3,
+        vertical: spacer4,
+      ),
+    );
+    final decoration = rejectionSurface.decoration! as BoxDecoration;
+    expect(decoration.borderRadius, BorderRadius.circular(spacer1));
   });
 
   testWidgets('solar completion controls and submit gate reflect draft data', (

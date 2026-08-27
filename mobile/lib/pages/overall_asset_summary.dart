@@ -151,30 +151,6 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
             ),
           ),
           const SizedBox(height: spacer4),
-          if (draft.mode == SolarWorkflowMode.resubmission) ...[
-            DigitCard(
-              key: const ValueKey('solar-rejection-card'),
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.error_outline,
-                        color: theme.colorTheme.alert.error),
-                    const SizedBox(width: spacer2),
-                    Expanded(
-                      child: Text(
-                        AppStrings.rejectionReasons,
-                        style: textTheme.headingM.copyWith(
-                          color: theme.colorTheme.alert.error,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                Text(AppStrings.rejectedSerialReason, style: textTheme.bodyL),
-              ],
-            ),
-            const SizedBox(height: spacer4),
-          ],
           DigitCard(
             key: const ValueKey('solar-overall-asset-summary'),
             children: [
@@ -274,10 +250,81 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                     ..addAll(files);
                 }),
               ),
+              if (draft.mode == SolarWorkflowMode.resubmission)
+                const _RejectionReasonsPanel(),
             ],
           ),
         ],
       ),
+    );
+  }
+}
+
+class _RejectionReasonsPanel extends StatelessWidget {
+  const _RejectionReasonsPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final textTheme = theme.digitTextTheme(context);
+
+    return Column(
+      key: const ValueKey('solar-rejection-reasons-panel'),
+      children: [
+        const SizedBox(height: spacer2),
+        Container(
+          key: const ValueKey('solar-rejection-reasons-surface'),
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: theme.colorTheme.paper.secondary,
+            border: Border.all(color: theme.colorTheme.generic.divider),
+            borderRadius: BorderRadius.circular(spacer1),
+          ),
+          padding: const EdgeInsets.symmetric(
+            horizontal: spacer3,
+            vertical: spacer4,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                AppStrings.rejectionReasons,
+                style: textTheme.headingS.copyWith(
+                  color: theme.colorTheme.text.primary,
+                ),
+              ),
+              const SizedBox(height: spacer5),
+              Container(
+                key: const ValueKey('solar-rejection-reason-chip'),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: theme.colorTheme.primary.primary2,
+                  ),
+                  borderRadius: BorderRadius.circular(spacer2),
+                  color: theme.colorTheme.paper.primary,
+                ),
+                padding: const EdgeInsets.symmetric(
+                  vertical: spacer1,
+                  horizontal: spacer3,
+                ),
+                child: Text(
+                  AppStrings.incorrectInstallationDetails,
+                  style: textTheme.label.copyWith(
+                    color: theme.colorTheme.primary.primary2,
+                  ),
+                ),
+              ),
+              const SizedBox(height: spacer2),
+              Text(
+                AppStrings.rejectedSerialReason,
+                style: textTheme.label.copyWith(
+                  color: theme.colorTheme.text.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

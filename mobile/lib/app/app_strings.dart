@@ -204,6 +204,7 @@ abstract final class AppStrings {
   static const documentSaved = 'Document saved successfully.';
   static const required = 'Required';
   static const rejectionReasons = 'Rejection Reasons';
+  static const incorrectInstallationDetails = 'Incorrect Installation Details';
   static const rejectedSerialReason =
       'The panel serial number and supporting photo need correction.';
   static const resubmit = 'Resubmit For Approval';

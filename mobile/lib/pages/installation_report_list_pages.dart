@@ -10,7 +10,6 @@ import '../widgets/facility_search_sort_card.dart';
 import '../widgets/livelihood_app_bar.dart';
 import '../widgets/report_navigation_header.dart';
 import 'machine_form.dart';
-import 'asset_count.dart';
 import 'overall_asset_summary.dart';
 
 class NewReportFacilitiesPage extends StatelessWidget {
@@ -94,7 +93,12 @@ class _FacilityListPage extends StatelessWidget {
       if (mode == FacilityReportMode.newReport) {
         Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => AssetCountPage(sample: sample),
+            builder: (_) => OverallAssetSummaryPage(
+              draft: SolarInstallationDraft(
+                facility: sample,
+                mode: SolarWorkflowMode.newReport,
+              ),
+            ),
           ),
         );
         return;
