@@ -141,6 +141,78 @@ abstract final class AppStrings {
   static const submittedDescription =
       'The installation report has been submitted successfully.';
   static const home = 'Home';
+
+  static const next = 'Next';
+  static const submit = 'Submit';
+  static const assetCountTitle = 'Asset Count';
+  static const chooseAssetCount =
+      'Choose the number of assets installed at this facility.';
+  static const batteries = 'Batteries';
+  static const inverters = 'Inverters';
+  static const panels = 'Panels';
+  static const selectAssetTypeTitle = 'Select Asset Type';
+  static const selectAssetType = 'Select Asset Type';
+  static const specifications = 'Specifications';
+  static const system = 'System';
+  static const totalCapacity = 'Total Capacity';
+  static const unit = 'Unit';
+  static const details = 'Details';
+  static const warrantyStartDate = 'Warranty Start Date';
+  static const warrantyDuration = 'Warranty Duration';
+  static const brand = 'Brand';
+  static const serialNumber = 'Serial Number';
+  static const scan = 'Scan';
+  static const scanSerialNumber = 'Scan Serial Number';
+  static const supportingPhoto = 'Supporting Photo';
+  static const capacity = 'Capacity';
+  static const assetType = 'Type';
+  static const uploadImages = 'Upload Images';
+  static const uploadVideos = 'Upload Videos';
+  static const images = 'Images';
+  static const videos = 'Videos';
+  static const optional = '(Optional)';
+  static const addAllImages = 'Add all images for';
+  static const summary = 'Summary';
+  static const healthFacilityDetails = 'Health Facility Details';
+  static const name = 'Name';
+  static const count = 'Count';
+  static const edit = 'Edit';
+  static const addMoreAssets = 'Add More Assets';
+  static const installationCompletionReport = 'Installation Completion Report';
+  static const completionInstructions =
+      'Please fill out all sections of the report or upload relevant documents.';
+  static const systemParameters = 'System Parameters';
+  static const bomSolarSystem = 'BOM Solar System';
+  static const bomRms = 'BOM RMS';
+  static const bomLoadWiring = 'BOM Load Wiring';
+  static const bomLuminaries = 'BOM Luminaries';
+  static const installationCompletionCertificate =
+      'Installation Completion Certificate';
+  static const assetHandoverDocument = 'Asset Handover Document';
+  static const installationImages = 'Installation Images';
+  static const add = 'Add';
+  static const view = 'View';
+  static const dynamicFormNotConnected =
+      'This dynamic form is not connected yet.';
+  static const uploadPrompt = 'Upload the relevant document.';
+  static const documentUploadInstructions =
+      'Upload an image or PDF document. At least one file is required.';
+  static const acceptedFormats = 'Accepted formats: JPG, JPEG, PNG and PDF.';
+  static const maxFiles = 'Maximum 3 files allowed.';
+  static const uploadPdf = 'Upload PDF';
+  static const filePickerError = 'Could not open the file picker.';
+  static const documentSaved = 'Document saved successfully.';
+  static const required = 'Required';
+  static const rejectionReasons = 'Rejection Reasons';
+  static const rejectedSerialReason =
+      'The panel serial number and supporting photo need correction.';
+  static const resubmit = 'Resubmit For Approval';
+  static const scannerTitle = 'Barcode Scanner';
+  static const scanInstruction = 'Place the barcode inside the frame';
+  static const enterManualCode = 'Enter Manual Code';
+  static const uploadFromGallery = 'Upload from Gallery';
+  static const scannerUnavailable =
+      'The scanner could not be opened on this device.';
 }
 
 class WelcomeItemCopy {

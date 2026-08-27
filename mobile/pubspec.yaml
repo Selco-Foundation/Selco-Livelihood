@@ -8,9 +8,13 @@ environment:
 
 dependencies:
   badges: 3.1.2
+  digit_scanner: 1.0.6+4
   digit_ui_components: 0.2.3+1
+  file_picker: 8.0.7
   flutter:
     sdk: flutter
+  flutter_bloc: 8.1.6
+  google_mlkit_barcode_scanning: 0.12.0
   image_picker: 1.1.2
 
 dependency_overrides:

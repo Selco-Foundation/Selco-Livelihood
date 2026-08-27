@@ -4,11 +4,14 @@ import 'package:flutter/material.dart';
 
 import '../app/app_strings.dart';
 import '../models/facility_report_sample.dart';
+import '../models/solar_installation_draft.dart';
 import '../widgets/facility_report_card.dart';
 import '../widgets/facility_search_sort_card.dart';
 import '../widgets/livelihood_app_bar.dart';
 import '../widgets/report_navigation_header.dart';
 import 'machine_form.dart';
+import 'asset_count.dart';
+import 'overall_asset_summary.dart';
 
 class NewReportFacilitiesPage extends StatelessWidget {
   const NewReportFacilitiesPage({super.key});
@@ -83,6 +86,33 @@ class _FacilityListPage extends StatelessWidget {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => MachineFormPage(sample: sample),
+        ),
+      );
+      return;
+    }
+    if (sample.assetCategory == FacilityAssetCategory.solar) {
+      if (mode == FacilityReportMode.newReport) {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => AssetCountPage(sample: sample),
+          ),
+        );
+        return;
+      }
+      final solarMode = switch (mode) {
+        FacilityReportMode.pendingApproval => SolarWorkflowMode.pending,
+        FacilityReportMode.resubmissionNeeded => SolarWorkflowMode.resubmission,
+        FacilityReportMode.approved => SolarWorkflowMode.approved,
+        FacilityReportMode.newReport => SolarWorkflowMode.newReport,
+      };
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => OverallAssetSummaryPage(
+            draft: SolarInstallationDraft.prefilled(
+              facility: sample,
+              mode: solarMode,
+            ),
+          ),
         ),
       );
       return;

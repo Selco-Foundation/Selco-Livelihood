@@ -7,16 +7,29 @@ import 'package:digit_ui_components/widgets/molecules/panel_cards.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:livelihood/app/app_strings.dart';
 import 'package:livelihood/main.dart';
 import 'package:livelihood/models/facility_report_sample.dart';
+import 'package:livelihood/models/solar_installation_draft.dart';
 import 'package:livelihood/pages/installation_report_home_page.dart';
 import 'package:livelihood/pages/installation_report_list_pages.dart';
 import 'package:livelihood/pages/home_page.dart';
 import 'package:livelihood/pages/login_page.dart';
 import 'package:livelihood/pages/machine_form.dart';
 import 'package:livelihood/pages/machine_report_success_page.dart';
+import 'package:livelihood/pages/add_new_asset.dart';
+import 'package:livelihood/pages/asset_count.dart';
+import 'package:livelihood/pages/asset_summary.dart';
+import 'package:livelihood/pages/installation_completion_certificate.dart';
+import 'package:livelihood/pages/installation_images.dart';
+import 'package:livelihood/pages/media_upload.dart';
+import 'package:livelihood/pages/overall_asset_summary.dart'
+    show OverallAssetSummaryPage;
+import 'package:livelihood/widgets/image_uploader.dart';
+import 'package:livelihood/widgets/file_upload_widget.dart';
+import 'package:livelihood/widgets/video_uploader.dart';
 import 'package:livelihood/widgets/facility_report_card.dart';
 import 'package:livelihood/widgets/facility_search_sort_card.dart';
 import 'package:livelihood/widgets/home_help_header.dart';
@@ -558,7 +571,9 @@ void main() {
     expect(find.byType(FacilityReportCard), findsNWidgets(2));
   });
 
-  testWidgets('facility card actions remain UI-only', (tester) async {
+  testWidgets('pending solar opens its read-only overall summary', (
+    tester,
+  ) async {
     setMobileViewport(tester, const Size(390, 844));
     await tester.pumpWidget(
       MaterialApp(
@@ -573,11 +588,16 @@ void main() {
     await tester.tap(summaryButton);
     await tester.pump();
 
-    expect(find.text(AppStrings.reportActionNotConnected), findsOneWidget);
-    expect(find.byType(PendingApprovalPage), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.byType(OverallAssetSummaryPage), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('solar-overall-summary-pending')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('solar-fixed-footer')), findsNothing);
   });
 
-  testWidgets('only the machine facility opens the machine form', (
+  testWidgets('solar and machine facilities open their separate flows', (
     tester,
   ) async {
     setMobileViewport(tester, const Size(390, 844));
@@ -595,9 +615,9 @@ void main() {
         find.byKey(const ValueKey('start-resume-report-button')).first;
     await tester.ensureVisible(solarAction);
     await tester.tap(solarAction);
-    await tester.pump();
-    expect(find.byType(NewReportFacilitiesPage), findsOneWidget);
-    expect(find.text(AppStrings.reportActionNotConnected), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.byType(AssetCountPage), findsOneWidget);
+    expect(find.text(AppStrings.assetCountTitle), findsOneWidget);
 
     await pumpNewReports();
     final machineAction =
@@ -611,6 +631,370 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(MachineFormPage), findsOneWidget);
     expect(find.text(AppStrings.machineReportTitle), findsOneWidget);
+  });
+
+  testWidgets('overall summary shows all E4H BOM buttons in order', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 3000));
+    final draft = SolarInstallationDraft.prefilled(
+      facility: facilityReportSamples.first,
+      mode: SolarWorkflowMode.newReport,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: OverallAssetSummaryPage(draft: draft),
+      ),
+    );
+
+    const labels = [
+      'Add System Parameters',
+      'Add BOM Solar System',
+      'Add BOM RMS',
+      'Add BOM Load Wiring',
+      'Add BOM Luminaries',
+    ];
+    for (final label in labels) {
+      expect(find.text(label), findsOneWidget);
+    }
+    final firstButton = tester.getRect(
+      find.byKey(const ValueKey('solar-dynamic-system parameters')),
+    );
+    final secondButton = tester.getRect(
+      find.byKey(const ValueKey('solar-dynamic-bom solar system')),
+    );
+    expect(secondButton.top - firstButton.bottom, spacer4);
+    await tester.tap(find.text('Add BOM RMS'));
+    await tester.pump();
+    expect(find.text(AppStrings.dynamicFormNotConnected), findsOneWidget);
+    expect(find.byType(OverallAssetSummaryPage), findsOneWidget);
+  });
+
+  testWidgets('solar status variants use view and edit actions', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 3000));
+
+    Future<void> pumpMode(SolarWorkflowMode mode) => tester.pumpWidget(
+          MaterialApp(
+            key: UniqueKey(),
+            theme: DigitTheme.instance.mobileTheme,
+            home: OverallAssetSummaryPage(
+              draft: SolarInstallationDraft.prefilled(
+                facility: facilityReportSamples.first,
+                mode: mode,
+              ),
+            ),
+          ),
+        );
+
+    await pumpMode(SolarWorkflowMode.pending);
+    expect(find.text('View System Parameters'), findsOneWidget);
+    expect(find.byKey(const ValueKey('solar-fixed-footer')), findsNothing);
+
+    await pumpMode(SolarWorkflowMode.approved);
+    expect(find.text('View BOM Luminaries'), findsOneWidget);
+    expect(find.byKey(const ValueKey('solar-fixed-footer')), findsNothing);
+
+    await pumpMode(SolarWorkflowMode.resubmission);
+    expect(find.text('Edit System Parameters'), findsOneWidget);
+    expect(find.byKey(const ValueKey('solar-rejection-card')), findsOneWidget);
+    expect(find.text(AppStrings.resubmit), findsOneWidget);
+  });
+
+  testWidgets('solar completion controls and submit gate reflect draft data', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    final incomplete = SolarInstallationDraft(
+      facility: facilityReportSamples.first,
+      mode: SolarWorkflowMode.newReport,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: OverallAssetSummaryPage(draft: incomplete),
+      ),
+    );
+    final enabledByDefaultSubmit = tester.widget<DigitButton>(
+      find.byKey(const ValueKey('solar-footer-submit')),
+    );
+    expect(incomplete.countFor(SolarAssetType.battery), 1);
+    expect(incomplete.countFor(SolarAssetType.inverter), 1);
+    expect(incomplete.countFor(SolarAssetType.panel), 1);
+    expect(enabledByDefaultSubmit.isDisabled, isFalse);
+    expect(find.byKey(const ValueKey('solar-installation-completion-card')),
+        findsOneWidget);
+    expect(find.byType(FileUploadWidget), findsOneWidget);
+    expect(find.byKey(const ValueKey('solar-completion-certificate')),
+        findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('solar-handover-document')), findsOneWidget);
+    expect(find.byKey(const ValueKey('solar-installation-images')),
+        findsOneWidget);
+
+    final complete = SolarInstallationDraft.prefilled(
+      facility: facilityReportSamples.first,
+      mode: SolarWorkflowMode.newReport,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: OverallAssetSummaryPage(draft: complete),
+      ),
+    );
+    final enabledSubmit = tester.widget<DigitButton>(
+      find.byKey(const ValueKey('solar-footer-submit')),
+    );
+    expect(enabledSubmit.isDisabled, isFalse);
+  });
+
+  testWidgets('add new asset assigns injected scanner result directly', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    final draft = SolarInstallationDraft(
+      facility: facilityReportSamples.first,
+      mode: SolarWorkflowMode.newReport,
+    )..setCount(SolarAssetType.panel, 2);
+    draft.assets[SolarAssetType.panel]!.warrantyDuration = '5 Years';
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: AddNewAssetPage(
+          draft: draft,
+          assetType: SolarAssetType.panel,
+          scanSerial: (_) async => 'SOLAR-QR-001',
+        ),
+      ),
+    );
+
+    expect(find.text('1/2'), findsOneWidget);
+    expect(find.text('2/2'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('solar-scan-0')));
+    await tester.pump();
+
+    expect(draft.assets[SolarAssetType.panel]!.assets.first.serialNumber,
+        'SOLAR-QR-001');
+    final secondSerial = find.byKey(const ValueKey('asset-serial-scanner-1'));
+    await tester.ensureVisible(secondSerial);
+    await tester.pumpAndSettle();
+    await tester.tap(secondSerial);
+    await tester.pump();
+    expect(draft.assets[SolarAssetType.panel]!.assets.last.serialNumber,
+        'SOLAR-QR-001');
+    expect(find.byType(ImageUploader), findsNWidgets(2));
+  });
+
+  testWidgets('shared image uploader matches E4H single-file states', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    SolarFileRef? selected;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: Scaffold(
+          body: ImageUploader(
+            label: 'Click to add photo',
+            initialImage: selected,
+            pickMedia: (_, __) async => XFile('/tmp/supporting-photo.jpg'),
+            onImageSelected: (file) => selected = file,
+          ),
+        ),
+      ),
+    );
+
+    final empty = tester.widget<Container>(
+      find.byKey(const ValueKey('image-uploader-empty')),
+    );
+    expect(empty.constraints?.maxHeight, 120);
+    final decoration = empty.decoration! as BoxDecoration;
+    expect((decoration.border! as Border).top.width, 1);
+
+    await tester.tap(find.byKey(const ValueKey('image-uploader-empty')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('image-uploader-camera')), findsOneWidget);
+    expect(find.byKey(const ValueKey('image-uploader-files')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('image-uploader-files')));
+    await tester.pumpAndSettle();
+
+    expect(
+        find.byKey(const ValueKey('image-uploader-preview')), findsOneWidget);
+    final closeInk = tester.widget<InkWell>(
+      find.byKey(const ValueKey('image-uploader-remove')),
+    );
+    final closeContainer = closeInk.child! as Container;
+    expect(closeContainer.constraints?.maxWidth, spacer6);
+    expect(closeContainer.constraints?.maxHeight, spacer6);
+
+    await tester.tap(find.byKey(const ValueKey('image-uploader-remove')));
+    await tester.pump();
+    expect(selected, isNull);
+    expect(find.byKey(const ValueKey('image-uploader-empty')), findsOneWidget);
+  });
+
+  testWidgets('solar media page uses E4H multiple image and video uploaders', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 1200));
+    final draft = SolarInstallationDraft(
+      facility: facilityReportSamples.first,
+      mode: SolarWorkflowMode.newReport,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: MediaUploadPage(
+          draft: draft,
+          assetType: SolarAssetType.battery,
+        ),
+      ),
+    );
+
+    expect(find.byType(ImageUploader), findsOneWidget);
+    expect(find.byType(VideoUploader), findsOneWidget);
+    expect(find.byKey(const ValueKey('image-uploader-empty')), findsOneWidget);
+    expect(find.byKey(const ValueKey('video-uploader-empty')), findsOneWidget);
+    expect(find.text('Cancel'), findsNothing);
+  });
+
+  testWidgets('E4H file uploader shows selection count and preview tile', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    List<SolarFileRef> selected = [];
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: Scaffold(
+          body: FileUploadWidget(
+            label: AppStrings.uploadPdf,
+            allowMultiples: true,
+            showPreview: true,
+            pickFiles: () async => [
+              PlatformFile(
+                name: 'certificate.pdf',
+                size: 10,
+                path: '/tmp/certificate.pdf',
+              ),
+            ],
+            onFilesSelected: (files) => selected = files,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('No File Selected'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('file-uploader-button')));
+    await tester.pumpAndSettle();
+    expect(find.text('1 Selected'), findsOneWidget);
+    expect(find.text('certificate.pdf'), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('file-uploader-preview-0')), findsOneWidget);
+    expect(selected.single.kind, SolarFileKind.pdf);
+  });
+
+  testWidgets('solar asset summary has edit controls only when editable', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 3000));
+    final draft = SolarInstallationDraft.prefilled(
+      facility: facilityReportSamples.first,
+      mode: SolarWorkflowMode.newReport,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: AssetSummaryPage(
+          draft: draft,
+          assetType: SolarAssetType.inverter,
+        ),
+      ),
+    );
+    expect(find.text(AppStrings.edit), findsWidgets);
+    expect(find.byKey(const ValueKey('solar-fixed-footer')), findsOneWidget);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: AssetSummaryPage(
+          draft: draft,
+          assetType: SolarAssetType.inverter,
+          readOnly: true,
+        ),
+      ),
+    );
+    expect(find.text(AppStrings.edit), findsNothing);
+    expect(find.byKey(const ValueKey('solar-fixed-footer')), findsNothing);
+  });
+
+  testWidgets('solar completion pages enforce their local requirements', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    final draft = SolarInstallationDraft(
+      facility: facilityReportSamples.first,
+      mode: SolarWorkflowMode.newReport,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: InstallationCompletionCertificatePage(
+          draft: draft,
+          readOnly: false,
+          pickMedia: (_, __) async => XFile('/tmp/certificate.jpg'),
+        ),
+      ),
+    );
+    var submit = tester.widget<DigitButton>(
+      find.byKey(const ValueKey('solar-footer-submit')),
+    );
+    expect(submit.isDisabled, isTrue);
+    await tester.tap(find.byKey(const ValueKey('image-uploader-empty')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('image-uploader-files')));
+    await tester.pumpAndSettle();
+    submit = tester.widget<DigitButton>(
+      find.byKey(const ValueKey('solar-footer-submit')),
+    );
+    expect(submit.isDisabled, isFalse);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: InstallationImagesPage(
+          draft: draft,
+          readOnly: false,
+        ),
+      ),
+    );
+    submit = tester.widget<DigitButton>(
+      find.byKey(const ValueKey('solar-footer-submit')),
+    );
+    expect(submit.isDisabled, isTrue);
+    expect(find.byType(ImageUploader), findsNWidgets(3));
+    for (final requirement in SolarInstallationDraft.imageRequirements) {
+      draft.installationImages[requirement] = SolarFileRef(
+        name: '$requirement.jpg',
+        path: '/tmp/$requirement.jpg',
+        kind: SolarFileKind.image,
+      );
+    }
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: InstallationImagesPage(
+          draft: draft,
+          readOnly: false,
+        ),
+      ),
+    );
+    submit = tester.widget<DigitButton>(
+      find.byKey(const ValueKey('solar-footer-submit')),
+    );
+    expect(submit.isDisabled, isFalse);
   });
 
   testWidgets('machine form renders its DIGIT fields and fixed actions', (
