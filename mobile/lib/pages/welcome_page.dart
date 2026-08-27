@@ -5,17 +5,16 @@ import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
 import 'package:flutter/material.dart';
 
 import '../app/app_strings.dart';
+import '../router/app_router.dart';
 import '../widgets/footer_button.dart';
 import '../widgets/livelihood_app_bar.dart';
-import 'login_page.dart';
 
+@RoutePage()
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
 
   void _openLogin(BuildContext context) {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(builder: (_) => const LoginPage()),
-    );
+    context.router.replace(const LoginRoute());
   }
 
   @override

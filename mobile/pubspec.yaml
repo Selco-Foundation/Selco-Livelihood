@@ -7,6 +7,7 @@ environment:
   sdk: '>=3.4.3 <4.0.0'
 
 dependencies:
+  auto_route: ^8.3.0
   badges: 3.1.2
   camera: 0.11.0+2
   digit_scanner: 1.0.6+4
@@ -22,6 +23,8 @@ dependency_overrides:
   camera_android_camerax: ^0.5.0
 
 dev_dependencies:
+  auto_route_generator: ^8.0.0
+  build_runner: ^2.4.11
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0

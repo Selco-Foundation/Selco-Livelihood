@@ -5,13 +5,13 @@ import 'package:flutter/material.dart';
 import '../app/app_strings.dart';
 import '../models/facility_report_sample.dart';
 import '../models/solar_installation_draft.dart';
+import '../router/app_router.dart';
 import '../widgets/facility_report_card.dart';
 import '../widgets/facility_search_sort_card.dart';
 import '../widgets/livelihood_app_bar.dart';
 import '../widgets/report_navigation_header.dart';
-import 'machine_form.dart';
-import 'overall_asset_summary.dart';
 
+@RoutePage()
 class NewReportFacilitiesPage extends StatelessWidget {
   const NewReportFacilitiesPage({super.key});
 
@@ -23,6 +23,7 @@ class NewReportFacilitiesPage extends StatelessWidget {
       );
 }
 
+@RoutePage()
 class PendingApprovalPage extends StatelessWidget {
   const PendingApprovalPage({super.key});
 
@@ -34,6 +35,7 @@ class PendingApprovalPage extends StatelessWidget {
       );
 }
 
+@RoutePage()
 class ResubmissionNeededPage extends StatelessWidget {
   const ResubmissionNeededPage({super.key});
 
@@ -45,6 +47,7 @@ class ResubmissionNeededPage extends StatelessWidget {
       );
 }
 
+@RoutePage()
 class ApprovedReportsPage extends StatelessWidget {
   const ApprovedReportsPage({super.key});
 
@@ -82,22 +85,16 @@ class _FacilityListPage extends StatelessWidget {
   ) {
     if (mode == FacilityReportMode.newReport &&
         sample.assetCategory == FacilityAssetCategory.machine) {
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => MachineFormPage(sample: sample),
-        ),
-      );
+      context.router.push(MachineFormRoute(sample: sample));
       return;
     }
     if (sample.assetCategory == FacilityAssetCategory.solar) {
       if (mode == FacilityReportMode.newReport) {
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => OverallAssetSummaryPage(
-              draft: SolarInstallationDraft(
-                facility: sample,
-                mode: SolarWorkflowMode.newReport,
-              ),
+        context.router.push(
+          OverallAssetSummaryRoute(
+            draft: SolarInstallationDraft(
+              facility: sample,
+              mode: SolarWorkflowMode.newReport,
             ),
           ),
         );
@@ -109,13 +106,11 @@ class _FacilityListPage extends StatelessWidget {
         FacilityReportMode.approved => SolarWorkflowMode.approved,
         FacilityReportMode.newReport => SolarWorkflowMode.newReport,
       };
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => OverallAssetSummaryPage(
-            draft: SolarInstallationDraft.prefilled(
-              facility: sample,
-              mode: solarMode,
-            ),
+      context.router.push(
+        OverallAssetSummaryRoute(
+          draft: SolarInstallationDraft.prefilled(
+            facility: sample,
+            mode: solarMode,
           ),
         ),
       );
@@ -140,7 +135,7 @@ class _FacilityListPage extends StatelessWidget {
           key: ValueKey('facility-list-${mode.name}'),
           backgroundColor: theme.colorTheme.generic.background,
           header: ReportNavigationHeader(
-            onBackPressed: () => Navigator.of(context).maybePop(),
+            onBackPressed: () => context.router.maybePop(),
           ),
           footer: const PoweredByDigit(version: ''),
           children: [

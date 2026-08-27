@@ -16,6 +16,7 @@ import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart
 import 'package:image_picker/image_picker.dart';
 
 import '../app/app_strings.dart';
+import '../router/app_router.dart';
 
 typedef ScannerGalleryPicker = Future<XFile?> Function();
 
@@ -31,16 +32,11 @@ Future<String?> openDigitScanner(BuildContext context) async {
     ),
   );
 
-  final selected = await Navigator.of(context).push<String>(
-    MaterialPageRoute<String>(
-      builder: (_) => BlocProvider.value(
-        value: scannerBloc,
-        child: const DigitScannerPage(
-          quantity: 10,
-          isGS1code: false,
-          singleValue: true,
-        ),
-      ),
+  final selected = await context.router.push<String>(
+    DigitScannerRoute(
+      quantity: 10,
+      isGS1code: false,
+      singleValue: true,
     ),
   );
 
@@ -60,6 +56,7 @@ Future<String?> openDigitScanner(BuildContext context) async {
 }
 
 /// In-memory adaptation of E4H's customized scanner page.
+@RoutePage()
 class DigitScannerPage extends StatefulWidget {
   const DigitScannerPage({
     super.key,
@@ -258,7 +255,7 @@ class _DigitScannerPageState extends State<DigitScannerPage> {
 
   void _completeSelection(DigitScannerState state) {
     if (state.qrCodes.isEmpty) return;
-    Navigator.of(context).pop(state.qrCodes.last.trim());
+    context.router.maybePop(state.qrCodes.last.trim());
   }
 
   Future<void> _confirmSelection(DigitScannerState state) async {
@@ -495,7 +492,7 @@ class _DigitScannerPageState extends State<DigitScannerPage> {
       onImage: _processImage,
       initialCameraLensDirection: _cameraLensDirection,
       onCameraLensDirectionChanged: (value) => _cameraLensDirection = value,
-      onBackButtonPressed: () => Navigator.of(context).pop(),
+      onBackButtonPressed: () => context.router.maybePop(),
     );
   }
 

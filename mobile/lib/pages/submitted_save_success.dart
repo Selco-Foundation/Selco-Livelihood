@@ -4,8 +4,9 @@ import 'package:digit_ui_components/widgets/molecules/panel_cards.dart';
 import 'package:flutter/material.dart';
 
 import '../app/app_strings.dart';
-import 'home_page.dart';
+import '../router/app_router.dart';
 
+@RoutePage()
 class SubmittedSaveSuccessPage extends StatelessWidget {
   const SubmittedSaveSuccessPage({super.key});
 
@@ -34,9 +35,10 @@ class SubmittedSaveSuccessPage extends StatelessWidget {
                   label: AppStrings.home,
                   type: DigitButtonType.primary,
                   size: DigitButtonSize.large,
-                  onPressed: () => Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute<void>(builder: (_) => const HomePage()),
-                    (_) => false,
+                  onPressed: () => context.router.root.replaceAll(
+                    const [
+                      AuthenticatedRouteWrapper(children: [HomeRoute()])
+                    ],
                   ),
                 ),
               ],

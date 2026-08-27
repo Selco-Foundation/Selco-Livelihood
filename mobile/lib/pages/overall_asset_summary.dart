@@ -7,14 +7,14 @@ import 'package:flutter/material.dart';
 
 import '../app/app_strings.dart';
 import '../models/solar_installation_draft.dart';
+import '../router/app_router.dart';
 import '../widgets/file_upload_widget.dart';
 import '../widgets/image_uploader.dart';
 import '../widgets/solar_workflow_widgets.dart';
-import 'asset_flow_pages.dart';
-import 'submitted_save_success.dart';
 
 typedef SolarPickFiles = Future<List<PlatformFile>> Function();
 
+@RoutePage()
 class OverallAssetSummaryPage extends StatefulWidget {
   const OverallAssetSummaryPage({
     super.key,
@@ -58,46 +58,41 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
   }
 
   void _openAssetDetails(SolarAssetType type) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => SpecificationPage(
-          draft: widget.draft,
-          assetType: type,
-          pickMedia: widget.pickMedia,
-        ),
+    context.router.push(
+      SpecificationRoute(
+        draft: widget.draft,
+        assetType: type,
+        pickMedia: widget.pickMedia,
       ),
     );
   }
 
   void _openAssetSummary(SolarAssetType type) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => AssetSummaryPage(
-          draft: widget.draft,
-          assetType: type,
-          readOnly: widget.draft.isReadOnly,
-        ),
+    context.router.push(
+      AssetSummaryRoute(
+        draft: widget.draft,
+        assetType: type,
+        readOnly: widget.draft.isReadOnly,
       ),
     );
   }
 
   Future<void> _openDocument(SolarDocumentType type) async {
-    final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(
-        builder: (_) => type == SolarDocumentType.certificate
-            ? InstallationCompletionCertificatePage(
-                draft: widget.draft,
-                readOnly: widget.draft.isReadOnly,
-                pickMedia: widget.pickMedia,
-                pickFiles: widget.pickFiles,
-              )
-            : AssetHandoverDocumentPage(
-                draft: widget.draft,
-                readOnly: widget.draft.isReadOnly,
-                pickMedia: widget.pickMedia,
-                pickFiles: widget.pickFiles,
-              ),
-      ),
+    final PageRouteInfo<dynamic> route = type == SolarDocumentType.certificate
+        ? InstallationCompletionCertificateRoute(
+            draft: widget.draft,
+            readOnly: widget.draft.isReadOnly,
+            pickMedia: widget.pickMedia,
+            pickFiles: widget.pickFiles,
+          )
+        : AssetHandoverDocumentRoute(
+            draft: widget.draft,
+            readOnly: widget.draft.isReadOnly,
+            pickMedia: widget.pickMedia,
+            pickFiles: widget.pickFiles,
+          );
+    final saved = await context.router.push<bool>(
+      route,
     );
     if (!mounted) return;
     setState(() {});
@@ -109,13 +104,11 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
   }
 
   Future<void> _openInstallationImages() async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => InstallationImagesPage(
-          draft: widget.draft,
-          readOnly: widget.draft.isReadOnly,
-          pickMedia: widget.pickMedia,
-        ),
+    await context.router.push<void>(
+      InstallationImagesRoute(
+        draft: widget.draft,
+        readOnly: widget.draft.isReadOnly,
+        pickMedia: widget.pickMedia,
       ),
     );
     if (mounted) setState(() {});
@@ -135,11 +128,8 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                   ? AppStrings.resubmit
                   : AppStrings.submit,
               isDisabled: !draft.allCountsEntered,
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const SubmittedSaveSuccessPage(),
-                ),
-              ),
+              onPressed: () =>
+                  context.router.push(const SubmittedSaveSuccessRoute()),
             ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -526,6 +516,7 @@ extension on SolarDocumentType {
       : AppStrings.assetHandoverDocument;
 }
 
+@RoutePage()
 class InstallationCompletionCertificatePage extends StatelessWidget {
   const InstallationCompletionCertificatePage({
     super.key,
@@ -550,6 +541,7 @@ class InstallationCompletionCertificatePage extends StatelessWidget {
       );
 }
 
+@RoutePage()
 class AssetHandoverDocumentPage extends StatelessWidget {
   const AssetHandoverDocumentPage({
     super.key,
@@ -614,7 +606,7 @@ class _DocumentUploadPageState extends State<_DocumentUploadPage> {
       ..clear()
       ..addAll(images)
       ..addAll(pdfs);
-    Navigator.of(context).pop(true);
+    context.router.maybePop(true);
   }
 
   @override
@@ -627,7 +619,7 @@ class _DocumentUploadPageState extends State<_DocumentUploadPage> {
       footer: SolarFooterButton(
         label: widget.readOnly ? AppStrings.back : AppStrings.submit,
         isDisabled: !widget.readOnly && (total == 0 || total > maxFiles),
-        onPressed: widget.readOnly ? () => Navigator.of(context).pop() : _save,
+        onPressed: widget.readOnly ? () => context.router.maybePop() : _save,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -687,6 +679,7 @@ class _DocumentUploadPageState extends State<_DocumentUploadPage> {
   }
 }
 
+@RoutePage()
 class InstallationImagesPage extends StatefulWidget {
   const InstallationImagesPage({
     super.key,
@@ -714,7 +707,7 @@ class _InstallationImagesPageState extends State<InstallationImagesPage> {
         label: widget.readOnly ? AppStrings.back : AppStrings.submit,
         isDisabled:
             !widget.readOnly && !widget.draft.installationImagesComplete,
-        onPressed: () => Navigator.of(context).pop(),
+        onPressed: () => context.router.maybePop(),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

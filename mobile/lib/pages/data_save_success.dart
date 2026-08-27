@@ -5,9 +5,10 @@ import 'package:flutter/material.dart';
 
 import '../app/app_strings.dart';
 import '../models/solar_installation_draft.dart';
+import '../router/app_router.dart';
 import '../widgets/solar_workflow_widgets.dart';
-import 'overall_asset_summary.dart';
 
+@RoutePage()
 class DataSaveSuccessPage extends StatelessWidget {
   const DataSaveSuccessPage({
     super.key,
@@ -44,12 +45,10 @@ class DataSaveSuccessPage extends StatelessWidget {
                   label: AppStrings.next,
                   type: DigitButtonType.primary,
                   size: DigitButtonSize.large,
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => OverallAssetSummaryPage(
-                        draft: draft,
-                        pickMedia: pickMedia,
-                      ),
+                  onPressed: () => context.router.push(
+                    OverallAssetSummaryRoute(
+                      draft: draft,
+                      pickMedia: pickMedia,
                     ),
                   ),
                 ),

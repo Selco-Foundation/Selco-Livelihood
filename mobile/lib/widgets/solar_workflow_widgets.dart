@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../app/app_strings.dart';
+import '../router/app_router.dart';
 import '../models/solar_installation_draft.dart';
 import 'livelihood_app_bar.dart';
 import 'report_navigation_header.dart';
@@ -48,7 +49,7 @@ class SolarWorkflowScaffold extends StatelessWidget {
           enableFixedDigitButton: footer != null,
           backgroundColor: theme.colorTheme.generic.background,
           header: ReportNavigationHeader(
-            onBackPressed: onBack ?? () => Navigator.of(context).maybePop(),
+            onBackPressed: onBack ?? () => context.router.maybePop(),
           ),
           footer: footer,
           slivers: [

@@ -4,10 +4,11 @@ import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
 import 'package:flutter/material.dart';
 
 import '../app/app_strings.dart';
+import '../router/app_router.dart';
 import '../widgets/livelihood_app_bar.dart';
 import '../widgets/login_consent_checkbox.dart';
-import 'home_page.dart';
 
+@RoutePage()
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -66,8 +67,10 @@ class _LoginPageState extends State<LoginPage> {
 
     if (!userIdMissing && !passwordMissing) {
       FocusManager.instance.primaryFocus?.unfocus();
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => const HomePage()),
+      context.router.root.replaceAll(
+        const [
+          AuthenticatedRouteWrapper(children: [HomeRoute()])
+        ],
       );
     }
   }

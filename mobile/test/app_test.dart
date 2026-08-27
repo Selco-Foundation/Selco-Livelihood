@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:badges/badges.dart' as badges;
 import 'package:digit_scanner/blocs/scanner.dart';
@@ -29,6 +30,7 @@ import 'package:livelihood/pages/installation_images.dart';
 import 'package:livelihood/pages/media_upload.dart';
 import 'package:livelihood/pages/overall_asset_summary.dart'
     show OverallAssetSummaryPage;
+import 'package:livelihood/router/app_router.dart';
 import 'package:livelihood/widgets/image_uploader.dart';
 import 'package:livelihood/widgets/file_upload_widget.dart';
 import 'package:livelihood/widgets/video_uploader.dart';
@@ -64,21 +66,57 @@ void main() {
   Future<void> pumpLogin(
     WidgetTester tester, {
     Size size = const Size(390, 844),
-  }) {
+  }) async {
     setMobileViewport(tester, size);
-    return tester.pumpWidget(
-      MaterialApp(
-        theme: DigitTheme.instance.mobileTheme,
-        home: const LoginPage(),
-      ),
+    final router = AppRouter();
+    await tester.pumpWidget(LivelihoodApp(router: router));
+    await tester.pumpAndSettle();
+    await router.replaceAll(
+      const [
+        UnauthenticatedRouteWrapper(children: [LoginRoute()])
+      ],
     );
+    await tester.pumpAndSettle();
   }
+
+  Future<AppRouter> pumpAuthenticatedRoute(
+    WidgetTester tester,
+    PageRouteInfo route,
+  ) async {
+    final router = AppRouter();
+    await tester.pumpWidget(
+      LivelihoodApp(key: UniqueKey(), router: router),
+    );
+    await tester.pumpAndSettle();
+    final children = route.routeName == HomeRoute.name
+        ? <PageRouteInfo>[route]
+        : <PageRouteInfo>[const HomeRoute(), route];
+    await router.replaceAll([
+      AuthenticatedRouteWrapper(children: children),
+    ]);
+    await tester.pumpAndSettle();
+    return router;
+  }
+
+  test('screen navigation uses typed AppRouter routes exclusively', () {
+    final screenSources = Directory('lib')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'))
+        .map((file) => file.readAsStringSync())
+        .join('\n');
+
+    expect(screenSources, isNot(contains('MaterialPageRoute')));
+    expect(screenSources, isNot(contains('pushReplacement(')));
+    expect(screenSources, isNot(contains('pushAndRemoveUntil(')));
+  });
 
   testWidgets('welcome uses E4H DIGIT components and navigates to login', (
     tester,
   ) async {
     setMobileViewport(tester, const Size(390, 844));
     await tester.pumpWidget(const LivelihoodApp());
+    await tester.pumpAndSettle();
 
     final appBar = tester.widget<AppBar>(find.byType(AppBar));
     expect(appBar.backgroundColor, const Color(0xFF0B4B66));
@@ -197,12 +235,7 @@ void main() {
     tester,
   ) async {
     setMobileViewport(tester, const Size(390, 844));
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: DigitTheme.instance.mobileTheme,
-        home: const HomePage(),
-      ),
-    );
+    await pumpAuthenticatedRoute(tester, const HomeRoute());
 
     expect(find.byKey(const ValueKey('home-menu-button')), findsOneWidget);
     expect(find.byKey(const ValueKey('home-help-button')), findsOneWidget);
@@ -331,12 +364,7 @@ void main() {
     tester,
   ) async {
     setMobileViewport(tester, const Size(390, 844));
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: DigitTheme.instance.mobileTheme,
-        home: const HomePage(),
-      ),
-    );
+    await pumpAuthenticatedRoute(tester, const HomeRoute());
 
     final livelihoodBar = tester.widget<LivelihoodAppBar>(
       find.byType(LivelihoodAppBar),
@@ -395,12 +423,7 @@ void main() {
     tester,
   ) async {
     setMobileViewport(tester, const Size(390, 844));
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: DigitTheme.instance.mobileTheme,
-        home: const HomePage(),
-      ),
-    );
+    await pumpAuthenticatedRoute(tester, const HomeRoute());
 
     await tester.tap(find.byKey(const ValueKey('home-menu-button')));
     await tester.pump();
@@ -420,12 +443,7 @@ void main() {
     tester,
   ) async {
     setMobileViewport(tester, const Size(390, 844));
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: DigitTheme.instance.mobileTheme,
-        home: const HomePage(),
-      ),
-    );
+    await pumpAuthenticatedRoute(tester, const HomeRoute());
 
     await tester.tap(find.byKey(const ValueKey('installation-report-card')));
     await tester.pumpAndSettle();
@@ -484,12 +502,9 @@ void main() {
     setMobileViewport(tester, const Size(390, 844));
 
     Future<void> expectDestination(String key, Type pageType) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          key: UniqueKey(),
-          theme: DigitTheme.instance.mobileTheme,
-          home: const InstallationReportHomePage(),
-        ),
+      await pumpAuthenticatedRoute(
+        tester,
+        const InstallationReportHomeRoute(),
       );
       final card = find.byKey(ValueKey(key));
       final cardCenter = tester.getCenter(card);
@@ -577,12 +592,7 @@ void main() {
     tester,
   ) async {
     setMobileViewport(tester, const Size(390, 844));
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: DigitTheme.instance.mobileTheme,
-        home: const PendingApprovalPage(),
-      ),
-    );
+    await pumpAuthenticatedRoute(tester, const PendingApprovalRoute());
 
     final summaryButton =
         find.byKey(const ValueKey('view-summary-button')).first;
@@ -604,13 +614,9 @@ void main() {
   ) async {
     setMobileViewport(tester, const Size(390, 844));
 
-    Future<void> pumpNewReports() => tester.pumpWidget(
-          MaterialApp(
-            key: UniqueKey(),
-            theme: DigitTheme.instance.mobileTheme,
-            home: const NewReportFacilitiesPage(),
-          ),
-        );
+    Future<void> pumpNewReports() async {
+      await pumpAuthenticatedRoute(tester, const NewReportFacilitiesRoute());
+    }
 
     await pumpNewReports();
     final solarAction =
@@ -1343,22 +1349,20 @@ void main() {
   ) async {
     setMobileViewport(tester, const Size(390, 844));
 
-    Future<void> pumpForm() => tester.pumpWidget(
-          MaterialApp(
-            key: UniqueKey(),
-            theme: DigitTheme.instance.mobileTheme,
-            home: MachineFormPage(
-              sample: facilityReportSamples[1],
-              pickMedia: (kind, source) async => XFile(
-                kind == MachineMediaKind.image
-                    ? '/tmp/photo.jpg'
-                    : '/tmp/video.mp4',
-                name:
-                    kind == MachineMediaKind.image ? 'photo.jpg' : 'video.mp4',
-              ),
-            ),
+    Future<void> pumpForm() async {
+      await pumpAuthenticatedRoute(
+        tester,
+        MachineFormRoute(
+          sample: facilityReportSamples[1],
+          pickMedia: (kind, source) async => XFile(
+            kind == MachineMediaKind.image
+                ? '/tmp/photo.jpg'
+                : '/tmp/video.mp4',
+            name: kind == MachineMediaKind.image ? 'photo.jpg' : 'video.mp4',
           ),
-        );
+        ),
+      );
+    }
 
     await pumpForm();
     await tester.ensureVisible(

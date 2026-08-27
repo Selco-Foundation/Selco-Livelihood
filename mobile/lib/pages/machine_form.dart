@@ -7,11 +7,13 @@ import 'package:image_picker/image_picker.dart';
 
 import '../app/app_strings.dart';
 import '../models/facility_report_sample.dart';
+import '../router/app_router.dart';
 import '../widgets/livelihood_app_bar.dart';
 import '../widgets/machine_media_picker.dart';
 import '../widgets/report_navigation_header.dart';
 import 'machine_report_success_page.dart';
 
+@RoutePage()
 class MachineFormPage extends StatefulWidget {
   const MachineFormPage({
     super.key,
@@ -98,11 +100,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
 
   void _openSuccess(MachineReportSuccessMode mode) {
     FocusManager.instance.primaryFocus?.unfocus();
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => MachineReportSuccessPage(mode: mode),
-      ),
-    );
+    context.router.push(MachineReportSuccessRoute(mode: mode));
   }
 
   @override
@@ -122,7 +120,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
           enableFixedDigitButton: true,
           backgroundColor: theme.colorTheme.generic.background,
           header: ReportNavigationHeader(
-            onBackPressed: () => Navigator.of(context).maybePop(),
+            onBackPressed: () => context.router.maybePop(),
           ),
           footer: _MachineFormFooter(
             canSubmit: _canSubmit,

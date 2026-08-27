@@ -3,11 +3,12 @@ import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:flutter/material.dart';
 
 import '../app/app_strings.dart';
+import '../router/app_router.dart';
 import '../widgets/installation_report_menu_card.dart';
 import '../widgets/livelihood_app_bar.dart';
 import '../widgets/report_navigation_header.dart';
-import 'installation_report_list_pages.dart';
 
+@RoutePage()
 class InstallationReportHomePage extends StatelessWidget {
   const InstallationReportHomePage({super.key});
 
@@ -19,11 +20,8 @@ class InstallationReportHomePage extends StatelessWidget {
       );
   }
 
-  void _open(BuildContext context, Widget page) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => page),
-    );
-  }
+  void _open(BuildContext context, PageRouteInfo route) =>
+      context.router.push(route);
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +40,7 @@ class InstallationReportHomePage extends StatelessWidget {
           backgroundColor: theme.colorTheme.generic.background,
           header: ReportNavigationHeader(
             showHelp: true,
-            onBackPressed: () => Navigator.of(context).maybePop(),
+            onBackPressed: () => context.router.maybePop(),
             onHelpPressed: () => _showPlaceholder(context),
           ),
           footer: const PoweredByDigit(version: ''),
@@ -71,7 +69,7 @@ class InstallationReportHomePage extends StatelessWidget {
                     color: theme.colorTheme.primary.primary1,
                     onPressed: () => _open(
                       context,
-                      const NewReportFacilitiesPage(),
+                      const NewReportFacilitiesRoute(),
                     ),
                   ),
                   InstallationReportMenuCard(
@@ -83,7 +81,7 @@ class InstallationReportHomePage extends StatelessWidget {
                     color: const Color(0xFF505A6B),
                     onPressed: () => _open(
                       context,
-                      const PendingApprovalPage(),
+                      const PendingApprovalRoute(),
                     ),
                   ),
                   InstallationReportMenuCard(
@@ -96,7 +94,7 @@ class InstallationReportHomePage extends StatelessWidget {
                     accentColor: theme.colorTheme.alert.error,
                     onPressed: () => _open(
                       context,
-                      const ResubmissionNeededPage(),
+                      const ResubmissionNeededRoute(),
                     ),
                   ),
                   InstallationReportMenuCard(
@@ -108,7 +106,7 @@ class InstallationReportHomePage extends StatelessWidget {
                     color: theme.colorTheme.alert.success,
                     onPressed: () => _open(
                       context,
-                      const ApprovedReportsPage(),
+                      const ApprovedReportsRoute(),
                     ),
                   ),
                 ],

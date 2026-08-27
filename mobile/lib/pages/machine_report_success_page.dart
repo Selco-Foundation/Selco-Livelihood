@@ -4,10 +4,11 @@ import 'package:digit_ui_components/widgets/molecules/panel_cards.dart';
 import 'package:flutter/material.dart';
 
 import '../app/app_strings.dart';
-import 'home_page.dart';
+import '../router/app_router.dart';
 
 enum MachineReportSuccessMode { draft, submitted }
 
+@RoutePage()
 class MachineReportSuccessPage extends StatelessWidget {
   const MachineReportSuccessPage({
     super.key,
@@ -17,9 +18,10 @@ class MachineReportSuccessPage extends StatelessWidget {
   final MachineReportSuccessMode mode;
 
   void _goHome(BuildContext context) {
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute<void>(builder: (_) => const HomePage()),
-      (_) => false,
+    context.router.root.replaceAll(
+      const [
+        AuthenticatedRouteWrapper(children: [HomeRoute()])
+      ],
     );
   }
 

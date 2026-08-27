@@ -3,11 +3,12 @@ import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:flutter/material.dart';
 
 import '../app/app_strings.dart';
+import '../router/app_router.dart';
 import '../widgets/home_help_header.dart';
 import '../widgets/home_item_card.dart';
 import '../widgets/livelihood_app_bar.dart';
-import 'installation_report_home_page.dart';
 
+@RoutePage()
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
@@ -20,11 +21,7 @@ class HomePage extends StatelessWidget {
   }
 
   void _openInstallationReports(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const InstallationReportHomePage(),
-      ),
-    );
+    context.router.push(const InstallationReportHomeRoute());
   }
 
   @override

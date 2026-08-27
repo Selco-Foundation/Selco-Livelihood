@@ -7,14 +7,15 @@ import 'package:flutter/material.dart';
 import '../app/app_strings.dart';
 import '../models/facility_report_sample.dart';
 import '../models/solar_installation_draft.dart';
+import '../router/app_router.dart';
 import '../widgets/image_uploader.dart';
 import '../widgets/solar_workflow_widgets.dart';
 import '../widgets/video_uploader.dart';
-import 'data_save_success.dart';
 import 'digit_scanner_page.dart';
 
 typedef SolarScanSerial = Future<String?> Function(BuildContext context);
 
+@RoutePage()
 class AssetCountPage extends StatefulWidget {
   const AssetCountPage({
     super.key,
@@ -41,13 +42,11 @@ class _AssetCountPageState extends State<AssetCountPage> {
       );
 
   void _next() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => SelectAssetTypePage(
-          draft: draft,
-          pickMedia: widget.pickMedia,
-          scanSerial: widget.scanSerial,
-        ),
+    context.router.push(
+      SelectAssetTypeRoute(
+        draft: draft,
+        pickMedia: widget.pickMedia,
+        scanSerial: widget.scanSerial,
       ),
     );
   }
@@ -98,6 +97,7 @@ class _AssetCountPageState extends State<AssetCountPage> {
   }
 }
 
+@RoutePage()
 class SelectAssetTypePage extends StatefulWidget {
   const SelectAssetTypePage({
     super.key,
@@ -119,14 +119,12 @@ class _SelectAssetTypePageState extends State<SelectAssetTypePage> {
 
   void _next() {
     if (selected == null) return;
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => SpecificationPage(
-          draft: widget.draft,
-          assetType: selected!,
-          pickMedia: widget.pickMedia,
-          scanSerial: widget.scanSerial,
-        ),
+    context.router.push(
+      SpecificationRoute(
+        draft: widget.draft,
+        assetType: selected!,
+        pickMedia: widget.pickMedia,
+        scanSerial: widget.scanSerial,
       ),
     );
   }
@@ -178,6 +176,7 @@ class _SelectAssetTypePageState extends State<SelectAssetTypePage> {
   }
 }
 
+@RoutePage()
 class SpecificationPage extends StatelessWidget {
   const SpecificationPage({
     super.key,
@@ -202,14 +201,12 @@ class SpecificationPage extends StatelessWidget {
       stepIndex: 2,
       footer: SolarFooterButton(
         label: AppStrings.next,
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => AssetTypeDetailPage(
-              draft: draft,
-              assetType: assetType,
-              pickMedia: pickMedia,
-              scanSerial: scanSerial,
-            ),
+        onPressed: () => context.router.push(
+          AssetTypeDetailRoute(
+            draft: draft,
+            assetType: assetType,
+            pickMedia: pickMedia,
+            scanSerial: scanSerial,
           ),
         ),
       ),
@@ -247,6 +244,7 @@ class SpecificationPage extends StatelessWidget {
   }
 }
 
+@RoutePage()
 class AssetTypeDetailPage extends StatefulWidget {
   const AssetTypeDetailPage({
     super.key,
@@ -277,14 +275,12 @@ class _AssetTypeDetailPageState extends State<AssetTypeDetailPage> {
       footer: SolarFooterButton(
         label: AppStrings.next,
         isDisabled: !asset.detailsComplete,
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => AddNewAssetPage(
-              draft: widget.draft,
-              assetType: widget.assetType,
-              pickMedia: widget.pickMedia,
-              scanSerial: widget.scanSerial,
-            ),
+        onPressed: () => context.router.push(
+          AddNewAssetRoute(
+            draft: widget.draft,
+            assetType: widget.assetType,
+            pickMedia: widget.pickMedia,
+            scanSerial: widget.scanSerial,
           ),
         ),
       ),
@@ -330,6 +326,7 @@ class _AssetTypeDetailPageState extends State<AssetTypeDetailPage> {
   }
 }
 
+@RoutePage()
 class AddNewAssetPage extends StatefulWidget {
   const AddNewAssetPage({
     super.key,
@@ -376,13 +373,11 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
       footer: SolarFooterButton(
         label: AppStrings.next,
         isDisabled: !complete,
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => MediaUploadPage(
-              draft: widget.draft,
-              assetType: widget.assetType,
-              pickMedia: widget.pickMedia,
-            ),
+        onPressed: () => context.router.push(
+          MediaUploadRoute(
+            draft: widget.draft,
+            assetType: widget.assetType,
+            pickMedia: widget.pickMedia,
           ),
         ),
       ),
@@ -510,6 +505,7 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
   }
 }
 
+@RoutePage()
 class MediaUploadPage extends StatefulWidget {
   const MediaUploadPage({
     super.key,
@@ -538,13 +534,11 @@ class _MediaUploadPageState extends State<MediaUploadPage> {
       footer: SolarFooterButton(
         label: AppStrings.next,
         isDisabled: asset.images.isEmpty,
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => AssetSummaryPage(
-              draft: widget.draft,
-              assetType: widget.assetType,
-              pickMedia: widget.pickMedia,
-            ),
+        onPressed: () => context.router.push(
+          AssetSummaryRoute(
+            draft: widget.draft,
+            assetType: widget.assetType,
+            pickMedia: widget.pickMedia,
           ),
         ),
       ),
@@ -619,6 +613,7 @@ class _MediaUploadPageState extends State<MediaUploadPage> {
   }
 }
 
+@RoutePage()
 class AssetSummaryPage extends StatelessWidget {
   const AssetSummaryPage({
     super.key,
@@ -644,12 +639,10 @@ class AssetSummaryPage extends StatelessWidget {
           ? null
           : SolarFooterButton(
               label: AppStrings.next,
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => DataSaveSuccessPage(
-                    draft: draft,
-                    pickMedia: pickMedia,
-                  ),
+              onPressed: () => context.router.push(
+                DataSaveSuccessRoute(
+                  draft: draft,
+                  pickMedia: pickMedia,
                 ),
               ),
             ),
@@ -675,13 +668,11 @@ class AssetSummaryPage extends StatelessWidget {
             values: {assetType.label: draft.countFor(assetType).toString()},
             onEdit: readOnly
                 ? null
-                : () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => AssetCountPage(
-                          sample: draft.facility,
-                          draft: draft,
-                          pickMedia: pickMedia,
-                        ),
+                : () => context.router.push(
+                      AssetCountRoute(
+                        sample: draft.facility,
+                        draft: draft,
+                        pickMedia: pickMedia,
                       ),
                     ),
           ),
@@ -694,13 +685,11 @@ class AssetSummaryPage extends StatelessWidget {
             },
             onEdit: readOnly
                 ? null
-                : () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => SpecificationPage(
-                          draft: draft,
-                          assetType: assetType,
-                          pickMedia: pickMedia,
-                        ),
+                : () => context.router.push(
+                      SpecificationRoute(
+                        draft: draft,
+                        assetType: assetType,
+                        pickMedia: pickMedia,
                       ),
                     ),
           ),
@@ -713,13 +702,11 @@ class AssetSummaryPage extends StatelessWidget {
             },
             onEdit: readOnly
                 ? null
-                : () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => AssetTypeDetailPage(
-                          draft: draft,
-                          assetType: assetType,
-                          pickMedia: pickMedia,
-                        ),
+                : () => context.router.push(
+                      AssetTypeDetailRoute(
+                        draft: draft,
+                        assetType: assetType,
+                        pickMedia: pickMedia,
                       ),
                     ),
           ),
@@ -734,13 +721,11 @@ class AssetSummaryPage extends StatelessWidget {
               },
               onEdit: readOnly
                   ? null
-                  : () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => AddNewAssetPage(
-                            draft: draft,
-                            assetType: assetType,
-                            pickMedia: pickMedia,
-                          ),
+                  : () => context.router.push(
+                        AddNewAssetRoute(
+                          draft: draft,
+                          assetType: assetType,
+                          pickMedia: pickMedia,
                         ),
                       ),
             ),
@@ -752,13 +737,11 @@ class AssetSummaryPage extends StatelessWidget {
             },
             onEdit: readOnly
                 ? null
-                : () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => MediaUploadPage(
-                          draft: draft,
-                          assetType: assetType,
-                          pickMedia: pickMedia,
-                        ),
+                : () => context.router.push(
+                      MediaUploadRoute(
+                        draft: draft,
+                        assetType: assetType,
+                        pickMedia: pickMedia,
                       ),
                     ),
           ),
@@ -771,13 +754,11 @@ class AssetSummaryPage extends StatelessWidget {
               },
               onEdit: readOnly
                   ? null
-                  : () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => MediaUploadPage(
-                            draft: draft,
-                            assetType: assetType,
-                            pickMedia: pickMedia,
-                          ),
+                  : () => context.router.push(
+                        MediaUploadRoute(
+                          draft: draft,
+                          assetType: assetType,
+                          pickMedia: pickMedia,
                         ),
                       ),
             ),
