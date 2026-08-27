@@ -80,7 +80,8 @@ def _is_legacy_mdms_hfr_nin_at_least_one_constraint(rc: Any) -> bool:
 
 
 def project_facility_validation(
-    df, mdms_client, request_info, facility_client, boundary_data, schemaName
+    df, mdms_client, request_info, facility_client, boundary_data, schemaName,
+    localization_service_url=None,
 ):
     """Main function that orchestrates all facility file validations."""
 
@@ -101,8 +102,20 @@ def project_facility_validation(
     errors = [[] for _ in range(len(df))]
     add_err = lambda i, msg: errors[i].append(msg)
 
+    # data-ingestion.FacilityIngestionSchema (Livelihood) rows always come from an existing
+    # facility selected via the facility ingestion template, so a blank id is invalid rather
+    # than a request to create a new facility. Older schemas (e.g. FieldPlanFacilityIngestionSchema)
+    # still key off "Facility Id" and continue to support creating new rows.
+    uses_end_user_id = "End User Id" in df.columns
+    id_column = "End User Id" if uses_end_user_id else "Facility Id"
+
+    if uses_end_user_id:
+        for i, val in enumerate(df[id_column]):
+            if pd.isna(val) or str(val).strip() == "":
+                add_err(i, "End User Id is required; this template only supports linking existing facilities.")
+
     # Only validate rows where Facility ID is empty
-    new_rows = df[df["End user Id"].isna() | (df["End user Id"].astype(str).str.strip() == "")]
+    new_rows = df[df[id_column].isna() | (df[id_column].astype(str).str.strip() == "")]
     if new_rows.empty:
         return errors  # No new rows to validate
 
@@ -115,7 +128,13 @@ def project_facility_validation(
 
     # Use positional index mapping to reference errors in original df
     validate_columns(new_rows, schema, lambda i, m: add_err(new_rows.loc[i, "index"], m))
-    validate_boundary_codes(new_rows, allowed_boundary_codes, lambda i, m: add_err(new_rows.loc[i, "index"], m))
+    if uses_end_user_id:
+        validate_state_district_block_boundary(
+            new_rows, allowed_boundary_codes, localization_service_url,
+            lambda i, m: add_err(new_rows.loc[i, "index"], m),
+        )
+    else:
+        validate_boundary_codes(new_rows, allowed_boundary_codes, lambda i, m: add_err(new_rows.loc[i, "index"], m))
     validate_unique_ids(df, schema, add_err)
     validate_row_constraints(new_rows, schema, lambda i, m: add_err(new_rows.loc[i, "index"], m))
     validate_anganwadi_poc_username(new_rows, schema, lambda i, m: add_err(new_rows.loc[i, "index"], m))
@@ -171,6 +190,56 @@ def validate_boundary_codes(df, allowed_boundary_codes, add_err):
         str_val = str(val).strip()
         if str_val not in allowed_boundary_codes:
             add_err(i, f"Boundary Code '{str_val}' is invalid (not in boundary data)")
+
+
+def validate_state_district_block_boundary(df, allowed_boundary_codes, localization_service_url, add_err):
+    """
+    Resolves each row's State/District/Block to a boundary code (via the localization
+    reverse map) and validates it is one of the project's allowed boundary codes.
+    Used by schemas (e.g. data-ingestion.FacilityIngestionSchema) that replaced the single
+    'Boundary Code' column with State/District/Block columns.
+    """
+    # Deferred imports to avoid a circular import with app.utils.convertor, which itself
+    # imports format_col_name from this module.
+    from app.core.tenant import LOCALIZATION_MODULE
+    from app.utils.convertor import build_localization_reverse_map, resolve_boundary_code
+
+    reverse_map: Dict[str, List[str]] = {}
+    if localization_service_url:
+        try:
+            from app.utils.localization_service_client import LocalizationServiceClient
+            loc_client = LocalizationServiceClient(localization_service_url)
+            loc_response = loc_client.search_messages(
+                tenant_id=LIVELIHOOD_TENANT_ID,
+                locale="en_IN",
+                module=LOCALIZATION_MODULE,
+            )
+            reverse_map = build_localization_reverse_map(loc_response.get("messages", []))
+        except Exception:
+            reverse_map = {}
+
+    for i, row in df.iterrows():
+        state_val = str(row.get("State", "") or "").strip()
+        district_val = str(row.get("District", "") or "").strip()
+        block_val = str(row.get("Block", "") or "").strip()
+
+        if not (state_val or district_val or block_val):
+            add_err(i, "State/District/Block is required")
+            continue
+
+        if not reverse_map:
+            add_err(i, "Unable to validate location: localization service unavailable")
+            continue
+
+        boundary_code, error = resolve_boundary_code(state_val, district_val, block_val, reverse_map)
+        if error:
+            add_err(i, error)
+        elif boundary_code not in allowed_boundary_codes:
+            add_err(
+                i,
+                f"Location (State '{state_val}', District '{district_val}', Block '{block_val}') "
+                f"is not within this project's boundaries",
+            )
 
 
 def validate_columns(df, schema, add_err):
