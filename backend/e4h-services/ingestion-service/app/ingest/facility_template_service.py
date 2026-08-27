@@ -11,8 +11,8 @@ from app.schemas.boundary import Boundary
 from app.schemas.request_info import RequestInfo
 from app.schemas.vendor_ingestion_shema_response import IngestionSchemaResponse
 from app.utils.convertor import convert_json_to_boundary, format_facility_data_for_template
-from app.utils.excel_utils import add_dropdowns_to_excel, lock_excel_columns, add_validations_to_excel, \
-    lock_prefilled_rows_in_excel, add_non_blank_validations_to_file, autofit_columns, \
+from app.utils.excel_utils import add_dropdowns_to_excel, add_row_specific_dropdown_to_excel, lock_excel_columns, \
+    add_validations_to_excel, lock_prefilled_rows_in_excel, add_non_blank_validations_to_file, autofit_columns, \
     add_facility_category_conditional_validations
 from app.utils.file_utils import create_empty_excel_file, create_excel_data_writer, remove_default_empty_sheet
 from app.utils.localization_service_client import LocalizationServiceClient
@@ -54,13 +54,24 @@ class FacilityTemplateService:
         return convert_json_to_boundary(response.text)
 
 
+    @staticmethod
+    def _resolve_header(output_list: List[str], column_name: str) -> str:
+        """Match a schema column name to its generated header, which carries a
+        '(Mandatory)' suffix when the column is required."""
+        if column_name in output_list:
+            return column_name
+        mandatory_header = f"{column_name} (Mandatory)"
+        return mandatory_header if mandatory_header in output_list else ""
+
     def generate_template_file_with_data(self, output_path: str,
                                facility_schema: List[Dict[str, Any]],
                                boundary_list: List[Boundary],
                                facility_data: List[Dict[str, Any]],
                                extra_append_rows: int,
                                type: str = None,
-                               optimize_for_performance: bool = False
+                               optimize_for_performance: bool = False,
+                               constant_column_values: Dict[str, str] = None,
+                               row_specific_dropdowns: Dict[str, Dict[int, List[str]]] = None
                                ) -> None:
         """
             Generates FacilityIngestionTemplate.xlsx with:
@@ -69,6 +80,12 @@ class FacilityTemplateService:
             - Regex validation comments (for pattern columns)
             - Boundary data sheet
             - Existing facility data sheet
+
+            constant_column_values: {column name: value} written into every data row and
+            left read-only -- for values fixed at the plan level rather than per site.
+            row_specific_dropdowns: {column name: {0-based row position: allowed values}}
+            for columns whose valid options differ per row. These columns are made
+            editable, since a locked cell would make the dropdown unusable.
             """
         try:
             create_empty_excel_file(output_path)
@@ -145,10 +162,29 @@ class FacilityTemplateService:
 
             logger.info(f"Final columns: {output_list}")
 
+            # Columns with per-row dropdowns must stay unlocked or the dropdown is unusable.
+            row_dropdown_headers = {}
+            for column_name, options_by_row in (row_specific_dropdowns or {}).items():
+                header = self._resolve_header(output_list, column_name)
+                if not header:
+                    logger.warning(f"Row-specific dropdown column '{column_name}' not in schema; skipping")
+                    continue
+                row_dropdown_headers[header] = options_by_row
+                editable_columns.append(header)
+
             # Add Existing Facilities Sheet (Optional)
             formatted_facilities = []
             if facility_data:
                 formatted_facilities = format_facility_data_for_template(facility_data, facility_schema, output_list, type)
+
+            # Plan-level constants are the same on every row and stay read-only.
+            for column_name, value in (constant_column_values or {}).items():
+                header = self._resolve_header(output_list, column_name)
+                if not header:
+                    logger.warning(f"Constant-value column '{column_name}' not in schema; skipping")
+                    continue
+                for row in formatted_facilities:
+                    row[header] = value
 
             df_facility = pd.DataFrame(formatted_facilities, columns=output_list)
             facility_writer = create_excel_data_writer(
@@ -165,6 +201,15 @@ class FacilityTemplateService:
                 allow_blank_map=allow_blank_map,
                 max_extra_rows= extra_append_rows
             )
+
+            for header, options_by_row in row_dropdown_headers.items():
+                add_row_specific_dropdown_to_excel(
+                    file_path=output_path,
+                    sheet_name="FacilityMapping",
+                    column_header=header,
+                    options_by_row=options_by_row,
+                    allow_blank=allow_blank_map.get(header, True),
+                )
 
             # Add Validations (Regex + Unique) as comments/hints.
             # These are helpful but expensive on large sheets, so allow skipping

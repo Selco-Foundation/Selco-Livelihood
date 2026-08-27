@@ -28,6 +28,8 @@ from app.utils.fieldplan_service_client import FieldPlanServiceClient
 from app.utils.file_utils import create_temp_file, cleanup_temp_file
 from app.utils.mdms_client import MDMSClient
 from app.utils.project_service_client import ProjectServiceClient
+from app.utils.solution_eligibility import build_solution_options_by_row, clear_solution_column_dropdown
+from app.utils.state_sunshine_hours_repository import fetch_state_sunshine_hours
 from app.utils.vendor_registry_client import VendorRegistryClient
 import os, tempfile, zipfile, qrcode, shutil
 
@@ -310,7 +312,7 @@ async def get_facility_ingestion_template_with_data(
         output_filename = f"facility_ingestion_template_{timestamp}.xlsx"
         output_file_path = create_temp_file(suffix=".xlsx")
         try:
-            facility_schema = mdms_client.get_column_definitions_with_metadata(request_info, 'data-ingestion.FieldPlanFacilityIngestionSchema')
+            facility_schema = mdms_client.get_column_definitions_with_metadata(request_info, 'data-ingestion.InstallationScopeIngestionSchema')
             boundary_list: List[Boundary] = flatten_boundaries(boundary_data)
         except Exception as e:
             logger.error(f"Error fetching data from external services: {e}")
@@ -432,6 +434,48 @@ async def get_facility_ingestion_template_with_data(
                 facility["include_in_fieldplan"] = "No"
                 logger.info(f"No fieldplan_id provided - marking facility {facility.get('facility_id')} as No")
 
+        # Sector is chosen once per field plan, so the Sector column is the same on every
+        # row and the Solution options only vary by the site's state (FR-01).
+        plan_sector = None
+        if fieldplan_id and fieldPlan_service_url:
+            try:
+                plan_client = FieldPlanServiceClient(fieldPlan_service_url)
+                field_plans = plan_client.search_fieldPlan(request_info, fieldplan_id).get("FieldPlans", [])
+                if field_plans:
+                    plan_sector = field_plans[0].get("sector")
+            except Exception as e:
+                logger.error(f"Error fetching field plan {fieldplan_id} for sector: {e}", exc_info=True)
+
+        # The plan's scope is its geography plus its single sector, so sites tagged with a
+        # different sector are out of scope for this sheet.
+        if plan_sector:
+            wanted_sector = str(plan_sector).strip().casefold()
+            before_count = len(all_facilities)
+            all_facilities = [
+                f for f in all_facilities
+                if str(f.get("facility_type") or "").strip().casefold() == wanted_sector
+            ]
+            logger.info(
+                f"Filtered facilities by plan sector '{plan_sector}': {len(all_facilities)} of {before_count}")
+        else:
+            logger.warning(
+                f"Field plan {fieldplan_id} has no sector set; skipping sector filter and Solution dropdowns")
+
+        solution_options_by_row = {}
+        if plan_sector:
+            try:
+                solution_options_by_row = build_solution_options_by_row(
+                    facilities=all_facilities,
+                    solutions=mdms_client.fetch_installation_solutions(request_info),
+                    plan_sector=plan_sector,
+                    sunshine_hours_by_state=fetch_state_sunshine_hours(),
+                )
+            except Exception as e:
+                logger.error(f"Error resolving eligible solutions: {e}", exc_info=True)
+
+        # Exactly one Solution per site, filtered per row by that site's state.
+        facility_schema = clear_solution_column_dropdown(facility_schema)
+
         try:
             facility_service.generate_template_file_with_data(
                 output_path=output_file_path,
@@ -440,7 +484,9 @@ async def get_facility_ingestion_template_with_data(
                 facility_data=all_facilities,
                 type="fieldplan",
                 extra_append_rows=0,
-                optimize_for_performance=True
+                optimize_for_performance=True,
+                constant_column_values={"Sector": plan_sector or ""},
+                row_specific_dropdowns={"Solution": solution_options_by_row}
             )
             logger.info(f"Successfully created facility ingestion template at {output_file_path}")
         except Exception as e:
