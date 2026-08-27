@@ -167,4 +167,21 @@ public class ActivityServiceUtil {
             throw new RuntimeException("Failed to send email via Kafka", e);
         }
     }
+
+    public void sendSmsViaKafka(String mobileNumber, String message, String tenantId) {
+        if (mobileNumber == null || mobileNumber.isBlank() || message == null || message.isBlank()) {
+            log.warn("Skipping SMS: mobileNumber or message is blank");
+            return;
+        }
+        try {
+            Map<String, Object> smsRequest = new HashMap<>();
+            smsRequest.put("mobileNumber", mobileNumber);
+            smsRequest.put("message", message);
+            String topic = activityConfiguration.getNotificationSmsTopic();
+            kafkaTemplate.send(topic, smsRequest);
+            log.info("Published SMS to Kafka topic: {} for mobile: {}", topic, mobileNumber);
+        } catch (Exception e) {
+            log.error("Error sending SMS via Kafka for mobile: {}", mobileNumber, e);
+        }
+    }
 }

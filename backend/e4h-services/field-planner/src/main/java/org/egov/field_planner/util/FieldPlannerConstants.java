@@ -12,6 +12,8 @@ public class FieldPlannerConstants {
     //location
     public static final String DRAFT_STATUS = "DRAFT";
     public static final String FIELD_STAFF_ROLE = "INSTALLATION_REPORT_PART_A_EDITOR";
+    /** @deprecated Supervisor role retired in Livelihood two-role model. */
+    @Deprecated
     public static final String FIELD_SUPERVISOR_ROLE = "INSTALLATION_REPORT_PART_B_EDITOR";
     public static final String INSTALLATION_REVIEWER_ROLE = "INSTALLATION_REPORT_APPROVER_QC_TEAM";
     public static final String PROJECT_TYPE_FACILITY = "Facility";
@@ -27,7 +29,11 @@ public class FieldPlannerConstants {
     public static final String NUMBER_OF_SESSIONS = "numberOfSessions";
     public static final String OR = " OR ";
     public static final String PROJECT_MANAGER = "PROJECT_MANAGER";
-    public static final String SUBMITTED_BY_SUPERVISOR = "SUBMITTED_BY_SUPERVISOR";
+    public static final String SUBMITTED_BY_FIELD_STAFF = "SUBMITTED_BY_FIELD_STAFF";
+    /** @deprecated Use {@link #SUBMITTED_BY_FIELD_STAFF}. */
+    @Deprecated
+    public static final String SUBMITTED_BY_SUPERVISOR = SUBMITTED_BY_FIELD_STAFF;
 
-
+    public static final String LOCK_STATUS_LOCKED = "LOCKED";
+    public static final String LOCK_STATUS_UNLOCKED = "UNLOCKED";
 }

@@ -80,6 +80,9 @@ public class ActivityFacility {
     @JsonProperty("additionalDetails")
     private Map<String, Object> additionalDetails = null;
 
+    @JsonProperty("billOfMaterial")
+    private BillOfMaterial billOfMaterial = null;
+
     @JsonProperty("conditionsMet")
     private Object conditionsMet = null;
 

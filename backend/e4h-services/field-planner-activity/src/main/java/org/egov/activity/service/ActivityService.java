@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.egov.activity.repository.ActivityAssignmentRepository;
+import org.egov.activity.repository.BomRepository;
 import org.egov.activity.util.ActivityServiceUtil;
 import org.egov.activity.util.BoundaryUtil;
 import org.egov.common.contract.models.AuditDetails;
@@ -28,7 +29,13 @@ import java.sql.Array;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static org.egov.activity.util.ActivityConstants.SUBMITTED_BY_SUPERVISOR;
+import static org.egov.activity.util.ActivityConstants.ACTION_APPROVE;
+import static org.egov.activity.util.ActivityConstants.ACTION_REJECT_AND_ASSIGN_FOR_FIELD_QC;
+import static org.egov.activity.util.ActivityConstants.ACTION_SUBMIT_REPORT;
+import static org.egov.activity.util.ActivityConstants.APPROVED_BY_QC_SPOC;
+import static org.egov.activity.util.ActivityConstants.INSTALLATION_REPORT_APPROVER_QC_TEAM;
+import static org.egov.activity.util.ActivityConstants.LOCK_STATUS_UNLOCKED;
+import static org.egov.activity.util.ActivityConstants.SUBMITTED_BY_FIELD_STAFF;
 import static org.egov.common.utils.CommonUtils.populateErrorDetails;
 
 @Service
@@ -48,9 +55,11 @@ public class ActivityService {
     private final JdbcTemplate jdbcTemplate;
     private final ActivityFacilityUsersService facilityUsersService;
 
-    private BoundaryUtil boundaryUtil;
+    private final BoundaryUtil boundaryUtil;
 
     private final AmcSchedulerService amcSchedulerService;
+
+    private final BomRepository bomRepository;
 
     @Qualifier("objectMapper")
     private final ObjectMapper mapper;
@@ -58,7 +67,7 @@ public class ActivityService {
     @Autowired
     public ActivityService(
             ActivityFacilityRepository activityFacilityRepository, ActivityEnrichment activityEnrichment, ActivityConfiguration activityConfiguration, ActivityValidator activityValidator,
-            Producer producer, FacilityWorkflowService workflowService, ActivityServiceUtil activityServiceUtil, ServiceRequestRepository serviceRequest, JdbcTemplate jdbcTemplate, ActivityFacilityUsersService facilityUsersService, @Qualifier("objectMapper") ObjectMapper mapper, ActivityAssignmentRepository activityAssignmentRepository, BoundaryUtil boundaryUtil, AmcSchedulerService amcSchedulerService) {
+            Producer producer, FacilityWorkflowService workflowService, ActivityServiceUtil activityServiceUtil, ServiceRequestRepository serviceRequest, JdbcTemplate jdbcTemplate, ActivityFacilityUsersService facilityUsersService, @Qualifier("objectMapper") ObjectMapper mapper, ActivityAssignmentRepository activityAssignmentRepository, BoundaryUtil boundaryUtil, AmcSchedulerService amcSchedulerService, BomRepository bomRepository) {
             this.producer = producer;
             this.activityConfiguration = activityConfiguration;
             this.activityFacilityRepository = activityFacilityRepository;
@@ -73,6 +82,7 @@ public class ActivityService {
             this.activityAssignmentRepository = activityAssignmentRepository;
             this.boundaryUtil = boundaryUtil;
             this.amcSchedulerService = amcSchedulerService;
+            this.bomRepository = bomRepository;
     }
 
     public List<Activity> createActivity(ActivityBulkRequest request) {
@@ -214,6 +224,7 @@ public class ActivityService {
         for (ActivityFacility activityFacility : activityFacilities) {
             log.info("processing get activity code", activityFacility);
             activityEnrichment.enrichActivityFacilityOnSearch(request, activityFacility);
+            enrichBillOfMaterialOnSearch(request.getRequestInfo(), activityFacility, tenantId);
 
             if(activityFacility.getFacility() == null)
                 continue;
@@ -240,6 +251,34 @@ public class ActivityService {
         }
 
             return activityFacilities;
+    }
+
+    private void enrichBillOfMaterialOnSearch(RequestInfo requestInfo, ActivityFacility activityFacility, String tenantId) {
+        if (activityFacility == null || activityFacility.getId() == null) {
+            return;
+        }
+        try {
+            BomSearchCriteria criteria = BomSearchCriteria.builder()
+                    .activityFacilityId(List.of(activityFacility.getId()))
+                    .tenantId(tenantId != null ? tenantId : activityFacility.getTenantId())
+                    .build();
+            BomSearchRequest bomSearchRequest = BomSearchRequest.builder()
+                    .requestInfo(requestInfo)
+                    .criteria(criteria)
+                    .build();
+            List<BillOfMaterial> boms = bomRepository.getBillOfMaterials(
+                    bomSearchRequest,
+                    activityConfiguration.getMaxLimit(),
+                    activityConfiguration.getDefaultOffset(),
+                    criteria.getTenantId(),
+                    false,
+                    null);
+            if (boms != null && !boms.isEmpty()) {
+                activityFacility.setBillOfMaterial(boms.get(0));
+            }
+        } catch (Exception e) {
+            log.warn("Failed to enrich BOM for activityFacility {}: {}", activityFacility.getId(), e.getMessage());
+        }
     }
 
     public List<FacilityStatusAgregation> getStatusFacilityAssignmentsAgregation(String fieldPlanId) {
@@ -365,13 +404,22 @@ public class ActivityService {
         }
 
         ActivityFacility existingActivityFacitlity = activityFacilities.get(0);
+        String action = request.getWorkflow() != null ? request.getWorkflow().getAction() : null;
+        if (action == null || action.isBlank()) {
+            throw new CustomException("INVALID_WORKFLOW_ACTION", "Workflow action is required");
+        }
+
+        // Reject must include at least one section reason
+        if (ACTION_REJECT_AND_ASSIGN_FOR_FIELD_QC.equalsIgnoreCase(action)) {
+            validateRejectReasons(request);
+        }
 
         // 2. Call workflow transition
         ProcessInstance updatedWorkflow;
         try {
             updatedWorkflow = workflowService.transitionWorkflow(
                     existingActivityFacitlity,
-                    request.getWorkflow().getAction(),
+                    action,
                     request.getWorkflow().getDocuments(),
                     request.getRequestInfo(),
                     request.getWorkflow().getComments()
@@ -390,6 +438,12 @@ public class ActivityService {
         // 3. Inject workflow status into activity facility
         existingActivityFacitlity.setStatus(updatedWorkflow.getState().getState());
 
+        boolean isApprove = ACTION_APPROVE.equalsIgnoreCase(action);
+        Long completedAt = existingActivityFacitlity.getCompletedAt();
+        if (isApprove) {
+            completedAt = System.currentTimeMillis();
+        }
+
         // 4. Create a new Activity Instance instance with enriched additionalDetails
         ActivityFacility updatedActivityFacility = ActivityFacility.builder()
                 .id(existingActivityFacitlity.getId())
@@ -400,9 +454,10 @@ public class ActivityService {
                 .status(existingActivityFacitlity.getStatus())
                 .assignedUser(existingActivityFacitlity.getAssignedUser())
                 .activatedAt(existingActivityFacitlity.getActivatedAt())
-                .completedAt(System.currentTimeMillis())
+                .completedAt(completedAt)
                 .scheduledAt(existingActivityFacitlity.getScheduledAt())
                 .additionalDetails(existingActivityFacitlity.getAdditionalDetails())
+                .billOfMaterial(existingActivityFacitlity.getBillOfMaterial())
                 .build();
 
         // 5. Create project request wrapper
@@ -414,22 +469,315 @@ public class ActivityService {
         // 6. Perform enriched update using standard handler
         handleUpdateActivityFacility(enrichedRequest, updatedActivityFacility, existingActivityFacitlity);
 
-        // Step 7: After successful workflow transition, if action is APPROVED_BY_QC_SPOC
-        if ("APPROVE".equalsIgnoreCase(request.getWorkflow().getAction())) {
-            // once facility is fetched we need to fetch assets for that facility
+        // 7. Side effects by action
+        if (isApprove) {
             String activityFacilityId = existingActivityFacitlity.getId();
             if (activityFacilityId != null) {
                 updateAssetsForFacility(existingActivityFacitlity, request.getRequestInfo(), activityFacilityId);
-                // Step 8: Trigger installation completion side effects (Asset AMC creation and visit generation)
                 triggerInstallationCompletionSideEffects(existingActivityFacitlity, request.getRequestInfo(), activityFacilityId);
-                // Step 9: Mark facility as ONM ready
-                markFacilityOnmReady(existingActivityFacitlity, request.getRequestInfo());
-                // Step 10: Add facility to jurisdiction of COMPLAINT_RESOLVER in the same organisation
+                // Do NOT mark whole facility ONM-ready — O&M is per-asset via is_onm_ready
                 addFacilityToComplaintResolverJurisdiction(existingActivityFacitlity, request.getRequestInfo());
+                releaseSiteLockIfAllComponentsApproved(existingActivityFacitlity, request.getRequestInfo());
             }
+        } else if (ACTION_REJECT_AND_ASSIGN_FOR_FIELD_QC.equalsIgnoreCase(action)) {
+            notifyVendorOnReject(existingActivityFacitlity, request.getRequestInfo());
+        } else if (ACTION_SUBMIT_REPORT.equalsIgnoreCase(action)) {
+            notifyReviewerOnSubmit(existingActivityFacitlity, request.getRequestInfo());
         }
 
         return new FacilityStatusWrapper(updatedActivityFacility, updatedWorkflow.getState().getState(), null, null);
+    }
+
+    private void validateRejectReasons(FacilityWorkflowRequest request) {
+        boolean hasReason = false;
+        if (request.getTransactions() != null) {
+            for (Transaction transaction : request.getTransactions()) {
+                if (transaction.getComments() != null) {
+                    for (Comment comment : transaction.getComments()) {
+                        if (comment.getCmtMsg() != null && !comment.getCmtMsg().isBlank()) {
+                            hasReason = true;
+                            break;
+                        }
+                    }
+                }
+                if (hasReason) break;
+            }
+        }
+        if (!hasReason) {
+            throw new CustomException("REASON_REQUIRED",
+                    "A rejection reason is required for every section marked as rejected");
+        }
+    }
+
+    private void notifyReviewerOnSubmit(ActivityFacility activityFacility, RequestInfo requestInfo) {
+        try {
+            Map<String, String> reviewer = resolveReviewerContact(activityFacility, requestInfo);
+            String email = reviewer.get("email");
+            if (email == null || email.isBlank()) {
+                log.warn("No reviewer email for fieldPlanId={}", activityFacility.getFieldPlanId());
+                return;
+            }
+            ensureBomLoaded(activityFacility, requestInfo);
+            Map<String, String> ctx = buildIcReportNotificationContext(activityFacility, requestInfo, reviewer.get("name"));
+            String subject = applyIcReportPlaceholders(activityConfiguration.getIcReportSubmittedSubject(), ctx);
+            String body = applyIcReportPlaceholders(activityConfiguration.getIcReportSubmittedBody(), ctx);
+            activityServiceUtil.sendEmailViaKafka(email, subject, body, activityFacility.getTenantId());
+        } catch (Exception e) {
+            log.error("Failed to notify reviewer on submit for {}: {}", activityFacility.getId(), e.getMessage(), e);
+        }
+    }
+
+    private void notifyVendorOnReject(ActivityFacility activityFacility, RequestInfo requestInfo) {
+        try {
+            ensureBomLoaded(activityFacility, requestInfo);
+            BillOfMaterial bom = activityFacility.getBillOfMaterial();
+            if (bom == null) {
+                log.warn("No BOM for activityFacility {} — skip reject notification", activityFacility.getId());
+                return;
+            }
+            Map<String, String> ctx = buildIcReportNotificationContext(activityFacility, requestInfo, null);
+            String subject = applyIcReportPlaceholders(activityConfiguration.getIcReportRejectedSubject(), ctx);
+            String emailBody = applyIcReportPlaceholders(activityConfiguration.getIcReportRejectedBody(), ctx);
+            if (bom.getVendorEmail() != null && !bom.getVendorEmail().isBlank()) {
+                activityServiceUtil.sendEmailViaKafka(
+                        bom.getVendorEmail(),
+                        subject,
+                        emailBody,
+                        activityFacility.getTenantId());
+            }
+            if (bom.getVendorPhone() != null && !bom.getVendorPhone().isBlank()) {
+                String smsBody = applyIcReportPlaceholders(activityConfiguration.getIcReportRejectedSmsBody(), ctx);
+                activityServiceUtil.sendSmsViaKafka(bom.getVendorPhone(), smsBody, activityFacility.getTenantId());
+            }
+        } catch (Exception e) {
+            log.error("Failed to notify vendor on reject for {}: {}", activityFacility.getId(), e.getMessage(), e);
+        }
+    }
+
+    private void ensureBomLoaded(ActivityFacility activityFacility, RequestInfo requestInfo) {
+        if (activityFacility.getBillOfMaterial() == null) {
+            enrichBillOfMaterialOnSearch(requestInfo, activityFacility, activityFacility.getTenantId());
+        }
+    }
+
+    private Map<String, String> buildIcReportNotificationContext(ActivityFacility activityFacility,
+                                                                 RequestInfo requestInfo,
+                                                                 String reviewerName) {
+        Map<String, String> ctx = new HashMap<>();
+        String endUserName = activityFacility.getFacility() != null
+                ? activityFacility.getFacility().getFacilityName()
+                : activityFacility.getFacilityId();
+        ctx.put("reviewerName", blankToEmpty(reviewerName));
+        ctx.put("endUserName", blankToEmpty(endUserName));
+        ctx.put("assetType", blankToEmpty(resolveAssetType(activityFacility)));
+        ctx.put("vendorOrganisation", blankToEmpty(resolveVendorOrganisation(activityFacility)));
+        ctx.put("submissionDateTime", formatNotificationDateTime(System.currentTimeMillis()));
+        ctx.put("installationPlanId", blankToEmpty(activityFacility.getFieldPlanId()));
+        ctx.put("projectName", "");
+
+        if (activityFacility.getFieldPlanId() != null) {
+            try {
+                FieldPlan fieldPlan = activityValidator.getFieldPlanById(
+                        requestInfo,
+                        activityFacility.getFieldPlanId(),
+                        activityFacility.getTenantId());
+                if (fieldPlan != null) {
+                    if (fieldPlan.getName() != null && !fieldPlan.getName().isBlank()) {
+                        ctx.put("installationPlanId", fieldPlan.getName() + " (" + fieldPlan.getId() + ")");
+                    } else if (fieldPlan.getId() != null) {
+                        ctx.put("installationPlanId", fieldPlan.getId());
+                    }
+                    if (fieldPlan.getProject() != null && fieldPlan.getProject().getName() != null) {
+                        ctx.put("projectName", fieldPlan.getProject().getName());
+                    } else if (fieldPlan.getProjectId() != null) {
+                        ctx.put("projectName", fieldPlan.getProjectId());
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Could not load field plan for IC notification: {}", e.getMessage());
+            }
+        }
+        return ctx;
+    }
+
+    private String resolveAssetType(ActivityFacility activityFacility) {
+        if (activityFacility.getActivityType() != null && !activityFacility.getActivityType().isBlank()) {
+            return activityFacility.getActivityType();
+        }
+        if (activityFacility.getAdditionalDetails() != null) {
+            Object componentType = activityFacility.getAdditionalDetails().get("componentType");
+            if (componentType == null) {
+                componentType = activityFacility.getAdditionalDetails().get("component_type");
+            }
+            if (componentType != null && !String.valueOf(componentType).isBlank()) {
+                return String.valueOf(componentType);
+            }
+        }
+        BillOfMaterial bom = activityFacility.getBillOfMaterial();
+        if (bom != null && bom.getAdditionalDetails() != null) {
+            Object assetType = bom.getAdditionalDetails().get("assetType");
+            if (assetType == null) {
+                assetType = bom.getAdditionalDetails().get("componentType");
+            }
+            if (assetType != null && !String.valueOf(assetType).isBlank()) {
+                return String.valueOf(assetType);
+            }
+        }
+        return "Machine / Solar";
+    }
+
+    private String resolveVendorOrganisation(ActivityFacility activityFacility) {
+        BillOfMaterial bom = activityFacility.getBillOfMaterial();
+        if (bom == null) {
+            return "";
+        }
+        if (bom.getAdditionalDetails() != null) {
+            Object orgName = bom.getAdditionalDetails().get("vendorOrgName");
+            if (orgName == null) {
+                orgName = bom.getAdditionalDetails().get("vendorOrganisation");
+            }
+            if (orgName != null && !String.valueOf(orgName).isBlank()) {
+                return String.valueOf(orgName);
+            }
+        }
+        if (bom.getVendorOrgId() != null && !bom.getVendorOrgId().isBlank()) {
+            return bom.getVendorOrgId();
+        }
+        return blankToEmpty(bom.getVendorEmail());
+    }
+
+    private String applyIcReportPlaceholders(String template, Map<String, String> ctx) {
+        if (template == null) {
+            return "";
+        }
+        String result = template;
+        for (Map.Entry<String, String> entry : ctx.entrySet()) {
+            result = result.replace(":" + entry.getKey(), entry.getValue() != null ? entry.getValue() : "");
+        }
+        return result;
+    }
+
+    private String blankToEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    private String formatNotificationDateTime(long epochMillis) {
+        try {
+            java.time.format.DateTimeFormatter formatter =
+                    java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm")
+                            .withZone(java.time.ZoneId.systemDefault());
+            return formatter.format(java.time.Instant.ofEpochMilli(epochMillis));
+        } catch (Exception e) {
+            return String.valueOf(epochMillis);
+        }
+    }
+
+    /**
+     * Resolves assigned Installation Reviewer email + display name from activity_assignments.
+     */
+    private Map<String, String> resolveReviewerContact(ActivityFacility activityFacility, RequestInfo requestInfo) {
+        Map<String, String> contact = new HashMap<>();
+        contact.put("email", null);
+        contact.put("name", "");
+        if (activityFacility.getFieldPlanId() == null) {
+            return contact;
+        }
+        ActivityAssignmentSearchCriteria criteria = ActivityAssignmentSearchCriteria.builder()
+                .fieldPlanId(List.of(activityFacility.getFieldPlanId()))
+                .tenantId(activityFacility.getTenantId())
+                .build();
+        ActivityAssignmentSearchRequest assignmentSearchRequest = ActivityAssignmentSearchRequest.builder()
+                .requestInfo(requestInfo)
+                .criteria(criteria)
+                .build();
+        List<ActivityAssignment> assignments = activityAssignmentRepository.getActivitiesAssignment(
+                assignmentSearchRequest,
+                activityConfiguration.getMaxLimit(),
+                activityConfiguration.getDefaultOffset(),
+                activityFacility.getTenantId(),
+                false,
+                null);
+        if (assignments == null || assignments.isEmpty()) {
+            return contact;
+        }
+        for (ActivityAssignment assignment : assignments) {
+            if (assignment.getRole() != null) {
+                Object code = assignment.getRole().get("code");
+                if (code != null && INSTALLATION_REPORT_APPROVER_QC_TEAM.equalsIgnoreCase(String.valueOf(code))) {
+                    Employee employee = activityValidator.getUserById(assignmentSearchRequest, assignment.getAssignedTo());
+                    if (employee != null && employee.getUser() != null) {
+                        contact.put("email", employee.getUser().getEmailId());
+                        contact.put("name", blankToEmpty(employee.getUser().getName()));
+                        return contact;
+                    }
+                }
+            }
+        }
+        ActivityAssignment first = assignments.get(0);
+        Employee employee = activityValidator.getUserById(assignmentSearchRequest, first.getAssignedTo());
+        if (employee != null && employee.getUser() != null) {
+            contact.put("email", employee.getUser().getEmailId());
+            contact.put("name", blankToEmpty(employee.getUser().getName()));
+        }
+        return contact;
+    }
+
+    private void releaseSiteLockIfAllComponentsApproved(ActivityFacility activityFacility, RequestInfo requestInfo) {
+        try {
+            if (activityFacility.getFacilityId() == null || activityFacility.getFieldPlanId() == null) {
+                return;
+            }
+            ActivityFacilitySearchCriteria siblingCriteria = ActivityFacilitySearchCriteria.builder()
+                    .facilityId(List.of(activityFacility.getFacilityId()))
+                    .fieldPlanId(List.of(activityFacility.getFieldPlanId()))
+                    .tenantId(activityFacility.getTenantId())
+                    .build();
+            ActivityFacilitySearchRequest siblingRequest = ActivityFacilitySearchRequest.builder()
+                    .criteria(siblingCriteria)
+                    .requestInfo(requestInfo)
+                    .build();
+            List<ActivityFacility> siblings = activityFacilityRepository.getActivitiesFacility(
+                    siblingRequest,
+                    activityConfiguration.getMaxLimit(),
+                    activityConfiguration.getDefaultOffset(),
+                    activityFacility.getTenantId(),
+                    false,
+                    null);
+            if (siblings == null || siblings.isEmpty()) {
+                return;
+            }
+            boolean allApproved = true;
+            for (ActivityFacility sibling : siblings) {
+                String status = sibling.getId().equals(activityFacility.getId())
+                        ? activityFacility.getStatus()
+                        : sibling.getStatus();
+                if (!APPROVED_BY_QC_SPOC.equalsIgnoreCase(status)) {
+                    allApproved = false;
+                    break;
+                }
+            }
+            if (!allApproved) {
+                log.info("Site remains locked — not all facility_activities approved for facilityId={} fieldPlanId={}",
+                        activityFacility.getFacilityId(), activityFacility.getFieldPlanId());
+                return;
+            }
+            Map<String, Object> lockRequest = new HashMap<>();
+            lockRequest.put("RequestInfo", requestInfo);
+            Map<String, Object> fieldPlanFacility = new HashMap<>();
+            fieldPlanFacility.put("tenantId", activityFacility.getTenantId());
+            fieldPlanFacility.put("fieldPlanId", activityFacility.getFieldPlanId());
+            fieldPlanFacility.put("facilityId", activityFacility.getFacilityId());
+            fieldPlanFacility.put("lockStatus", LOCK_STATUS_UNLOCKED);
+            lockRequest.put("FieldPlanFacility", fieldPlanFacility);
+
+            String url = activityConfiguration.getFieldPlanServiceHost()
+                    + activityConfiguration.getFieldPlanFacilityUpdateLockUrl();
+            log.info("Releasing site lock via {}", url);
+            serviceRequest.fetchResult(new StringBuilder(url), lockRequest);
+        } catch (Exception e) {
+            log.error("Failed to release site lock for activityFacility {}: {}",
+                    activityFacility.getId(), e.getMessage(), e);
+        }
     }
 
     private void handleTransactionsAndComment(FacilityWorkflowRequest request, ProcessInstance updatedWorkflow) {
@@ -549,7 +897,11 @@ public class ActivityService {
 
     private void updateAssetOperationalStatus(Asset asset, RequestInfo requestInfo) {
         try {
-            asset.setIsOperational(true);
+            // Per-asset O&M eligibility — do not overload isOperational
+            asset.setIsOnmReady(true);
+            if (asset.getAdditionalDetails() == null) {
+                asset.setAdditionalDetails(new HashMap<>());
+            }
 
             String assetUpdateEndpoint = activityConfiguration.getAssetHost() +
                     activityConfiguration.getAssetUpdateUrl();
@@ -596,8 +948,8 @@ public class ActivityService {
                     activityConfiguration.getTenantId(), false, null);
             totalActivityFacilities = countAllFacilityActivities(searchRequest, activityConfiguration.getTenantId(), null, null);
 
-            // only those activity facilities whose status is SUBMITTED_BY_SUPERVISOR
-            List<ActivityFacility> activityFacilitiesList = activityFacilities.stream().filter(this::hasSubmittedBySupervisorStatus).toList();
+            // only those activity facilities whose status is SUBMITTED_BY_FIELD_STAFF
+            List<ActivityFacility> activityFacilitiesList = activityFacilities.stream().filter(this::hasSubmittedByFieldStaffStatus).toList();
 
             finalActivityFacilities = activityFacilitiesList.size();
             activityFacilityIds = activityFacilitiesList.stream().map(ActivityFacility::getId).collect(Collectors.toList());
@@ -650,9 +1002,9 @@ public class ActivityService {
         return result;
     }
 
-    private boolean hasSubmittedBySupervisorStatus(ActivityFacility activityFacility) {
+    private boolean hasSubmittedByFieldStaffStatus(ActivityFacility activityFacility) {
         String activityFacilityStatus = activityFacility.getStatus();
-        return activityFacilityStatus != null && SUBMITTED_BY_SUPERVISOR.equals(activityFacilityStatus);
+        return activityFacilityStatus != null && SUBMITTED_BY_FIELD_STAFF.equals(activityFacilityStatus);
     }
 
     public Integer countAllFacilityActivities(ActivityFacilitySearchRequest request, String tenantId, Long lastChangedSince, Boolean includeDeleted) {

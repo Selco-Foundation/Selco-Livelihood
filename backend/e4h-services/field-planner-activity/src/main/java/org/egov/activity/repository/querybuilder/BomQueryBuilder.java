@@ -24,6 +24,8 @@ public class BomQueryBuilder {
 
     private static final String FETCH_BOM_QUERY = "SELECT bom.id as bom_bomId, bom.tenant_id as bom_tenantId, bom.facility_id as bom_facilityId, bom.activity_facility_id as bom_activityFacilityId, " +
             "bom.name as bom_name, bom.data as bom_data, bom.is_active as bom_isActive, bom.assign_user as bom_assignedUser, bom.activity_facility_id as bom_activityFacilityId, " +
+            "bom.solution_id as bom_solutionId, bom.vendor_org_id as bom_vendorOrgId, bom.vendor_email as bom_vendorEmail, bom.vendor_phone as bom_vendorPhone, " +
+            "bom.otp_uuid as bom_otpUuid, bom.report_number as bom_reportNumber, " +
             "bom.additional_details as bom_additionalDetails, bom.created_time as bom_createdTime, " +
             "bom.last_modified_time as bom_lastModifiedTime " +
             " " +
