@@ -1,3 +1,4 @@
+import 'package:badges/badges.dart' as badges;
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
 import 'package:flutter/gestures.dart';
@@ -5,8 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:livelihood/app/app_strings.dart';
 import 'package:livelihood/main.dart';
+import 'package:livelihood/pages/installation_report_home_page.dart';
+import 'package:livelihood/pages/installation_report_list_pages.dart';
 import 'package:livelihood/pages/home_page.dart';
 import 'package:livelihood/pages/login_page.dart';
+import 'package:livelihood/widgets/facility_report_card.dart';
+import 'package:livelihood/widgets/facility_search_sort_card.dart';
 import 'package:livelihood/widgets/home_help_header.dart';
 import 'package:livelihood/widgets/home_item_card.dart';
 import 'package:livelihood/widgets/livelihood_app_bar.dart';
@@ -382,10 +387,186 @@ void main() {
     await tester.pump();
     expect(find.text(AppStrings.homeActionNotConnected), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('installation-report-card')));
+    await tester.tap(find.byKey(const ValueKey('sync-pending-card')));
     await tester.pump();
     expect(find.text(AppStrings.homeActionNotConnected), findsOneWidget);
     expect(find.byType(HomePage), findsOneWidget);
+  });
+
+  testWidgets('home opens Installation Report and renders four menu cards', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: const HomePage(),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('installation-report-card')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(InstallationReportHomePage), findsOneWidget);
+    expect(find.text(AppStrings.installationReportHome), findsOneWidget);
+    expect(find.byKey(const ValueKey('report-back-button')), findsOneWidget);
+    expect(find.byKey(const ValueKey('report-help-button')), findsOneWidget);
+    expect(find.byType(PoweredByDigit), findsOneWidget);
+
+    for (final key in <String>[
+      'new-report-menu-card',
+      'pending-approval-menu-card',
+      'resubmission-menu-card',
+      'approved-menu-card',
+    ]) {
+      expect(find.byKey(ValueKey(key)), findsOneWidget);
+    }
+    for (final count in <String>['48', '12', '6', '35']) {
+      expect(find.text(count), findsOneWidget);
+    }
+
+    final countBadges = tester.widgetList<badges.Badge>(
+      find.byKey(const ValueKey('report-menu-count-badge')),
+    );
+    expect(countBadges, hasLength(4));
+    for (final badge in countBadges) {
+      expect(badge.badgeStyle.shape, badges.BadgeShape.square);
+      expect(
+        badge.badgeStyle.badgeColor,
+        const DigitColors().light.alertError,
+      );
+      expect(
+        badge.badgeStyle.padding,
+        const EdgeInsets.symmetric(
+          horizontal: spacer3,
+          vertical: spacer1,
+        ),
+      );
+      expect(badge.badgeStyle.borderRadius, BorderRadius.circular(20));
+      expect((badge.badgeContent as Text).style?.color, Colors.white);
+    }
+
+    await tester.tap(find.byKey(const ValueKey('report-help-button')));
+    await tester.pump();
+    expect(find.text(AppStrings.reportActionNotConnected), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('report-back-button')));
+    await tester.pumpAndSettle();
+    expect(find.byType(HomePage), findsOneWidget);
+  });
+
+  testWidgets('report menu cards open their separated facility pages', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+
+    Future<void> expectDestination(String key, Type pageType) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          key: UniqueKey(),
+          theme: DigitTheme.instance.mobileTheme,
+          home: const InstallationReportHomePage(),
+        ),
+      );
+      final card = find.byKey(ValueKey(key));
+      final cardCenter = tester.getCenter(card);
+      if (cardCenter.dy > 700) {
+        await tester.drag(
+          find.byType(CustomScrollView),
+          Offset(0, 650 - cardCenter.dy),
+        );
+        await tester.pumpAndSettle();
+      }
+      await tester.tap(card);
+      await tester.pumpAndSettle();
+      expect(find.byType(pageType), findsOneWidget);
+    }
+
+    await expectDestination('new-report-menu-card', NewReportFacilitiesPage);
+    await expectDestination('pending-approval-menu-card', PendingApprovalPage);
+    await expectDestination(
+      'resubmission-menu-card',
+      ResubmissionNeededPage,
+    );
+    await expectDestination('approved-menu-card', ApprovedReportsPage);
+  });
+
+  testWidgets('facility pages use the correct search and progress variants', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+
+    Future<void> pumpPage(Widget page) => tester.pumpWidget(
+          MaterialApp(
+            theme: DigitTheme.instance.mobileTheme,
+            home: page,
+          ),
+        );
+
+    await pumpPage(const NewReportFacilitiesPage());
+    expect(find.byType(FacilitySearchSortCard), findsOneWidget);
+    expect(find.byType(FacilityReportCard), findsNWidgets(2));
+    expect(find.byType(LinearProgressIndicator), findsNWidgets(2));
+    expect(find.byKey(const ValueKey('start-resume-report-button')),
+        findsNWidgets(2));
+    expect(
+        find.byKey(const ValueKey('submit-approval-button')), findsNWidgets(2));
+
+    await pumpPage(const PendingApprovalPage());
+    expect(find.byType(FacilitySearchSortCard), findsNothing);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.byKey(const ValueKey('view-summary-button')), findsNWidgets(2));
+
+    await pumpPage(const ResubmissionNeededPage());
+    expect(find.byType(FacilitySearchSortCard), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.byKey(const ValueKey('view-details-button')), findsNWidgets(2));
+    expect(find.byKey(const ValueKey('resubmit-button')), findsNWidgets(2));
+
+    await pumpPage(const ApprovedReportsPage());
+    expect(find.byType(FacilitySearchSortCard), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.byKey(const ValueKey('view-summary-button')), findsNWidgets(2));
+  });
+
+  testWidgets('search pages expose the E4H sort popup without filtering', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: const ApprovedReportsPage(),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('facility-search-field')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('facility-sort-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('facility-sort-popup')), findsOneWidget);
+    expect(find.text('Newest first'), findsOneWidget);
+    expect(find.text('Oldest first'), findsOneWidget);
+    expect(find.byType(FacilityReportCard), findsNWidgets(2));
+  });
+
+  testWidgets('facility card actions remain UI-only', (tester) async {
+    setMobileViewport(tester, const Size(390, 844));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: const PendingApprovalPage(),
+      ),
+    );
+
+    final summaryButton =
+        find.byKey(const ValueKey('view-summary-button')).first;
+    await tester.ensureVisible(summaryButton);
+    await tester.tap(summaryButton);
+    await tester.pump();
+
+    expect(find.text(AppStrings.reportActionNotConnected), findsOneWidget);
+    expect(find.byType(PendingApprovalPage), findsOneWidget);
   });
 
   testWidgets('DIGIT layouts do not overflow at representative mobile sizes', (
@@ -405,6 +586,28 @@ void main() {
       await tester.pump();
       expect(find.byKey(const ValueKey('home-scroll-view')), findsOneWidget);
       expect(tester.takeException(), isNull, reason: 'home overflow at $size');
+
+      for (final page in <Widget>[
+        const InstallationReportHomePage(),
+        const NewReportFacilitiesPage(),
+        const PendingApprovalPage(),
+        const ResubmissionNeededPage(),
+        const ApprovedReportsPage(),
+      ]) {
+        await tester.pumpWidget(
+          MaterialApp(
+            key: UniqueKey(),
+            theme: DigitTheme.instance.mobileTheme,
+            home: page,
+          ),
+        );
+        await tester.pump();
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: '${page.runtimeType} overflow at $size',
+        );
+      }
     }
   });
 }

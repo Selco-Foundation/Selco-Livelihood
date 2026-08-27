@@ -6,6 +6,7 @@ import '../app/app_strings.dart';
 import '../widgets/home_help_header.dart';
 import '../widgets/home_item_card.dart';
 import '../widgets/livelihood_app_bar.dart';
+import 'installation_report_home_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -16,6 +17,14 @@ class HomePage extends StatelessWidget {
       ..showSnackBar(
         const SnackBar(content: Text(AppStrings.homeActionNotConnected)),
       );
+  }
+
+  void _openInstallationReports(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const InstallationReportHomePage(),
+      ),
+    );
   }
 
   @override
@@ -55,7 +64,7 @@ class HomePage extends StatelessWidget {
                         icon: Icons.text_snippet_outlined,
                         label: AppStrings.installationReport,
                         contentColor: const DigitColors().light.primary1,
-                        onPressed: () => _showPlaceholder(context),
+                        onPressed: () => _openInstallationReports(context),
                       ),
                       HomeItemCard(
                         key: const ValueKey('sync-pending-card'),
