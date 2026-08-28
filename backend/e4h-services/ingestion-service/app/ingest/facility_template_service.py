@@ -12,8 +12,8 @@ from app.schemas.request_info import RequestInfo
 from app.schemas.vendor_ingestion_shema_response import IngestionSchemaResponse
 from app.utils.convertor import convert_json_to_boundary, format_facility_data_for_template, build_boundary_localization_map, localize_boundary_name
 from app.utils.excel_utils import add_dropdowns_to_excel, add_row_specific_dropdown_to_excel, lock_excel_columns, \
-    add_validations_to_excel, lock_prefilled_rows_in_excel, add_non_blank_validations_to_file, autofit_columns, \
-    add_facility_category_conditional_validations
+    lock_cells_in_excel, add_validations_to_excel, lock_prefilled_rows_in_excel, add_non_blank_validations_to_file, \
+    autofit_columns, add_facility_category_conditional_validations
 from app.utils.file_utils import create_empty_excel_file, create_excel_data_writer, remove_default_empty_sheet
 
 logger = AppLogger().get_logger()
@@ -70,7 +70,10 @@ class FacilityTemplateService:
                                type: str = None,
                                optimize_for_performance: bool = False,
                                constant_column_values: Dict[str, str] = None,
-                               row_specific_dropdowns: Dict[str, Dict[int, List[str]]] = None
+                               row_specific_dropdowns: Dict[str, Dict[int, List[str]]] = None,
+                               per_row_column_values: Dict[str, Dict[int, str]] = None,
+                               freeze_columns: List[str] = None,
+                               freeze_row_positions: List[int] = None
                                ) -> None:
         """
             Generates FacilityIngestionTemplate.xlsx with:
@@ -85,6 +88,9 @@ class FacilityTemplateService:
             row_specific_dropdowns: {column name: {0-based row position: allowed values}}
             for columns whose valid options differ per row. These columns are made
             editable, since a locked cell would make the dropdown unusable.
+            freeze_columns + freeze_row_positions: re-lock these columns on these rows
+            only, after the column-level pass -- for rows that must not be edited even
+            though their column is editable elsewhere.
             """
         try:
             create_empty_excel_file(output_path)
@@ -190,6 +196,17 @@ class FacilityTemplateService:
                 for row in formatted_facilities:
                     row[header] = value
 
+            # Values that apply to particular rows only, written after the constants so a
+            # per-row value wins where both target the same column.
+            for column_name, values_by_row in (per_row_column_values or {}).items():
+                header = self._resolve_header(output_list, column_name)
+                if not header:
+                    logger.warning(f"Per-row-value column '{column_name}' not in schema; skipping")
+                    continue
+                for row_position, value in values_by_row.items():
+                    if 0 <= row_position < len(formatted_facilities):
+                        formatted_facilities[row_position][header] = value
+
             df_facility = pd.DataFrame(formatted_facilities, columns=output_list)
             facility_writer = create_excel_data_writer(
                 output_path,
@@ -253,6 +270,18 @@ class FacilityTemplateService:
                 always_locked_columns=always_locked_columns,
                 extra_append_rows=extra_append_rows
             )
+
+            # Must run after the column-level pass above, which unlocks editable columns
+            # across every prefilled row -- this puts specific cells back under lock.
+            if freeze_columns and freeze_row_positions:
+                lock_cells_in_excel(
+                    file_path=output_path,
+                    sheet_name="FacilityMapping",
+                    column_headers=[
+                        h for h in (self._resolve_header(output_list, c) for c in freeze_columns) if h
+                    ],
+                    row_positions=freeze_row_positions,
+                )
 
             # Non-blank validations are helpful but expensive; keep them only
             # in fully featured mode. Autofit is needed for usability, so it is

@@ -308,6 +308,50 @@ def add_row_specific_dropdown_to_excel(
     )
 
 
+def lock_cells_in_excel(
+        file_path: str,
+        sheet_name: str,
+        column_headers: List[str],
+        row_positions: List[int],
+        grey_out: bool = True,
+):
+    """Re-lock specific cells that column-level rules left editable.
+
+    lock_prefilled_rows_in_excel unlocks a column across every prefilled row, which is the
+    right default but can't express "this column, but only on these rows". The Installation
+    Scope sheet needs that for sites already under installation: their Include and Solution
+    cells must be frozen while the same columns stay editable everywhere else.
+
+    row_positions are 0-based data-row positions (0 -> spreadsheet row 2), matching
+    add_row_specific_dropdown_to_excel.
+    """
+    if not column_headers or not row_positions:
+        return
+
+    wb = load_workbook(file_path)
+    ws = wb[sheet_name]
+
+    indices = [
+        cell.column for cell in ws[1]
+        if cell.value is not None and str(cell.value).strip() in column_headers
+    ]
+    if not indices:
+        logger.warning(f"None of {column_headers} found in sheet '{sheet_name}'; nothing locked")
+        wb.save(file_path)
+        return
+
+    grey_fill = PatternFill(start_color="D3D3D3", end_color="D3D3D3", fill_type="solid")
+    for row_position in row_positions:
+        for col_idx in indices:
+            cell = ws.cell(row=row_position + 2, column=col_idx)
+            cell.protection = Protection(locked=True)
+            if grey_out:
+                cell.fill = grey_fill
+
+    wb.save(file_path)
+    logger.info(f"Locked {len(indices)} column(s) across {len(row_positions)} row(s) in '{sheet_name}'")
+
+
 def lock_excel_columns(
         file_path: str,
         sheet_name: str,
