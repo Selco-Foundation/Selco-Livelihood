@@ -2221,14 +2221,37 @@ async def validate_facilities_excel_sheet(
             os.unlink(temp_input_file.name)
 
 
-def _facility_states_from_sheet(df, facility_client, request_info) -> dict:
-    """facility_id -> address.state for the sites listed in the sheet.
+def _state_by_boundary_code(boundary_data_df) -> dict:
+    """{block boundary code: state name} from the workbook's BoundaryCodes sheet, which the
+    download wrote with the same localized names it put in the State column."""
+    if boundary_data_df is None:
+        return {}
+    columns = set(boundary_data_df.columns)
+    if not {"BoundaryCode", "State"} <= columns:
+        logger.warning("BoundaryCodes sheet has no BoundaryCode/State columns; cannot resolve states")
+        return {}
+    states = {}
+    for _, boundary_row in boundary_data_df.iterrows():
+        code = "" if pd.isna(boundary_row.get("BoundaryCode")) else str(boundary_row.get("BoundaryCode")).strip()
+        state = "" if pd.isna(boundary_row.get("State")) else str(boundary_row.get("State")).strip()
+        if code:
+            states[code] = state
+    return states
 
-    Solution eligibility must key off the same value the download used (the facility's own
-    address.state). The sheet's State cell holds a localized boundary name instead, so
-    reading it here would disagree with the dropdown the Project Manager was offered and
-    reject rows that were in fact valid. Returns {} on failure, which makes eligibility
-    fail closed rather than wave rows through.
+
+def _facility_states_from_sheet(df, boundary_data_df, facility_client, request_info) -> dict:
+    """facility_id -> state name for the sites listed in the sheet.
+
+    A facility has no state of its own: FacilityAddress declares state/district/block but
+    facility_address has no such columns, so address.state is always null. The state lives
+    only in boundary_code, so it is resolved from the workbook's BoundaryCodes sheet -- the
+    same values the download used to fill the State column and to build the Solution
+    dropdown. Keying off anything else would reject rows whose Solution the dropdown had
+    just offered.
+
+    The state is taken from the facility record's boundary_code rather than the row's State
+    cell because the cell is editable once the sheet is unprotected. Returns {} on failure,
+    which makes eligibility fail closed rather than wave rows through.
     """
     if 'Facility Id' not in df.columns or facility_client is None:
         return {}
@@ -2236,6 +2259,9 @@ def _facility_states_from_sheet(df, facility_client, request_info) -> dict:
         str(v).strip() for v in df['Facility Id'] if pd.notna(v) and str(v).strip()
     ]
     if not facility_ids:
+        return {}
+    state_by_boundary_code = _state_by_boundary_code(boundary_data_df)
+    if not state_by_boundary_code:
         return {}
     try:
         result = facility_client.bulk_search_facility(
@@ -2248,10 +2274,24 @@ def _facility_states_from_sheet(df, facility_client, request_info) -> dict:
     except Exception as e:
         logger.error(f"Could not resolve facility states for eligibility: {e}", exc_info=True)
         return {}
-    return {
-        f.get("facility_id"): (f.get("address") or {}).get("state") or ""
-        for f in (result.get("facilities") or []) if f.get("facility_id")
-    }
+
+    states = {}
+    for facility in (result.get("facilities") or []):
+        facility_id = facility.get("facility_id")
+        if not facility_id:
+            continue
+        boundary_code = facility.get("boundary_code") or facility.get("boundaryCode") or ""
+        # A facility's code is its block's code, optionally suffixed with a facility-specific
+        # segment (e.g. INDIA_ASSAM_BAKSA_BORABARI_ED/2026/0093) -- the same match the
+        # download's resolve_boundary_names_for_code makes.
+        states[facility_id] = next(
+            (
+                state for code, state in state_by_boundary_code.items()
+                if boundary_code == code or boundary_code.startswith(code + "_")
+            ),
+            "",
+        )
+    return states
 
 
 @router.post('/fieldPlanfacilitiesValidateData',
@@ -2344,7 +2384,9 @@ async def validate_facilities_excel_sheet(
             sunshine_hours_by_state=fetch_state_sunshine_hours(),
             add_err=lambda i, msg: validation_errors[i].append(msg),
             plan_sector=plan_sector,
-            state_by_facility_id=_facility_states_from_sheet(df, facility_client, request_info_obj),
+            state_by_facility_id=_facility_states_from_sheet(
+                df, boundary_data_df, facility_client, request_info_obj
+            ),
             lock_map=lock_map,
             solution_name_by_code=solution_names_by_code(solutions),
         )

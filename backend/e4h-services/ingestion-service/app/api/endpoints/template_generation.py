@@ -19,7 +19,7 @@ from app.ingest.asset_template_service import AssetTemplateService
 from app.ingest.project_service import ProjectService
 from app.schemas.boundary import Boundary, flatten_boundaries
 from app.utils.amc_scheduler_service_client import AMCSchedulerServiceClient
-from app.utils.convertor import request_info_from_json
+from app.utils.convertor import request_info_from_json, build_boundary_localization_map, state_names_by_facility_id
 from app.utils.excel_utils import add_dropdowns_to_excel, autofit_columns, lock_prefilled_rows_in_excel, \
     lock_excel_columns
 from app.utils.facility_service_client import FacilityServiceClient
@@ -47,6 +47,7 @@ fieldPlan_service_url = os.getenv("FIELDPLAN_SERVICE_URL")
 fieldPlan_activity_service_url = os.getenv("FIELDPLAN_ACTIVITY_SERVICE_URL")
 amc_scheduler_service_url = os.getenv("AMC_SCHEDULER_SERVICE_URL")
 vendor_service_url = os.getenv("VENDOR_SERVICE_URL")
+localization_service_url = os.getenv("LOCALIZATION_SERVICE_URL")
 DEFAULT_AMC_ASSET_TYPES = ["INVERTER", "PANEL", "BATTERY"]
 DB_CONFIG = {
     "host": os.getenv("DB_HOST"),
@@ -453,6 +454,14 @@ async def get_facility_ingestion_template_with_data(
         else:
             logger.warning("No sector supplied; skipping sector filter and Solution dropdowns")
 
+        # Built here rather than left to the template service so the Solution dropdown and
+        # the State column resolve their state from one identical lookup; it is handed down
+        # below so the localization call still happens only once.
+        boundary_localization_map = build_boundary_localization_map(boundary_list, localization_service_url)
+        state_by_facility_id = state_names_by_facility_id(
+            all_facilities, boundary_list, boundary_localization_map
+        )
+
         solutions = []
         solution_options_by_row = {}
         if plan_sector:
@@ -463,6 +472,7 @@ async def get_facility_ingestion_template_with_data(
                     solutions=solutions,
                     plan_sector=plan_sector,
                     sunshine_hours_by_state=fetch_state_sunshine_hours(),
+                    state_by_facility_id=state_by_facility_id,
                 )
             except Exception as e:
                 logger.error(f"Error resolving eligible solutions: {e}", exc_info=True)
@@ -511,6 +521,7 @@ async def get_facility_ingestion_template_with_data(
                 },
                 freeze_columns=["Included in Field Plan", "Solution"],
                 freeze_row_positions=freeze_row_positions,
+                boundary_localization_map=boundary_localization_map,
             )
             logger.info(f"Successfully created facility ingestion template at {output_file_path}")
         except Exception as e:

@@ -76,14 +76,22 @@ def build_solution_options_by_row(
     solutions: List[Dict[str, Any]],
     plan_sector: Optional[str],
     sunshine_hours_by_state: Dict[str, float],
+    state_by_facility_id: Dict[str, str],
 ) -> Dict[int, List[str]]:
     """Map each facility's 0-based position to its eligible Solution names. Sector is
-    constant across a Plan, so in practice rows only differ by their state."""
+    constant across a Plan, so in practice rows only differ by their state.
+
+    The state comes from state_by_facility_id rather than the facility record: address.state
+    is a field with no column behind it and is always null, so reading it here left every
+    dropdown empty. The caller resolves the state from boundary_code -- the same way the
+    sheet's State column is filled -- so generation and upload validation agree.
+    """
     options_by_row: Dict[int, List[str]] = {}
     cache: Dict[str, List[str]] = {}
 
     for position, facility in enumerate(facilities):
-        state = (facility.get("address") or {}).get("state") or ""
+        facility_id = facility.get("facility_id") or facility.get("facilityId")
+        state = state_by_facility_id.get(facility_id, "") if facility_id else ""
         cache_key = normalize_state_key(state)
         if cache_key not in cache:
             cache[cache_key] = eligible_solution_names(

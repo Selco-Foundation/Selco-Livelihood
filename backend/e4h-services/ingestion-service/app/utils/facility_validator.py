@@ -195,11 +195,11 @@ def validate_installation_scope_solutions(
     recomputed here rather than trusting the uploaded workbook. plan_sector, when given,
     overrides the sheet's Sector column, which the Project Manager could otherwise edit.
 
-    state_by_facility_id keys eligibility off the facility record rather than the sheet's
-    State cell. That cell holds a *localized boundary name* (and falls back to a literal
-    "BOUNDARY_<code>" when localization is down), whereas the download computed eligibility
-    from the facility's own address.state -- so reading the cell here would disagree with
-    the dropdown the PM was offered and fail every row.
+    state_by_facility_id keys eligibility off each site's boundary_code rather than the
+    sheet's State cell, which is editable once the sheet is unprotected. Both sides resolve
+    the state the same way -- a facility record has no state of its own, since address.state
+    has no column behind it and is always null -- so the value checked here is the one the
+    dropdown was built from.
 
     lock_map (facility_id -> SiteLock) freezes rows whose installation has started: a row
     held by a sibling plan is display-only and skipped, and one held by this plan must come

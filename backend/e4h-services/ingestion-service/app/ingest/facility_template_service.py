@@ -73,7 +73,8 @@ class FacilityTemplateService:
                                row_specific_dropdowns: Dict[str, Dict[int, List[str]]] = None,
                                per_row_column_values: Dict[str, Dict[int, str]] = None,
                                freeze_columns: List[str] = None,
-                               freeze_row_positions: List[int] = None
+                               freeze_row_positions: List[int] = None,
+                               boundary_localization_map: Dict[str, str] = None
                                ) -> None:
         """
             Generates FacilityIngestionTemplate.xlsx with:
@@ -91,6 +92,9 @@ class FacilityTemplateService:
             freeze_columns + freeze_row_positions: re-lock these columns on these rows
             only, after the column-level pass -- for rows that must not be edited even
             though their column is editable elsewhere.
+            boundary_localization_map: pass one in when the caller has already resolved
+            boundary names (to key something else off the same values); otherwise it is
+            fetched here.
             """
         try:
             create_empty_excel_file(output_path)
@@ -178,7 +182,8 @@ class FacilityTemplateService:
                 editable_columns.append(header)
 
             # Add Existing Facilities Sheet (Optional)
-            boundary_localization_map = build_boundary_localization_map(boundary_list, localization_service_url)
+            if boundary_localization_map is None:
+                boundary_localization_map = build_boundary_localization_map(boundary_list, localization_service_url)
             formatted_facilities = []
             if facility_data:
                 formatted_facilities = format_facility_data_for_template(

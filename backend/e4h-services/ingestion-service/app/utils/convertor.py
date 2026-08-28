@@ -1084,6 +1084,33 @@ def resolve_boundary_names_for_code(
     return "", "", ""
 
 
+def state_names_by_facility_id(
+    facility_data: List[Dict[str, Any]],
+    boundary_list: List[Boundary],
+    boundary_localization_map: Dict[str, str],
+) -> Dict[str, str]:
+    """facility_id -> the state name, resolved exactly as the sheet's State column is.
+
+    A facility record carries no state of its own. FacilityAddress declares state/district/
+    block, but facility_address has no such columns and nothing in the read path fills them,
+    so address.state is always null -- the state lives only in boundary_code. Resolving it
+    here through the same helper the State column uses keeps the Solution dropdown and the
+    upload validation keyed off one identical value; deriving them separately is what made
+    the dropdown come back empty.
+    """
+    states: Dict[str, str] = {}
+    for facility in facility_data:
+        facility_id = facility.get("facility_id") or facility.get("facilityId")
+        if not facility_id:
+            continue
+        boundary_code = facility.get("boundary_code") or facility.get("boundaryCode") or ""
+        state_name, _, _ = resolve_boundary_names_for_code(
+            boundary_code, boundary_list, boundary_localization_map
+        )
+        states[facility_id] = state_name
+    return states
+
+
 def resolve_boundary_code(
     state: str,
     district: str,

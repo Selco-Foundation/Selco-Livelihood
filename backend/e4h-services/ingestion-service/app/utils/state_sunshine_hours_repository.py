@@ -50,12 +50,24 @@ def fetch_state_sunshine_hours(tenant_id: str = "in") -> Dict[str, float]:
     return result
 
 
+_COUNTRY_SEGMENTS = {"india", "in"}
+
+
 def normalize_state_key(state: str) -> str:
-    """rms-service stores states as 'India_Karnataka' while a facility's address.state is
-    a plain display name like 'Karnataka'. Reduce both to a comparable key."""
+    """Reduce the several spellings of a state name to one comparable key.
+
+    The same state reaches us as 'India_Karnataka' (rms-service), 'Karnataka' (a localized
+    boundary name) or 'BOUNDARY_INDIA_KARNATAKA' (that name's fallback when localization is
+    unavailable). Strip the localization prefix and the leading country segment, then drop
+    separators -- splitting on the *last* underscore instead would turn
+    'BOUNDARY_INDIA_TAMIL_NADU' into 'nadu' and never match 'India_Tamil Nadu'.
+    """
     if not state:
         return ""
     key = str(state).strip()
-    if "_" in key:
-        key = key.rsplit("_", 1)[-1]
-    return key.replace(" ", "").replace("-", "").lower()
+    if key.upper().startswith("BOUNDARY_"):
+        key = key[len("BOUNDARY_"):]
+    segments = key.split("_")
+    if len(segments) > 1 and segments[0].strip().lower() in _COUNTRY_SEGMENTS:
+        segments = segments[1:]
+    return "".join(segments).replace(" ", "").replace("-", "").lower()
