@@ -24,6 +24,8 @@ from app.utils.facility_validator import (
     collect_hfr_nin_errors_for_row,
     collect_anganwadi_poc_username_errors_for_row,
     validate_installation_scope_solutions,
+    find_site_id_column,
+    SITE_ID_COLUMNS,
 )
 from app.utils.state_sunshine_hours_repository import fetch_state_sunshine_hours
 from app.utils.field_plan_locks import build_project_lock_map, solution_codes_by_name, solution_names_by_code
@@ -2253,10 +2255,11 @@ def _facility_states_from_sheet(df, boundary_data_df, facility_client, request_i
     cell because the cell is editable once the sheet is unprotected. Returns {} on failure,
     which makes eligibility fail closed rather than wave rows through.
     """
-    if 'Facility Id' not in df.columns or facility_client is None:
+    site_id_column = find_site_id_column(df)
+    if not site_id_column or facility_client is None:
         return {}
     facility_ids = [
-        str(v).strip() for v in df['Facility Id'] if pd.notna(v) and str(v).strip()
+        str(v).strip() for v in df[site_id_column] if pd.notna(v) and str(v).strip()
     ]
     if not facility_ids:
         return {}
@@ -2335,8 +2338,12 @@ async def validate_facilities_excel_sheet(
         df = df.loc[:, ~df.columns.str.startswith('Unnamed')]
 
         # ----------------- Read Facility Column ----------------- #
-        if 'Facility Id' not in df.columns:
-            raise HTTPException(status_code=400, detail=f"Facility Column in '{facility_sheet_name}' not found")
+        if not find_site_id_column(df):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Sheet '{facility_sheet_name}' has no site id column "
+                       f"(expected one of {', '.join(SITE_ID_COLUMNS)}).",
+            )
 
         # Ensure status/error columns exist
         if 'status' not in df.columns:
@@ -2689,6 +2696,7 @@ async def create_fielplan_facilities(
 
     # parse
     request_info = request_info_from_json(request_info)
+    mdms_client = MDMSClient(mdms_url)
 
     try:
         # ---------- save uploaded file ----------
@@ -2733,7 +2741,13 @@ async def create_fielplan_facilities(
             return None
 
         include_col = find_col("Included in Field Plan")
-        facility_id_col = find_col("Facility Id") or "Facility Id"
+        facility_id_col = find_site_id_column(df)
+        if not facility_id_col:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Sheet '{facility_sheet_name}' has no site id column "
+                       f"(expected one of {', '.join(SITE_ID_COLUMNS)}).",
+            )
         status_col = find_col("status") or "status"
 
         # add result columns if missing
@@ -2903,8 +2917,14 @@ async def create_fielplan_facilities(
                                 df.at[row_idx, 'Field Plan Linking Status'] = f"Exception: {str(bulk_exc)}"
 
             except Exception as e:
-                logger.error(f"Error fetching fieldplan facilities: {e}")
-                # Continue without fieldplan facility data if there's an error
+                # This block does the linking, not just the fetch: swallowing it returns a
+                # 200 with an empty "Field Plan Linking Status" column and nothing written,
+                # which reads as "no sites matched" rather than as a failure. Keep the
+                # response shape, but make the cause traceable and say so in the sheet.
+                logger.error(f"Field plan linking failed for {fieldplan_id}: {e}", exc_info=True)
+                df['Field Plan Linking Status'] = df['Field Plan Linking Status'].replace(
+                    "", f"Not attempted: {type(e).__name__}: {e}"
+                )
 
         # ---------- write results back into workbook preserving formatting ----------
         # Ensure headers exist in sheet (without wiping template)
@@ -2940,8 +2960,12 @@ async def create_fielplan_facilities(
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
+    except HTTPException:
+        # Deliberate 4xx (wrong sheet, unvalidated file, rows still FAILED) must reach the
+        # caller as itself -- the generic handler below would relabel it a 500.
+        raise
     except Exception as e:
-        logger.error(f"Error finalizing facility data: {e}")
+        logger.error(f"Error finalizing facility data: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to finalize facility data: {str(e)}"

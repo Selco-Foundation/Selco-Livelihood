@@ -170,6 +170,22 @@ def _find_header(df, base_name: str) -> Optional[str]:
     return None
 
 
+# Newer schemas (Installation Scope) name the existing site's id column "End User Id";
+# older ones (FieldPlanFacilityIngestionSchema) call it "Facility Id". Resolve it in one
+# place: a path that guesses the wrong name reads no id at all and then fails closed --
+# skipping every row -- which looks like "nothing matched" rather than a mismatch.
+SITE_ID_COLUMNS = ("End User Id", "Facility Id")
+
+
+def find_site_id_column(df) -> Optional[str]:
+    """The column holding an existing site's id, under whichever name this schema uses."""
+    for base_name in SITE_ID_COLUMNS:
+        header = _find_header(df, base_name)
+        if header:
+            return header
+    return None
+
+
 def _cell(row, column) -> str:
     """Trimmed string value of a cell, treating NaN as empty."""
     if not column:
@@ -215,7 +231,7 @@ def validate_installation_scope_solutions(
 
     sector_column = _find_header(df, "Sector")
     state_column = _find_header(df, "State")
-    facility_id_column = _find_header(df, "Facility Id")
+    facility_id_column = find_site_id_column(df)
     lock_map = lock_map or {}
     solution_name_by_code = solution_name_by_code or {}
 
