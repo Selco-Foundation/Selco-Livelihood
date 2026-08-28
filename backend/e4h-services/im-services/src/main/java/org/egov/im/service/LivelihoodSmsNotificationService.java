@@ -57,7 +57,7 @@ public class LivelihoodSmsNotificationService {
             Map.entry(LIV_TPL_009,
                     "A quotation has been submitted for your livelihood support ticket for {ticket_type} with ID {incidentId} "
                             + "submitted on {date}. Please review and click to view the quotation document using this link: "
-                            + "{quotation_link}. - SELCO Foundation"),
+                            + "https://setu4livelihood-uat.selcofoundation.org/filestore/v1/files/file?{quotation_query}. - SELCO Foundation"),
             Map.entry(LIV_TPL_011,
                     "Your livelihood support ticket for {ticket_type} with ID {incidentId} submitted on {date} has been resolved. "
                             + "We hope your issue has been addressed. Not satisfied with the resolution? You can change ticket "
@@ -158,6 +158,7 @@ public class LivelihoodSmsNotificationService {
         placeholders.put("reason", resolveReason(request));
         placeholders.put("out_of_scope_reason", resolveOutOfScopeReason(request));
         placeholders.put("quotation_link", resolveQuotationLink(request));
+        placeholders.put("quotation_query", resolveQuotationLinkQuery(request));
         return placeholders;
     }
 
@@ -236,6 +237,21 @@ public class LivelihoodSmsNotificationService {
                 config.getFileStoreDownloadEndpoint(),
                 tenantId,
                 fileStoreId);
+    }
+
+    public String resolveQuotationLinkQuery(IncidentRequest request) {
+        if (request.getWorkflow() == null || CollectionUtils.isEmpty(request.getWorkflow().getVerificationDocuments())) {
+            return "";
+        }
+        return request.getWorkflow().getVerificationDocuments().stream()
+                .filter(doc -> doc != null && StringUtils.isNotBlank(doc.getFileStoreId()))
+                .map(doc -> buildFileStoreQuery(request.getIncident().getTenantId(), doc.getFileStoreId()))
+                .findFirst()
+                .orElse("");
+    }
+
+    private String buildFileStoreQuery(String tenantId, String fileStoreId) {
+        return String.format("tenantId=%s&fileStoreId=%s", tenantId, fileStoreId);
     }
 
     private String applyPlaceholders(String template, Map<String, String> placeholders) {
