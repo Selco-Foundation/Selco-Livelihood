@@ -91,13 +91,17 @@ def select_unsaved_rows(df: pd.DataFrame, id_column: str = "End user Id") -> pd.
 
 def project_facility_validation(
     df, mdms_client, request_info, facility_client, boundary_data, schemaName,
-    localization_service_url=None,
+    localization_service_url=None, validate_all_rows: bool = False,
 ):
     """Main function that orchestrates all facility file validations.
 
-    validate_all_rows: validate every row rather than only rows without an id. The
-    installation-scope sheet lists sites that already exist and are only being linked to
-    a plan, so every row carries an id and the default filter would validate nothing.
+    validate_all_rows: validate every row rather than only the id-less ones. Defaults to
+    False so the facility-ingestion callers keep their "only check new rows" behaviour.
+    The Installation Scope sheet needs it True: every row there is an existing site being
+    linked to a plan, so the id-less filter below would select nothing and the upload
+    would pass without a single check running. Please keep this parameter -- it has been
+    removed once already by an unrelated change, which left that endpoint silently
+    validating nothing.
     """
 
     # Ensure boundary_data is provided
@@ -129,10 +133,10 @@ def project_facility_validation(
             if pd.isna(val) or str(val).strip() == "":
                 add_err(i, "End User Id is required; this template only supports linking existing facilities.")
 
-    # Only validate rows where Facility ID is empty
-    new_rows = df[df[id_column].isna() | (df[id_column].astype(str).str.strip() == "")]
+    # Every row, or only the id-less ones -- see validate_all_rows in the docstring.
+    new_rows = df if validate_all_rows else select_unsaved_rows(df, id_column)
     if new_rows.empty:
-        return errors  # No new rows to validate
+        return errors  # Nothing to validate
 
     # Reset index on new_rows to get 0-based row positions
     new_rows = new_rows.reset_index()
@@ -166,34 +170,72 @@ def _find_header(df, base_name: str) -> Optional[str]:
     return None
 
 
+def _cell(row, column) -> str:
+    """Trimmed string value of a cell, treating NaN as empty."""
+    if not column:
+        return ""
+    value = row.get(column, "")
+    return "" if pd.isna(value) else str(value).strip()
+
+
 def validate_installation_scope_solutions(
     df,
     solutions: List[Dict[str, Any]],
     sunshine_hours_by_state: Dict[str, float],
     add_err,
     plan_sector: Optional[str] = None,
-):
+    state_by_facility_id: Optional[Dict[str, str]] = None,
+    lock_map: Optional[Dict[str, Any]] = None,
+    solution_name_by_code: Optional[Dict[str, str]] = None,
+) -> List[int]:
     """Installation-scope rules for the Include/Solution pair.
 
     A site is assigned exactly one Solution: an included site must name it, an excluded one
     must leave it blank, and the value has to be one this site is actually eligible for --
     recomputed here rather than trusting the uploaded workbook. plan_sector, when given,
     overrides the sheet's Sector column, which the Project Manager could otherwise edit.
+
+    state_by_facility_id keys eligibility off the facility record rather than the sheet's
+    State cell. That cell holds a *localized boundary name* (and falls back to a literal
+    "BOUNDARY_<code>" when localization is down), whereas the download computed eligibility
+    from the facility's own address.state -- so reading the cell here would disagree with
+    the dropdown the PM was offered and fail every row.
+
+    lock_map (facility_id -> SiteLock) freezes rows whose installation has started: a row
+    held by a sibling plan is display-only and skipped, and one held by this plan must come
+    back unchanged. Excel protection alone can't guarantee that -- the sheet can be
+    unprotected -- so it is re-checked here.
+
+    Returns the 0-based positions of rows this plan may actually link.
     """
     include_column = _find_header(df, "Included in Field Plan")
     solution_column = _find_header(df, "Solution")
     if not include_column or not solution_column:
-        return
+        return []
 
     sector_column = _find_header(df, "Sector")
     state_column = _find_header(df, "State")
+    facility_id_column = _find_header(df, "Facility Id")
+    lock_map = lock_map or {}
+    solution_name_by_code = solution_name_by_code or {}
 
+    linkable_rows: List[int] = []
     for i, row in enumerate(df.to_dict("records")):
-        include_raw = row.get(include_column, "")
-        include_value = "" if pd.isna(include_raw) else str(include_raw).strip().lower()
+        include_value = _cell(row, include_column).lower()
+        solution_value = _cell(row, solution_column)
+        facility_id = _cell(row, facility_id_column)
 
-        solution_raw = row.get(solution_column, "")
-        solution_value = "" if pd.isna(solution_raw) else str(solution_raw).strip()
+        lock = lock_map.get(facility_id) if facility_id else None
+        if lock is not None:
+            expected = solution_name_by_code.get(lock.solution_id, "")
+            if include_value != "yes" or (expected and solution_value != expected):
+                add_err(
+                    i,
+                    "This site's installation has already started, so it cannot be removed "
+                    "from the plan or given a different Solution.",
+                )
+            # Held by a sibling plan: shown for context only, never linked here.
+            continue
 
         if include_value != "yes":
             if solution_value:
@@ -204,13 +246,11 @@ def validate_installation_scope_solutions(
             add_err(i, "Solution is required when the site is included in the field plan")
             continue
 
-        row_sector = plan_sector
-        if not row_sector and sector_column:
-            sector_raw = row.get(sector_column, "")
-            row_sector = "" if pd.isna(sector_raw) else str(sector_raw).strip()
-
-        state_raw = row.get(state_column, "") if state_column else ""
-        state_value = "" if pd.isna(state_raw) else str(state_raw).strip()
+        row_sector = plan_sector or _cell(row, sector_column)
+        if state_by_facility_id is not None:
+            state_value = state_by_facility_id.get(facility_id, "")
+        else:
+            state_value = _cell(row, state_column)
 
         allowed = eligible_solution_names(solutions, row_sector, state_value, sunshine_hours_by_state)
         if solution_value not in allowed:
@@ -219,6 +259,11 @@ def validate_installation_scope_solutions(
                 f"Solution '{solution_value}' is not valid for sector '{row_sector or ''}' "
                 f"and state '{state_value}'",
             )
+            continue
+
+        linkable_rows.append(i)
+
+    return linkable_rows
 
 
 def facility_validation(

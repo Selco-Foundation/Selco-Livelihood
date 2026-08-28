@@ -28,6 +28,7 @@ from app.utils.fieldplan_service_client import FieldPlanServiceClient
 from app.utils.file_utils import create_temp_file, cleanup_temp_file
 from app.utils.mdms_client import MDMSClient
 from app.utils.project_service_client import ProjectServiceClient
+from app.utils.field_plan_locks import build_project_lock_map, lock_status_label, solution_names_by_code
 from app.utils.solution_eligibility import build_solution_options_by_row, clear_solution_column_dropdown
 from app.utils.state_sunshine_hours_repository import fetch_state_sunshine_hours
 from app.utils.vendor_registry_client import VendorRegistryClient
@@ -305,6 +306,9 @@ async def get_facility_ingestion_template_with_data(
     boundary_data = payload.get("boundary_data", {})
     fieldplan_id = payload.get("fieldplan_id")
     project_id = payload.get("project_id")
+    # Sent by the caller rather than read back off the plan: screen 1 already chose it, and
+    # this keeps the endpoint read-only.
+    plan_sector = payload.get("sector")
     mdms_client = MDMSClient(mdms_url)
     fieldplan_activity_client = FieldPlanActivityServiceClient(fieldPlan_activity_service_url)
     try:
@@ -434,20 +438,9 @@ async def get_facility_ingestion_template_with_data(
                 facility["include_in_fieldplan"] = "No"
                 logger.info(f"No fieldplan_id provided - marking facility {facility.get('facility_id')} as No")
 
-        # Sector is chosen once per field plan, so the Sector column is the same on every
-        # row and the Solution options only vary by the site's state (FR-01).
-        plan_sector = None
-        if fieldplan_id and fieldPlan_service_url:
-            try:
-                plan_client = FieldPlanServiceClient(fieldPlan_service_url)
-                field_plans = plan_client.search_fieldPlan(request_info, fieldplan_id).get("FieldPlans", [])
-                if field_plans:
-                    plan_sector = field_plans[0].get("sector")
-            except Exception as e:
-                logger.error(f"Error fetching field plan {fieldplan_id} for sector: {e}", exc_info=True)
-
-        # The plan's scope is its geography plus its single sector, so sites tagged with a
-        # different sector are out of scope for this sheet.
+        # One sector per plan, chosen on screen 1 and sent with this request, so the Sector
+        # column is identical on every row and Solution options vary only by the site's
+        # state (FR-01). Sites tagged with any other sector are out of this plan's scope.
         if plan_sector:
             wanted_sector = str(plan_sector).strip().casefold()
             before_count = len(all_facilities)
@@ -456,22 +449,47 @@ async def get_facility_ingestion_template_with_data(
                 if str(f.get("facility_type") or "").strip().casefold() == wanted_sector
             ]
             logger.info(
-                f"Filtered facilities by plan sector '{plan_sector}': {len(all_facilities)} of {before_count}")
+                f"Filtered facilities by sector '{plan_sector}': {len(all_facilities)} of {before_count}")
         else:
-            logger.warning(
-                f"Field plan {fieldplan_id} has no sector set; skipping sector filter and Solution dropdowns")
+            logger.warning("No sector supplied; skipping sector filter and Solution dropdowns")
 
+        solutions = []
         solution_options_by_row = {}
         if plan_sector:
             try:
+                solutions = mdms_client.fetch_installation_solutions(request_info)
                 solution_options_by_row = build_solution_options_by_row(
                     facilities=all_facilities,
-                    solutions=mdms_client.fetch_installation_solutions(request_info),
+                    solutions=solutions,
                     plan_sector=plan_sector,
                     sunshine_hours_by_state=fetch_state_sunshine_hours(),
                 )
             except Exception as e:
                 logger.error(f"Error resolving eligible solutions: {e}", exc_info=True)
+
+        # Sites already under installation -- in this plan or a sibling plan in the same
+        # project -- are shown as-is and frozen, so the PM can see they are spoken for but
+        # cannot re-scope them. The lock is project-scoped, hence the project-wide lookup.
+        lock_map = {}
+        if project_id and fieldPlan_service_url:
+            lock_map = build_project_lock_map(
+                FieldPlanServiceClient(fieldPlan_service_url), request_info, project_id, fieldplan_id
+            )
+
+        solution_name_by_code = solution_names_by_code(solutions)
+        freeze_row_positions = []
+        lock_status_by_row = {}
+        for position, facility in enumerate(all_facilities):
+            lock = lock_map.get(facility.get("facility_id"))
+            lock_status_by_row[position] = lock_status_label(lock)
+            if lock is None:
+                continue
+            freeze_row_positions.append(position)
+            # Show the locking plan's choice, including a sibling plan's, so the row explains itself.
+            facility["include_in_fieldplan"] = "Yes"
+            facility["locked_solution_name"] = solution_name_by_code.get(lock.solution_id, "")
+            # A frozen value must not be offered as changeable.
+            solution_options_by_row.pop(position, None)
 
         # Exactly one Solution per site, filtered per row by that site's state.
         facility_schema = clear_solution_column_dropdown(facility_schema)
@@ -486,7 +504,13 @@ async def get_facility_ingestion_template_with_data(
                 extra_append_rows=0,
                 optimize_for_performance=True,
                 constant_column_values={"Sector": plan_sector or ""},
-                row_specific_dropdowns={"Solution": solution_options_by_row}
+                row_specific_dropdowns={"Solution": solution_options_by_row},
+                per_row_column_values={
+                    "Solution": {p: all_facilities[p].get("locked_solution_name", "") for p in freeze_row_positions},
+                    "Lock Status": lock_status_by_row,
+                },
+                freeze_columns=["Included in Field Plan", "Solution"],
+                freeze_row_positions=freeze_row_positions,
             )
             logger.info(f"Successfully created facility ingestion template at {output_file_path}")
         except Exception as e:

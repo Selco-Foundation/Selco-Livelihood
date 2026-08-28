@@ -48,11 +48,16 @@ class FieldPlanServiceClient:
             print(f"An error occurred: {req_err}")
             raise req_err
 
-    def create_fieldPlan_facility_bulk(self, request_info: RequestInfo, fieldPlan_id: str, facility_ids: list[str]):
+    def create_fieldPlan_facility_bulk(self, request_info: RequestInfo, fieldPlan_id: str, facility_ids: list[str],
+                                       solution_id_by_facility: Dict[str, str] = None):
+        """Link facilities to a plan. solution_id_by_facility carries each site's chosen
+        Solution (the MDMS code, not its display name); lockStatus is deliberately not sent
+        -- a site is only locked once its installation actually starts."""
         url = f"{self.fieldPlan_service_url}/field-planner/v1/field-plans/facility/bulk/_create"
         headers = {
             "Content-Type": "application/json"
         }
+        solution_id_by_facility = solution_id_by_facility or {}
         payload = {
             "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
             "FieldPlanFacilities": [
@@ -60,7 +65,8 @@ class FieldPlanServiceClient:
                     "facilityId": facility_id,
                     "fieldPlanId": fieldPlan_id,
                     "isdeleted": False,
-                    "tenantId": LIVELIHOOD_TENANT_ID
+                    "tenantId": LIVELIHOOD_TENANT_ID,
+                    "solutionId": solution_id_by_facility.get(facility_id),
                 }
                 for facility_id in facility_ids
             ]
@@ -143,6 +149,52 @@ class FieldPlanServiceClient:
         except requests.exceptions.RequestException as req_err:
             print(f"An error occurred: {req_err}")
             raise req_err
+
+    def _search_paginated(self, request_info: RequestInfo, path: str, criteria_key: str,
+                          criteria: Dict[str, Any], result_key: str) -> list:
+        """POST a field-planner search and follow its pages, returning every record."""
+        url = f"{self.fieldPlan_service_url}{path}"
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
+            criteria_key: criteria,
+        }
+        params = {"tenantId": LIVELIHOOD_TENANT_ID, "limit": 1000, "offset": 0, "includeDeleted": "false"}
+
+        response = requests.post(url, headers=headers, json=payload, params=params)
+        response.raise_for_status()
+        data = response.json()
+        total_count = data.get("TotalCount", 0)
+        records = list(data.get(result_key, []))
+
+        while len(records) < total_count:
+            params["offset"] += params["limit"]
+            response = requests.post(url, headers=headers, json=payload, params=params)
+            response.raise_for_status()
+            page = response.json().get(result_key, [])
+            if not page:
+                break  # defensive: stop rather than spin if the server stops paging
+            records.extend(page)
+
+        return records
+
+    def search_fieldplans_by_project(self, request_info: RequestInfo, project_id: str) -> list:
+        """Every field plan under a project. Needed to find sites locked by a sibling plan,
+        since the lock is scoped to the project rather than to one plan."""
+        return self._search_paginated(
+            request_info, "/field-planner/v1/field-plans/_search", "FieldPlans",
+            {"projectId": project_id, "tenantId": LIVELIHOOD_TENANT_ID}, "FieldPlans",
+        )
+
+    def search_facilities_for_plans(self, request_info: RequestInfo, fieldplan_ids: list) -> list:
+        """Facility links for several plans at once. The search already accepts a list of
+        plan ids, so this is one call rather than one per plan."""
+        if not fieldplan_ids:
+            return []
+        return self._search_paginated(
+            request_info, "/field-planner/v1/field-plans/facility/_search", "FieldPlanFacility",
+            {"fieldPlanId": list(fieldplan_ids)}, "FieldPlanFacilities",
+        )
 
     def search_fieldplan_facility(self, request_info: RequestInfo, fieldplan_id: str) -> Dict[str, Any]:
         tenant_id = LIVELIHOOD_TENANT_ID
