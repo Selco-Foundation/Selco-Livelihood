@@ -26,6 +26,7 @@ from app.utils.facility_validator import (
     validate_installation_scope_solutions,
 )
 from app.utils.state_sunshine_hours_repository import fetch_state_sunshine_hours
+from app.utils.field_plan_locks import build_project_lock_map, solution_codes_by_name, solution_names_by_code
 from fastapi import APIRouter, File, Form, UploadFile, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import FileResponse
 import psycopg2
@@ -2220,6 +2221,39 @@ async def validate_facilities_excel_sheet(
             os.unlink(temp_input_file.name)
 
 
+def _facility_states_from_sheet(df, facility_client, request_info) -> dict:
+    """facility_id -> address.state for the sites listed in the sheet.
+
+    Solution eligibility must key off the same value the download used (the facility's own
+    address.state). The sheet's State cell holds a localized boundary name instead, so
+    reading it here would disagree with the dropdown the Project Manager was offered and
+    reject rows that were in fact valid. Returns {} on failure, which makes eligibility
+    fail closed rather than wave rows through.
+    """
+    if 'Facility Id' not in df.columns or facility_client is None:
+        return {}
+    facility_ids = [
+        str(v).strip() for v in df['Facility Id'] if pd.notna(v) and str(v).strip()
+    ]
+    if not facility_ids:
+        return {}
+    try:
+        result = facility_client.bulk_search_facility(
+            request_info=request_info,
+            tenant_ids=[LIVELIHOOD_TENANT_ID],
+            facility_ids=facility_ids,
+            limit=max(len(facility_ids), 50),
+            send_non_paginated_response=True,
+        )
+    except Exception as e:
+        logger.error(f"Could not resolve facility states for eligibility: {e}", exc_info=True)
+        return {}
+    return {
+        f.get("facility_id"): (f.get("address") or {}).get("state") or ""
+        for f in (result.get("facilities") or []) if f.get("facility_id")
+    }
+
+
 @router.post('/fieldPlanfacilitiesValidateData',
              summary='Validate facility Excel file before processing',
              response_description='Returns validation report Excel with PASSED/FAILED rows')
@@ -2284,6 +2318,7 @@ async def validate_facilities_excel_sheet(
         )
 
         plan_sector = None
+        project_id = None
         if fieldplan_id and fieldPlan_service_url:
             try:
                 field_plans = FieldPlanServiceClient(fieldPlan_service_url).search_fieldPlan(
@@ -2291,16 +2326,37 @@ async def validate_facilities_excel_sheet(
                 ).get("FieldPlans", [])
                 if field_plans:
                     plan_sector = field_plans[0].get("sector")
+                    project_id = field_plans[0].get("projectId")
             except Exception as e:
-                logger.error(f"Error fetching field plan {fieldplan_id} for sector: {e}", exc_info=True)
+                logger.error(f"Error fetching field plan {fieldplan_id}: {e}", exc_info=True)
 
-        validate_installation_scope_solutions(
+        # Sites already under installation anywhere in this project cannot be re-scoped.
+        lock_map = {}
+        if project_id and fieldPlan_service_url:
+            lock_map = build_project_lock_map(
+                FieldPlanServiceClient(fieldPlan_service_url), request_info_obj, project_id, fieldplan_id
+            )
+
+        solutions = mdms_client.fetch_installation_solutions(request_info_obj)
+        linkable_rows = validate_installation_scope_solutions(
             df,
-            solutions=mdms_client.fetch_installation_solutions(request_info_obj),
+            solutions=solutions,
             sunshine_hours_by_state=fetch_state_sunshine_hours(),
             add_err=lambda i, msg: validation_errors[i].append(msg),
             plan_sector=plan_sector,
+            state_by_facility_id=_facility_states_from_sheet(df, facility_client, request_info_obj),
+            lock_map=lock_map,
+            solution_name_by_code=solution_names_by_code(solutions),
         )
+
+        # A sheet that selects nothing is a mistake, not a no-op. Frozen rows carry
+        # Include=Yes for display, so they must not count towards "something was selected".
+        if not linkable_rows:
+            raise HTTPException(
+                status_code=400,
+                detail="No end user sites are selected for this installation plan. "
+                       "Mark at least one site as included and choose its Solution.",
+            )
 
         # Mark rows based on validation results
         error_count = 0
@@ -2366,7 +2422,12 @@ async def validate_facilities_excel_sheet(
 
         return response
 
+    except HTTPException:
+        # Deliberate 4xx (e.g. "no sites selected") must reach the caller unchanged --
+        # the generic handler below would otherwise relabel it as a 500.
+        raise
     except Exception as e:
+        logger.error(f"Unhandled error validating field plan facilities: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
     finally:
         if temp_input_file and os.path.exists(temp_input_file.name):
@@ -2666,6 +2727,18 @@ async def create_fielplan_facilities(
                         if code:
                             role_to_ids[code].append(item.get("assignedTo"))
 
+                # The sheet shows Solution names; solution_id stores the MDMS code.
+                solution_col = find_col("Solution")
+                solution_code_by_name = solution_codes_by_name(
+                    mdms_client.fetch_installation_solutions(request_info)
+                )
+                # Sites under installation elsewhere in this project are shown for context
+                # only -- linking them here would put one site in two plans (FR-06).
+                project_id = fieldplan_data[0].get("projectId") if fieldplan_data else None
+                lock_map = build_project_lock_map(
+                    fieldplan_client, request_info, project_id, fieldplan_id
+                ) if project_id else {}
+
                 pending_bulk_fieldplan_links = []
                 # iterate all rows — handle existing facility ids (linking/unlinking)
                 for index, row in df.iterrows():
@@ -2683,6 +2756,23 @@ async def create_fielplan_facilities(
                             include_val = str(row.get("Included in Field Plan (Mandatory)", "")).strip().lower()
 
                         should_link = include_val == "yes"
+
+                        lock = lock_map.get(facility_id) if facility_id else None
+                        if lock is not None:
+                            df.at[index, 'Field Plan Linking Status'] = (
+                                "Locked (this plan)" if lock.is_this_plan
+                                else f"Locked by another plan ({lock.field_plan_name or lock.field_plan_id})"
+                            )
+                            continue
+
+                        solution_name = ""
+                        if solution_col:
+                            raw_solution = row.get(solution_col, "")
+                            solution_name = "" if pd.isna(raw_solution) else str(raw_solution).strip()
+                        solution_code = solution_code_by_name.get(solution_name) if solution_name else None
+                        if solution_name and not solution_code:
+                            df.at[index, 'Field Plan Linking Status'] = f"Unknown Solution '{solution_name}'"
+                            continue
 
                         # ---------- CASE A: existing facility_id present -> skip creation, attempt linking if requested ----------
                         if facility_id:
@@ -2717,7 +2807,7 @@ async def create_fielplan_facilities(
                                         df.at[index, 'Field Plan Linking Status'] = f"Exception during unlink: {str(e)}"
                             else:
                                 if should_link:
-                                    pending_bulk_fieldplan_links.append((index, facility_id))
+                                    pending_bulk_fieldplan_links.append((index, facility_id, solution_code))
                                 else:
                                     df.at[index, 'Field Plan Linking Status'] = "Skipped (Include in Field Plan != Yes)"
 
@@ -2733,16 +2823,19 @@ async def create_fielplan_facilities(
                     chunk_size = BULK_INGEST_CHUNK_SIZE
                     for i in range(0, len(pending_bulk_fieldplan_links), chunk_size):
                         chunk = pending_bulk_fieldplan_links[i:i + chunk_size]
-                        facility_ids_chunk = [facility_id for _, facility_id in chunk]
+                        solution_by_facility = {
+                            facility_id: solution_code for _, facility_id, solution_code in chunk
+                        }
                         try:
                             fieldplan_resp = fieldplan_client.create_fieldPlan_facility_bulk(
                                 request_info=request_info,
                                 fieldPlan_id=fieldplan_id,
-                                facility_ids=facility_ids_chunk
+                                facility_ids=list(solution_by_facility),
+                                solution_id_by_facility=solution_by_facility
                             )
 
                             if fieldplan_resp.status_code in (200, 201, 202):
-                                for row_idx, facility_id in chunk:
+                                for row_idx, facility_id, _solution_code in chunk:
                                     df.at[row_idx, 'Field Plan Linking Status'] = "Linked"
                                     fieldplan_linked_facility_ids.add(facility_id)
 
@@ -2761,10 +2854,10 @@ async def create_fielplan_facilities(
                                             except Exception as activity_exc:
                                                 logger.error(f"Error creating facility activity for {facility_id}: {activity_exc}", exc_info=True)
                             else:
-                                for row_idx, _ in chunk:
+                                for row_idx, _facility_id, _solution_code in chunk:
                                     df.at[row_idx, 'Field Plan Linking Status'] = f"Failed: {fieldplan_resp.status_code} {fieldplan_resp.text}"
                         except Exception as bulk_exc:
-                            for row_idx, _ in chunk:
+                            for row_idx, _facility_id, _solution_code in chunk:
                                 df.at[row_idx, 'Field Plan Linking Status'] = f"Exception: {str(bulk_exc)}"
 
             except Exception as e:
