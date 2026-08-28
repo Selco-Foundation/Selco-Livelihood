@@ -22,14 +22,14 @@ def eligible_solution_names(
     """Names of the Solutions a site may be assigned, per FR-01.
 
     A Solution qualifies when its sectorName matches the Plan's single sector AND its
-    sunshineHrsMin is below the sunshine hours of the site's state. Returns [] when the
+    sunshineHrsMin equals the sunshine hours of the site's state. Returns [] when the
     Plan has no sector yet or the state has no sunshine-hours entry, so the dropdown is
     empty rather than wrongly permissive.
     """
     if not plan_sector or not solutions:
         return []
 
-    state_hours = sunshine_hours_by_state.get(normalize_state_key(state or ""))
+    state_hours = _to_float(sunshine_hours_by_state.get(normalize_state_key(state or "")))
     if state_hours is None:
         return []
 
@@ -39,7 +39,9 @@ def eligible_solution_names(
         if str(solution.get("sectorName") or "").strip().casefold() != wanted_sector:
             continue
         min_hours = _to_float(solution.get("sunshineHrsMin"))
-        if min_hours is None or min_hours >= state_hours:
+        # state_sunshine_hours is NUMERIC(4,2) while the MDMS value is JSON-parsed, so
+        # compare rounded rather than raw: 5 and 5.00 are the same threshold.
+        if min_hours is None or round(min_hours, 2) != round(state_hours, 2):
             continue
         name = solution.get("name")
         if name and name not in names:
