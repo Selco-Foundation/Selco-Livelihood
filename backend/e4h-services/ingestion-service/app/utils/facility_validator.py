@@ -5,6 +5,7 @@ import pandas as pd
 from fastapi import HTTPException
 
 from app.core.tenant import LIVELIHOOD_TENANT_ID
+from app.utils.field_plan_locks import site_bar_message
 from app.utils.solution_eligibility import eligible_solution_names
 
 # Same wording everywhere: MDMS pre-validation, API import, and Excel client hints.
@@ -243,14 +244,23 @@ def validate_installation_scope_solutions(
 
         lock = lock_map.get(facility_id) if facility_id else None
         if lock is not None:
-            expected = solution_name_by_code.get(lock.solution_id, "")
-            if include_value != "yes" or (expected and solution_value != expected):
-                add_err(
-                    i,
-                    "This site's installation has already started, so it cannot be removed "
-                    "from the plan or given a different Solution.",
-                )
-            # Held by a sibling plan: shown for context only, never linked here.
+            if lock.is_this_plan:
+                # Held by this plan: it must come back untouched. Excel protection stops honest
+                # edits, but the sheet can be unprotected, so the values are re-checked here.
+                expected = solution_name_by_code.get(lock.solution_id, "")
+                if include_value != "yes" or (expected and solution_value != expected):
+                    add_err(
+                        i,
+                        "This site's installation has already started, so it cannot be removed "
+                        "from the plan or given a different Solution.",
+                    )
+            elif include_value == "yes":
+                # Held by a sibling plan and the PM has asked to include it anyway. This is the
+                # double-booking FR-06 exists to stop -- two vendors dispatched to one end user
+                # -- so it is a hard error rather than a silently skipped row. The download
+                # hands these back as Include=No, so reaching here means the cell was changed.
+                add_err(i, site_bar_message(lock))
+            # Either way the row is never linked to this plan.
             continue
 
         if include_value != "yes":

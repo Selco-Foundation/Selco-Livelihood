@@ -202,6 +202,81 @@ class FieldPlanServiceClient:
             {"fieldPlanId": list(fieldplan_ids)}, "FieldPlanFacilities",
         )
 
+    def search_blank_templates(self, request_info: RequestInfo,
+                               solution_codes: list = None) -> Dict[str, str]:
+        """{solution_code: file_store_id} for the blank IC Report templates.
+
+        Read over HTTP rather than straight from icc_templates so nothing depends on
+        ingestion-service and field-planner sharing one database -- field-planner owns that
+        table, and we are already calling it to save the filled template.
+        """
+        url = f"{self.fieldPlan_service_url}/field-planner/v1/field-plan-templates/blank/_search"
+        payload = {
+            "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
+            "tenantId": LIVELIHOOD_TENANT_ID,
+        }
+        if solution_codes:
+            payload["solutionCodes"] = list(solution_codes)
+
+        response = requests.post(url, headers={"Content-Type": "application/json"}, json=payload)
+        response.raise_for_status()
+        return {
+            record.get("solutionCode"): record.get("fileStoreId")
+            for record in response.json().get("IccTemplates", [])
+            if record.get("solutionCode") and record.get("fileStoreId")
+        }
+
+    def create_field_plan_template(self, request_info: RequestInfo, fieldplan_id: str,
+                                   solution_code: str, machine_section: list,
+                                   solar_section: list, tender_number: str = None,
+                                   purchase_order_number: str = None):
+        """Save the Project Manager's filled template for one (plan, Solution). Upsert on the
+        far side, so a corrected re-upload replaces rather than duplicates.
+
+        machine_section order is load-bearing: Vendor Assignment turns entry N into the MACHINE
+        asset with component_sequence N, so it must be sent in the order it was parsed.
+        """
+        url = f"{self.fieldPlan_service_url}/field-planner/v1/field-plan-templates/_create"
+        payload = {
+            "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
+            "FieldPlanTemplate": {
+                "tenantId": LIVELIHOOD_TENANT_ID,
+                "fieldPlanId": fieldplan_id,
+                "solutionId": solution_code,
+                "machineSection": machine_section,
+                "solarSection": solar_section,
+                "tenderNumber": tender_number,
+                "purchaseOrderNumber": purchase_order_number,
+            },
+        }
+        logger.info(
+            f"Saving field plan template: fieldplan={fieldplan_id} solution={solution_code} "
+            f"({len(machine_section)} machine, {len(solar_section)} solar line items)")
+        response = requests.post(url, headers={"Content-Type": "application/json"}, json=payload)
+        if response.status_code >= 400:
+            # field-planner puts the reason in the body; raise_for_status alone would report
+            # only the status line, which is what made the earlier 400s so hard to diagnose.
+            raise requests.exceptions.HTTPError(
+                f"{response.status_code} saving field plan template -- {response.text[:600]}",
+                response=response)
+        return response.json()
+
+    def search_field_plan_templates(self, request_info: RequestInfo, fieldplan_id: str,
+                                    solution_codes: list = None) -> list:
+        """Filled templates for a plan. Omit solution_codes for the plan-wide read that
+        Publish validation needs."""
+        url = f"{self.fieldPlan_service_url}/field-planner/v1/field-plan-templates/_search"
+        criteria = {"tenantId": LIVELIHOOD_TENANT_ID, "fieldPlanId": fieldplan_id}
+        if solution_codes:
+            criteria["solutionIds"] = list(solution_codes)
+        payload = {
+            "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
+            "FieldPlanTemplate": criteria,
+        }
+        response = requests.post(url, headers={"Content-Type": "application/json"}, json=payload)
+        response.raise_for_status()
+        return response.json().get("FieldPlanTemplates", [])
+
     def search_fieldplan_facility(self, request_info: RequestInfo, fieldplan_id: str) -> Dict[str, Any]:
         tenant_id = LIVELIHOOD_TENANT_ID
         limit = 1000

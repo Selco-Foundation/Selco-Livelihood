@@ -28,7 +28,10 @@ from app.utils.facility_validator import (
     SITE_ID_COLUMNS,
 )
 from app.utils.state_sunshine_hours_repository import fetch_state_sunshine_hours
-from app.utils.field_plan_locks import build_project_lock_map, solution_codes_by_name, solution_names_by_code
+from app.utils.field_plan_locks import build_project_lock_map, solution_codes_by_name, \
+    solution_names_by_code, PLAN_STATUS_PUBLISHED
+from app.utils.icc_template_parser import annotate_worksheet, first_data_sheet, parse_worksheet, \
+    to_sections, validate_line_items
 from fastapi import APIRouter, File, Form, UploadFile, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import FileResponse
 import psycopg2
@@ -55,7 +58,7 @@ from app.utils.boundary_service_client import BoundaryServiceClient
 from app.utils.facility_service_client import FacilityServiceClient
 from app.utils.fieldplan_activity_service_client import FieldPlanActivityServiceClient
 from app.utils.fieldplan_service_client import FieldPlanServiceClient
-from app.utils.file_utils import cleanup_temp_file
+from app.utils.file_utils import cleanup_temp_file, create_temp_file
 from app.utils.im_service_client import IMServiceClient
 from app.utils.mdms_client import MDMSClient
 from app.utils.organization_service_client import OrganizationServiceClient
@@ -2984,6 +2987,205 @@ async def create_fielplan_facilities(
     finally:
         if input_temp_file and os.path.exists(input_temp_file.name):
             os.unlink(input_temp_file.name)
+
+
+def _load_and_parse_template(temp_path: str):
+    """Open an uploaded template and pull out its two BOM sections.
+
+    Returns (workbook, sheet, parsed). Raises HTTPException(400) when the file is not a
+    template at all, which is a sheet-level problem with no row to annotate.
+    """
+    try:
+        workbook = load_workbook(temp_path)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Could not read the uploaded workbook: {e}")
+    try:
+        sheet = first_data_sheet(workbook)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return workbook, sheet, parse_worksheet(sheet)
+
+
+def _check_template_upload(request_info, fieldplan_id: str, solution_code: str, parsed):
+    """Sheet-level checks shared by validate and create.
+
+    These have no row to annotate, so each raises a 400 with a plain message rather than
+    coming back inside the workbook.
+    """
+    if not fieldPlan_service_url:
+        raise HTTPException(status_code=500, detail="Field plan service is not configured")
+    fieldplan_client = FieldPlanServiceClient(fieldPlan_service_url)
+
+    try:
+        plans = fieldplan_client.search_fieldPlan(request_info, fieldplan_id).get("FieldPlans", [])
+    except Exception as e:
+        logger.error(f"Could not read field plan {fieldplan_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Could not read installation plan {fieldplan_id}: {e}")
+    if not plans:
+        raise HTTPException(status_code=404, detail=f"Installation plan {fieldplan_id} not found")
+
+    # Once a plan is published its tasks have been dispatched to vendors, so the template that
+    # seeded them must not move underneath them.
+    status = str(plans[0].get("status") or "").strip().upper()
+    if status == PLAN_STATUS_PUBLISHED:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Installation plan {fieldplan_id} has already been published, so its IC "
+                   f"Report templates can no longer be changed.")
+
+    try:
+        links = fieldplan_client.search_fieldplan_facility(
+            request_info, fieldplan_id).get("FieldPlanFacilities", [])
+    except Exception as e:
+        logger.error(f"Could not read scope for plan {fieldplan_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Could not read the plan's scope: {e}")
+
+    in_scope = any(
+        str(link.get("solutionId") or "").strip() == str(solution_code).strip()
+        and not link.get("isdeleted")
+        for link in links
+    )
+    if not in_scope:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No end user site in this installation plan is assigned Solution "
+                   f"{solution_code}. Assign it in the Installation Scope step first.")
+
+    # The workbook carries its own Bundle / Item Code, which is what makes uploading the wrong
+    # Solution's file detectable -- easy to do when a Plan has several similar templates open.
+    if parsed.bundle_code and str(parsed.bundle_code).strip() != str(solution_code).strip():
+        raise HTTPException(
+            status_code=400,
+            detail=f"This workbook is the template for Solution {parsed.bundle_code}, not "
+                   f"{solution_code}. Please upload the file downloaded for this Solution.")
+
+
+@router.post('/installationTemplateValidateData',
+             summary='Validate a filled IC Report template before creating it',
+             response_description='Returns the workbook with status/error columns per line item')
+async def validate_installation_template(
+        background_tasks: BackgroundTasks,
+        template_file: UploadFile = File(..., description="The filled IC Report template"),
+        fieldplan_id: str = Form(..., description="Field plan id"),
+        solution_code: str = Form(..., description="MDMS Installation.Solution code"),
+        request_info: str = Form(default="")
+):
+    """Validate only -- writes nothing.
+
+    Errors are annotated onto the line-item rows and the workbook is handed back, so the
+    Project Manager fixes the flagged rows in place and re-uploads. The frontend calls
+    createInstallationTemplate once this returns X-Error-Count: 0.
+    """
+    request_info_obj = request_info_from_json(request_info)
+    temp_file = None
+    output_path = None
+    try:
+        temp_file, _ = await _save_upload_to_temp_file(template_file, suffix=".xlsx")
+        workbook, sheet, parsed = _load_and_parse_template(temp_file.name)
+        _check_template_upload(request_info_obj, fieldplan_id, solution_code, parsed)
+
+        row_errors, sheet_errors = validate_line_items(parsed)
+        if sheet_errors:
+            raise HTTPException(status_code=400, detail=" ".join(sheet_errors))
+
+        error_count = annotate_worksheet(sheet, parsed, row_errors)
+
+        output_path = create_temp_file(suffix=".xlsx")
+        workbook.save(output_path)
+        background_tasks.add_task(cleanup_temp_file, output_path)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        response = FileResponse(
+            path=output_path,
+            filename=f"ic_report_template_validation_{timestamp}.xlsx",
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response.headers["X-Error-Count"] = str(error_count)
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error validating installation template: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
+    finally:
+        if temp_file and os.path.exists(temp_file.name):
+            os.unlink(temp_file.name)
+
+
+@router.post('/createInstallationTemplate',
+             summary='Store a validated IC Report template for one Solution',
+             response_description='Returns the saved template summary as JSON')
+async def create_installation_template(
+        template_file: UploadFile = File(..., description="The filled IC Report template"),
+        fieldplan_id: str = Form(..., description="Field plan id"),
+        solution_code: str = Form(..., description="MDMS Installation.Solution code"),
+        request_info: str = Form(default="")
+):
+    """Parse the filled template and store it against (field plan, Solution).
+
+    Re-runs the same validation rather than trusting the status column the validate step
+    wrote: that cell is just data in a workbook the Project Manager holds, so it can be
+    edited. Validation is one call away, so checking properly costs nothing.
+
+    The uploaded file itself is not retained -- once parsed it has no consumer, and the
+    download only ever serves the blank template.
+    """
+    request_info_obj = request_info_from_json(request_info)
+    temp_file = None
+    try:
+        temp_file, _ = await _save_upload_to_temp_file(template_file, suffix=".xlsx")
+        _workbook, _sheet, parsed = _load_and_parse_template(temp_file.name)
+        _check_template_upload(request_info_obj, fieldplan_id, solution_code, parsed)
+
+        row_errors, sheet_errors = validate_line_items(parsed)
+        if sheet_errors:
+            raise HTTPException(status_code=400, detail=" ".join(sheet_errors))
+        if row_errors:
+            rows = ", ".join(str(r) for r in sorted(row_errors)[:10])
+            raise HTTPException(
+                status_code=400,
+                detail=f"{len(row_errors)} line item(s) still have errors (rows {rows}). "
+                       f"Run the validation step and fix the flagged rows before saving.")
+
+        machine_section, solar_section = to_sections(parsed)
+
+        try:
+            FieldPlanServiceClient(fieldPlan_service_url).create_field_plan_template(
+                request_info=request_info_obj,
+                fieldplan_id=fieldplan_id,
+                solution_code=solution_code,
+                machine_section=machine_section,
+                solar_section=solar_section,
+                tender_number=parsed.tender_number,
+                purchase_order_number=parsed.purchase_order_number,
+            )
+        except Exception as e:
+            logger.error(f"Could not save field plan template: {e}", exc_info=True)
+            raise HTTPException(status_code=502, detail=f"Could not save the template: {e}")
+
+        logger.info(
+            f"Stored IC Report template: fieldplan={fieldplan_id} solution={solution_code} "
+            f"machines={len(machine_section)} solar={len(solar_section)}")
+        return JSONResponse(content={
+            "fieldPlanId": fieldplan_id,
+            "solutionId": solution_code,
+            "machineCount": len(machine_section),
+            "solarLineItemCount": len(solar_section),
+            "tenderNumber": parsed.tender_number,
+            "purchaseOrderNumber": parsed.purchase_order_number,
+            "message": "IC Report template saved.",
+        })
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating installation template: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to save template: {str(e)}")
+    finally:
+        if temp_file and os.path.exists(temp_file.name):
+            os.unlink(temp_file.name)
+
 
 
 @router.post('/amcConfigurationValidateData',
