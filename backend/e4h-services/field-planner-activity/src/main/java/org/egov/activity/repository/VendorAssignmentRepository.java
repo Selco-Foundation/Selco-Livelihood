@@ -22,7 +22,7 @@ import java.util.Map;
  * that ActivityService and BomService use: that config lives outside this repository and has no
  * mapping for the component or vendor columns, so a pushed write would silently drop them --
  * exactly how field_plans.sector was lost. Both services also swallow their own write
- * exceptions, which would defeat the all-or-nothing transaction this step depends on.
+ * exceptions, which would defeat the all-or-nothing transaction this step depends on
  *
  * Several of the reads target tables field-planner migrates (field_plan_facilities,
  * field_plan_template, field_plans, activity_assignments). That is existing practice here, not a
@@ -136,15 +136,23 @@ public class VendorAssignmentRepository {
 
     /** Asset rows already created for this plan, with their vendor assignment. */
     public List<Map<String, Object>> findExistingAssets(String tenantId, String fieldPlanId) {
+        // facility_name is joined the same way findScope joins it: a submitted plan must render
+        // with the same site names the assignment grid showed, not blanks.
+        // SOLAR is ordered ahead of MACHINE explicitly rather than alphabetically, so reopening a
+        // submitted plan lists the assets in the order they were assigned in.
         return jdbcTemplate.queryForList(
                 "SELECT fa.facility_id, fa.component_type, fa.component_sequence, fa.solution_id, "
+                        + "       fac.facility_name, "
                         + "       b.vendor_org_id, b.assign_user, b.vendor_email, b.vendor_phone, "
                         + "       b.report_number, b.additional_details "
                         + "FROM facility_activities fa "
                         + "LEFT JOIN bom b ON b.activity_facility_id = fa.id "
+                        + "LEFT JOIN public.facility fac ON fac.id = fa.facility_id "
                         + "WHERE fa.tenant_id = ? AND fa.field_plan_id = ? AND fa.component_type IS NOT NULL "
                         + "AND COALESCE(fa.isdeleted, false) = false "
-                        + "ORDER BY fa.facility_id, fa.component_type, fa.component_sequence",
+                        + "ORDER BY fac.facility_name NULLS LAST, fa.facility_id, "
+                        + "         CASE WHEN fa.component_type = 'SOLAR' THEN 0 ELSE 1 END, "
+                        + "         fa.component_sequence",
                 tenantId, fieldPlanId);
     }
 

@@ -170,6 +170,7 @@ public class VendorAssignmentService {
             VendorAssignmentSite site = byFacility.computeIfAbsent(facilityId, id ->
                     VendorAssignmentSite.builder()
                             .facilityId(id)
+                            .siteName(asString(row.get("facility_name")))
                             .solutionId(asString(row.get("solution_id")))
                             .assets(new ArrayList<>())
                             .build());
