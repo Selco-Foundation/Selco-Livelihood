@@ -261,22 +261,6 @@ class FieldPlanServiceClient:
                 response=response)
         return response.json()
 
-    def search_field_plan_templates(self, request_info: RequestInfo, fieldplan_id: str,
-                                    solution_codes: list = None) -> list:
-        """Filled templates for a plan. Omit solution_codes for the plan-wide read that
-        Publish validation needs."""
-        url = f"{self.fieldPlan_service_url}/field-planner/v1/field-plan-templates/_search"
-        criteria = {"tenantId": LIVELIHOOD_TENANT_ID, "fieldPlanId": fieldplan_id}
-        if solution_codes:
-            criteria["solutionIds"] = list(solution_codes)
-        payload = {
-            "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
-            "FieldPlanTemplate": criteria,
-        }
-        response = requests.post(url, headers={"Content-Type": "application/json"}, json=payload)
-        response.raise_for_status()
-        return response.json().get("FieldPlanTemplates", [])
-
     def search_fieldplan_facility(self, request_info: RequestInfo, fieldplan_id: str) -> Dict[str, Any]:
         tenant_id = LIVELIHOOD_TENANT_ID
         limit = 1000

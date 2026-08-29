@@ -235,16 +235,29 @@ def _normalise_quantity(raw: Any) -> Optional[int]:
         return None
 
 
+def _annotation_columns(sheet: Worksheet) -> Tuple[int, int]:
+    """Where to put the status/error columns.
+
+    Reuses the pair already on the sheet when there is one. The Project Manager's normal loop
+    is validate, fix the flagged rows in the returned workbook, re-upload -- so without this
+    every round would append another status/error pair and a sheet would end up with three or
+    four of them.
+
+    Otherwise they go after the widest column actually used, discovered per sheet rather than
+    fixed at F/G: the technician's section lower down reaches column I on some sheets, and a
+    hardcoded position would overwrite real content.
+    """
+    for column in range(1, sheet.max_column + 1):
+        if _text(sheet.cell(row=1, column=column).value).lower() == ANNOTATION_HEADERS[0]:
+            return column, column + 1
+    status_col = sheet.max_column + 1
+    return status_col, status_col + 1
+
+
 def annotate_worksheet(sheet: Worksheet, parsed: ParsedTemplate,
                        row_errors: Dict[int, List[str]]) -> int:
-    """Write status/error columns against each line-item row and return the failure count.
-
-    The columns are appended after the widest column actually used, discovered per sheet: the
-    technician's section further down reaches column I on some sheets, so a fixed F/G would
-    overwrite real content.
-    """
-    status_col = sheet.max_column + 1
-    error_col = status_col + 1
+    """Write status/error columns against each line-item row and return the failure count."""
+    status_col, error_col = _annotation_columns(sheet)
     sheet.cell(row=1, column=status_col, value=ANNOTATION_HEADERS[0])
     sheet.cell(row=1, column=error_col, value=ANNOTATION_HEADERS[1])
 

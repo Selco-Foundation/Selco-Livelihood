@@ -34,11 +34,6 @@ class SiteLock(NamedTuple):
     is_this_plan: bool
     reason: str = REASON_LOCKED
 
-    @property
-    def bars_other_plans(self) -> bool:
-        """Whether this lock stops the site joining a *different* plan in the project."""
-        return not self.is_this_plan
-
 
 def build_project_lock_map(
     fieldplan_client,
