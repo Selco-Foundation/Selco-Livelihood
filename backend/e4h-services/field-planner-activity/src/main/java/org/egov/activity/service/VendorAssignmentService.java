@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.egov.activity.config.ActivityConfiguration;
 import org.egov.activity.repository.VendorAssignmentRepository;
 import org.egov.activity.util.VendorDirectory;
+import static org.egov.activity.util.ActivityConstants.INSTALLATION_REPORT_APPROVER_QC_TEAM;
 import org.egov.activity.web.models.ActivityFacilityUser;
 import org.egov.activity.web.models.ActivityFacilityUserBulkRequest;
 import org.egov.activity.web.models.OrgUserEnriched;
@@ -52,7 +53,6 @@ public class VendorAssignmentService {
     public static final String COMPONENT_MACHINE = "MACHINE";
 
     private static final String ACTIVITY_CODE_INSTALLATION = "INS";
-    private static final String ROLE_INSTALLATION_REVIEWER = "INSTALLATION_REVIEWER";
 
     private static final String PLAN_STATUS_DRAFT = "DRAFT";
     /** field_plans has no PUBLISHED value; SCHEDULED is this codebase's published equivalent. */
@@ -198,7 +198,7 @@ public class VendorAssignmentService {
     /**
      * Every check the submit depends on, returned per asset so the grid can highlight the
      * offending rows. Writes nothing, and is re-run inside create -- validate being a separate
-     * call is a convenience for the UI, not a trust boundary.
+     * call is a convenience for the UI, not a trust boundary
      */
     public List<VendorAssignmentError> validate(VendorAssignmentRequest request) {
         return check(request).errors;
@@ -348,9 +348,11 @@ public class VendorAssignmentService {
             }
         }
 
-        // Without a reviewer, submitted reports would have nowhere to go.
+        // Without a reviewer, submitted reports would have nowhere to go. The role code is
+        // INSTALLATION_REPORT_APPROVER_QC_TEAM despite field-planner calling its constant
+        // INSTALLATION_REVIEWER_ROLE -- the name is the screen's wording, not the stored code.
         if (repository.findAssignedUsersByRole(criteria.getTenantId(), criteria.getFieldPlanId(),
-                ROLE_INSTALLATION_REVIEWER).isEmpty()) {
+                INSTALLATION_REPORT_APPROVER_QC_TEAM).isEmpty()) {
             errors.add(planError("REVIEWER_MISSING",
                     "This installation plan has no Installation Reviewer assigned."));
         }
@@ -420,7 +422,7 @@ public class VendorAssignmentService {
         Map<String, Object> plan = requirePlan(criteria);
         String activityId = repository.findActivityIdByCode(criteria.getTenantId(), ACTIVITY_CODE_INSTALLATION);
         List<String> reviewers = repository.findAssignedUsersByRole(
-                criteria.getTenantId(), criteria.getFieldPlanId(), ROLE_INSTALLATION_REVIEWER);
+                criteria.getTenantId(), criteria.getFieldPlanId(), INSTALLATION_REPORT_APPROVER_QC_TEAM);
         Map<String, Map<String, Object>> templates =
                 repository.findTemplates(criteria.getTenantId(), criteria.getFieldPlanId());
         Map<String, String> scope = solutionByFacility(
