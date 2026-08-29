@@ -18,8 +18,10 @@ import org.egov.field_planner.util.MDMSUtils;
 import org.egov.field_planner.validator.FieldPlannerValidator;
 import org.egov.field_planner.web.models.*;
 import org.egov.tracer.model.CustomException;
+import org.postgresql.util.PGobject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -48,6 +50,8 @@ public class FieldPlannerService {
 
     private final FieldPlannerFacilityService facilityService;
 
+    private final JdbcTemplate jdbcTemplate;
+
     @Autowired
     @Qualifier("objectMapper")
     ObjectMapper mapper;
@@ -56,7 +60,8 @@ public class FieldPlannerService {
     public FieldPlannerService(
             FieldPlannerRepository fieldPlannerRepository, List<Validator<FieldPlanFacilityBulkRequest, FieldPlanFacility>> validators, FieldPlannerFacilityService facilityService,
             FieldPlannerValidator fieldPlannerValidator, FieldPlannerEnrichment fieldPlannerEnrichment, FieldPlannerConfiguration fieldPlannerConfiguration,
-            Producer producer, MDMSUtils mdmsUtils, FieldPlannerServiceUtil fieldPlanServiceUtil, ServiceRequestRepository serviceRequestRepository) {
+            Producer producer, MDMSUtils mdmsUtils, FieldPlannerServiceUtil fieldPlanServiceUtil, ServiceRequestRepository serviceRequestRepository,
+            JdbcTemplate jdbcTemplate) {
             this.fieldPlannerValidator = fieldPlannerValidator;
             this.producer = producer;
             this.fieldPlannerConfiguration = fieldPlannerConfiguration;
@@ -67,6 +72,81 @@ public class FieldPlannerService {
             this.fieldPlanServiceUtil = fieldPlanServiceUtil;
             this.serviceRequestRepository = serviceRequestRepository;
             this.facilityService = facilityService;
+            this.jdbcTemplate = jdbcTemplate;
+    }
+
+    /**
+     * Writes the field plan row directly, for the same reason
+     * FieldPlannerFacilityService.persistFieldPlanFacilities does: the Kafka persister config
+     * that applies save-field-plan lives outside this repository and its column list predates
+     * `sector`, so the value rides all the way into the message and is then silently dropped.
+     * The read path has always returned it (FieldPlanRowMapper, FieldPlannerQueryBuilder) --
+     * only the write was missing.
+     *
+     * An upsert rather than an insert, and rather than an UPDATE of just `sector`: the
+     * persister may or may not have already inserted this row by the time we run, and both
+     * orderings have to end up correct. If it got there first we update and add the sector; if
+     * we got there first the row is already complete and the persister's own insert conflicts
+     * harmlessly. A bare UPDATE -- the obvious-looking fix -- would silently affect nothing
+     * whenever it lost the race.
+     */
+    private static final String UPSERT_FIELD_PLAN =
+            "INSERT INTO field_plans (id, tenant_id, name, project_id, health_facility_number, sector, "
+                    + " start_date, end_date, geography_scope, selected_activities, created_by, status, "
+                    + " isdeleted, last_modified_by, created_time, last_modified_time, additional_details) "
+                    + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                    + "ON CONFLICT (id) DO UPDATE SET "
+                    + " name = EXCLUDED.name, "
+                    + " sector = EXCLUDED.sector, "
+                    + " health_facility_number = EXCLUDED.health_facility_number, "
+                    + " start_date = EXCLUDED.start_date, "
+                    + " end_date = EXCLUDED.end_date, "
+                    + " geography_scope = EXCLUDED.geography_scope, "
+                    + " selected_activities = EXCLUDED.selected_activities, "
+                    + " status = EXCLUDED.status, "
+                    + " last_modified_by = EXCLUDED.last_modified_by, "
+                    + " last_modified_time = EXCLUDED.last_modified_time, "
+                    + " additional_details = EXCLUDED.additional_details";
+
+    private void persistFieldPlan(FieldPlan fieldPlan) {
+        AuditDetails audit = fieldPlan.getAuditDetails();
+        Long now = System.currentTimeMillis();
+        jdbcTemplate.update(UPSERT_FIELD_PLAN,
+                fieldPlan.getId(),
+                fieldPlan.getTenantId(),
+                fieldPlan.getName(),
+                fieldPlan.getProjectId(),
+                fieldPlan.getHealthFacilityNumber(),
+                fieldPlan.getSector(),
+                fieldPlan.getStartDate(),
+                fieldPlan.getEndDate(),
+                // geography_scope and selected_activities are both JSONB NOT NULL, so an absent
+                // value has to become an empty document rather than SQL NULL.
+                toJsonb(fieldPlan.getGeographyDetails() == null ? Map.of() : fieldPlan.getGeographyDetails()),
+                toJsonb(fieldPlan.getActivities() == null ? List.of() : fieldPlan.getActivities()),
+                audit == null ? null : audit.getCreatedBy(),
+                fieldPlan.getStatus(),
+                Boolean.TRUE.equals(fieldPlan.getIsDeleted()),
+                audit == null ? null : audit.getLastModifiedBy(),
+                audit == null || audit.getCreatedTime() == null ? now : audit.getCreatedTime(),
+                audit == null || audit.getLastModifiedTime() == null ? now : audit.getLastModifiedTime(),
+                toJsonb(fieldPlan.getAdditionalDetails() == null ? Map.of() : fieldPlan.getAdditionalDetails()));
+        log.info("persisted field plan {} with sector={}", fieldPlan.getId(), fieldPlan.getSector());
+    }
+
+    /**
+     * Postgres will not take a Java String into a jsonb column through a plain setObject, so
+     * the value is wrapped with its type declared explicitly.
+     */
+    private PGobject toJsonb(Object value) {
+        PGobject jsonb = new PGobject();
+        jsonb.setType("jsonb");
+        try {
+            jsonb.setValue(mapper.writeValueAsString(value));
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not serialise field plan JSON column", e);
+        }
+        return jsonb;
     }
 
     public FieldPlanRequest createFieldPlan(FieldPlanRequest fieldPlanRequest) {
@@ -100,9 +180,17 @@ public class FieldPlannerService {
             fieldPlannerEnrichment.enrichFieldPlanOnCreate(fieldPlan, fieldPlanRequest.getRequestInfo());
             log.info("Field plan enriched with ID: {} and audit details", fieldPlan.getId());
 
-            producer.push(fieldPlannerConfiguration.getSaveFieldPlanTopic(), fieldPlanRequest);
-            log.info("Field plan creation request pushed to Kafka topic: {}", fieldPlannerConfiguration.getSaveFieldPlanTopic());
+            // Written synchronously so `sector` actually lands -- see persistFieldPlan. A side
+            // benefit worth knowing about: the row is now queryable the instant this call
+            // returns, so a caller can navigate straight on without polling for it.
+            persistFieldPlan(fieldPlan);
         }
+
+        // Outside the loop: this pushes the whole request, so leaving it inside meant a request
+        // carrying N plans was published N times -- N duplicate persister inserts. Harmless with
+        // the single-plan payloads the UI sends today, wrong the moment anyone sends two.
+        producer.push(fieldPlannerConfiguration.getSaveFieldPlanTopic(), fieldPlanRequest);
+        log.info("Field plan creation request pushed to Kafka topic: {}", fieldPlannerConfiguration.getSaveFieldPlanTopic());
 
         log.info("Field plan creation request processed successfully");
         log.trace("Exiting createFieldPlan method");
