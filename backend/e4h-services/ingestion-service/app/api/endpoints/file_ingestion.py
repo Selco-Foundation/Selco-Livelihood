@@ -2364,6 +2364,11 @@ async def validate_facilities_excel_sheet(
             validate_all_rows=True
         )
 
+        # The plan is what makes the rest of this validation meaningful: it supplies the
+        # sector and the project whose locks are enforced below. Failing to read it must
+        # not be a warning -- with project_id unset the lock map comes back empty and every
+        # locked row silently validates as editable, so the sheet would be reported PASSED
+        # having skipped the check it most needed.
         plan_sector = None
         project_id = None
         if fieldplan_id and fieldPlan_service_url:
@@ -2371,11 +2376,17 @@ async def validate_facilities_excel_sheet(
                 field_plans = FieldPlanServiceClient(fieldPlan_service_url).search_fieldPlan(
                     request_info_obj, fieldplan_id
                 ).get("FieldPlans", [])
-                if field_plans:
-                    plan_sector = field_plans[0].get("sector")
-                    project_id = field_plans[0].get("projectId")
             except Exception as e:
                 logger.error(f"Error fetching field plan {fieldplan_id}: {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Could not read field plan {fieldplan_id} from field-planner, "
+                           f"so lock rules cannot be enforced: {e}",
+                )
+            if not field_plans:
+                raise HTTPException(status_code=404, detail=f"Field plan {fieldplan_id} not found")
+            plan_sector = field_plans[0].get("sector")
+            project_id = field_plans[0].get("projectId")
 
         # Sites already under installation anywhere in this project cannot be re-scoped.
         lock_map = {}

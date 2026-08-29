@@ -138,8 +138,14 @@ class FieldPlanServiceClient:
             }
 
         except requests.exceptions.HTTPError as http_err:
-            print(f"HTTP error occurred: {http_err}")
-            raise http_err
+            # raise_for_status() reports only the status line; field-planner puts the actual
+            # reason (missing RequestInfo fields, bad tenant, ...) in the body, so include it
+            # or the caller sees a bare "400 Client Error" with no message at all.
+            body = http_err.response.text if http_err.response is not None else ""
+            logger.error(f"Field plan search failed for {fieldplan_id}: {http_err} -- {body}")
+            raise requests.exceptions.HTTPError(
+                f"{http_err} -- {body}", response=http_err.response, request=http_err.request
+            ) from http_err
         except requests.exceptions.ConnectionError as conn_err:
             print(f"Connection error occurred: {conn_err}")
             raise conn_err
