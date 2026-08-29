@@ -17,6 +17,15 @@ public class ActivityConfiguration {
     @Value("${fieldplan.facility.idgen.id.format}")
     private String fieldPlanFacilityIdFormat;
 
+    /**
+     * idgen id name for a bom row's IC Report number. The format itself is registered in
+     * egov-idgen's own configuration, which lives outside this repository -- if it is missing,
+     * vendor assignment fails at the Report Number step rather than dispatching numberless
+     * reports.
+     */
+    @Value("${bom.report.number.idgen.name:bom.report.number}")
+    private String bomReportNumberIdName;
+
     @Value("${egov.fieldplan.host}")
     private String fieldPlanServiceHost;
 

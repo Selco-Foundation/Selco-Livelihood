@@ -601,6 +601,12 @@ public class ActivityService {
     }
 
     private String resolveAssetType(ActivityFacility activityFacility) {
+        // The real column, wired in 2026-08-29. The additionalDetails and bom fallbacks below are
+        // kept for rows written before that: nothing populated component_type until Vendor
+        // Assignment started writing it, so older rows still carry it (if at all) in JSON.
+        if (activityFacility.getComponentType() != null && !activityFacility.getComponentType().isBlank()) {
+            return activityFacility.getComponentType();
+        }
         if (activityFacility.getActivityType() != null && !activityFacility.getActivityType().isBlank()) {
             return activityFacility.getActivityType();
         }
