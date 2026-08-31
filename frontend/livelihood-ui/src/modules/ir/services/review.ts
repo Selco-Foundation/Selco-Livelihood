@@ -30,6 +30,12 @@ export async function fetchFacilityReviewDetail(
  * (APPROVE/REJECT), no dependency on a per-section review endpoint. Signature
  * matches what a real `workflow/update` call needs so swapping this out later
  * doesn't change callers.
+ *
+ * `input.rejectionReasons` is a per-section list of `{reasonCode, reasonLabel,
+ * comment}`. When the real endpoint lands, flatten each entry into one
+ * workflow comment tagged with its section id (matching qc's
+ * `formatRejectionReasons`) as part of that same request — not a separate
+ * per-section call.
  */
 export async function submitFacilityReview(
   input: SubmitFacilityReviewInput,

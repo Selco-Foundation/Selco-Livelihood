@@ -1,7 +1,13 @@
 import { useAuthStore } from "@/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { REJECTION_REASON_OPTIONS } from "../services/fixtures";
 import { fetchFacilityReviewDetail, submitFacilityReview } from "../services/review";
 import type { SubmitFacilityReviewInput } from "../types/facility-review";
+
+/** Dummy implementation — returns the fixtured MDMS `Installation.RejectionReasons` list. */
+export function useRejectionReasonOptions() {
+  return REJECTION_REASON_OPTIONS;
+}
 
 export function useFacilityReview(entryId: string) {
   const accessToken = useAuthStore((state) => state.accessToken);
