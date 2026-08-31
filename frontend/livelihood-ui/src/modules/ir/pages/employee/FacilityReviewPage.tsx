@@ -110,52 +110,68 @@ export function FacilityReviewPage() {
     );
   }
 
-  return (
-    <div className="space-y-6">
-      <TopBar
-        title={detail?.entry.facilityName ?? ""}
-        breadcrumbs={[
-          { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: employeeHomePath() },
-          {
-            label: translateOr(t, "ES_IR_INSTALLATION_PLANS", "Installation Plans"),
-            to: irInstallationPlansPath(),
-          },
-          { label: planName, to: irFacilityEntriesPath(planId) },
-          { label: detail?.entry.facilityName ?? "" },
-        ]}
-      />
+  const showActionBar = Boolean(detail && canEditReasons);
 
-      {isLoading ? (
-        <div className="flex min-h-[200px] items-center justify-center text-sm text-muted-foreground">
-          {translateOr(t, "CORE_COMMON_LOADING", "Loading...")}
-        </div>
-      ) : !detail ? (
-        <p className="text-sm text-muted-foreground">
-          {translateOr(t, "ES_IR_ENTRY_NOT_FOUND", "This entry could not be found.")}
-        </p>
-      ) : (
-        <>
-          <FacilityInfoCard entry={detail.entry} />
-          <AuditTrailTimeline checkpoints={detail.auditTrail} />
-          <ReviewSections
-            sections={detail.sections}
-            reasonOptions={reasonOptions}
-            rejectionReasons={rejectionReasons}
-            canEditReasons={canEditReasons}
-            onAddReason={handleAddReason}
-            onEditReason={handleEditReason}
-            onRemoveReason={handleRemoveReason}
-          />
-          {canEditReasons ? (
-            <ReviewActionBar
-              hasAnyReason={hasAnyReason}
-              isSubmitting={submitReview.isPending}
-              onApprove={() => setPendingAction("APPROVE")}
-              onReject={() => setPendingAction("REJECT")}
+  return (
+    // `SidebarInset` (in AppShell) is the element that owns the rounded
+    // bottom-left corner and the padding that insets content away from the
+    // sidebar — a `fixed`/`sticky` footer that escapes it can only
+    // approximate that geometry with hardcoded offsets, and a curve can't be
+    // approximated with padding. So instead of leaving SidebarInset's own
+    // box, this page becomes its own bounded flex column filling that box:
+    // the section content scrolls in an *inner* region, and the action bar
+    // is a plain sibling below it — always on-screen without scrolling,
+    // and automatically inside SidebarInset's padded, rounded shape.
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto">
+        <TopBar
+          title={detail?.entry.facilityName ?? ""}
+          breadcrumbs={[
+            { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: employeeHomePath() },
+            {
+              label: translateOr(t, "ES_IR_INSTALLATION_PLANS", "Installation Plans"),
+              to: irInstallationPlansPath(),
+            },
+            { label: planName, to: irFacilityEntriesPath(planId) },
+            { label: detail?.entry.facilityName ?? "" },
+          ]}
+        />
+
+        {isLoading ? (
+          <div className="flex min-h-[200px] items-center justify-center text-sm text-muted-foreground">
+            {translateOr(t, "CORE_COMMON_LOADING", "Loading...")}
+          </div>
+        ) : !detail ? (
+          <p className="text-sm text-muted-foreground">
+            {translateOr(t, "ES_IR_ENTRY_NOT_FOUND", "This entry could not be found.")}
+          </p>
+        ) : (
+          <>
+            <FacilityInfoCard entry={detail.entry} />
+            <AuditTrailTimeline checkpoints={detail.auditTrail} />
+            <ReviewSections
+              sections={detail.sections}
+              reasonOptions={reasonOptions}
+              rejectionReasons={rejectionReasons}
+              canEditReasons={canEditReasons}
+              onAddReason={handleAddReason}
+              onEditReason={handleEditReason}
+              onRemoveReason={handleRemoveReason}
             />
-          ) : null}
-        </>
-      )}
+          </>
+        )}
+      </div>
+
+      {showActionBar ? (
+        <div className="shrink-0 pt-4">
+          <ReviewActionBar
+            hasAnyReason={hasAnyReason}
+            isSubmitting={submitReview.isPending}
+            onApprove={() => setPendingAction("APPROVE")}
+            onReject={() => setPendingAction("REJECT")}
+          />
+        </div>
+      ) : null}
 
       <ConfirmActionDialog
         action={pendingAction}
