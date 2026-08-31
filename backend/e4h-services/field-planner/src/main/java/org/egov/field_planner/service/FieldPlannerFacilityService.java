@@ -85,6 +85,7 @@ public class FieldPlannerFacilityService {
             if (!fieldPlanFacilities.isEmpty()) {
                 log.info("processing {} valid entities", fieldPlanFacilities.size());
                 fieldPlannerEnrichment.enrichFieldPlanFacilityOnCreate(fieldPlanFacilities, request);
+                applyScopeLock(fieldPlanFacilities);
                 // The persister's save-fieldplan-facility-topic mapping now carries solution_id
                 // and lock_status, so there is nothing left for a direct JDBC write to add.
                 producer.push(fieldPlannerConfiguration.getCreateFieldPlanFacilityTopic(), fieldPlanFacilities);
@@ -105,6 +106,50 @@ public class FieldPlannerFacilityService {
         return fieldPlanFacilities;
     }
 
+
+    /**
+     * A site joins a plan's scope LOCKED, which reserves it for that plan across the whole
+     * project: no sibling plan may take it. That closes a real gap -- until this existed the only
+     * protection was the published-site bar, derived from a sibling plan reaching SCHEDULED, so
+     * two DRAFT plans could both scope one site and whichever published first silently won.
+     *
+     * The lock bars *other* plans, not this one. The owning plan keeps editing its own scope until
+     * it publishes -- removing a site it just added, or changing a site's Solution -- which is why
+     * ingestion-service's build_project_lock_map excludes a plan's own unpublished lock from the
+     * map it builds. Without that exclusion this would make the Installation Scope step
+     * effectively one-shot: facility_validator treats an own-plan lock as fixed and skips the row,
+     * so re-uploading a plan's own sheet would fail with "No end user sites are selected".
+     *
+     * Defaulted, never overridden: a caller that explicitly asked for a lock state gets the one it
+     * asked for, which keeps /facility/_update-lock authoritative.
+     */
+    private void applyScopeLock(List<FieldPlanFacility> fieldPlanFacilities) {
+        for (FieldPlanFacility facility : fieldPlanFacilities) {
+            if (facility.getLockStatus() == null || facility.getLockStatus().isBlank()) {
+                facility.setLockStatus(LOCK_STATUS_LOCKED);
+            }
+        }
+    }
+
+    /**
+     * Removing a site from scope releases its reservation. Without this the row would keep
+     * lock_status = LOCKED after being soft-deleted and, because the bar is derived per project,
+     * the site would stay barred from every plan for good -- unreachable by any UI, because
+     * nothing lists a deleted row.
+     *
+     * Unconditional, unlike applyScopeLock: the unassign payload is often the existing record read
+     * straight back off a search (see ingestion-service's unlink_fieldplan_facility), so it
+     * usually arrives already carrying LOCKED.
+     *
+     * ingestion-service also skips soft-deleted links when building the lock map, so the two
+     * guards are independent: this one keeps the column honest, that one keeps the rule correct
+     * even if this write is ever lost.
+     */
+    private void releaseScopeLock(List<FieldPlanFacility> fieldPlanFacilities) {
+        for (FieldPlanFacility facility : fieldPlanFacilities) {
+            facility.setLockStatus(LOCK_STATUS_UNLOCKED);
+        }
+    }
 
     public SearchResponse<FieldPlanFacility> search(FieldPlanFacilitySearchRequest request,
                                                   Integer limit,
@@ -149,6 +194,7 @@ public class FieldPlannerFacilityService {
                     log.info("processing {} valid entities", fieldPlanFacilities.size());
                     fieldPlannerEnrichment.enrichFieldPlanFacilityRequestOnDelete(fieldPlanFacility, request.getRequestInfo());
                 }
+                releaseScopeLock(fieldPlanFacilities);
                 producer.push(fieldPlannerConfiguration.getDeleteFieldPlanFacilityTopic(), fieldPlanFacilities);
                 log.info("successfully created project facility");
             }
