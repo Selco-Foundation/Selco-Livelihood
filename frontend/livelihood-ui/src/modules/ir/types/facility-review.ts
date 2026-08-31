@@ -16,6 +16,7 @@ export interface FacilityEntry {
   entryType: FacilityEntryType;
   planId: string;
   status: FacilityEntryStatus;
+  state?: { code: string; name?: string };
   district?: { code: string; name?: string };
   block?: { code: string; name?: string };
 }
