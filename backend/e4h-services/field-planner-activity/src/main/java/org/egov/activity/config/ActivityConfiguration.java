@@ -34,6 +34,29 @@ public class ActivityConfiguration {
     @Value("${vendor.assignment.kafka.create.topic:save-vendor-assignment}")
     private String saveVendorAssignmentTopic;
 
+    /**
+     * The plan's own workflow, distinct from egov.workflow.business.service
+     * (FACILITY_INSTALLATION), which governs the individual assets. Vendor assignment's submit
+     * transitions both: the plan on this service, each asset on that one.
+     */
+    @Value("${egov.workflow.installation.plan.business.service:INSTALLATION_PLAN}")
+    private String installationPlanBusinessService;
+
+    /**
+     * The two plan statuses this service COMPARES against. It never writes them -- a written
+     * status always comes from the workflow's transition response -- but "is this plan already
+     * published?" and "is it still editable?" need a value to test, and a compiled-in literal is
+     * what let field_plans.status and the workflow's state machine drift apart in the first place.
+     *
+     * Defaults match the INSTALLATION_PLAN business service as seeded: start state DRAFT, and
+     * PUBLISH leading to the terminate state PUBLISHED. Change the workflow, change these.
+     */
+    @Value("${installation.plan.draft.status:DRAFT}")
+    private String installationPlanDraftStatus;
+
+    @Value("${installation.plan.published.status:PUBLISHED}")
+    private String installationPlanPublishedStatus;
+
     @Value("${egov.fieldplan.host}")
     private String fieldPlanServiceHost;
 

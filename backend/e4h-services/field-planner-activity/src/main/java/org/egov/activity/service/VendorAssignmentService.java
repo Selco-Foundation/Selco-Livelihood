@@ -6,6 +6,7 @@ import org.egov.activity.repository.VendorAssignmentRepository;
 import org.egov.activity.util.VendorDirectory;
 import static org.egov.activity.util.ActivityConstants.INSTALLATION_REPORT_APPROVER_QC_TEAM;
 import org.egov.activity.web.models.OrgUserEnriched;
+import org.egov.activity.web.models.ProcessInstance;
 import org.egov.activity.web.models.VendorAssignmentAsset;
 import org.egov.activity.web.models.VendorAssignmentCreateResponse;
 import org.egov.activity.web.models.VendorAssignmentCriteria;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Vendor Assignment (FR-07) — the step that turns a planned Installation Plan into dispatched work.
@@ -54,11 +56,16 @@ public class VendorAssignmentService {
 
     private static final String ACTIVITY_CODE_INSTALLATION = "INS";
 
-    private static final String PLAN_STATUS_DRAFT = "DRAFT";
-    /** field_plans has no PUBLISHED value; SCHEDULED is this codebase's published equivalent. */
-    private static final String PLAN_STATUS_PUBLISHED = "SCHEDULED";
-    /** A dispatched asset awaiting installation. Matches facility_activities' own DDL default. */
-    private static final String ASSET_STATUS_SCHEDULED = "SCHEDULED";
+    /**
+     * The two asset transitions this step fires, in order. SCHEDULED moves the asset off the
+     * FACILITY_INSTALLATION start state; ASSIGN_FIELD_STAFF then makes it visible to the
+     * technician. Both are ACTION names -- the resulting status is whatever the workflow returns,
+     * never a literal here.
+     */
+    private static final String ACTION_ASSET_SCHEDULE = "SCHEDULED";
+    private static final String ACTION_ASSET_ASSIGN_FIELD_STAFF = "ASSIGN_FIELD_STAFF";
+    /** The single INSTALLATION_PLAN action: DRAFT -> PUBLISHED. */
+    private static final String ACTION_PLAN_PUBLISH = "PUBLISH";
 
     private static final String SOLAR_ASSET_NAME = "Solar";
     private static final String KEY_MACHINE_SECTION = "machineSection";
@@ -74,18 +81,21 @@ public class VendorAssignmentService {
     private final IdGenService idGenService;
     private final ActivityConfiguration configuration;
     private final VendorDirectory vendorDirectory;
+    private final FacilityWorkflowService workflowService;
 
     @Autowired
     public VendorAssignmentService(VendorAssignmentRepository repository,
                                    Producer producer,
                                    IdGenService idGenService,
                                    ActivityConfiguration configuration,
-                                   VendorDirectory vendorDirectory) {
+                                   VendorDirectory vendorDirectory,
+                                   FacilityWorkflowService workflowService) {
         this.repository = repository;
         this.producer = producer;
         this.idGenService = idGenService;
         this.configuration = configuration;
         this.vendorDirectory = vendorDirectory;
+        this.workflowService = workflowService;
     }
 
     // ------------------------------------------------------------------ read
@@ -98,7 +108,7 @@ public class VendorAssignmentService {
     public VendorAssignmentSearchResponse search(VendorAssignmentCriteria criteria) {
         Map<String, Object> plan = requirePlan(criteria);
         String planStatus = asString(plan.get("status"));
-        boolean published = PLAN_STATUS_PUBLISHED.equals(planStatus);
+        boolean published = configuration.getInstallationPlanPublishedStatus().equals(planStatus);
 
         List<VendorAssignmentSite> sites = published
                 ? readStoredAssets(criteria)
@@ -219,7 +229,7 @@ public class VendorAssignmentService {
 
         Map<String, Object> plan = requirePlan(criteria);
         String planStatus = asString(plan.get("status"));
-        if (!PLAN_STATUS_DRAFT.equals(planStatus)) {
+        if (!configuration.getInstallationPlanDraftStatus().equals(planStatus)) {
             // One-shot: once published there is no path back to editable.
             errors.add(planError("PLAN_ALREADY_PUBLISHED",
                     "This installation plan has already been submitted (status " + planStatus
@@ -339,7 +349,8 @@ public class VendorAssignmentService {
         String projectId = asString(plan.get("project_id"));
         if (StringUtils.hasText(projectId)) {
             Map<String, String> barred = repository.findSitesPublishedElsewhere(
-                    criteria.getTenantId(), projectId, criteria.getFieldPlanId(), PLAN_STATUS_PUBLISHED);
+                    criteria.getTenantId(), projectId, criteria.getFieldPlanId(),
+                    configuration.getInstallationPlanPublishedStatus());
             for (String facilityId : scope.keySet()) {
                 if (barred.containsKey(facilityId)) {
                     errors.add(VendorAssignmentError.builder()
@@ -451,6 +462,23 @@ public class VendorAssignmentService {
         List<String> reportNumbers = generateReportNumbers(requestInfo, criteria.getTenantId(),
                 assignments.size());
 
+        // The statuses this step stores come from egov-workflow-v2, never from a literal here.
+        // Assets move twice, in the order the existing ActivityAssignmentConsumer uses:
+        // SCHEDULED off the start state, then ASSIGN_FIELD_STAFF so the technician can see the
+        // task. Ids are deterministic, so they are known before the rows exist -- which is what
+        // lets the transitions run first and the stored status be the workflow's answer.
+        List<String> assetIds = assignments.stream()
+                .map(submission -> assetId(criteria, submission))
+                .collect(Collectors.toList());
+        Map<String, String> assetStatusById =
+                transitionAssets(assetIds, criteria.getTenantId(), requestInfo);
+
+        // The plan goes last of the three. All three are workflow writes that cannot be rolled
+        // back, and this is the only one whose target is a terminate state -- so if a transition
+        // is going to fail, it is better that the retryable asset ones fail before the plan has
+        // been moved somewhere it can never leave.
+        String planStatus = transitionPlan(criteria, requestInfo);
+
         List<Map<String, Object>> assetRows = new ArrayList<>();
         List<Map<String, Object>> bomRows = new ArrayList<>();
         List<Map<String, Object>> linkRows = new ArrayList<>();
@@ -467,7 +495,7 @@ public class VendorAssignmentService {
             String assetName = assetNameFor(submission, templateData);
 
             assetRows.add(assetRow(criteria, submission, activityFacilityId, activityId,
-                    solutionId, scheduledAt, now));
+                    solutionId, scheduledAt, assetStatusById.get(activityFacilityId), now));
             bomRows.add(bomRow(criteria, submission, activityFacilityId, solutionId, assetName,
                     reportNumbers.get(index), seedBomData(submission, templateData),
                     displayNameCache(submission, assetName), now));
@@ -493,7 +521,7 @@ public class VendorAssignmentService {
         payload.put("ActivitiesFacilities", assetRows);
         payload.put("bom", bomRows);
         payload.put("ActivityFacilityUsers", linkRows);
-        payload.put("FieldPlan", List.of(planHandoverRow(criteria, userUuid, now)));
+        payload.put("FieldPlan", List.of(planHandoverRow(criteria, planStatus, userUuid, now)));
 
         producer.push(configuration.getSaveVendorAssignmentTopic(), payload);
         log.info("published vendor assignment: plan={} sites={} assets={} links={} vendorOrgs={} topic={}",
@@ -504,12 +532,98 @@ public class VendorAssignmentService {
 
         return VendorAssignmentCreateResponse.builder()
                 .fieldPlanId(criteria.getFieldPlanId())
-                .planStatus(PLAN_STATUS_PUBLISHED)
+                .planStatus(planStatus)
                 .siteCount(scope.size())
                 .assetCount(assignments.size())
                 .vendorOrganisations(new ArrayList<>(vendorOrgs))
                 .message("Vendor assignments saved and handed over to the installation staff.")
                 .build();
+    }
+
+    /**
+     * Both asset transitions, in one batched call each.
+     *
+     * SCHEDULED then ASSIGN_FIELD_STAFF back to back, matching
+     * ActivityAssignmentConsumer.processBulkWorkflow -- which is the same two-phase move reached
+     * from field-planner's field-plan-scheduling path. Batched rather than per-asset, so N assets
+     * cost two HTTP calls instead of 2N.
+     *
+     * KNOWN RACE, and why it is tolerated. /_transition reads the current state from the DB but
+     * persists via Kafka, so the second call can outrun the first's persistence. When that
+     * happens the workflow sees no instance, falls back to the start state, finds no
+     * ASSIGN_FIELD_STAFF action there, and fails with "INVALID ACTION". Three things make that
+     * acceptable: it is a loud, recognisable failure rather than silent corruption; the assets
+     * are left at SCHEDULED, which is a real state, not a half-written one; and it is repairable
+     * through POST /v1/activities/bulk/workflow/update, which can re-run just the second action.
+     *
+     * Unlike the consumer, this does NOT bucket failures into a list and carry on -- a submit
+     * that silently left assets invisible to the technician would be worse than one that failed.
+     */
+    private Map<String, String> transitionAssets(List<String> assetIds, String tenantId,
+                                                 RequestInfo requestInfo) {
+        if (assetIds.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            workflowService.transitionBatch(assetIds, configuration.getBusinessService(),
+                    ACTION_ASSET_SCHEDULE, tenantId, requestInfo, "Asset scheduled for installation");
+        } catch (Exception e) {
+            throw new CustomException("WORKFLOW_SCHEDULE_FAILED",
+                    "Could not move the assets to their scheduled state: " + e.getMessage());
+        }
+
+        Map<String, ProcessInstance> assigned;
+        try {
+            assigned = workflowService.transitionBatch(assetIds, configuration.getBusinessService(),
+                    ACTION_ASSET_ASSIGN_FIELD_STAFF, tenantId, requestInfo,
+                    "Assigned to the vendor's field staff");
+        } catch (Exception e) {
+            throw new CustomException("WORKFLOW_ASSIGN_FAILED",
+                    "The assets were scheduled but could not be assigned to field staff, so the "
+                            + "technician cannot see them yet. Re-run the ASSIGN_FIELD_STAFF action "
+                            + "for these assets via /v1/activities/bulk/workflow/update: "
+                            + assetIds + ". Cause: " + e.getMessage());
+        }
+
+        Map<String, String> statusById = new LinkedHashMap<>();
+        assigned.forEach((assetId, instance) -> statusById.put(assetId, stateOf(instance)));
+        log.info("assets transitioned to {} via workflow for {} asset(s)",
+                statusById.values().stream().findFirst().orElse("?"), statusById.size());
+        return statusById;
+    }
+
+    /** The plan's own transition: DRAFT -> whatever INSTALLATION_PLAN's PUBLISH action leads to. */
+    private String transitionPlan(VendorAssignmentCriteria criteria, RequestInfo requestInfo) {
+        try {
+            Map<String, ProcessInstance> result = workflowService.transitionBatch(
+                    List.of(criteria.getFieldPlanId()), configuration.getInstallationPlanBusinessService(),
+                    ACTION_PLAN_PUBLISH, criteria.getTenantId(), requestInfo,
+                    "Vendor assignment submitted");
+            String status = stateOf(result.get(criteria.getFieldPlanId()));
+            log.info("plan {} transitioned to {} via workflow", criteria.getFieldPlanId(), status);
+            return status;
+        } catch (Exception e) {
+            // A plan already in the terminate state has no actions, so the workflow refuses --
+            // which makes it a second, independent one-shot guard behind check()'s status test.
+            throw new CustomException("WORKFLOW_PUBLISH_FAILED",
+                    "Could not publish installation plan " + criteria.getFieldPlanId()
+                            + ". If it has already been submitted the workflow will refuse a second "
+                            + "PUBLISH. Cause: " + e.getMessage());
+        }
+    }
+
+    /**
+     * The state name a transition landed on. Read from the response rather than assumed, which is
+     * the whole point: field_plans.status and facility_activities.status are now whatever the
+     * business service says they are.
+     */
+    private static String stateOf(ProcessInstance instance) {
+        if (instance == null || instance.getState() == null
+                || !StringUtils.hasText(instance.getState().getState())) {
+            throw new CustomException("WORKFLOW_ERROR",
+                    "Workflow returned no resultant state; refusing to store a status we cannot derive");
+        }
+        return instance.getState().getState();
     }
 
     /**
@@ -529,7 +643,8 @@ public class VendorAssignmentService {
             // dispatched but which never left DRAFT -- so the technician sees work the Project
             // Manager's screen still calls editable.
             Map<String, Object> plan = repository.findPlan(criteria.getTenantId(), criteria.getFieldPlanId());
-            boolean handedOver = plan != null && PLAN_STATUS_PUBLISHED.equals(asString(plan.get("status")));
+            boolean handedOver = plan != null
+                    && configuration.getInstallationPlanPublishedStatus().equals(asString(plan.get("status")));
             if (stored >= expectedAssets && handedOver) {
                 log.info("vendor assignment persisted for plan={} after {} attempt(s)",
                         criteria.getFieldPlanId(), attempt);
@@ -577,14 +692,15 @@ public class VendorAssignmentService {
     private Map<String, Object> assetRow(VendorAssignmentCriteria criteria,
                                          VendorAssignmentSubmission submission,
                                          String activityFacilityId, String activityId,
-                                         String solutionId, Long scheduledAt, Long now) {
+                                         String solutionId, Long scheduledAt,
+                                         String workflowStatus, Long now) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("id", activityFacilityId);
         row.put("tenantId", criteria.getTenantId());
         row.put("fieldPlanId", criteria.getFieldPlanId());
         row.put("activityId", activityId);
         row.put("facilityId", submission.getFacilityId());
-        row.put("status", ASSET_STATUS_SCHEDULED);
+        row.put("status", workflowStatus);
         row.put("assignedUser", submission.getVendorUserId());
         row.put("scheduledAt", scheduledAt);
         row.put("activatedAt", scheduledAt);
@@ -632,11 +748,12 @@ public class VendorAssignmentService {
         return row;
     }
 
-    private Map<String, Object> planHandoverRow(VendorAssignmentCriteria criteria, String userUuid, Long now) {
+    private Map<String, Object> planHandoverRow(VendorAssignmentCriteria criteria, String planStatus,
+                                                String userUuid, Long now) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("id", criteria.getFieldPlanId());
         row.put("tenantId", criteria.getTenantId());
-        row.put("status", PLAN_STATUS_PUBLISHED);
+        row.put("status", planStatus);
         row.put("auditDetails", auditMap(userUuid, null, now));
         return row;
     }

@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict, List, NamedTuple, Optional
 
 from app.core.logging import AppLogger
@@ -6,9 +7,15 @@ logger = AppLogger().get_logger()
 
 LOCK_STATUS_LOCKED = "LOCKED"
 
-# field_plans has no PUBLISHED status: FieldPlannerService transitions a plan to SCHEDULED,
-# which is this codebase's publish equivalent.
-PLAN_STATUS_PUBLISHED = "SCHEDULED"
+# The status a published installation plan carries. NOT hardcoded: field-planner-activity's
+# vendor-assignment submit stores whatever egov-workflow-v2's INSTALLATION_PLAN business service
+# returns for the PUBLISH action, so this has to track that workflow rather than assume a value.
+# The default matches the business service as seeded (PUBLISH -> terminate state PUBLISHED); it was
+# "SCHEDULED" while the status was written as a literal on the Java side.
+#
+# Override with INSTALLATION_PLAN_PUBLISHED_STATUS if the workflow's terminate state is renamed --
+# and remember the equivalent Java property, installation.plan.published.status, must match.
+PLAN_STATUS_PUBLISHED = os.getenv("INSTALLATION_PLAN_PUBLISHED_STATUS", "PUBLISHED").strip().upper()
 
 REASON_PUBLISHED = "PUBLISHED"
 REASON_LOCKED = "LOCKED"
