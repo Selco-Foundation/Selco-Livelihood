@@ -851,7 +851,7 @@ public class ActivityService {
                         Role.builder()
                                 .name("System User")
                                 .code("SYSTEM_USER")
-                                .tenantId("in")
+                                .tenantId(activityConfiguration.getTenantId())
                                 .build()
                 );
             }

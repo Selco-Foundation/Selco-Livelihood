@@ -570,7 +570,7 @@ public class FieldPlannerService {
                     for (FieldPlanFacility fieldPlanFacility : fieldPlanFacilities){
                         for(Map<String, Object> activity : fieldPlan.getActivities()){
                             ActivityFacility activityFacility = ActivityFacility.builder()
-                                    .tenantId("in")
+                                    .tenantId(fieldPlannerConfiguration.getTenantId())
                                     .fieldPlanId(fieldPlanFacility.getFieldPlanId())
                                     .facilityId(fieldPlanFacility.getFacilityId())
                                     .activityId((String)activity.get("code"))
@@ -949,7 +949,8 @@ public class FieldPlannerService {
                     String subject = fieldPlannerConfiguration.getActivityEmailSubject();
                     String body = fieldPlanServiceUtil.replaceActivityAssignmentEmailBody((String)activityAssignment.getRole().get("name"), existingFieldPlan.getName(),
                             username,fieldPlannerConfiguration.getDefaultUserPassword(),fieldPlannerConfiguration.getActivityEmailBody());
-                    fieldPlanServiceUtil.sendEmailViaKafka(emailId, subject, body, "in");
+                    fieldPlanServiceUtil.sendEmailViaKafka(emailId, subject, body,
+                            fieldPlannerConfiguration.getTenantId());
                     activityAssignment.setIsEmailSent(true);
                 }
             }
@@ -960,7 +961,8 @@ public class FieldPlannerService {
 
     public Employee getUserById(Object request, String userId) {
 
-        String url = fieldPlannerConfiguration.getHrmsHost() + fieldPlannerConfiguration.getHrmsSearchUrl()+ "?tenantId=in&uuids="+userId;
+        String url = fieldPlannerConfiguration.getHrmsHost() + fieldPlannerConfiguration.getHrmsSearchUrl()
+                + "?tenantId=" + fieldPlannerConfiguration.getTenantId() + "&uuids=" + userId;
         Object response = serviceRequestRepository.fetchResult(new StringBuilder(url), request);
 
         EmployeeResponse employeeResponse = mapper.convertValue(response, EmployeeResponse.class);

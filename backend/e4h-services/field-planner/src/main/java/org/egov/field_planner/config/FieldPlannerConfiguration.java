@@ -59,6 +59,9 @@ public class FieldPlannerConfiguration {
     @Value("${search.api.limit:100}")
     private String searchApiLimit;
 
+    @Value("${global.tenant.id:livelihood}")
+    private String tenantId;
+
     @Value("${egov.mdms.host}")
     private String mdmsHost;
     @Value("${egov.mdms.search.endpoint}")
