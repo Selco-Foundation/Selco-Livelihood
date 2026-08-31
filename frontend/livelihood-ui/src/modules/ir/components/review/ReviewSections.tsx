@@ -55,7 +55,7 @@ export function ReviewSections({
             <Accordion
               key={section.id}
               type="multiple"
-              defaultValue={[section.id]}
+              defaultValue={[]}
               className="livelihood-card px-4"
             >
               <AccordionItem value={section.id}>
