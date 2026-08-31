@@ -121,6 +121,18 @@ export {
   AccordionItem,
   AccordionTrigger,
 } from "./components/ui/accordion";
+export {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectScrollDownButton,
+  SelectScrollUpButton,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "./components/ui/select";
 export { DataTable } from "./components/data-table";
 export { StatTile } from "./components/stat-tile";
 export type { StatTileProps } from "./components/stat-tile";
