@@ -2,6 +2,7 @@ import io
 import json
 import os
 import tempfile
+import time
 from datetime import datetime, timedelta
 import uuid
 from typing import Optional, Dict, List, Set
@@ -107,6 +108,12 @@ localization_service_url = os.getenv("LOCALIZATION_SERVICE_URL")
 boundary_service_url = os.getenv("BOUNDARY_SERVICE_URL")
 DEFAULT_AMC_ASSET_TYPES = ["INVERTER", "PANEL", "BATTERY"]
 BULK_INGEST_CHUNK_SIZE = 200
+
+# The bulk link endpoint answers 202 as soon as the message is queued; the row is written
+# two async hops later (bulk topic -> consumer -> save-fieldplan-facility-topic ->
+# egov-persister). These bound how long we wait to confirm it before saying so. ~5s.
+SCOPE_LINK_CONFIRM_ATTEMPTS = 10
+SCOPE_LINK_CONFIRM_INTERVAL_SECONDS = 0.5
 AMC_CONFIGURATION_BULK_CHUNK_SIZE = 400
 ENVIRONMENT = os.getenv("ENVIRONMENT", "uat").lower()
 base_path = os.path.dirname(os.path.abspath(__file__))
@@ -2929,6 +2936,52 @@ async def create_fielplan_facilities(
                         except Exception as bulk_exc:
                             for row_idx, _facility_id, _solution_code in chunk:
                                 df.at[row_idx, 'Field Plan Linking Status'] = f"Exception: {str(bulk_exc)}"
+
+                    # Confirm the rows actually landed before telling the Project Manager they did.
+                    #
+                    # "Linked" above is set on an HTTP 202, which only means the message was
+                    # queued: /facility/bulk/_create pushes to a bulk topic, a consumer picks it
+                    # up and republishes to save-fieldplan-facility-topic, and egov-persister
+                    # finally writes the row. Nothing in that chain can report failure back here
+                    # -- the consumer catches and logs, and the persister runs in another pod.
+                    # This is exactly how the Installation Scope step once reported every site
+                    # "Linked" while field_plan_facilities stayed empty.
+                    expected_ids = {fid for _, fid, _ in pending_bulk_fieldplan_links}
+                    confirmed_ids = set()
+                    for attempt in range(SCOPE_LINK_CONFIRM_ATTEMPTS):
+                        try:
+                            stored = fieldplan_client.search_fieldplan_facility(
+                                request_info, fieldplan_id).get("FieldPlanFacilities", [])
+                            confirmed_ids = {
+                                link.get("facilityId") for link in stored
+                                if link.get("facilityId") and not link.get("isdeleted")
+                            }
+                        except Exception as confirm_exc:
+                            logger.warning(
+                                f"scope read-back attempt {attempt + 1} failed: {confirm_exc}")
+                        if expected_ids <= confirmed_ids:
+                            break
+                        time.sleep(SCOPE_LINK_CONFIRM_INTERVAL_SECONDS)
+
+                    unconfirmed = expected_ids - confirmed_ids
+                    if unconfirmed:
+                        logger.error(
+                            f"{len(unconfirmed)} of {len(expected_ids)} scope row(s) were not "
+                            f"visible for plan {fieldplan_id} after "
+                            f"{SCOPE_LINK_CONFIRM_ATTEMPTS} attempts: {sorted(unconfirmed)}")
+                        for row_idx, facility_id, _solution_code in pending_bulk_fieldplan_links:
+                            # Only downgrade rows we optimistically marked Linked -- a row that
+                            # already says Failed/Exception has a more specific cause.
+                            if (facility_id in unconfirmed
+                                    and df.at[row_idx, 'Field Plan Linking Status'] == "Linked"):
+                                df.at[row_idx, 'Field Plan Linking Status'] = (
+                                    "Pending: accepted but not yet saved. Re-upload this sheet "
+                                    "to confirm before moving to the Template step.")
+                                fieldplan_linked_facility_ids.discard(facility_id)
+                    else:
+                        logger.info(
+                            f"confirmed {len(expected_ids)} scope row(s) persisted for plan "
+                            f"{fieldplan_id}")
 
             except Exception as e:
                 # This block does the linking, not just the fetch: swallowing it returns a
