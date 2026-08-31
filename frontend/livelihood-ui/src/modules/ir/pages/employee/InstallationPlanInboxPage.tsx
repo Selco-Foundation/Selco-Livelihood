@@ -20,11 +20,6 @@ export function InstallationPlanInboxPage() {
     <div className="space-y-6">
       <TopBar
         title={translateOr(t, "ES_IR_INSTALLATION_PLANS", "Installation Plans")}
-        description={translateOr(
-          t,
-          "ES_IR_INSTALLATION_PLANS_SUBTITLE",
-          "Review submitted installation sites for each plan",
-        )}
         breadcrumbs={[
           { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: employeeHomePath() },
           { label: translateOr(t, "ES_IR_INSTALLATION_PLANS", "Installation Plans") },
