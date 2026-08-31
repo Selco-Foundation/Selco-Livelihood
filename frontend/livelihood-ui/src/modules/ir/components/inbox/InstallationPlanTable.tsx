@@ -15,7 +15,6 @@ export function InstallationPlanTable({ plans, isLoading }: InstallationPlanTabl
 
   const columns = [
     { key: "plan", label: translateOr(t, "ES_IR_INSTALLATION_PLAN", "Installation Plan") },
-    { key: "activityType", label: translateOr(t, "ES_IR_ACTIVITY_TYPE", "Activity Type") },
     { key: "endUserSite", label: translateOr(t, "ES_IR_END_USER_SITE", "End User Site") },
     { key: "startDate", label: translateOr(t, "ES_IR_START_DATE", "Start Date") },
     { key: "endDate", label: translateOr(t, "ES_IR_END_DATE", "End Date") },
@@ -79,7 +78,6 @@ export function InstallationPlanTable({ plans, isLoading }: InstallationPlanTabl
                       {plan.planName}
                     </Link>
                   </td>
-                  <td className="px-5 py-4 text-foreground">{plan.activityType}</td>
                   <td className="px-5 py-4 text-foreground">{plan.totalFacilities}</td>
                   <td className="px-5 py-4 text-foreground">{plan.startDate}</td>
                   <td className="px-5 py-4 text-foreground">{plan.endDate}</td>
