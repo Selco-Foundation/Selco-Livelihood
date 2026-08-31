@@ -2,11 +2,24 @@ import { employeeHomePath, translateOr, useAuthStore, useTranslate } from "@/sha
 import { TopBar, toast } from "@/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { AuditTrailTimeline } from "../../components/review/AuditTrailTimeline";
+import { ConfirmActionDialog } from "../../components/review/ConfirmActionDialog";
+import { FacilityInfoCard } from "../../components/review/FacilityInfoCard";
+import type { RejectionReasonDraft } from "../../components/review/RejectionReasonDialog";
 import { ReviewActionBar } from "../../components/review/ReviewActionBar";
 import { ReviewSections } from "../../components/review/ReviewSections";
-import { useFacilityReview, useSubmitFacilityReview } from "../../hooks/use-facility-review";
+import {
+  useFacilityReview,
+  useRejectionReasonOptions,
+  useSubmitFacilityReview,
+} from "../../hooks/use-facility-review";
 import { useInstallationPlans } from "../../hooks/use-installation-plans";
-import type { ReviewSectionId, SectionRejectionReasons } from "../../types/facility-review";
+import type {
+  RejectionReasonEntry,
+  ReviewDecisionAction,
+  ReviewSectionId,
+  SectionRejectionReasons,
+} from "../../types/facility-review";
 import { hasIrAccess } from "../../utils/access";
 import { irFacilityEntriesPath, irInstallationPlansPath } from "../../utils/paths";
 
@@ -24,43 +37,6 @@ function useFacilityReviewRouteParams() {
   }, []);
 }
 
-function FacilityReviewSummary({
-  entry,
-}: {
-  entry: NonNullable<ReturnType<typeof useFacilityReview>["data"]>["entry"];
-}) {
-  const { t } = useTranslate();
-  const items = [
-    {
-      label: translateOr(t, "ES_IR_STATE", "State"),
-      value: entry.state?.name ?? "-",
-    },
-    {
-      label: translateOr(t, "ES_IR_DISTRICT", "District"),
-      value: entry.district?.name ?? "-",
-    },
-    {
-      label: translateOr(t, "ES_IR_BLOCK", "Block"),
-      value: entry.block?.name ?? "-",
-    },
-    {
-      label: translateOr(t, "ES_IR_STATUS", "Status"),
-      value: translateOr(t, "ES_IR_STATUS_IN_PROGRESS", "In Progress"),
-    },
-  ];
-
-  return (
-    <div className="livelihood-card grid gap-6 px-6 py-5 sm:grid-cols-2 lg:grid-cols-4 lg:px-7">
-      {items.map((item) => (
-        <div key={item.label}>
-          <p className="text-sm leading-[21px] text-ink-600">{item.label}</p>
-          <p className="text-base leading-6 font-semibold text-ink-950">{item.value}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export function FacilityReviewPage() {
   const { t } = useTranslate();
   const user = useAuthStore((state) => state.user);
@@ -68,7 +44,9 @@ export function FacilityReviewPage() {
   const { planId, entryId } = useFacilityReviewRouteParams();
   const { data: detail, isLoading } = useFacilityReview(entryId);
   const submitReview = useSubmitFacilityReview();
+  const reasonOptions = useRejectionReasonOptions();
   const [rejectionReasons, setRejectionReasons] = useState<SectionRejectionReasons>({});
+  const [pendingAction, setPendingAction] = useState<ReviewDecisionAction | null>(null);
   const { data: plansData } = useInstallationPlans();
   const planName = plansData?.plans.find((plan) => plan.planId === planId)?.planName ?? planId;
 
@@ -76,13 +54,42 @@ export function FacilityReviewPage() {
     return null;
   }
 
-  const hasAnyReason = Object.values(rejectionReasons).some((reason) => reason?.trim());
+  const canEditReasons = detail?.entry.status === "SUBMITTED_BY_SUPERVISOR";
+  const hasAnyReason = Object.values(rejectionReasons).some((entries) => entries && entries.length > 0);
 
-  function handleReasonChange(sectionId: ReviewSectionId, value: string) {
-    setRejectionReasons((prev) => ({ ...prev, [sectionId]: value }));
+  function handleAddReason(sectionId: ReviewSectionId, entry: RejectionReasonDraft) {
+    const newEntry: RejectionReasonEntry = { id: crypto.randomUUID(), ...entry };
+    setRejectionReasons((prev) => ({
+      ...prev,
+      [sectionId]: [...(prev[sectionId] ?? []), newEntry],
+    }));
   }
 
-  function handleSubmit(action: "APPROVE" | "REJECT") {
+  function handleEditReason(
+    sectionId: ReviewSectionId,
+    reasonId: string,
+    entry: RejectionReasonDraft,
+  ) {
+    setRejectionReasons((prev) => ({
+      ...prev,
+      [sectionId]: (prev[sectionId] ?? []).map((reason) =>
+        reason.id === reasonId ? { ...reason, ...entry } : reason,
+      ),
+    }));
+  }
+
+  function handleRemoveReason(sectionId: ReviewSectionId, reasonId: string) {
+    setRejectionReasons((prev) => ({
+      ...prev,
+      [sectionId]: (prev[sectionId] ?? []).filter((reason) => reason.id !== reasonId),
+    }));
+  }
+
+  function handleConfirmedSubmit() {
+    const action = pendingAction;
+    if (!action) {
+      return;
+    }
     submitReview.mutate(
       {
         entryId,
@@ -91,6 +98,7 @@ export function FacilityReviewPage() {
       },
       {
         onSuccess: () => {
+          setPendingAction(null);
           toast.success(
             action === "APPROVE"
               ? translateOr(t, "ES_IR_APPROVED_SUCCESS", "Report approved")
@@ -127,20 +135,34 @@ export function FacilityReviewPage() {
         </p>
       ) : (
         <>
-          <FacilityReviewSummary entry={detail.entry} />
+          <FacilityInfoCard entry={detail.entry} />
+          <AuditTrailTimeline checkpoints={detail.auditTrail} />
           <ReviewSections
             sections={detail.sections}
+            reasonOptions={reasonOptions}
             rejectionReasons={rejectionReasons}
-            onReasonChange={handleReasonChange}
+            canEditReasons={canEditReasons}
+            onAddReason={handleAddReason}
+            onEditReason={handleEditReason}
+            onRemoveReason={handleRemoveReason}
           />
-          <ReviewActionBar
-            hasAnyReason={hasAnyReason}
-            isSubmitting={submitReview.isPending}
-            onApprove={() => handleSubmit("APPROVE")}
-            onReject={() => handleSubmit("REJECT")}
-          />
+          {canEditReasons ? (
+            <ReviewActionBar
+              hasAnyReason={hasAnyReason}
+              isSubmitting={submitReview.isPending}
+              onApprove={() => setPendingAction("APPROVE")}
+              onReject={() => setPendingAction("REJECT")}
+            />
+          ) : null}
         </>
       )}
+
+      <ConfirmActionDialog
+        action={pendingAction}
+        isSubmitting={submitReview.isPending}
+        onCancel={() => setPendingAction(null)}
+        onConfirm={handleConfirmedSubmit}
+      />
     </div>
   );
 }
