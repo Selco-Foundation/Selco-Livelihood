@@ -71,6 +71,7 @@ export function ReviewSections({
                       type="button"
                       variant="outline"
                       size="sm"
+                      className="border-destructive text-destructive hover:border-destructive hover:bg-destructive/10 hover:text-destructive active:border-destructive active:bg-destructive/20 active:text-destructive"
                       onClick={() => setDialogState({ sectionId: section.id })}
                     >
                       {translateOr(t, "ES_IR_ADD_REJECTION_REASON", "Add rejection reason")}
