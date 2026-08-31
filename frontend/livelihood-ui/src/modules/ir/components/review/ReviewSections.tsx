@@ -45,6 +45,16 @@ export function ReviewSections({
   const { t } = useTranslate();
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
 
+  // A reason already used elsewhere in this section can't be picked again —
+  // except the one currently being edited, which must stay selectable as itself.
+  const dialogSectionReasons = dialogState ? rejectionReasons[dialogState.sectionId] ?? [] : [];
+  const usedReasonCodes = new Set(
+    dialogSectionReasons
+      .filter((reason) => reason.id !== dialogState?.editing?.id)
+      .map((reason) => reason.reasonCode),
+  );
+  const availableReasonOptions = reasonOptions.filter((option) => !usedReasonCodes.has(option.code));
+
   return (
     <>
       <div className="space-y-4">
@@ -110,7 +120,7 @@ export function ReviewSections({
             setDialogState(null);
           }
         }}
-        reasonOptions={reasonOptions}
+        reasonOptions={availableReasonOptions}
         initialValue={dialogState?.editing}
         onSubmit={(entry) => {
           if (!dialogState) {
