@@ -3,10 +3,8 @@ package org.egov.field_planner.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.exception.ExceptionUtils;
-import org.egov.common.contract.models.AuditDetails;
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.common.models.core.SearchResponse;
-import org.egov.common.models.project.ProjectFacility;
 import org.egov.common.producer.Producer;
 import org.egov.common.validator.Validator;
 import org.egov.field_planner.config.FieldPlannerConfiguration;
@@ -87,58 +85,26 @@ public class FieldPlannerFacilityService {
             if (!fieldPlanFacilities.isEmpty()) {
                 log.info("processing {} valid entities", fieldPlanFacilities.size());
                 fieldPlannerEnrichment.enrichFieldPlanFacilityOnCreate(fieldPlanFacilities, request);
-                persistFieldPlanFacilities(fieldPlanFacilities);
+                // The persister's save-fieldplan-facility-topic mapping now carries solution_id
+                // and lock_status, so there is nothing left for a direct JDBC write to add.
                 producer.push(fieldPlannerConfiguration.getCreateFieldPlanFacilityTopic(), fieldPlanFacilities);
-                log.info("successfully created project facility");
+                log.info("published {} fieldplan facility row(s) to {}", fieldPlanFacilities.size(),
+                        fieldPlannerConfiguration.getCreateFieldPlanFacilityTopic());
             }
         } catch (Exception exception) {
-            log.error("error occurred while creating project facility: {}", ExceptionUtils.getStackTrace(exception));
+            // Deliberately NOT swallowed any more. This used to catch, log and return the
+            // request unchanged, so the caller got a 200 whether or not anything was written --
+            // and with the write now asynchronous, a swallowed publish failure would be the last
+            // synchronous signal we had that the Installation Scope upload went nowhere.
+            log.error("error occurred while creating fieldplan facility: {}",
+                    ExceptionUtils.getStackTrace(exception));
+            throw new CustomException("FIELDPLAN_FACILITY_CREATE_FAILED",
+                    "Could not publish the installation scope for this field plan: " + exception.getMessage());
         }
 
         return fieldPlanFacilities;
     }
 
-    /**
-     * Writes the rows directly, for the same reason updateLockStatus does: the Kafka
-     * persister mapping for this table carries no solution_id column, so the Solution the
-     * Project Manager chose would be dropped on the way to the database.
-     *
-     * An upsert rather than an insert, and rather than an UPDATE after the push: the
-     * persister writes asynchronously in another service, so an UPDATE here could run
-     * before the row exists and silently affect nothing, while a plain INSERT would clash
-     * if the persister got there first. ON CONFLICT makes the outcome the same either way.
-     */
-    private static final String STATUS_ACTIVE = "ACTIVE";
-
-    private void persistFieldPlanFacilities(List<FieldPlanFacility> fieldPlanFacilities) {
-        String sql = "INSERT INTO field_plan_facilities "
-                + "(id, tenantid, field_plan_id, facility_id, solution_id, status, isdeleted, "
-                + " created_time, lastmodifiedtime, last_modified_by) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
-                + "ON CONFLICT (tenantid, field_plan_id, facility_id) DO UPDATE SET "
-                + " solution_id = EXCLUDED.solution_id, "
-                + " isdeleted = EXCLUDED.isdeleted, "
-                + " lastmodifiedtime = EXCLUDED.lastmodifiedtime, "
-                + " last_modified_by = EXCLUDED.last_modified_by";
-
-        for (FieldPlanFacility facility : fieldPlanFacilities) {
-            AuditDetails audit = facility.getAuditDetails();
-            Long now = System.currentTimeMillis();
-            jdbcTemplate.update(sql,
-                    facility.getId(),
-                    facility.getTenantId(),
-                    facility.getFieldPlanId(),
-                    facility.getFacilityId(),
-                    facility.getSolutionId(),
-                    STATUS_ACTIVE,
-                    Boolean.FALSE,
-                    audit != null && audit.getCreatedTime() != null ? audit.getCreatedTime() : now,
-                    audit != null && audit.getLastModifiedTime() != null ? audit.getLastModifiedTime() : now,
-                    audit != null ? audit.getLastModifiedBy() : null
-            );
-        }
-        log.info("persisted {} field plan facility row(s) with solution_id", fieldPlanFacilities.size());
-    }
 
     public SearchResponse<FieldPlanFacility> search(FieldPlanFacilitySearchRequest request,
                                                   Integer limit,
