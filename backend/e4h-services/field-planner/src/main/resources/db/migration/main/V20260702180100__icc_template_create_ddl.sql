@@ -5,5 +5,5 @@ CREATE TABLE IF NOT EXISTS icc_templates (
                                filestoreid VARCHAR(64)
 );
 
-CREATE UNIQUE INDEX uk_icc_templates
+CREATE UNIQUE INDEX IF NOT EXISTS uk_icc_templates
     ON icc_templates (system_type, COALESCE(total_system_capacity, ''));

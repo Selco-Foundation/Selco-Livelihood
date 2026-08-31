@@ -12,11 +12,11 @@ CREATE TABLE IF NOT EXISTS field_plan_template (
                                      last_modified_time BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)
 );
 
-CREATE INDEX idx_field_plan_template_tenant
+CREATE INDEX IF NOT EXISTS idx_field_plan_template_tenant
     ON field_plan_template(tenant_id);
 
-CREATE INDEX idx_field_plan_template_field_plan
+CREATE INDEX IF NOT EXISTS idx_field_plan_template_field_plan
     ON field_plan_template(field_plan_id);
 
-CREATE UNIQUE INDEX uniq_field_plan_template_combo
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_field_plan_template_combo
     ON field_plan_template(field_plan_id, system_type, total_capacity);
