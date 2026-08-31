@@ -15,7 +15,7 @@ function DocumentCard({ document }: { document: ReportDocument }) {
       href={document.url}
       target="_blank"
       rel="noreferrer"
-      className="flex items-center gap-3 rounded-md border border-border p-3 hover:bg-muted/40"
+      className="inline-flex w-72 shrink-0 items-center gap-3 rounded-md border border-border bg-card p-3 hover:bg-muted/40"
     >
       <FileText className="size-5 shrink-0 text-primary" />
       <div className="min-w-0 flex-1">
@@ -76,9 +76,11 @@ export function ReportSectionBody({ section }: ReportSectionBodyProps) {
           <p className="text-sm font-semibold text-primary">
             {translateOr(t, "ES_IR_SUPPORTING_DOCUMENTS", "Supporting Documents")}
           </p>
-          {section.supportingDocuments.map((document) => (
-            <DocumentCard key={document.url} document={document} />
-          ))}
+          <div className="flex flex-wrap gap-3">
+            {section.supportingDocuments.map((document) => (
+              <DocumentCard key={document.url} document={document} />
+            ))}
+          </div>
         </div>
       ) : null}
     </div>
