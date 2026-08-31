@@ -5,8 +5,6 @@ import org.egov.activity.config.ActivityConfiguration;
 import org.egov.activity.repository.VendorAssignmentRepository;
 import org.egov.activity.util.VendorDirectory;
 import static org.egov.activity.util.ActivityConstants.INSTALLATION_REPORT_APPROVER_QC_TEAM;
-import org.egov.activity.web.models.ActivityFacilityUser;
-import org.egov.activity.web.models.ActivityFacilityUserBulkRequest;
 import org.egov.activity.web.models.OrgUserEnriched;
 import org.egov.activity.web.models.VendorAssignmentAsset;
 import org.egov.activity.web.models.VendorAssignmentCreateResponse;
@@ -17,14 +15,15 @@ import org.egov.activity.web.models.VendorAssignmentSearchResponse;
 import org.egov.activity.web.models.VendorAssignmentSite;
 import org.egov.activity.web.models.VendorAssignmentSubmission;
 import org.egov.common.contract.request.RequestInfo;
+import org.egov.common.producer.Producer;
 import org.egov.common.service.IdGenService;
 import org.egov.tracer.model.CustomException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -43,7 +42,8 @@ import java.util.UUID;
  *
  * Submit is the handover: it also flips the plan to SCHEDULED, which is what bars these sites
  * from other plans in the same project. There is no separate Publish step, and assignment is
- * one-shot -- hence the single transaction, since a half-dispatched plan could not be recovered.
+ * one-shot -- so the write is published as a single atomic persister mapping, since a
+ * half-dispatched plan could not be recovered.
  */
 @Service
 @Slf4j
@@ -65,20 +65,24 @@ public class VendorAssignmentService {
     private static final String KEY_SOLAR_SECTION = "solarSection";
     private static final String KEY_COMPONENTS = "components";
 
+    /** How long create() will wait for the published rows to appear before saying so. ~3s. */
+    private static final int PERSIST_WAIT_ATTEMPTS = 20;
+    private static final long PERSIST_WAIT_INTERVAL_MS = 150L;
+
     private final VendorAssignmentRepository repository;
-    private final ActivityFacilityUsersService facilityUsersService;
+    private final Producer producer;
     private final IdGenService idGenService;
     private final ActivityConfiguration configuration;
     private final VendorDirectory vendorDirectory;
 
     @Autowired
     public VendorAssignmentService(VendorAssignmentRepository repository,
-                                   ActivityFacilityUsersService facilityUsersService,
+                                   Producer producer,
                                    IdGenService idGenService,
                                    ActivityConfiguration configuration,
                                    VendorDirectory vendorDirectory) {
         this.repository = repository;
-        this.facilityUsersService = facilityUsersService;
+        this.producer = producer;
         this.idGenService = idGenService;
         this.configuration = configuration;
         this.vendorDirectory = vendorDirectory;
@@ -403,14 +407,20 @@ public class VendorAssignmentService {
     // ---------------------------------------------------------------- create
 
     /**
-     * The handover, in one transaction.
+     * The handover.
      *
-     * All-or-nothing matters more here than anywhere else in this feature: assignment is
-     * one-shot, so a plan that dispatched half its assets could not be finished by re-running.
-     * Either every asset row, every bom row, every visibility link and the status flip land, or
-     * none do and the Project Manager retries once the cause is fixed.
+     * All-or-nothing still matters more here than anywhere else in this feature -- assignment is
+     * one-shot, so a plan that dispatched half its assets could not be finished by re-running --
+     * but the atomicity now lives in the persister rather than here: one topic, one mapping,
+     * four queryMaps, isTransaction: true. There is no local transaction left to annotate.
+     *
+     * Two things compensate for what publishing costs us. Every id is derived from its row's
+     * natural key, so a replayed or duplicated message rewrites the same rows instead of
+     * dispatching twice -- that replaces the guarded `UPDATE ... WHERE status = 'DRAFT'` this
+     * method used to depend on, which the persister cannot express because it cannot assert a row
+     * count. And awaitPersistence blocks until the rows are visible, so the Project Manager is
+     * not told a one-shot submission succeeded when it may not have.
      */
-    @Transactional(rollbackFor = Exception.class)
     public VendorAssignmentCreateResponse create(VendorAssignmentRequest request) {
         VendorAssignmentCriteria criteria = request.getCriteria();
         RequestInfo requestInfo = request.getRequestInfo();
@@ -436,12 +446,14 @@ public class VendorAssignmentService {
 
         List<VendorAssignmentSubmission> assignments = orEmpty(request.getAssignments());
 
-        // One idgen call for the whole plan rather than one per asset: N round trips inside a
-        // transaction is the wrong shape, and this is the service's first real idgen use.
+        // Still synchronous, and deliberately so: a failure to mint Report Numbers must reach the
+        // Project Manager, not vanish into a persister log. One call for the whole plan.
         List<String> reportNumbers = generateReportNumbers(requestInfo, criteria.getTenantId(),
                 assignments.size());
 
-        List<ActivityFacilityUser> visibilityLinks = new ArrayList<>();
+        List<Map<String, Object>> assetRows = new ArrayList<>();
+        List<Map<String, Object>> bomRows = new ArrayList<>();
+        List<Map<String, Object>> linkRows = new ArrayList<>();
         Set<String> vendorOrgs = new LinkedHashSet<>();
         int index = 0;
 
@@ -451,63 +463,44 @@ public class VendorAssignmentService {
             String solutionId = scope.get(submission.getFacilityId());
             Map<String, Object> templateData = templates.get(solutionId);
 
-            String activityFacilityId = repository.upsertFacilityActivity(
-                    UUID.randomUUID().toString(), criteria.getTenantId(), submission.getFacilityId(),
-                    activityId, criteria.getFieldPlanId(), submission.getComponentType(),
-                    submission.getComponentSequence(), solutionId, ASSET_STATUS_SCHEDULED,
-                    scheduledAt, submission.getVendorUserId(), now);
-
-            // Reuse an existing bom id if one somehow exists for this asset, so a retry updates
-            // rather than leaving an orphan alongside it.
-            String bomId = repository.findBomIdByActivityFacility(criteria.getTenantId(), activityFacilityId);
-            if (!StringUtils.hasText(bomId)) {
-                bomId = UUID.randomUUID().toString();
-            }
-
+            String activityFacilityId = assetId(criteria, submission);
             String assetName = assetNameFor(submission, templateData);
-            repository.upsertBom(bomId, criteria.getTenantId(), assetName, submission.getFacilityId(),
-                    activityFacilityId, solutionId, submission, reportNumbers.get(index),
-                    seedBomData(submission, templateData),
-                    displayNameCache(submission, assetName), now);
 
-            // How the task becomes visible: the same link table createActivityFacility uses for
-            // reviewer/staff/supervisor users.
-            visibilityLinks.add(link(activityFacilityId, submission.getVendorUserId(), criteria.getTenantId()));
+            assetRows.add(assetRow(criteria, submission, activityFacilityId, activityId,
+                    solutionId, scheduledAt, now));
+            bomRows.add(bomRow(criteria, submission, activityFacilityId, solutionId, assetName,
+                    reportNumbers.get(index), seedBomData(submission, templateData),
+                    displayNameCache(submission, assetName), now));
+
+            // How the task becomes visible: one link row per person per asset, for the assigned
+            // vendor and for every Installation Reviewer on the plan.
+            linkRows.add(linkRow(criteria, activityFacilityId, submission.getVendorUserId(), userUuid, now));
             for (String reviewer : reviewers) {
-                visibilityLinks.add(link(activityFacilityId, reviewer, criteria.getTenantId()));
+                linkRows.add(linkRow(criteria, activityFacilityId, reviewer, userUuid, now));
             }
 
             vendorOrgs.add(submission.getVendorOrgId());
             index++;
         }
 
-        if (!visibilityLinks.isEmpty()) {
-            try {
-                facilityUsersService.createActivityFacilityUsers(ActivityFacilityUserBulkRequest.builder()
-                        .requestInfo(requestInfo)
-                        .activityFacilityUsers(visibilityLinks)
-                        .build());
-            } catch (Exception e) {
-                // Rethrown unchecked so the transaction definitely rolls back. rollbackFor on the
-                // annotation covers the checked case too, but converting here keeps the failure
-                // legible instead of surfacing as a bare checked exception.
-                throw new CustomException("VISIBILITY_LINK_FAILED",
-                        "Could not link the assigned vendor and reviewer to the installation tasks: "
-                                + e.getMessage());
-            }
-        }
+        // One message, one persister mapping, one database transaction. Every query in that
+        // mapping is an upsert keyed on a natural key, so a replay or a duplicate submit rewrites
+        // the same rows rather than dispatching twice -- which is what replaces the guarded
+        // `UPDATE ... WHERE status = 'DRAFT'` this method used to rely on. See
+        // egov-persister/activity-persister.yml, mapping save-vendor-assignment.
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("RequestInfo", requestInfo);
+        payload.put("ActivitiesFacilities", assetRows);
+        payload.put("bom", bomRows);
+        payload.put("ActivityFacilityUsers", linkRows);
+        payload.put("FieldPlan", List.of(planHandoverRow(criteria, userUuid, now)));
 
-        // The handover. Guarded on DRAFT, so two concurrent submits cannot both publish: the
-        // loser updates zero rows and its whole transaction is rolled back by this exception.
-        int published = repository.publishPlan(criteria.getTenantId(), criteria.getFieldPlanId(),
-                PLAN_STATUS_DRAFT, PLAN_STATUS_PUBLISHED, userUuid, now);
-        if (published != 1) {
-            throw new CustomException("PLAN_ALREADY_PUBLISHED",
-                    "This installation plan was submitted by someone else while you were working on it.");
-        }
+        producer.push(configuration.getSaveVendorAssignmentTopic(), payload);
+        log.info("published vendor assignment: plan={} sites={} assets={} links={} vendorOrgs={} topic={}",
+                criteria.getFieldPlanId(), scope.size(), assetRows.size(), linkRows.size(),
+                vendorOrgs.size(), configuration.getSaveVendorAssignmentTopic());
 
-        log.info("vendor assignment complete: plan={} sites={} assets={} vendorOrgs={}",
-                criteria.getFieldPlanId(), scope.size(), assignments.size(), vendorOrgs.size());
+        awaitPersistence(criteria, assetRows.size());
 
         return VendorAssignmentCreateResponse.builder()
                 .fieldPlanId(criteria.getFieldPlanId())
@@ -517,6 +510,144 @@ public class VendorAssignmentService {
                 .vendorOrganisations(new ArrayList<>(vendorOrgs))
                 .message("Vendor assignments saved and handed over to the installation staff.")
                 .build();
+    }
+
+    /**
+     * Blocks briefly until the published rows are actually in the database, so the Project
+     * Manager is told the truth about a submission they cannot repeat.
+     *
+     * The write is asynchronous now, so without this the API would return 200 the instant the
+     * message was queued -- and a persister failure would leave a plan that looks dispatched and
+     * is not, with no retry affordance because the UI already said it worked.
+     */
+    private void awaitPersistence(VendorAssignmentCriteria criteria, int expectedAssets) {
+        for (int attempt = 1; attempt <= PERSIST_WAIT_ATTEMPTS; attempt++) {
+            int stored = repository.findExistingAssets(criteria.getTenantId(), criteria.getFieldPlanId()).size();
+            // Both conditions, not just the row count: the asset rows are queries 1-3 of the
+            // mapping and the status flip is query 4, and query 4 is the actual handover. A check
+            // that passed on row count alone would report success for a plan whose sites were
+            // dispatched but which never left DRAFT -- so the technician sees work the Project
+            // Manager's screen still calls editable.
+            Map<String, Object> plan = repository.findPlan(criteria.getTenantId(), criteria.getFieldPlanId());
+            boolean handedOver = plan != null && PLAN_STATUS_PUBLISHED.equals(asString(plan.get("status")));
+            if (stored >= expectedAssets && handedOver) {
+                log.info("vendor assignment persisted for plan={} after {} attempt(s)",
+                        criteria.getFieldPlanId(), attempt);
+                return;
+            }
+            try {
+                Thread.sleep(PERSIST_WAIT_INTERVAL_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        // Not "failed" -- we genuinely do not know that it failed, and saying so would invite a
+        // resubmit of a one-shot action. Deterministic ids make a resubmit harmless if the PM
+        // does try, but the honest message is that it is still being applied.
+        throw new CustomException("VENDOR_ASSIGNMENT_PENDING",
+                "Your vendor assignments were submitted but have not finished saving yet. "
+                        + "Reload this installation plan in a moment to confirm -- do not assume "
+                        + "the submission was lost.");
+    }
+
+    /**
+     * Ids derived from the row's natural key rather than randomly generated, so the whole
+     * message is idempotent by construction.
+     *
+     * This is not a stylistic choice. The bom row has to carry its asset's activity_facility_id,
+     * and with the write asynchronous there is no longer any way to read back the id an upsert
+     * settled on. A random id would therefore produce an orphan bom row every time the asset row
+     * already existed: the upsert would keep the original row's id while the bom pointed at the
+     * new one. Deriving both from the same natural key makes that impossible.
+     *
+     * nameUUIDFromBytes is a type-3 (MD5) UUID -- not for anything security-sensitive, but stable
+     * across processes and JVM versions, which is exactly the property needed here.
+     */
+    private String assetId(VendorAssignmentCriteria criteria, VendorAssignmentSubmission submission) {
+        return deterministicId("facility-activity", criteria.getTenantId(), criteria.getFieldPlanId(),
+                submission.getFacilityId(), submission.getComponentType(),
+                String.valueOf(submission.getComponentSequence()));
+    }
+
+    private static String deterministicId(String... parts) {
+        return UUID.nameUUIDFromBytes(String.join("|", parts).getBytes(StandardCharsets.UTF_8)).toString();
+    }
+
+    private Map<String, Object> assetRow(VendorAssignmentCriteria criteria,
+                                         VendorAssignmentSubmission submission,
+                                         String activityFacilityId, String activityId,
+                                         String solutionId, Long scheduledAt, Long now) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("id", activityFacilityId);
+        row.put("tenantId", criteria.getTenantId());
+        row.put("fieldPlanId", criteria.getFieldPlanId());
+        row.put("activityId", activityId);
+        row.put("facilityId", submission.getFacilityId());
+        row.put("status", ASSET_STATUS_SCHEDULED);
+        row.put("assignedUser", submission.getVendorUserId());
+        row.put("scheduledAt", scheduledAt);
+        row.put("activatedAt", scheduledAt);
+        row.put("componentType", submission.getComponentType());
+        row.put("componentSequence", submission.getComponentSequence());
+        row.put("solutionId", solutionId);
+        row.put("auditDetails", auditMap(null, now, now));
+        return row;
+    }
+
+    private Map<String, Object> bomRow(VendorAssignmentCriteria criteria,
+                                       VendorAssignmentSubmission submission,
+                                       String activityFacilityId, String solutionId, String assetName,
+                                       String reportNumber, Map<String, Object> data,
+                                       Map<String, Object> additionalDetails, Long now) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("id", deterministicId("bom", activityFacilityId));
+        row.put("tenantId", criteria.getTenantId());
+        row.put("name", assetName);
+        row.put("facilityId", submission.getFacilityId());
+        row.put("activityFacilityId", activityFacilityId);
+        row.put("solutionId", solutionId);
+        row.put("assignUser", submission.getVendorUserId());
+        row.put("vendorOrgId", submission.getVendorOrgId());
+        row.put("vendorEmail", submission.getVendorEmail());
+        row.put("vendorPhone", submission.getVendorPhone());
+        row.put("reportNumber", reportNumber);
+        row.put("data", data);
+        row.put("additionalDetails", additionalDetails);
+        row.put("isActive", Boolean.TRUE);
+        row.put("auditDetails", auditMap(null, now, now));
+        return row;
+    }
+
+    private Map<String, Object> linkRow(VendorAssignmentCriteria criteria, String activityFacilityId,
+                                        String userId, String actingUser, Long now) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("id", deterministicId("activity-facility-user", activityFacilityId, userId));
+        row.put("tenantId", criteria.getTenantId());
+        row.put("activityFacilityId", activityFacilityId);
+        row.put("userId", userId);
+        row.put("additionalDetails", Map.of());
+        row.put("isDeleted", Boolean.FALSE);
+        row.put("auditDetails", auditMap(actingUser, now, now));
+        return row;
+    }
+
+    private Map<String, Object> planHandoverRow(VendorAssignmentCriteria criteria, String userUuid, Long now) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("id", criteria.getFieldPlanId());
+        row.put("tenantId", criteria.getTenantId());
+        row.put("status", PLAN_STATUS_PUBLISHED);
+        row.put("auditDetails", auditMap(userUuid, null, now));
+        return row;
+    }
+
+    private static Map<String, Object> auditMap(String by, Long createdTime, Long lastModifiedTime) {
+        Map<String, Object> audit = new LinkedHashMap<>();
+        audit.put("createdBy", by);
+        audit.put("lastModifiedBy", by);
+        audit.put("createdTime", createdTime);
+        audit.put("lastModifiedTime", lastModifiedTime);
+        return audit;
     }
 
     /**
@@ -652,15 +783,6 @@ public class VendorAssignmentService {
                     "Installation plan " + criteria.getFieldPlanId() + " not found");
         }
         return plan;
-    }
-
-    private ActivityFacilityUser link(String activityFacilityId, String userId, String tenantId) {
-        return ActivityFacilityUser.builder()
-                .activityFacilityId(activityFacilityId)
-                .userId(userId)
-                .tenantId(tenantId)
-                .isDeleted(false)
-                .build();
     }
 
     private static String assetKey(String facilityId, String componentType, Integer componentSequence) {

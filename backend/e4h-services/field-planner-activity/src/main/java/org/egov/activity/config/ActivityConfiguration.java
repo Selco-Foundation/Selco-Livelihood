@@ -26,6 +26,14 @@ public class ActivityConfiguration {
     @Value("${bom.report.number.idgen.name:bom.report.number}")
     private String bomReportNumberIdName;
 
+    /**
+     * Consumed by egov-persister's activity-persister.yml save-vendor-assignment mapping, which
+     * writes facility_activities, bom, activity_facility_users and the field_plans handover in
+     * one transaction. Keep the payload shape in sync with that mapping.
+     */
+    @Value("${vendor.assignment.kafka.create.topic:save-vendor-assignment}")
+    private String saveVendorAssignmentTopic;
+
     @Value("${egov.fieldplan.host}")
     private String fieldPlanServiceHost;
 

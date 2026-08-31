@@ -3,8 +3,6 @@ package org.egov.activity.repository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.egov.activity.web.models.VendorAssignmentSubmission;
-import org.postgresql.util.PGobject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -16,17 +14,21 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Reads and writes for the Vendor Assignment step.
+ * Reads for the Vendor Assignment step. Read-only by design.
  *
- * Plain JdbcTemplate throughout. The writes deliberately bypass the Kafka/egov-persister path
- * that ActivityService and BomService use: that config lives outside this repository and has no
- * mapping for the component or vendor columns, so a pushed write would silently drop them --
- * exactly how field_plans.sector was lost. Both services also swallow their own write
- * exceptions, which would defeat the all-or-nothing transaction this step depends on
+ * It used to own the step's four writes as JDBC upserts, because the egov-persister config was
+ * not visible from this repository and its mappings named neither the component columns nor the
+ * vendor columns -- which is how field_plans.sector was silently dropped for weeks. That config
+ * (Configs-Livelihood/egov-persister) is now aligned with the schema, so the writes are published
+ * to the save-vendor-assignment topic and applied there as one transactional mapping. See
+ * development/Persister_Config/ for the audit.
  *
- * Several of the reads target tables field-planner migrates (field_plan_facilities,
- * field_plan_template, field_plans, activity_assignments). That is existing practice here, not a
- * new coupling -- this service already queries facility_activities the same way.
+ * findExistingAssets doubles as the read-back check: create() polls it after publishing, so the
+ * Project Manager is not told a one-shot submission succeeded before the rows exist.
+ *
+ * Several reads target tables field-planner migrates (field_plan_facilities, field_plan_template,
+ * field_plans, activity_assignments). That is existing practice here, not a new coupling -- this
+ * service already queries facility_activities the same way.
  */
 @Repository
 @Slf4j
@@ -158,78 +160,14 @@ public class VendorAssignmentRepository {
 
     // --------------------------------------------------------------- writes
 
-    /**
-     * Upsert on the composite unique index added by field-planner's V20260827100200. Upsert
-     * rather than insert so a retry after a rolled-back transaction cannot collide with a
-     * half-written row -- there should be none, but the guarantee is free.
-     */
-    private static final String UPSERT_FACILITY_ACTIVITY =
-            "INSERT INTO facility_activities "
-                    + "(id, tenant_id, facility_id, activity_id, field_plan_id, component_type, "
-                    + " component_sequence, solution_id, status, scheduled_at, activated_at, "
-                    + " assigned_user, created_time, last_modified_time, isdeleted) "
-                    + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, false) "
-                    + "ON CONFLICT (tenant_id, facility_id, activity_id, field_plan_id, "
-                    + "             COALESCE(component_type, ''), COALESCE(component_sequence, 0)) "
-                    + "DO UPDATE SET solution_id = EXCLUDED.solution_id, "
-                    + " status = EXCLUDED.status, scheduled_at = EXCLUDED.scheduled_at, "
-                    + " activated_at = EXCLUDED.activated_at, assigned_user = EXCLUDED.assigned_user, "
-                    + " last_modified_time = EXCLUDED.last_modified_time "
-                    + "RETURNING id";
-
-    /** Returns the row's id, whether freshly inserted or already present. */
-    public String upsertFacilityActivity(String id, String tenantId, String facilityId, String activityId,
-                                         String fieldPlanId, String componentType, Integer componentSequence,
-                                         String solutionId, String status, Long scheduledAt,
-                                         String assignedUser, Long now) {
-        return jdbcTemplate.queryForObject(UPSERT_FACILITY_ACTIVITY, String.class,
-                id, tenantId, facilityId, activityId, fieldPlanId, componentType, componentSequence,
-                solutionId, status, scheduledAt, scheduledAt, assignedUser, now, now);
-    }
-
-    private static final String UPSERT_BOM =
-            "INSERT INTO bom "
-                    + "(id, tenant_id, name, facility_id, activity_facility_id, solution_id, "
-                    + " assign_user, vendor_org_id, vendor_email, vendor_phone, report_number, "
-                    + " data, additional_details, is_active, created_time, last_modified_time) "
-                    + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, true, ?, ?) "
-                    + "ON CONFLICT (id) DO UPDATE SET "
-                    + " assign_user = EXCLUDED.assign_user, vendor_org_id = EXCLUDED.vendor_org_id, "
-                    + " vendor_email = EXCLUDED.vendor_email, vendor_phone = EXCLUDED.vendor_phone, "
-                    + " report_number = EXCLUDED.report_number, data = EXCLUDED.data, "
-                    + " additional_details = EXCLUDED.additional_details, "
-                    + " last_modified_time = EXCLUDED.last_modified_time";
-
-    public void upsertBom(String id, String tenantId, String name, String facilityId,
-                          String activityFacilityId, String solutionId,
-                          VendorAssignmentSubmission vendor, String reportNumber,
-                          Map<String, Object> data, Map<String, Object> additionalDetails, Long now) {
-        jdbcTemplate.update(UPSERT_BOM,
-                id, tenantId, name, facilityId, activityFacilityId, solutionId,
-                vendor.getVendorUserId(), vendor.getVendorOrgId(), vendor.getVendorEmail(),
-                vendor.getVendorPhone(), reportNumber,
-                toJsonb(data), toJsonb(additionalDetails), now, now);
-    }
-
-    /** Existing bom row id for an asset, so a retry reuses it instead of orphaning one. */
-    public String findBomIdByActivityFacility(String tenantId, String activityFacilityId) {
-        List<String> ids = jdbcTemplate.queryForList(
-                "SELECT id FROM bom WHERE tenant_id = ? AND activity_facility_id = ?",
-                String.class, tenantId, activityFacilityId);
-        return ids.isEmpty() ? null : ids.get(0);
-    }
-
-    /**
-     * The handover. Guarded on the current status so two concurrent submits cannot both believe
-     * they published: the second updates zero rows and the caller aborts.
-     */
-    public int publishPlan(String tenantId, String fieldPlanId, String fromStatus, String toStatus,
-                           String lastModifiedBy, Long now) {
-        return jdbcTemplate.update(
-                "UPDATE field_plans SET status = ?, last_modified_by = ?, last_modified_time = ? "
-                        + "WHERE tenant_id = ? AND id = ? AND status = ?",
-                toStatus, lastModifiedBy, now, tenantId, fieldPlanId, fromStatus);
-    }
+    // ---------------------------------------------------------------- writes
+    //
+    // There are none. Vendor assignment's four writes -- facility_activities, bom,
+    // activity_facility_users and the field_plans handover -- are published to the
+    // save-vendor-assignment topic and applied by egov-persister as one transactional mapping,
+    // so this repository is read-only. It deliberately keeps no JDBC upserts: having two write
+    // paths for the same tables is what this alignment removed, and re-adding one here would
+    // race the persister rather than complement it.
 
     // --------------------------------------------------------------- helpers
 
@@ -259,14 +197,4 @@ public class VendorAssignmentRepository {
         return List.of();
     }
 
-    private PGobject toJsonb(Object value) {
-        PGobject jsonb = new PGobject();
-        jsonb.setType("jsonb");
-        try {
-            jsonb.setValue(objectMapper.writeValueAsString(value == null ? Map.of() : value));
-        } catch (Exception e) {
-            throw new IllegalStateException("Could not serialise vendor assignment JSON", e);
-        }
-        return jsonb;
-    }
 }
