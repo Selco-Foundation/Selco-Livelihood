@@ -51,8 +51,13 @@ class FieldPlanServiceClient:
     def create_fieldPlan_facility_bulk(self, request_info: RequestInfo, fieldPlan_id: str, facility_ids: list[str],
                                        solution_id_by_facility: Dict[str, str] = None):
         """Link facilities to a plan. solution_id_by_facility carries each site's chosen
-        Solution (the MDMS code, not its display name); lockStatus is deliberately not sent
-        -- a site is only locked once its installation actually starts."""
+        Solution (the MDMS code, not its display name).
+
+        lockStatus is still not sent, but the reason changed: field-planner now reserves a site
+        (lock_status = LOCKED) as it joins scope, and FieldPlannerFacilityService.applyScopeLock
+        only *defaults* the value. Omitting it is therefore how we ask for the platform's default
+        rather than pin a state from here -- sending LOCKED explicitly would behave identically
+        today and silently diverge if the rule ever changes."""
         url = f"{self.fieldPlan_service_url}/field-planner/v1/field-plans/facility/bulk/_create"
         headers = {
             "Content-Type": "application/json"

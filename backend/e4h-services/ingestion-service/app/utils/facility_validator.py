@@ -218,10 +218,11 @@ def validate_installation_scope_solutions(
     has no column behind it and is always null -- so the value checked here is the one the
     dropdown was built from.
 
-    lock_map (facility_id -> SiteLock) freezes rows whose installation has started: a row
-    held by a sibling plan is display-only and skipped, and one held by this plan must come
-    back unchanged. Excel protection alone can't guarantee that -- the sheet can be
-    unprotected -- so it is re-checked here.
+    lock_map (facility_id -> SiteLock) freezes rows that another plan has claimed, or that this
+    plan has already published. A row held by a sibling plan is display-only and skipped; one
+    held by this plan (which can only mean this plan is published -- its own unpublished scope
+    reservations are filtered out of the map) must come back unchanged. Excel protection alone
+    can't guarantee that -- the sheet can be unprotected -- so it is re-checked here.
 
     Returns the 0-based positions of rows this plan may actually link.
     """
@@ -245,14 +246,17 @@ def validate_installation_scope_solutions(
         lock = lock_map.get(facility_id) if facility_id else None
         if lock is not None:
             if lock.is_this_plan:
-                # Held by this plan: it must come back untouched. Excel protection stops honest
-                # edits, but the sheet can be unprotected, so the values are re-checked here.
+                # Held by this plan, which can only mean this plan is published -- its own
+                # unpublished scope reservations are excluded from the lock map so that it can
+                # keep editing them. So the row really is fixed: it must come back untouched.
+                # Excel protection stops honest edits, but the sheet can be unprotected, so the
+                # values are re-checked here.
                 expected = solution_name_by_code.get(lock.solution_id, "")
                 if include_value != "yes" or (expected and solution_value != expected):
                     add_err(
                         i,
-                        "This site's installation has already started, so it cannot be removed "
-                        "from the plan or given a different Solution.",
+                        "This installation plan has already been submitted, so this site cannot "
+                        "be removed from it or given a different Solution.",
                     )
             elif include_value == "yes":
                 # Held by a sibling plan and the PM has asked to include it anyway. This is the

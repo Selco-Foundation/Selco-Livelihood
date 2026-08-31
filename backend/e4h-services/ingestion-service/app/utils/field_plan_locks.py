@@ -24,9 +24,10 @@ class SiteLock(NamedTuple):
     stored flag, so it needs no write anywhere, cannot drift out of sync, and applies to
     existing data with no backfill.
 
-    LOCKED -- field_plan_facilities.lock_status is LOCKED, the finer-grained per-site lock
-    for a site whose installation is under way. Nothing sets it yet; it belongs to whatever
-    marks an IC report in progress.
+    LOCKED -- field_plan_facilities.lock_status is LOCKED: the site has been reserved by a
+    plan's Installation Scope step. Note this reason only ever describes a SIBLING plan's claim
+    -- a plan's own unpublished reservation is filtered out above, so that it can still edit its
+    own scope.
     """
     field_plan_id: str
     field_plan_name: Optional[str]
@@ -77,17 +78,41 @@ def build_project_lock_map(
         facility_id = link.get("facilityId")
         if not facility_id:
             continue
+        # A removed site is not spoken for. A site is reserved (lock_status = LOCKED) the moment
+        # it joins a plan's scope, so without this a site removed from scope would stay barred
+        # from the whole project for good -- its row still says LOCKED and no UI lists a deleted
+        # row to unlock it. FieldPlannerFacilityService.releaseScopeLock also writes UNLOCKED on
+        # unassign; this guard keeps the rule right even if that write is ever lost.
+        if link.get("isdeleted") or link.get("isDeleted"):
+            continue
+
         plan_id = link.get("fieldPlanId")
         is_published = plan_id in published_plan_ids
         is_locked = str(link.get("lockStatus") or "").strip().upper() == LOCK_STATUS_LOCKED
         if not is_published and not is_locked:
             continue
 
+        is_this_plan = bool(current_field_plan_id) and plan_id == current_field_plan_id
+
+        # A plan's own reservation is not a lock against itself. The scope lock exists to stop a
+        # SIBLING plan taking the site; the owning plan must keep editing its own scope until it
+        # publishes -- removing a site it just added, or changing a site's Solution.
+        #
+        # Without this, locking at scope time would make the Installation Scope step effectively
+        # one-shot: every row of the plan's own sheet would come back frozen, the validator would
+        # skip all of them (facility_validator treats an is_this_plan lock as fixed), and
+        # re-uploading would fail with "No end user sites are selected".
+        #
+        # A PUBLISHED plan is different and still belongs in the map: its sites really are
+        # dispatched, and its own sheet should render frozen.
+        if is_this_plan and not is_published:
+            continue
+
         candidate = SiteLock(
             field_plan_id=plan_id,
             field_plan_name=plan_names.get(plan_id),
             solution_id=link.get("solutionId"),
-            is_this_plan=bool(current_field_plan_id) and plan_id == current_field_plan_id,
+            is_this_plan=is_this_plan,
             # A published plan is the stronger claim, so it wins when a site is both.
             reason=REASON_PUBLISHED if is_published else REASON_LOCKED,
         )
@@ -112,8 +137,12 @@ def site_bar_message(lock: SiteLock) -> str:
     if lock.reason == REASON_PUBLISHED:
         return (f"This end user site has already been added and published into installation plan "
                 f"{owner}. It cannot be part of another installation plan in the same project.")
-    return (f"This end user site's installation has already started under installation plan "
-            f"{owner}, so it cannot be added to another plan in the same project.")
+    # Reserved at scope time, not "installation started" -- a sibling plan can hold this site
+    # while still in DRAFT, long before any vendor is dispatched. Saying otherwise sent the
+    # Project Manager looking for an installation that had not begun.
+    return (f"This end user site is already included in installation plan {owner}, so it cannot "
+            f"be added to another plan in the same project. Remove it there first if it belongs "
+            f"in this plan instead.")
 
 
 def lock_status_label(lock: Optional[SiteLock]) -> str:
