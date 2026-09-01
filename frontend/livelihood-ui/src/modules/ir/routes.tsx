@@ -7,6 +7,7 @@ import { IR_ROUTES } from "./constants/routes";
 import { FacilityEntryListPage } from "./pages/employee/FacilityEntryListPage";
 import { FacilityReviewPage } from "./pages/employee/FacilityReviewPage";
 import { InstallationPlanInboxPage } from "./pages/employee/InstallationPlanInboxPage";
+import { IR_ROLES } from "./utils/access";
 
 /**
  * Parent route component for all IR pages.
@@ -87,6 +88,7 @@ export function createIrRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
           `/${basePath}${IR_ROUTES.facilityEntries}`,
           `/${basePath}${IR_ROUTES.facilityReview}`,
         ],
+        roles: [...IR_ROLES],
       },
     ],
   };

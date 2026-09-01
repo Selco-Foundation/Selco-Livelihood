@@ -8,6 +8,7 @@ import { ComplaintDetailsPage } from "./pages/employee/ComplaintDetailsPage";
 import { CreateIncidentPage } from "./pages/employee/CreateIncidentPage";
 import { InboxPage } from "./pages/employee/InboxPage";
 import type { ImInboxFilters } from "./types/inbox";
+import { IM_ROLES } from "./utils/access";
 
 export interface InboxRouteSearch {
   filter?: ImInboxFilters;
@@ -112,6 +113,7 @@ export function createImRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
         to: inboxPath,
         icon: Inbox,
         matchPrefixes: [`/${basePath}${IM_ROUTES.complaintDetails}`],
+        roles: [...IM_ROLES],
       },
     ],
   };
