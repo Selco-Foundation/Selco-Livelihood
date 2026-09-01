@@ -28,10 +28,15 @@ export function TopBar({ title, description, breadcrumbs, actions }: TopBarProps
       <span className="hidden lg:inline-flex">
         <LanguageSwitcher />
       </span>
-      {actions ? (
-        <span aria-hidden="true" className="hidden h-8 w-px bg-border lg:inline-block" />
-      ) : null}
-      {actions}
+      {/* `actions` can be a non-null node that renders no visible DOM — e.g. a
+          role-gated action component returning null — so whether to show the
+          separator has to be answered by the DOM (is the slot actually
+          empty), not by whether the `actions` prop itself is truthy. */}
+      <span
+        aria-hidden="true"
+        className="hidden h-8 w-px bg-border lg:inline-block has-[+.topbar-actions:empty]:hidden"
+      />
+      <span className="topbar-actions contents">{actions}</span>
     </>
   );
 
