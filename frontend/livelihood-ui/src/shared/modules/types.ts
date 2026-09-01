@@ -18,6 +18,14 @@ export interface NavItem {
    * own route lives outside `to`'s own path tree.
    */
   matchPrefixes?: string[];
+  /**
+   * Role codes allowed to see this nav item. Omit to show it to every
+   * logged-in user (e.g. core's "Overview"). When set, the item is hidden
+   * unless the current user holds at least one of these roles — each module
+   * owns its own role list (see its `utils/access.ts`) rather than this type
+   * knowing about any module's specific roles.
+   */
+  roles?: string[];
 }
 
 export interface ModuleOverview {

@@ -57,10 +57,10 @@ function isNavItemActive(item: NavItem, pathname: string, homePath: string): boo
 }
 
 export function AppShell() {
-  const navItems = getModuleNavItems();
   const basePath = `/${contextPath()}`;
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
+  const navItems = getModuleNavItems(user?.roles);
   const accessToken = useAuthStore((state) => state.accessToken);
   const employeeTenantId = useAuthStore((state) => state.employeeTenantId);
   const clearSession = useAuthStore((state) => state.clearSession);
