@@ -124,7 +124,7 @@ export function RejectionReasonDialog({
             </Button>
           ) : null}
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {translateOr(t, "ES_COMMON_CANCEL", "Cancel")}
+            {translateOr(t, "CORE_COMMON_CANCEL", "Cancel")}
           </Button>
           <Button disabled={!reasonCode} onClick={handleSubmit}>
             {isEditing
