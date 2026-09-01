@@ -18,13 +18,9 @@ export function HomePage() {
           </>
         }
         actions={
-          actions.length > 0 ? (
-            <div className="flex items-center gap-3">
-              {actions.map(({ Component, moduleId }) => (
-                <Component key={moduleId} />
-              ))}
-            </div>
-          ) : null
+          actions.length > 0
+            ? actions.map(({ Component, moduleId }) => <Component key={moduleId} />)
+            : null
         }
       />
       {kpis.length > 0 ? (
