@@ -6,7 +6,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.common.contract.request.User;
+import org.egov.im.util.AssetRegistryUtil;
 import org.egov.im.util.LivelihoodVendorScopeService;
+import org.egov.im.util.VendorRegistryUtil;
 import org.egov.im.web.models.Document;
 import org.egov.im.web.models.Incident;
 import org.egov.im.web.models.IncidentRequest;
@@ -43,6 +45,8 @@ public class LivelihoodUpdateService {
 
     private final LivelihoodVendorScopeService livelihoodVendorScopeService;
     private final WorkflowService workflowService;
+    private final AssetRegistryUtil assetRegistryUtil;
+    private final VendorRegistryUtil vendorRegistryUtil;
     private final ObjectMapper objectMapper;
 
     public void validateUpdate(IncidentRequest request, Incident existingIncident, List<String> currentAssignees) {
@@ -70,7 +74,54 @@ public class LivelihoodUpdateService {
             case "REVISE_QUOTATION" -> validateReviseQuotation(request, existingIncident, currentStatus);
             case "DECLINE" -> validateDecline(request, currentStatus);
             case "REOPEN" -> validateReopen(request, existingIncident, requestInfo);
+            case "ASSIGN_VENDOR" -> validateAssignVendor(request, existingIncident, requestInfo);
             default -> { }
+        }
+    }
+
+    /**
+     * Remaps the incident asset to the vendor selected in {@code ASSIGN_VENDOR} before workflow transition.
+     */
+    public void remapAssetForAssignVendor(IncidentRequest request, Incident existingIncident) {
+        if (request == null || request.getWorkflow() == null || existingIncident == null) {
+            return;
+        }
+        if (!LIVELIHOOD_WF_ASSIGN_VENDOR.equals(normalizeAction(request.getWorkflow().getAction()))) {
+            return;
+        }
+
+        RequestInfo requestInfo = request.getRequestInfo();
+        String tenantId = existingIncident.getTenantId();
+        String assetId = existingIncident.getAssetId();
+        String facilityId = existingIncident.getFacilityId();
+        String newVendorUserUuid = firstAssignee(request.getWorkflow());
+
+        String newVendorOrgId = vendorRegistryUtil.resolvePrimaryOrganisationIdForUser(
+                requestInfo, tenantId, newVendorUserUuid);
+        if (StringUtils.isBlank(newVendorOrgId)) {
+            throw new CustomException("VENDOR_NOT_FOUND", "Could not resolve vendor organisation for assignee");
+        }
+
+        Map<String, Object> asset = assetRegistryUtil.fetchAssetAsMap(requestInfo, tenantId, assetId, facilityId);
+        Object currentVendorId = asset.get("vendorId");
+        String previousVendorOrgId = vendorRegistryUtil.resolveOrganisationIdForVendorKey(
+                requestInfo,
+                tenantId,
+                currentVendorId != null ? currentVendorId.toString() : null
+        );
+
+        assetRegistryUtil.updateAssetVendorId(requestInfo, tenantId, assetId, facilityId, newVendorOrgId);
+
+        Map<String, Object> details = toMutableMap(existingIncident.getAdditionalDetail());
+        mergeRequestAdditionalDetail(details, request.getIncident().getAdditionalDetail());
+        appendVendorRemapHistory(details, previousVendorOrgId, newVendorOrgId, newVendorUserUuid, requestInfo);
+        request.getIncident().setAdditionalDetail(details);
+
+        if (StringUtils.isBlank(request.getIncident().getAssetId())) {
+            request.getIncident().setAssetId(assetId);
+        }
+        if (StringUtils.isBlank(request.getIncident().getFacilityId())) {
+            request.getIncident().setFacilityId(facilityId);
         }
     }
 
@@ -144,6 +195,55 @@ public class LivelihoodUpdateService {
             throw new CustomException("QUOTATION_NOT_FOUND", "No existing quotation found to revise");
         }
         requireQuotationDocument(request.getWorkflow());
+    }
+
+    private void validateAssignVendor(IncidentRequest request, Incident existingIncident, RequestInfo requestInfo) {
+        String currentStatus = normalizeStatus(existingIncident.getApplicationStatus());
+        if (!LIVELIHOOD_OUT_OF_SCOPE_PENDING_POC.equals(currentStatus)) {
+            throw new CustomException(
+                    "INVALID_ACTION",
+                    "ASSIGN_VENDOR is only allowed from OUT_OF_SCOPE_PENDING_POC"
+            );
+        }
+
+        String newVendorUserUuid = firstAssignee(request.getWorkflow());
+        if (StringUtils.isBlank(newVendorUserUuid)) {
+            throw new CustomException("ASSIGNEE_REQUIRED", "ASSIGN_VENDOR requires a vendor assignee");
+        }
+
+        if (StringUtils.isBlank(existingIncident.getAssetId())) {
+            throw new CustomException("ASSET_REQUIRED", "Incident assetId is required to assign a new vendor");
+        }
+
+        String tenantId = existingIncident.getTenantId();
+        String newVendorOrgId = vendorRegistryUtil.resolvePrimaryOrganisationIdForUser(
+                requestInfo, tenantId, newVendorUserUuid);
+        if (StringUtils.isBlank(newVendorOrgId)) {
+            throw new CustomException("VENDOR_NOT_FOUND", "Selected assignee is not linked to a vendor organisation");
+        }
+        if (!vendorRegistryUtil.isVendorOrganisation(requestInfo, tenantId, newVendorOrgId)) {
+            throw new CustomException("INVALID_VENDOR", "Selected assignee must belong to a VENDOR organisation");
+        }
+
+        Map<String, Object> asset = assetRegistryUtil.fetchAssetAsMap(
+                requestInfo,
+                tenantId,
+                existingIncident.getAssetId(),
+                existingIncident.getFacilityId()
+        );
+        Object currentVendorId = asset.get("vendorId");
+        String currentVendorOrgId = vendorRegistryUtil.resolveOrganisationIdForVendorKey(
+                requestInfo,
+                tenantId,
+                currentVendorId != null ? currentVendorId.toString() : null
+        );
+        if (StringUtils.isNotBlank(currentVendorOrgId)
+                && currentVendorOrgId.equalsIgnoreCase(newVendorOrgId)) {
+            throw new CustomException(
+                    "SAME_VENDOR",
+                    "Selected vendor is already mapped to this asset; use REASSIGN to return the ticket to the current vendor"
+            );
+        }
     }
 
     private void validateDecline(IncidentRequest request, String currentStatus) {
@@ -282,5 +382,46 @@ public class LivelihoodUpdateService {
             return new HashMap<>((Map<String, Object>) map);
         }
         return objectMapper.convertValue(additionalDetail, Map.class);
+    }
+
+    private String firstAssignee(Workflow workflow) {
+        if (workflow == null || CollectionUtils.isEmpty(workflow.getAssignes())) {
+            return null;
+        }
+        return workflow.getAssignes().stream()
+                .filter(StringUtils::isNotBlank)
+                .map(String::trim)
+                .findFirst()
+                .orElse(null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void appendVendorRemapHistory(
+            Map<String, Object> details,
+            String previousVendorOrgId,
+            String newVendorOrgId,
+            String newVendorUserUuid,
+            RequestInfo requestInfo
+    ) {
+        List<Map<String, Object>> history = new ArrayList<>();
+        Object existingHistory = details.get(LIVELIHOOD_VENDOR_REMAP_HISTORY_DETAIL_KEY);
+        if (existingHistory instanceof List<?> list) {
+            for (Object entry : list) {
+                if (entry instanceof Map<?, ?> map) {
+                    history.add(new HashMap<>((Map<String, Object>) map));
+                }
+            }
+        }
+
+        Map<String, Object> entry = new HashMap<>();
+        entry.put("previousVendorOrgId", previousVendorOrgId);
+        entry.put("newVendorOrgId", newVendorOrgId);
+        entry.put("newVendorUserUuid", newVendorUserUuid);
+        entry.put("assignedAt", System.currentTimeMillis());
+        if (requestInfo != null && requestInfo.getUserInfo() != null) {
+            entry.put("assignedBy", requestInfo.getUserInfo().getUuid());
+        }
+        history.add(entry);
+        details.put(LIVELIHOOD_VENDOR_REMAP_HISTORY_DETAIL_KEY, history);
     }
 }

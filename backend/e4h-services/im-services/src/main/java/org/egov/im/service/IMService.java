@@ -366,6 +366,7 @@ public class IMService {
         if (livelihoodTenantUtil.isLivelihood(tenantId)) {
             existingIncident = fetchExistingIncident(request.getIncident().getId(), tenantId);
             livelihoodUpdateService.prepareUpdate(request, existingIncident);
+            livelihoodUpdateService.remapAssetForAssignVendor(request, existingIncident);
         }
 
         String boundaryCode = request.getIncident().getBoundaryCode();
