@@ -31,10 +31,17 @@ export function getRegisteredModules() {
   return registeredModules;
 }
 
-export function getModuleNavItems() {
+/**
+ * `userRoles` gates each nav item by its own `roles` list (undefined = visible
+ * to everyone). Omit `userRoles` only for contexts with no signed-in user.
+ */
+export function getModuleNavItems(userRoles?: Array<{ code?: string }>) {
+  const userRoleCodes = new Set(userRoles?.map((role) => role.code).filter(Boolean));
+
   return [...registeredModules]
     .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
-    .flatMap((module) => module.navItems ?? []);
+    .flatMap((module) => module.navItems ?? [])
+    .filter((item) => !item.roles || item.roles.some((role) => userRoleCodes.has(role)));
 }
 
 export interface ModuleOverviewEntry {
