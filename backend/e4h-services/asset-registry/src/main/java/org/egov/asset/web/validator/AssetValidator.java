@@ -505,6 +505,8 @@ public class AssetValidator {
         if (!errorMap.isEmpty()) {
             throw new CustomException(errorMap);
         }
+        Asset existing = existingAssets.get(0);
+        mergeMissingFieldsForUpdate(asset, existing);
         if (isLivelihoodTenant(asset.getTenantId())) {
             validateLivelihoodAsset(asset, errorMap);
             if (!errorMap.isEmpty()) {
@@ -516,5 +518,29 @@ public class AssetValidator {
             }
         }
         log.info("AssetValidator::validateAsset completed successfully | assetId={}", assetID);
+    }
+
+    private void mergeMissingFieldsForUpdate(Asset asset, Asset existing) {
+        if (asset.getVendorId() == null || asset.getVendorId().isBlank()) {
+            asset.setVendorId(existing.getVendorId());
+        }
+        if (asset.getItemCode() == null || asset.getItemCode().isBlank()) {
+            asset.setItemCode(existing.getItemCode());
+        }
+        if (asset.getAssetTypeID() == null || asset.getAssetTypeID().isBlank()) {
+            asset.setAssetTypeID(existing.getAssetTypeID());
+        }
+        if (asset.getFacilityID() == null || asset.getFacilityID().isBlank()) {
+            asset.setFacilityID(existing.getFacilityID());
+        }
+        if (asset.getSerialNumber() == null || asset.getSerialNumber().isBlank()) {
+            asset.setSerialNumber(existing.getSerialNumber());
+        }
+        if (asset.getBrandID() == null || asset.getBrandID().isBlank()) {
+            asset.setBrandID(existing.getBrandID());
+        }
+        if (asset.getSystem() == null || asset.getSystem().isBlank()) {
+            asset.setSystem(existing.getSystem());
+        }
     }
 }
