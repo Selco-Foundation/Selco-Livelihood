@@ -45,10 +45,10 @@ export function ConfirmActionDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isSubmitting} onClick={onCancel}>
-            {translateOr(t, "ES_COMMON_CANCEL", "Cancel")}
+            {translateOr(t, "CORE_COMMON_CANCEL", "Cancel")}
           </AlertDialogCancel>
           <AlertDialogAction disabled={isSubmitting} onClick={onConfirm}>
-            {translateOr(t, "ES_COMMON_CONFIRM", "Confirm")}
+            {translateOr(t, "CORE_COMMON_CONFIRM", "Confirm")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
