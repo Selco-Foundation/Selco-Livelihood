@@ -1,7 +1,7 @@
-// Temporary: LIVELIHOOD_POC is included alongside INSTALLATION_REVIEWER while the
-// backend role addition is pending. Remove LIVELIHOOD_POC once INSTALLATION_REVIEWER
-// is live server-side (tracked outside this module).
-export const IR_ROLES = ["INSTALLATION_REVIEWER", "LIVELIHOOD_POC"] as const;
+// Temporary: LIVELIHOOD_POC is included alongside INSTALLATION_REPORT_APPROVER_QC_TEAM
+// while the backend role addition is pending. Remove LIVELIHOOD_POC once
+// INSTALLATION_REPORT_APPROVER_QC_TEAM is live server-side (tracked outside this module).
+export const IR_ROLES = ["INSTALLATION_REPORT_APPROVER_QC_TEAM", "LIVELIHOOD_POC"] as const;
 
 export function hasIrAccess(roles: Array<{ code?: string }> | undefined): boolean {
   if (!roles?.length) {
