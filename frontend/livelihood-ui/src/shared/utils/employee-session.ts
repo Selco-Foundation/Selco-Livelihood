@@ -1,5 +1,5 @@
 import { getConfig } from "../config/global-config";
-import { searchHrmsEmployee } from "../api/hrms";
+import { searchHrmsEmployees } from "../api/hrms";
 import type { AuthUser } from "../stores/auth-store";
 import { buildJurisdictionBoundaries } from "./boundary-util";
 
@@ -33,7 +33,7 @@ export async function hydrateEmployeeJurisdictions(
     throw new Error("Could not find employee username");
   }
 
-  const hrmsUser = await searchHrmsEmployee(employeeCode, accessToken, user);
+  const [hrmsUser] = await searchHrmsEmployees({ codes: employeeCode }, accessToken, user);
   if (!hrmsUser) {
     throw new Error("Could not find HRMS employee");
   }
