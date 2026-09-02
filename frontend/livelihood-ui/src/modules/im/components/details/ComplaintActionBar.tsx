@@ -49,6 +49,16 @@ export function ComplaintActionBar({
     [workflowDetails.timeline],
   );
 
+  // ASSIGN_VENDOR is for handing the ticket to a *different* vendor — reassigning
+  // to the same one is REASSIGN's job — so exclude whoever marked it out of scope
+  // (timeline is most-recent-first, so the first match is the current episode's).
+  const outOfScopeVendorUuid = useMemo(
+    () =>
+      workflowDetails.timeline.find((checkpoint) => checkpoint.performedAction === "OUT_OF_SCOPE")
+        ?.assigner?.uuid,
+    [workflowDetails.timeline],
+  );
+
   const availableActions = useMemo(() => {
     const supported = (workflowDetails.nextActions ?? []).filter((entry) =>
       SUPPORTED_WORKFLOW_ACTION_SET.has(entry.action),
@@ -126,6 +136,7 @@ export function ComplaintActionBar({
         <ComplaintActionDialog
           action={selectedAction}
           complaintDetails={complaintDetails}
+          excludeVendorUuid={outOfScopeVendorUuid}
           onClose={() => setSelectedAction(null)}
           onComplete={async () => {
             await onActionComplete();

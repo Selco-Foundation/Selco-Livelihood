@@ -52,6 +52,68 @@ public class VendorRegistryUtil {
     }
 
     /**
+     * Resolves the primary vendor organisation id for an HRMS user linked in vendor-registry.
+     */
+    public String resolvePrimaryOrganisationIdForUser(RequestInfo requestInfo, String tenantId, String userUuid) {
+        List<String> organisationIds = findOrganisationIdsByUserUuid(userUuid, tenantId, requestInfo);
+        if (CollectionUtils.isEmpty(organisationIds)) {
+            return null;
+        }
+        return organisationIds.get(0);
+    }
+
+    /**
+     * Normalises an asset {@code vendorId} value (org id, org code, or user uuid) to an organisation id.
+     */
+    public String resolveOrganisationIdForVendorKey(RequestInfo requestInfo, String tenantId, String vendorKey) {
+        if (vendorKey == null || vendorKey.isBlank()) {
+            return null;
+        }
+        String key = vendorKey.trim();
+        if (isUuid(key)) {
+            List<String> organisationIds = findOrganisationIdsByUserUuid(key, tenantId, requestInfo);
+            if (!CollectionUtils.isEmpty(organisationIds)) {
+                return organisationIds.get(0);
+            }
+            return key;
+        }
+        return findOrganisationIdByCode(key, tenantId, requestInfo);
+    }
+
+    public boolean isVendorOrganisation(RequestInfo requestInfo, String tenantId, String organisationId) {
+        if (organisationId == null || organisationId.isBlank()) {
+            return false;
+        }
+        String uri = config.getVendorHost() + config.getVendorOrganisationSearchPath();
+
+        Map<String, Object> searchCriteria = new HashMap<>();
+        searchCriteria.put("tenantId", tenantId);
+        searchCriteria.put("id", organisationId.trim());
+
+        Map<String, Object> pagination = new HashMap<>();
+        pagination.put("limit", 1);
+        pagination.put("offset", 0);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("RequestInfo", requestInfo);
+        body.put("SearchCriteria", searchCriteria);
+        body.put("Pagination", pagination);
+
+        Map<String, Object> response = castToMap(serviceRequestRepository.fetchResult(new StringBuilder(uri), body));
+        List<Map<String, Object>> organisations = castToListOfMaps(response.get("organisations"));
+        if (CollectionUtils.isEmpty(organisations)) {
+            return false;
+        }
+        Object orgType = organisations.get(0).get("orgType");
+        return orgType != null && "VENDOR".equalsIgnoreCase(orgType.toString());
+    }
+
+    public boolean isUuid(String value) {
+        return value != null
+                && value.matches("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
+    }
+
+    /**
      * Keys used on {@code asset.vendor_id}: organisation UUID, organisation code, and the vendor user UUID.
      */
     public Set<String> resolveVendorOrgKeysForUser(RequestInfo requestInfo, String tenantId, String userUuid) {

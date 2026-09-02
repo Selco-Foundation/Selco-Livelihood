@@ -8,20 +8,34 @@ export interface HrmsJurisdiction {
   boundary?: string;
 }
 
+export interface HrmsEmployeeUser {
+  uuid?: string;
+  name?: string;
+}
+
 export interface HrmsEmployee {
   code?: string;
   jurisdictions?: HrmsJurisdiction[];
+  user?: HrmsEmployeeUser;
 }
 
 interface HrmsSearchResponse {
   Employees?: HrmsEmployee[];
 }
 
-export async function searchHrmsEmployee(
-  employeeCode: string,
+/** `/egov-hrms/employees/_search`'s own query-param criteria — pass whichever of these the caller needs. */
+export interface HrmsEmployeeSearchCriteria {
+  codes?: string;
+  roles?: string;
+  isActive?: boolean;
+  boundaryCodes?: string;
+}
+
+export async function searchHrmsEmployees(
+  criteria: HrmsEmployeeSearchCriteria,
   accessToken: string,
   user?: AuthUser | null,
-): Promise<HrmsEmployee | null> {
+): Promise<HrmsEmployee[]> {
   const response = await apiClient.post<HrmsSearchResponse>(
     "/egov-hrms/employees/_search",
     {
@@ -30,10 +44,10 @@ export async function searchHrmsEmployee(
     {
       params: {
         tenantId: tenantId(),
-        codes: employeeCode,
+        ...criteria,
       },
     },
   );
 
-  return response.data.Employees?.[0] ?? null;
+  return response.data.Employees ?? [];
 }
