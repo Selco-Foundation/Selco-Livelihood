@@ -73,8 +73,9 @@ public class LivelihoodSmsNotificationService {
                             + "by the SELCO Foundation. For further assistance, please reach out to your local coordinator or track ticket "
                             + "details on {url} - SELCO Foundation"),
             Map.entry(LIV_TPL_017,
-                    "A new livelihood support ticket has been raised by {end_user_name} for {ticket_type}, with ID {incidentId}, "
-                            + "on {date}. Please review and take necessary action. Track the ticket on {url} - SELCO Foundation"),
+                    "A livelihood support ticket for {ticket_type} with ID {incidentId} has been raised on {date} "
+                            + "on behalf of end user {end_user_name}. Please take necessary action or track ticket "
+                            + "details on {url} - SELCO Foundation"),
             Map.entry(LIV_TPL_032,
                     "A follow-up action is required for your livelihood support ticket for {ticket_type} with ID {incidentId}. "
                             + "Reason: {reason}. Please respond at the earliest or track ticket details on {url} - SELCO Foundation"),
