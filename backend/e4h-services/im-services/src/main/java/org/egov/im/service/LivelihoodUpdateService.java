@@ -110,16 +110,12 @@ public class LivelihoodUpdateService {
                 currentVendorId != null ? currentVendorId.toString() : null
         );
 
-        boolean vendorOrgChanged = StringUtils.isBlank(previousVendorOrgId)
-                || !previousVendorOrgId.equalsIgnoreCase(newVendorOrgId);
-        if (vendorOrgChanged) {
-            assetRegistryUtil.updateAssetVendorId(requestInfo, tenantId, assetId, facilityId, newVendorOrgId);
-            log.info("ASSIGN_VENDOR remapped asset {} from vendor org {} to {}",
-                    assetId, previousVendorOrgId, newVendorOrgId);
-        } else {
-            log.info("ASSIGN_VENDOR reassigned ticket {} within vendor org {} to user {}",
-                    existingIncident.getIncidentId(), newVendorOrgId, newVendorUserUuid);
-        }
+        String newAssetVendorId = resolveAssignVendorAssetVendorId(
+                previousVendorOrgId, newVendorOrgId, newVendorUserUuid);
+        String currentVendorKey = currentVendorId != null ? currentVendorId.toString().trim() : null;
+        assetRegistryUtil.updateAssetVendorId(requestInfo, tenantId, assetId, facilityId, newAssetVendorId);
+        log.info("ASSIGN_VENDOR updated asset {} vendorId from {} to {}",
+                assetId, currentVendorKey, newAssetVendorId);
 
         Map<String, Object> details = toMutableMap(existingIncident.getAdditionalDetail());
         mergeRequestAdditionalDetail(details, request.getIncident().getAdditionalDetail());
@@ -246,13 +242,14 @@ public class LivelihoodUpdateService {
                 tenantId,
                 currentVendorId != null ? currentVendorId.toString() : null
         );
-        if (StringUtils.isNotBlank(currentVendorOrgId)
-                && currentVendorOrgId.equalsIgnoreCase(newVendorOrgId)
-                && newVendorUserUuid.equalsIgnoreCase(resolveAssetMappedVendorUserUuid(
-                        requestInfo, tenantId, currentVendorId))) {
+        String newAssetVendorId = resolveAssignVendorAssetVendorId(
+                currentVendorOrgId, newVendorOrgId, newVendorUserUuid);
+        String currentVendorKey = currentVendorId != null ? currentVendorId.toString().trim() : null;
+        if (StringUtils.isNotBlank(currentVendorKey)
+                && currentVendorKey.equalsIgnoreCase(newAssetVendorId)) {
             throw new CustomException(
                     "SAME_ASSIGNEE",
-                    "Selected vendor user is already mapped to this asset; use REASSIGN to return the ticket to the current vendor"
+                    "Selected vendor is already mapped to this asset; use REASSIGN to return the ticket to the current vendor"
             );
         }
     }
@@ -395,6 +392,20 @@ public class LivelihoodUpdateService {
         return objectMapper.convertValue(additionalDetail, Map.class);
     }
 
+    /**
+     * Organisation change maps the asset to the new vendor org; within the same org the asset
+     * points at the selected vendor user so the previous user is unmapped from this asset.
+     */
+    private String resolveAssignVendorAssetVendorId(
+            String currentVendorOrgId,
+            String newVendorOrgId,
+            String newVendorUserUuid
+    ) {
+        boolean vendorOrgChanged = StringUtils.isBlank(currentVendorOrgId)
+                || !currentVendorOrgId.equalsIgnoreCase(newVendorOrgId);
+        return vendorOrgChanged ? newVendorOrgId : newVendorUserUuid;
+    }
+
     private String firstAssignee(Workflow workflow) {
         if (workflow == null || CollectionUtils.isEmpty(workflow.getAssignes())) {
             return null;
@@ -404,28 +415,6 @@ public class LivelihoodUpdateService {
                 .map(String::trim)
                 .findFirst()
                 .orElse(null);
-    }
-
-    /**
-     * When {@code asset.vendorId} stores a user UUID, returns that UUID; otherwise null.
-     */
-    private String resolveAssetMappedVendorUserUuid(
-            RequestInfo requestInfo,
-            String tenantId,
-            Object currentVendorId
-    ) {
-        if (currentVendorId == null || StringUtils.isBlank(currentVendorId.toString())) {
-            return null;
-        }
-        String key = currentVendorId.toString().trim();
-        if (!vendorRegistryUtil.isUuid(key)) {
-            return null;
-        }
-        String orgId = vendorRegistryUtil.resolveOrganisationIdForVendorKey(requestInfo, tenantId, key);
-        if (orgId != null && orgId.equalsIgnoreCase(key)) {
-            return null;
-        }
-        return key;
     }
 
     @SuppressWarnings("unchecked")
