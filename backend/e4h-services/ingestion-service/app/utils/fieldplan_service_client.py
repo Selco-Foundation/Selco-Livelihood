@@ -48,11 +48,21 @@ class FieldPlanServiceClient:
             print(f"An error occurred: {req_err}")
             raise req_err
 
-    def create_fieldPlan_facility_bulk(self, request_info: RequestInfo, fieldPlan_id: str, facility_ids: list[str]):
+    def create_fieldPlan_facility_bulk(self, request_info: RequestInfo, fieldPlan_id: str, facility_ids: list[str],
+                                       solution_id_by_facility: Dict[str, str] = None):
+        """Link facilities to a plan. solution_id_by_facility carries each site's chosen
+        Solution (the MDMS code, not its display name).
+
+        lockStatus is still not sent, but the reason changed: field-planner now reserves a site
+        (lock_status = LOCKED) as it joins scope, and FieldPlannerFacilityService.applyScopeLock
+        only *defaults* the value. Omitting it is therefore how we ask for the platform's default
+        rather than pin a state from here -- sending LOCKED explicitly would behave identically
+        today and silently diverge if the rule ever changes."""
         url = f"{self.fieldPlan_service_url}/field-planner/v1/field-plans/facility/bulk/_create"
         headers = {
             "Content-Type": "application/json"
         }
+        solution_id_by_facility = solution_id_by_facility or {}
         payload = {
             "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
             "FieldPlanFacilities": [
@@ -60,7 +70,8 @@ class FieldPlanServiceClient:
                     "facilityId": facility_id,
                     "fieldPlanId": fieldPlan_id,
                     "isdeleted": False,
-                    "tenantId": LIVELIHOOD_TENANT_ID
+                    "tenantId": LIVELIHOOD_TENANT_ID,
+                    "solutionId": solution_id_by_facility.get(facility_id),
                 }
                 for facility_id in facility_ids
             ]
@@ -132,8 +143,14 @@ class FieldPlanServiceClient:
             }
 
         except requests.exceptions.HTTPError as http_err:
-            print(f"HTTP error occurred: {http_err}")
-            raise http_err
+            # raise_for_status() reports only the status line; field-planner puts the actual
+            # reason (missing RequestInfo fields, bad tenant, ...) in the body, so include it
+            # or the caller sees a bare "400 Client Error" with no message at all.
+            body = http_err.response.text if http_err.response is not None else ""
+            logger.error(f"Field plan search failed for {fieldplan_id}: {http_err} -- {body}")
+            raise requests.exceptions.HTTPError(
+                f"{http_err} -- {body}", response=http_err.response, request=http_err.request
+            ) from http_err
         except requests.exceptions.ConnectionError as conn_err:
             print(f"Connection error occurred: {conn_err}")
             raise conn_err
@@ -143,6 +160,111 @@ class FieldPlanServiceClient:
         except requests.exceptions.RequestException as req_err:
             print(f"An error occurred: {req_err}")
             raise req_err
+
+    def _search_paginated(self, request_info: RequestInfo, path: str, criteria_key: str,
+                          criteria: Dict[str, Any], result_key: str) -> list:
+        """POST a field-planner search and follow its pages, returning every record."""
+        url = f"{self.fieldPlan_service_url}{path}"
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
+            criteria_key: criteria,
+        }
+        params = {"tenantId": LIVELIHOOD_TENANT_ID, "limit": 1000, "offset": 0, "includeDeleted": "false"}
+
+        response = requests.post(url, headers=headers, json=payload, params=params)
+        response.raise_for_status()
+        data = response.json()
+        total_count = data.get("TotalCount", 0)
+        records = list(data.get(result_key, []))
+
+        while len(records) < total_count:
+            params["offset"] += params["limit"]
+            response = requests.post(url, headers=headers, json=payload, params=params)
+            response.raise_for_status()
+            page = response.json().get(result_key, [])
+            if not page:
+                break  # defensive: stop rather than spin if the server stops paging
+            records.extend(page)
+
+        return records
+
+    def search_fieldplans_by_project(self, request_info: RequestInfo, project_id: str) -> list:
+        """Every field plan under a project. Needed to find sites locked by a sibling plan,
+        since the lock is scoped to the project rather than to one plan."""
+        return self._search_paginated(
+            request_info, "/field-planner/v1/field-plans/_search", "FieldPlans",
+            {"projectId": project_id, "tenantId": LIVELIHOOD_TENANT_ID}, "FieldPlans",
+        )
+
+    def search_facilities_for_plans(self, request_info: RequestInfo, fieldplan_ids: list) -> list:
+        """Facility links for several plans at once. The search already accepts a list of
+        plan ids, so this is one call rather than one per plan."""
+        if not fieldplan_ids:
+            return []
+        return self._search_paginated(
+            request_info, "/field-planner/v1/field-plans/facility/_search", "FieldPlanFacility",
+            {"fieldPlanId": list(fieldplan_ids)}, "FieldPlanFacilities",
+        )
+
+    def search_blank_templates(self, request_info: RequestInfo,
+                               solution_codes: list = None) -> Dict[str, str]:
+        """{solution_code: file_store_id} for the blank IC Report templates.
+
+        Read over HTTP rather than straight from icc_templates so nothing depends on
+        ingestion-service and field-planner sharing one database -- field-planner owns that
+        table, and we are already calling it to save the filled template.
+        """
+        url = f"{self.fieldPlan_service_url}/field-planner/v1/field-plan-templates/blank/_search"
+        payload = {
+            "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
+            "tenantId": LIVELIHOOD_TENANT_ID,
+        }
+        if solution_codes:
+            payload["solutionCodes"] = list(solution_codes)
+
+        response = requests.post(url, headers={"Content-Type": "application/json"}, json=payload)
+        response.raise_for_status()
+        return {
+            record.get("solutionCode"): record.get("fileStoreId")
+            for record in response.json().get("IccTemplates", [])
+            if record.get("solutionCode") and record.get("fileStoreId")
+        }
+
+    def create_field_plan_template(self, request_info: RequestInfo, fieldplan_id: str,
+                                   solution_code: str, machine_section: list,
+                                   solar_section: list, tender_number: str = None,
+                                   purchase_order_number: str = None):
+        """Save the Project Manager's filled template for one (plan, Solution). Upsert on the
+        far side, so a corrected re-upload replaces rather than duplicates.
+
+        machine_section order is load-bearing: Vendor Assignment turns entry N into the MACHINE
+        asset with component_sequence N, so it must be sent in the order it was parsed.
+        """
+        url = f"{self.fieldPlan_service_url}/field-planner/v1/field-plan-templates/_create"
+        payload = {
+            "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
+            "FieldPlanTemplate": {
+                "tenantId": LIVELIHOOD_TENANT_ID,
+                "fieldPlanId": fieldplan_id,
+                "solutionId": solution_code,
+                "machineSection": machine_section,
+                "solarSection": solar_section,
+                "tenderNumber": tender_number,
+                "purchaseOrderNumber": purchase_order_number,
+            },
+        }
+        logger.info(
+            f"Saving field plan template: fieldplan={fieldplan_id} solution={solution_code} "
+            f"({len(machine_section)} machine, {len(solar_section)} solar line items)")
+        response = requests.post(url, headers={"Content-Type": "application/json"}, json=payload)
+        if response.status_code >= 400:
+            # field-planner puts the reason in the body; raise_for_status alone would report
+            # only the status line, which is what made the earlier 400s so hard to diagnose.
+            raise requests.exceptions.HTTPError(
+                f"{response.status_code} saving field plan template -- {response.text[:600]}",
+                response=response)
+        return response.json()
 
     def search_fieldplan_facility(self, request_info: RequestInfo, fieldplan_id: str) -> Dict[str, Any]:
         tenant_id = LIVELIHOOD_TENANT_ID

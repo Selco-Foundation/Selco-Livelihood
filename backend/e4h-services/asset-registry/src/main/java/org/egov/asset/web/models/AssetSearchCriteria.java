@@ -41,6 +41,9 @@ public class AssetSearchCriteria {
     @JsonProperty("isOperational")
     private Boolean isOperational = null;
 
+    @JsonProperty("isOnmReady")
+    private Boolean isOnmReady = null;
+
     @JsonProperty("activityFacilityID")
     private String activityFacilityID = null;
 

@@ -25,6 +25,8 @@ public class FieldPlanFacilityRowMapper implements RowMapper<FieldPlanFacility> 
                     .tenantId(resultSet.getString("tenantid"))
                     .fieldPlanId(resultSet.getString("field_plan_id"))
                     .facilityId(resultSet.getString("facility_id"))
+                    .lockStatus(safeGetString(resultSet, "lock_status"))
+                    .solutionId(safeGetString(resultSet, "solution_id"))
                     .additionalFields(
                             resultSet.getString("additional_details") == null
                                     ? null
@@ -38,6 +40,14 @@ public class FieldPlanFacilityRowMapper implements RowMapper<FieldPlanFacility> 
                     .build();
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    private String safeGetString(ResultSet resultSet, String column) {
+        try {
+            return resultSet.getString(column);
+        } catch (SQLException e) {
+            return null;
         }
     }
 }

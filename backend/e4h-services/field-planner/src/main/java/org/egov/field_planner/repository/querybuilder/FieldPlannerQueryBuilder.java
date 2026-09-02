@@ -26,6 +26,7 @@ public class FieldPlannerQueryBuilder {
 //    private static final String FETCH_FIELDPLAN_NAME = "SELECT tenant_id, name FROM field_plans";
 
     private static final String FETCH_FIELDPLAN_QUERY = "SELECT fp.id as fieldPlanId, fp.tenant_id as fp_tenantId, fp.name as fp_name, fp.project_id as fp_projectId, fp.health_facility_number as fp_healthFacilityNumber, " +
+            "fp.sector as fp_sector, " +
             "fp.geography_scope as fp_geographyScope, fp.selected_activities as fp_selectedActivities, fp.status as fp_status, fp.start_date as fp_startDate, fp.end_date as fp_endDate, " +
             "fp.additional_details as fp_additionalDetails, fp.isdeleted as fp_isDeleted, fp.created_by as fp_createdBy, fp.last_modified_by as fp_lastModifiedBy, fp.created_time as fp_createdTime, " +
             "fp.last_modified_time as fp_lastModifiedTime, prj.id as projectId, prj.tenantId as project_tenantId, prj.projectNumber as project_projectNumber, prj.name as project_name, prj.projectType as project_projectType, " +

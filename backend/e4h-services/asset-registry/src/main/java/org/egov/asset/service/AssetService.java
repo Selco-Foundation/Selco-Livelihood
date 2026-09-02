@@ -144,6 +144,11 @@ public class AssetService {
             params.add(asset.getIsOperational());
         }
 
+        if (asset.getIsOnmReady() != null) {
+            query.append(" AND is_onm_ready = ?");
+            params.add(asset.getIsOnmReady());
+        }
+
         if (asset.getFacilityID() != null && !asset.getFacilityID().isBlank()) {
             query.append(" AND facility_id = ?");
             params.add(asset.getFacilityID());
@@ -231,6 +236,11 @@ public class AssetService {
         if (asset.getWfStatus() != null && !asset.getWfStatus().isBlank()) {
             query.append(" AND wf_status = ?");
             params.add(asset.getWfStatus());
+        }
+
+        if (asset.getIsOnmReady() != null) {
+            query.append(" AND is_onm_ready = ?");
+            params.add(asset.getIsOnmReady());
         }
 
         if (asset.getFacilityID() != null && !asset.getFacilityID().isBlank()) {
@@ -344,17 +354,47 @@ public class AssetService {
             throw new CustomException("ASSET_NOT_FOUND", "Asset with ID " + assetId + " does not exist");
         }
 
+        // Preserve fields not sent on partial updates (e.g. approve-time isOnmReady flip)
+        Asset existing = existingAssets.get(0);
+        mergeForUpdate(updated, existing);
+
         // Update audit details
         if (updated.getAuditDetails() != null) {
             updated.getAuditDetails().setLastModifiedBy(request.getRequestInfo().getUserInfo().getUserName());
             updated.getAuditDetails().setLastModifiedTime(System.currentTimeMillis());
         }
-        if (updated.getBoundaryCode() == null || updated.getBoundaryCode().isBlank()) {
-            updated.setBoundaryCode(existingAssets.get(0).getBoundaryCode());
-        }
         assetRepository.pushUpdateAsset(updated);
         assetLocalizationService.upsertAssetBoundaryLocalizations(updated, request.getRequestInfo());
         return updated;
+    }
+
+    /** Fill null/blank request fields from the persisted row so partial updates do not wipe data. */
+    private void mergeForUpdate(Asset updated, Asset existing) {
+        if (isBlank(updated.getSystem())) updated.setSystem(existing.getSystem());
+        if (isBlank(updated.getFacilityID())) updated.setFacilityID(existing.getFacilityID());
+        if (isBlank(updated.getBoundaryCode())) updated.setBoundaryCode(existing.getBoundaryCode());
+        if (isBlank(updated.getActivityFacilityID())) updated.setActivityFacilityID(existing.getActivityFacilityID());
+        if (isBlank(updated.getAssetTypeID())) updated.setAssetTypeID(existing.getAssetTypeID());
+        if (isBlank(updated.getSerialNumber())) updated.setSerialNumber(existing.getSerialNumber());
+        if (isBlank(updated.getModelNumber())) updated.setModelNumber(existing.getModelNumber());
+        if (isBlank(updated.getBrandID())) updated.setBrandID(existing.getBrandID());
+        if (isBlank(updated.getVendorId())) updated.setVendorId(existing.getVendorId());
+        if (isBlank(updated.getItemCode())) updated.setItemCode(existing.getItemCode());
+        if (updated.getWarrantyStartDate() == null) updated.setWarrantyStartDate(existing.getWarrantyStartDate());
+        if (updated.getWarrantyDuration() == null) updated.setWarrantyDuration(existing.getWarrantyDuration());
+        if (updated.getWarrantyEndDate() == null) updated.setWarrantyEndDate(existing.getWarrantyEndDate());
+        if (isBlank(updated.getWfStatus())) updated.setWfStatus(existing.getWfStatus());
+        if (updated.getIsActive() == null) updated.setIsActive(existing.getIsActive());
+        if (updated.getIsOperational() == null) updated.setIsOperational(existing.getIsOperational());
+        if (updated.getIsOnmReady() == null) updated.setIsOnmReady(existing.getIsOnmReady());
+        if (isBlank(updated.getSourceBomId())) updated.setSourceBomId(existing.getSourceBomId());
+        if (updated.getAssetDetails() == null) updated.setAssetDetails(existing.getAssetDetails());
+        if (updated.getAdditionalDetails() == null) updated.setAdditionalDetails(existing.getAdditionalDetails());
+        if (updated.getAuditDetails() == null) updated.setAuditDetails(existing.getAuditDetails());
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private String createQuery(Collection<String> ids) {

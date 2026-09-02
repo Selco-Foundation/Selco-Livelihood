@@ -735,7 +735,8 @@ public class ActivityValidator {
 
     public Employee getUserById(Object request, String userId) {
 
-        String url = config.getHrmsHost() + config.getHrmsSearchUrl()+ "?tenantId=in&uuids="+userId;
+        String url = config.getHrmsHost() + config.getHrmsSearchUrl()
+                + "?tenantId=" + config.getTenantId() + "&uuids=" + userId;
         Object response = serviceRequest.fetchResult(new StringBuilder(url), request);
 
         EmployeeResponse employeeResponse = mapper.convertValue(response, EmployeeResponse.class);

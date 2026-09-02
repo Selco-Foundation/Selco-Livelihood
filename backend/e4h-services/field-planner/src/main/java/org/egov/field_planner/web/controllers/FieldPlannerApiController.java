@@ -161,4 +161,16 @@ public class FieldPlannerApiController {
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(ResponseInfoFactory
                 .createResponseInfo(request.getRequestInfo(), true));
     }
+
+    @RequestMapping(value = "/facility/_update-lock", method = RequestMethod.POST)
+    public ResponseEntity<FieldPlanFacilityResponse> fieldPlanFacilityUpdateLock(
+            @ApiParam(value = "Update lock_status on a field plan facility.", required = true)
+            @Valid @RequestBody FieldPlanFacilityRequest request) {
+        FieldPlanFacility fieldPlanFacility = fieldPlannerFacilityService.updateLockStatus(request);
+        FieldPlanFacilityResponse response = FieldPlanFacilityResponse.builder()
+                .fieldPlanFacility(fieldPlanFacility)
+                .responseInfo(ResponseInfoFactory.createResponseInfo(request.getRequestInfo(), true))
+                .build();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
 }

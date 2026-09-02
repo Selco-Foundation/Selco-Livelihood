@@ -122,6 +122,16 @@ class MDMSClient:
     def fetch_facility_selection_schema(self, request_info: RequestInfo) -> 'IngestionSchemaResponse':
         return self.fetch_schema(request_info, "data-ingestion.FacilitySelectionSchema")
 
+    def fetch_installation_solutions(self, request_info: RequestInfo) -> List[Dict[str, Any]]:
+        """Fetch every active Installation.Solution row as a plain dict
+        ({code, name, sectorName, sunshineHrsMin, sunshineHrsMax}). MDMSData allows extra
+        fields, so these come through even though they aren't declared on the
+        ingestion-schema-shaped MDMSData model."""
+        response = self.fetch_schema_column_definitions(request_info, "Installation.Solution")
+        if not response.mdms:
+            return []
+        return [mdms.data.model_dump() for mdms in response.mdms if mdms.data]
+
     def fetch_schema_column_definitions(self, request_info: RequestInfo, schema_code: str) -> IngestionSchemaResponse:
         url = f"{self.mdms_url}/egov-mdms-service/v2/_search"
         payload = {

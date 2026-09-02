@@ -21,7 +21,7 @@ public class BomRowMapper implements RowMapper<BillOfMaterial> {
     @Override
     public BillOfMaterial mapRow(ResultSet resultSet, int i) throws SQLException {
         try {
-            return BillOfMaterial.builder()
+            BillOfMaterial.BillOfMaterialBuilder builder = BillOfMaterial.builder()
                     .id(resultSet.getString("bom_bomId"))
                     .tenantId(resultSet.getString("bom_tenantId"))
                     .facilityId(resultSet.getString("bom_facilityId"))
@@ -40,8 +40,18 @@ public class BomRowMapper implements RowMapper<BillOfMaterial> {
                     .auditDetails(AuditDetails.builder()
                             .lastModifiedTime(resultSet.getLong("bom_lastModifiedTime"))
                             .createdTime(resultSet.getLong("bom_createdTime"))
-                            .build())
-                    .build();
+                            .build());
+            try {
+                builder.solutionId(resultSet.getString("bom_solutionId"))
+                        .vendorOrgId(resultSet.getString("bom_vendorOrgId"))
+                        .vendorEmail(resultSet.getString("bom_vendorEmail"))
+                        .vendorPhone(resultSet.getString("bom_vendorPhone"))
+                        .otpUuid(resultSet.getString("bom_otpUuid"))
+                        .reportNumber(resultSet.getString("bom_reportNumber"));
+            } catch (SQLException ignored) {
+                // columns may not exist until migration runs
+            }
+            return builder.build();
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }

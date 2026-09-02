@@ -42,6 +42,24 @@ public class BillOfMaterial {
     @JsonProperty("assignUser")
     private String assignUser = null;
 
+    @JsonProperty("solutionId")
+    private String solutionId = null;
+
+    @JsonProperty("vendorOrgId")
+    private String vendorOrgId = null;
+
+    @JsonProperty("vendorEmail")
+    private String vendorEmail = null;
+
+    @JsonProperty("vendorPhone")
+    private String vendorPhone = null;
+
+    @JsonProperty("otpUuid")
+    private String otpUuid = null;
+
+    @JsonProperty("reportNumber")
+    private String reportNumber = null;
+
     @JsonProperty("additionalDetails")
     private Map<String, Object> additionalDetails = null;
 

@@ -126,10 +126,15 @@ public class ProjectService {
         projectEnrichment.enrichProjectOnCreate(projectRequest, parentProjects);
         log.info("Enriched with Project Number, Ids and AuditDetails");
 
-        for (Project project : projectRequest.getProjects()) {
-            if (project.getName() == null || project.getName().trim().isEmpty()) {
-                applyGeneratedProjectName(project, requestInfo, true);
+        projectNameGenerationService.beginNameGenerationBatch();
+        try {
+            for (Project project : projectRequest.getProjects()) {
+                if (project.getName() == null || project.getName().trim().isEmpty()) {
+                    applyGeneratedProjectName(project, requestInfo, true);
+                }
             }
+        } finally {
+            projectNameGenerationService.endNameGenerationBatch();
         }
         log.debug("Pushing project request to Kafka topics");
         producer.push(projectConfiguration.getSaveProjectTopic(), projectRequest);
@@ -176,12 +181,11 @@ public class ProjectService {
                     projectId, projectStatus, dbFacilityCount, facilityCountOverride, effectiveFacilityCount);
             ProjectNameResult nameResult = projectNameGenerationService.generateProjectName(
                     projectFromDB, requestInfo, false, effectiveFacilityCount);
-            int hfInCurrentName = projectNameGenerationService.parseHealthFacilityCountFromName(projectFromDB.getName());
             if (nameResult.getName() == null) {
                 log.warn("Project name generation returned null for project {} after facility change", projectId);
                 return;
             }
-            if (nameResult.getName().equals(projectFromDB.getName()) && hfInCurrentName == effectiveFacilityCount) {
+            if (nameResult.getName().equals(projectFromDB.getName())) {
                 log.debug("Project name unchanged after facility refresh for {}: {}", projectId, projectFromDB.getName());
                 return;
             }
@@ -530,8 +534,13 @@ public class ProjectService {
          * Process each project in the update request
          */
         log.info("Processing {} projects for update", request.getProjects().size());
-        for (Project project : request.getProjects()) {
-            processProjectUpdate(request, project, projectsFromDB);
+        projectNameGenerationService.beginNameGenerationBatch();
+        try {
+            for (Project project : request.getProjects()) {
+                processProjectUpdate(request, project, projectsFromDB);
+            }
+        } finally {
+            projectNameGenerationService.endNameGenerationBatch();
         }
 
         log.info("Successfully completed project update for {} projects", request.getProjects().size());
@@ -700,6 +709,13 @@ public class ProjectService {
      */
     private void handleProjectNameUpdate(ProjectRequest request, Project project, Project projectFromDB) {
         try {
+            if (!isDraftProject(getProjectStatus(projectFromDB))
+                    && !Objects.equals(project.getName(), projectFromDB.getName())) {
+                log.error("Attempted to change project name on non-draft project: {}", project.getId());
+                throw new CustomException("PROJECT_NAME_UPDATE_NOT_ALLOWED",
+                        "Project name can only be modified while the project is in Draft status.");
+            }
+
             if (project.getStartDate() == null) {
                 project.setStartDate(projectFromDB.getStartDate());
             }
@@ -803,12 +819,7 @@ public class ProjectService {
                 stringifyGeographyDetails(projectFromDB.getAdditionalDetails()))) {
             return true;
         }
-        if (!projectNameGenerationService.isRevisedProjectIdFormat(projectFromDB.getName())) {
-            return false;
-        }
-        int existingHf = projectNameGenerationService.parseHealthFacilityCountFromName(projectFromDB.getName());
-        int currentHf = projectRepository.countProjectFacilitiesByProjectId(project.getId(), project.getTenantId());
-        return existingHf != currentHf;
+        return false;
     }
 
     private String stringifyGeographyDetails(Object additionalDetails) {

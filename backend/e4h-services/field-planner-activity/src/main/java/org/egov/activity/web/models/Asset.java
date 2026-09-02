@@ -58,6 +58,12 @@ public class Asset {
     @NotNull
     private String brandID = null;
 
+    @JsonProperty("vendorId")
+    private String vendorId = null;
+
+    @JsonProperty("itemCode")
+    private String itemCode = null;
+
     @JsonProperty("assetDetails")
     private Map<String, Object> assetDetails = null;
 
@@ -78,6 +84,12 @@ public class Asset {
 
     @JsonProperty("isOperational")
     private Boolean isOperational = null;
+
+    @JsonProperty("isOnmReady")
+    private Boolean isOnmReady = false;
+
+    @JsonProperty("sourceBomId")
+    private String sourceBomId = null;
 
     @JsonProperty("documents")
     private List<Document> documents = null;
