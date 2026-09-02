@@ -15,11 +15,11 @@ INSERT INTO public.activities
 VALUES
 (
   '272e7e4a-e02f-48ac-966d-1c920d88297c',
-  'in',
+  'livelihood',
   'Installation',
   'INS',
   '{}'::jsonb,
-  '{"roles": [{"code": "INSTALLATION_SPOC", "name": "Installation SPOC", "tenantId": "in", "description": ""}, {"code": "INSTALLATION_REVIEWER", "name": "Installation Reviewer", "tenantId": "in", "description": ""}]}'::jsonb,
+  '{"roles": [{"code": "INSTALLATION_SPOC", "name": "Installation SPOC", "tenantId": "livelihood", "description": ""}, {"code": "INSTALLATION_REVIEWER", "name": "Installation Reviewer", "tenantId": "livelihood", "description": ""}]}'::jsonb,
   1,
   true,
   1759402867975,

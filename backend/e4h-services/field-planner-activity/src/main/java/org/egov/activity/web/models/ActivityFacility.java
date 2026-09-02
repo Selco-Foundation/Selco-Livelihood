@@ -59,6 +59,26 @@ public class ActivityFacility {
     @JsonProperty("activityId")
     protected String activityId;
 
+    /**
+     * SOLAR | MACHINE. One row per installable asset rather than one per site: a site's Solution
+     * expands into one SOLAR asset for the whole solar section plus one MACHINE asset per machine,
+     * each independently vendor-assigned and independently reviewed through its own
+     * FACILITY_INSTALLATION process instance.
+     *
+     * Null for every non-installation activity type, which stays one row per
+     * (facility, activity, plan) -- the unique index folds NULL to '' so that guarantee holds.
+     */
+    @JsonProperty("componentType")
+    private String componentType = null;
+
+    /** 1-based within a componentType. SOLAR is always 1; MACHINE runs 1..N in template order. */
+    @JsonProperty("componentSequence")
+    private Integer componentSequence = null;
+
+    /** Denormalised from field_plan_facilities.solution_id -- identical across a site's assets. */
+    @JsonProperty("solutionId")
+    private String solutionId = null;
+
     @JsonProperty("activityType")
     protected String activityType;
 

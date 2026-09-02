@@ -228,7 +228,10 @@ public class LivelihoodSmsNotificationService {
                 .filter(doc -> doc != null && StringUtils.isNotBlank(doc.getFileStoreId()))
                 .map(doc -> buildFileStoreUrl(request.getIncident().getTenantId(), doc.getFileStoreId()))
                 .collect(Collectors.joining(", "));
-        return StringUtils.isNotBlank(links) ? links : resolveAppUrl(request);
+        if (StringUtils.isBlank(links)) {
+            return resolveAppUrl(request);
+        }
+        return notificationUtil.getShortnerURL(links);
     }
 
     private String buildFileStoreUrl(String tenantId, String fileStoreId) {

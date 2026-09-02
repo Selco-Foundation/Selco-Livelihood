@@ -170,9 +170,18 @@ public class ActivityService {
             }
 
             producer.push(activityConfiguration.getCreateActivityFacilityTopic(), request);
-            log.info("successfully created activity facility");
+            log.info("published {} activity facility row(s) to {}", activityFacilities.size(),
+                    activityConfiguration.getCreateActivityFacilityTopic());
         } catch (Exception exception) {
-            log.error("error occurred while creating Activity facility: {}", ExceptionUtils.getStackTrace(exception));
+            // Deliberately NOT swallowed. Returning normally here gave the caller a 200 whether
+            // or not anything was published, which is how this path's persister failure went
+            // unnoticed from 2026-08-27 to 08-31: field-planner's V20260827100200 replaced the
+            // unique index that activity-persister.yml's ON CONFLICT named, every message failed
+            // with Postgres 42P10 in the persister pod, and the API kept answering 200.
+            log.error("error occurred while creating Activity facility: {}",
+                    ExceptionUtils.getStackTrace(exception));
+            throw new CustomException("ACTIVITY_FACILITY_CREATE_FAILED",
+                    "Could not publish the activity facility rows: " + exception.getMessage());
         }
 
         return activityFacilities;
@@ -601,6 +610,12 @@ public class ActivityService {
     }
 
     private String resolveAssetType(ActivityFacility activityFacility) {
+        // The real column, wired in 2026-08-29. The additionalDetails and bom fallbacks below are
+        // kept for rows written before that: nothing populated component_type until Vendor
+        // Assignment started writing it, so older rows still carry it (if at all) in JSON.
+        if (activityFacility.getComponentType() != null && !activityFacility.getComponentType().isBlank()) {
+            return activityFacility.getComponentType();
+        }
         if (activityFacility.getActivityType() != null && !activityFacility.getActivityType().isBlank()) {
             return activityFacility.getActivityType();
         }
@@ -845,7 +860,7 @@ public class ActivityService {
                         Role.builder()
                                 .name("System User")
                                 .code("SYSTEM_USER")
-                                .tenantId("in")
+                                .tenantId(activityConfiguration.getTenantId())
                                 .build()
                 );
             }

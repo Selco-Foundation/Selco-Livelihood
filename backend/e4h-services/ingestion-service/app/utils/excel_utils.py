@@ -217,6 +217,141 @@ def add_dropdowns_to_excel(
     logger.info(f"Added {dropdown_count} dropdowns to sheet '{sheet_name}'")
 
 
+def _next_free_hidden_row(hidden_ws) -> int:
+    """First usable row in the hidden dropdown-values sheet, leaving a 1-row gap."""
+    if hidden_ws.max_row > 0:
+        for row in range(hidden_ws.max_row, 0, -1):
+            if hidden_ws.cell(row=row, column=1).value is not None:
+                return row + 2
+    return 1
+
+
+def add_row_specific_dropdown_to_excel(
+        file_path: str,
+        sheet_name: str,
+        column_header: str,
+        options_by_row: Dict[int, List[str]],
+        allow_blank: bool = True,
+):
+    """Add a dropdown whose option list differs per row.
+
+    add_dropdowns_to_excel applies one option list to a whole column; this applies a
+    distinct list per data row, which the Solution column needs (its valid options depend
+    on the site's state). Rows sharing an identical option list share one DataValidation,
+    so a sheet spanning few states stays cheap.
+
+    options_by_row maps a 0-based data-row position (0 -> spreadsheet row 2) to that row's
+    allowed values. Rows absent from the map, or mapped to an empty list, get no dropdown.
+    """
+    if not options_by_row:
+        return
+
+    wb = load_workbook(file_path)
+    ws = wb[sheet_name]
+
+    col_letter = None
+    for cell in ws[1]:
+        if cell.value == column_header:
+            col_letter = cell.column_letter
+            break
+    if not col_letter:
+        logger.warning(f"Column header '{column_header}' not found in sheet '{sheet_name}'")
+        wb.save(file_path)
+        return
+
+    hidden_sheet_name = "_DropdownValues"
+    if hidden_sheet_name not in wb.sheetnames:
+        hidden_ws = wb.create_sheet(hidden_sheet_name)
+        current_hidden_row = 1
+    else:
+        hidden_ws = wb[hidden_sheet_name]
+        current_hidden_row = _next_free_hidden_row(hidden_ws)
+    hidden_ws.sheet_state = 'hidden'
+
+    # Group rows by their option list so each distinct list is written once.
+    rows_by_options: Dict[tuple, List[int]] = {}
+    for row_position, options in options_by_row.items():
+        if not options:
+            continue
+        rows_by_options.setdefault(tuple(options), []).append(row_position)
+
+    for options, row_positions in rows_by_options.items():
+        start_row = current_hidden_row
+        for offset, option in enumerate(options):
+            raw_value = str(option)
+            # Leading =/+/-/@ would be read as a formula; force plain text.
+            cell_value = "'" + raw_value if raw_value and raw_value[0] in ("=", "+", "-", "@") else raw_value
+            hidden_ws.cell(row=start_row + offset, column=1).value = cell_value
+        end_row = start_row + len(options) - 1
+
+        dv = DataValidation(
+            type="list",
+            formula1=f"'{hidden_sheet_name}'!$A${start_row}:$A${end_row}",
+            allow_blank=allow_blank,
+            showErrorMessage=True,
+            showInputMessage=True,
+        )
+        dv.error = "Please select from the list"
+        dv.errorTitle = "Invalid Entry"
+        dv.prompt = "Select a value from the dropdown"
+        dv.promptTitle = "Select Value"
+        ws.add_data_validation(dv)
+        for row_position in sorted(row_positions):
+            dv.add(f"{col_letter}{row_position + 2}")
+
+        current_hidden_row = end_row + 2
+
+    wb.save(file_path)
+    logger.info(
+        f"Added row-specific '{column_header}' dropdowns to '{sheet_name}': "
+        f"{len(rows_by_options)} distinct option sets across {sum(len(r) for r in rows_by_options.values())} rows"
+    )
+
+
+def lock_cells_in_excel(
+        file_path: str,
+        sheet_name: str,
+        column_headers: List[str],
+        row_positions: List[int],
+        grey_out: bool = True,
+):
+    """Re-lock specific cells that column-level rules left editable.
+
+    lock_prefilled_rows_in_excel unlocks a column across every prefilled row, which is the
+    right default but can't express "this column, but only on these rows". The Installation
+    Scope sheet needs that for sites already under installation: their Include and Solution
+    cells must be frozen while the same columns stay editable everywhere else.
+
+    row_positions are 0-based data-row positions (0 -> spreadsheet row 2), matching
+    add_row_specific_dropdown_to_excel.
+    """
+    if not column_headers or not row_positions:
+        return
+
+    wb = load_workbook(file_path)
+    ws = wb[sheet_name]
+
+    indices = [
+        cell.column for cell in ws[1]
+        if cell.value is not None and str(cell.value).strip() in column_headers
+    ]
+    if not indices:
+        logger.warning(f"None of {column_headers} found in sheet '{sheet_name}'; nothing locked")
+        wb.save(file_path)
+        return
+
+    grey_fill = PatternFill(start_color="D3D3D3", end_color="D3D3D3", fill_type="solid")
+    for row_position in row_positions:
+        for col_idx in indices:
+            cell = ws.cell(row=row_position + 2, column=col_idx)
+            cell.protection = Protection(locked=True)
+            if grey_out:
+                cell.fill = grey_fill
+
+    wb.save(file_path)
+    logger.info(f"Locked {len(indices)} column(s) across {len(row_positions)} row(s) in '{sheet_name}'")
+
+
 def lock_excel_columns(
         file_path: str,
         sheet_name: str,

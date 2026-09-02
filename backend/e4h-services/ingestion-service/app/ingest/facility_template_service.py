@@ -6,16 +6,15 @@ import pandas as pd
 import requests
 
 from app.core.logging import AppLogger
-from app.core.tenant import LIVELIHOOD_TENANT_ID, LOCALIZATION_MODULE
+from app.core.tenant import LIVELIHOOD_TENANT_ID
 from app.schemas.boundary import Boundary
 from app.schemas.request_info import RequestInfo
 from app.schemas.vendor_ingestion_shema_response import IngestionSchemaResponse
-from app.utils.convertor import convert_json_to_boundary, format_facility_data_for_template
-from app.utils.excel_utils import add_dropdowns_to_excel, lock_excel_columns, add_validations_to_excel, \
-    lock_prefilled_rows_in_excel, add_non_blank_validations_to_file, autofit_columns, \
-    add_facility_category_conditional_validations
+from app.utils.convertor import convert_json_to_boundary, format_facility_data_for_template, build_boundary_localization_map, localize_boundary_name
+from app.utils.excel_utils import add_dropdowns_to_excel, add_row_specific_dropdown_to_excel, lock_excel_columns, \
+    lock_cells_in_excel, add_validations_to_excel, lock_prefilled_rows_in_excel, add_non_blank_validations_to_file, \
+    autofit_columns, add_facility_category_conditional_validations
 from app.utils.file_utils import create_empty_excel_file, create_excel_data_writer, remove_default_empty_sheet
-from app.utils.localization_service_client import LocalizationServiceClient
 
 logger = AppLogger().get_logger()
 from dotenv import load_dotenv
@@ -54,13 +53,28 @@ class FacilityTemplateService:
         return convert_json_to_boundary(response.text)
 
 
+    @staticmethod
+    def _resolve_header(output_list: List[str], column_name: str) -> str:
+        """Match a schema column name to its generated header, which carries a
+        '(Mandatory)' suffix when the column is required."""
+        if column_name in output_list:
+            return column_name
+        mandatory_header = f"{column_name} (Mandatory)"
+        return mandatory_header if mandatory_header in output_list else ""
+
     def generate_template_file_with_data(self, output_path: str,
                                facility_schema: List[Dict[str, Any]],
                                boundary_list: List[Boundary],
                                facility_data: List[Dict[str, Any]],
                                extra_append_rows: int,
                                type: str = None,
-                               optimize_for_performance: bool = False
+                               optimize_for_performance: bool = False,
+                               constant_column_values: Dict[str, str] = None,
+                               row_specific_dropdowns: Dict[str, Dict[int, List[str]]] = None,
+                               per_row_column_values: Dict[str, Dict[int, str]] = None,
+                               freeze_columns: List[str] = None,
+                               freeze_row_positions: List[int] = None,
+                               boundary_localization_map: Dict[str, str] = None
                                ) -> None:
         """
             Generates FacilityIngestionTemplate.xlsx with:
@@ -69,6 +83,18 @@ class FacilityTemplateService:
             - Regex validation comments (for pattern columns)
             - Boundary data sheet
             - Existing facility data sheet
+
+            constant_column_values: {column name: value} written into every data row and
+            left read-only -- for values fixed at the plan level rather than per site.
+            row_specific_dropdowns: {column name: {0-based row position: allowed values}}
+            for columns whose valid options differ per row. These columns are made
+            editable, since a locked cell would make the dropdown unusable.
+            freeze_columns + freeze_row_positions: re-lock these columns on these rows
+            only, after the column-level pass -- for rows that must not be edited even
+            though their column is editable elsewhere.
+            boundary_localization_map: pass one in when the caller has already resolved
+            boundary names (to key something else off the same values); otherwise it is
+            fetched here.
             """
         try:
             create_empty_excel_file(output_path)
@@ -145,10 +171,46 @@ class FacilityTemplateService:
 
             logger.info(f"Final columns: {output_list}")
 
+            # Columns with per-row dropdowns must stay unlocked or the dropdown is unusable.
+            row_dropdown_headers = {}
+            for column_name, options_by_row in (row_specific_dropdowns or {}).items():
+                header = self._resolve_header(output_list, column_name)
+                if not header:
+                    logger.warning(f"Row-specific dropdown column '{column_name}' not in schema; skipping")
+                    continue
+                row_dropdown_headers[header] = options_by_row
+                editable_columns.append(header)
+
             # Add Existing Facilities Sheet (Optional)
+            if boundary_localization_map is None:
+                boundary_localization_map = build_boundary_localization_map(boundary_list, localization_service_url)
             formatted_facilities = []
             if facility_data:
-                formatted_facilities = format_facility_data_for_template(facility_data, facility_schema, output_list, type)
+                formatted_facilities = format_facility_data_for_template(
+                    facility_data, facility_schema, output_list, type,
+                    boundary_list=boundary_list,
+                    boundary_localization_map=boundary_localization_map,
+                )
+
+            # Plan-level constants are the same on every row and stay read-only.
+            for column_name, value in (constant_column_values or {}).items():
+                header = self._resolve_header(output_list, column_name)
+                if not header:
+                    logger.warning(f"Constant-value column '{column_name}' not in schema; skipping")
+                    continue
+                for row in formatted_facilities:
+                    row[header] = value
+
+            # Values that apply to particular rows only, written after the constants so a
+            # per-row value wins where both target the same column.
+            for column_name, values_by_row in (per_row_column_values or {}).items():
+                header = self._resolve_header(output_list, column_name)
+                if not header:
+                    logger.warning(f"Per-row-value column '{column_name}' not in schema; skipping")
+                    continue
+                for row_position, value in values_by_row.items():
+                    if 0 <= row_position < len(formatted_facilities):
+                        formatted_facilities[row_position][header] = value
 
             df_facility = pd.DataFrame(formatted_facilities, columns=output_list)
             facility_writer = create_excel_data_writer(
@@ -166,6 +228,15 @@ class FacilityTemplateService:
                 max_extra_rows= extra_append_rows
             )
 
+            for header, options_by_row in row_dropdown_headers.items():
+                add_row_specific_dropdown_to_excel(
+                    file_path=output_path,
+                    sheet_name="FacilityMapping",
+                    column_header=header,
+                    options_by_row=options_by_row,
+                    allow_blank=allow_blank_map.get(header, True),
+                )
+
             # Add Validations (Regex + Unique) as comments/hints.
             # These are helpful but expensive on large sheets, so allow skipping
             # them when optimize_for_performance is enabled.
@@ -179,7 +250,7 @@ class FacilityTemplateService:
                 )
 
             # Add Boundary Data Sheet
-            boundary_records = self._format_boundary_data(boundary_list)
+            boundary_records = self._format_boundary_data(boundary_list, boundary_localization_map)
             df_boundary = pd.DataFrame(boundary_records)
             boundary_writer = create_excel_data_writer(
                 output_path,
@@ -204,6 +275,18 @@ class FacilityTemplateService:
                 always_locked_columns=always_locked_columns,
                 extra_append_rows=extra_append_rows
             )
+
+            # Must run after the column-level pass above, which unlocks editable columns
+            # across every prefilled row -- this puts specific cells back under lock.
+            if freeze_columns and freeze_row_positions:
+                lock_cells_in_excel(
+                    file_path=output_path,
+                    sheet_name="FacilityMapping",
+                    column_headers=[
+                        h for h in (self._resolve_header(output_list, c) for c in freeze_columns) if h
+                    ],
+                    row_positions=freeze_row_positions,
+                )
 
             # Non-blank validations are helpful but expensive; keep them only
             # in fully featured mode. Autofit is needed for usability, so it is
@@ -303,49 +386,20 @@ class FacilityTemplateService:
             logger.error(f"Error generating template file: {e}")
             raise
 
-    def _format_boundary_data(self, boundary_data: List[Boundary]) -> List[Dict[str, str]]:
+    def _format_boundary_data(self, boundary_data: List[Boundary],
+                               localization_map: Dict[str, str] = None) -> List[Dict[str, str]]:
         """Format boundary data into required structure, with localized display names."""
         boundary_records = []
 
-        all_raw_codes = set()
-        for boundary in boundary_data:
-            for field in ("country", "state", "district", "block"):
-                val = boundary.get(field, "")
-                if val:
-                    all_raw_codes.add(val)
-
-        loc_codes = [f"BOUNDARY_{code}" for code in all_raw_codes]
-
-        localization_map: Dict[str, str] = {}
-        if localization_service_url and loc_codes:
-            try:
-                loc_client = LocalizationServiceClient(localization_service_url)
-                loc_response = loc_client.search_messages(
-                    tenant_id=LIVELIHOOD_TENANT_ID,
-                    locale="en_IN",
-                    module=LOCALIZATION_MODULE,
-                    codes=loc_codes,
-                )
-                for m in loc_response.get("messages", []):
-                    code = (m.get("code") or "").strip()
-                    message = m.get("message", "")
-                    if code and message:
-                        localization_map[code] = message
-            except Exception as e:
-                logger.error(f"Error fetching boundary localizations: {e}", exc_info=True)
-
-        def localized(raw_code: str) -> str:
-            if not raw_code:
-                return ""
-            loc_key = f"BOUNDARY_{raw_code}"
-            return localization_map.get(loc_key, loc_key)
+        if localization_map is None:
+            localization_map = build_boundary_localization_map(boundary_data, localization_service_url)
 
         for boundary in boundary_data:
             boundary_records.append({
-                "Country": localized(boundary.get("country", "")),
-                "State": localized(boundary.get("state", "")),
-                "District": localized(boundary.get("district", "")),
-                "Block": localized(boundary.get("block", "")),
+                "Country": localize_boundary_name(boundary.get("country_code", ""), localization_map),
+                "State": localize_boundary_name(boundary.get("state_code", ""), localization_map),
+                "District": localize_boundary_name(boundary.get("district_code", ""), localization_map),
+                "Block": localize_boundary_name(boundary.get("block_code", ""), localization_map),
                 "BoundaryCode": boundary.get("code", "")
             })
 

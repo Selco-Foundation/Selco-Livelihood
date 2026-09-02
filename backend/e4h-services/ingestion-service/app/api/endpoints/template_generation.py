@@ -17,9 +17,11 @@ from app.decorators.rbac_validator import get_authorized_request_info
 from app.ingest.facility_template_service import FacilityTemplateService
 from app.ingest.asset_template_service import AssetTemplateService
 from app.ingest.project_service import ProjectService
+from app.ingest.icc_template_service import append_sites_sheet
 from app.schemas.boundary import Boundary, flatten_boundaries
 from app.utils.amc_scheduler_service_client import AMCSchedulerServiceClient
-from app.utils.convertor import request_info_from_json
+from app.utils.convertor import request_info_from_json, build_boundary_localization_map, \
+    state_names_by_facility_id, resolve_boundary_names_for_code
 from app.utils.excel_utils import add_dropdowns_to_excel, autofit_columns, lock_prefilled_rows_in_excel, \
     lock_excel_columns
 from app.utils.facility_service_client import FacilityServiceClient
@@ -28,6 +30,10 @@ from app.utils.fieldplan_service_client import FieldPlanServiceClient
 from app.utils.file_utils import create_temp_file, cleanup_temp_file
 from app.utils.mdms_client import MDMSClient
 from app.utils.project_service_client import ProjectServiceClient
+from app.utils.field_plan_locks import build_project_lock_map, lock_status_label, solution_names_by_code
+from app.utils.filestore_client import FilestoreClient
+from app.utils.solution_eligibility import build_solution_options_by_row, clear_solution_column_dropdown
+from app.utils.state_sunshine_hours_repository import fetch_state_sunshine_hours
 from app.utils.vendor_registry_client import VendorRegistryClient
 import os, tempfile, zipfile, qrcode, shutil
 
@@ -44,6 +50,7 @@ fieldPlan_service_url = os.getenv("FIELDPLAN_SERVICE_URL")
 fieldPlan_activity_service_url = os.getenv("FIELDPLAN_ACTIVITY_SERVICE_URL")
 amc_scheduler_service_url = os.getenv("AMC_SCHEDULER_SERVICE_URL")
 vendor_service_url = os.getenv("VENDOR_SERVICE_URL")
+localization_service_url = os.getenv("LOCALIZATION_SERVICE_URL")
 DEFAULT_AMC_ASSET_TYPES = ["INVERTER", "PANEL", "BATTERY"]
 DB_CONFIG = {
     "host": os.getenv("DB_HOST"),
@@ -303,6 +310,9 @@ async def get_facility_ingestion_template_with_data(
     boundary_data = payload.get("boundary_data", {})
     fieldplan_id = payload.get("fieldplan_id")
     project_id = payload.get("project_id")
+    # Sent by the caller rather than read back off the plan: screen 1 already chose it, and
+    # this keeps the endpoint read-only.
+    plan_sector = payload.get("sector")
     mdms_client = MDMSClient(mdms_url)
     fieldplan_activity_client = FieldPlanActivityServiceClient(fieldPlan_activity_service_url)
     try:
@@ -310,7 +320,7 @@ async def get_facility_ingestion_template_with_data(
         output_filename = f"facility_ingestion_template_{timestamp}.xlsx"
         output_file_path = create_temp_file(suffix=".xlsx")
         try:
-            facility_schema = mdms_client.get_column_definitions_with_metadata(request_info, 'data-ingestion.FieldPlanFacilityIngestionSchema')
+            facility_schema = mdms_client.get_column_definitions_with_metadata(request_info, 'data-ingestion.InstallationScopeIngestionSchema')
             boundary_list: List[Boundary] = flatten_boundaries(boundary_data)
         except Exception as e:
             logger.error(f"Error fetching data from external services: {e}")
@@ -432,6 +442,79 @@ async def get_facility_ingestion_template_with_data(
                 facility["include_in_fieldplan"] = "No"
                 logger.info(f"No fieldplan_id provided - marking facility {facility.get('facility_id')} as No")
 
+        # One sector per plan, chosen on screen 1 and sent with this request, so the Sector
+        # column is identical on every row and Solution options vary only by the site's
+        # state (FR-01). Sites tagged with any other sector are out of this plan's scope.
+        if plan_sector:
+            wanted_sector = str(plan_sector).strip().casefold()
+            before_count = len(all_facilities)
+            all_facilities = [
+                f for f in all_facilities
+                if str(f.get("facility_type") or "").strip().casefold() == wanted_sector
+            ]
+            logger.info(
+                f"Filtered facilities by sector '{plan_sector}': {len(all_facilities)} of {before_count}")
+        else:
+            logger.warning("No sector supplied; skipping sector filter and Solution dropdowns")
+
+        # Built here rather than left to the template service so the Solution dropdown and
+        # the State column resolve their state from one identical lookup; it is handed down
+        # below so the localization call still happens only once.
+        boundary_localization_map = build_boundary_localization_map(boundary_list, localization_service_url)
+        state_by_facility_id = state_names_by_facility_id(
+            all_facilities, boundary_list, boundary_localization_map
+        )
+
+        solutions = []
+        solution_options_by_row = {}
+        if plan_sector:
+            try:
+                solutions = mdms_client.fetch_installation_solutions(request_info)
+                solution_options_by_row = build_solution_options_by_row(
+                    facilities=all_facilities,
+                    solutions=solutions,
+                    plan_sector=plan_sector,
+                    sunshine_hours_by_state=fetch_state_sunshine_hours(),
+                    state_by_facility_id=state_by_facility_id,
+                )
+            except Exception as e:
+                logger.error(f"Error resolving eligible solutions: {e}", exc_info=True)
+
+        # Sites already under installation -- in this plan or a sibling plan in the same
+        # project -- are shown as-is and frozen, so the PM can see they are spoken for but
+        # cannot re-scope them. The lock is project-scoped, hence the project-wide lookup.
+        lock_map = {}
+        if project_id and fieldPlan_service_url:
+            lock_map = build_project_lock_map(
+                FieldPlanServiceClient(fieldPlan_service_url), request_info, project_id, fieldplan_id
+            )
+
+        solution_name_by_code = solution_names_by_code(solutions)
+        freeze_row_positions = []
+        lock_status_by_row = {}
+        for position, facility in enumerate(all_facilities):
+            lock = lock_map.get(facility.get("facility_id"))
+            lock_status_by_row[position] = lock_status_label(lock)
+            if lock is None:
+                continue
+            freeze_row_positions.append(position)
+            if lock.is_this_plan:
+                # Held by this plan: show its own choice, so the row reads as "already yours".
+                facility["include_in_fieldplan"] = "Yes"
+                facility["locked_solution_name"] = solution_name_by_code.get(lock.solution_id, "")
+            else:
+                # Held by a *sibling* plan. Include must read No: this site is not in this plan
+                # and cannot join it, so showing Yes would both misrepresent the scope and make
+                # an untouched re-upload fail validation on rows the PM never edited. The Lock
+                # Status column carries the explanation instead.
+                facility["include_in_fieldplan"] = "No"
+                facility["locked_solution_name"] = ""
+            # A frozen value must not be offered as changeable.
+            solution_options_by_row.pop(position, None)
+
+        # Exactly one Solution per site, filtered per row by that site's state.
+        facility_schema = clear_solution_column_dropdown(facility_schema)
+
         try:
             facility_service.generate_template_file_with_data(
                 output_path=output_file_path,
@@ -440,7 +523,16 @@ async def get_facility_ingestion_template_with_data(
                 facility_data=all_facilities,
                 type="fieldplan",
                 extra_append_rows=0,
-                optimize_for_performance=True
+                optimize_for_performance=True,
+                constant_column_values={"Sector": plan_sector or ""},
+                row_specific_dropdowns={"Solution": solution_options_by_row},
+                per_row_column_values={
+                    "Solution": {p: all_facilities[p].get("locked_solution_name", "") for p in freeze_row_positions},
+                    "Lock Status": lock_status_by_row,
+                },
+                freeze_columns=["Included in Field Plan", "Solution"],
+                freeze_row_positions=freeze_row_positions,
+                boundary_localization_map=boundary_localization_map,
             )
             logger.info(f"Successfully created facility ingestion template at {output_file_path}")
         except Exception as e:
@@ -457,6 +549,181 @@ async def get_facility_ingestion_template_with_data(
     except Exception as e:
         logger.error(f"Unhandled error in get_facility_ingestion_template: {e}")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+
+
+@router.post('/installationTemplate',
+             summary='Download the blank IC Report template for one Solution in a field plan',
+             response_description="Returns the Solution's blank IC Report template as .xlsx")
+async def get_installation_template(
+        background_tasks: BackgroundTasks,
+        payload: dict = Body(..., description="RequestInfo, fieldplan_id, solution_code, optional boundary_data")
+):
+    """Serve a Solution's blank template (FR-08).
+
+    Read-only, and it always serves the *blank* template -- there is deliberately no
+    "download my previous answers" mode, which is why nothing has to store or reproduce a
+    filled workbook. The Project Manager keeps their own copy of what they filled in.
+    """
+    request_info = request_info_from_json(payload.get("RequestInfo", {}))
+    fieldplan_id = payload.get("fieldplan_id")
+    solution_code = payload.get("solution_code")
+    boundary_data = payload.get("boundary_data") or {}
+
+    if not fieldplan_id or not solution_code:
+        raise HTTPException(status_code=400, detail="fieldplan_id and solution_code are required")
+    if not fieldPlan_service_url:
+        raise HTTPException(status_code=500, detail="Field plan service is not configured")
+
+    output_file_path = None
+    try:
+        fieldplan_client = FieldPlanServiceClient(fieldPlan_service_url)
+
+        # 1. The Solution has to actually be in this plan's scope. Without this the PM could
+        #    fill a template for a Solution no site uses, which then fails Publish for a
+        #    reason that points at the wrong screen.
+        try:
+            links = fieldplan_client.search_fieldplan_facility(
+                request_info, fieldplan_id).get("FieldPlanFacilities", [])
+        except Exception as e:
+            logger.error(f"Could not read scope for plan {fieldplan_id}: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=502,
+                detail=f"Could not read the installation plan's scope: {e}")
+
+        sites_for_solution = [
+            link for link in links
+            if str(link.get("solutionId") or "").strip() == str(solution_code).strip()
+            and not link.get("isdeleted")
+        ]
+        if not sites_for_solution:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No end user site in this installation plan is assigned Solution "
+                       f"{solution_code}. Assign it in the Installation Scope step first.")
+
+        # 2. Resolve the blank template's filestore id through field-planner, which owns
+        #    icc_templates -- rather than reading that table directly, so nothing depends on
+        #    the two services sharing a database.
+        try:
+            blank_templates = fieldplan_client.search_blank_templates(request_info, [solution_code])
+        except Exception as e:
+            logger.error(f"Could not resolve blank template for {solution_code}: {e}", exc_info=True)
+            raise HTTPException(status_code=502, detail=f"Could not resolve the blank template: {e}")
+
+        file_store_id = blank_templates.get(solution_code)
+        if not file_store_id:
+            raise HTTPException(
+                status_code=400,
+                detail=f"SOLUTION_TEMPLATE_NOT_FOUND: no blank IC Report template is configured "
+                       f"for Solution {solution_code}.")
+
+        # 3. Fetch the workbook itself.
+        try:
+            workbook_bytes = FilestoreClient().download_file(request_info, file_store_id)
+        except Exception as e:
+            logger.error(f"Filestore fetch failed for {file_store_id}: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=502,
+                detail=f"Could not fetch the template file from filestore: {e}")
+
+        output_file_path = create_temp_file(suffix=".xlsx")
+        with open(output_file_path, "wb") as handle:
+            handle.write(workbook_bytes)
+
+        # 4. Append the read-only Sites sheet. Reference only -- never read back on upload.
+        try:
+            sites = _sites_for_template(
+                request_info, fieldplan_client, sites_for_solution, boundary_data, fieldplan_id)
+            workbook = load_workbook(output_file_path)
+            append_sites_sheet(workbook, sites)
+            workbook.save(output_file_path)
+        except Exception as e:
+            # The template is usable without the reference sheet, so a failure here degrades
+            # rather than blocks the download.
+            logger.error(f"Could not append the Sites sheet: {e}", exc_info=True)
+
+        background_tasks.add_task(cleanup_temp_file, output_file_path)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        return FileResponse(
+            path=output_file_path,
+            filename=f"ic_report_template_{solution_code}_{timestamp}.xlsx",
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+    except HTTPException:
+        if output_file_path:
+            cleanup_temp_file(output_file_path)
+        raise
+    except Exception as e:
+        logger.error(f"Unhandled error generating installation template: {e}", exc_info=True)
+        if output_file_path:
+            cleanup_temp_file(output_file_path)
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+
+
+def _sites_for_template(request_info, fieldplan_client, links, boundary_data, fieldplan_id):
+    """Rows for the read-only Sites sheet: which end user sites this Solution's template covers.
+
+    Geography is filled in only when the caller passes boundary_data, since resolving a
+    facility's state means matching its boundary_code against that list -- the facility record
+    itself carries no state (address.state has no column behind it). The sheet is still useful
+    without it, so a caller that omits boundary_data gets names and statuses.
+    """
+    facility_ids = [link.get("facilityId") for link in links if link.get("facilityId")]
+    facilities_by_id = {}
+    if facility_ids and facility_service_url:
+        try:
+            result = FacilityServiceClient(facility_service_url).bulk_search_facility(
+                request_info=request_info,
+                tenant_ids=[LIVELIHOOD_TENANT_ID],
+                facility_ids=facility_ids,
+                limit=max(len(facility_ids), 50),
+                send_non_paginated_response=True,
+            )
+            facilities_by_id = {
+                f.get("facility_id"): f for f in (result.get("facilities") or [])
+                if f.get("facility_id")
+            }
+        except Exception as e:
+            logger.error(f"Could not fetch facilities for the Sites sheet: {e}", exc_info=True)
+
+    geography = {}
+    if boundary_data and facilities_by_id:
+        boundary_list = flatten_boundaries(boundary_data)
+        localization = build_boundary_localization_map(boundary_list, localization_service_url)
+        for facility in facilities_by_id.values():
+            code = facility.get("boundary_code") or facility.get("boundaryCode") or ""
+            geography[facility.get("facility_id")] = resolve_boundary_names_for_code(
+                code, boundary_list, localization)
+
+    # A site published in a sibling plan is flagged here so the PM sees it on this screen
+    # rather than discovering it at Vendor Assignment.
+    lock_map = {}
+    plan_project_id = None
+    try:
+        plans = fieldplan_client.search_fieldPlan(request_info, fieldplan_id).get("FieldPlans", [])
+        plan_project_id = plans[0].get("projectId") if plans else None
+    except Exception as e:
+        logger.error(f"Could not read plan {fieldplan_id} for the Sites sheet: {e}", exc_info=True)
+    if plan_project_id:
+        lock_map = build_project_lock_map(
+            fieldplan_client, request_info, plan_project_id, fieldplan_id)
+
+    rows = []
+    for facility_id in facility_ids:
+        facility = facilities_by_id.get(facility_id) or {}
+        state, district, block = geography.get(facility_id, ("", "", ""))
+        lock = lock_map.get(facility_id)
+        rows.append({
+            "name": facility.get("facility_name") or facility.get("name") or "",
+            "facility_id": facility_id,
+            "state": state,
+            "district": district,
+            "block": block,
+            "status": "" if lock is None or lock.is_this_plan else lock_status_label(lock),
+        })
+    return rows
+
 
 
 @router.post('/facilityIngestion',

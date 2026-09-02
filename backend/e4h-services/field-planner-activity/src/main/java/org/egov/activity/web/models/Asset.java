@@ -58,6 +58,12 @@ public class Asset {
     @NotNull
     private String brandID = null;
 
+    @JsonProperty("vendorId")
+    private String vendorId = null;
+
+    @JsonProperty("itemCode")
+    private String itemCode = null;
+
     @JsonProperty("assetDetails")
     private Map<String, Object> assetDetails = null;
 

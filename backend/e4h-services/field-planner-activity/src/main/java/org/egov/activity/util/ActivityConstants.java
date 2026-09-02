@@ -21,7 +21,7 @@ public class ActivityConstants {
     public static final String PROJECT_TYPE_FIELDPLAN = "FieldPlan";
     public static final String PROJECT_TYPE_FACILITY = "Facility";
     public static final String HIERARCHY_TYPE = "SELCO";
-    public static final String TENANTID = "in";
+    public static final String TENANTID = "livelihood";
     //General
     public static final String SEMICOLON = ":";
     public static final String DOT = ".";

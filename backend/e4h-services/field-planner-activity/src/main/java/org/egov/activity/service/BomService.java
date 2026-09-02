@@ -72,9 +72,17 @@ public class BomService {
                 bomEnrichment.enrichBomOnCreate(billOfMaterial, request.getRequestInfo());
             }
             producer.push(activityConfiguration.getCreateBOMTopic(), request);
-            log.info("successfully created activity facility");
+            log.info("published {} bill(s) of material to {}", billOfMaterials.size(),
+                    activityConfiguration.getCreateBOMTopic());
         } catch (Exception exception) {
-            log.error("error occurred while creating project facility: {}", ExceptionUtils.getStackTrace(exception));
+            // Deliberately NOT swallowed. This used to catch, log and return normally, so the
+            // caller received a 200 whether or not anything had been published -- and since the
+            // row itself is written asynchronously by egov-persister, a swallowed publish failure
+            // discarded the only synchronous signal that the write was never going to happen.
+            log.error("error occurred while creating bill of material: {}",
+                    ExceptionUtils.getStackTrace(exception));
+            throw new CustomException("BOM_CREATE_FAILED",
+                    "Could not publish the bill of material: " + exception.getMessage());
         }
 
         return billOfMaterials;
