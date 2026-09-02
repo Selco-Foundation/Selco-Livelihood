@@ -218,9 +218,13 @@ export function ComplaintActionDialog({
       setVendorOptions([]);
       return;
     }
-    void fetchVendorOptions(accessToken, user, boundaryCode).then((options) => {
-      setVendorOptions(options.filter((option) => option.code !== excludeVendorUuid));
-    });
+    void fetchVendorOptions(accessToken, user, boundaryCode)
+      .then((options) => {
+        setVendorOptions(options.filter((option) => option.code !== excludeVendorUuid));
+      })
+      .catch(() => {
+        setError(translateOr(t, "WF_VENDOR_LOAD_FAILED", "Could not load vendors. Please try again."));
+      });
   }, [
     accessToken,
     actionConfig?.requiresVendorAssignee,
