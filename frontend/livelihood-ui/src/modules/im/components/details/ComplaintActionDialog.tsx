@@ -210,12 +210,13 @@ export function ComplaintActionDialog({
   }, [accessToken, actionConfig?.reasonMaster, user]);
 
   useEffect(() => {
-    if (!actionConfig?.requiresVendorAssignee || !accessToken) {
+    const boundaryCode = complaintDetails.incident.boundaryCode;
+    if (!actionConfig?.requiresVendorAssignee || !accessToken || !boundaryCode) {
       setVendorOptions([]);
       return;
     }
-    void fetchVendorOptions(accessToken, user).then(setVendorOptions);
-  }, [accessToken, actionConfig?.requiresVendorAssignee, user]);
+    void fetchVendorOptions(accessToken, user, boundaryCode).then(setVendorOptions);
+  }, [accessToken, actionConfig?.requiresVendorAssignee, complaintDetails.incident.boundaryCode, user]);
 
   const mutation = useMutation({
     mutationFn: async () => {
