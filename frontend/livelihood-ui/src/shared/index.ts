@@ -29,7 +29,12 @@ export {
   type QrLoginResolveParams,
   type QrLoginResolveResponse,
 } from "./api/qr-login";
-export { searchHrmsEmployee, type HrmsEmployee } from "./api/hrms";
+export {
+  searchHrmsEmployees,
+  type HrmsEmployee,
+  type HrmsEmployeeSearchCriteria,
+  type HrmsEmployeeUser,
+} from "./api/hrms";
 export {
   fetchBoundaryRelations,
   type BoundaryHierarchy,
