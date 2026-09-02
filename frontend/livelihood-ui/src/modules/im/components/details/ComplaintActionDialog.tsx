@@ -31,6 +31,8 @@ import { FormSelectField } from "../create/FormSelectField";
 interface ComplaintActionDialogProps {
   action: string;
   complaintDetails: ComplaintDetailsData;
+  /** Vendor to exclude from the ASSIGN_VENDOR picker — reassigning to them is REASSIGN's job. */
+  excludeVendorUuid?: string;
   onClose: () => void;
   onComplete: () => Promise<void>;
 }
@@ -177,6 +179,7 @@ function ActionDocumentsField({
 export function ComplaintActionDialog({
   action,
   complaintDetails,
+  excludeVendorUuid,
   onClose,
   onComplete,
 }: ComplaintActionDialogProps) {
@@ -215,8 +218,16 @@ export function ComplaintActionDialog({
       setVendorOptions([]);
       return;
     }
-    void fetchVendorOptions(accessToken, user, boundaryCode).then(setVendorOptions);
-  }, [accessToken, actionConfig?.requiresVendorAssignee, complaintDetails.incident.boundaryCode, user]);
+    void fetchVendorOptions(accessToken, user, boundaryCode).then((options) => {
+      setVendorOptions(options.filter((option) => option.code !== excludeVendorUuid));
+    });
+  }, [
+    accessToken,
+    actionConfig?.requiresVendorAssignee,
+    complaintDetails.incident.boundaryCode,
+    excludeVendorUuid,
+    user,
+  ]);
 
   const mutation = useMutation({
     mutationFn: async () => {
