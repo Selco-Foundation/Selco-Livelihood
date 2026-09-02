@@ -57,7 +57,7 @@ public class LivelihoodSmsNotificationService {
             Map.entry(LIV_TPL_009,
                     "A quotation has been submitted for your livelihood support ticket for {ticket_type} with ID {incidentId} "
                             + "submitted on {date}. Please review and click to view the quotation document using this link: "
-                            + "https://setu4livelihood-uat.selcofoundation.org/filestore/v1/files/file?{quotation_query}. - SELCO Foundation"),
+                            + "{quotation_short_link}. - SELCO Foundation"),
             Map.entry(LIV_TPL_011,
                     "Your livelihood support ticket for {ticket_type} with ID {incidentId} submitted on {date} has been resolved. "
                             + "We hope your issue has been addressed. Not satisfied with the resolution? You can change ticket "
@@ -73,8 +73,8 @@ public class LivelihoodSmsNotificationService {
                             + "by the SELCO Foundation. For further assistance, please reach out to your local coordinator or track ticket "
                             + "details on {url} - SELCO Foundation"),
             Map.entry(LIV_TPL_017,
-                    "Livelihood ticket for {ticket_type} with ID {incidentId} submitted on {date} has been assigned to you. "
-                            + "Please take necessary action or track ticket details on {url} - SELCO Foundation"),
+                    "A new livelihood support ticket has been raised by {end_user_name} for {ticket_type}, with ID {incidentId}, "
+                            + "on {date}. Please review and take necessary action. Track the ticket on {url} - SELCO Foundation"),
             Map.entry(LIV_TPL_032,
                     "A follow-up action is required for your livelihood support ticket for {ticket_type} with ID {incidentId}. "
                             + "Reason: {reason}. Please respond at the earliest or track ticket details on {url} - SELCO Foundation"),
@@ -157,8 +157,9 @@ public class LivelihoodSmsNotificationService {
         placeholders.put("end_user_name", resolveEndUserName(incident));
         placeholders.put("reason", resolveReason(request));
         placeholders.put("out_of_scope_reason", resolveOutOfScopeReason(request));
-        placeholders.put("quotation_link", resolveQuotationLink(request));
-        placeholders.put("quotation_query", resolveQuotationLinkQuery(request));
+        String quotationLink = resolveQuotationLink(request);
+        placeholders.put("quotation_link", quotationLink);
+        placeholders.put("quotation_short_link", quotationLink);
         return placeholders;
     }
 
@@ -240,21 +241,6 @@ public class LivelihoodSmsNotificationService {
                 config.getFileStoreDownloadEndpoint(),
                 tenantId,
                 fileStoreId);
-    }
-
-    public String resolveQuotationLinkQuery(IncidentRequest request) {
-        if (request.getWorkflow() == null || CollectionUtils.isEmpty(request.getWorkflow().getVerificationDocuments())) {
-            return "";
-        }
-        return request.getWorkflow().getVerificationDocuments().stream()
-                .filter(doc -> doc != null && StringUtils.isNotBlank(doc.getFileStoreId()))
-                .map(doc -> buildFileStoreQuery(request.getIncident().getTenantId(), doc.getFileStoreId()))
-                .findFirst()
-                .orElse("");
-    }
-
-    private String buildFileStoreQuery(String tenantId, String fileStoreId) {
-        return String.format("tenantId=%s&fileStoreId=%s", tenantId, fileStoreId);
     }
 
     private String applyPlaceholders(String template, Map<String, String> placeholders) {
