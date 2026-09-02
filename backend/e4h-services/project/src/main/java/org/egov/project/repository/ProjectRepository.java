@@ -16,6 +16,7 @@ import org.egov.project.repository.rowmapper.*;
 import org.egov.project.web.models.ProjectSearchCriteria;
 import org.egov.project.web.models.ProjectSortCriteria;
 import org.egov.project.web.models.ProjectStatusAgregation;
+import org.egov.tracer.model.CustomException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -246,31 +247,6 @@ public class ProjectRepository extends GenericRepository<Project> {
      * @param excludeProjectId The project ID to exclude from the check
      * @return true if the project name exists (excluding the specified project), false otherwise
      */
-    public boolean isJustificationCodeUsed(String justificationCode, String tenantId) {
-        return isJustificationCodeUsed(justificationCode, tenantId, null);
-    }
-
-    public boolean isJustificationCodeUsed(String justificationCode, String tenantId, String excludeProjectId) {
-        log.trace("Entering isJustificationCodeUsed for tenantId: {}, excludeProjectId: {}", tenantId, excludeProjectId);
-        if (StringUtils.isBlank(justificationCode) || StringUtils.isBlank(tenantId)) {
-            return false;
-        }
-        try {
-            String sql = StringUtils.isBlank(excludeProjectId)
-                    ? queryBuilder.getCheckJustificationCodeExistsQuery()
-                    : queryBuilder.getCheckJustificationCodeExistsExcludingProjectQuery();
-            Integer count = StringUtils.isBlank(excludeProjectId)
-                    ? jdbcTemplate.queryForObject(sql, Integer.class, tenantId, justificationCode)
-                    : jdbcTemplate.queryForObject(sql, Integer.class, tenantId, justificationCode, excludeProjectId);
-            boolean exists = count != null && count > 0;
-            log.debug("Justification code exists check result: {} (count: {})", exists, count);
-            return exists;
-        } catch (Exception e) {
-            log.error("Error checking justification code usage for tenantId: {}", tenantId, e);
-            return true;
-        }
-    }
-
     public boolean isProjectNameExistsExcludingProject(String projectName, String tenantId, String excludeProjectId) {
         try {
             String sql = queryBuilder.getCheckProjectNameExistsExcludingProjectQuery();
@@ -331,6 +307,42 @@ public class ProjectRepository extends GenericRepository<Project> {
         } catch (Exception e) {
             log.error("Error finding highest existing name for base: {}", baseName, e);
             return null;
+        }
+    }
+
+    /**
+     * Computes the next sequence number for project names sharing the given prefix
+     * (e.g. "PROJ-12345-26-27-"), scoped to a tenant. The sequence resets to 1 whenever
+     * no existing project name matches the prefix.
+     * @param prefix The full name prefix (justification code + financial year segment), including trailing hyphen
+     * @param tenantId The tenant ID
+     * @return The next sequence number to use
+     */
+    public int getNextSequenceNumber(String prefix, String tenantId) {
+        try {
+            String escapedPrefix = queryBuilder.escapeLikeWildcards(prefix);
+            String sql = queryBuilder.getFindHighestExistingProjectNameQuery();
+            List<String> existingNames = jdbcTemplate.queryForList(sql, String.class, escapedPrefix + "%", tenantId);
+
+            int maxSequence = 0;
+            for (String name : existingNames) {
+                if (name != null && name.toUpperCase(Locale.ROOT).startsWith(prefix)) {
+                    String suffix = name.substring(prefix.length());
+                    try {
+                        int sequence = Integer.parseInt(suffix);
+                        if (sequence > maxSequence) {
+                            maxSequence = sequence;
+                        }
+                    } catch (NumberFormatException e) {
+                        log.debug("Skipping project name with non-numeric sequence suffix: {}", name);
+                    }
+                }
+            }
+            return maxSequence + 1;
+        } catch (Exception e) {
+            log.error("Error computing next sequence number for prefix: {}", prefix, e);
+            throw new CustomException("PROJECT_NAME_SEQUENCE_GENERATION_FAILED",
+                    "Failed to compute next sequence number for project name generation: " + e.getMessage());
         }
     }
 

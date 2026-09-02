@@ -5,7 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.common.models.core.SearchResponse;
-import org.egov.common.models.project.ProjectFacility;
 import org.egov.common.producer.Producer;
 import org.egov.common.validator.Validator;
 import org.egov.field_planner.config.FieldPlannerConfiguration;
@@ -18,6 +17,7 @@ import org.egov.field_planner.web.models.*;
 import org.egov.tracer.model.CustomException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.lang.reflect.Method;
@@ -27,6 +27,8 @@ import java.util.stream.Collectors;
 
 import static org.egov.common.utils.CommonUtils.*;
 import static org.egov.field_planner.Constants.GET_FIELDPLAN_ID;
+import static org.egov.field_planner.util.FieldPlannerConstants.LOCK_STATUS_LOCKED;
+import static org.egov.field_planner.util.FieldPlannerConstants.LOCK_STATUS_UNLOCKED;
 
 @Service
 @Slf4j
@@ -44,6 +46,8 @@ public class FieldPlannerFacilityService {
     private final FieldPlannerConfiguration fieldPlannerConfiguration;
     private final MDMSUtils mdmsUtils;
 
+    private final JdbcTemplate jdbcTemplate;
+
     @Qualifier("objectMapper")
     private final ObjectMapper mapper;
 
@@ -51,7 +55,7 @@ public class FieldPlannerFacilityService {
     public FieldPlannerFacilityService(
             FieldPlanFacilityRepository fieldPlanFacilityRepository, List<Validator<FieldPlanFacilityBulkRequest, FieldPlanFacility>> validators,
             FieldPlannerValidator fieldPlannerValidator, FieldPlannerEnrichment fieldPlannerEnrichment, FieldPlannerConfiguration fieldPlannerConfiguration,
-            Producer producer, FieldPlannerRepository fieldPlannerRepository, MDMSUtils mdmsUtils, ServiceRequestRepository serviceRequestClient, @Qualifier("objectMapper") ObjectMapper mapper) {
+            Producer producer, FieldPlannerRepository fieldPlannerRepository, MDMSUtils mdmsUtils, ServiceRequestRepository serviceRequestClient, @Qualifier("objectMapper") ObjectMapper mapper, JdbcTemplate jdbcTemplate) {
             this.producer = producer;
             this.fieldPlannerConfiguration = fieldPlannerConfiguration;
             this.fieldPlanFacilityRepository = fieldPlanFacilityRepository;
@@ -61,6 +65,7 @@ public class FieldPlannerFacilityService {
             this.serviceRequestClient = serviceRequestClient;
             this.mapper = mapper;
             this.fieldPlannerRepository = fieldPlannerRepository;
+            this.jdbcTemplate = jdbcTemplate;
     }
 
     public FieldPlanFacility create(FieldPlanFacilityRequest request) {
@@ -80,14 +85,70 @@ public class FieldPlannerFacilityService {
             if (!fieldPlanFacilities.isEmpty()) {
                 log.info("processing {} valid entities", fieldPlanFacilities.size());
                 fieldPlannerEnrichment.enrichFieldPlanFacilityOnCreate(fieldPlanFacilities, request);
+                applyScopeLock(fieldPlanFacilities);
+                // The persister's save-fieldplan-facility-topic mapping now carries solution_id
+                // and lock_status, so there is nothing left for a direct JDBC write to add.
                 producer.push(fieldPlannerConfiguration.getCreateFieldPlanFacilityTopic(), fieldPlanFacilities);
-                log.info("successfully created project facility");
+                log.info("published {} fieldplan facility row(s) to {}", fieldPlanFacilities.size(),
+                        fieldPlannerConfiguration.getCreateFieldPlanFacilityTopic());
             }
         } catch (Exception exception) {
-            log.error("error occurred while creating project facility: {}", ExceptionUtils.getStackTrace(exception));
+            // Deliberately NOT swallowed any more. This used to catch, log and return the
+            // request unchanged, so the caller got a 200 whether or not anything was written --
+            // and with the write now asynchronous, a swallowed publish failure would be the last
+            // synchronous signal we had that the Installation Scope upload went nowhere.
+            log.error("error occurred while creating fieldplan facility: {}",
+                    ExceptionUtils.getStackTrace(exception));
+            throw new CustomException("FIELDPLAN_FACILITY_CREATE_FAILED",
+                    "Could not publish the installation scope for this field plan: " + exception.getMessage());
         }
 
         return fieldPlanFacilities;
+    }
+
+
+    /**
+     * A site joins a plan's scope LOCKED, which reserves it for that plan across the whole
+     * project: no sibling plan may take it. That closes a real gap -- until this existed the only
+     * protection was the published-site bar, derived from a sibling plan reaching SCHEDULED, so
+     * two DRAFT plans could both scope one site and whichever published first silently won.
+     *
+     * The lock bars *other* plans, not this one. The owning plan keeps editing its own scope until
+     * it publishes -- removing a site it just added, or changing a site's Solution -- which is why
+     * ingestion-service's build_project_lock_map excludes a plan's own unpublished lock from the
+     * map it builds. Without that exclusion this would make the Installation Scope step
+     * effectively one-shot: facility_validator treats an own-plan lock as fixed and skips the row,
+     * so re-uploading a plan's own sheet would fail with "No end user sites are selected".
+     *
+     * Defaulted, never overridden: a caller that explicitly asked for a lock state gets the one it
+     * asked for, which keeps /facility/_update-lock authoritative.
+     */
+    private void applyScopeLock(List<FieldPlanFacility> fieldPlanFacilities) {
+        for (FieldPlanFacility facility : fieldPlanFacilities) {
+            if (facility.getLockStatus() == null || facility.getLockStatus().isBlank()) {
+                facility.setLockStatus(LOCK_STATUS_LOCKED);
+            }
+        }
+    }
+
+    /**
+     * Removing a site from scope releases its reservation. Without this the row would keep
+     * lock_status = LOCKED after being soft-deleted and, because the bar is derived per project,
+     * the site would stay barred from every plan for good -- unreachable by any UI, because
+     * nothing lists a deleted row.
+     *
+     * Unconditional, unlike applyScopeLock: the unassign payload is often the existing record read
+     * straight back off a search (see ingestion-service's unlink_fieldplan_facility), so it
+     * usually arrives already carrying LOCKED.
+     *
+     * ingestion-service also skips soft-deleted links when building the lock map, so the two
+     * guards are independent: this one keeps the column honest, that one keeps the rule correct
+     * even if this write is ever lost.
+     */
+    private void releaseScopeLock(List<FieldPlanFacility> fieldPlanFacilities) {
+        for (FieldPlanFacility facility : fieldPlanFacilities) {
+            facility.setLockStatus(LOCK_STATUS_UNLOCKED);
+        }
     }
 
     public SearchResponse<FieldPlanFacility> search(FieldPlanFacilitySearchRequest request,
@@ -133,6 +194,7 @@ public class FieldPlannerFacilityService {
                     log.info("processing {} valid entities", fieldPlanFacilities.size());
                     fieldPlannerEnrichment.enrichFieldPlanFacilityRequestOnDelete(fieldPlanFacility, request.getRequestInfo());
                 }
+                releaseScopeLock(fieldPlanFacilities);
                 producer.push(fieldPlannerConfiguration.getDeleteFieldPlanFacilityTopic(), fieldPlanFacilities);
                 log.info("successfully created project facility");
             }
@@ -141,6 +203,46 @@ public class FieldPlannerFacilityService {
         }
 
         return fieldPlanFacilities;
+    }
+
+    /**
+     * Updates lock_status on field_plan_facilities (UNLOCKED once every IC report for the site is approved).
+     * Uses direct JDBC because there is no Kafka update mapping for this column yet.
+     */
+    public FieldPlanFacility updateLockStatus(FieldPlanFacilityRequest request) {
+        FieldPlanFacility facility = request.getFieldPlanFacility();
+        if (facility == null) {
+            throw new CustomException("INVALID_REQUEST", "FieldPlanFacility is required");
+        }
+        String lockStatus = facility.getLockStatus();
+        if (lockStatus == null || lockStatus.isBlank()) {
+            throw new CustomException("INVALID_LOCK_STATUS", "lockStatus is required (LOCKED or UNLOCKED)");
+        }
+        if (!LOCK_STATUS_LOCKED.equalsIgnoreCase(lockStatus) && !LOCK_STATUS_UNLOCKED.equalsIgnoreCase(lockStatus)) {
+            throw new CustomException("INVALID_LOCK_STATUS", "lockStatus must be LOCKED or UNLOCKED");
+        }
+        if (facility.getTenantId() == null || facility.getFieldPlanId() == null || facility.getFacilityId() == null) {
+            throw new CustomException("INVALID_REQUEST", "tenantId, fieldPlanId and facilityId are required");
+        }
+
+        int updated = jdbcTemplate.update(
+                "UPDATE field_plan_facilities SET lock_status = ?, lastmodifiedtime = ? " +
+                        "WHERE tenantid = ? AND field_plan_id = ? AND facility_id = ? AND (isdeleted IS NULL OR isdeleted = false)",
+                lockStatus.toUpperCase(),
+                System.currentTimeMillis(),
+                facility.getTenantId(),
+                facility.getFieldPlanId(),
+                facility.getFacilityId()
+        );
+        if (updated == 0) {
+            throw new CustomException("FIELD_PLAN_FACILITY_NOT_FOUND",
+                    "No field_plan_facilities row for fieldPlanId=" + facility.getFieldPlanId()
+                            + ", facilityId=" + facility.getFacilityId());
+        }
+        facility.setLockStatus(lockStatus.toUpperCase());
+        log.info("Updated lock_status={} for fieldPlanId={} facilityId={}",
+                facility.getLockStatus(), facility.getFieldPlanId(), facility.getFacilityId());
+        return facility;
     }
 
     public void validateCreateFieldPlanRequest(FieldPlanFacilityBulkRequest request) {

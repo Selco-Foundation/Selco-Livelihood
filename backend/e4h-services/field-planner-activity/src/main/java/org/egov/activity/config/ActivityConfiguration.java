@@ -17,6 +17,46 @@ public class ActivityConfiguration {
     @Value("${fieldplan.facility.idgen.id.format}")
     private String fieldPlanFacilityIdFormat;
 
+    /**
+     * idgen id name for a bom row's IC Report number. The format itself is registered in
+     * egov-idgen's own configuration, which lives outside this repository -- if it is missing,
+     * vendor assignment fails at the Report Number step rather than dispatching numberless
+     * reports.
+     */
+    @Value("${bom.report.number.idgen.name:bom.report.number}")
+    private String bomReportNumberIdName;
+
+    /**
+     * Consumed by egov-persister's activity-persister.yml save-vendor-assignment mapping, which
+     * writes facility_activities, bom, activity_facility_users and the field_plans handover in
+     * one transaction. Keep the payload shape in sync with that mapping.
+     */
+    @Value("${vendor.assignment.kafka.create.topic:save-vendor-assignment}")
+    private String saveVendorAssignmentTopic;
+
+    /**
+     * The plan's own workflow, distinct from egov.workflow.business.service
+     * (FACILITY_INSTALLATION), which governs the individual assets. Vendor assignment's submit
+     * transitions both: the plan on this service, each asset on that one.
+     */
+    @Value("${egov.workflow.installation.plan.business.service:INSTALLATION_PLAN}")
+    private String installationPlanBusinessService;
+
+    /**
+     * The two plan statuses this service COMPARES against. It never writes them -- a written
+     * status always comes from the workflow's transition response -- but "is this plan already
+     * published?" and "is it still editable?" need a value to test, and a compiled-in literal is
+     * what let field_plans.status and the workflow's state machine drift apart in the first place.
+     *
+     * Defaults match the INSTALLATION_PLAN business service as seeded: start state DRAFT, and
+     * PUBLISH leading to the terminate state PUBLISHED. Change the workflow, change these.
+     */
+    @Value("${installation.plan.draft.status:DRAFT}")
+    private String installationPlanDraftStatus;
+
+    @Value("${installation.plan.published.status:PUBLISHED}")
+    private String installationPlanPublishedStatus;
+
     @Value("${egov.fieldplan.host}")
     private String fieldPlanServiceHost;
 
@@ -49,6 +89,9 @@ public class ActivityConfiguration {
 
     @Value("${egov.kafka.notification.email.topic}")
     private String notificationEmailTopic;
+
+    @Value("${egov.kafka.notification.sms.topic:egov.core.notification.sms}")
+    private String notificationSmsTopic;
 
     @Value("${egov.off.grid.single.phase.key}")
     private String bomACOffGridSinglePhase;
@@ -189,6 +232,24 @@ public class ActivityConfiguration {
 
     @Value("${email.activity.assignment.body}")
     private String activityEmailBody;
+
+    @Value("${email.ic.report.submitted.subject}")
+    private String icReportSubmittedSubject;
+
+    @Value("${email.ic.report.submitted.body}")
+    private String icReportSubmittedBody;
+
+    @Value("${email.ic.report.rejected.subject}")
+    private String icReportRejectedSubject;
+
+    @Value("${email.ic.report.rejected.body}")
+    private String icReportRejectedBody;
+
+    @Value("${sms.ic.report.rejected.body}")
+    private String icReportRejectedSmsBody;
+
+    @Value("${egov.fieldplan.facility.update.lock.url}")
+    private String fieldPlanFacilityUpdateLockUrl;
 
     @Value("${egov.amc.scheduler.host}")
     private String amcSchedulerHost;

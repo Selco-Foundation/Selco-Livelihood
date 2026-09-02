@@ -30,6 +30,10 @@ public class FieldPlanFacility {
             min = 2,
             max = 64
     ) String fieldPlanId = null;
+    @JsonProperty("lockStatus")
+    private String lockStatus;
+    @JsonProperty("solutionId")
+    private String solutionId;
     @JsonProperty("isdeleted")
     private Boolean isDeleted;
     @JsonProperty("id")

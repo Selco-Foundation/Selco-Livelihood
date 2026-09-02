@@ -30,6 +30,8 @@ def format_facility_data_for_template(
     facility_schema: List[Dict[str, Any]],
     headers: List[str],
     type: str = None,
+    boundary_list: Optional[List[Boundary]] = None,
+    boundary_localization_map: Optional[Dict[str, str]] = None,
 ) -> List[Dict[str, Any]]:
     """
     Converts raw facility data into rows, aligned with `headers`
@@ -47,22 +49,36 @@ def format_facility_data_for_template(
             "code_to_name": code_to_name,
         })
 
+    boundary_list = boundary_list or []
+    boundary_localization_map = boundary_localization_map or {}
+
     formatted_rows: List[Dict[str, Any]] = []
     if type and type == "project":
         for facility in facility_data:
+            facility_boundary_code = facility.get("boundary_code") or facility.get("boundaryCode") or ""
+            state_name, district_name, block_name = resolve_boundary_names_for_code(
+                facility_boundary_code, boundary_list, boundary_localization_map
+            )
             row = {}
             for c in compiled_cols:
-                val = get_nested_value(facility, c["path"])
-                if c["code_to_name"] and isinstance(val, str):
-                    val = c["code_to_name"].get(val, val)
+                if c["path"] == "state":
+                    val = state_name
+                elif c["path"] == "district":
+                    val = district_name
+                elif c["path"] == "block":
+                    val = block_name
+                else:
+                    val = get_nested_value(facility, c["path"])
+                    if c["code_to_name"] and isinstance(val, str):
+                        val = c["code_to_name"].get(val, val)
 
-                if c["type"] in ("enum-yes-no", "boolean"):
-                    if isinstance(val, bool):
-                        val = "Yes" if val else "No"
-                    elif isinstance(val, str):
-                        val = "Yes" if val.strip().lower() in ("true", "yes", "1") else "No"
-                    else:
-                        val = ""
+                    if c["type"] in ("enum-yes-no", "boolean"):
+                        if isinstance(val, bool):
+                            val = "Yes" if val else "No"
+                        elif isinstance(val, str):
+                            val = "Yes" if val.strip().lower() in ("true", "yes", "1") else "No"
+                        else:
+                            val = ""
                 row[c["header"]] = val
 
             # Add "Include in Project" column value (find the actual column name)
@@ -84,19 +100,30 @@ def format_facility_data_for_template(
 
     elif type == "fieldplan":
         for facility in facility_data:
+            facility_boundary_code = facility.get("boundary_code") or facility.get("boundaryCode") or ""
+            state_name, district_name, block_name = resolve_boundary_names_for_code(
+                facility_boundary_code, boundary_list, boundary_localization_map
+            )
             row = {}
             for c in compiled_cols:
-                val = get_nested_value(facility, c["path"])
-                if c["code_to_name"] and isinstance(val, str):
-                    val = c["code_to_name"].get(val, val)
+                if c["path"] == "state":
+                    val = state_name
+                elif c["path"] == "district":
+                    val = district_name
+                elif c["path"] == "block":
+                    val = block_name
+                else:
+                    val = get_nested_value(facility, c["path"])
+                    if c["code_to_name"] and isinstance(val, str):
+                        val = c["code_to_name"].get(val, val)
 
-                if c["type"] in ("enum-yes-no", "boolean"):
-                    if isinstance(val, bool):
-                        val = "Yes" if val else "No"
-                    elif isinstance(val, str):
-                        val = "Yes" if val.strip().lower() in ("true", "yes", "1") else "No"
-                    else:
-                        val = ""
+                    if c["type"] in ("enum-yes-no", "boolean"):
+                        if isinstance(val, bool):
+                            val = "Yes" if val else "No"
+                        elif isinstance(val, str):
+                            val = "Yes" if val.strip().lower() in ("true", "yes", "1") else "No"
+                        else:
+                            val = ""
                 row[c["header"]] = val
 
             # Add "Include in Project" column value (find the actual column name)
@@ -979,6 +1006,109 @@ def build_localization_reverse_map(messages: List[Dict[str, Any]]) -> Dict[str, 
                 reverse_map[key] = []
             reverse_map[key].append(code)
     return reverse_map
+
+
+def build_boundary_localization_map(
+    boundary_list: List[Boundary],
+    localization_service_url: str,
+) -> Dict[str, str]:
+    """
+    Fetches localized display names for every country/state/district/block boundary code
+    appearing in boundary_list. Localization messages are keyed by the full hierarchical
+    boundary code (e.g. 'BOUNDARY_INDIA_ASSAM_BAKSA'), not by the leaf name alone, so this
+    must use each level's own boundary code (country_code/state_code/district_code/block_code)
+    rather than its display name.
+    """
+    all_raw_codes = set()
+    for boundary in boundary_list:
+        for field in ("country_code", "state_code", "district_code", "block_code"):
+            val = boundary.get(field, "")
+            if val:
+                all_raw_codes.add(val)
+
+    loc_codes = [f"BOUNDARY_{code}" for code in all_raw_codes]
+
+    localization_map: Dict[str, str] = {}
+    if localization_service_url and loc_codes:
+        try:
+            from app.utils.localization_service_client import LocalizationServiceClient
+            loc_client = LocalizationServiceClient(localization_service_url)
+            loc_response = loc_client.search_messages(
+                tenant_id=LIVELIHOOD_TENANT_ID,
+                locale="en_IN",
+                module=LOCALIZATION_MODULE,
+                codes=loc_codes,
+            )
+            for m in loc_response.get("messages", []):
+                code = (m.get("code") or "").strip()
+                message = m.get("message", "")
+                if code and message:
+                    localization_map[code] = message
+        except Exception as e:
+            logger.error(f"Error fetching boundary localizations: {e}", exc_info=True)
+
+    return localization_map
+
+
+def localize_boundary_name(raw_code: str, localization_map: Dict[str, str]) -> str:
+    """Resolves a raw boundary code (e.g. state/district/block name) to its localized display name."""
+    if not raw_code:
+        return ""
+    loc_key = f"BOUNDARY_{raw_code}"
+    return localization_map.get(loc_key, loc_key)
+
+
+def resolve_boundary_names_for_code(
+    facility_boundary_code: str,
+    boundary_list: List[Boundary],
+    boundary_localization_map: Dict[str, str],
+) -> tuple:
+    """
+    Given a facility's boundary_code (the block-level boundary code, optionally suffixed
+    with a facility-specific code, e.g. "INDIA_ASSAM_UDALGURI_UDALGURI_ED/2026/0097"),
+    finds the matching block-level Boundary and returns its localized (state, district, block)
+    names. Returns ("", "", "") if no match is found.
+    """
+    if not facility_boundary_code:
+        return "", "", ""
+    for boundary in boundary_list:
+        code = boundary.get("code", "")
+        if not code:
+            continue
+        if facility_boundary_code == code or facility_boundary_code.startswith(code + "_"):
+            return (
+                localize_boundary_name(boundary.get("state_code", ""), boundary_localization_map),
+                localize_boundary_name(boundary.get("district_code", ""), boundary_localization_map),
+                localize_boundary_name(boundary.get("block_code", ""), boundary_localization_map),
+            )
+    return "", "", ""
+
+
+def state_names_by_facility_id(
+    facility_data: List[Dict[str, Any]],
+    boundary_list: List[Boundary],
+    boundary_localization_map: Dict[str, str],
+) -> Dict[str, str]:
+    """facility_id -> the state name, resolved exactly as the sheet's State column is.
+
+    A facility record carries no state of its own. FacilityAddress declares state/district/
+    block, but facility_address has no such columns and nothing in the read path fills them,
+    so address.state is always null -- the state lives only in boundary_code. Resolving it
+    here through the same helper the State column uses keeps the Solution dropdown and the
+    upload validation keyed off one identical value; deriving them separately is what made
+    the dropdown come back empty.
+    """
+    states: Dict[str, str] = {}
+    for facility in facility_data:
+        facility_id = facility.get("facility_id") or facility.get("facilityId")
+        if not facility_id:
+            continue
+        boundary_code = facility.get("boundary_code") or facility.get("boundaryCode") or ""
+        state_name, _, _ = resolve_boundary_names_for_code(
+            boundary_code, boundary_list, boundary_localization_map
+        )
+        states[facility_id] = state_name
+    return states
 
 
 def resolve_boundary_code(

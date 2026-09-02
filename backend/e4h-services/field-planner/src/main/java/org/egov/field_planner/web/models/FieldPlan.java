@@ -34,6 +34,9 @@ public class FieldPlan {
     @JsonProperty("status")
     private String status = null;
 
+    @JsonProperty("sector")
+    private String sector = null;
+
     @JsonProperty("healthFacilityNumber")
     private int healthFacilityNumber;
 
