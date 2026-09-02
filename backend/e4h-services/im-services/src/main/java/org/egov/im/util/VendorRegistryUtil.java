@@ -108,8 +108,9 @@ public class VendorRegistryUtil {
         return orgType != null && "VENDOR".equalsIgnoreCase(orgType.toString());
     }
 
-    private boolean isUuid(String value) {
-        return value.matches("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
+    public boolean isUuid(String value) {
+        return value != null
+                && value.matches("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
     }
 
     /**

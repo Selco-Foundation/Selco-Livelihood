@@ -110,7 +110,16 @@ public class LivelihoodUpdateService {
                 currentVendorId != null ? currentVendorId.toString() : null
         );
 
-        assetRegistryUtil.updateAssetVendorId(requestInfo, tenantId, assetId, facilityId, newVendorOrgId);
+        boolean vendorOrgChanged = StringUtils.isBlank(previousVendorOrgId)
+                || !previousVendorOrgId.equalsIgnoreCase(newVendorOrgId);
+        if (vendorOrgChanged) {
+            assetRegistryUtil.updateAssetVendorId(requestInfo, tenantId, assetId, facilityId, newVendorOrgId);
+            log.info("ASSIGN_VENDOR remapped asset {} from vendor org {} to {}",
+                    assetId, previousVendorOrgId, newVendorOrgId);
+        } else {
+            log.info("ASSIGN_VENDOR reassigned ticket {} within vendor org {} to user {}",
+                    existingIncident.getIncidentId(), newVendorOrgId, newVendorUserUuid);
+        }
 
         Map<String, Object> details = toMutableMap(existingIncident.getAdditionalDetail());
         mergeRequestAdditionalDetail(details, request.getIncident().getAdditionalDetail());
@@ -238,10 +247,12 @@ public class LivelihoodUpdateService {
                 currentVendorId != null ? currentVendorId.toString() : null
         );
         if (StringUtils.isNotBlank(currentVendorOrgId)
-                && currentVendorOrgId.equalsIgnoreCase(newVendorOrgId)) {
+                && currentVendorOrgId.equalsIgnoreCase(newVendorOrgId)
+                && newVendorUserUuid.equalsIgnoreCase(resolveAssetMappedVendorUserUuid(
+                        requestInfo, tenantId, currentVendorId))) {
             throw new CustomException(
-                    "SAME_VENDOR",
-                    "Selected vendor is already mapped to this asset; use REASSIGN to return the ticket to the current vendor"
+                    "SAME_ASSIGNEE",
+                    "Selected vendor user is already mapped to this asset; use REASSIGN to return the ticket to the current vendor"
             );
         }
     }
@@ -393,6 +404,28 @@ public class LivelihoodUpdateService {
                 .map(String::trim)
                 .findFirst()
                 .orElse(null);
+    }
+
+    /**
+     * When {@code asset.vendorId} stores a user UUID, returns that UUID; otherwise null.
+     */
+    private String resolveAssetMappedVendorUserUuid(
+            RequestInfo requestInfo,
+            String tenantId,
+            Object currentVendorId
+    ) {
+        if (currentVendorId == null || StringUtils.isBlank(currentVendorId.toString())) {
+            return null;
+        }
+        String key = currentVendorId.toString().trim();
+        if (!vendorRegistryUtil.isUuid(key)) {
+            return null;
+        }
+        String orgId = vendorRegistryUtil.resolveOrganisationIdForVendorKey(requestInfo, tenantId, key);
+        if (orgId != null && orgId.equalsIgnoreCase(key)) {
+            return null;
+        }
+        return key;
     }
 
     @SuppressWarnings("unchecked")
