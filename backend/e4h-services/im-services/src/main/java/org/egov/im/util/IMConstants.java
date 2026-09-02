@@ -78,6 +78,8 @@ public class IMConstants {
 
     public static final String LIVELIHOOD_OOW_ENTERED_AT_DETAIL_KEY = "oowEnteredAt";
 
+    public static final String LIVELIHOOD_VENDOR_REMAP_HISTORY_DETAIL_KEY = "vendorRemapHistory";
+
     public static final String ROLE_LIVELIHOOD_VENDOR = "LIVELIHOOD_VENDOR";
 
     public static final String ROLE_LIVELIHOOD_POC = "LIVELIHOOD_POC";

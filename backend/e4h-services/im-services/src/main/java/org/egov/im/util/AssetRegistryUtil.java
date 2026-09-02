@@ -21,8 +21,10 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Component
@@ -37,6 +39,18 @@ public class AssetRegistryUtil {
     private final ObjectMapper objectMapper;
 
     public Asset fetchAsset(RequestInfo requestInfo, String tenantId, String assetId, String facilityId) {
+        List<Asset> assets = searchAssetsAsList(requestInfo, tenantId, assetId, facilityId, 1, 0);
+        if (CollectionUtils.isEmpty(assets)) {
+            throw new CustomException("ASSET_NOT_FOUND", "No asset found for assetId: " + assetId);
+        }
+        return assets.get(0);
+    }
+
+    /**
+     * Fetches the full asset payload as returned by asset-registry search (preserves all fields for update).
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> fetchAssetAsMap(RequestInfo requestInfo, String tenantId, String assetId, String facilityId) {
         AssetSearchCriteria criteria = AssetSearchCriteria.builder()
                 .tenantId(tenantId)
                 .assetID(assetId)
@@ -68,17 +82,77 @@ public class AssetRegistryUtil {
             if (response.getBody() == null || response.getBody().isBlank()) {
                 throw new CustomException("ASSET_NOT_FOUND", "No asset found for assetId: " + assetId);
             }
-            List<Asset> assets = objectMapper.readValue(response.getBody(), new TypeReference<List<Asset>>() {});
+            List<Map<String, Object>> assets = objectMapper.readValue(
+                    response.getBody(),
+                    new TypeReference<List<Map<String, Object>>>() {}
+            );
             if (CollectionUtils.isEmpty(assets)) {
                 throw new CustomException("ASSET_NOT_FOUND", "No asset found for assetId: " + assetId);
             }
-            return assets.get(0);
+            return new HashMap<>(assets.get(0));
         } catch (CustomException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Failed to fetch asset from asset-registry for assetId={}", assetId, e);
+            log.error("Failed to fetch asset map from asset-registry for assetId={}", assetId, e);
             throw new CustomException("ASSET_REGISTRY_ERROR", "Failed to fetch asset from asset-registry");
         }
+    }
+
+    /**
+     * Updates {@code vendorId} on the asset before ASSIGN_VENDOR workflow transition.
+     */
+    public void updateAssetVendorId(
+            RequestInfo requestInfo,
+            String tenantId,
+            String assetId,
+            String facilityId,
+            String vendorOrgId
+    ) {
+        if (vendorOrgId == null || vendorOrgId.isBlank()) {
+            throw new CustomException("VENDOR_ORG_REQUIRED", "Vendor organisation id is required to remap the asset");
+        }
+
+        Map<String, Object> asset = fetchAssetAsMap(requestInfo, tenantId, assetId, facilityId);
+        asset.put("vendorId", vendorOrgId.trim());
+
+        Map<String, Object> assetDetail = new HashMap<>();
+        assetDetail.put("Asset", asset);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("RequestInfo", requestInfo);
+        body.put("assetDetail", assetDetail);
+
+        String url = UriComponentsBuilder
+                .fromHttpUrl(config.getAssetRegistryHost() + config.getAssetRegistryUpdatePath())
+                .queryParam("assetID", assetId)
+                .toUriString();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+
+        try {
+            restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+        } catch (Exception e) {
+            log.error("Failed to update asset vendorId assetId={} vendorOrgId={}", assetId, vendorOrgId, e);
+            throw new CustomException("ASSET_VENDOR_UPDATE_FAILED", "Failed to remap asset to the new vendor");
+        }
+    }
+
+    private List<Asset> searchAssetsAsList(
+            RequestInfo requestInfo,
+            String tenantId,
+            String assetId,
+            String facilityId,
+            int limit,
+            int offset
+    ) {
+        AssetSearchCriteria criteria = AssetSearchCriteria.builder()
+                .tenantId(tenantId)
+                .assetID(assetId)
+                .facilityID(facilityId)
+                .build();
+        return searchAssets(requestInfo, criteria, limit, offset);
     }
 
     public List<Asset> searchAssetsByFacility(RequestInfo requestInfo, String tenantId, String facilityId) {
