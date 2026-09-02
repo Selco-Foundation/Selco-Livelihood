@@ -3,14 +3,13 @@ import type { SelectOption } from "../types/create-incident";
 
 const VENDOR_ROLES = ["LIVELIHOOD_VENDOR", "COMPLAINT_RESOLVER"];
 
-/** Vendor users serving `boundaryCode` (a ticket's boundary), for the ASSIGN_VENDOR picker. */
+/** Vendor users, for the ASSIGN_VENDOR picker. */
 export async function fetchVendorOptions(
   accessToken: string,
   user: AuthUser | null | undefined,
-  boundaryCode: string,
 ): Promise<SelectOption[]> {
   const employees = await searchHrmsEmployees(
-    { roles: VENDOR_ROLES.join(","), isActive: true, boundaryCodes: boundaryCode },
+    { roles: VENDOR_ROLES.join(","), isActive: true },
     accessToken,
     user,
   );
