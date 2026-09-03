@@ -244,6 +244,8 @@ public class LivelihoodNotificationService {
         try {
             String mobile = fetchUserMobile(assignees.get(0), request.getRequestInfo(), request.getIncident().getTenantId());
             if (StringUtils.isBlank(mobile)) {
+                log.warn("Vendor mobile not found for uuid={} template={} incidentId={}", assignees.get(0),
+                        templateCode, request.getIncident().getIncidentId());
                 return;
             }
             livelihoodSmsNotificationService.sendSms(request, mobile, templateCode, extras);
