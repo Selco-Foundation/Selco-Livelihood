@@ -7,6 +7,9 @@ export interface InstallationPlan {
   endDate: string;
   pendingReviewCount: number;
   completionRate: number;
+  /** Seeds the shared boundary-service lookup for District/Block filter
+   * options (see hooks/use-boundary) — matches qc's `stateBoundaryCode`. */
+  stateCode?: string;
 }
 
 export interface InstallationPlanSearchResponse {
@@ -25,6 +28,7 @@ export interface ActivityAssignmentStatusAggregation {
 export interface ActivityAssignmentFieldPlan {
   id: string;
   name: string;
+  geographyDetails?: { state?: string };
 }
 
 export interface ActivityAssignment {

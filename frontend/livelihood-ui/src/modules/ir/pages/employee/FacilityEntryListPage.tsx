@@ -1,6 +1,6 @@
 import { employeeHomePath, translateOr, useAuthStore, useBoundary, useTranslate } from "@/shared";
 import { TopBar } from "@/ui";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { FacilityEntryTable } from "../../components/facility/FacilityEntryTable";
 import {
   EMPTY_FACILITY_FILTERS,
@@ -36,18 +36,23 @@ export function FacilityEntryListPage() {
   const [searchText, setSearchText] = useState("");
   const [pageOffset, setPageOffset] = useState(0);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  // The field plan's state is invariant for the life of this page, so it's
-  // persisted separately from `data` rather than read from it synchronously —
-  // that would make the boundary lookup below depend on the very query result
-  // it's supplying params for.
-  const [stateCode, setStateCode] = useState<string | undefined>(undefined);
+
+  // Scoped to this one field plan via fieldPlanIds — the authoritative source
+  // for breadcrumb/summary data and the field plan's state (which seeds the
+  // boundary lookup below), independent of the facility search's own
+  // filters/pagination.
+  const { data: plansData } = useInstallationPlans({ fieldPlanIds: planId ? [planId] : undefined });
+  const plan = plansData?.plans.find((item) => item.planId === planId);
+  const planName = plan?.planName ?? planId;
+  const startDate = plan?.startDate ?? "-";
+  const endDate = plan?.endDate ?? "-";
 
   // Same shared boundary-service lookup as qc's Filter.js
   // (`useBoundary(fieldPlan?.stateBoundaryCode, "State")`) and im's InboxFilter
   // — District/Block options come from here, not from the facility search
   // response, so they stay stable across filters/pagination and cascade
   // properly (matches im's InboxFilter pattern).
-  const { data: boundaryData } = useBoundary(stateCode ? [stateCode] : []);
+  const { data: boundaryData } = useBoundary(plan?.stateCode ? [plan.stateCode] : []);
 
   const { data, isLoading } = useFacilityEntries(planId, {
     boundaryCodes: resolveBoundaryCodes(filters, boundaryData?.blocks ?? [], boundaryData?.facilities ?? []),
@@ -57,20 +62,8 @@ export function FacilityEntryListPage() {
     pageSize,
   });
 
-  useEffect(() => {
-    if (data?.fieldPlan?.stateCode) {
-      setStateCode(data.fieldPlan.stateCode);
-    }
-  }, [data?.fieldPlan?.stateCode]);
-
   const bulkApprove = useBulkApproveFacilityEntries(planId);
   const { options: statusOptions } = useFacilityStatusOptions();
-
-  const { data: plansData } = useInstallationPlans({ fieldPlanIds: planId ? [planId] : undefined });
-  const plan = plansData?.plans.find((item) => item.planId === planId);
-  const planName = data?.fieldPlan?.planName ?? plan?.planName ?? planId;
-  const startDate = data?.fieldPlan?.startDate ?? plan?.startDate ?? "-";
-  const endDate = data?.fieldPlan?.endDate ?? plan?.endDate ?? "-";
 
   const districtOptions: FacilityFilterOption[] = (boundaryData?.districts ?? []).map((district) => ({
     code: district.code,

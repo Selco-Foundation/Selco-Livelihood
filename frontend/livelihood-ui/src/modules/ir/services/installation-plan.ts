@@ -22,7 +22,7 @@ const QC_APPROVER_ROLE = "INSTALLATION_REPORT_APPROVER_QC_TEAM";
 const STATUS_APPROVED = "APPROVED_BY_QC_SPOC";
 const STATUS_PENDING_REVIEW = "SUBMITTED_BY_FIELD_STAFF";
 
-export function formatEpochDate(epochMs: number): string {
+function formatEpochDate(epochMs: number): string {
   const date = new Date(epochMs);
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
@@ -50,6 +50,7 @@ function toInstallationPlan(row: ActivityAssignment): InstallationPlan {
     endDate: formatEpochDate(row.endDate),
     pendingReviewCount: statusCounts.get(STATUS_PENDING_REVIEW) ?? 0,
     completionRate,
+    stateCode: row.fieldPlan?.geographyDetails?.state,
   };
 }
 

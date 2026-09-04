@@ -29,22 +29,9 @@ export interface FacilityEntry {
 // ---- Raw ActivityFacility search DTOs ----
 // POST /activity/v1/activities/_search — see services/facility.ts.
 // District/block options are NOT sourced from here — they come from the
-// shared boundary service (see hooks/use-boundary), matching qc/im. This DTO
-// only needs the field plan's own state, used to seed that boundary lookup.
-
-export interface ActivityFacilityFieldPlan {
-  id?: string;
-  name?: string;
-  startDate?: number;
-  endDate?: number;
-  project?: {
-    additionalDetails?: {
-      geographyDetails?: {
-        state?: { code: string };
-      };
-    };
-  };
-}
+// shared boundary service (see hooks/use-boundary), seeded by the field
+// plan's own state from the ActivityAssignment search (installation-plan.ts)
+// which this page already fetches for its breadcrumb/summary.
 
 export interface ActivityFacilityRow {
   activityFacility: {
@@ -57,7 +44,6 @@ export interface ActivityFacilityRow {
       facility_name?: string;
       boundary?: { district?: string; block?: string };
     };
-    fieldPlan?: ActivityFacilityFieldPlan;
   };
 }
 
