@@ -1,9 +1,15 @@
 export type FacilityEntryType = "MACHINE" | "SOLAR";
 
+// Real states of the `FACILITY_INSTALLATION` business service
+// (business `field-planner-activity`): SCHEDULED -> ASSIGNED_TO_FIELD_STAFF ->
+// SUBMITTED_BY_FIELD_STAFF -> {APPROVED_BY_QC_SPOC | REJECTED_BY_QC_SPOC},
+// with REJECTED_BY_QC_SPOC looping back to SUBMITTED_BY_FIELD_STAFF.
 export const FACILITY_ENTRY_STATUS = {
-  SUBMITTED_BY_SUPERVISOR: "SUBMITTED_BY_SUPERVISOR",
-  APPROVED: "APPROVED",
-  REJECTED: "REJECTED",
+  SCHEDULED: "SCHEDULED",
+  ASSIGNED_TO_FIELD_STAFF: "ASSIGNED_TO_FIELD_STAFF",
+  SUBMITTED_BY_FIELD_STAFF: "SUBMITTED_BY_FIELD_STAFF",
+  APPROVED_BY_QC_SPOC: "APPROVED_BY_QC_SPOC",
+  REJECTED_BY_QC_SPOC: "REJECTED_BY_QC_SPOC",
 } as const;
 
 export type FacilityEntryStatus =
@@ -18,6 +24,46 @@ export interface FacilityEntry {
   status: FacilityEntryStatus;
   district?: { code: string; name?: string };
   block?: { code: string; name?: string };
+}
+
+// ---- Raw ActivityFacility search DTOs ----
+// POST /activity/v1/activities/_search — see services/facility.ts.
+// District/block options are NOT sourced from here — they come from the
+// shared boundary service (see hooks/use-boundary), matching qc/im. This DTO
+// only needs the field plan's own state, used to seed that boundary lookup.
+
+export interface ActivityFacilityFieldPlan {
+  id?: string;
+  name?: string;
+  startDate?: number;
+  endDate?: number;
+  project?: {
+    additionalDetails?: {
+      geographyDetails?: {
+        state?: { code: string };
+      };
+    };
+  };
+}
+
+export interface ActivityFacilityRow {
+  activityFacility: {
+    id: string;
+    facilityId: string;
+    fieldPlanId: string;
+    componentType: FacilityEntryType;
+    status: FacilityEntryStatus;
+    facility?: {
+      facility_name?: string;
+      boundary?: { district?: string; block?: string };
+    };
+    fieldPlan?: ActivityFacilityFieldPlan;
+  };
+}
+
+export interface ActivityFacilitySearchResponse {
+  totalCount?: number;
+  facility?: ActivityFacilityRow[];
 }
 
 // ---- Review sections ----

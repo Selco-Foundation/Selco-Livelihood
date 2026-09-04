@@ -1,10 +1,15 @@
-import { apiClient, fetchMdmsMasters, tenantId, type AuthUser } from "@/shared";
+import {
+  apiClient,
+  fetchMdmsMasters,
+  fetchWorkflowBusinessService,
+  tenantId,
+  type AuthUser,
+} from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
 import type { VerificationDocument } from "../types/create-incident";
 import type {
   MdmsReasonOption,
   UpdateIncidentResponse,
-  WorkflowBusinessServiceResponse,
   WorkflowDetailsData,
   WorkflowProcessInstance,
   WorkflowProcessSearchResponse,
@@ -37,25 +42,6 @@ export async function searchWorkflowProcess(
         isStateLevelCall: false,
       },
     },
-  );
-
-  return data;
-}
-
-export async function fetchWorkflowBusinessService(
-  tenantId: string,
-  businessService: string,
-  accessToken: string,
-  user?: AuthUser | null,
-): Promise<WorkflowBusinessServiceResponse> {
-  const { data } = await apiClient.post<WorkflowBusinessServiceResponse>(
-    "/egov-workflow-v2/egov-wf/businessservice/_search",
-    {
-      RequestInfo: createRequestInfo(accessToken, user),
-      tenantId,
-      businessServices: [businessService],
-    },
-    { params: { tenantId } },
   );
 
   return data;

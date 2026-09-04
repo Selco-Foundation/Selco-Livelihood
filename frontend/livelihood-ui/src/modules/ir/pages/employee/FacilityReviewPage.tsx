@@ -47,14 +47,14 @@ export function FacilityReviewPage() {
   const reasonOptions = useRejectionReasonOptions();
   const [rejectionReasons, setRejectionReasons] = useState<SectionRejectionReasons>({});
   const [pendingAction, setPendingAction] = useState<ReviewDecisionAction | null>(null);
-  const { data: plansData } = useInstallationPlans();
+  const { data: plansData } = useInstallationPlans({ fieldPlanIds: planId ? [planId] : undefined });
   const planName = plansData?.plans.find((plan) => plan.planId === planId)?.planName ?? planId;
 
   if (!hasIrAccess(user?.roles)) {
     return null;
   }
 
-  const canEditReasons = detail?.entry.status === "SUBMITTED_BY_SUPERVISOR";
+  const canEditReasons = detail?.entry.status === "SUBMITTED_BY_FIELD_STAFF";
   const hasAnyReason = Object.values(rejectionReasons).some((entries) => entries && entries.length > 0);
 
   function handleAddReason(sectionId: ReviewSectionId, entry: RejectionReasonDraft) {

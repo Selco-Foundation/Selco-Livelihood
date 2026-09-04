@@ -1,8 +1,13 @@
 import { translateOr, useTranslate } from "@/shared";
-import { Button, Checkbox, Skeleton, cn } from "@/ui";
+import { Button, Checkbox, Pagination, Skeleton, cn } from "@/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import {
+  FACILITY_ENTRY_STATUS_LABELS,
+  facilityStatusBadgeVariant,
+} from "../../constants/facility-status";
 import type { FacilityEntry } from "../../types/facility-review";
+import { boundaryDisplayName } from "../../utils/boundary";
 import { irFacilityReviewPath } from "../../utils/paths";
 import {
   FacilityEntryFilter,
@@ -10,61 +15,73 @@ import {
   type FacilityFilterOption,
 } from "./FacilityEntryFilter";
 
-function dedupeBoundaries(
-  entries: FacilityEntry[],
-  key: "district" | "block",
-): FacilityFilterOption[] {
-  const seen = new Map<string, string>();
-  for (const entry of entries) {
-    const boundary = entry[key];
-    if (boundary?.code && !seen.has(boundary.code)) {
-      seen.set(boundary.code, boundary.name ?? boundary.code);
-    }
+function statusLabel(
+  status: FacilityEntry["status"],
+  t: ReturnType<typeof useTranslate>["t"],
+): string {
+  const label = FACILITY_ENTRY_STATUS_LABELS[status];
+  return translateOr(t, label.key, label.fallback);
+}
+
+function boundaryLabel(
+  boundary: { code: string; name?: string } | undefined,
+  t: ReturnType<typeof useTranslate>["t"],
+): string | undefined {
+  if (!boundary) {
+    return undefined;
   }
-  return Array.from(seen.entries()).map(([code, name]) => ({ code, name }));
+  return boundary.name ?? boundaryDisplayName(boundary.code, t);
 }
 
 interface FacilityEntryTableProps {
   planId: string;
   entries: FacilityEntry[];
   isLoading: boolean;
+  districtOptions: FacilityFilterOption[];
+  blockOptions: FacilityFilterOption[];
+  statusOptions: FacilityFilterOption[];
+  filters: FacilityEntryFilterState;
+  searchText: string;
+  onFilterChange: (filters: FacilityEntryFilterState) => void;
+  onSearchTextChange: (searchText: string) => void;
   onBulkApprove: (entryIds: string[]) => void;
   isBulkApproving: boolean;
+  currentPage: number;
+  totalRecords: number;
+  pageSizeLimit: number;
+  onNextPage: () => void;
+  onPrevPage: () => void;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
 }
 
 export function FacilityEntryTable({
   planId,
   entries,
   isLoading,
+  districtOptions,
+  blockOptions,
+  statusOptions,
+  filters,
+  searchText,
+  onFilterChange,
+  onSearchTextChange,
   onBulkApprove,
   isBulkApproving,
+  currentPage,
+  totalRecords,
+  pageSizeLimit,
+  onNextPage,
+  onPrevPage,
+  onPageChange,
+  onPageSizeChange,
 }: FacilityEntryTableProps) {
   const { t } = useTranslate();
   const navigate = useNavigate();
-  const [filters, setFilters] = useState<FacilityEntryFilterState>({ district: [], block: [] });
-  const [searchText, setSearchText] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const districtOptions = useMemo(() => dedupeBoundaries(entries, "district"), [entries]);
-  const blockOptions = useMemo(() => dedupeBoundaries(entries, "block"), [entries]);
-
-  const filtered = entries.filter((entry) => {
-    const query = searchText.trim().toLowerCase();
-    const matchesSearch = query
-      ? entry.facilityName.toLowerCase().includes(query)
-      : true;
-    const matchesDistrict =
-      filters.district.length === 0 ||
-      (entry.district?.code && filters.district.includes(entry.district.code));
-    const matchesBlock =
-      filters.block.length === 0 ||
-      (entry.block?.code && filters.block.includes(entry.block.code));
-
-    return matchesSearch && matchesDistrict && matchesBlock;
-  });
-
-  const selectableIds = filtered
-    .filter((entry) => entry.status === "SUBMITTED_BY_SUPERVISOR")
+  const selectableIds = entries
+    .filter((entry) => entry.status === "SUBMITTED_BY_FIELD_STAFF")
     .map((entry) => entry.entryId);
   const allSelected =
     selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
@@ -85,19 +102,15 @@ export function FacilityEntryTable({
     });
   }
 
-  function downloadFilteredEntries() {
+  function downloadCurrentPageEntries() {
     const headers = ["Facility", "Type", "Location", "Status"];
-    const rows = filtered.map((entry) => [
+    const rows = entries.map((entry) => [
       entry.facilityName,
       entry.entryType === "MACHINE"
         ? translateOr(t, "ES_IR_ENTRY_TYPE_MACHINE", "Machine")
         : translateOr(t, "ES_IR_ENTRY_TYPE_SOLAR", "Solar"),
-      [entry.district?.name, entry.block?.name].filter(Boolean).join(" / "),
-      entry.status === "SUBMITTED_BY_SUPERVISOR"
-        ? translateOr(t, "ES_IR_STATUS_PENDING", "Pending Review")
-        : entry.status === "REJECTED"
-          ? translateOr(t, "ES_IR_STATUS_REJECTED", "Rejected")
-          : translateOr(t, "ES_IR_STATUS_APPROVED", "Approved"),
+      [boundaryLabel(entry.district, t), boundaryLabel(entry.block, t)].filter(Boolean).join(" / "),
+      statusLabel(entry.status, t),
     ]);
 
     const csv = [headers, ...rows]
@@ -129,10 +142,12 @@ export function FacilityEntryTable({
       <FacilityEntryFilter
         districtOptions={districtOptions}
         blockOptions={blockOptions}
+        statusOptions={statusOptions}
+        filters={filters}
         searchText={searchText}
-        onFilterChange={setFilters}
-        onSearchTextChange={setSearchText}
-        onDownload={downloadFilteredEntries}
+        onFilterChange={onFilterChange}
+        onSearchTextChange={onSearchTextChange}
+        onDownload={downloadCurrentPageEntries}
       />
 
       {selected.size > 0 ? (
@@ -150,7 +165,7 @@ export function FacilityEntryTable({
         </div>
       ) : null}
 
-      {filtered.length === 0 ? (
+      {entries.length === 0 ? (
         <div className="livelihood-card px-6 py-16 text-center text-sm text-muted-foreground">
           {translateOr(t, "ES_IR_NO_SITES", "No sites found for this plan")}
         </div>
@@ -180,9 +195,10 @@ export function FacilityEntryTable({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((entry, index) => {
+                {entries.map((entry, index) => {
                   const reviewPath = irFacilityReviewPath(planId, entry.entryId);
-                  const isSelectable = entry.status === "SUBMITTED_BY_SUPERVISOR";
+                  const isSelectable = entry.status === "SUBMITTED_BY_FIELD_STAFF";
+                  const badgeVariant = facilityStatusBadgeVariant(entry.status);
 
                   return (
                     <tr
@@ -218,20 +234,26 @@ export function FacilityEntryTable({
                           : translateOr(t, "ES_IR_ENTRY_TYPE_SOLAR", "Solar")}
                       </td>
                       <td className="px-5 py-4 text-foreground">
-                        {[entry.district?.name, entry.block?.name].filter(Boolean).join(" / ")}
+                        {[boundaryLabel(entry.district, t), boundaryLabel(entry.block, t)]
+                          .filter(Boolean)
+                          .join(" / ")}
                       </td>
                       <td className="px-5 py-4">
-                        {entry.status === "SUBMITTED_BY_SUPERVISOR" ? (
+                        {badgeVariant === "pending" ? (
                           <span className="livelihood-sla-badge">
-                            {translateOr(t, "ES_IR_STATUS_PENDING", "Pending Review")}
+                            {statusLabel(entry.status, t)}
                           </span>
-                        ) : entry.status === "REJECTED" ? (
+                        ) : badgeVariant === "rejected" ? (
                           <span className="text-sm font-medium text-destructive">
-                            {translateOr(t, "ES_IR_STATUS_REJECTED", "Rejected")}
+                            {statusLabel(entry.status, t)}
+                          </span>
+                        ) : badgeVariant === "approved" ? (
+                          <span className="livelihood-sla-badge-muted">
+                            {statusLabel(entry.status, t)}
                           </span>
                         ) : (
-                          <span className="livelihood-sla-badge-muted">
-                            {translateOr(t, "ES_IR_STATUS_APPROVED", "Approved")}
+                          <span className="text-sm font-medium text-muted-foreground">
+                            {statusLabel(entry.status, t)}
                           </span>
                         )}
                       </td>
@@ -243,6 +265,18 @@ export function FacilityEntryTable({
           </div>
         </div>
       )}
+
+      {totalRecords > 0 ? (
+        <Pagination
+          currentPage={currentPage}
+          totalRecords={totalRecords}
+          pageSizeLimit={pageSizeLimit}
+          onNextPage={onNextPage}
+          onPrevPage={onPrevPage}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
+        />
+      ) : null}
     </div>
   );
 }

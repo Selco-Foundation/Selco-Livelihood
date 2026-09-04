@@ -7,10 +7,11 @@ export interface UseInstallationPlansOptions {
   searchText?: string;
   pageOffset?: number;
   pageSize?: number;
+  fieldPlanIds?: string[];
 }
 
 export function useInstallationPlans(options: UseInstallationPlansOptions = {}) {
-  const { searchText, pageOffset = 0, pageSize = 10 } = options;
+  const { searchText, pageOffset = 0, pageSize = 10, fieldPlanIds } = options;
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
   const employeeTenantId = useAuthStore((state) => state.employeeTenantId);
@@ -18,13 +19,13 @@ export function useInstallationPlans(options: UseInstallationPlansOptions = {}) 
   const enabled = Boolean(accessToken && employeeTenantId && hasIrAccess(user?.roles));
 
   return useQuery({
-    queryKey: ["ir-installation-plans", employeeTenantId, searchText, pageOffset, pageSize],
+    queryKey: ["ir-installation-plans", employeeTenantId, searchText, pageOffset, pageSize, fieldPlanIds],
     enabled,
     staleTime: 30_000,
     queryFn: () =>
       searchInstallationPlans(
         employeeTenantId!,
-        { searchText, offset: pageOffset, limit: pageSize },
+        { searchText, offset: pageOffset, limit: pageSize, fieldPlanIds },
         accessToken!,
         user,
       ),

@@ -140,24 +140,6 @@ export interface WorkflowProcessSearchResponse {
   ProcessInstances?: WorkflowProcessInstance[];
 }
 
-export interface WorkflowBusinessServiceState {
-  uuid?: string;
-  state?: string;
-  applicationStatus?: string;
-  isStateUpdatable?: boolean;
-  actions?: Array<{
-    action?: string;
-    roles?: string[];
-    nextState?: string;
-  }>;
-}
-
-export interface WorkflowBusinessServiceResponse {
-  BusinessServices?: Array<{
-    states?: WorkflowBusinessServiceState[];
-  }>;
-}
-
 export interface FileStoreUrlEntry {
   id?: string;
   url?: string;

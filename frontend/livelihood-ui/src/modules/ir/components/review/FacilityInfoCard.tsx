@@ -1,17 +1,7 @@
 import { translateOr, useTranslate } from "@/shared";
+import { FACILITY_ENTRY_STATUS_LABELS } from "../../constants/facility-status";
 import type { FacilityEntry } from "../../types/facility-review";
-
-function statusLabelKey(status: FacilityEntry["status"]): { key: string; fallback: string } {
-  switch (status) {
-    case "SUBMITTED_BY_SUPERVISOR":
-      return { key: "ES_IR_STATUS_PENDING", fallback: "Pending Review" };
-    case "REJECTED":
-      return { key: "ES_IR_STATUS_REJECTED", fallback: "Rejected" };
-    case "APPROVED":
-    default:
-      return { key: "ES_IR_STATUS_APPROVED", fallback: "Approved" };
-  }
-}
+import { boundaryDisplayName } from "../../utils/boundary";
 
 interface FacilityInfoCardProps {
   entry: FacilityEntry;
@@ -19,11 +9,19 @@ interface FacilityInfoCardProps {
 
 export function FacilityInfoCard({ entry }: FacilityInfoCardProps) {
   const { t } = useTranslate();
-  const status = statusLabelKey(entry.status);
+  const status = FACILITY_ENTRY_STATUS_LABELS[entry.status];
 
   const items = [
-    { label: translateOr(t, "ES_IR_DISTRICT", "District"), value: entry.district?.name ?? "-" },
-    { label: translateOr(t, "ES_IR_BLOCK", "Block"), value: entry.block?.name ?? "-" },
+    {
+      label: translateOr(t, "ES_IR_DISTRICT", "District"),
+      value: entry.district
+        ? entry.district.name ?? boundaryDisplayName(entry.district.code, t)
+        : "-",
+    },
+    {
+      label: translateOr(t, "ES_IR_BLOCK", "Block"),
+      value: entry.block ? entry.block.name ?? boundaryDisplayName(entry.block.code, t) : "-",
+    },
     {
       label: translateOr(t, "ES_IR_FACILITY_TYPE", "Facility Type"),
       value:

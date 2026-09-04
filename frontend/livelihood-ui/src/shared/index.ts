@@ -37,6 +37,11 @@ export {
 } from "./api/boundary";
 export { fetchFacilities, type FacilitySummary } from "./api/facility";
 export {
+  fetchWorkflowBusinessService,
+  type WorkflowBusinessServiceResponse,
+  type WorkflowBusinessServiceState,
+} from "./api/workflow";
+export {
   fetchMdmsMasters,
   fetchLanguages,
   fetchLoginBannerImages,
