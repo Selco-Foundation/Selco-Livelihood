@@ -47,7 +47,7 @@ export const FACILITY_ENTRY_FIXTURES: Record<string, FacilityEntry[]> = {
       facilityName: "Anand Weaving Unit",
       entryType: "MACHINE",
       planId: "IP-2026-0001",
-      status: "SUBMITTED_BY_SUPERVISOR",
+      status: "SUBMITTED_BY_FIELD_STAFF",
       district: { code: "KA_DIST_1", name: "Bagalkot" },
       block: { code: "KA_BLK_1", name: "Jamkhandi" },
     },
@@ -57,7 +57,7 @@ export const FACILITY_ENTRY_FIXTURES: Record<string, FacilityEntry[]> = {
       facilityName: "Anand Weaving Unit",
       entryType: "SOLAR",
       planId: "IP-2026-0001",
-      status: "SUBMITTED_BY_SUPERVISOR",
+      status: "SUBMITTED_BY_FIELD_STAFF",
       district: { code: "KA_DIST_1", name: "Bagalkot" },
       block: { code: "KA_BLK_1", name: "Jamkhandi" },
     },
@@ -67,7 +67,7 @@ export const FACILITY_ENTRY_FIXTURES: Record<string, FacilityEntry[]> = {
       facilityName: "Meera Handloom Center",
       entryType: "SOLAR",
       planId: "IP-2026-0001",
-      status: "SUBMITTED_BY_SUPERVISOR",
+      status: "SUBMITTED_BY_FIELD_STAFF",
       district: { code: "KA_DIST_2", name: "Belagavi" },
       block: { code: "KA_BLK_2", name: "Athani" },
     },
@@ -77,7 +77,7 @@ export const FACILITY_ENTRY_FIXTURES: Record<string, FacilityEntry[]> = {
       facilityName: "Lakshmi Dairy Cooperative",
       entryType: "MACHINE",
       planId: "IP-2026-0001",
-      status: "APPROVED",
+      status: "APPROVED_BY_QC_SPOC",
       district: { code: "KA_DIST_1", name: "Bagalkot" },
       block: { code: "KA_BLK_1", name: "Jamkhandi" },
     },
@@ -87,7 +87,7 @@ export const FACILITY_ENTRY_FIXTURES: Record<string, FacilityEntry[]> = {
       facilityName: "Sharada Spinning Mill",
       entryType: "SOLAR",
       planId: "IP-2026-0001",
-      status: "REJECTED",
+      status: "REJECTED_BY_QC_SPOC",
       district: { code: "KA_DIST_1", name: "Bagalkot" },
       block: { code: "KA_BLK_1", name: "Jamkhandi" },
     },
@@ -99,7 +99,7 @@ export const FACILITY_ENTRY_FIXTURES: Record<string, FacilityEntry[]> = {
       facilityName: "Ganga Textiles",
       entryType: "MACHINE",
       planId: "IP-2026-0002",
-      status: "SUBMITTED_BY_SUPERVISOR",
+      status: "SUBMITTED_BY_FIELD_STAFF",
       district: { code: "MH_DIST_1", name: "Kolhapur" },
       block: { code: "MH_BLK_1", name: "Karvir" },
     },
@@ -109,7 +109,7 @@ export const FACILITY_ENTRY_FIXTURES: Record<string, FacilityEntry[]> = {
       facilityName: "Ganga Textiles",
       entryType: "SOLAR",
       planId: "IP-2026-0002",
-      status: "SUBMITTED_BY_SUPERVISOR",
+      status: "SUBMITTED_BY_FIELD_STAFF",
       district: { code: "MH_DIST_1", name: "Kolhapur" },
       block: { code: "MH_BLK_1", name: "Karvir" },
     },
@@ -281,21 +281,21 @@ function buildSections(entry: FacilityEntry): ReviewSectionContent[] {
 function buildAuditTrail(entry: FacilityEntry): FacilityAuditCheckpoint[] {
   const submitted: FacilityAuditCheckpoint = {
     id: `${entry.entryId}-submitted`,
-    status: "SUBMITTED_BY_SUPERVISOR",
+    status: "SUBMITTED_BY_FIELD_STAFF",
     date: "15/07/2026",
   };
 
-  if (entry.status === "APPROVED") {
-    return [submitted, { id: `${entry.entryId}-approved`, status: "APPROVED", date: "20/07/2026" }];
+  if (entry.status === "APPROVED_BY_QC_SPOC") {
+    return [submitted, { id: `${entry.entryId}-approved`, status: "APPROVED_BY_QC_SPOC", date: "20/07/2026" }];
   }
 
-  if (entry.status === "REJECTED") {
+  if (entry.status === "REJECTED_BY_QC_SPOC") {
     const firstSection = REVIEW_SECTION_LABELS[entry.entryType === "SOLAR" ? "PANEL" : "MACHINE"];
     return [
       submitted,
       {
         id: `${entry.entryId}-rejected`,
-        status: "REJECTED",
+        status: "REJECTED_BY_QC_SPOC",
         date: "18/07/2026",
         sectionReasons: [
           {

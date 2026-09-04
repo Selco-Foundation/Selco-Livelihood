@@ -17,34 +17,43 @@ import {
   cn,
 } from "@/ui";
 import { ChevronDown, Download, Filter, Search } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 export interface FacilityFilterOption {
   code: string;
   name: string;
 }
 
-type FacilityFilterCategory = "district" | "block";
+type FacilityFilterCategory = "district" | "block" | "status";
 
 export interface FacilityEntryFilterState {
   district: string[];
   block: string[];
+  status: string[];
 }
 
 interface FacilityEntryFilterProps {
   districtOptions: FacilityFilterOption[];
   blockOptions: FacilityFilterOption[];
+  statusOptions: FacilityFilterOption[];
+  filters: FacilityEntryFilterState;
   searchText: string;
   onFilterChange: (filters: FacilityEntryFilterState) => void;
   onSearchTextChange: (searchText: string) => void;
   onDownload: () => void;
 }
 
-const EMPTY_FILTERS: FacilityEntryFilterState = { district: [], block: [] };
+export const EMPTY_FACILITY_FILTERS: FacilityEntryFilterState = {
+  district: [],
+  block: [],
+  status: [],
+};
 
 export function FacilityEntryFilter({
   districtOptions,
   blockOptions,
+  statusOptions,
+  filters,
   searchText,
   onFilterChange,
   onSearchTextChange,
@@ -58,15 +67,11 @@ export function FacilityEntryFilter({
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<FacilityFilterCategory>("district");
   const [categorySearch, setCategorySearch] = useState("");
-  const [filters, setFilters] = useState<FacilityEntryFilterState>(EMPTY_FILTERS);
-
-  useEffect(() => {
-    onFilterChange(filters);
-  }, [filters]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const categories = [
     { key: "district" as const, label: translateOr(t, "ES_IR_DISTRICT", "District"), options: districtOptions },
     { key: "block" as const, label: translateOr(t, "ES_IR_BLOCK", "Block"), options: blockOptions },
+    { key: "status" as const, label: translateOr(t, "ES_IR_STATUS", "Status"), options: statusOptions },
   ];
 
   const activeCategoryData = categories.find((category) => category.key === activeCategory);
@@ -82,21 +87,20 @@ export function FacilityEntryFilter({
     });
 
   function toggleOption(category: FacilityFilterCategory, code: string) {
-    setFilters((prev) => {
-      const current = prev[category];
-      return {
-        ...prev,
-        [category]: current.includes(code)
-          ? current.filter((value) => value !== code)
-          : [...current, code],
-      };
+    const current = filters[category];
+    onFilterChange({
+      ...filters,
+      [category]: current.includes(code)
+        ? current.filter((value) => value !== code)
+        : [...current, code],
     });
   }
 
-  const hasActiveFilters = filters.district.length > 0 || filters.block.length > 0;
+  const hasActiveFilters =
+    filters.district.length > 0 || filters.block.length > 0 || filters.status.length > 0;
 
   function handleClearAllFilters() {
-    setFilters(EMPTY_FILTERS);
+    onFilterChange(EMPTY_FACILITY_FILTERS);
   }
 
   const optionsContent =
