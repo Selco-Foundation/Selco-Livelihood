@@ -1,6 +1,5 @@
 import { apiClient, tenantId as getTenantId, type AuthUser } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
-import { formatEpochDate } from "./installation-plan";
 import type {
   ActivityFacilityRow,
   ActivityFacilitySearchResponse,
@@ -17,20 +16,9 @@ export interface FacilityEntrySearchParams {
   offset?: number;
 }
 
-export interface FieldPlanSummary {
-  planId: string;
-  planName: string;
-  startDate: string;
-  endDate: string;
-  /** Seeds the shared boundary-service lookup for District/Block filter
-   * options (see hooks/use-boundary) — matches qc's `stateBoundaryCode`. */
-  stateCode?: string;
-}
-
 export interface FacilityEntrySearchResult {
   entries: FacilityEntry[];
   totalCount: number;
-  fieldPlan?: FieldPlanSummary;
 }
 
 function toFacilityEntry(row: ActivityFacilityRow): FacilityEntry {
@@ -46,20 +34,6 @@ function toFacilityEntry(row: ActivityFacilityRow): FacilityEntry {
     status: activityFacility.status,
     district: boundary?.district ? { code: boundary.district } : undefined,
     block: boundary?.block ? { code: boundary.block } : undefined,
-  };
-}
-
-function toFieldPlanSummary(row: ActivityFacilityRow): FieldPlanSummary | undefined {
-  const fieldPlan = row.activityFacility.fieldPlan;
-  if (!fieldPlan?.id) {
-    return undefined;
-  }
-  return {
-    planId: fieldPlan.id,
-    planName: fieldPlan.name ?? "",
-    startDate: fieldPlan.startDate ? formatEpochDate(fieldPlan.startDate) : "-",
-    endDate: fieldPlan.endDate ? formatEpochDate(fieldPlan.endDate) : "-",
-    stateCode: fieldPlan.project?.additionalDetails?.geographyDetails?.state?.code,
   };
 }
 
@@ -97,7 +71,6 @@ export async function searchFacilityEntries(
   return {
     entries: rows.map(toFacilityEntry),
     totalCount: data.totalCount ?? 0,
-    fieldPlan: rows[0] ? toFieldPlanSummary(rows[0]) : undefined,
   };
 }
 
