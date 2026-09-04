@@ -1,5 +1,7 @@
 # Selco Livelihood
 
+![Livelihood equipment in operation](.gitbook/assets/livelihood-cover.jpg)
+
 Selco Livelihood is SELCO Foundation's platform for planning, installing, and supporting solar-powered livelihood equipment — pulverizers, cold storage units, looms, and similar machines — at end-user sites across India. It coordinates a program's full lifecycle: screening candidate sites, planning and executing installations, handing installed equipment over to operations, and running ongoing support and impact reporting once that equipment is live.
 
 ## How this documentation works
