@@ -1,20 +1,14 @@
 import { translateOr, useTranslate } from "@/shared";
 import { cn } from "@/ui";
+import { FACILITY_ENTRY_STATUS_LABELS } from "../../constants/facility-status";
 import type { FacilityAuditCheckpoint, FacilityEntryStatus } from "../../types/facility-review";
 
 function statusLabel(
   status: FacilityEntryStatus,
   t: ReturnType<typeof useTranslate>["t"],
 ): string {
-  switch (status) {
-    case "SUBMITTED_BY_SUPERVISOR":
-      return translateOr(t, "ES_IR_STATUS_PENDING", "Pending Review");
-    case "REJECTED":
-      return translateOr(t, "ES_IR_STATUS_REJECTED", "Rejected");
-    case "APPROVED":
-    default:
-      return translateOr(t, "ES_IR_STATUS_APPROVED", "Approved");
-  }
+  const label = FACILITY_ENTRY_STATUS_LABELS[status];
+  return translateOr(t, label.key, label.fallback);
 }
 
 interface AuditTrailTimelineProps {
@@ -40,7 +34,7 @@ export function AuditTrailTimeline({ checkpoints }: AuditTrailTimelineProps) {
               <span
                 className={cn(
                   "size-2.5 shrink-0 rounded-full",
-                  checkpoint.status === "REJECTED" ? "bg-destructive" : "bg-primary",
+                  checkpoint.status === "REJECTED_BY_QC_SPOC" ? "bg-destructive" : "bg-primary",
                 )}
               />
               {index < checkpoints.length - 1 ? (

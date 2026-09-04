@@ -1,11 +1,20 @@
-import { employeeHomePath, translateOr, useAuthStore, useTranslate } from "@/shared";
+import { employeeHomePath, translateOr, useAuthStore, useBoundary, useTranslate } from "@/shared";
 import { TopBar } from "@/ui";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FacilityEntryTable } from "../../components/facility/FacilityEntryTable";
+import {
+  EMPTY_FACILITY_FILTERS,
+  type FacilityEntryFilterState,
+  type FacilityFilterOption,
+} from "../../components/facility/FacilityEntryFilter";
 import { useBulkApproveFacilityEntries, useFacilityEntries } from "../../hooks/use-facility-entries";
+import { useFacilityStatusOptions } from "../../hooks/use-facility-status-options";
 import { useInstallationPlans } from "../../hooks/use-installation-plans";
+import { boundaryDisplayName, cascadeBlockOptions, resolveBoundaryCodes } from "../../utils/boundary";
 import { hasIrAccess } from "../../utils/access";
 import { irInstallationPlansPath } from "../../utils/paths";
+
+const DEFAULT_PAGE_SIZE = 10;
 
 // The entries route's path is computed at runtime via contextPath(), so there's no
 // static `Route` export for typed params — read the plan id from the URL segments
@@ -22,14 +31,79 @@ export function FacilityEntryListPage() {
   const { t } = useTranslate();
   const user = useAuthStore((state) => state.user);
   const { planId } = useFacilityEntriesRouteParams();
-  const { data: entries, isLoading } = useFacilityEntries(planId);
+
+  const [filters, setFilters] = useState<FacilityEntryFilterState>(EMPTY_FACILITY_FILTERS);
+  const [searchText, setSearchText] = useState("");
+  const [pageOffset, setPageOffset] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  // The field plan's state is invariant for the life of this page, so it's
+  // persisted separately from `data` rather than read from it synchronously —
+  // that would make the boundary lookup below depend on the very query result
+  // it's supplying params for.
+  const [stateCode, setStateCode] = useState<string | undefined>(undefined);
+
+  // Same shared boundary-service lookup as qc's Filter.js
+  // (`useBoundary(fieldPlan?.stateBoundaryCode, "State")`) and im's InboxFilter
+  // — District/Block options come from here, not from the facility search
+  // response, so they stay stable across filters/pagination and cascade
+  // properly (matches im's InboxFilter pattern).
+  const { data: boundaryData } = useBoundary(stateCode ? [stateCode] : []);
+
+  const { data, isLoading } = useFacilityEntries(planId, {
+    boundaryCodes: resolveBoundaryCodes(filters, boundaryData?.blocks ?? [], boundaryData?.facilities ?? []),
+    statuses: filters.status.length > 0 ? filters.status : undefined,
+    searchText,
+    pageOffset,
+    pageSize,
+  });
+
+  useEffect(() => {
+    if (data?.fieldPlan?.stateCode) {
+      setStateCode(data.fieldPlan.stateCode);
+    }
+  }, [data?.fieldPlan?.stateCode]);
+
   const bulkApprove = useBulkApproveFacilityEntries(planId);
-  const { data: plansData } = useInstallationPlans();
+  const { options: statusOptions } = useFacilityStatusOptions();
+
+  const { data: plansData } = useInstallationPlans({ fieldPlanIds: planId ? [planId] : undefined });
   const plan = plansData?.plans.find((item) => item.planId === planId);
-  const planName = plan?.planName ?? planId;
+  const planName = data?.fieldPlan?.planName ?? plan?.planName ?? planId;
+  const startDate = data?.fieldPlan?.startDate ?? plan?.startDate ?? "-";
+  const endDate = data?.fieldPlan?.endDate ?? plan?.endDate ?? "-";
+
+  const districtOptions: FacilityFilterOption[] = (boundaryData?.districts ?? []).map((district) => ({
+    code: district.code,
+    name: boundaryDisplayName(district.code, t),
+  }));
+  const blockOptions: FacilityFilterOption[] = cascadeBlockOptions(
+    boundaryData?.blocks ?? [],
+    filters.district,
+  ).map((block) => ({ code: block.code, name: boundaryDisplayName(block.code, t) }));
 
   if (!hasIrAccess(user?.roles)) {
     return null;
+  }
+
+  const totalCount = data?.totalCount ?? 0;
+  const currentPage = Math.floor(pageOffset / pageSize);
+
+  function handleFilterChange(nextFilters: FacilityEntryFilterState) {
+    // Selecting a district can invalidate an already-selected block from a
+    // different district — prune it, matching im's InboxFilter cascade.
+    const validBlockCodes = new Set(
+      cascadeBlockOptions(boundaryData?.blocks ?? [], nextFilters.district).map((block) => block.code),
+    );
+    setFilters({
+      ...nextFilters,
+      block: nextFilters.block.filter((code) => validBlockCodes.has(code)),
+    });
+    setPageOffset(0);
+  }
+
+  function handleSearchTextChange(nextSearchText: string) {
+    setSearchText(nextSearchText);
+    setPageOffset(0);
   }
 
   return (
@@ -50,17 +124,13 @@ export function FacilityEntryListPage() {
           <p className="text-sm leading-[21px] text-ink-600">
             {translateOr(t, "ES_IR_START_DATE", "Start Date")}
           </p>
-          <p className="text-base leading-6 font-semibold text-ink-950">
-            {plan?.startDate ?? "-"}
-          </p>
+          <p className="text-base leading-6 font-semibold text-ink-950">{startDate}</p>
         </div>
         <div>
           <p className="text-sm leading-[21px] text-ink-600">
             {translateOr(t, "ES_IR_COMPLETION_DATE", "Completion Date")}
           </p>
-          <p className="text-base leading-6 font-semibold text-ink-950">
-            {plan?.endDate ?? "-"}
-          </p>
+          <p className="text-base leading-6 font-semibold text-ink-950">{endDate}</p>
         </div>
         <div>
           <p className="text-sm leading-[21px] text-ink-600">
@@ -73,10 +143,27 @@ export function FacilityEntryListPage() {
       </div>
       <FacilityEntryTable
         planId={planId}
-        entries={entries ?? []}
+        entries={data?.entries ?? []}
         isLoading={isLoading}
+        districtOptions={districtOptions}
+        blockOptions={blockOptions}
+        statusOptions={statusOptions}
+        filters={filters}
+        searchText={searchText}
+        onFilterChange={handleFilterChange}
+        onSearchTextChange={handleSearchTextChange}
         onBulkApprove={(entryIds) => bulkApprove.mutate(entryIds)}
         isBulkApproving={bulkApprove.isPending}
+        currentPage={currentPage}
+        totalRecords={totalCount}
+        pageSizeLimit={pageSize}
+        onNextPage={() => setPageOffset(pageOffset + pageSize)}
+        onPrevPage={() => setPageOffset(Math.max(0, pageOffset - pageSize))}
+        onPageChange={(page) => setPageOffset(page * pageSize)}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPageOffset(0);
+        }}
       />
     </div>
   );

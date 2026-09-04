@@ -47,6 +47,6 @@ export async function submitFacilityReview(
 
   return {
     entryId: input.entryId,
-    status: input.action === "APPROVE" ? "APPROVED" : "REJECTED",
+    status: input.action === "APPROVE" ? "APPROVED_BY_QC_SPOC" : "REJECTED_BY_QC_SPOC",
   };
 }
