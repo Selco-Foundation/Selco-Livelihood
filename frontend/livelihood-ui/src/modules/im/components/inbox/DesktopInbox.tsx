@@ -1,9 +1,8 @@
 import { translateOr, useTranslate } from "@/shared";
-import { Skeleton } from "@/ui";
+import { Pagination, Skeleton } from "@/ui";
 import type { ImInboxFilters, InboxDataResult } from "../../types/inbox";
 import { ComplaintTable } from "./ComplaintTable";
 import { InboxFilter } from "./InboxFilter";
-import { InboxPagination } from "./InboxPagination";
 import { MobileComplaintList } from "./MobileComplaintList";
 
 interface DesktopInboxProps {
@@ -69,7 +68,7 @@ export function DesktopInbox({
       )}
 
       {totalRecords > 0 ? (
-        <InboxPagination
+        <Pagination
           currentPage={currentPage}
           totalRecords={totalRecords}
           pageSizeLimit={pageSizeLimit}
