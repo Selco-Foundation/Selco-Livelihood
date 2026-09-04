@@ -1,6 +1,11 @@
-import type { AuthUser } from "@/shared";
-import { INSTALLATION_PLAN_FIXTURES } from "./fixtures";
-import type { InstallationPlanSearchResponse } from "../types/installation-plan";
+import { apiClient, tenantId as getTenantId, type AuthUser } from "@/shared";
+import { createRequestInfo } from "@/shared/api/request-info";
+import type {
+  ActivityAssignment,
+  ActivityAssignmentSearchResponse,
+  InstallationPlan,
+  InstallationPlanSearchResponse,
+} from "../types/installation-plan";
 
 export interface InstallationPlanSearchParams {
   limit?: number;
@@ -8,32 +13,72 @@ export interface InstallationPlanSearchParams {
   searchText?: string;
 }
 
-/**
- * Dummy implementation — returns fixture data. The signature already matches
- * the target restructured `field-planner-activity` ("installation plan")
- * search contract so swapping this body for a real `apiClient` call later
- * doesn't require touching call sites.
- */
+const QC_APPROVER_ROLE = "INSTALLATION_REPORT_APPROVER_QC_TEAM";
+
+// Facility-level statuses as rolled up by the activity-assignment API's own
+// `statusAgregation` — distinct from (and not yet aligned with) the fixture-backed
+// facility-review flow's own status naming (see types/facility-review.ts).
+const STATUS_APPROVED = "APPROVED_BY_QC_SPOC";
+const STATUS_PENDING_REVIEW = "SUBMITTED_BY_SUPERVISOR";
+
+function formatEpochDate(epochMs: number): string {
+  const date = new Date(epochMs);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${month}/${day}/${date.getFullYear()}`;
+}
+
+function toInstallationPlan(row: ActivityAssignment): InstallationPlan {
+  const totalFacilities = row.additionalDetails?.countFieldPlanFacilities ?? 0;
+  const statusCounts = new Map(
+    (row.additionalDetails?.statusAgregation ?? []).map((entry) => [entry.status, entry.occurrences]),
+  );
+  const approvedCount = statusCounts.get(STATUS_APPROVED) ?? 0;
+  // `occurrences` appears to count status *transitions* over a facility's history
+  // (e.g. rejected then re-approved counts twice), not distinct current facilities,
+  // so it can exceed `totalFacilities` — clamp, since >100% is never a valid display.
+  const completionRate =
+    totalFacilities > 0 ? Math.min(100, Math.ceil((approvedCount / totalFacilities) * 100)) : 0;
+
+  return {
+    planId: row.fieldPlanId,
+    planName: row.fieldPlan?.name ?? "",
+    tenantId: row.tenantId,
+    totalFacilities,
+    startDate: formatEpochDate(row.startDate),
+    endDate: formatEpochDate(row.endDate),
+    pendingReviewCount: statusCounts.get(STATUS_PENDING_REVIEW) ?? 0,
+    completionRate,
+  };
+}
+
 export async function searchInstallationPlans(
   tenantId: string,
   params: InstallationPlanSearchParams,
   accessToken: string,
   user?: AuthUser | null,
 ): Promise<InstallationPlanSearchResponse> {
-  void tenantId;
-  void accessToken;
-  void user;
-
-  const searchText = params.searchText?.toLowerCase().trim();
-  const plans = searchText
-    ? INSTALLATION_PLAN_FIXTURES.filter((plan) =>
-        plan.planName.toLowerCase().includes(searchText),
-      )
-    : INSTALLATION_PLAN_FIXTURES;
+  const { data } = await apiClient.post<ActivityAssignmentSearchResponse>(
+    "/activity/v1/activities/assignment/_search",
+    {
+      RequestInfo: createRequestInfo(accessToken, user),
+      ActivityAssignment: {
+        tenantId,
+        roles: [QC_APPROVER_ROLE],
+        fieldPlanCode: params.searchText ?? "",
+      },
+    },
+    {
+      params: {
+        tenantId: tenantId || getTenantId(),
+        offset: params.offset ?? 0,
+        limit: params.limit ?? 10,
+      },
+    },
+  );
 
   return {
-    plans,
-    totalCount: plans.length,
-    pendingReviewCount: plans.reduce((sum, plan) => sum + plan.pendingReviewCount, 0),
+    plans: (data.ActivityAssignment ?? []).map(toInstallationPlan),
+    totalCount: data.TotalCount ?? 0,
   };
 }

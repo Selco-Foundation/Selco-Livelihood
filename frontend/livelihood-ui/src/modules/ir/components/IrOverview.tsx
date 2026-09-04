@@ -3,25 +3,28 @@ import { StatTile } from "@/ui";
 import { Link } from "@tanstack/react-router";
 import { ClipboardCheck } from "lucide-react";
 import { useInstallationPlans } from "../hooks/use-installation-plans";
-import { useIrOverviewSummary } from "../hooks/use-ir-overview-summary";
 import { hasIrAccess } from "../utils/access";
 import { irFacilityEntriesPath, irInstallationPlansPath } from "../utils/paths";
 
 export function IrKpis() {
   const { t } = useTranslate();
   const user = useAuthStore((state) => state.user);
-  const { isLoading, pendingReviewCount } = useIrOverviewSummary();
 
   if (!hasIrAccess(user?.roles)) {
     return null;
   }
 
+  // Static placeholder: there's no backend aggregate for "pending review across
+  // every field plan" yet, and this tile's requirements aren't finalized either
+  // (may become a different component entirely) — so it's deliberately not wired
+  // to the paginated installation-plans search, which would only ever reflect
+  // one page's worth of plans, not a true global count.
   return (
     <StatTile
       icon={<ClipboardCheck className="h-6 w-6" />}
       iconClassName="bg-info text-info-foreground"
       label={translateOr(t, "ES_IR_PENDING_REVIEW", "Pending Review")}
-      value={isLoading ? "-" : pendingReviewCount}
+      value="-"
       link={irInstallationPlansPath()}
     />
   );
