@@ -273,9 +273,6 @@ export interface FacilityReviewDetail {
    * (see hooks/use-facility-review.ts's useLoadSectionMedia), since an
    * installation report can carry a lot of attachments. */
   sectionDocuments: Partial<Record<ReviewSectionId, ActivityDocument[]>>;
-  /** The latest workflow entry's own documents, passed straight through on
-   * approve/reject so the update request doesn't drop them. */
-  latestWorkflowDocuments?: ActivityDocument[] | null;
 }
 
 // ---- Review decision ----
@@ -286,8 +283,4 @@ export interface SubmitFacilityReviewInput {
   entryId: string;
   action: ReviewDecisionAction;
   rejectionReasons?: SectionRejectionReasons;
-  /** The entry's current latest-workflow documents, passed straight through
-   * on the update request so approving/rejecting doesn't drop them —
-   * matches qc's `workflowDocuments` behavior. */
-  existingDocuments?: ActivityDocument[] | null;
 }

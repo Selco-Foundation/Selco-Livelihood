@@ -97,7 +97,6 @@ export function FacilityReviewPage() {
         entryId,
         action,
         rejectionReasons: action === "REJECT" ? rejectionReasons : undefined,
-        existingDocuments: detail?.latestWorkflowDocuments,
       },
       {
         onSuccess: () => {
