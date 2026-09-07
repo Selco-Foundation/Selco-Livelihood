@@ -1,6 +1,7 @@
 import { translateOr, useTranslate } from "@/shared";
 import { Download, FileText } from "lucide-react";
 import type { ReportDocument, ReportSectionContent } from "../../types/facility-review";
+import { LabeledValueList } from "./LabeledValueList";
 
 function formatFileSize(bytes?: number): string {
   if (!bytes) {
@@ -60,6 +61,13 @@ export function ReportSectionBody({ section }: ReportSectionBodyProps) {
 
   return (
     <div className="space-y-4">
+      {section.specifications?.length ? (
+        <LabeledValueList
+          titleKey="ES_IR_SPECIFICATIONS"
+          title="Specifications"
+          items={section.specifications}
+        />
+      ) : null}
       <DocumentSlot
         titleKey="ES_IR_INSTALLATION_COMPLETION_CERTIFICATE"
         title="Installation Completion Certificate"

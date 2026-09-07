@@ -1,20 +1,13 @@
 import { apiClient, tenantId as getTenantId, type AuthUser } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
+import { formatEpochDate } from "../utils/date-format";
 import type {
   ActivityAssignment,
   ActivityAssignmentSearchResponse,
   InstallationPlan,
-  InstallationPlanSearchResponse,
 } from "../types/installation-plan";
 
-export interface InstallationPlanSearchParams {
-  limit?: number;
-  offset?: number;
-  searchText?: string;
-  fieldPlanIds?: string[];
-}
-
-const QC_APPROVER_ROLE = "INSTALLATION_REPORT_APPROVER_QC_TEAM";
+export const QC_APPROVER_ROLE = "INSTALLATION_REPORT_APPROVER_QC_TEAM";
 
 // Facility-level statuses as rolled up by the activity-assignment API's own
 // `statusAgregation` — these are the real `FACILITY_INSTALLATION` business
@@ -22,14 +15,47 @@ const QC_APPROVER_ROLE = "INSTALLATION_REPORT_APPROVER_QC_TEAM";
 const STATUS_APPROVED = "APPROVED_BY_QC_SPOC";
 const STATUS_PENDING_REVIEW = "SUBMITTED_BY_FIELD_STAFF";
 
-function formatEpochDate(epochMs: number): string {
-  const date = new Date(epochMs);
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${month}/${day}/${date.getFullYear()}`;
+/** The `ActivityAssignment` request-body criteria — one typed, extensible
+ * object every caller shares, matching the same pattern as
+ * services/facility.ts's `ActivityFacilitySearchCriteria`. */
+export interface ActivityAssignmentSearchCriteria {
+  tenantId: string;
+  roles?: string[];
+  fieldPlanCode?: string;
+  fieldPlanIds?: string[];
 }
 
-function toInstallationPlan(row: ActivityAssignment): InstallationPlan {
+/**
+ * The one method that calls `/activity/v1/activities/assignment/_search` —
+ * picks the criteria from the call, makes the request, and returns exactly
+ * what the backend sent back. Criteria-shaping and response mapping for a
+ * specific use case belong in the hook (see hooks/use-installation-plans.ts).
+ */
+export async function searchActivityAssignments(
+  criteria: ActivityAssignmentSearchCriteria,
+  options: { limit?: number; offset?: number } = {},
+  accessToken: string,
+  user?: AuthUser | null,
+): Promise<ActivityAssignmentSearchResponse> {
+  const { data } = await apiClient.post<ActivityAssignmentSearchResponse>(
+    "/activity/v1/activities/assignment/_search",
+    {
+      RequestInfo: createRequestInfo(accessToken, user),
+      ActivityAssignment: criteria,
+    },
+    {
+      params: {
+        tenantId: criteria.tenantId || getTenantId(),
+        offset: options.offset ?? 0,
+        limit: options.limit ?? 10,
+      },
+    },
+  );
+
+  return data;
+}
+
+export function toInstallationPlan(row: ActivityAssignment): InstallationPlan {
   const totalFacilities = row.additionalDetails?.countFieldPlanFacilities ?? 0;
   const statusCounts = new Map(
     (row.additionalDetails?.statusAgregation ?? []).map((entry) => [entry.status, entry.occurrences]),
@@ -51,37 +77,5 @@ function toInstallationPlan(row: ActivityAssignment): InstallationPlan {
     pendingReviewCount: statusCounts.get(STATUS_PENDING_REVIEW) ?? 0,
     completionRate,
     stateCode: row.fieldPlan?.geographyDetails?.state,
-  };
-}
-
-export async function searchInstallationPlans(
-  tenantId: string,
-  params: InstallationPlanSearchParams,
-  accessToken: string,
-  user?: AuthUser | null,
-): Promise<InstallationPlanSearchResponse> {
-  const { data } = await apiClient.post<ActivityAssignmentSearchResponse>(
-    "/activity/v1/activities/assignment/_search",
-    {
-      RequestInfo: createRequestInfo(accessToken, user),
-      ActivityAssignment: {
-        tenantId,
-        roles: [QC_APPROVER_ROLE],
-        ...(params.searchText ? { fieldPlanCode: params.searchText } : {}),
-        ...(params.fieldPlanIds?.length ? { fieldPlanIds: params.fieldPlanIds } : {}),
-      },
-    },
-    {
-      params: {
-        tenantId: tenantId || getTenantId(),
-        offset: params.offset ?? 0,
-        limit: params.limit ?? 10,
-      },
-    },
-  );
-
-  return {
-    plans: (data.ActivityAssignment ?? []).map(toInstallationPlan),
-    totalCount: data.TotalCount ?? 0,
   };
 }

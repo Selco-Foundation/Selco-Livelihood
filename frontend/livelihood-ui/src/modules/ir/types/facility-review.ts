@@ -33,6 +33,46 @@ export interface FacilityEntry {
 // plan's own state from the ActivityAssignment search (installation-plan.ts)
 // which this page already fetches for its breadcrumb/summary.
 
+export interface ActivityDocument {
+  documentType?: string;
+  fileStoreId?: string;
+}
+
+export interface ActivityBomComponent {
+  slNo?: number;
+  product?: string;
+  capacity?: string;
+  category?: string;
+  quantity?: number;
+}
+
+export interface ActivityBillOfMaterial {
+  name?: string;
+  reportNumber?: string;
+  additionalDetails?: { vendorOrgName?: string; vendorUserName?: string };
+  data?: { components?: ActivityBomComponent[]; purchaseOrderNumber?: string };
+}
+
+export interface ActivityWorkflowEntry {
+  id?: string;
+  action?: string;
+  comment?: string;
+  documents?: ActivityDocument[] | null;
+  state?: { applicationStatus?: FacilityEntryStatus };
+  assigner?: { name?: string; roles?: Array<{ name?: string }> };
+  auditDetails?: { createdTime?: number };
+}
+
+export interface ActivityTransactionComment {
+  commentMessage?: string;
+  assetType?: string;
+}
+
+export interface ActivityTransaction {
+  processInstanceId?: string;
+  comments?: ActivityTransactionComment[];
+}
+
 export interface ActivityFacilityRow {
   activityFacility: {
     id: string;
@@ -44,7 +84,10 @@ export interface ActivityFacilityRow {
       facility_name?: string;
       boundary?: { district?: string; block?: string };
     };
+    billOfMaterial?: ActivityBillOfMaterial;
   };
+  workflow?: ActivityWorkflowEntry[];
+  transactions?: ActivityTransaction[];
 }
 
 export interface ActivityFacilitySearchResponse {
@@ -91,8 +134,13 @@ export interface SectionVideo {
 /** One physical unit within an asset section — e.g. "Panel 1", "Panel 2". */
 export interface AssetItem {
   itemNumber: number;
+  /** Overrides the default "{section label} {itemNumber}" heading — used for
+   * BOM components that aren't interchangeable units of the same product
+   * (e.g. a Machine's distinct parts), where the product name is the heading. */
+  label?: string;
   serialNumber?: string;
   capacity?: string;
+  quantity?: number;
   images: SectionImage[];
 }
 
@@ -135,6 +183,7 @@ export interface ReportSectionContent {
   id: "INSTALLATION_COMPLETION_REPORT";
   labelKey: string;
   label: string;
+  specifications?: LabeledValue[];
   installationCompletionCertificate: ReportDocument | null;
   assetHandoverDocument: ReportDocument | null;
   supportingDocuments: ReportDocument[];
@@ -154,6 +203,31 @@ export type ReviewSectionContent =
   | AssetSectionContent
   | ReportSectionContent
   | ImageChecklistSectionContent;
+
+// ---- Lazily-loaded section media ----
+// One of these is fetched per section, on expand — see
+// hooks/use-facility-review.ts's useLoadSectionMedia.
+
+export interface AssetSectionMediaPatch {
+  images: SectionImage[];
+  videos: SectionVideo[];
+  mediaGroups?: Record<string, { images: SectionImage[]; videos: SectionVideo[] }>;
+}
+
+export interface ReportSectionMediaPatch {
+  installationCompletionCertificate: ReportDocument | null;
+  assetHandoverDocument: ReportDocument | null;
+  supportingDocuments: ReportDocument[];
+}
+
+export interface ImageChecklistMediaPatch {
+  images: SectionImage[];
+}
+
+export type SectionMediaPatch =
+  | AssetSectionMediaPatch
+  | ReportSectionMediaPatch
+  | ImageChecklistMediaPatch;
 
 // ---- Rejection reasons ----
 // Structured per top-level section, matching qc: each entry is a reason
@@ -185,6 +259,8 @@ export interface FacilityAuditCheckpoint {
   id: string;
   status: FacilityEntryStatus;
   date: string;
+  actorName?: string;
+  comment?: string;
   sectionReasons?: AuditSectionReasons[];
 }
 
@@ -192,6 +268,14 @@ export interface FacilityReviewDetail {
   entry: FacilityEntry;
   sections: ReviewSectionContent[];
   auditTrail: FacilityAuditCheckpoint[];
+  /** Raw, unresolved documents per section id — the media (images/videos/
+   * report files) for a section is only fetched when the section is expanded
+   * (see hooks/use-facility-review.ts's useLoadSectionMedia), since an
+   * installation report can carry a lot of attachments. */
+  sectionDocuments: Partial<Record<ReviewSectionId, ActivityDocument[]>>;
+  /** The latest workflow entry's own documents, passed straight through on
+   * approve/reject so the update request doesn't drop them. */
+  latestWorkflowDocuments?: ActivityDocument[] | null;
 }
 
 // ---- Review decision ----
@@ -202,9 +286,8 @@ export interface SubmitFacilityReviewInput {
   entryId: string;
   action: ReviewDecisionAction;
   rejectionReasons?: SectionRejectionReasons;
-}
-
-export interface SubmitFacilityReviewResponse {
-  entryId: string;
-  status: FacilityEntryStatus;
+  /** The entry's current latest-workflow documents, passed straight through
+   * on the update request so approving/rejecting doesn't drop them —
+   * matches qc's `workflowDocuments` behavior. */
+  existingDocuments?: ActivityDocument[] | null;
 }

@@ -1,9 +1,12 @@
 import { useAuthStore } from "@/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ACTIVITY_CODE_INSTALLATION,
   bulkApproveFacilityEntries,
-  searchFacilityEntries,
+  searchActivityFacilities,
+  toFacilityEntry,
 } from "../services/facility";
+import type { FacilityEntry } from "../types/facility-review";
 import { hasIrAccess } from "../utils/access";
 
 export interface UseFacilityEntriesOptions {
@@ -12,6 +15,11 @@ export interface UseFacilityEntriesOptions {
   searchText?: string;
   pageOffset?: number;
   pageSize?: number;
+}
+
+export interface FacilityEntrySearchResult {
+  entries: FacilityEntry[];
+  totalCount: number;
 }
 
 export function useFacilityEntries(
@@ -39,20 +47,27 @@ export function useFacilityEntries(
       pageSize,
     ],
     enabled,
-    queryFn: () =>
-      searchFacilityEntries(
-        employeeTenantId!,
-        planId,
+    queryFn: async (): Promise<FacilityEntrySearchResult> => {
+      const data = await searchActivityFacilities(
         {
-          boundaryCodes,
-          statuses,
-          facilityName: searchText,
-          offset: pageOffset,
-          limit: pageSize,
+          tenantId: employeeTenantId!,
+          fieldPlanIds: [planId],
+          activityCodes: [ACTIVITY_CODE_INSTALLATION],
+          ...(boundaryCodes?.length ? { boundaryCodes } : {}),
+          ...(statuses?.length ? { statuses } : {}),
+          ...(searchText ? { facilityName: searchText } : {}),
         },
+        { limit: pageSize, offset: pageOffset },
         accessToken!,
         user,
-      ),
+      );
+
+      const rows = data.facility ?? [];
+      return {
+        entries: rows.map(toFacilityEntry),
+        totalCount: data.totalCount ?? 0,
+      };
+    },
   });
 }
 

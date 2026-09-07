@@ -140,15 +140,6 @@ export interface WorkflowProcessSearchResponse {
   ProcessInstances?: WorkflowProcessInstance[];
 }
 
-export interface FileStoreUrlEntry {
-  id?: string;
-  url?: string;
-}
-
-export interface FileStoreUrlResponse {
-  fileStoreIds?: FileStoreUrlEntry[];
-}
-
 export interface MdmsReasonOption {
   code?: string;
   localizedCode?: string;

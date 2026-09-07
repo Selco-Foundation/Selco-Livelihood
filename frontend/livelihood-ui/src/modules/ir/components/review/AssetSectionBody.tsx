@@ -41,7 +41,7 @@ export function AssetSectionBody({ section }: AssetSectionBodyProps) {
       {section.items?.map((item) => (
         <div key={item.itemNumber} className="space-y-3 rounded-md border border-border bg-muted/40 p-4">
           <p className="text-sm font-semibold text-primary">
-            {translateOr(t, section.labelKey, section.label)} {item.itemNumber}
+            {item.label ?? `${translateOr(t, section.labelKey, section.label)} ${item.itemNumber}`}
           </p>
           <LabeledValueRows
             items={[
@@ -56,6 +56,9 @@ export function AssetSectionBody({ section }: AssetSectionBodyProps) {
                 : []),
               ...(item.capacity
                 ? [{ labelKey: "ES_IR_SPEC_CAPACITY", label: "Capacity", value: item.capacity }]
+                : []),
+              ...(item.quantity !== undefined
+                ? [{ labelKey: "ES_IR_QUANTITY", label: "Quantity", value: String(item.quantity) }]
                 : []),
             ]}
           />

@@ -10,6 +10,7 @@ import { ReviewActionBar } from "../../components/review/ReviewActionBar";
 import { ReviewSections } from "../../components/review/ReviewSections";
 import {
   useFacilityReview,
+  useLoadSectionMedia,
   useRejectionReasonOptions,
   useSubmitFacilityReview,
 } from "../../hooks/use-facility-review";
@@ -43,7 +44,8 @@ export function FacilityReviewPage() {
   const navigate = useNavigate();
   const { planId, entryId } = useFacilityReviewRouteParams();
   const { data: detail, isLoading } = useFacilityReview(entryId);
-  const submitReview = useSubmitFacilityReview();
+  const submitReview = useSubmitFacilityReview(entryId);
+  const loadSectionMedia = useLoadSectionMedia(entryId, detail?.entry.facilityName ?? "");
   const reasonOptions = useRejectionReasonOptions();
   const [rejectionReasons, setRejectionReasons] = useState<SectionRejectionReasons>({});
   const [pendingAction, setPendingAction] = useState<ReviewDecisionAction | null>(null);
@@ -95,6 +97,7 @@ export function FacilityReviewPage() {
         entryId,
         action,
         rejectionReasons: action === "REJECT" ? rejectionReasons : undefined,
+        existingDocuments: detail?.latestWorkflowDocuments,
       },
       {
         onSuccess: () => {
@@ -151,6 +154,8 @@ export function FacilityReviewPage() {
             <AuditTrailTimeline checkpoints={detail.auditTrail} />
             <ReviewSections
               sections={detail.sections}
+              sectionDocuments={detail.sectionDocuments}
+              loadSectionMedia={loadSectionMedia}
               reasonOptions={reasonOptions}
               rejectionReasons={rejectionReasons}
               canEditReasons={canEditReasons}

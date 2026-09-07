@@ -1,52 +1,66 @@
-import type { AuthUser } from "@/shared";
-import { buildReviewDetailFixture, FACILITY_ENTRY_FIXTURES } from "./fixtures";
-import type {
-  FacilityReviewDetail,
-  SubmitFacilityReviewInput,
-  SubmitFacilityReviewResponse,
-} from "../types/facility-review";
+import { apiClient, type AuthUser } from "@/shared";
+import { createRequestInfo } from "@/shared/api/request-info";
+import type { ActivityDocument, SubmitFacilityReviewInput } from "../types/facility-review";
 
-function findFacilityEntry(entryId: string) {
-  return Object.values(FACILITY_ENTRY_FIXTURES)
-    .flat()
-    .find((entry) => entry.entryId === entryId);
-}
+const WORKFLOW_ACTION = {
+  APPROVE: "APPROVE",
+  REJECT: "REJECT_AND_ASSIGN_FOR_FIELD_QC",
+} as const;
 
-/** Dummy implementation — builds placeholder section content for the fixture entry. */
-export async function fetchFacilityReviewDetail(
-  entryId: string,
-  accessToken: string,
-  user?: AuthUser | null,
-): Promise<FacilityReviewDetail | null> {
-  void accessToken;
-  void user;
-
-  const entry = findFacilityEntry(entryId);
-  return entry ? buildReviewDetailFixture(entry) : null;
+/** Flattens per-section rejection reasons into the flat comment list the
+ * workflow update expects — matches qc's `formatRejectionReasons`. */
+function flattenRejectionReasons(input: SubmitFacilityReviewInput): Array<{
+  commentMessage: string;
+  assetType: string;
+}> {
+  const comments: Array<{ commentMessage: string; assetType: string }> = [];
+  for (const [sectionId, reasons] of Object.entries(input.rejectionReasons ?? {})) {
+    for (const reason of reasons ?? []) {
+      comments.push({
+        commentMessage: JSON.stringify({
+          reasonCode: reason.reasonCode,
+          comment: reason.comment,
+          sectionLabel: sectionId,
+        }),
+        assetType: sectionId.toUpperCase(),
+      });
+    }
+  }
+  return comments;
 }
 
 /**
- * Dummy implementation — reuses qc's single whole-report workflow action
- * (APPROVE/REJECT), no dependency on a per-section review endpoint. Signature
- * matches what a real `workflow/update` call needs so swapping this out later
- * doesn't change callers.
- *
- * `input.rejectionReasons` is a per-section list of `{reasonCode, reasonLabel,
- * comment}`. When the real endpoint lands, flatten each entry into one
- * workflow comment tagged with its section id (matching qc's
- * `formatRejectionReasons`) as part of that same request — not a separate
- * per-section call.
+ * Picks the workflow action/comments from the input, POSTs the update, and
+ * returns exactly what the backend sent back — no synthesized response.
  */
 export async function submitFacilityReview(
   input: SubmitFacilityReviewInput,
+  tenantId: string,
   accessToken: string,
   user?: AuthUser | null,
-): Promise<SubmitFacilityReviewResponse> {
-  void accessToken;
-  void user;
+): Promise<unknown> {
+  const action = input.action === "APPROVE" ? WORKFLOW_ACTION.APPROVE : WORKFLOW_ACTION.REJECT;
+  const comments: Array<{ commentMessage: string; assetType: string }> =
+    input.action === "REJECT" ? flattenRejectionReasons(input) : [];
+  const existingDocuments: ActivityDocument[] = input.existingDocuments ?? [];
 
-  return {
-    entryId: input.entryId,
-    status: input.action === "APPROVE" ? "APPROVED_BY_QC_SPOC" : "REJECTED_BY_QC_SPOC",
-  };
+  const { data } = await apiClient.post(
+    "/activity/v1/activities/workflow/update",
+    {
+      RequestInfo: createRequestInfo(accessToken, user),
+      activityFacilityId: input.entryId,
+      workflow: {
+        action,
+        comment:
+          input.action === "APPROVE"
+            ? "Approved by Installation Reviewer"
+            : "Rejected by Installation Reviewer",
+        documents: existingDocuments,
+      },
+      transactions: [{ comments }],
+    },
+    { params: { tenantId } },
+  );
+
+  return data;
 }
