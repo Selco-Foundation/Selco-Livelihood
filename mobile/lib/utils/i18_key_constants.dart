@@ -34,6 +34,7 @@ class Common {
   String get add => 'COMMON_ADD';
   String get view => 'COMMON_VIEW';
   String get required => 'COMMON_REQUIRED';
+  String get logout => 'COMMON_LOGOUT';
 }
 
 class Welcome {

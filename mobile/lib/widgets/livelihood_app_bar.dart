@@ -9,11 +9,9 @@ class LivelihoodAppBar extends StatelessWidget implements PreferredSizeWidget {
   const LivelihoodAppBar({
     super.key,
     this.showMenu = false,
-    this.onMenuPressed,
   });
 
   final bool showMenu;
-  final VoidCallback? onMenuPressed;
 
   @override
   Size get preferredSize => const Size.fromHeight(spacer12);
@@ -29,18 +27,15 @@ class LivelihoodAppBar extends StatelessWidget implements PreferredSizeWidget {
       backgroundColor: theme.colorTheme.primary.primary2,
       toolbarHeight: spacer12,
       leading: showMenu
-          ? GestureDetector(
-              onTap: onMenuPressed,
-              child: IconButton(
-                key: const ValueKey('home-menu-button'),
-                icon: const Icon(
-                  Icons.menu,
-                  color: Colors.white,
-                  size: spacer6,
-                ),
-                onPressed: onMenuPressed,
-                tooltip: 'Menu',
+          ? IconButton(
+              key: const ValueKey('home-menu-button'),
+              icon: const Icon(
+                Icons.menu,
+                color: Colors.white,
+                size: spacer6,
               ),
+              onPressed: () => Scaffold.of(context).openDrawer(),
+              tooltip: 'Menu',
             )
           : null,
       title: Row(

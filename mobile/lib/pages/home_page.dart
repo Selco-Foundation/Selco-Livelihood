@@ -7,7 +7,6 @@ import '../utils/i18_key_constants.dart' as i18;
 import '../router/app_router.dart';
 import '../widgets/home_help_header.dart';
 import '../widgets/home_item_card.dart';
-import '../widgets/livelihood_app_bar.dart';
 
 @RoutePage()
 class HomePage extends StatelessWidget {
@@ -31,10 +30,6 @@ class HomePage extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: LivelihoodAppBar(
-        showMenu: true,
-        onMenuPressed: () => _showPlaceholder(context),
-      ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: spacer2),
         child: ScrollableContent(

@@ -32,6 +32,7 @@ dependencies:
   json_annotation: ^4.9.0
   path_provider: ^2.1.0
   permission_handler: ^11.3.1
+  qr_flutter: ^4.1.0
   reactive_forms: ^17.0.0
   shared_preferences: ^2.2.3
   synchronized: ^3.1.0+1

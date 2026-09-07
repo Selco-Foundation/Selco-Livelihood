@@ -10,7 +10,6 @@ import '../utils/i18_key_constants.dart' as i18;
 import '../model/facility_report_sample.dart';
 import '../router/app_router.dart';
 import '../utils/app_permission_gateway.dart';
-import '../widgets/livelihood_app_bar.dart';
 import '../widgets/machine_media_picker.dart';
 import '../widgets/otp_verification_widget.dart';
 import '../widgets/report_navigation_header.dart';
@@ -77,13 +76,6 @@ class _MachineFormPageState extends State<MachineFormPage> {
 
   void _refresh([String? _]) => setState(() {});
 
-  void _showMessage(String message) {
-    FocusManager.instance.primaryFocus?.unfocus();
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
-
   void _openSuccess(MachineReportSuccessMode mode) {
     FocusManager.instance.primaryFocus?.unfocus();
     context.router.push(MachineReportSuccessRoute(mode: mode));
@@ -95,10 +87,6 @@ class _MachineFormPageState extends State<MachineFormPage> {
     final textTheme = theme.digitTextTheme(context);
 
     return Scaffold(
-      appBar: LivelihoodAppBar(
-        showMenu: true,
-        onMenuPressed: () => _showMessage(context.translate(i18.installationReportHome.reportActionNotConnected)),
-      ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: spacer2),
         child: ScrollableContent(
@@ -143,23 +131,28 @@ class _MachineFormPageState extends State<MachineFormPage> {
                       const SizedBox(height: spacer5),
                       _TextField(
                         key: const ValueKey('machine-serial-field'),
-                        label: context.translate(i18.machineForm.machineSerialNumber),
-                        hint: context.translate(i18.machineForm.enterSerialNumber),
+                        label: context
+                            .translate(i18.machineForm.machineSerialNumber),
+                        hint: context
+                            .translate(i18.machineForm.enterSerialNumber),
                         controller: _serialController,
                         onChanged: _refresh,
                       ),
                       const SizedBox(height: spacer5),
                       _TextField(
                         key: const ValueKey('invoice-number-field'),
-                        label: context.translate(i18.machineForm.manufacturerInvoiceNumber),
-                        hint: context.translate(i18.machineForm.enterInvoiceNumber),
+                        label: context.translate(
+                            i18.machineForm.manufacturerInvoiceNumber),
+                        hint: context
+                            .translate(i18.machineForm.enterInvoiceNumber),
                         controller: _invoiceController,
                         onChanged: _refresh,
                       ),
                       const SizedBox(height: spacer5),
                       _TextField(
                         key: const ValueKey('machine-capacity-field'),
-                        label: context.translate(i18.machineForm.machineCapacity),
+                        label:
+                            context.translate(i18.machineForm.machineCapacity),
                         hint: context.translate(i18.machineForm.enterCapacity),
                         controller: _capacityController,
                         isRequired: true,
@@ -198,7 +191,8 @@ class _MachineFormPageState extends State<MachineFormPage> {
                       ),
                       const SizedBox(height: spacer5),
                       LabeledField(
-                        label: context.translate(i18.machineForm.rawMaterialDemo),
+                        label:
+                            context.translate(i18.machineForm.rawMaterialDemo),
                         isRequired: true,
                         capitalizedFirstLetter: false,
                         child: MachineMediaPicker(
@@ -215,7 +209,8 @@ class _MachineFormPageState extends State<MachineFormPage> {
                       ),
                       const SizedBox(height: spacer5),
                       LabeledField(
-                        label: context.translate(i18.machineForm.photoWithEndUser),
+                        label:
+                            context.translate(i18.machineForm.photoWithEndUser),
                         isRequired: true,
                         capitalizedFirstLetter: false,
                         child: MachineMediaPicker(
@@ -233,7 +228,8 @@ class _MachineFormPageState extends State<MachineFormPage> {
                       ),
                       const SizedBox(height: spacer5),
                       LabeledField(
-                        label: context.translate(i18.machineForm.trainedEndUser),
+                        label:
+                            context.translate(i18.machineForm.trainedEndUser),
                         capitalizedFirstLetter: false,
                         child: Row(
                           children: [
@@ -263,7 +259,8 @@ class _MachineFormPageState extends State<MachineFormPage> {
                       OtpVerificationWidget(
                         key: const ValueKey('machine-otp-widget'),
                         keyPrefix: 'machine',
-                        label: context.translate(i18.machineForm.validateTrainingOtp),
+                        label: context
+                            .translate(i18.machineForm.validateTrainingOtp),
                         onVerificationChanged: (verified) =>
                             setState(() => _otpVerified = verified),
                       ),

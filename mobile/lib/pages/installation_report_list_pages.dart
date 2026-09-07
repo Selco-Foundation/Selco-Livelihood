@@ -9,7 +9,6 @@ import '../model/solar_installation_draft.dart';
 import '../router/app_router.dart';
 import '../widgets/facility_report_card.dart';
 import '../widgets/facility_search_sort_card.dart';
-import '../widgets/livelihood_app_bar.dart';
 import '../widgets/report_navigation_header.dart';
 
 @RoutePage()
@@ -42,7 +41,8 @@ class ResubmissionNeededPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _FacilityListPage(
-        title: context.translate(i18.installationReportHome.resubmissionNeededSingleLine),
+        title: context
+            .translate(i18.installationReportHome.resubmissionNeededSingleLine),
         mode: FacilityReportMode.resubmissionNeeded,
         showSearch: true,
       );
@@ -76,7 +76,9 @@ class _FacilityListPage extends StatelessWidget {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(content: Text(context.translate(i18.installationReportHome.reportActionNotConnected))),
+        SnackBar(
+            content: Text(context.translate(
+                i18.installationReportHome.reportActionNotConnected))),
       );
   }
 
@@ -126,10 +128,6 @@ class _FacilityListPage extends StatelessWidget {
     final textTheme = theme.digitTextTheme(context);
 
     return Scaffold(
-      appBar: LivelihoodAppBar(
-        showMenu: true,
-        onMenuPressed: () => _showPlaceholder(context),
-      ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: spacer2),
         child: ScrollableContent(

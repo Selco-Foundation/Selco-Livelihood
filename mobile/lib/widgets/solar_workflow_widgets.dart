@@ -5,11 +5,8 @@ import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../utils/extensions.dart';
-import '../utils/i18_key_constants.dart' as i18;
 import '../router/app_router.dart';
 import '../model/solar_installation_draft.dart';
-import 'livelihood_app_bar.dart';
 import 'report_navigation_header.dart';
 
 typedef SolarPickMedia = Future<XFile?> Function(
@@ -37,12 +34,6 @@ class SolarWorkflowScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: LivelihoodAppBar(
-        showMenu: true,
-        onMenuPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.translate(i18.installationReportHome.reportActionNotConnected))),
-        ),
-      ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: spacer2),
         child: ScrollableContent(

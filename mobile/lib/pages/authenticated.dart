@@ -3,6 +3,9 @@ import 'package:digit_scanner/blocs/scanner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../widgets/livelihood_app_bar.dart';
+import '../widgets/navigation/drawer.dart';
+
 @RoutePage()
 class AuthenticatedScreenWrapper extends StatelessWidget {
   const AuthenticatedScreenWrapper({super.key});
@@ -10,6 +13,10 @@ class AuthenticatedScreenWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) => BlocProvider<DigitScannerBloc>(
         create: (_) => DigitScannerBloc(const DigitScannerState()),
-        child: const AutoRouter(),
+        child: const Scaffold(
+          appBar: LivelihoodAppBar(showMenu: true),
+          drawer: CustomDrawer(),
+          body: AutoRouter(),
+        ),
       );
 }

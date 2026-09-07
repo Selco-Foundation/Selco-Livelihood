@@ -5,12 +5,14 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:isar/isar.dart';
 
 import 'blocs/app_init/app_init.dart';
+import 'blocs/auth/authbloc.dart';
 import 'blocs/localization/app_localization.dart';
 import 'blocs/localization/app_localization_delegate.dart';
 import 'blocs/localization/localization.dart';
 import 'data/app_shared_preferences.dart';
 import 'model/appconfig/mdmsResponse.dart';
 import 'router/app_router.dart';
+import 'repositories/auth_repo.dart';
 import 'utils/constants.dart';
 import 'utils/envConfig.dart';
 import 'utils/intl_locale.dart';
@@ -45,38 +47,51 @@ class LivelihoodApp extends StatefulWidget {
 
 class _LivelihoodAppState extends State<LivelihoodApp> {
   late final AppRouter _router = widget.router ?? AppRouter();
+  late final AuthBloc _authBloc = AuthBloc(loginAuthRepository);
+
+  @override
+  void dispose() {
+    _authBloc.close();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final isar = widget.isar;
     if (isar == null) {
-      return _buildShell(context);
+      return BlocProvider<AuthBloc>.value(
+        value: _authBloc,
+        child: _buildShell(context),
+      );
     }
 
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider(
-          create: (context) =>
-              AppInitialization()..add(const InitEvent.onLaunch()),
-        ),
-      ],
-      child: BlocBuilder<AppInitialization, InitState>(
-        builder: (context, state) {
-          final cachedAppConfig =
-              context.read<AppInitialization>().cachedAppConfig;
+    return BlocProvider<AuthBloc>.value(
+      value: _authBloc,
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider(
+            create: (context) =>
+                AppInitialization()..add(const InitEvent.onLaunch()),
+          ),
+        ],
+        child: BlocBuilder<AppInitialization, InitState>(
+          builder: (context, state) {
+            final cachedAppConfig =
+                context.read<AppInitialization>().cachedAppConfig;
 
-          return state.maybeWhen(
-            orElse: () => const _LoadingApp(),
-            defaulted: (appConfig) => _buildShell(
-              context,
-              isar: isar,
-              appConfig: appConfig,
-            ),
-            error: (_) => cachedAppConfig != null
-                ? _buildShell(context, isar: isar, appConfig: cachedAppConfig)
-                : const _LoadingApp(),
-          );
-        },
+            return state.maybeWhen(
+              orElse: () => const _LoadingApp(),
+              defaulted: (appConfig) => _buildShell(
+                context,
+                isar: isar,
+                appConfig: appConfig,
+              ),
+              error: (_) => cachedAppConfig != null
+                  ? _buildShell(context, isar: isar, appConfig: cachedAppConfig)
+                  : const _LoadingApp(),
+            );
+          },
+        ),
       ),
     );
   }

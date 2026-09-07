@@ -14,6 +14,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:livelihood/blocs/localization/app_localization.dart';
 import 'package:livelihood/data/nosql/localization.dart' as nosql;
 import 'package:livelihood/utils/i18_key_constants.dart' as i18;
@@ -47,13 +48,15 @@ import 'package:livelihood/widgets/home_help_header.dart';
 import 'package:livelihood/widgets/home_item_card.dart';
 import 'package:livelihood/widgets/livelihood_app_bar.dart';
 import 'package:livelihood/widgets/machine_media_picker.dart';
+import 'package:livelihood/widgets/navigation/drawer.dart';
 import 'package:livelihood/widgets/otp_verification_widget.dart';
 import 'package:livelihood/widgets/privacy_policy/policy_webview_dialog.dart';
 
 class _StubAuthRepository implements AuthRepository {
-  _StubAuthRepository(this._respond);
+  _StubAuthRepository(this._respond, {this.onLogout});
 
   final Future<ResponseModel> Function(LoginModel body) _respond;
+  final VoidCallback? onLogout;
 
   @override
   Future<ResponseModel> validateLogin(LoginModel body) => _respond(body);
@@ -62,7 +65,7 @@ class _StubAuthRepository implements AuthRepository {
   Future<String> refreshToken() async => 'stub-access-token';
 
   @override
-  Future<void> logout() async {}
+  Future<void> logout() async => onLogout?.call();
 
   @override
   Future<void> reportLogin(UserRequest user) async {}
@@ -312,11 +315,13 @@ void main() {
     expect(find.byKey(const ValueKey('forgot-password-button')), findsNothing);
   });
 
-  testWidgets('login with a role-approved user reaches HomePage', (
+  testWidgets('authenticated drawer retains profile and logs out', (
     tester,
   ) async {
+    var logoutCalled = false;
     loginAuthRepository = _StubAuthRepository(
       (body) async => _cannedLoginResponse(approved: true),
+      onLogout: () => logoutCalled = true,
     );
     addTearDown(() => loginAuthRepository = HttpAuthRepository());
 
@@ -341,6 +346,31 @@ void main() {
 
     expect(find.byType(HomePage), findsOneWidget);
     expect(find.byType(LoginPage), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('home-menu-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CustomDrawer), findsOneWidget);
+    expect(find.text('Field Staff'), findsOneWidget);
+    expect(find.text('9900223344'), findsOneWidget);
+    expect(find.byType(QrImageView), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey(
+        'drawer-profile-qr-9e8934d3-a52e-4ac5-be8b-aab5011f851a',
+      )),
+      findsOneWidget,
+    );
+    expect(find.text(tr(i18.common.home)), findsOneWidget);
+    expect(find.text(tr(i18.login.privacyPolicy)), findsOneWidget);
+    expect(find.text(tr(i18.login.termsOfUse)), findsOneWidget);
+    expect(find.text(tr(i18.common.logout)), findsOneWidget);
+
+    await tester.tap(find.text(tr(i18.common.logout)));
+    await tester.pumpAndSettle();
+
+    expect(logoutCalled, isTrue);
+    expect(find.byType(HomePage), findsNothing);
+    expect(find.byKey(const ValueKey('proceed-button')), findsOneWidget);
   });
 
   testWidgets(
@@ -585,15 +615,19 @@ void main() {
     );
   });
 
-  testWidgets('home controls provide local placeholder feedback', (
+  testWidgets('home menu opens drawer and local controls show feedback', (
     tester,
   ) async {
     setMobileViewport(tester, const Size(390, 844));
     await pumpAuthenticatedRoute(tester, const HomeRoute());
 
     await tester.tap(find.byKey(const ValueKey('home-menu-button')));
-    await tester.pump();
-    expect(find.text(tr(i18.home.homeActionNotConnected)), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.byType(CustomDrawer), findsOneWidget);
+    expect(find.text(tr(i18.common.home)), findsOneWidget);
+
+    await tester.tapAt(const Offset(360, 400));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('home-help-button')));
     await tester.pump();
@@ -603,6 +637,50 @@ void main() {
     await tester.pump();
     expect(find.text(tr(i18.home.homeActionNotConnected)), findsOneWidget);
     expect(find.byType(HomePage), findsOneWidget);
+  });
+
+  testWidgets('drawer is shared by nested routes and Home resets navigation', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    await pumpAuthenticatedRoute(
+      tester,
+      const InstallationReportHomeRoute(),
+    );
+
+    expect(find.byType(InstallationReportHomePage), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-menu-button')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('home-menu-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(tr(i18.common.home)));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(HomePage), findsOneWidget);
+    expect(find.byType(InstallationReportHomePage), findsNothing);
+  });
+
+  testWidgets('drawer opens privacy and terms dialogs', (tester) async {
+    debugPolicyWebViewBodyBuilder = (context) => const SizedBox();
+    addTearDown(() => debugPolicyWebViewBodyBuilder = null);
+    setMobileViewport(tester, const Size(390, 844));
+    await pumpAuthenticatedRoute(tester, const HomeRoute());
+
+    for (final label in <String>[
+      tr(i18.login.privacyPolicy),
+      tr(i18.login.termsOfUse),
+    ]) {
+      await tester.tap(find.byKey(const ValueKey('home-menu-button')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PolicyWebViewDialog), findsOneWidget);
+      expect(find.text(label), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+    }
   });
 
   testWidgets('home opens Installation Report and renders four menu cards', (
