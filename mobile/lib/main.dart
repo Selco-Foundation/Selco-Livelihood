@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -47,10 +49,58 @@ class LivelihoodApp extends StatefulWidget {
 
 class _LivelihoodAppState extends State<LivelihoodApp> {
   late final AppRouter _router = widget.router ?? AppRouter();
-  late final AuthBloc _authBloc = AuthBloc(loginAuthRepository);
+  late final AuthBloc _authBloc;
+  StreamSubscription<AuthState>? _authBootstrapSubscription;
+  bool _isRestoringSession = true;
+  bool _sessionRestoreScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _authBloc = AuthBloc(loginAuthRepository);
+    _authBootstrapSubscription = _authBloc.stream.listen(_handleAuthBootstrap);
+  }
+
+  void _scheduleSessionRestore() {
+    if (_sessionRestoreScheduled) return;
+    _sessionRestoreScheduled = true;
+    _restoreSessionWhenRouterIsReady();
+  }
+
+  void _restoreSessionWhenRouterIsReady() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_router.stack.isEmpty) {
+        _restoreSessionWhenRouterIsReady();
+        return;
+      }
+      _authBloc.add(const AuthEvent.attemptLoad());
+    });
+  }
+
+  void _handleAuthBootstrap(AuthState state) {
+    if (!_isRestoringSession) return;
+
+    state.whenOrNull(
+      authenticated: (_, __, ___) {
+        _isRestoringSession = false;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _router.replaceAll(
+            const [
+              AuthenticatedRouteWrapper(children: [HomeRoute()])
+            ],
+          );
+        });
+      },
+      unauthenticated: () => _isRestoringSession = false,
+      error: (_) => _isRestoringSession = false,
+    );
+  }
 
   @override
   void dispose() {
+    _authBootstrapSubscription?.cancel();
     _authBloc.close();
     super.dispose();
   }
@@ -101,6 +151,8 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
     Isar? isar,
     MdmsResponseModel? appConfig,
   }) {
+    _scheduleSessionRestore();
+
     if (isar == null || appConfig == null) {
       return MaterialApp.router(
         title: 'Livelihood',

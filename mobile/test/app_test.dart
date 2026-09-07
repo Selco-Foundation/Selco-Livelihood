@@ -251,6 +251,38 @@ void main() {
     expect(screenSources, isNot(contains('pushAndRemoveUntil(')));
   });
 
+  testWidgets('stored authenticated session opens Home directly', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    final response = _cannedLoginResponse(approved: true);
+    _secureStorageValues['accessToken'] = response.access_token;
+    _secureStorageValues['accessInfo'] = jsonEncode(response.toJson());
+
+    final router = AppRouter();
+    await tester.pumpWidget(LivelihoodApp(router: router));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(HomePage), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-menu-button')), findsOneWidget);
+    expect(find.byKey(const ValueKey('proceed-button')), findsNothing);
+    expect(find.byType(LoginPage), findsNothing);
+  });
+
+  testWidgets('incomplete stored session remains on Welcome', (tester) async {
+    final response = _cannedLoginResponse(approved: true).copyWith(
+      refresh_token: null,
+    );
+    _secureStorageValues['accessToken'] = response.access_token;
+    _secureStorageValues['accessInfo'] = jsonEncode(response.toJson());
+
+    await tester.pumpWidget(const LivelihoodApp());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('proceed-button')), findsOneWidget);
+    expect(find.byType(HomePage), findsNothing);
+  });
+
   testWidgets('welcome uses E4H DIGIT components and navigates to login', (
     tester,
   ) async {

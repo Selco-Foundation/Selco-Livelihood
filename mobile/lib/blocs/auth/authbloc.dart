@@ -24,6 +24,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc(this._authRepository) : super(const AuthState.unauthenticated()) {
     on<_AuthLoginEvent>(_onLogin);
     on<_AuthLogoutEvent>(_onLogout);
+    on<_AuthLoadEvent>(_onLoad);
   }
 
   final AuthRepository _authRepository;
@@ -79,6 +80,36 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(const AuthState.unauthenticated());
   }
 
+  FutureOr<void> _onLoad(_AuthLoadEvent event, Emitter<AuthState> emit) async {
+    emit(const AuthState.loading());
+
+    try {
+      final accessInfo = await SecureStore().getAccessInfo();
+      final userRequest = accessInfo?.userRequest;
+      if (accessInfo == null ||
+          accessInfo.refresh_token == null ||
+          userRequest == null) {
+        emit(const AuthState.unauthenticated());
+        return;
+      }
+
+      final hasRequiredRole = userRequest.roles
+          .any((role) => role.code == kInstallationReportPartAEditorRoleCode);
+      if (!hasRequiredRole) {
+        emit(const AuthState.unauthenticated());
+        return;
+      }
+
+      emit(AuthState.authenticated(
+        accessToken: accessInfo.access_token,
+        refreshToken: accessInfo.refresh_token,
+        userRequest: userRequest,
+      ));
+    } catch (_) {
+      emit(const AuthState.unauthenticated());
+    }
+  }
+
   /// Returns an i18 key code, not resolved text — blocs have no
   /// `BuildContext` to translate through, so the UI layer resolves this via
   /// `context.translate(...)` when it displays the error.
@@ -112,6 +143,8 @@ class AuthEvent with _$AuthEvent {
   }) = _AuthLoginEvent;
 
   const factory AuthEvent.logout() = _AuthLogoutEvent;
+
+  const factory AuthEvent.attemptLoad() = _AuthLoadEvent;
 }
 
 @freezed
