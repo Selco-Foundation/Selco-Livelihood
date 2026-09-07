@@ -4,10 +4,10 @@ import {
   ACTIVITY_CODE_INSTALLATION,
   bulkUpdateActivityFacilitiesWorkflow,
   searchActivityFacilities,
-  toFacilityEntry,
 } from "../services/facility";
 import type { FacilityEntry } from "../types/facility-review";
 import { hasIrAccess } from "../utils/access";
+import { toFacilityEntry } from "../utils/facility-entry-mapping";
 
 export interface UseFacilityEntriesOptions {
   boundaryCodes?: string[];

@@ -1,8 +1,9 @@
 import { useAuthStore } from "@/shared";
 import { useQuery } from "@tanstack/react-query";
-import { QC_APPROVER_ROLE, searchActivityAssignments, toInstallationPlan } from "../services/installation-plan";
+import { QC_APPROVER_ROLE, searchActivityAssignments } from "../services/installation-plan";
 import type { InstallationPlanSearchResponse } from "../types/installation-plan";
 import { hasIrAccess } from "../utils/access";
+import { toInstallationPlan } from "../utils/installation-plan-mapping";
 
 export interface UseInstallationPlansOptions {
   searchText?: string;
