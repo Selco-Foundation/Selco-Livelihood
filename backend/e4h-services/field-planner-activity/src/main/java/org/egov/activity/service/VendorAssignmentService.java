@@ -19,6 +19,7 @@ import org.egov.common.contract.request.RequestInfo;
 import org.egov.common.producer.Producer;
 import org.egov.common.service.IdGenService;
 import org.egov.tracer.model.CustomException;
+import org.egov.tracer.model.ServiceCallException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
@@ -548,13 +549,23 @@ public class VendorAssignmentService {
      * from field-planner's field-plan-scheduling path. Batched rather than per-asset, so N assets
      * cost two HTTP calls instead of 2N.
      *
-     * KNOWN RACE, and why it is tolerated. /_transition reads the current state from the DB but
-     * persists via Kafka, so the second call can outrun the first's persistence. When that
-     * happens the workflow sees no instance, falls back to the start state, finds no
-     * ASSIGN_FIELD_STAFF action there, and fails with "INVALID ACTION". Three things make that
-     * acceptable: it is a loud, recognisable failure rather than silent corruption; the assets
-     * are left at SCHEDULED, which is a real state, not a half-written one; and it is repairable
-     * through POST /v1/activities/bulk/workflow/update, which can re-run just the second action.
+     * THE WAIT BETWEEN THEM IS LOAD-BEARING. /_transition validates against the workflow's own
+     * database but persists through Kafka, so the first transition is not readable when it returns.
+     * Fired back to back, the second call resolved every asset as "no instance", fell back to the
+     * start state, found no ASSIGN_FIELD_STAFF action there, and was rejected with "INVALID ACTION
+     * -- Action ASSIGN_FIELD_STAFF not found in config for the businessId". The calls were ~20ms
+     * apart against a persister lag of ~40ms, so this failed on *every* submit, not intermittently:
+     * a race whose losing margin is constant is not a flaky test, it is a broken feature.
+     *
+     * This was previously described here as tolerable because
+     * POST /v1/activities/bulk/workflow/update could re-run just the second action. It cannot: that
+     * endpoint loads the facility_activities row first, and those rows come from the persister
+     * message published *after* this method returns, so it answered "Activity Facility not found"
+     * for every asset. The plan stayed DRAFT with no rows while the workflow instances were
+     * stranded at SCHEDULED -- and a plain retry of this method then fails at the *first*
+     * transition, because SCHEDULED is not a legal action from SCHEDULED. There was no way out
+     * without deleting rows from the workflow's own tables. Hence waiting, rather than repairing
+     * afterwards.
      *
      * Unlike the consumer, this does NOT bucket failures into a list and carry on -- a submit
      * that silently left assets invisible to the technician would be worse than one that failed.
@@ -564,13 +575,20 @@ public class VendorAssignmentService {
         if (assetIds.isEmpty()) {
             return Map.of();
         }
+        Map<String, ProcessInstance> scheduled;
         try {
-            workflowService.transitionBatch(assetIds, configuration.getBusinessService(),
+            scheduled = workflowService.transitionBatch(assetIds, configuration.getBusinessService(),
                     ACTION_ASSET_SCHEDULE, tenantId, requestInfo, "Asset scheduled for installation");
         } catch (Exception e) {
             throw new CustomException("WORKFLOW_SCHEDULE_FAILED",
-                    "Could not move the assets to their scheduled state: " + e.getMessage());
+                    "Could not move the assets to their scheduled state: " + describe(e));
         }
+
+        // Wait for the state the workflow says it landed on, not for the action name. Same reason
+        // stateOf() exists at all: the business service owns these names, so SCHEDULED leading to a
+        // state called "SCHEDULED" is a fact about the current config, not something to hardcode.
+        String scheduledState = stateOf(scheduled.get(assetIds.get(0)));
+        workflowService.awaitState(assetIds, scheduledState, tenantId, requestInfo);
 
         Map<String, ProcessInstance> assigned;
         try {
@@ -578,11 +596,15 @@ public class VendorAssignmentService {
                     ACTION_ASSET_ASSIGN_FIELD_STAFF, tenantId, requestInfo,
                     "Assigned to the vendor's field staff");
         } catch (Exception e) {
+            // Deliberately does not name a repair endpoint any more -- see above, there isn't one.
+            // Nothing has been written at this point, so the plan is still editable; what needs
+            // clearing is the workflow's own instances for these ids before a resubmit.
             throw new CustomException("WORKFLOW_ASSIGN_FAILED",
                     "The assets were scheduled but could not be assigned to field staff, so the "
-                            + "technician cannot see them yet. Re-run the ASSIGN_FIELD_STAFF action "
-                            + "for these assets via /v1/activities/bulk/workflow/update: "
-                            + assetIds + ". Cause: " + e.getMessage());
+                            + "technician cannot see them yet. Nothing was saved and the plan is "
+                            + "still editable, but these assets are left at " + scheduledState
+                            + " in the workflow and their process instances must be cleared before "
+                            + "this submit is retried: " + assetIds + ". Cause: " + describe(e));
         }
 
         Map<String, String> statusById = new LinkedHashMap<>();
@@ -608,7 +630,7 @@ public class VendorAssignmentService {
             throw new CustomException("WORKFLOW_PUBLISH_FAILED",
                     "Could not publish installation plan " + criteria.getFieldPlanId()
                             + ". If it has already been submitted the workflow will refuse a second "
-                            + "PUBLISH. Cause: " + e.getMessage());
+                            + "PUBLISH. Cause: " + describe(e));
         }
     }
 
@@ -624,6 +646,29 @@ public class VendorAssignmentService {
                     "Workflow returned no resultant state; refusing to store a status we cannot derive");
         }
         return instance.getState().getState();
+    }
+
+    /**
+     * The readable cause of a failed downstream call.
+     *
+     * ServiceRequestRepository wraps every HTTP error as ServiceCallException(responseBody), and
+     * that class keeps the body in its own `error` field without passing it to RuntimeException's
+     * constructor -- so getMessage() is null and plain string concatenation renders the literal
+     * "null". That is how a workflow rejection reading "INVALID ACTION -- Action
+     * ASSIGN_FIELD_STAFF not found in config for the businessId" reached the caller as
+     * "Cause: null", leaving the pod log as the only place the actual reason existed.
+     */
+    private static String describe(Throwable e) {
+        if (e == null) {
+            return "unknown cause";
+        }
+        if (e instanceof ServiceCallException) {
+            String body = ((ServiceCallException) e).getError();
+            if (StringUtils.hasText(body)) {
+                return body;
+            }
+        }
+        return StringUtils.hasText(e.getMessage()) ? e.getMessage() : e.getClass().getSimpleName();
     }
 
     /**
