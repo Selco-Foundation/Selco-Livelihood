@@ -8,12 +8,13 @@ import {
   isQuotationRequiredAction,
   isSupportedWorkflowAction,
 } from "../../constants/workflow-actions";
-import type { UploadedMediaEntry } from "../../types/create-incident";
+import type { SelectOption, UploadedMediaEntry } from "../../types/create-incident";
 import type {
   ComplaintDetailsData,
   MdmsReasonOption,
 } from "../../types/incident-details";
 import { uploadIncidentFile } from "../../services/file-upload";
+import { fetchVendorOptions } from "../../services/vendor";
 import {
   fetchReasonOptions,
   updateIncidentAction,
@@ -30,6 +31,8 @@ import { FormSelectField } from "../create/FormSelectField";
 interface ComplaintActionDialogProps {
   action: string;
   complaintDetails: ComplaintDetailsData;
+  /** Vendor to exclude from the ASSIGN_VENDOR picker — reassigning to them is REASSIGN's job. */
+  excludeVendorUuid?: string;
   onClose: () => void;
   onComplete: () => Promise<void>;
 }
@@ -176,6 +179,7 @@ function ActionDocumentsField({
 export function ComplaintActionDialog({
   action,
   complaintDetails,
+  excludeVendorUuid,
   onClose,
   onComplete,
 }: ComplaintActionDialogProps) {
@@ -188,6 +192,8 @@ export function ComplaintActionDialog({
   const [comments, setComments] = useState("");
   const [reasonOptions, setReasonOptions] = useState<MdmsReasonOption[]>([]);
   const [selectedReason, setSelectedReason] = useState<MdmsReasonOption | null>(null);
+  const [vendorOptions, setVendorOptions] = useState<SelectOption[]>([]);
+  const [selectedVendor, setSelectedVendor] = useState<SelectOption | null>(null);
   const [uploads, setUploads] = useState<UploadedMediaEntry[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -206,6 +212,27 @@ export function ComplaintActionDialog({
     });
   }, [accessToken, actionConfig?.reasonMaster, user]);
 
+  useEffect(() => {
+    const boundaryCode = complaintDetails.incident.boundaryCode;
+    if (!actionConfig?.requiresVendorAssignee || !accessToken || !boundaryCode) {
+      setVendorOptions([]);
+      return;
+    }
+    void fetchVendorOptions(accessToken, user, boundaryCode)
+      .then((options) => {
+        setVendorOptions(options.filter((option) => option.code !== excludeVendorUuid));
+      })
+      .catch(() => {
+        setError(translateOr(t, "WF_VENDOR_LOAD_FAILED", "Could not load vendors. Please try again."));
+      });
+  }, [
+    accessToken,
+    actionConfig?.requiresVendorAssignee,
+    complaintDetails.incident.boundaryCode,
+    excludeVendorUuid,
+    user,
+  ]);
+
   const mutation = useMutation({
     mutationFn: async () => {
       if (!user || !accessToken || !actionConfig || !isSupportedWorkflowAction(action)) {
@@ -220,6 +247,9 @@ export function ComplaintActionDialog({
       if (actionConfig.reasonMaster && !selectedReason) {
         throw new Error("REASON_REQUIRED");
       }
+      if (actionConfig.requiresVendorAssignee && !selectedVendor) {
+        throw new Error("VENDOR_REQUIRED");
+      }
       if (actionConfig.documents === "required" && uploads.length === 0) {
         throw new Error("FILES_REQUIRED");
       }
@@ -227,6 +257,7 @@ export function ComplaintActionDialog({
       return updateIncidentAction({
         complaintDetails,
         action,
+        assigneeUuid: selectedVendor?.code ?? null,
         comments: comments.trim(),
         documents: buildUploadedDocuments(uploads),
         outOfScopeReason: action === "OUT_OF_SCOPE" ? selectedReason : null,
@@ -265,7 +296,9 @@ export function ComplaintActionDialog({
                 )
               : code === "REASON_REQUIRED"
                 ? translateOr(t, "WF_REASON_REQUIRED", "Please select a reason")
-                : translateOr(t, "CS_COMMON_SOMETHING_WENT_WRONG", "Something went wrong!");
+                : code === "VENDOR_REQUIRED"
+                  ? translateOr(t, "WF_VENDOR_REQUIRED", "Please select a vendor")
+                  : translateOr(t, "CS_COMMON_SOMETHING_WENT_WRONG", "Something went wrong!");
       setError(message);
     },
   });
@@ -404,6 +437,16 @@ export function ComplaintActionDialog({
                   ) ?? null,
                 )
               }
+            />
+          ) : null}
+
+          {actionConfig.requiresVendorAssignee ? (
+            <FormSelectField
+              label={translateOr(t, "WF_ASSIGN_VENDOR_LABEL", "Assign to vendor")}
+              required
+              value={selectedVendor?.code ?? ""}
+              options={vendorOptions}
+              onChange={setSelectedVendor}
             />
           ) : null}
 

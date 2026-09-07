@@ -20,6 +20,8 @@ export interface WorkflowActionConfig {
   comment: "required" | "optional";
   documents: "required" | "optional" | "none";
   reasonMaster?: ReasonMaster;
+  /** Requires picking a vendor user to assign — currently only ASSIGN_VENDOR. */
+  requiresVendorAssignee?: boolean;
 }
 
 export const WORKFLOW_ACTION_CONFIG: Record<SupportedWorkflowAction, WorkflowActionConfig> = {
@@ -32,7 +34,7 @@ export const WORKFLOW_ACTION_CONFIG: Record<SupportedWorkflowAction, WorkflowAct
   REVISE_QUOTATION: { comment: "optional", documents: "required" },
   DECLINE: { comment: "required", documents: "optional" },
   REASSIGN: { comment: "optional", documents: "optional" },
-  ASSIGN_VENDOR: { comment: "optional", documents: "optional" },
+  ASSIGN_VENDOR: { comment: "optional", documents: "optional", requiresVendorAssignee: true },
   DECLINE_POC: {
     comment: "optional",
     documents: "none",
