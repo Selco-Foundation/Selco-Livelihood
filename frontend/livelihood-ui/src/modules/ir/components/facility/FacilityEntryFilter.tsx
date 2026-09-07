@@ -41,6 +41,11 @@ interface FacilityEntryFilterProps {
   onFilterChange: (filters: FacilityEntryFilterState) => void;
   onSearchTextChange: (searchText: string) => void;
   onDownload: () => void;
+  /** While any rows are selected, the Download slot becomes an Approve
+   * action for that selection instead. */
+  selectedCount: number;
+  onApprove: () => void;
+  isApproving: boolean;
 }
 
 export const EMPTY_FACILITY_FILTERS: FacilityEntryFilterState = {
@@ -58,6 +63,9 @@ export function FacilityEntryFilter({
   onFilterChange,
   onSearchTextChange,
   onDownload,
+  selectedCount,
+  onApprove,
+  isApproving,
 }: FacilityEntryFilterProps) {
   const { t } = useTranslate();
 
@@ -292,16 +300,22 @@ export function FacilityEntryFilter({
               className="pl-9"
             />
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            onClick={onDownload}
-          >
-            <Download className="size-4" />
-            {translateOr(t, "ES_COMMON_DOWNLOAD", "Download")}
-          </Button>
+          {selectedCount > 0 ? (
+            <Button type="button" size="sm" disabled={isApproving} onClick={onApprove}>
+              {translateOr(t, "ES_IR_BULK_APPROVE", "Approve Selected")} ({selectedCount})
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={onDownload}
+            >
+              <Download className="size-4" />
+              {translateOr(t, "ES_COMMON_DOWNLOAD", "Download")}
+            </Button>
+          )}
           <button
             type="button"
             disabled={!hasActiveFilters}

@@ -1,9 +1,10 @@
 import { employeeHomePath, translateOr, useAuthStore, useBoundary, useTranslate } from "@/shared";
 import { TopBar } from "@/ui";
 import { useMemo, useState } from "react";
-import { FacilityEntryTable } from "../../components/facility/FacilityEntryTable";
+import { downloadFacilityEntries, FacilityEntryTable } from "../../components/facility/FacilityEntryTable";
 import {
   EMPTY_FACILITY_FILTERS,
+  FacilityEntryFilter,
   type FacilityEntryFilterState,
   type FacilityFilterOption,
 } from "../../components/facility/FacilityEntryFilter";
@@ -36,6 +37,7 @@ export function FacilityEntryListPage() {
   const [searchText, setSearchText] = useState("");
   const [pageOffset, setPageOffset] = useState(0);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   // Scoped to this one field plan via fieldPlanIds — the authoritative source
   // for breadcrumb/summary data and the field plan's state (which seeds the
@@ -99,6 +101,12 @@ export function FacilityEntryListPage() {
     setPageOffset(0);
   }
 
+  function handleBulkApprove() {
+    bulkApprove.mutate(Array.from(selected), {
+      onSuccess: () => setSelected(new Set()),
+    });
+  }
+
   return (
     <div className="space-y-6">
       <TopBar
@@ -134,10 +142,7 @@ export function FacilityEntryListPage() {
           </p>
         </div>
       </div>
-      <FacilityEntryTable
-        planId={planId}
-        entries={data?.entries ?? []}
-        isLoading={isLoading}
+      <FacilityEntryFilter
         districtOptions={districtOptions}
         blockOptions={blockOptions}
         statusOptions={statusOptions}
@@ -145,8 +150,17 @@ export function FacilityEntryListPage() {
         searchText={searchText}
         onFilterChange={handleFilterChange}
         onSearchTextChange={handleSearchTextChange}
-        onBulkApprove={(entryIds) => bulkApprove.mutate(entryIds)}
-        isBulkApproving={bulkApprove.isPending}
+        onDownload={() => downloadFacilityEntries(planId, data?.entries ?? [], t)}
+        selectedCount={selected.size}
+        onApprove={handleBulkApprove}
+        isApproving={bulkApprove.isPending}
+      />
+      <FacilityEntryTable
+        planId={planId}
+        entries={data?.entries ?? []}
+        isLoading={isLoading}
+        selected={selected}
+        onSelectedChange={setSelected}
         currentPage={currentPage}
         totalRecords={totalCount}
         pageSizeLimit={pageSize}
