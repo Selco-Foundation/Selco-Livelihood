@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:badges/badges.dart' as badges;
@@ -8,14 +9,17 @@ import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
 import 'package:digit_ui_components/widgets/molecules/panel_cards.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:livelihood/app/app_strings.dart';
+import 'package:livelihood/blocs/localization/app_localization.dart';
+import 'package:livelihood/data/nosql/localization.dart' as nosql;
+import 'package:livelihood/utils/i18_key_constants.dart' as i18;
 import 'package:livelihood/main.dart';
-import 'package:livelihood/models/facility_report_sample.dart';
-import 'package:livelihood/models/solar_installation_draft.dart';
+import 'package:livelihood/model/facility_report_sample.dart';
+import 'package:livelihood/model/solar_installation_draft.dart';
 import 'package:livelihood/pages/installation_report_home_page.dart';
 import 'package:livelihood/pages/installation_report_list_pages.dart';
 import 'package:livelihood/pages/home_page.dart';
@@ -25,12 +29,15 @@ import 'package:livelihood/pages/machine_report_success_page.dart';
 import 'package:livelihood/pages/add_new_asset.dart';
 import 'package:livelihood/pages/asset_summary.dart';
 import 'package:livelihood/pages/digit_scanner_page.dart';
-import 'package:livelihood/pages/installation_completion_certificate.dart';
 import 'package:livelihood/pages/installation_images.dart';
 import 'package:livelihood/pages/media_upload.dart';
 import 'package:livelihood/pages/overall_asset_summary.dart'
     show OverallAssetSummaryPage;
+import 'package:livelihood/model/login/loginModel.dart';
+import 'package:livelihood/model/response/responsemodel.dart';
+import 'package:livelihood/repositories/auth_repo.dart';
 import 'package:livelihood/router/app_router.dart';
+import 'package:livelihood/utils/envConfig.dart';
 import 'package:livelihood/widgets/image_uploader.dart';
 import 'package:livelihood/widgets/file_upload_widget.dart';
 import 'package:livelihood/widgets/video_uploader.dart';
@@ -40,8 +47,124 @@ import 'package:livelihood/widgets/home_help_header.dart';
 import 'package:livelihood/widgets/home_item_card.dart';
 import 'package:livelihood/widgets/livelihood_app_bar.dart';
 import 'package:livelihood/widgets/machine_media_picker.dart';
+import 'package:livelihood/widgets/otp_verification_widget.dart';
+import 'package:livelihood/widgets/privacy_policy/policy_webview_dialog.dart';
+
+class _StubAuthRepository implements AuthRepository {
+  _StubAuthRepository(this._respond);
+
+  final Future<ResponseModel> Function(LoginModel body) _respond;
+
+  @override
+  Future<ResponseModel> validateLogin(LoginModel body) => _respond(body);
+
+  @override
+  Future<String> refreshToken() async => 'stub-access-token';
+
+  @override
+  Future<void> logout() async {}
+
+  @override
+  Future<void> reportLogin(UserRequest user) async {}
+}
+
+ResponseModel _cannedLoginResponse({required bool approved}) {
+  return ResponseModel(
+    access_token: 'stub-access-token',
+    token_type: 'bearer',
+    refresh_token: 'stub-refresh-token',
+    scope: 'read',
+    userRequest: UserRequest(
+      id: 183,
+      uuid: '9e8934d3-a52e-4ac5-be8b-aab5011f851a',
+      userName: 'demo.user',
+      name: 'Field Staff',
+      mobileNumber: '9900223344',
+      emailId: 'field.staff@testvendor.example',
+      type: 'EMPLOYEE',
+      active: true,
+      roles: approved
+          ? const [
+              Roles(
+                name: 'Installation Report Part A Editor',
+                code: 'INSTALLATION_REPORT_PART_A_EDITOR',
+                tenantId: 'livelihood',
+              ),
+            ]
+          : const [
+              Roles(
+                name: 'Employee',
+                code: 'EMPLOYEE',
+                tenantId: 'livelihood',
+              ),
+            ],
+      tenantId: 'livelihood',
+    ),
+  );
+}
+
+final Map<String, String> _localizationMessages = {};
+
+String tr(String code) => _localizationMessages[code] ?? code;
 
 void main() {
+  setUpAll(() async {
+    await envConfig.initialize();
+
+    // Seed real translated text (from the same JSON that would be uploaded
+    // to the localization backend) so widget tests render production-like
+    // short labels instead of the raw SCREAMING_SNAKE_CASE fallback keys —
+    // which also avoids overflow in UI sized for short English text.
+    final localizationFile =
+        File('assets/localization/rainmaker-common_en_IN.json');
+    final entries = jsonDecode(localizationFile.readAsStringSync()) as List;
+    for (final entry in entries) {
+      final map = entry as Map<String, dynamic>;
+      _localizationMessages[map['code'] as String] = map['message'] as String;
+    }
+    AppLocalizations.debugSeedLocalizations(
+      entries.map((entry) {
+        final map = entry as Map<String, dynamic>;
+        return nosql.Localization()
+          ..code = map['code'] as String
+          ..message = map['message'] as String
+          ..module = map['module'] as String
+          ..locale = map['locale'] as String;
+      }).toList(),
+    );
+    addTearDown(() => AppLocalizations.debugSeedLocalizations(const []));
+
+    // flutter_secure_storage has no platform implementation under
+    // `flutter test` — SecureStore's token/accessInfo calls would otherwise
+    // throw MissingPluginException. Fake it with an in-memory store.
+    const secureStorageChannel =
+        MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
+    final secureStorageValues = <String, String>{};
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(secureStorageChannel, (call) async {
+      switch (call.method) {
+        case 'write':
+          secureStorageValues[call.arguments['key'] as String] =
+              call.arguments['value'] as String;
+          return null;
+        case 'read':
+          return secureStorageValues[call.arguments['key'] as String];
+        case 'delete':
+          secureStorageValues.remove(call.arguments['key'] as String);
+          return null;
+        case 'containsKey':
+          return secureStorageValues.containsKey(call.arguments['key']);
+        case 'readAll':
+          return secureStorageValues;
+        case 'deleteAll':
+          secureStorageValues.clear();
+          return null;
+        default:
+          return null;
+      }
+    });
+  });
+
   TextSpan findTextSpan(TextSpan root, String text) {
     if (root.text == text) return root;
     for (final child in root.children ?? const <InlineSpan>[]) {
@@ -124,14 +247,15 @@ void main() {
     expect(find.byType(DigitCard), findsNWidgets(2));
 
     final welcomeHeading = tester.widget<Text>(
-      find.text(AppStrings.welcomeTitle),
+      find.text(tr(i18.welcome.welcomeTitle)),
     );
     expect(welcomeHeading.style?.fontFamily, 'Roboto Condensed');
     expect(welcomeHeading.style?.fontSize, 32);
     expect(welcomeHeading.style?.fontWeight, FontWeight.w700);
 
-    for (final item in AppStrings.welcomeItems) {
-      final image = tester.widget<Image>(find.byKey(ValueKey(item.imagePath)));
+    for (var i = 1; i <= 5; i++) {
+      final imagePath = 'assets/images/welcome_$i.png';
+      final image = tester.widget<Image>(find.byKey(ValueKey(imagePath)));
       expect(image.width, spacer12 * 2);
       expect(image.height, spacer12 * 2);
     }
@@ -147,10 +271,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(LoginPage), findsOneWidget);
-    expect(find.text(AppStrings.login), findsNWidgets(2));
+    expect(find.text(tr(i18.login.login)), findsNWidgets(2));
   });
 
-  testWidgets('login uses DIGIT controls and local UI behavior', (
+  testWidgets('login uses DIGIT controls and validates fields locally', (
     tester,
   ) async {
     await pumpLogin(tester);
@@ -183,52 +307,94 @@ void main() {
 
     await tester.tap(loginButtonFinder);
     await tester.pump();
-    expect(find.text(AppStrings.requiredMessage), findsNWidgets(2));
+    expect(find.text(tr(i18.common.requiredMessage)), findsNWidgets(2));
 
-    final forgotButton = tester.widget<DigitButton>(
-      find.byKey(const ValueKey('forgot-password-button')),
+    expect(find.byKey(const ValueKey('forgot-password-button')), findsNothing);
+  });
+
+  testWidgets('login with a role-approved user reaches HomePage', (
+    tester,
+  ) async {
+    loginAuthRepository = _StubAuthRepository(
+      (body) async => _cannedLoginResponse(approved: true),
     );
-    expect(forgotButton.type, DigitButtonType.tertiary);
-    expect(forgotButton.size, DigitButtonSize.medium);
+    addTearDown(() => loginAuthRepository = HttpAuthRepository());
+
+    await pumpLogin(tester);
+
+    final loginButtonFinder = find.byKey(const ValueKey('login-button'));
+    await tester.tap(find.byKey(const ValueKey('consent-checkbox')));
+    await tester.pump();
 
     final userIdInput = find.descendant(
       of: find.byKey(const ValueKey('user-id-field')),
+      matching: find.byType(EditableText),
+    );
+    final passwordInput = find.descendant(
+      of: find.byKey(const ValueKey('password-field')),
       matching: find.byType(EditableText),
     );
     await tester.enterText(userIdInput, 'demo.user');
     await tester.enterText(passwordInput, 'password');
     await tester.tap(loginButtonFinder);
     await tester.pumpAndSettle();
+
     expect(find.byType(HomePage), findsOneWidget);
     expect(find.byType(LoginPage), findsNothing);
   });
 
-  testWidgets('policy link opens a local DIGIT-themed dialog', (tester) async {
+  testWidgets(
+      'login with a user missing the required role is rejected with an error',
+      (tester) async {
+    loginAuthRepository = _StubAuthRepository(
+      (body) async => _cannedLoginResponse(approved: false),
+    );
+    addTearDown(() => loginAuthRepository = HttpAuthRepository());
+
+    await pumpLogin(tester);
+
+    final loginButtonFinder = find.byKey(const ValueKey('login-button'));
+    await tester.tap(find.byKey(const ValueKey('consent-checkbox')));
+    await tester.pump();
+
+    final userIdInput = find.descendant(
+      of: find.byKey(const ValueKey('user-id-field')),
+      matching: find.byType(EditableText),
+    );
+    final passwordInput = find.descendant(
+      of: find.byKey(const ValueKey('password-field')),
+      matching: find.byType(EditableText),
+    );
+    await tester.enterText(userIdInput, 'demo.user');
+    await tester.enterText(passwordInput, 'password');
+    await tester.tap(loginButtonFinder);
+    await tester.pumpAndSettle();
+
+    expect(find.text(tr(i18.login.accessRoleRequired)), findsOneWidget);
+    expect(find.byType(LoginPage), findsOneWidget);
+    expect(find.byType(HomePage), findsNothing);
+  });
+
+  testWidgets('policy link opens an in-app WebView dialog', (tester) async {
+    debugPolicyWebViewBodyBuilder = (context) => const SizedBox();
+    addTearDown(() => debugPolicyWebViewBodyBuilder = null);
+
     await pumpLogin(tester);
 
     final consentTextFinder = find.byWidgetPredicate(
       (widget) =>
           widget is RichText &&
-          widget.text.toPlainText().contains(AppStrings.privacyPolicy),
+          widget.text.toPlainText().contains(tr(i18.login.privacyPolicy)),
     );
     final consentText = tester.widget<RichText>(consentTextFinder);
     final rootSpan = consentText.text as TextSpan;
-    final privacySpan = findTextSpan(rootSpan, AppStrings.privacyPolicy);
+    final privacySpan = findTextSpan(rootSpan, tr(i18.login.privacyPolicy));
     (privacySpan.recognizer! as TapGestureRecognizer).onTap!();
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.privacyPolicy), findsOneWidget);
-    expect(find.text(AppStrings.policyNotConnected), findsOneWidget);
-    expect(find.byType(DigitButton), findsNWidgets(3));
-  });
-
-  testWidgets('forgot password provides UI-only feedback', (tester) async {
-    await pumpLogin(tester);
-
-    await tester.tap(find.byKey(const ValueKey('forgot-password-button')));
-    await tester.pump();
-
-    expect(find.text(AppStrings.forgotPasswordNotConnected), findsOneWidget);
+    expect(find.byType(PolicyWebViewDialog), findsOneWidget);
+    expect(find.text(tr(i18.login.privacyPolicy)), findsOneWidget);
+    expect(find.byType(DigitButton), findsNWidgets(1));
   });
 
   testWidgets('home follows the requested section order and DIGIT styling', (
@@ -240,7 +406,7 @@ void main() {
     expect(find.byKey(const ValueKey('home-menu-button')), findsOneWidget);
     expect(find.byKey(const ValueKey('home-help-button')), findsOneWidget);
     expect(find.byType(HomeHelpHeader), findsOneWidget);
-    expect(find.text(AppStrings.appDescriptor), findsOneWidget);
+    expect(find.text(tr(i18.common.appDescriptor)), findsOneWidget);
     expect(find.byType(PoweredByDigit), findsOneWidget);
     expect(find.byType(InfoCard), findsOneWidget);
     expect(find.byType(HomeItemCard), findsNWidgets(6));
@@ -298,7 +464,7 @@ void main() {
 
     final resubmissionLabel = find.descendant(
       of: resubmissionCard,
-      matching: find.text(AppStrings.resubmissionNeeded),
+      matching: find.text(tr(i18.home.resubmissionNeeded)),
     );
     expect(resubmissionLabel, findsOneWidget);
     final labelSize = tester.getSize(resubmissionLabel);
@@ -353,8 +519,8 @@ void main() {
       '12',
       '35',
       '6',
-      AppStrings.syncPendingWarning,
-      AppStrings.pendingSyncDescription,
+      tr(i18.home.syncPendingWarning),
+      tr(i18.home.pendingSyncDescription),
     ]) {
       expect(find.text(text), findsOneWidget);
     }
@@ -427,15 +593,15 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('home-menu-button')));
     await tester.pump();
-    expect(find.text(AppStrings.homeActionNotConnected), findsOneWidget);
+    expect(find.text(tr(i18.home.homeActionNotConnected)), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('home-help-button')));
     await tester.pump();
-    expect(find.text(AppStrings.homeActionNotConnected), findsOneWidget);
+    expect(find.text(tr(i18.home.homeActionNotConnected)), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('sync-pending-card')));
     await tester.pump();
-    expect(find.text(AppStrings.homeActionNotConnected), findsOneWidget);
+    expect(find.text(tr(i18.home.homeActionNotConnected)), findsOneWidget);
     expect(find.byType(HomePage), findsOneWidget);
   });
 
@@ -449,7 +615,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(InstallationReportHomePage), findsOneWidget);
-    expect(find.text(AppStrings.installationReportHome), findsOneWidget);
+    expect(find.text(tr(i18.installationReportHome.installationReportHome)),
+        findsOneWidget);
     expect(find.byKey(const ValueKey('report-back-button')), findsOneWidget);
     expect(find.byKey(const ValueKey('report-help-button')), findsOneWidget);
     expect(find.byType(PoweredByDigit), findsOneWidget);
@@ -489,7 +656,8 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('report-help-button')));
     await tester.pump();
-    expect(find.text(AppStrings.reportActionNotConnected), findsOneWidget);
+    expect(find.text(tr(i18.installationReportHome.reportActionNotConnected)),
+        findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('report-back-button')));
     await tester.pumpAndSettle();
@@ -641,7 +809,7 @@ void main() {
     await tester.tap(machineAction);
     await tester.pumpAndSettle();
     expect(find.byType(MachineFormPage), findsOneWidget);
-    expect(find.text(AppStrings.machineReportTitle), findsOneWidget);
+    expect(find.text(tr(i18.machineForm.machineReportTitle)), findsOneWidget);
   });
 
   testWidgets('overall summary shows all E4H BOM buttons in order', (
@@ -678,7 +846,8 @@ void main() {
     expect(secondButton.top - firstButton.bottom, spacer4);
     await tester.tap(find.text('Add BOM RMS'));
     await tester.pump();
-    expect(find.text(AppStrings.dynamicFormNotConnected), findsOneWidget);
+    expect(find.text(tr(i18.installationReport.dynamicFormNotConnected)),
+        findsOneWidget);
     expect(find.byType(OverallAssetSummaryPage), findsOneWidget);
   });
 
@@ -724,13 +893,15 @@ void main() {
       findsOneWidget,
     );
     expect(find.byIcon(Icons.error_outline), findsNothing);
-    expect(find.text(AppStrings.rejectionReasons), findsOneWidget);
     expect(
-      find.text(AppStrings.incorrectInstallationDetails),
+        find.text(tr(i18.installationReport.rejectionReasons)), findsOneWidget);
+    expect(
+      find.text(tr(i18.installationReport.incorrectInstallationDetails)),
       findsOneWidget,
     );
-    expect(find.text(AppStrings.rejectedSerialReason), findsOneWidget);
-    expect(find.text(AppStrings.resubmit), findsOneWidget);
+    expect(find.text(tr(i18.installationReport.rejectedSerialReason)),
+        findsOneWidget);
+    expect(find.text(tr(i18.installationReport.resubmit)), findsOneWidget);
 
     final uploader = find.byKey(
       const ValueKey('solar-overall-file-uploader'),
@@ -771,37 +942,56 @@ void main() {
         home: OverallAssetSummaryPage(draft: incomplete),
       ),
     );
-    final enabledByDefaultSubmit = tester.widget<DigitButton>(
+    var submit = tester.widget<DigitButton>(
       find.byKey(const ValueKey('solar-footer-submit')),
     );
     expect(incomplete.countFor(SolarAssetType.battery), 1);
     expect(incomplete.countFor(SolarAssetType.inverter), 1);
     expect(incomplete.countFor(SolarAssetType.panel), 1);
-    expect(enabledByDefaultSubmit.isDisabled, isFalse);
+    expect(submit.isDisabled, isTrue);
     expect(find.byKey(const ValueKey('solar-installation-completion-card')),
         findsOneWidget);
     expect(find.byType(FileUploadWidget), findsOneWidget);
     expect(find.byKey(const ValueKey('solar-completion-certificate')),
-        findsOneWidget);
-    expect(
-        find.byKey(const ValueKey('solar-handover-document')), findsOneWidget);
+        findsNothing);
+    expect(find.byKey(const ValueKey('solar-handover-document')), findsNothing);
     expect(find.byKey(const ValueKey('solar-installation-images')),
         findsOneWidget);
+    expect(find.byKey(const ValueKey('solar-otp-widget')), findsOneWidget);
 
-    final complete = SolarInstallationDraft.prefilled(
+    await tester.enterText(
+      find.descendant(
+        of: find.byKey(const ValueKey('solar-otp-field')),
+        matching: find.byType(EditableText),
+      ),
+      '1234',
+    );
+    final verifyButton = find.byKey(const ValueKey('solar-verify-otp-button'));
+    final verifyCenter = tester.getCenter(verifyButton);
+    await tester.drag(
+      find.byType(CustomScrollView),
+      Offset(0, 600 - verifyCenter.dy),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(verifyButton);
+    await tester.pump();
+    submit = tester.widget<DigitButton>(
+      find.byKey(const ValueKey('solar-footer-submit')),
+    );
+    expect(submit.isDisabled, isFalse);
+
+    final readOnly = SolarInstallationDraft.prefilled(
       facility: facilityReportSamples.first,
-      mode: SolarWorkflowMode.newReport,
+      mode: SolarWorkflowMode.pending,
     );
     await tester.pumpWidget(
       MaterialApp(
         theme: DigitTheme.instance.mobileTheme,
-        home: OverallAssetSummaryPage(draft: complete),
+        home: OverallAssetSummaryPage(draft: readOnly),
       ),
     );
-    final enabledSubmit = tester.widget<DigitButton>(
-      find.byKey(const ValueKey('solar-footer-submit')),
-    );
-    expect(enabledSubmit.isDisabled, isFalse);
+    expect(find.byKey(const ValueKey('solar-otp-widget')), findsNothing);
+    expect(find.byKey(const ValueKey('solar-fixed-footer')), findsNothing);
   });
 
   testWidgets('scanner uses the integrated E4H control hierarchy', (
@@ -826,7 +1016,7 @@ void main() {
     expect(find.byKey(const ValueKey('scanner-gallery-link')), findsOneWidget);
     expect(find.byKey(const ValueKey('scanner-submit-button')), findsOneWidget);
     expect(find.byKey(const ValueKey('scanner-gallery-button')), findsNothing);
-    expect(find.text(AppStrings.submit), findsOneWidget);
+    expect(find.text(tr(i18.common.submit)), findsOneWidget);
 
     final manual = tester.getRect(
       find.byKey(const ValueKey('scanner-manual-link')),
@@ -901,6 +1091,99 @@ void main() {
     expect(find.byKey(const ValueKey('scanner-camera-stack')), findsOneWidget);
   });
 
+  testWidgets(
+      'manual scan returns its trimmed value through the nested scanner route',
+      (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    final router = await pumpAuthenticatedRoute(tester, const HomeRoute());
+    final scannerRouter =
+        router.innerRouterOf<StackRouter>(AuthenticatedRouteWrapper.name)!;
+    final resultFuture = scannerRouter.push<dynamic>(
+      DigitScannerRoute(quantity: 10, isGS1code: false, singleValue: true),
+    );
+    var routeCompleted = false;
+    resultFuture.then((_) => routeCompleted = true);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(
+      scannerRouter.stack.map((route) => route.name),
+      contains(DigitScannerRoute.name),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('scanner-manual-link')));
+    await tester.pump();
+    final input = find.descendant(
+      of: find.byKey(const ValueKey('scanner-manual-input')),
+      matching: find.byType(EditableText),
+    );
+    await tester.enterText(input, '  MANUAL-SERIAL-001  ');
+    await tester.tap(find.byKey(const ValueKey('scanner-manual-submit')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('Confirm Selection'), findsOneWidget);
+    await tester.tap(find.text('Keep Scanning'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(routeCompleted, isFalse);
+    expect(find.byKey(const ValueKey('scanner-camera-stack')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('scanner-manual-link')));
+    await tester.pump();
+    await tester.enterText(
+      find.descendant(
+        of: find.byKey(const ValueKey('scanner-manual-input')),
+        matching: find.byType(EditableText),
+      ),
+      '  MANUAL-SERIAL-002  ',
+    );
+    await tester.tap(find.byKey(const ValueKey('scanner-manual-submit')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text(tr(i18.common.submit)).last);
+    await tester.pumpAndSettle();
+
+    expect(await resultFuture, 'MANUAL-SERIAL-002');
+    expect(find.byType(HomePage), findsOneWidget);
+  });
+
+  testWidgets('scanner final submit returns the selected Bloc value', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    final router = await pumpAuthenticatedRoute(tester, const HomeRoute());
+    final homeContext = tester.element(find.byType(HomePage));
+    final scannerRouter =
+        router.innerRouterOf<StackRouter>(AuthenticatedRouteWrapper.name)!;
+    final resultFuture = scannerRouter.push<dynamic>(
+      DigitScannerRoute(quantity: 10, isGS1code: false, singleValue: true),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 500));
+
+    homeContext.read<DigitScannerBloc>().add(
+          const DigitScannerEvent.handleScanner(
+            qrCode: ['GALLERY-OR-CAMERA-001'],
+            barCode: [],
+            overwrite: true,
+            isGS1: false,
+            quantity: 10,
+          ),
+        );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('scanner-submit-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text(tr(i18.common.submit)).last);
+    await tester.pumpAndSettle();
+
+    expect(await resultFuture, 'GALLERY-OR-CAMERA-001');
+  });
+
   testWidgets('add new asset assigns injected scanner result directly', (
     tester,
   ) async {
@@ -935,7 +1218,56 @@ void main() {
     await tester.pump();
     expect(draft.assets[SolarAssetType.panel]!.assets.last.serialNumber,
         'SOLAR-QR-001');
+    expect(find.text('SOLAR-QR-001'), findsNWidgets(2));
     expect(find.byType(ImageUploader), findsNWidgets(2));
+  });
+
+  testWidgets('scanner result rebuilds the disabled field and enables Next', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    final draft = SolarInstallationDraft(
+      facility: facilityReportSamples.first,
+      mode: SolarWorkflowMode.newReport,
+    );
+    draft.assets[SolarAssetType.panel]!.assets.single.supportingPhoto =
+        const SolarFileRef(
+      name: 'panel.jpg',
+      path: '/tmp/panel.jpg',
+      kind: SolarFileKind.image,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: AddNewAssetPage(
+          draft: draft,
+          assetType: SolarAssetType.panel,
+          scanSerial: (_) async => 'MANUAL-SERIAL-003',
+        ),
+      ),
+    );
+
+    var nextButton = tester.widget<DigitButton>(
+      find.byKey(const ValueKey('solar-footer-next')),
+    );
+    expect(nextButton.isDisabled, isTrue);
+    expect(
+      tester
+          .widget<DigitTextFormInput>(
+            find.byKey(const ValueKey('solar-serial-0')),
+          )
+          .isDisabled,
+      isTrue,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('solar-scan-0')));
+    await tester.pump();
+
+    expect(find.text('MANUAL-SERIAL-003'), findsOneWidget);
+    nextButton = tester.widget<DigitButton>(
+      find.byKey(const ValueKey('solar-footer-next')),
+    );
+    expect(nextButton.isDisabled, isFalse);
   });
 
   testWidgets('shared image uploader matches E4H single-file states', (
@@ -1021,7 +1353,7 @@ void main() {
         theme: DigitTheme.instance.mobileTheme,
         home: Scaffold(
           body: FileUploadWidget(
-            label: AppStrings.uploadPdf,
+            label: tr(i18.installationReport.uploadPdf),
             allowMultiples: true,
             showPreview: true,
             pickFiles: () async => [
@@ -1047,6 +1379,59 @@ void main() {
     expect(selected.single.kind, SolarFileKind.pdf);
   });
 
+  testWidgets('shared OTP widget verifies, resets on edit, and resends', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    final verificationChanges = <bool>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: Scaffold(
+          body: OtpVerificationWidget(
+            label: tr(i18.machineForm.validateTrainingOtp),
+            keyPrefix: 'test',
+            onVerificationChanged: verificationChanges.add,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('test-verify-otp-button')));
+    await tester.pump();
+    expect(find.text(tr(i18.machineForm.otpRequired)), findsOneWidget);
+    expect(verificationChanges, isEmpty);
+
+    final input = find.descendant(
+      of: find.byKey(const ValueKey('test-otp-field')),
+      matching: find.byType(EditableText),
+    );
+    await tester.enterText(input, '1234');
+    await tester.tap(find.byKey(const ValueKey('test-verify-otp-button')));
+    await tester.pump();
+    expect(verificationChanges, [isTrue]);
+    expect(
+      find.byKey(const ValueKey('test-otp-verified-message')),
+      findsOneWidget,
+    );
+
+    await tester.enterText(input, '5678');
+    await tester.pump();
+    expect(verificationChanges, [isTrue, isFalse]);
+    expect(
+      find.byKey(const ValueKey('test-otp-verified-message')),
+      findsNothing,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('test-verify-otp-button')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('test-resend-otp-button')));
+    await tester.pump();
+    expect(verificationChanges, [isTrue, isFalse, isTrue, isFalse]);
+    expect(tester.widget<EditableText>(input).controller.text, isEmpty);
+    expect(find.text(tr(i18.machineForm.otpResent)), findsOneWidget);
+  });
+
   testWidgets('solar asset summary has edit controls only when editable', (
     tester,
   ) async {
@@ -1064,7 +1449,7 @@ void main() {
         ),
       ),
     );
-    expect(find.text(AppStrings.edit), findsWidgets);
+    expect(find.text(tr(i18.common.edit)), findsWidgets);
     expect(find.byKey(const ValueKey('solar-fixed-footer')), findsOneWidget);
 
     await tester.pumpWidget(
@@ -1077,11 +1462,11 @@ void main() {
         ),
       ),
     );
-    expect(find.text(AppStrings.edit), findsNothing);
+    expect(find.text(tr(i18.common.edit)), findsNothing);
     expect(find.byKey(const ValueKey('solar-fixed-footer')), findsNothing);
   });
 
-  testWidgets('solar completion pages enforce their local requirements', (
+  testWidgets('installation images page enforces its local requirements', (
     tester,
   ) async {
     setMobileViewport(tester, const Size(390, 844));
@@ -1092,36 +1477,13 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: DigitTheme.instance.mobileTheme,
-        home: InstallationCompletionCertificatePage(
-          draft: draft,
-          readOnly: false,
-          pickMedia: (_, __) async => XFile('/tmp/certificate.jpg'),
-        ),
-      ),
-    );
-    var submit = tester.widget<DigitButton>(
-      find.byKey(const ValueKey('solar-footer-submit')),
-    );
-    expect(submit.isDisabled, isTrue);
-    await tester.tap(find.byKey(const ValueKey('image-uploader-empty')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('image-uploader-files')));
-    await tester.pumpAndSettle();
-    submit = tester.widget<DigitButton>(
-      find.byKey(const ValueKey('solar-footer-submit')),
-    );
-    expect(submit.isDisabled, isFalse);
-
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: DigitTheme.instance.mobileTheme,
         home: InstallationImagesPage(
           draft: draft,
           readOnly: false,
         ),
       ),
     );
-    submit = tester.widget<DigitButton>(
+    var submit = tester.widget<DigitButton>(
       find.byKey(const ValueKey('solar-footer-submit')),
     );
     expect(submit.isDisabled, isTrue);
@@ -1223,7 +1585,7 @@ void main() {
     final cameraIcon = tester.widget<Icon>(find.byIcon(Icons.camera_enhance));
     expect(cameraIcon.size, spacer10);
     expect(cameraIcon.color, const DigitColors().light.primary1);
-    expect(find.text(AppStrings.takePhoto), findsOneWidget);
+    expect(find.text(tr(i18.machineForm.takePhoto)), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('machine-media-empty')));
     await tester.pumpAndSettle();
@@ -1257,7 +1619,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('machine-picker-camera')));
     await tester.pumpAndSettle();
-    expect(find.text(AppStrings.mediaPickerError), findsOneWidget);
+    expect(find.text(tr(i18.machineForm.mediaPickerError)), findsOneWidget);
     expect(find.byKey(const ValueKey('machine-media-error')), findsOneWidget);
     expect(find.byKey(const ValueKey('machine-media-empty')), findsOneWidget);
   });
@@ -1283,7 +1645,7 @@ void main() {
     );
 
     expect(find.byIcon(Icons.videocam), findsOneWidget);
-    expect(find.text(AppStrings.takeVideo), findsOneWidget);
+    expect(find.text(tr(i18.machineForm.takeVideo)), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('machine-media-empty')));
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.video_library), findsOneWidget);
@@ -1372,7 +1734,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
     expect(find.byType(MachineReportSuccessPage), findsOneWidget);
-    expect(find.text(AppStrings.dataSavedSuccessfully), findsOneWidget);
+    expect(
+        find.text(tr(i18.machineForm.dataSavedSuccessfully)), findsOneWidget);
     expect(
       find.byWidgetPredicate(
         (widget) => widget.runtimeType.toString() == 'Lottie',
@@ -1442,10 +1805,17 @@ void main() {
     );
 
     await enter('machine-otp-field', '1234');
-    await scrollIntoView(find.byKey(const ValueKey('verify-otp-button')));
-    await tester.tap(find.byKey(const ValueKey('verify-otp-button')));
+    await scrollIntoView(
+      find.byKey(const ValueKey('machine-verify-otp-button')),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('machine-verify-otp-button')),
+    );
     await tester.pump();
-    expect(find.byKey(const ValueKey('otp-verified-message')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('machine-otp-verified-message')),
+      findsOneWidget,
+    );
     expect(
       tester
           .widget<DigitButton>(
@@ -1456,15 +1826,21 @@ void main() {
     );
 
     await enter('machine-otp-field', '12345');
-    expect(find.byKey(const ValueKey('otp-verified-message')), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('verify-otp-button')));
+    expect(
+      find.byKey(const ValueKey('machine-otp-verified-message')),
+      findsNothing,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('machine-verify-otp-button')),
+    );
     await tester.pump();
     await tester.tap(
       find.byKey(const ValueKey('submit-machine-report-button')),
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
-    expect(find.text(AppStrings.submittedSuccessfully), findsOneWidget);
+    expect(
+        find.text(tr(i18.machineForm.submittedSuccessfully)), findsOneWidget);
     expect(
       find.byWidgetPredicate(
         (widget) => widget.runtimeType.toString() == 'Lottie',

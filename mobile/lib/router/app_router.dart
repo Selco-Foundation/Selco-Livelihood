@@ -3,8 +3,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../models/facility_report_sample.dart';
-import '../models/solar_installation_draft.dart';
+import '../model/facility_report_sample.dart';
+import '../model/solar_installation_draft.dart';
 import '../pages/asset_flow_pages.dart';
 import '../pages/authenticated.dart';
 import '../pages/data_save_success.dart';
@@ -87,12 +87,6 @@ class AppRouter extends _$AppRouter {
             AutoRoute(
                 page: OverallAssetSummaryRoute.page,
                 path: Routes.overallAssetSummary),
-            AutoRoute(
-                page: InstallationCompletionCertificateRoute.page,
-                path: Routes.completionCertificate),
-            AutoRoute(
-                page: AssetHandoverDocumentRoute.page,
-                path: Routes.assetHandoverDocument),
             AutoRoute(
                 page: InstallationImagesRoute.page,
                 path: Routes.installationImages),

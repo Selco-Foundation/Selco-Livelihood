@@ -5,11 +5,13 @@ import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
-import '../app/app_strings.dart';
-import '../models/solar_installation_draft.dart';
+import '../utils/extensions.dart';
+import '../utils/i18_key_constants.dart' as i18;
+import '../model/solar_installation_draft.dart';
 import '../router/app_router.dart';
 import '../widgets/file_upload_widget.dart';
 import '../widgets/image_uploader.dart';
+import '../widgets/otp_verification_widget.dart';
 import '../widgets/solar_workflow_widgets.dart';
 
 typedef SolarPickFiles = Future<List<PlatformFile>> Function();
@@ -33,27 +35,29 @@ class OverallAssetSummaryPage extends StatefulWidget {
 }
 
 class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
-  static const _dynamicSections = <String>[
-    AppStrings.systemParameters,
-    AppStrings.bomSolarSystem,
-    AppStrings.bomRms,
-    AppStrings.bomLoadWiring,
-    AppStrings.bomLuminaries,
-  ];
+  bool _otpVerified = false;
+
+  List<String> _dynamicSections(BuildContext context) => <String>[
+        context.translate(i18.installationReport.systemParameters),
+        context.translate(i18.installationReport.bomSolarSystem),
+        context.translate(i18.installationReport.bomRms),
+        context.translate(i18.installationReport.bomLoadWiring),
+        context.translate(i18.installationReport.bomLuminaries),
+      ];
 
   String get _actionPrefix => switch (widget.draft.mode) {
-        SolarWorkflowMode.newReport => AppStrings.add,
-        SolarWorkflowMode.resubmission => AppStrings.edit,
+        SolarWorkflowMode.newReport => context.translate(i18.common.add),
+        SolarWorkflowMode.resubmission => context.translate(i18.common.edit),
         SolarWorkflowMode.pending ||
         SolarWorkflowMode.approved =>
-          AppStrings.view,
+          context.translate(i18.common.view),
       };
 
   void _placeholder() {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        const SnackBar(content: Text(AppStrings.dynamicFormNotConnected)),
+        SnackBar(content: Text(context.translate(i18.installationReport.dynamicFormNotConnected))),
       );
   }
 
@@ -75,32 +79,6 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
         readOnly: widget.draft.isReadOnly,
       ),
     );
-  }
-
-  Future<void> _openDocument(SolarDocumentType type) async {
-    final PageRouteInfo<dynamic> route = type == SolarDocumentType.certificate
-        ? InstallationCompletionCertificateRoute(
-            draft: widget.draft,
-            readOnly: widget.draft.isReadOnly,
-            pickMedia: widget.pickMedia,
-            pickFiles: widget.pickFiles,
-          )
-        : AssetHandoverDocumentRoute(
-            draft: widget.draft,
-            readOnly: widget.draft.isReadOnly,
-            pickMedia: widget.pickMedia,
-            pickFiles: widget.pickFiles,
-          );
-    final saved = await context.router.push<bool>(
-      route,
-    );
-    if (!mounted) return;
-    setState(() {});
-    if (saved == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(AppStrings.documentSaved)),
-      );
-    }
   }
 
   Future<void> _openInstallationImages() async {
@@ -125,9 +103,9 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
           ? null
           : SolarFooterButton(
               label: draft.mode == SolarWorkflowMode.resubmission
-                  ? AppStrings.resubmit
-                  : AppStrings.submit,
-              isDisabled: !draft.allCountsEntered,
+                  ? context.translate(i18.installationReport.resubmit)
+                  : context.translate(i18.common.submit),
+              isDisabled: !draft.allCountsEntered || !_otpVerified,
               onPressed: () =>
                   context.router.push(const SubmittedSaveSuccessRoute()),
             ),
@@ -135,7 +113,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            AppStrings.summary,
+            context.translate(i18.assetFlow.summary),
             style: textTheme.headingXl.copyWith(
               color: theme.colorTheme.primary.primary2,
             ),
@@ -180,14 +158,14 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
             key: const ValueKey('solar-installation-completion-card'),
             children: [
               Text(
-                AppStrings.installationCompletionReport,
+                context.translate(i18.installationReport.installationCompletionReport),
                 style: textTheme.headingM.copyWith(
                   color: theme.colorTheme.primary.primary2,
                 ),
               ),
               if (!draft.isReadOnly)
                 Text(
-                  AppStrings.completionInstructions,
+                  context.translate(i18.installationReport.completionInstructions),
                   style: textTheme.bodyS.copyWith(
                     color: theme.colorTheme.primary.primary2,
                   ),
@@ -195,7 +173,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  for (final section in _dynamicSections) ...[
+                  for (final section in _dynamicSections(context)) ...[
                     _CompletionButton(
                       key: ValueKey('solar-dynamic-${section.toLowerCase()}'),
                       label: '$_actionPrefix $section',
@@ -204,22 +182,8 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                     const SizedBox(height: spacer4),
                   ],
                   _CompletionButton(
-                    key: const ValueKey('solar-completion-certificate'),
-                    label:
-                        '$_actionPrefix ${AppStrings.installationCompletionCertificate}',
-                    onPressed: () =>
-                        _openDocument(SolarDocumentType.certificate),
-                  ),
-                  const SizedBox(height: spacer4),
-                  _CompletionButton(
-                    key: const ValueKey('solar-handover-document'),
-                    label: '$_actionPrefix ${AppStrings.assetHandoverDocument}',
-                    onPressed: () => _openDocument(SolarDocumentType.handover),
-                  ),
-                  const SizedBox(height: spacer4),
-                  _CompletionButton(
                     key: const ValueKey('solar-installation-images'),
-                    label: '$_actionPrefix ${AppStrings.installationImages}',
+                    label: '$_actionPrefix ${context.translate(i18.installationReport.installationImages)}',
                     onPressed: _openInstallationImages,
                   ),
                   const SizedBox(height: spacer4),
@@ -227,7 +191,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
               ),
               FileUploadWidget(
                 key: const ValueKey('solar-overall-file-uploader'),
-                label: AppStrings.uploadPrompt,
+                label: context.translate(i18.installationReport.uploadPrompt),
                 allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
                 allowMultiples: true,
                 showPreview: true,
@@ -240,6 +204,16 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                     ..addAll(files);
                 }),
               ),
+              if (!draft.isReadOnly) ...[
+                const SizedBox(height: spacer4),
+                OtpVerificationWidget(
+                  key: const ValueKey('solar-otp-widget'),
+                  keyPrefix: 'solar',
+                  label: context.translate(i18.machineForm.validateInstallationOtp),
+                  onVerificationChanged: (verified) =>
+                      setState(() => _otpVerified = verified),
+                ),
+              ],
               if (draft.mode == SolarWorkflowMode.resubmission)
                 const _RejectionReasonsPanel(),
             ],
@@ -278,7 +252,7 @@ class _RejectionReasonsPanel extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                AppStrings.rejectionReasons,
+                context.translate(i18.installationReport.rejectionReasons),
                 style: textTheme.headingS.copyWith(
                   color: theme.colorTheme.text.primary,
                 ),
@@ -298,7 +272,7 @@ class _RejectionReasonsPanel extends StatelessWidget {
                   horizontal: spacer3,
                 ),
                 child: Text(
-                  AppStrings.incorrectInstallationDetails,
+                  context.translate(i18.installationReport.incorrectInstallationDetails),
                   style: textTheme.label.copyWith(
                     color: theme.colorTheme.primary.primary2,
                   ),
@@ -306,7 +280,7 @@ class _RejectionReasonsPanel extends StatelessWidget {
               ),
               const SizedBox(height: spacer2),
               Text(
-                AppStrings.rejectedSerialReason,
+                context.translate(i18.installationReport.rejectedSerialReason),
                 style: textTheme.label.copyWith(
                   color: theme.colorTheme.text.primary,
                 ),
@@ -408,7 +382,7 @@ class _InitialElementAssetSummary extends StatelessWidget {
                 child: GestureDetector(
                   onTap: onSummary,
                   child: Text(
-                    AppStrings.summary,
+                    context.translate(i18.assetFlow.summary),
                     style: textTheme.bodyS.copyWith(
                       color: Theme.of(context).colorTheme.primary.primary1,
                     ),
@@ -471,7 +445,7 @@ class _ElementAssetSummary extends StatelessWidget {
           DigitButton(
             key: ValueKey('solar-asset-action-${type.name}'),
             mainAxisSize: MainAxisSize.max,
-            label: AppStrings.viewSummary,
+            label: context.translate(i18.installationReportHome.viewSummary),
             type: DigitButtonType.secondary,
             size: DigitButtonSize.medium,
             onPressed: onPress,
@@ -508,177 +482,6 @@ class _CompletionButton extends StatelessWidget {
       );
 }
 
-enum SolarDocumentType { certificate, handover }
-
-extension on SolarDocumentType {
-  String get title => this == SolarDocumentType.certificate
-      ? AppStrings.installationCompletionCertificate
-      : AppStrings.assetHandoverDocument;
-}
-
-@RoutePage()
-class InstallationCompletionCertificatePage extends StatelessWidget {
-  const InstallationCompletionCertificatePage({
-    super.key,
-    required this.draft,
-    required this.readOnly,
-    this.pickMedia,
-    this.pickFiles,
-  });
-
-  final SolarInstallationDraft draft;
-  final bool readOnly;
-  final SolarPickMedia? pickMedia;
-  final SolarPickFiles? pickFiles;
-
-  @override
-  Widget build(BuildContext context) => _DocumentUploadPage(
-        draft: draft,
-        type: SolarDocumentType.certificate,
-        readOnly: readOnly,
-        pickMedia: pickMedia,
-        pickFiles: pickFiles,
-      );
-}
-
-@RoutePage()
-class AssetHandoverDocumentPage extends StatelessWidget {
-  const AssetHandoverDocumentPage({
-    super.key,
-    required this.draft,
-    required this.readOnly,
-    this.pickMedia,
-    this.pickFiles,
-  });
-
-  final SolarInstallationDraft draft;
-  final bool readOnly;
-  final SolarPickMedia? pickMedia;
-  final SolarPickFiles? pickFiles;
-
-  @override
-  Widget build(BuildContext context) => _DocumentUploadPage(
-        draft: draft,
-        type: SolarDocumentType.handover,
-        readOnly: readOnly,
-        pickMedia: pickMedia,
-        pickFiles: pickFiles,
-      );
-}
-
-class _DocumentUploadPage extends StatefulWidget {
-  const _DocumentUploadPage({
-    required this.draft,
-    required this.type,
-    required this.readOnly,
-    this.pickMedia,
-    this.pickFiles,
-  });
-
-  final SolarInstallationDraft draft;
-  final SolarDocumentType type;
-  final bool readOnly;
-  final SolarPickMedia? pickMedia;
-  final SolarPickFiles? pickFiles;
-
-  @override
-  State<_DocumentUploadPage> createState() => _DocumentUploadPageState();
-}
-
-class _DocumentUploadPageState extends State<_DocumentUploadPage> {
-  static const maxFiles = 3;
-  late List<SolarFileRef> images;
-  late List<SolarFileRef> pdfs;
-
-  List<SolarFileRef> get source => widget.type == SolarDocumentType.certificate
-      ? widget.draft.completionCertificate
-      : widget.draft.handoverDocuments;
-
-  @override
-  void initState() {
-    super.initState();
-    images = source.where((file) => file.kind == SolarFileKind.image).toList();
-    pdfs = source.where((file) => file.kind == SolarFileKind.pdf).toList();
-  }
-
-  void _save() {
-    source
-      ..clear()
-      ..addAll(images)
-      ..addAll(pdfs);
-    context.router.maybePop(true);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final textTheme = theme.digitTextTheme(context);
-    final total = images.length + pdfs.length;
-    return SolarWorkflowScaffold(
-      pageKey: 'solar-document-${widget.type.name}',
-      footer: SolarFooterButton(
-        label: widget.readOnly ? AppStrings.back : AppStrings.submit,
-        isDisabled: !widget.readOnly && (total == 0 || total > maxFiles),
-        onPressed: widget.readOnly ? () => context.router.maybePop() : _save,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            widget.type.title,
-            style: textTheme.headingXl.copyWith(
-              color: theme.colorTheme.primary.primary2,
-            ),
-          ),
-          const SizedBox(height: spacer4),
-          DigitCard(
-            key: ValueKey('solar-document-card-${widget.type.name}'),
-            children: [
-              if (!widget.readOnly) ...[
-                Text(
-                  AppStrings.uploadPrompt,
-                  style: textTheme.bodyL.copyWith(
-                    color: theme.colorTheme.primary.primary2,
-                  ),
-                ),
-                Text(AppStrings.documentUploadInstructions,
-                    style: textTheme.bodyL),
-                Text(AppStrings.acceptedFormats, style: textTheme.bodyS),
-                Text('Maximum file size: 5 MB.', style: textTheme.bodyS),
-                Text(AppStrings.maxFiles, style: textTheme.bodyS),
-                const SizedBox(height: spacer1),
-              ],
-              ImageUploader(
-                label: AppStrings.uploadImages,
-                allowMultiples: true,
-                maxImages: maxFiles - pdfs.length,
-                isDisabled: widget.readOnly,
-                initialImages: images,
-                pickMedia: widget.pickMedia,
-                onImagesSelected: (selected) =>
-                    setState(() => images = selected),
-              ),
-              const SizedBox(height: spacer1),
-              FileUploadWidget(
-                key: ValueKey('solar-document-files-${widget.type.name}'),
-                label: AppStrings.uploadPdf,
-                allowedExtensions: const ['pdf'],
-                allowMultiples: true,
-                showPreview: true,
-                maxFiles: maxFiles - images.length,
-                isDisabled: widget.readOnly,
-                initialFiles: pdfs,
-                pickFiles: widget.pickFiles,
-                onFilesSelected: (selected) => setState(() => pdfs = selected),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 @RoutePage()
 class InstallationImagesPage extends StatefulWidget {
   const InstallationImagesPage({
@@ -704,7 +507,7 @@ class _InstallationImagesPageState extends State<InstallationImagesPage> {
     return SolarWorkflowScaffold(
       pageKey: 'solar-installation-images-page',
       footer: SolarFooterButton(
-        label: widget.readOnly ? AppStrings.back : AppStrings.submit,
+        label: widget.readOnly ? context.translate(i18.common.back) : context.translate(i18.common.submit),
         isDisabled:
             !widget.readOnly && !widget.draft.installationImagesComplete,
         onPressed: () => context.router.maybePop(),
@@ -713,7 +516,7 @@ class _InstallationImagesPageState extends State<InstallationImagesPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            AppStrings.installationImages,
+            context.translate(i18.installationReport.installationImages),
             style: textTheme.headingXl.copyWith(
               color: theme.colorTheme.primary.primary2,
             ),

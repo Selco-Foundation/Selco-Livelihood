@@ -5,11 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../app/app_strings.dart';
-import '../models/facility_report_sample.dart';
+import '../utils/extensions.dart';
+import '../utils/i18_key_constants.dart' as i18;
+import '../model/facility_report_sample.dart';
 import '../router/app_router.dart';
+import '../utils/app_permission_gateway.dart';
 import '../widgets/livelihood_app_bar.dart';
 import '../widgets/machine_media_picker.dart';
+import '../widgets/otp_verification_widget.dart';
 import '../widgets/report_navigation_header.dart';
 import 'machine_report_success_page.dart';
 
@@ -34,7 +37,6 @@ class _MachineFormPageState extends State<MachineFormPage> {
   final _invoiceController = TextEditingController();
   final _capacityController = TextEditingController();
   final _warrantyController = TextEditingController();
-  final _otpController = TextEditingController();
 
   XFile? _electricBoardPhoto;
   XFile? _demoVideo;
@@ -58,7 +60,6 @@ class _MachineFormPageState extends State<MachineFormPage> {
     _invoiceController.dispose();
     _capacityController.dispose();
     _warrantyController.dispose();
-    _otpController.dispose();
     super.dispose();
   }
 
@@ -83,21 +84,6 @@ class _MachineFormPageState extends State<MachineFormPage> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _verifyOtp() {
-    if (_otpController.text.trim().isEmpty) {
-      _showMessage(AppStrings.otpRequired);
-      return;
-    }
-    setState(() => _otpVerified = true);
-    _showMessage(AppStrings.otpVerified);
-  }
-
-  void _resendOtp() {
-    _otpController.clear();
-    setState(() => _otpVerified = false);
-    _showMessage(AppStrings.otpResent);
-  }
-
   void _openSuccess(MachineReportSuccessMode mode) {
     FocusManager.instance.primaryFocus?.unfocus();
     context.router.push(MachineReportSuccessRoute(mode: mode));
@@ -111,7 +97,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
     return Scaffold(
       appBar: LivelihoodAppBar(
         showMenu: true,
-        onMenuPressed: () => _showMessage(AppStrings.reportActionNotConnected),
+        onMenuPressed: () => _showMessage(context.translate(i18.installationReportHome.reportActionNotConnected)),
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: spacer2),
@@ -137,7 +123,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    AppStrings.machineReportTitle,
+                    context.translate(i18.machineForm.machineReportTitle),
                     style: textTheme.headingXl.copyWith(
                       color: theme.colorTheme.primary.primary2,
                     ),
@@ -148,8 +134,8 @@ class _MachineFormPageState extends State<MachineFormPage> {
                     children: [
                       _TextField(
                         key: const ValueKey('po-number-field'),
-                        label: AppStrings.poNumber,
-                        hint: AppStrings.enterPoNumber,
+                        label: context.translate(i18.machineForm.poNumber),
+                        hint: context.translate(i18.machineForm.enterPoNumber),
                         controller: _poController,
                         isRequired: true,
                         onChanged: _refresh,
@@ -157,24 +143,24 @@ class _MachineFormPageState extends State<MachineFormPage> {
                       const SizedBox(height: spacer5),
                       _TextField(
                         key: const ValueKey('machine-serial-field'),
-                        label: AppStrings.machineSerialNumber,
-                        hint: AppStrings.enterSerialNumber,
+                        label: context.translate(i18.machineForm.machineSerialNumber),
+                        hint: context.translate(i18.machineForm.enterSerialNumber),
                         controller: _serialController,
                         onChanged: _refresh,
                       ),
                       const SizedBox(height: spacer5),
                       _TextField(
                         key: const ValueKey('invoice-number-field'),
-                        label: AppStrings.manufacturerInvoiceNumber,
-                        hint: AppStrings.enterInvoiceNumber,
+                        label: context.translate(i18.machineForm.manufacturerInvoiceNumber),
+                        hint: context.translate(i18.machineForm.enterInvoiceNumber),
                         controller: _invoiceController,
                         onChanged: _refresh,
                       ),
                       const SizedBox(height: spacer5),
                       _TextField(
                         key: const ValueKey('machine-capacity-field'),
-                        label: AppStrings.machineCapacity,
-                        hint: AppStrings.enterCapacity,
+                        label: context.translate(i18.machineForm.machineCapacity),
+                        hint: context.translate(i18.machineForm.enterCapacity),
                         controller: _capacityController,
                         isRequired: true,
                         onChanged: _refresh,
@@ -182,8 +168,8 @@ class _MachineFormPageState extends State<MachineFormPage> {
                       const SizedBox(height: spacer5),
                       _TextField(
                         key: const ValueKey('warranty-years-field'),
-                        label: AppStrings.warrantyYears,
-                        hint: AppStrings.enterYears,
+                        label: context.translate(i18.machineForm.warrantyYears),
+                        hint: context.translate(i18.machineForm.enterYears),
                         controller: _warrantyController,
                         isRequired: true,
                         keyboardType: TextInputType.number,
@@ -194,7 +180,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
                       ),
                       const SizedBox(height: spacer5),
                       LabeledField(
-                        label: AppStrings.electricBoard,
+                        label: context.translate(i18.machineForm.electricBoard),
                         isRequired: true,
                         capitalizedFirstLetter: false,
                         child: MachineMediaPicker(
@@ -202,6 +188,9 @@ class _MachineFormPageState extends State<MachineFormPage> {
                           kind: MachineMediaKind.image,
                           selectedFile: _electricBoardPhoto,
                           pickMedia: _pickMedia,
+                          permissionGateway: widget.pickMedia == null
+                              ? defaultPermissionGateway
+                              : null,
                           onChanged: (file) => setState(
                             () => _electricBoardPhoto = file,
                           ),
@@ -209,7 +198,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
                       ),
                       const SizedBox(height: spacer5),
                       LabeledField(
-                        label: AppStrings.rawMaterialDemo,
+                        label: context.translate(i18.machineForm.rawMaterialDemo),
                         isRequired: true,
                         capitalizedFirstLetter: false,
                         child: MachineMediaPicker(
@@ -217,13 +206,16 @@ class _MachineFormPageState extends State<MachineFormPage> {
                           kind: MachineMediaKind.video,
                           selectedFile: _demoVideo,
                           pickMedia: _pickMedia,
+                          permissionGateway: widget.pickMedia == null
+                              ? defaultPermissionGateway
+                              : null,
                           onChanged: (file) =>
                               setState(() => _demoVideo = file),
                         ),
                       ),
                       const SizedBox(height: spacer5),
                       LabeledField(
-                        label: AppStrings.photoWithEndUser,
+                        label: context.translate(i18.machineForm.photoWithEndUser),
                         isRequired: true,
                         capitalizedFirstLetter: false,
                         child: MachineMediaPicker(
@@ -231,6 +223,9 @@ class _MachineFormPageState extends State<MachineFormPage> {
                           kind: MachineMediaKind.image,
                           selectedFile: _endUserPhoto,
                           pickMedia: _pickMedia,
+                          permissionGateway: widget.pickMedia == null
+                              ? defaultPermissionGateway
+                              : null,
                           onChanged: (file) => setState(
                             () => _endUserPhoto = file,
                           ),
@@ -238,14 +233,14 @@ class _MachineFormPageState extends State<MachineFormPage> {
                       ),
                       const SizedBox(height: spacer5),
                       LabeledField(
-                        label: AppStrings.trainedEndUser,
+                        label: context.translate(i18.machineForm.trainedEndUser),
                         capitalizedFirstLetter: false,
                         child: Row(
                           children: [
                             Expanded(
                               child: _TrainingChoice(
                                 key: const ValueKey('trained-yes'),
-                                label: AppStrings.yes,
+                                label: context.translate(i18.common.yes),
                                 selected: _trainedEndUser,
                                 onPressed: () =>
                                     setState(() => _trainedEndUser = true),
@@ -255,7 +250,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
                             Expanded(
                               child: _TrainingChoice(
                                 key: const ValueKey('trained-no'),
-                                label: AppStrings.no,
+                                label: context.translate(i18.common.no),
                                 selected: !_trainedEndUser,
                                 onPressed: () =>
                                     setState(() => _trainedEndUser = false),
@@ -265,59 +260,12 @@ class _MachineFormPageState extends State<MachineFormPage> {
                         ),
                       ),
                       const SizedBox(height: spacer5),
-                      LabeledField(
-                        label: AppStrings.validateTrainingOtp,
-                        capitalizedFirstLetter: false,
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              flex: 2,
-                              child: DigitTextFormInput(
-                                key: const ValueKey('machine-otp-field'),
-                                controller: _otpController,
-                                innerLabel: AppStrings.enterOtp,
-                                keyboardType: TextInputType.number,
-                                inputFormatters: [
-                                  FilteringTextInputFormatter.digitsOnly,
-                                ],
-                                onChange: (_) {
-                                  setState(() => _otpVerified = false);
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: spacer2),
-                            Expanded(
-                              child: DigitButton(
-                                key: const ValueKey('verify-otp-button'),
-                                mainAxisSize: MainAxisSize.max,
-                                label: AppStrings.verify,
-                                onPressed: _verifyOtp,
-                                type: DigitButtonType.secondary,
-                                size: DigitButtonSize.large,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (_otpVerified) ...[
-                        const SizedBox(height: spacer2),
-                        Text(
-                          AppStrings.otpVerified,
-                          key: const ValueKey('otp-verified-message'),
-                          style: textTheme.bodyS.copyWith(
-                            color: theme.colorTheme.alert.success,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: spacer2),
-                      DigitButton(
-                        key: const ValueKey('resend-otp-button'),
-                        label: AppStrings.resendOtp,
-                        onPressed: _resendOtp,
-                        type: DigitButtonType.tertiary,
-                        size: DigitButtonSize.medium,
-                        textColor: theme.colorTheme.primary.primary1,
+                      OtpVerificationWidget(
+                        key: const ValueKey('machine-otp-widget'),
+                        keyPrefix: 'machine',
+                        label: context.translate(i18.machineForm.validateTrainingOtp),
+                        onVerificationChanged: (verified) =>
+                            setState(() => _otpVerified = verified),
                       ),
                     ],
                   ),
@@ -432,7 +380,7 @@ class _MachineFormFooter extends StatelessWidget {
               child: DigitButton(
                 key: const ValueKey('save-draft-button'),
                 mainAxisSize: MainAxisSize.max,
-                label: AppStrings.saveAsDraft,
+                label: context.translate(i18.machineForm.saveAsDraft),
                 onPressed: onSaveDraft,
                 type: DigitButtonType.secondary,
                 size: DigitButtonSize.large,
@@ -443,7 +391,7 @@ class _MachineFormFooter extends StatelessWidget {
               child: DigitButton(
                 key: const ValueKey('submit-machine-report-button'),
                 mainAxisSize: MainAxisSize.max,
-                label: AppStrings.submitReport,
+                label: context.translate(i18.machineForm.submitReport),
                 onPressed: onSubmit,
                 isDisabled: !canSubmit,
                 type: DigitButtonType.primary,

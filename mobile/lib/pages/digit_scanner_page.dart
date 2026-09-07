@@ -1,26 +1,40 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:digit_scanner/blocs/app_localization.dart';
 import 'package:digit_scanner/blocs/scanner.dart';
-import 'package:digit_scanner/widgets/vision_detector_views/detector_view.dart';
 import 'package:digit_scanner/widgets/vision_detector_views/painters/barcode_detector_painter.dart';
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
+import 'package:digit_ui_components/widgets/atoms/input_wrapper.dart';
 import 'package:digit_ui_components/widgets/atoms/pop_up_card.dart';
 import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
 import 'package:digit_ui_components/widgets/molecules/show_pop_up.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter/services.dart';
 import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:reactive_forms/reactive_forms.dart';
 
-import '../app/app_strings.dart';
+import '../utils/extensions.dart';
+import '../utils/i18_key_constants.dart' as i18;
 import '../router/app_router.dart';
+import '../utils/app_permission_gateway.dart';
 
 typedef ScannerGalleryPicker = Future<XFile?> Function();
 
-Future<String?> openDigitScanner(BuildContext context) async {
+Future<String?> openDigitScanner(
+  BuildContext context, {
+  AppPermissionGateway? permissionGateway,
+}) async {
+  final granted = await ensureCameraPermission(
+    context,
+    gateway: permissionGateway,
+  );
+  if (!granted || !context.mounted) return null;
+
   final scannerBloc = context.read<DigitScannerBloc>();
   scannerBloc.add(
     const DigitScannerEvent.handleScanner(
@@ -32,13 +46,14 @@ Future<String?> openDigitScanner(BuildContext context) async {
     ),
   );
 
-  final selected = await context.router.push<String>(
+  final routeResult = await context.router.push<dynamic>(
     DigitScannerRoute(
       quantity: 10,
       isGS1code: false,
       singleValue: true,
     ),
   );
+  final selected = routeResult is String ? routeResult : null;
 
   final fallback = scannerBloc.state.qrCodes.isEmpty
       ? null
@@ -75,11 +90,11 @@ class DigitScannerPage extends StatefulWidget {
   State<DigitScannerPage> createState() => _DigitScannerPageState();
 }
 
-class _DigitScannerPageState extends State<DigitScannerPage> {
+class _DigitScannerPageState extends State<DigitScannerPage>
+    with WidgetsBindingObserver {
+  static const _manualCodeFormKey = 'manualCode';
+
   final BarcodeScanner _barcodeScanner = BarcodeScanner();
-  final TextEditingController _manualController = TextEditingController();
-  final GlobalKey _manualControlKey =
-      GlobalKey(debugLabel: 'scanner-manual-control');
   List<CameraDescription> _cameras = const [];
   CameraController? _cameraController;
   CameraLensDirection _cameraLensDirection = CameraLensDirection.back;
@@ -91,18 +106,40 @@ class _DigitScannerPageState extends State<DigitScannerPage> {
   bool _pickingGallery = false;
   bool _manualEntry = false;
   bool _flashEnabled = false;
-  bool _manualError = false;
+  int _cameraGeneration = 0;
+
+  static const _orientations = <DeviceOrientation, int>{
+    DeviceOrientation.portraitUp: 0,
+    DeviceOrientation.landscapeLeft: 90,
+    DeviceOrientation.portraitDown: 180,
+    DeviceOrientation.landscapeRight: 270,
+  };
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeCamera();
   }
 
   Future<void> _initializeCamera() async {
+    final generation = ++_cameraGeneration;
+    final previous = _cameraController;
+    _cameraController = null;
+    if (previous != null) unawaited(_disposeCamera(previous));
+
+    if (mounted) {
+      setState(() {
+        _cameraLoading = true;
+        _cameraUnavailable = false;
+        _flashEnabled = false;
+      });
+    }
+
+    CameraController? controller;
     try {
       final cameras = await availableCameras();
-      if (!mounted) return;
+      if (!mounted || generation != _cameraGeneration) return;
       final index = cameras.indexWhere(
         (camera) => camera.lensDirection == _cameraLensDirection,
       );
@@ -114,21 +151,34 @@ class _DigitScannerPageState extends State<DigitScannerPage> {
         return;
       }
       final camera = cameras[index];
+      controller = CameraController(
+        camera,
+        ResolutionPreset.high,
+        enableAudio: false,
+        imageFormatGroup: Platform.isAndroid
+            ? ImageFormatGroup.nv21
+            : ImageFormatGroup.bgra8888,
+      );
+      await controller.initialize();
+      if (!mounted || generation != _cameraGeneration) {
+        await _disposeCamera(controller);
+        return;
+      }
+      await controller.startImageStream(_processCameraImage);
+      if (!mounted || generation != _cameraGeneration) {
+        await _disposeCamera(controller);
+        return;
+      }
       setState(() {
         _cameras = cameras;
-        _cameraController = CameraController(
-          camera,
-          ResolutionPreset.high,
-          enableAudio: false,
-          imageFormatGroup: Platform.isAndroid
-              ? ImageFormatGroup.nv21
-              : ImageFormatGroup.bgra8888,
-        );
+        _cameraController = controller;
         _cameraLoading = false;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (controller != null) await _disposeCamera(controller);
+      if (!mounted || generation != _cameraGeneration) return;
       setState(() {
+        _cameraController = null;
         _cameraLoading = false;
         _cameraUnavailable = true;
       });
@@ -137,10 +187,149 @@ class _DigitScannerPageState extends State<DigitScannerPage> {
 
   @override
   void dispose() {
-    _manualController.dispose();
-    _cameraController?.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _cameraGeneration++;
+    final controller = _cameraController;
+    _cameraController = null;
+    if (controller != null) unawaited(_disposeCamera(controller));
     _barcodeScanner.close();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (_cameraController == null && !_manualEntry) _initializeCamera();
+      return;
+    }
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _cameraGeneration++;
+      final controller = _cameraController;
+      _cameraController = null;
+      if (controller != null) unawaited(_disposeCamera(controller));
+      if (mounted) {
+        setState(() {
+          _cameraLoading = true;
+          _flashEnabled = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _disposeCamera(CameraController controller) async {
+    try {
+      if (controller.value.isStreamingImages) {
+        await controller.stopImageStream();
+      }
+    } catch (_) {
+      // The platform may already have released the camera during a lifecycle
+      // transition.
+    }
+    try {
+      await controller.dispose();
+    } catch (_) {
+      // Disposal is best-effort and must never terminate the app.
+    }
+  }
+
+  void _processCameraImage(CameraImage image) {
+    final inputImage = _inputImageFromCameraImage(image);
+    if (inputImage != null) _processImage(inputImage);
+  }
+
+  InputImage? _inputImageFromCameraImage(CameraImage image) {
+    final controller = _cameraController;
+    if (controller == null) return null;
+    final camera = controller.description;
+    final sensorOrientation = camera.sensorOrientation;
+    InputImageRotation? rotation;
+    if (Platform.isIOS) {
+      rotation = InputImageRotationValue.fromRawValue(sensorOrientation);
+    } else if (Platform.isAndroid) {
+      var compensation = _orientations[controller.value.deviceOrientation];
+      if (compensation == null) return null;
+      compensation = camera.lensDirection == CameraLensDirection.front
+          ? (sensorOrientation + compensation) % 360
+          : (sensorOrientation - compensation + 360) % 360;
+      rotation = InputImageRotationValue.fromRawValue(compensation);
+    }
+    if (rotation == null) return null;
+
+    final format = InputImageFormatValue.fromRawValue(image.format.raw);
+    if (format == null ||
+        (Platform.isAndroid &&
+            format != InputImageFormat.nv21 &&
+            format != InputImageFormat.yv12 &&
+            format != InputImageFormat.yuv_420_888) ||
+        (Platform.isIOS &&
+            format != InputImageFormat.bgra8888 &&
+            format != InputImageFormat.yuv420) ||
+        image.planes.isEmpty) {
+      return null;
+    }
+
+    final bytes = WriteBuffer();
+    for (final plane in image.planes) {
+      bytes.putUint8List(plane.bytes);
+    }
+    return InputImage.fromBytes(
+      bytes: bytes.done().buffer.asUint8List(),
+      metadata: InputImageMetadata(
+        size: Size(image.width.toDouble(), image.height.toDouble()),
+        rotation: rotation,
+        format: format,
+        bytesPerRow: image.planes.first.bytesPerRow,
+      ),
+    );
+  }
+
+  Future<void> _toggleFlash() async {
+    final controller = _cameraController;
+    if (controller == null || !controller.value.isInitialized) return;
+    try {
+      await controller.setFlashMode(
+        _flashEnabled ? FlashMode.off : FlashMode.torch,
+      );
+      if (mounted) setState(() => _flashEnabled = !_flashEnabled);
+    } catch (_) {
+      if (!mounted) return;
+      Toast.showToast(
+        context,
+        type: ToastType.error,
+        message: context.translate(i18.scanner.scannerUnavailable),
+      );
+    }
+  }
+
+  Future<void> _switchCamera() async {
+    if (_cameraLoading || _cameras.length < 2) return;
+    final desired = _cameraLensDirection == CameraLensDirection.back
+        ? CameraLensDirection.front
+        : CameraLensDirection.back;
+    if (!_cameras.any((camera) => camera.lensDirection == desired)) return;
+    _cameraLensDirection = desired;
+    await _initializeCamera();
+  }
+
+  void _openManualEntry() {
+    _cameraGeneration++;
+    final controller = _cameraController;
+    _cameraController = null;
+    if (controller != null) unawaited(_disposeCamera(controller));
+    setState(() {
+      _manualEntry = true;
+      _cameraLoading = true;
+      _flashEnabled = false;
+    });
+  }
+
+  void _closeManualEntry() {
+    setState(() {
+      _manualEntry = false;
+    });
+    _initializeCamera();
   }
 
   Future<void> _processImage(InputImage inputImage) async {
@@ -255,10 +444,15 @@ class _DigitScannerPageState extends State<DigitScannerPage> {
 
   void _completeSelection(DigitScannerState state) {
     if (state.qrCodes.isEmpty) return;
-    context.router.maybePop(state.qrCodes.last.trim());
+    final value = state.qrCodes.last.trim();
+    if (value.isEmpty) return;
+    Navigator.of(context).pop(value);
   }
 
-  Future<void> _confirmSelection(DigitScannerState state) async {
+  Future<void> _confirmSelection(
+    DigitScannerState state, {
+    VoidCallback? onKeepScanning,
+  }) async {
     final requiredCount = widget.singleValue ? 1 : widget.quantity;
     if (state.qrCodes.length < requiredCount) {
       Toast.showToast(
@@ -278,7 +472,7 @@ class _DigitScannerPageState extends State<DigitScannerPage> {
         onOutsideTap: () => Navigator.of(popupContext).pop(),
         actions: [
           DigitButton(
-            label: AppStrings.submit,
+            label: context.translate(i18.common.submit),
             type: DigitButtonType.primary,
             size: DigitButtonSize.large,
             onPressed: () {
@@ -290,26 +484,31 @@ class _DigitScannerPageState extends State<DigitScannerPage> {
             label: 'Keep Scanning',
             type: DigitButtonType.secondary,
             size: DigitButtonSize.large,
-            onPressed: () =>
-                Navigator.of(popupContext, rootNavigator: true).pop(),
+            onPressed: () {
+              Navigator.of(popupContext, rootNavigator: true).pop();
+              onKeepScanning?.call();
+            },
           ),
         ],
       ),
     );
   }
 
-  void _submitManual() {
-    final value = _manualController.text.trim();
+  FormGroup _buildManualForm() => fb.group(<String, Object>{
+        _manualCodeFormKey: FormControl<String>(),
+      });
+
+  void _submitManual(FormGroup form) {
+    final value =
+        form.control(_manualCodeFormKey).value?.toString().trim() ?? '';
     if (value.isEmpty) {
-      setState(() => _manualError = true);
       Toast.showToast(
         context,
         type: ToastType.error,
-        message: AppStrings.enterManualCode,
+        message: context.translate(i18.scanner.enterManualCode),
       );
       return;
     }
-    setState(() => _manualError = false);
     context.read<DigitScannerBloc>().add(
           DigitScannerEvent.handleScanner(
             qrCode: [value],
@@ -325,6 +524,7 @@ class _DigitScannerPageState extends State<DigitScannerPage> {
         isGS1: widget.isGS1code,
         quantity: widget.quantity,
       ),
+      onKeepScanning: _closeManualEntry,
     );
   }
 
@@ -352,59 +552,59 @@ class _DigitScannerPageState extends State<DigitScannerPage> {
   Widget _manualEntryWidget(BuildContext context) {
     final theme = Theme.of(context);
     final textTheme = theme.digitTextTheme(context);
-    return ScrollableContent(
-      key: const ValueKey('scanner-manual-page'),
-      backgroundColor: theme.colorScheme.onError,
-      header: GestureDetector(
-        key: const ValueKey('scanner-manual-close'),
-        onTap: () => setState(() {
-          _manualEntry = false;
-          _manualError = false;
-        }),
-        child: Align(
-          alignment: Alignment.topRight,
-          child: Icon(Icons.close, color: theme.colorTheme.text.primary),
+    return ReactiveFormBuilder(
+      form: _buildManualForm,
+      builder: (context, form, child) => ScrollableContent(
+        key: const ValueKey('scanner-manual-page'),
+        backgroundColor: theme.colorScheme.onError,
+        header: GestureDetector(
+          key: const ValueKey('scanner-manual-close'),
+          onTap: _closeManualEntry,
+          child: Align(
+            alignment: Alignment.topRight,
+            child: Icon(Icons.close, color: theme.colorTheme.text.primary),
+          ),
         ),
-      ),
-      footer: Padding(
-        padding: const EdgeInsets.all(spacer4),
-        child: DigitButton(
-          key: const ValueKey('scanner-manual-submit'),
-          mainAxisSize: MainAxisSize.max,
-          label: AppStrings.submit,
-          type: DigitButtonType.primary,
-          size: DigitButtonSize.large,
-          onPressed: _submitManual,
+        footer: Padding(
+          padding: const EdgeInsets.all(spacer4),
+          child: DigitButton(
+            key: const ValueKey('scanner-manual-submit'),
+            mainAxisSize: MainAxisSize.max,
+            label: context.translate(i18.common.submit),
+            type: DigitButtonType.primary,
+            size: DigitButtonSize.large,
+            onPressed: () => _submitManual(form),
+          ),
         ),
-      ),
-      children: [
-        DigitCard(
-          children: [
-            Align(
-              alignment: Alignment.topLeft,
-              child: Text(
-                AppStrings.enterManualCode,
-                style: textTheme.headingL.copyWith(
-                  color: theme.colorTheme.text.primary,
+        children: [
+          DigitCard(
+            children: [
+              Align(
+                alignment: Alignment.topLeft,
+                child: Text(
+                  context.translate(i18.scanner.enterManualCode),
+                  style: textTheme.headingL.copyWith(
+                    color: theme.colorTheme.text.primary,
+                  ),
                 ),
               ),
-            ),
-            LabeledField(
-              label: AppStrings.serialNumber,
-              capitalizedFirstLetter: false,
-              child: DigitTextFormInput(
-                key: _manualControlKey,
-                controller: _manualController,
-                isRequired: true,
-                errorMessage: _manualError ? AppStrings.requiredMessage : null,
-                onChange: (_) {
-                  if (_manualError) setState(() => _manualError = false);
-                },
+              ReactiveWrapperField<String>(
+                formControlName: _manualCodeFormKey,
+                builder: (field) => InputField(
+                  key: const ValueKey('scanner-manual-input'),
+                  label: context.translate(i18.assetFlow.serialNumber),
+                  errorMessage: field.errorText,
+                  isRequired: true,
+                  type: InputType.text,
+                  onChange: (value) {
+                    form.control(_manualCodeFormKey).value = value;
+                  },
+                ),
               ),
-            ),
-          ],
-        ),
-      ],
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -420,16 +620,9 @@ class _DigitScannerPageState extends State<DigitScannerPage> {
           top: spacer1 * 1.5,
           left: spacer1,
           child: InkWell(
-            onTap: _cameraController == null
-                ? null
-                : () async {
-                    await _cameraController?.setFlashMode(
-                      _flashEnabled ? FlashMode.off : FlashMode.torch,
-                    );
-                    if (mounted) {
-                      setState(() => _flashEnabled = !_flashEnabled);
-                    }
-                  },
+            onTap: _cameraController?.value.isInitialized == true
+                ? _toggleFlash
+                : null,
             child: Row(
               children: [
                 Icon(
@@ -444,6 +637,28 @@ class _DigitScannerPageState extends State<DigitScannerPage> {
             ),
           ),
         ),
+        Positioned(
+          key: const ValueKey('scanner-back-control'),
+          top: spacer1 * 1.5,
+          right: spacer1,
+          child: IconButton(
+            onPressed: () => context.router.maybePop(),
+            icon: Icon(
+              Icons.arrow_back_ios_new,
+              color: theme.colorScheme.secondary,
+            ),
+          ),
+        ),
+        if (_cameras.length > 1)
+          Positioned(
+            key: const ValueKey('scanner-switch-camera-control'),
+            right: spacer2,
+            bottom: spacer2,
+            child: IconButton.filled(
+              onPressed: _cameraLoading ? null : _switchCamera,
+              icon: const Icon(Icons.flip_camera_android),
+            ),
+          ),
         Padding(
           key: const ValueKey('scanner-top-label'),
           padding: const EdgeInsets.only(top: spacer12),
@@ -477,22 +692,28 @@ class _DigitScannerPageState extends State<DigitScannerPage> {
         color: theme.colorScheme.onSurfaceVariant.withOpacity(.5),
         alignment: Alignment.center,
         child: Text(
-          AppStrings.scannerUnavailable,
+          context.translate(i18.scanner.scannerUnavailable),
           textAlign: TextAlign.center,
           style: TextStyle(color: theme.colorScheme.onError),
         ),
       );
     }
-    return DetectorView(
-      cameraController: _cameraController,
-      cameras: _cameras,
-      title: AppStrings.scannerTitle,
-      customPaint: _customPaint,
-      text: _cameraText,
-      onImage: _processImage,
-      initialCameraLensDirection: _cameraLensDirection,
-      onCameraLensDirectionChanged: (value) => _cameraLensDirection = value,
-      onBackButtonPressed: () => context.router.maybePop(),
+    return CameraPreview(
+      _cameraController!,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (_customPaint != null) _customPaint!,
+          if (_cameraText != null)
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Text(
+                _cameraText!,
+                style: TextStyle(color: theme.colorScheme.onError),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -517,9 +738,9 @@ class _DigitScannerPageState extends State<DigitScannerPage> {
               ),
               GestureDetector(
                 key: const ValueKey('scanner-manual-link'),
-                onTap: () => setState(() => _manualEntry = true),
+                onTap: _openManualEntry,
                 child: Text(
-                  AppStrings.enterManualCode,
+                  context.translate(i18.scanner.enterManualCode),
                   style: textTheme.headingL.copyWith(
                     color: theme.colorTheme.primary.primary1,
                     decoration: TextDecoration.underline,
@@ -532,7 +753,7 @@ class _DigitScannerPageState extends State<DigitScannerPage> {
                 key: const ValueKey('scanner-gallery-link'),
                 onTap: _pickAndScanFromGallery,
                 child: Text(
-                  AppStrings.uploadFromGallery,
+                  context.translate(i18.scanner.uploadFromGallery),
                   style: textTheme.headingL.copyWith(
                     color: theme.colorTheme.primary.primary1,
                     decoration: TextDecoration.underline,
@@ -563,7 +784,7 @@ class _DigitScannerPageState extends State<DigitScannerPage> {
               children: [
                 DigitButton(
                   key: const ValueKey('scanner-submit-button'),
-                  label: AppStrings.submit,
+                  label: context.translate(i18.common.submit),
                   size: DigitButtonSize.large,
                   mainAxisSize: MainAxisSize.max,
                   type: DigitButtonType.primary,

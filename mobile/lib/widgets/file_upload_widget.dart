@@ -5,8 +5,9 @@ import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
-import '../app/app_strings.dart';
-import '../models/solar_installation_draft.dart';
+import '../utils/extensions.dart';
+import '../utils/i18_key_constants.dart' as i18;
+import '../model/solar_installation_draft.dart';
 
 typedef FileUploadPick = Future<List<PlatformFile>> Function();
 
@@ -99,7 +100,7 @@ class _FileUploadWidgetState extends State<FileUploadWidget> {
       });
       widget.onFilesSelected(List.of(files));
     } catch (_) {
-      if (mounted) setState(() => localError = AppStrings.filePickerError);
+      if (mounted) setState(() => localError = context.translate(i18.installationReport.filePickerError));
     } finally {
       if (mounted) setState(() => opening = false);
     }

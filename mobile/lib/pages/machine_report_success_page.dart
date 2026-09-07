@@ -3,7 +3,8 @@ import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:digit_ui_components/widgets/molecules/panel_cards.dart';
 import 'package:flutter/material.dart';
 
-import '../app/app_strings.dart';
+import '../utils/extensions.dart';
+import '../utils/i18_key_constants.dart' as i18;
 import '../router/app_router.dart';
 
 enum MachineReportSuccessMode { draft, submitted }
@@ -48,15 +49,15 @@ class MachineReportSuccessPage extends StatelessWidget {
               repeat: true,
               type: PanelType.success,
               title: isDraft
-                  ? AppStrings.dataSavedSuccessfully
-                  : AppStrings.submittedSuccessfully,
+                  ? context.translate(i18.machineForm.dataSavedSuccessfully)
+                  : context.translate(i18.machineForm.submittedSuccessfully),
               description: isDraft
-                  ? AppStrings.dataSavedDescription
-                  : AppStrings.submittedDescription,
+                  ? context.translate(i18.machineForm.dataSavedDescription)
+                  : context.translate(i18.machineForm.submittedDescription),
               actions: [
                 DigitButton(
                   key: const ValueKey('machine-success-home-button'),
-                  label: AppStrings.home,
+                  label: context.translate(i18.common.home),
                   onPressed: () => _goHome(context),
                   type: DigitButtonType.primary,
                   size: DigitButtonSize.large,

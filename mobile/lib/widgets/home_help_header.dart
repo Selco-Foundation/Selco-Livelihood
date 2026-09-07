@@ -1,7 +1,8 @@
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:flutter/material.dart';
 
-import '../app/app_strings.dart';
+import '../utils/extensions.dart';
+import '../utils/i18_key_constants.dart' as i18;
 
 class HomeHelpHeader extends StatelessWidget {
   const HomeHelpHeader({
@@ -24,7 +25,7 @@ class HomeHelpHeader extends StatelessWidget {
             key: const ValueKey('home-help-button'),
             textColor: const DigitColors().light.primary1,
             iconColor: const DigitColors().light.primary1,
-            label: AppStrings.help,
+            label: context.translate(i18.home.help),
             type: DigitButtonType.tertiary,
             size: DigitButtonSize.medium,
             suffixIcon: Icons.help_outline_outlined,

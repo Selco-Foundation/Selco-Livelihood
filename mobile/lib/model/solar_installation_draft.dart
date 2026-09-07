@@ -130,20 +130,6 @@ class SolarInstallationDraft {
       );
     }
 
-    draft.completionCertificate.add(
-      const SolarFileRef(
-        name: 'installation_completion_certificate.pdf',
-        path: '/demo/installation_completion_certificate.pdf',
-        kind: SolarFileKind.pdf,
-      ),
-    );
-    draft.handoverDocuments.add(
-      const SolarFileRef(
-        name: 'asset_handover_document.pdf',
-        path: '/demo/asset_handover_document.pdf',
-        kind: SolarFileKind.pdf,
-      ),
-    );
     draft.completionReportFiles.add(
       const SolarFileRef(
         name: 'installation_completion_report.pdf',
@@ -167,8 +153,6 @@ class SolarInstallationDraft {
     for (final type in SolarAssetType.values) type: 0,
   };
   final Map<SolarAssetType, SolarAssetDraft> assets;
-  final List<SolarFileRef> completionCertificate = [];
-  final List<SolarFileRef> handoverDocuments = [];
   final List<SolarFileRef> completionReportFiles = [];
   final Map<String, SolarFileRef?> installationImages = {
     for (final requirement in imageRequirements) requirement: null,
@@ -208,14 +192,9 @@ class SolarInstallationDraft {
 
   bool get allCountsEntered => counts.values.every((count) => count > 0);
   bool get allAssetTypesComplete => SolarAssetType.values.every(completeFor);
-  bool get completionDocumentsComplete =>
-      completionCertificate.isNotEmpty && handoverDocuments.isNotEmpty;
   bool get installationImagesComplete =>
       installationImages.values.every((file) => file != null);
-  bool get canSubmit =>
-      allAssetTypesComplete &&
-      completionDocumentsComplete &&
-      installationImagesComplete;
+  bool get canSubmit => allAssetTypesComplete && installationImagesComplete;
   bool get isReadOnly =>
       mode == SolarWorkflowMode.pending || mode == SolarWorkflowMode.approved;
 }

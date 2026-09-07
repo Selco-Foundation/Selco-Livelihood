@@ -3,8 +3,10 @@ import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../app/app_strings.dart';
-import '../models/solar_installation_draft.dart';
+import '../utils/extensions.dart';
+import '../utils/i18_key_constants.dart' as i18;
+import '../model/solar_installation_draft.dart';
+import '../utils/app_permission_gateway.dart';
 import 'solar_workflow_widgets.dart';
 
 /// In-memory adaptation of E4H's shared VideoUploader.
@@ -18,6 +20,7 @@ class VideoUploader extends StatefulWidget {
     this.errorMessage,
     this.allowMultiples = false,
     this.isDisabled = false,
+    this.permissionGateway,
   });
 
   final List<SolarFileRef> initialVideos;
@@ -27,6 +30,7 @@ class VideoUploader extends StatefulWidget {
   final String? errorMessage;
   final bool allowMultiples;
   final bool isDisabled;
+  final AppPermissionGateway? permissionGateway;
 
   @override
   State<VideoUploader> createState() => _VideoUploaderState();
@@ -53,6 +57,14 @@ class _VideoUploaderState extends State<VideoUploader> {
       localError = null;
     });
     try {
+      if (source == ImageSource.camera &&
+          (widget.permissionGateway != null || widget.pickMedia == null)) {
+        final granted = await ensureCameraPermission(
+          context,
+          gateway: widget.permissionGateway,
+        );
+        if (!granted) return;
+      }
       final selected = widget.pickMedia != null
           ? await widget.pickMedia!(SolarFileKind.video, source)
           : await ImagePicker().pickVideo(source: source);
@@ -67,7 +79,7 @@ class _VideoUploaderState extends State<VideoUploader> {
       });
       widget.onVideosSelected(List.of(videos));
     } catch (_) {
-      if (mounted) setState(() => localError = AppStrings.mediaPickerError);
+      if (mounted) setState(() => localError = context.translate(i18.machineForm.mediaPickerError));
     } finally {
       if (mounted) setState(() => opening = false);
     }
@@ -92,13 +104,13 @@ class _VideoUploaderState extends State<VideoUploader> {
           _VideoChoice(
             key: const ValueKey('video-uploader-camera'),
             icon: Icons.videocam,
-            label: AppStrings.camera,
+            label: context.translate(i18.machineForm.camera),
             onTap: () => _choose(ImageSource.camera),
           ),
           _VideoChoice(
             key: const ValueKey('video-uploader-files'),
             icon: Icons.video_library,
-            label: AppStrings.myFiles,
+            label: context.translate(i18.machineForm.myFiles),
             onTap: () => _choose(ImageSource.gallery),
           ),
         ],

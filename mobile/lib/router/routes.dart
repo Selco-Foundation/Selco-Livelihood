@@ -20,8 +20,6 @@ class Routes {
   static const assetSummary = 'asset-summary';
   static const dataSaveSuccess = 'data-save-success';
   static const overallAssetSummary = 'overall-asset-summary';
-  static const completionCertificate = 'completion-certificate';
-  static const assetHandoverDocument = 'asset-handover-document';
   static const installationImages = 'installation-images';
   static const submittedSaveSuccess = 'submitted-save-success';
   static const scanner = 'scanner';

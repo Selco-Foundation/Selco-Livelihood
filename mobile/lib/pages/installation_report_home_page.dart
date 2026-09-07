@@ -2,7 +2,8 @@ import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:flutter/material.dart';
 
-import '../app/app_strings.dart';
+import '../utils/extensions.dart';
+import '../utils/i18_key_constants.dart' as i18;
 import '../router/app_router.dart';
 import '../widgets/installation_report_menu_card.dart';
 import '../widgets/livelihood_app_bar.dart';
@@ -16,7 +17,7 @@ class InstallationReportHomePage extends StatelessWidget {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        const SnackBar(content: Text(AppStrings.reportActionNotConnected)),
+        SnackBar(content: Text(context.translate(i18.installationReportHome.reportActionNotConnected))),
       );
   }
 
@@ -54,7 +55,7 @@ class InstallationReportHomePage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    AppStrings.installationReportHome,
+                    context.translate(i18.installationReportHome.installationReportHome),
                     style: textTheme.headingXl.copyWith(
                       color: theme.colorTheme.primary.primary2,
                     ),
@@ -63,8 +64,8 @@ class InstallationReportHomePage extends StatelessWidget {
                   InstallationReportMenuCard(
                     key: const ValueKey('new-report-menu-card'),
                     icon: Icons.add_box_outlined,
-                    heading: AppStrings.newReport,
-                    description: AppStrings.newReportDescription,
+                    heading: context.translate(i18.installationReportHome.newReport),
+                    description: context.translate(i18.installationReportHome.newReportDescription),
                     count: '48',
                     color: theme.colorTheme.primary.primary1,
                     onPressed: () => _open(
@@ -75,8 +76,8 @@ class InstallationReportHomePage extends StatelessWidget {
                   InstallationReportMenuCard(
                     key: const ValueKey('pending-approval-menu-card'),
                     icon: Icons.assignment_late_outlined,
-                    heading: AppStrings.pendingApproval,
-                    description: AppStrings.pendingApprovalDescription,
+                    heading: context.translate(i18.home.pendingApproval),
+                    description: context.translate(i18.installationReportHome.pendingApprovalDescription),
                     count: '12',
                     color: const Color(0xFF505A6B),
                     onPressed: () => _open(
@@ -87,8 +88,8 @@ class InstallationReportHomePage extends StatelessWidget {
                   InstallationReportMenuCard(
                     key: const ValueKey('resubmission-menu-card'),
                     icon: Icons.assignment_return_outlined,
-                    heading: AppStrings.resubmissionNeededSingleLine,
-                    description: AppStrings.resubmissionDescription,
+                    heading: context.translate(i18.installationReportHome.resubmissionNeededSingleLine),
+                    description: context.translate(i18.installationReportHome.resubmissionDescription),
                     count: '6',
                     color: theme.colorTheme.alert.error,
                     accentColor: theme.colorTheme.alert.error,
@@ -100,8 +101,8 @@ class InstallationReportHomePage extends StatelessWidget {
                   InstallationReportMenuCard(
                     key: const ValueKey('approved-menu-card'),
                     icon: Icons.check_box_outlined,
-                    heading: AppStrings.approved,
-                    description: AppStrings.approvedDescription,
+                    heading: context.translate(i18.home.approved),
+                    description: context.translate(i18.installationReportHome.approvedDescription),
                     count: '35',
                     color: theme.colorTheme.alert.success,
                     onPressed: () => _open(

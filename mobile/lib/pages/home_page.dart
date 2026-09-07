@@ -2,7 +2,8 @@ import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:flutter/material.dart';
 
-import '../app/app_strings.dart';
+import '../utils/extensions.dart';
+import '../utils/i18_key_constants.dart' as i18;
 import '../router/app_router.dart';
 import '../widgets/home_help_header.dart';
 import '../widgets/home_item_card.dart';
@@ -16,7 +17,8 @@ class HomePage extends StatelessWidget {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        const SnackBar(content: Text(AppStrings.homeActionNotConnected)),
+        SnackBar(
+            content: Text(context.translate(i18.home.homeActionNotConnected))),
       );
   }
 
@@ -59,25 +61,25 @@ class HomePage extends StatelessWidget {
                       HomeItemCard(
                         key: const ValueKey('installation-report-card'),
                         icon: Icons.text_snippet_outlined,
-                        label: AppStrings.installationReport,
+                        label: context.translate(i18.home.installationReport),
                         contentColor: const DigitColors().light.primary1,
                         onPressed: () => _openInstallationReports(context),
                       ),
                       HomeItemCard(
                         key: const ValueKey('sync-pending-card'),
                         icon: Icons.autorenew,
-                        label: AppStrings.syncPending,
+                        label: context.translate(i18.home.syncPending),
                         contentColor: const DigitColors().light.primary1,
                         onPressed: () => _showPlaceholder(context),
                       ),
                     ],
                   ),
                   const SizedBox(height: spacer3),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: spacer2),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: spacer2),
                     child: _SectionHeading(
-                      key: ValueKey('my-reports-heading'),
-                      label: AppStrings.myReports,
+                      key: const ValueKey('my-reports-heading'),
+                      label: context.translate(i18.home.myReports),
                     ),
                   ),
                   const SizedBox(height: spacer2),
@@ -86,21 +88,21 @@ class HomePage extends StatelessWidget {
                       HomeItemCard(
                         key: const ValueKey('assigned-report-card'),
                         count: '48',
-                        label: AppStrings.assigned,
+                        label: context.translate(i18.home.assigned),
                         contentColor: const DigitColors().light.primary1,
                         onPressed: () => _showPlaceholder(context),
                       ),
                       HomeItemCard(
                         key: const ValueKey('pending-approval-report-card'),
                         count: '12',
-                        label: AppStrings.pendingApproval,
+                        label: context.translate(i18.home.pendingApproval),
                         contentColor: const DigitColors().light.primary2,
                         onPressed: () => _showPlaceholder(context),
                       ),
                       HomeItemCard(
                         key: const ValueKey('approved-report-card'),
                         count: '35',
-                        label: AppStrings.approved,
+                        label: context.translate(i18.home.approved),
                         contentColor: const DigitColors().light.alertSuccess,
                         accentColor: const DigitColors().light.alertSuccess,
                         onPressed: () => _showPlaceholder(context),
@@ -108,7 +110,7 @@ class HomePage extends StatelessWidget {
                       HomeItemCard(
                         key: const ValueKey('resubmission-report-card'),
                         count: '6',
-                        label: AppStrings.resubmissionNeeded,
+                        label: context.translate(i18.home.resubmissionNeeded),
                         contentColor: const DigitColors().light.alertError,
                         accentColor: const DigitColors().light.alertError,
                         labelPadding: const EdgeInsets.symmetric(
@@ -120,12 +122,13 @@ class HomePage extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: spacer7),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: spacer2),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: spacer2),
                     child: InfoCard(
-                      key: ValueKey('sync-warning-card'),
-                      title: AppStrings.syncPendingWarning,
-                      description: AppStrings.pendingSyncDescription,
+                      key: const ValueKey('sync-warning-card'),
+                      title: context.translate(i18.home.syncPendingWarning),
+                      description:
+                          context.translate(i18.home.pendingSyncDescription),
                       type: InfoType.warning,
                       capitalizedLetter: false,
                     ),

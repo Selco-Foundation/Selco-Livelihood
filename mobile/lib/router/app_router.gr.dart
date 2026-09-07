@@ -47,19 +47,6 @@ abstract class _$AppRouter extends RootStackRouter {
         ),
       );
     },
-    AssetHandoverDocumentRoute.name: (routeData) {
-      final args = routeData.argsAs<AssetHandoverDocumentRouteArgs>();
-      return AutoRoutePage<dynamic>(
-        routeData: routeData,
-        child: AssetHandoverDocumentPage(
-          key: args.key,
-          draft: args.draft,
-          readOnly: args.readOnly,
-          pickMedia: args.pickMedia,
-          pickFiles: args.pickFiles,
-        ),
-      );
-    },
     AssetSummaryRoute.name: (routeData) {
       final args = routeData.argsAs<AssetSummaryRouteArgs>();
       return AutoRoutePage<dynamic>(
@@ -121,20 +108,6 @@ abstract class _$AppRouter extends RootStackRouter {
       return AutoRoutePage<dynamic>(
         routeData: routeData,
         child: const HomePage(),
-      );
-    },
-    InstallationCompletionCertificateRoute.name: (routeData) {
-      final args =
-          routeData.argsAs<InstallationCompletionCertificateRouteArgs>();
-      return AutoRoutePage<dynamic>(
-        routeData: routeData,
-        child: InstallationCompletionCertificatePage(
-          key: args.key,
-          draft: args.draft,
-          readOnly: args.readOnly,
-          pickMedia: args.pickMedia,
-          pickFiles: args.pickFiles,
-        ),
       );
     },
     InstallationImagesRoute.name: (routeData) {
@@ -403,66 +376,6 @@ class AssetCountRouteArgs {
 }
 
 /// generated route for
-/// [AssetHandoverDocumentPage]
-class AssetHandoverDocumentRoute
-    extends PageRouteInfo<AssetHandoverDocumentRouteArgs> {
-  AssetHandoverDocumentRoute({
-    Key? key,
-    required SolarInstallationDraft draft,
-    required bool readOnly,
-    Future<XFile?> Function(
-      SolarFileKind,
-      ImageSource,
-    )? pickMedia,
-    Future<List<PlatformFile>> Function()? pickFiles,
-    List<PageRouteInfo>? children,
-  }) : super(
-          AssetHandoverDocumentRoute.name,
-          args: AssetHandoverDocumentRouteArgs(
-            key: key,
-            draft: draft,
-            readOnly: readOnly,
-            pickMedia: pickMedia,
-            pickFiles: pickFiles,
-          ),
-          initialChildren: children,
-        );
-
-  static const String name = 'AssetHandoverDocumentRoute';
-
-  static const PageInfo<AssetHandoverDocumentRouteArgs> page =
-      PageInfo<AssetHandoverDocumentRouteArgs>(name);
-}
-
-class AssetHandoverDocumentRouteArgs {
-  const AssetHandoverDocumentRouteArgs({
-    this.key,
-    required this.draft,
-    required this.readOnly,
-    this.pickMedia,
-    this.pickFiles,
-  });
-
-  final Key? key;
-
-  final SolarInstallationDraft draft;
-
-  final bool readOnly;
-
-  final Future<XFile?> Function(
-    SolarFileKind,
-    ImageSource,
-  )? pickMedia;
-
-  final Future<List<PlatformFile>> Function()? pickFiles;
-
-  @override
-  String toString() {
-    return 'AssetHandoverDocumentRouteArgs{key: $key, draft: $draft, readOnly: $readOnly, pickMedia: $pickMedia, pickFiles: $pickFiles}';
-  }
-}
-
-/// generated route for
 /// [AssetSummaryPage]
 class AssetSummaryRoute extends PageRouteInfo<AssetSummaryRouteArgs> {
   AssetSummaryRoute({
@@ -708,66 +621,6 @@ class HomeRoute extends PageRouteInfo<void> {
   static const String name = 'HomeRoute';
 
   static const PageInfo<void> page = PageInfo<void>(name);
-}
-
-/// generated route for
-/// [InstallationCompletionCertificatePage]
-class InstallationCompletionCertificateRoute
-    extends PageRouteInfo<InstallationCompletionCertificateRouteArgs> {
-  InstallationCompletionCertificateRoute({
-    Key? key,
-    required SolarInstallationDraft draft,
-    required bool readOnly,
-    Future<XFile?> Function(
-      SolarFileKind,
-      ImageSource,
-    )? pickMedia,
-    Future<List<PlatformFile>> Function()? pickFiles,
-    List<PageRouteInfo>? children,
-  }) : super(
-          InstallationCompletionCertificateRoute.name,
-          args: InstallationCompletionCertificateRouteArgs(
-            key: key,
-            draft: draft,
-            readOnly: readOnly,
-            pickMedia: pickMedia,
-            pickFiles: pickFiles,
-          ),
-          initialChildren: children,
-        );
-
-  static const String name = 'InstallationCompletionCertificateRoute';
-
-  static const PageInfo<InstallationCompletionCertificateRouteArgs> page =
-      PageInfo<InstallationCompletionCertificateRouteArgs>(name);
-}
-
-class InstallationCompletionCertificateRouteArgs {
-  const InstallationCompletionCertificateRouteArgs({
-    this.key,
-    required this.draft,
-    required this.readOnly,
-    this.pickMedia,
-    this.pickFiles,
-  });
-
-  final Key? key;
-
-  final SolarInstallationDraft draft;
-
-  final bool readOnly;
-
-  final Future<XFile?> Function(
-    SolarFileKind,
-    ImageSource,
-  )? pickMedia;
-
-  final Future<List<PlatformFile>> Function()? pickFiles;
-
-  @override
-  String toString() {
-    return 'InstallationCompletionCertificateRouteArgs{key: $key, draft: $draft, readOnly: $readOnly, pickMedia: $pickMedia, pickFiles: $pickFiles}';
-  }
 }
 
 /// generated route for

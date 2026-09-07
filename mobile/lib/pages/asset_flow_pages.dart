@@ -4,10 +4,12 @@ import 'package:digit_ui_components/widgets/atoms/input_wrapper.dart';
 import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
 import 'package:flutter/material.dart';
 
-import '../app/app_strings.dart';
-import '../models/facility_report_sample.dart';
-import '../models/solar_installation_draft.dart';
+import '../utils/extensions.dart';
+import '../utils/i18_key_constants.dart' as i18;
+import '../model/facility_report_sample.dart';
+import '../model/solar_installation_draft.dart';
 import '../router/app_router.dart';
+import '../utils/app_permission_gateway.dart';
 import '../widgets/image_uploader.dart';
 import '../widgets/solar_workflow_widgets.dart';
 import '../widgets/video_uploader.dart';
@@ -59,7 +61,7 @@ class _AssetCountPageState extends State<AssetCountPage> {
       pageKey: 'solar-asset-count',
       stepIndex: 0,
       footer: SolarFooterButton(
-        label: AppStrings.next,
+        label: context.translate(i18.common.next),
         isDisabled: !draft.allCountsEntered,
         onPressed: _next,
       ),
@@ -67,12 +69,12 @@ class _AssetCountPageState extends State<AssetCountPage> {
         key: const ValueKey('solar-asset-count-card'),
         children: [
           Text(
-            AppStrings.assetCountTitle,
+            context.translate(i18.assetFlow.assetCountTitle),
             style: textTheme.headingXl.copyWith(
               color: theme.colorTheme.primary.primary2,
             ),
           ),
-          Text(AppStrings.chooseAssetCount, style: textTheme.bodyL),
+          Text(context.translate(i18.assetFlow.chooseAssetCount), style: textTheme.bodyL),
           const SizedBox(height: spacer2),
           for (final type in SolarAssetType.values)
             LabeledField(
@@ -137,7 +139,7 @@ class _SelectAssetTypePageState extends State<SelectAssetTypePage> {
       pageKey: 'solar-select-asset-type',
       stepIndex: 1,
       footer: SolarFooterButton(
-        label: AppStrings.next,
+        label: context.translate(i18.common.next),
         isDisabled: selected == null,
         onPressed: _next,
       ),
@@ -145,14 +147,14 @@ class _SelectAssetTypePageState extends State<SelectAssetTypePage> {
         key: const ValueKey('solar-select-type-card'),
         children: [
           Text(
-            AppStrings.selectAssetTypeTitle,
+            context.translate(i18.assetFlow.selectAssetTypeTitle),
             style: textTheme.headingXl.copyWith(
               color: theme.colorTheme.primary.primary2,
             ),
           ),
-          Text(AppStrings.chooseAssetCount, style: textTheme.bodyL),
+          Text(context.translate(i18.assetFlow.chooseAssetCount), style: textTheme.bodyL),
           LabeledField(
-            label: AppStrings.selectAssetType,
+            label: context.translate(i18.assetFlow.selectAssetType),
             capitalizedFirstLetter: false,
             child: DigitDropdown(
               key: const ValueKey('solar-asset-type-dropdown'),
@@ -200,7 +202,7 @@ class SpecificationPage extends StatelessWidget {
       pageKey: 'solar-specification-${assetType.name}',
       stepIndex: 2,
       footer: SolarFooterButton(
-        label: AppStrings.next,
+        label: context.translate(i18.common.next),
         onPressed: () => context.router.push(
           AssetTypeDetailRoute(
             draft: draft,
@@ -214,25 +216,25 @@ class SpecificationPage extends StatelessWidget {
         key: const ValueKey('solar-specification-card'),
         children: [
           Text(
-            '${assetType == SolarAssetType.panel ? 'Panel' : assetType.label} ${AppStrings.specifications}',
+            '${assetType == SolarAssetType.panel ? 'Panel' : assetType.label} ${context.translate(i18.assetFlow.specifications)}',
             style: textTheme.headingXl.copyWith(
               color: theme.colorTheme.primary.primary2,
             ),
           ),
-          _ReadOnlyField(label: AppStrings.system, value: asset.system),
+          _ReadOnlyField(label: context.translate(i18.assetFlow.system), value: asset.system),
           Row(
             children: [
               Expanded(
                 flex: 3,
                 child: _ReadOnlyField(
-                  label: AppStrings.totalCapacity,
+                  label: context.translate(i18.assetFlow.totalCapacity),
                   value: asset.totalCapacity,
                 ),
               ),
               const SizedBox(width: spacer6),
               Expanded(
                 child: _ReadOnlyField(
-                  label: AppStrings.unit,
+                  label: context.translate(i18.assetFlow.unit),
                   value: asset.capacityUnit,
                 ),
               ),
@@ -273,7 +275,7 @@ class _AssetTypeDetailPageState extends State<AssetTypeDetailPage> {
       pageKey: 'solar-details-${widget.assetType.name}',
       stepIndex: 3,
       footer: SolarFooterButton(
-        label: AppStrings.next,
+        label: context.translate(i18.common.next),
         isDisabled: !asset.detailsComplete,
         onPressed: () => context.router.push(
           AddNewAssetRoute(
@@ -288,17 +290,17 @@ class _AssetTypeDetailPageState extends State<AssetTypeDetailPage> {
         key: const ValueKey('solar-asset-details-card'),
         children: [
           Text(
-            '${widget.assetType == SolarAssetType.panel ? 'Panel' : widget.assetType.label} ${AppStrings.details}',
+            '${widget.assetType == SolarAssetType.panel ? 'Panel' : widget.assetType.label} ${context.translate(i18.assetFlow.details)}',
             style: textTheme.headingXl.copyWith(
               color: theme.colorTheme.primary.primary2,
             ),
           ),
           _ReadOnlyField(
-            label: AppStrings.warrantyStartDate,
+            label: context.translate(i18.assetFlow.warrantyStartDate),
             value: asset.warrantyStartDate,
           ),
           LabeledField(
-            label: AppStrings.warrantyDuration,
+            label: context.translate(i18.assetFlow.warrantyDuration),
             isRequired: true,
             capitalizedFirstLetter: false,
             child: DigitDropdown(
@@ -317,7 +319,7 @@ class _AssetTypeDetailPageState extends State<AssetTypeDetailPage> {
             ),
           ),
           _ReadOnlyField(
-            label: AppStrings.brand,
+            label: context.translate(i18.assetFlow.brand),
             value: widget.assetType.brand,
           ),
         ],
@@ -346,6 +348,16 @@ class AddNewAssetPage extends StatefulWidget {
 }
 
 class _AddNewAssetPageState extends State<AddNewAssetPage> {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.scanSerial == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) requestAssetWorkflowPermissions(context);
+      });
+    }
+  }
+
   Future<void> _scan(int index) async {
     final value =
         await (widget.scanSerial?.call(context) ?? openDigitScanner(context));
@@ -371,7 +383,7 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
       pageKey: 'solar-add-assets-${widget.assetType.name}',
       stepIndex: 4,
       footer: SolarFooterButton(
-        label: AppStrings.next,
+        label: context.translate(i18.common.next),
         isDisabled: !complete,
         onPressed: () => context.router.push(
           MediaUploadRoute(
@@ -389,20 +401,20 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
               child: DigitCard(
                 children: [
                   Text(
-                    '${widget.assetType.label} ${AppStrings.capacity}',
+                    '${widget.assetType.label} ${context.translate(i18.assetFlow.capacity)}',
                     style: textTheme.headingXl.copyWith(
                       color: theme.colorTheme.primary.primary2,
                     ),
                   ),
                   _ReadOnlyField(
-                    label: AppStrings.capacity,
+                    label: context.translate(i18.assetFlow.capacity),
                     value: widget.assetType == SolarAssetType.panel
                         ? '550 W'
                         : '150 Ah',
                   ),
                   if (widget.assetType == SolarAssetType.battery)
                     _ReadOnlyField(
-                      label: 'Battery ${AppStrings.assetType}',
+                      label: 'Battery ${context.translate(i18.assetFlow.assetType)}',
                       value: widget.assetType.specificationType,
                     ),
                 ],
@@ -430,7 +442,7 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
                     ],
                   ),
                   LabeledField(
-                    label: AppStrings.serialNumber,
+                    label: context.translate(i18.assetFlow.serialNumber),
                     isRequired: true,
                     capitalizedFirstLetter: false,
                     child: Row(
@@ -446,7 +458,7 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
                               key: ValueKey('solar-serial-${indexed.key}'),
                               initialValue: indexed.value.serialNumber,
                               innerLabel: indexed.value.serialNumber.isEmpty
-                                  ? AppStrings.scanSerialNumber
+                                  ? context.translate(i18.assetFlow.scanSerialNumber)
                                   : indexed.value.serialNumber,
                               keyboardType: TextInputType.none,
                               isDisabled: true,
@@ -459,7 +471,7 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
                           child: DigitButton(
                             key: ValueKey('solar-scan-${indexed.key}'),
                             mainAxisSize: MainAxisSize.max,
-                            label: AppStrings.scan,
+                            label: context.translate(i18.assetFlow.scan),
                             type: DigitButtonType.secondary,
                             size: DigitButtonSize.large,
                             onPressed: () => _scan(indexed.key),
@@ -469,7 +481,7 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
                     ),
                   ),
                   LabeledField(
-                    label: AppStrings.supportingPhoto,
+                    label: context.translate(i18.assetFlow.supportingPhoto),
                     isRequired: true,
                     capitalizedFirstLetter: false,
                     child: ImageUploader(
@@ -484,7 +496,7 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
                   ),
                   if (widget.assetType == SolarAssetType.inverter)
                     LabeledField(
-                      label: AppStrings.capacity,
+                      label: context.translate(i18.assetFlow.capacity),
                       capitalizedFirstLetter: false,
                       child: DigitTextFormInput(
                         key: ValueKey('solar-capacity-${indexed.key}'),
@@ -532,7 +544,7 @@ class _MediaUploadPageState extends State<MediaUploadPage> {
       pageKey: 'solar-media-${widget.assetType.name}',
       stepIndex: 5,
       footer: SolarFooterButton(
-        label: AppStrings.next,
+        label: context.translate(i18.common.next),
         isDisabled: asset.images.isEmpty,
         onPressed: () => context.router.push(
           AssetSummaryRoute(
@@ -548,18 +560,18 @@ class _MediaUploadPageState extends State<MediaUploadPage> {
             key: const ValueKey('solar-images-card'),
             children: [
               Text(
-                '${widget.assetType.label} ${AppStrings.images}',
+                '${widget.assetType.label} ${context.translate(i18.assetFlow.images)}',
                 style: textTheme.headingXl.copyWith(
                   color: theme.colorTheme.primary.primary2,
                 ),
               ),
               Text(
-                '${AppStrings.addAllImages} ${widget.assetType.label}',
+                '${context.translate(i18.assetFlow.addAllImages)} ${widget.assetType.label}',
                 style: textTheme.bodyL,
               ),
               const SizedBox(height: spacer2),
               ImageUploader(
-                label: AppStrings.uploadImages,
+                label: context.translate(i18.assetFlow.uploadImages),
                 allowMultiples: true,
                 initialImages: asset.images,
                 pickMedia: widget.pickMedia,
@@ -579,14 +591,14 @@ class _MediaUploadPageState extends State<MediaUploadPage> {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Text(
-                    '${widget.assetType.label} ${AppStrings.videos}',
+                    '${widget.assetType.label} ${context.translate(i18.assetFlow.videos)}',
                     style: textTheme.headingXl.copyWith(
                       color: theme.colorTheme.primary.primary2,
                     ),
                   ),
                   const SizedBox(width: spacer1),
                   Text(
-                    AppStrings.optional,
+                    context.translate(i18.common.optional),
                     style: textTheme.bodyL.copyWith(
                       color: theme.colorTheme.primary.primary2,
                     ),
@@ -595,7 +607,7 @@ class _MediaUploadPageState extends State<MediaUploadPage> {
               ),
               const SizedBox(height: spacer2),
               VideoUploader(
-                label: AppStrings.uploadVideos,
+                label: context.translate(i18.assetFlow.uploadVideos),
                 allowMultiples: true,
                 initialVideos: asset.videos,
                 pickMedia: widget.pickMedia,
@@ -638,7 +650,7 @@ class AssetSummaryPage extends StatelessWidget {
       footer: readOnly
           ? null
           : SolarFooterButton(
-              label: AppStrings.next,
+              label: context.translate(i18.common.next),
               onPressed: () => context.router.push(
                 DataSaveSuccessRoute(
                   draft: draft,
@@ -650,21 +662,21 @@ class AssetSummaryPage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '${assetType.label} ${AppStrings.summary}',
+            '${assetType.label} ${context.translate(i18.assetFlow.summary)}',
             style: textTheme.headingXl.copyWith(
               color: theme.colorTheme.primary.primary2,
             ),
           ),
           const SizedBox(height: spacer2),
           _SummaryCard(
-            title: AppStrings.healthFacilityDetails,
+            title: context.translate(i18.assetFlow.healthFacilityDetails),
             values: {
-              AppStrings.name: draft.facility.title,
-              AppStrings.status: AppStrings.pendingInstallation,
+              context.translate(i18.common.name): draft.facility.title,
+              context.translate(i18.common.status): context.translate(i18.installationReportHome.pendingInstallation),
             },
           ),
           _SummaryCard(
-            title: AppStrings.count,
+            title: context.translate(i18.common.count),
             values: {assetType.label: draft.countFor(assetType).toString()},
             onEdit: readOnly
                 ? null
@@ -677,10 +689,10 @@ class AssetSummaryPage extends StatelessWidget {
                     ),
           ),
           _SummaryCard(
-            title: AppStrings.specifications,
+            title: context.translate(i18.assetFlow.specifications),
             values: {
-              AppStrings.system: asset.system,
-              AppStrings.capacity:
+              context.translate(i18.assetFlow.system): asset.system,
+              context.translate(i18.assetFlow.capacity):
                   '${asset.totalCapacity} ${asset.capacityUnit}',
             },
             onEdit: readOnly
@@ -694,11 +706,11 @@ class AssetSummaryPage extends StatelessWidget {
                     ),
           ),
           _SummaryCard(
-            title: AppStrings.details,
+            title: context.translate(i18.assetFlow.details),
             values: {
-              AppStrings.warrantyStartDate: asset.warrantyStartDate,
-              AppStrings.warrantyDuration: asset.warrantyDuration,
-              AppStrings.brand: assetType.brand,
+              context.translate(i18.assetFlow.warrantyStartDate): asset.warrantyStartDate,
+              context.translate(i18.assetFlow.warrantyDuration): asset.warrantyDuration,
+              context.translate(i18.assetFlow.brand): assetType.brand,
             },
             onEdit: readOnly
                 ? null
@@ -714,10 +726,10 @@ class AssetSummaryPage extends StatelessWidget {
             _SummaryCard(
               title: '${assetType.label} ${indexed.key + 1}',
               values: {
-                AppStrings.serialNumber: indexed.value.serialNumber,
-                AppStrings.capacity: indexed.value.capacity,
-                AppStrings.assetType: assetType.specificationType,
-                AppStrings.images: indexed.value.supportingPhoto?.name ?? '—',
+                context.translate(i18.assetFlow.serialNumber): indexed.value.serialNumber,
+                context.translate(i18.assetFlow.capacity): indexed.value.capacity,
+                context.translate(i18.assetFlow.assetType): assetType.specificationType,
+                context.translate(i18.assetFlow.images): indexed.value.supportingPhoto?.name ?? '—',
               },
               onEdit: readOnly
                   ? null
@@ -730,9 +742,9 @@ class AssetSummaryPage extends StatelessWidget {
                       ),
             ),
           _SummaryCard(
-            title: '${assetType.label} ${AppStrings.images}',
+            title: '${assetType.label} ${context.translate(i18.assetFlow.images)}',
             values: {
-              AppStrings.images:
+              context.translate(i18.assetFlow.images):
                   asset.images.map((file) => file.name).join(', '),
             },
             onEdit: readOnly
@@ -747,9 +759,9 @@ class AssetSummaryPage extends StatelessWidget {
           ),
           if (asset.videos.isNotEmpty)
             _SummaryCard(
-              title: '${assetType.label} ${AppStrings.videos}',
+              title: '${assetType.label} ${context.translate(i18.assetFlow.videos)}',
               values: {
-                AppStrings.videos:
+                context.translate(i18.assetFlow.videos):
                     asset.videos.map((file) => file.name).join(', '),
               },
               onEdit: readOnly
@@ -819,7 +831,7 @@ class _SummaryCard extends StatelessWidget {
               ),
               if (onEdit != null)
                 DigitButton(
-                  label: AppStrings.edit,
+                  label: context.translate(i18.common.edit),
                   type: DigitButtonType.tertiary,
                   size: DigitButtonSize.small,
                   onPressed: onEdit!,

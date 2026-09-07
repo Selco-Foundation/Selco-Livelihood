@@ -2,9 +2,10 @@ import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:flutter/material.dart';
 
-import '../app/app_strings.dart';
-import '../models/facility_report_sample.dart';
-import '../models/solar_installation_draft.dart';
+import '../utils/extensions.dart';
+import '../utils/i18_key_constants.dart' as i18;
+import '../model/facility_report_sample.dart';
+import '../model/solar_installation_draft.dart';
 import '../router/app_router.dart';
 import '../widgets/facility_report_card.dart';
 import '../widgets/facility_search_sort_card.dart';
@@ -16,8 +17,8 @@ class NewReportFacilitiesPage extends StatelessWidget {
   const NewReportFacilitiesPage({super.key});
 
   @override
-  Widget build(BuildContext context) => const _FacilityListPage(
-        title: AppStrings.newReport,
+  Widget build(BuildContext context) => _FacilityListPage(
+        title: context.translate(i18.installationReportHome.newReport),
         mode: FacilityReportMode.newReport,
         showSearch: true,
       );
@@ -28,8 +29,8 @@ class PendingApprovalPage extends StatelessWidget {
   const PendingApprovalPage({super.key});
 
   @override
-  Widget build(BuildContext context) => const _FacilityListPage(
-        title: AppStrings.pendingApproval,
+  Widget build(BuildContext context) => _FacilityListPage(
+        title: context.translate(i18.home.pendingApproval),
         mode: FacilityReportMode.pendingApproval,
         showSearch: false,
       );
@@ -40,8 +41,8 @@ class ResubmissionNeededPage extends StatelessWidget {
   const ResubmissionNeededPage({super.key});
 
   @override
-  Widget build(BuildContext context) => const _FacilityListPage(
-        title: AppStrings.resubmissionNeededSingleLine,
+  Widget build(BuildContext context) => _FacilityListPage(
+        title: context.translate(i18.installationReportHome.resubmissionNeededSingleLine),
         mode: FacilityReportMode.resubmissionNeeded,
         showSearch: true,
       );
@@ -52,8 +53,8 @@ class ApprovedReportsPage extends StatelessWidget {
   const ApprovedReportsPage({super.key});
 
   @override
-  Widget build(BuildContext context) => const _FacilityListPage(
-        title: AppStrings.approved,
+  Widget build(BuildContext context) => _FacilityListPage(
+        title: context.translate(i18.home.approved),
         mode: FacilityReportMode.approved,
         showSearch: true,
       );
@@ -75,7 +76,7 @@ class _FacilityListPage extends StatelessWidget {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        const SnackBar(content: Text(AppStrings.reportActionNotConnected)),
+        SnackBar(content: Text(context.translate(i18.installationReportHome.reportActionNotConnected))),
       );
   }
 

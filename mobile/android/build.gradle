@@ -1,3 +1,17 @@
+import com.android.build.gradle.BasePlugin
+import com.android.build.gradle.LibraryExtension
+import com.android.build.gradle.tasks.ProcessLibraryManifest
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath "com.android.tools.build:gradle:7.3.0"
+    }
+}
+
 allprojects {
     repositories {
         google()
@@ -11,6 +25,38 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+}
+
+// Some older plugins (e.g. isar_flutter_libs 3.1.0+1) ship an
+// AndroidManifest.xml with no `package` attribute, which this AGP version
+// requires as `namespace` when it can't be inferred. Fill it in the moment
+// the library plugin applies to that project, before AGP reads it.
+subprojects {
+    plugins.withType(BasePlugin) {
+        extensions.findByType(LibraryExtension)?.with {
+            if (namespace == null || namespace.isBlank()) {
+                namespace = "com.example.${project.name}"
+            }
+        }
+    }
+}
+
+// Defensive follow-up: a legacy manifest that still declares `package=`
+// alongside a build.gradle-set `namespace` trips AGP's manifest merger.
+// Strip any stale `package` attribute before the manifest is processed.
+subprojects {
+    tasks.withType(ProcessLibraryManifest).configureEach {
+        doFirst {
+            def manifest = project.file("src/main/AndroidManifest.xml")
+            if (manifest.exists()) {
+                def fixed = manifest.text.replaceAll(
+                    /<manifest\b([^>]*?)\bpackage="[^"]+"([^>]*?)>/,
+                    '<manifest$1$2>'
+                )
+                manifest.text = fixed
+            }
+        }
+    }
 }
 
 tasks.register("clean", Delete) {

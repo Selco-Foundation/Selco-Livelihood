@@ -4,7 +4,9 @@ import 'package:digit_ui_components/digit_components.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../app/app_strings.dart';
+import '../utils/extensions.dart';
+import '../utils/i18_key_constants.dart' as i18;
+import '../utils/app_permission_gateway.dart';
 
 enum MachineMediaKind { image, video }
 
@@ -20,12 +22,14 @@ class MachineMediaPicker extends StatefulWidget {
     required this.selectedFile,
     required this.onChanged,
     required this.pickMedia,
+    this.permissionGateway,
   });
 
   final MachineMediaKind kind;
   final XFile? selectedFile;
   final ValueChanged<XFile?> onChanged;
   final MachinePickMedia pickMedia;
+  final AppPermissionGateway? permissionGateway;
 
   @override
   State<MachineMediaPicker> createState() => _MachineMediaPickerState();
@@ -46,12 +50,19 @@ class _MachineMediaPickerState extends State<MachineMediaPicker> {
     });
 
     try {
+      if (source == ImageSource.camera && widget.permissionGateway != null) {
+        final granted = await ensureCameraPermission(
+          context,
+          gateway: widget.permissionGateway,
+        );
+        if (!granted) return;
+      }
       final file = await widget.pickMedia(widget.kind, source);
       if (!mounted) return;
       if (file != null) widget.onChanged(file);
     } catch (_) {
       if (!mounted) return;
-      setState(() => _fileError = AppStrings.mediaPickerError);
+      setState(() => _fileError = context.translate(i18.machineForm.mediaPickerError));
     } finally {
       if (mounted) setState(() => _isPicking = false);
     }
@@ -90,14 +101,14 @@ class _MachineMediaPickerState extends State<MachineMediaPicker> {
           _PickerOption(
             key: const ValueKey('machine-picker-camera'),
             icon: _isImage ? Icons.camera_enhance : Icons.videocam,
-            label: AppStrings.camera,
+            label: context.translate(i18.machineForm.camera),
             typography: typography,
             onPressed: () => _select(ImageSource.camera),
           ),
           _PickerOption(
             key: const ValueKey('machine-picker-files'),
             icon: _isImage ? Icons.perm_media : Icons.video_library,
-            label: AppStrings.myFiles,
+            label: context.translate(i18.machineForm.myFiles),
             typography: typography,
             onPressed: () => _select(ImageSource.gallery),
           ),
@@ -150,7 +161,7 @@ class _MachineMediaPickerState extends State<MachineMediaPicker> {
                     color: const DigitColors().light.primary1,
                   ),
                   Text(
-                    _isImage ? AppStrings.takePhoto : AppStrings.takeVideo,
+                    _isImage ? context.translate(i18.machineForm.takePhoto) : context.translate(i18.machineForm.takeVideo),
                     style: TextStyle(
                       color: const DigitColors().light.primary1,
                     ),

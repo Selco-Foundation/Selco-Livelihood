@@ -2,7 +2,8 @@ import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:flutter/material.dart';
 
-import '../app/app_strings.dart';
+import '../utils/extensions.dart';
+import '../utils/i18_key_constants.dart' as i18;
 
 class LivelihoodAppBar extends StatelessWidget implements PreferredSizeWidget {
   const LivelihoodAppBar({
@@ -46,7 +47,7 @@ class LivelihoodAppBar extends StatelessWidget implements PreferredSizeWidget {
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
           Text(
-            AppStrings.appName,
+            context.translate(i18.common.appName),
             style: textTheme.headingM.copyWith(
               color: const DigitColors().light.paperPrimary,
             ),
@@ -64,7 +65,7 @@ class LivelihoodAppBar extends StatelessWidget implements PreferredSizeWidget {
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
               child: Text(
-                AppStrings.appDescriptor,
+                context.translate(i18.common.appDescriptor),
                 maxLines: 1,
                 softWrap: false,
                 style: textTheme.bodyS.copyWith(

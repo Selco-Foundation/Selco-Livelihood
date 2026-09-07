@@ -6,7 +6,8 @@ import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
 import 'package:digit_ui_components/widgets/molecules/show_pop_up.dart';
 import 'package:flutter/material.dart';
 
-import '../app/app_strings.dart';
+import '../utils/extensions.dart';
+import '../utils/i18_key_constants.dart' as i18;
 
 class FacilitySearchSortCard extends StatefulWidget {
   const FacilitySearchSortCard({
@@ -33,11 +34,11 @@ class _FacilitySearchSortCardState extends State<FacilitySearchSortCard> {
         builder: (popupContext, popupSetState) => Popup(
           key: const ValueKey('facility-sort-popup'),
           onCrossTap: () => Navigator.of(popupContext).pop(),
-          title: AppStrings.sortBy,
+          title: context.translate(i18.installationReportHome.sortBy),
           type: PopUpType.simple,
           additionalWidgets: [
             Text(
-              AppStrings.submissionDate,
+              context.translate(i18.installationReportHome.submissionDate),
               style: textTheme.headingS.copyWith(
                 color: theme.colorTheme.text.primary,
               ),
@@ -52,8 +53,8 @@ class _FacilitySearchSortCardState extends State<FacilitySearchSortCard> {
                 popupSetState(() => _sortDirection = value.code);
               },
               radioDigitButtons: [
-                RadioButtonModel(code: 'DESC', name: AppStrings.newestFirst),
-                RadioButtonModel(code: 'ASC', name: AppStrings.oldestFirst),
+                RadioButtonModel(code: 'DESC', name: context.translate(i18.installationReportHome.newestFirst)),
+                RadioButtonModel(code: 'ASC', name: context.translate(i18.installationReportHome.oldestFirst)),
               ],
             ),
             Row(
@@ -61,7 +62,7 @@ class _FacilitySearchSortCardState extends State<FacilitySearchSortCard> {
                 Expanded(
                   child: DigitButton(
                     key: const ValueKey('sort-clear-button'),
-                    label: AppStrings.clear,
+                    label: context.translate(i18.common.clear),
                     onPressed: () {
                       setState(() => _sortDirection = null);
                       Navigator.of(popupContext).pop();
@@ -75,7 +76,7 @@ class _FacilitySearchSortCardState extends State<FacilitySearchSortCard> {
                 Expanded(
                   child: DigitButton(
                     key: const ValueKey('sort-apply-button'),
-                    label: AppStrings.sort,
+                    label: context.translate(i18.common.sort),
                     isDisabled: _sortDirection == null,
                     onPressed: () {
                       Navigator.of(popupContext).pop();
@@ -106,7 +107,7 @@ class _FacilitySearchSortCardState extends State<FacilitySearchSortCard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              AppStrings.searchHealthFacility,
+              context.translate(i18.installationReportHome.searchHealthFacility),
               style: textTheme.bodyL.copyWith(
                 color: theme.colorTheme.text.primary,
               ),
@@ -117,7 +118,7 @@ class _FacilitySearchSortCardState extends State<FacilitySearchSortCard> {
                 Expanded(
                   child: DigitSearchFormInput(
                     key: const ValueKey('facility-search-field'),
-                    innerLabel: AppStrings.searchHealthFacility,
+                    innerLabel: context.translate(i18.installationReportHome.searchHealthFacility),
                     suffixIcon: Icons.search,
                     onChange: (_) {},
                   ),
@@ -134,7 +135,7 @@ class _FacilitySearchSortCardState extends State<FacilitySearchSortCard> {
                         size: spacer8,
                       ),
                       Text(
-                        AppStrings.sort,
+                        context.translate(i18.common.sort),
                         style: textTheme.headingS.copyWith(
                           color: theme.colorTheme.primary.primary1,
                         ),

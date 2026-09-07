@@ -4,8 +4,9 @@ import 'package:digit_ui_components/widgets/atoms/digit_divider.dart';
 import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
 import 'package:flutter/material.dart';
 
-import '../app/app_strings.dart';
-import '../models/facility_report_sample.dart';
+import '../utils/extensions.dart';
+import '../utils/i18_key_constants.dart' as i18;
+import '../model/facility_report_sample.dart';
 
 class FacilityReportCard extends StatelessWidget {
   const FacilityReportCard({
@@ -19,12 +20,14 @@ class FacilityReportCard extends StatelessWidget {
   final FacilityReportMode mode;
   final VoidCallback onAction;
 
-  String get _status => switch (mode) {
-        FacilityReportMode.newReport => AppStrings.pendingInstallation,
-        FacilityReportMode.pendingApproval => AppStrings.pendingApproval,
-        FacilityReportMode.resubmissionNeeded =>
-          AppStrings.resubmissionNeededSingleLine,
-        FacilityReportMode.approved => AppStrings.approved,
+  String _status(BuildContext context) => switch (mode) {
+        FacilityReportMode.newReport => context.translate(
+            i18.installationReportHome.pendingInstallation),
+        FacilityReportMode.pendingApproval =>
+          context.translate(i18.home.pendingApproval),
+        FacilityReportMode.resubmissionNeeded => context.translate(
+            i18.installationReportHome.resubmissionNeededSingleLine),
+        FacilityReportMode.approved => context.translate(i18.home.approved),
       };
 
   @override
@@ -49,21 +52,21 @@ class FacilityReportCard extends StatelessWidget {
             ),
             const SizedBox(height: spacer4),
             const DigitDivider(dividerType: DividerType.small),
-            _DetailRow(label: AppStrings.status, value: _status),
+            _DetailRow(label: context.translate(i18.common.status), value: _status(context)),
             if (isNew) ...[
               _DetailRow(
-                label: AppStrings.startDate,
+                label: context.translate(i18.installationReportHome.startDate),
                 value: sample.startDate,
               ),
-              _DetailRow(label: AppStrings.endDate, value: sample.endDate),
+              _DetailRow(label: context.translate(i18.installationReportHome.endDate), value: sample.endDate),
             ] else
               _DetailRow(
-                label: AppStrings.submissionDate,
+                label: context.translate(i18.installationReportHome.submissionDate),
                 value: sample.submissionDate,
               ),
-            _DetailRow(label: AppStrings.state, value: sample.state),
-            _DetailRow(label: AppStrings.district, value: sample.district),
-            _DetailRow(label: AppStrings.block, value: sample.block),
+            _DetailRow(label: context.translate(i18.installationReportHome.state), value: sample.state),
+            _DetailRow(label: context.translate(i18.installationReportHome.district), value: sample.district),
+            _DetailRow(label: context.translate(i18.installationReportHome.block), value: sample.block),
             if (isNew) _NewReportActions(sample: sample, onAction: onAction),
             if (mode == FacilityReportMode.pendingApproval ||
                 mode == FacilityReportMode.approved) ...[
@@ -71,7 +74,7 @@ class FacilityReportCard extends StatelessWidget {
               DigitButton(
                 key: const ValueKey('view-summary-button'),
                 mainAxisSize: MainAxisSize.max,
-                label: AppStrings.viewSummary,
+                label: context.translate(i18.installationReportHome.viewSummary),
                 onPressed: onAction,
                 type: DigitButtonType.secondary,
                 size: DigitButtonSize.large,
@@ -82,7 +85,7 @@ class FacilityReportCard extends StatelessWidget {
               DigitButton(
                 key: const ValueKey('view-details-button'),
                 mainAxisSize: MainAxisSize.max,
-                label: AppStrings.viewDetails,
+                label: context.translate(i18.installationReportHome.viewDetails),
                 onPressed: onAction,
                 type: DigitButtonType.primary,
                 size: DigitButtonSize.large,
@@ -92,7 +95,7 @@ class FacilityReportCard extends StatelessWidget {
                 key: const ValueKey('resubmit-button'),
                 isDisabled: true,
                 mainAxisSize: MainAxisSize.max,
-                label: AppStrings.resubmitForApproval,
+                label: context.translate(i18.installationReportHome.resubmitForApproval),
                 onPressed: onAction,
                 type: DigitButtonType.secondary,
                 size: DigitButtonSize.large,
@@ -150,8 +153,8 @@ class _NewReportActions extends StatelessWidget {
           key: const ValueKey('start-resume-report-button'),
           mainAxisSize: MainAxisSize.max,
           label: percent > 0
-              ? AppStrings.resumeInstallationReport
-              : AppStrings.startInstallationReport,
+              ? context.translate(i18.installationReportHome.resumeInstallationReport)
+              : context.translate(i18.installationReportHome.startInstallationReport),
           onPressed: onAction,
           type: DigitButtonType.primary,
           size: DigitButtonSize.large,
@@ -160,7 +163,7 @@ class _NewReportActions extends StatelessWidget {
         DigitButton(
           key: const ValueKey('submit-approval-button'),
           mainAxisSize: MainAxisSize.max,
-          label: AppStrings.submitForApproval,
+          label: context.translate(i18.installationReportHome.submitForApproval),
           onPressed: onAction,
           isDisabled: percent < 100,
           type: DigitButtonType.secondary,

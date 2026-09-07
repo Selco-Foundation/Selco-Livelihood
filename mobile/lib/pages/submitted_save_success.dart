@@ -3,7 +3,8 @@ import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:digit_ui_components/widgets/molecules/panel_cards.dart';
 import 'package:flutter/material.dart';
 
-import '../app/app_strings.dart';
+import '../utils/extensions.dart';
+import '../utils/i18_key_constants.dart' as i18;
 import '../router/app_router.dart';
 
 @RoutePage()
@@ -28,11 +29,11 @@ class SubmittedSaveSuccessPage extends StatelessWidget {
               animate: true,
               repeat: true,
               type: PanelType.success,
-              title: AppStrings.submittedSuccessfully,
-              description: AppStrings.submittedDescription,
+              title: context.translate(i18.machineForm.submittedSuccessfully),
+              description: context.translate(i18.machineForm.submittedDescription),
               actions: [
                 DigitButton(
-                  label: AppStrings.home,
+                  label: context.translate(i18.common.home),
                   type: DigitButtonType.primary,
                   size: DigitButtonSize.large,
                   onPressed: () => context.router.root.replaceAll(

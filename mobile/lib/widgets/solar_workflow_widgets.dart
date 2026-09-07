@@ -5,9 +5,10 @@ import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../app/app_strings.dart';
+import '../utils/extensions.dart';
+import '../utils/i18_key_constants.dart' as i18;
 import '../router/app_router.dart';
-import '../models/solar_installation_draft.dart';
+import '../model/solar_installation_draft.dart';
 import 'livelihood_app_bar.dart';
 import 'report_navigation_header.dart';
 
@@ -39,7 +40,7 @@ class SolarWorkflowScaffold extends StatelessWidget {
       appBar: LivelihoodAppBar(
         showMenu: true,
         onMenuPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text(AppStrings.reportActionNotConnected)),
+          SnackBar(content: Text(context.translate(i18.installationReportHome.reportActionNotConnected))),
         ),
       ),
       body: Padding(

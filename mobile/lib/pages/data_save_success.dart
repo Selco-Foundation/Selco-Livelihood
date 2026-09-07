@@ -3,8 +3,9 @@ import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:digit_ui_components/widgets/molecules/panel_cards.dart';
 import 'package:flutter/material.dart';
 
-import '../app/app_strings.dart';
-import '../models/solar_installation_draft.dart';
+import '../utils/extensions.dart';
+import '../utils/i18_key_constants.dart' as i18;
+import '../model/solar_installation_draft.dart';
 import '../router/app_router.dart';
 import '../widgets/solar_workflow_widgets.dart';
 
@@ -37,12 +38,12 @@ class DataSaveSuccessPage extends StatelessWidget {
               animate: true,
               repeat: true,
               type: PanelType.success,
-              title: AppStrings.dataSavedSuccessfully,
-              description: AppStrings.dataSavedDescription,
+              title: context.translate(i18.machineForm.dataSavedSuccessfully),
+              description: context.translate(i18.machineForm.dataSavedDescription),
               actions: [
                 DigitButton(
                   key: const ValueKey('solar-success-next'),
-                  label: AppStrings.next,
+                  label: context.translate(i18.common.next),
                   type: DigitButtonType.primary,
                   size: DigitButtonSize.large,
                   onPressed: () => context.router.push(

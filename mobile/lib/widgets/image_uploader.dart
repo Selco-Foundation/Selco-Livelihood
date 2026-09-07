@@ -5,8 +5,10 @@ import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../app/app_strings.dart';
-import '../models/solar_installation_draft.dart';
+import '../utils/extensions.dart';
+import '../utils/i18_key_constants.dart' as i18;
+import '../model/solar_installation_draft.dart';
+import '../utils/app_permission_gateway.dart';
 
 typedef ImageUploaderPick = Future<XFile?> Function(
   SolarFileKind kind,
@@ -29,6 +31,7 @@ class ImageUploader extends StatefulWidget {
     this.allowMultiples = false,
     this.maxImages,
     this.isDisabled = false,
+    this.permissionGateway,
   }) : assert(onImageSelected != null || onImagesSelected != null);
 
   final SolarFileRef? initialImage;
@@ -42,6 +45,7 @@ class ImageUploader extends StatefulWidget {
   final bool allowMultiples;
   final int? maxImages;
   final bool isDisabled;
+  final AppPermissionGateway? permissionGateway;
 
   @override
   State<ImageUploader> createState() => _ImageUploaderState();
@@ -109,6 +113,14 @@ class _ImageUploaderState extends State<ImageUploader> {
       localError = null;
     });
     try {
+      if (source == ImageSource.camera &&
+          (widget.permissionGateway != null || widget.pickMedia == null)) {
+        final granted = await ensureCameraPermission(
+          context,
+          gateway: widget.permissionGateway,
+        );
+        if (!granted) return;
+      }
       final selected = await _pick(source);
       if (!mounted || selected.isEmpty) return;
       final available = widget.maxImages == null
@@ -127,7 +139,7 @@ class _ImageUploaderState extends State<ImageUploader> {
       });
       _notify();
     } catch (_) {
-      if (mounted) setState(() => localError = AppStrings.mediaPickerError);
+      if (mounted) setState(() => localError = context.translate(i18.machineForm.mediaPickerError));
     } finally {
       if (mounted) setState(() => opening = false);
     }
@@ -157,13 +169,13 @@ class _ImageUploaderState extends State<ImageUploader> {
           _UploaderChoice(
             key: const ValueKey('image-uploader-camera'),
             icon: Icons.camera_enhance,
-            label: AppStrings.camera,
+            label: context.translate(i18.machineForm.camera),
             onTap: () => _choose(ImageSource.camera),
           ),
           _UploaderChoice(
             key: const ValueKey('image-uploader-files'),
             icon: Icons.perm_media,
-            label: AppStrings.myFiles,
+            label: context.translate(i18.machineForm.myFiles),
             onTap: () => _choose(ImageSource.gallery),
           ),
         ],
