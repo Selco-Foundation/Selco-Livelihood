@@ -1,10 +1,6 @@
 import { apiClient, tenantId as getTenantId, type AuthUser } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
-import type {
-  ActivityFacilityRow,
-  ActivityFacilitySearchResponse,
-  FacilityEntry,
-} from "../types/facility-review";
+import type { ActivityFacilitySearchResponse } from "../types/facility-review";
 
 export const ACTIVITY_CODE_INSTALLATION = "INS";
 
@@ -52,22 +48,6 @@ export async function searchActivityFacilities(
   );
 
   return data;
-}
-
-export function toFacilityEntry(row: ActivityFacilityRow): FacilityEntry {
-  const { activityFacility } = row;
-  const boundary = activityFacility.facility?.boundary;
-
-  return {
-    entryId: activityFacility.id,
-    facilityId: activityFacility.facilityId,
-    facilityName: activityFacility.facility?.facility_name ?? "",
-    entryType: activityFacility.componentType,
-    planId: activityFacility.fieldPlanId,
-    status: activityFacility.status,
-    district: boundary?.district ? { code: boundary.district } : undefined,
-    block: boundary?.block ? { code: boundary.block } : undefined,
-  };
 }
 
 /** The `/activity/v1/activities/bulk/workflow/update` request body — matches

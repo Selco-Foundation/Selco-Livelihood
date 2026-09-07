@@ -2,7 +2,7 @@ import { MACHINE_MEDIA_GROUPS, REVIEW_SECTION_LABELS } from "../constants/review
 import { INSTALLATION_IMAGE_CRITERIA } from "../constants/installation-images";
 import { REJECTION_REASON_OPTIONS } from "../constants/rejection-reasons";
 import { formatEpochDate } from "./date-format";
-import { toFacilityEntry } from "../services/facility";
+import { toFacilityEntry } from "./facility-entry-mapping";
 import { classifyDocument, INSTALLATION_IMAGE_PREFIX, REPORT_DOCUMENT_TYPES } from "./facility-documents";
 import type {
   ActivityBillOfMaterial,
