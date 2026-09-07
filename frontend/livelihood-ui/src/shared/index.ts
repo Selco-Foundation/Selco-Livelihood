@@ -37,6 +37,7 @@ export {
 } from "./api/hrms";
 export {
   fetchBoundaryRelations,
+  fetchBoundaryTree,
   type BoundaryHierarchy,
   type BoundaryNode,
 } from "./api/boundary";
@@ -115,4 +116,11 @@ export {
   filterRolesForEmployeeTenant,
   hydrateEmployeeJurisdictions,
 } from "./utils/employee-session";
+export {
+  hasAnyRole,
+  hasRole,
+  isProjectManager,
+  PROJECT_MANAGER_ROLE,
+  type RoleLike,
+} from "./utils/roles";
 export type { ModuleDefinition, NavItem } from "./modules/types";

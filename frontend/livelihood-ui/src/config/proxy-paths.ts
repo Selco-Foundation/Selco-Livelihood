@@ -12,4 +12,6 @@ export const API_PROXY_PATHS = [
   "/egov-workflow-v2",
   "/filestore",
   "/asset-registry",
+  "/project",
+  "/ingestion-service",
 ] as const;

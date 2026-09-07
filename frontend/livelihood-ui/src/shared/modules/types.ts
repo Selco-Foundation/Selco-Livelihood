@@ -18,6 +18,12 @@ export interface NavItem {
    * own route lives outside `to`'s own path tree.
    */
   matchPrefixes?: string[];
+  /**
+   * Role codes allowed to see this item — shown if the user has at least one.
+   * Omit to show the item to every authenticated user (e.g. the Overview item
+   * AppShell prepends outside any module).
+   */
+  roles?: string[];
 }
 
 export interface ModuleDefinition<TRoute = unknown> {

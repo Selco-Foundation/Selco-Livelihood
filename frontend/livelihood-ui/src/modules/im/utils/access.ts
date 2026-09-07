@@ -1,17 +1,14 @@
-const IM_ROLES = [
+import { hasRole } from "@/shared";
+
+export { hasRole };
+
+export const IM_ROLES = [
   "COMPLAINT_RESOLVER",
   "LIVELIHOOD_POC",
   "COMPLAINANT",
   "LIVELIHOOD_VENDOR",
   "VIEWER",
 ] as const;
-
-export function hasRole(
-  roles: Array<{ code?: string }> | undefined,
-  code: string,
-): boolean {
-  return roles?.some((role) => role.code === code) ?? false;
-}
 
 export function hasImAccess(roles: Array<{ code?: string }> | undefined): boolean {
   if (!roles?.length) {

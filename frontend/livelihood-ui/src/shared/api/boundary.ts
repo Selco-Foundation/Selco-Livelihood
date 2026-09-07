@@ -84,3 +84,37 @@ export async function fetchBoundaryRelations(
     facilities: compiled.Facility,
   };
 }
+
+/**
+ * Fetches the full hierarchy under one boundary level (e.g. every State, with
+ * every District and Block nested beneath) — unlike `fetchBoundaryRelations`,
+ * which resolves *known* codes' parents/children, this seeds the search from
+ * a level instead of a code, for pickers that offer the whole tree.
+ */
+export async function fetchBoundaryTree(
+  boundaryType: string,
+  accessToken: string,
+  user?: AuthUser | null,
+): Promise<BoundaryHierarchy> {
+  const response = await apiClient.post<BoundarySearchResponse>(
+    "/boundary-service/boundary-relationships/v2/_search",
+    {
+      RequestInfo: createRequestInfo(accessToken, user),
+      BoundaryRelationship: {
+        tenantId: tenantId(),
+        includeChildren: true,
+        hierarchyType: "SELCO",
+        boundaryType,
+      },
+    },
+  );
+
+  const compiled = extractBoundaries(response.data.TenantBoundary?.[0]?.boundary);
+
+  return {
+    states: compiled.State,
+    districts: compiled.District,
+    blocks: compiled.Block,
+    facilities: compiled.Facility,
+  };
+}

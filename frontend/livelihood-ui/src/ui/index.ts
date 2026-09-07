@@ -106,6 +106,13 @@ export {
   PopoverContent,
   PopoverTrigger,
 } from "./components/ui/popover";
+export { Select } from "./components/ui/select";
+export type { SelectProps, SimpleSelectOption } from "./components/ui/select";
+export { MultiSelect } from "./components/ui/multi-select";
+export type { MultiSelectOption, MultiSelectProps } from "./components/ui/multi-select";
+export { Stepper } from "./components/ui/stepper";
+export type { StepperProps, StepDefinition } from "./components/ui/stepper";
+export { Calendar } from "./components/ui/calendar";
 export { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
 export {
   Sheet,

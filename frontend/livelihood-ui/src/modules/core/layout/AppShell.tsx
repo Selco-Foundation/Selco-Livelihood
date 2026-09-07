@@ -4,6 +4,7 @@ import {
   employeeLoginPath,
   employeeProfilePath,
   getConfigString,
+  hasAnyRole,
   logoutUser,
   tenantId,
   translateOr,
@@ -76,7 +77,7 @@ export function AppShell() {
     "LU";
 
   const homePath = `${basePath}/employee`;
-  const allNavItems: NavItem[] = [
+  const baseNavItems: NavItem[] = [
     {
       id: "overview",
       label: "Overview",
@@ -86,6 +87,9 @@ export function AppShell() {
     },
     ...navItems,
   ];
+  const allNavItems = baseNavItems.filter(
+    (item) => !item.roles || hasAnyRole(user?.roles, item.roles),
+  );
 
   return (
     <SidebarProvider className="h-svh overflow-hidden bg-sidebar">
