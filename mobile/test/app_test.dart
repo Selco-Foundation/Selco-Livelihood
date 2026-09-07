@@ -107,10 +107,21 @@ ResponseModel _cannedLoginResponse({required bool approved}) {
 }
 
 final Map<String, String> _localizationMessages = {};
+const _secureStorageChannel =
+    MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
+final Map<String, String> _secureStorageValues = {};
+String? _secureStorageReadFailureKey;
+String? _secureStorageWriteFailureKey;
 
 String tr(String code) => _localizationMessages[code] ?? code;
 
 void main() {
+  setUp(() {
+    _secureStorageValues.clear();
+    _secureStorageReadFailureKey = null;
+    _secureStorageWriteFailureKey = null;
+  });
+
   setUpAll(() async {
     await envConfig.initialize();
 
@@ -140,27 +151,30 @@ void main() {
     // flutter_secure_storage has no platform implementation under
     // `flutter test` — SecureStore's token/accessInfo calls would otherwise
     // throw MissingPluginException. Fake it with an in-memory store.
-    const secureStorageChannel =
-        MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
-    final secureStorageValues = <String, String>{};
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(secureStorageChannel, (call) async {
+        .setMockMethodCallHandler(_secureStorageChannel, (call) async {
+      final key = call.arguments['key'] as String?;
       switch (call.method) {
         case 'write':
-          secureStorageValues[call.arguments['key'] as String] =
-              call.arguments['value'] as String;
+          if (key == _secureStorageWriteFailureKey) {
+            throw PlatformException(code: 'write-failed');
+          }
+          _secureStorageValues[key!] = call.arguments['value'] as String;
           return null;
         case 'read':
-          return secureStorageValues[call.arguments['key'] as String];
+          if (key == _secureStorageReadFailureKey) {
+            throw PlatformException(code: 'read-failed');
+          }
+          return _secureStorageValues[key];
         case 'delete':
-          secureStorageValues.remove(call.arguments['key'] as String);
+          _secureStorageValues.remove(key);
           return null;
         case 'containsKey':
-          return secureStorageValues.containsKey(call.arguments['key']);
+          return _secureStorageValues.containsKey(key);
         case 'readAll':
-          return secureStorageValues;
+          return _secureStorageValues;
         case 'deleteAll':
-          secureStorageValues.clear();
+          _secureStorageValues.clear();
           return null;
         default:
           return null;
@@ -346,6 +360,7 @@ void main() {
 
     expect(find.byType(HomePage), findsOneWidget);
     expect(find.byType(LoginPage), findsNothing);
+    expect(_secureStorageValues['loginConsentAccepted'], 'true');
 
     await tester.tap(find.byKey(const ValueKey('home-menu-button')));
     await tester.pumpAndSettle();
@@ -369,6 +384,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(logoutCalled, isTrue);
+    expect(_secureStorageValues['loginConsentAccepted'], 'true');
     expect(find.byType(HomePage), findsNothing);
     expect(find.byKey(const ValueKey('proceed-button')), findsOneWidget);
   });
@@ -403,6 +419,66 @@ void main() {
     expect(find.text(tr(i18.login.accessRoleRequired)), findsOneWidget);
     expect(find.byType(LoginPage), findsOneWidget);
     expect(find.byType(HomePage), findsNothing);
+    expect(_secureStorageValues, isNot(contains('loginConsentAccepted')));
+  });
+
+  testWidgets('cached login consent is not requested again', (tester) async {
+    _secureStorageValues['loginConsentAccepted'] = 'true';
+
+    await pumpLogin(tester);
+
+    expect(find.byKey(const ValueKey('consent-checkbox')), findsNothing);
+    final loginButton = tester.widget<DigitButton>(
+      find.byKey(const ValueKey('login-button')),
+    );
+    expect(loginButton.isDisabled, isFalse);
+  });
+
+  testWidgets('consent read failure falls back to requiring consent', (
+    tester,
+  ) async {
+    _secureStorageReadFailureKey = 'loginConsentAccepted';
+
+    await pumpLogin(tester);
+
+    expect(find.byKey(const ValueKey('consent-checkbox')), findsOneWidget);
+    final loginButton = tester.widget<DigitButton>(
+      find.byKey(const ValueKey('login-button')),
+    );
+    expect(loginButton.isDisabled, isTrue);
+  });
+
+  testWidgets('consent write failure does not block successful login', (
+    tester,
+  ) async {
+    _secureStorageWriteFailureKey = 'loginConsentAccepted';
+    loginAuthRepository = _StubAuthRepository(
+      (body) async => _cannedLoginResponse(approved: true),
+    );
+    addTearDown(() => loginAuthRepository = HttpAuthRepository());
+
+    await pumpLogin(tester);
+    await tester.tap(find.byKey(const ValueKey('consent-checkbox')));
+    await tester.pump();
+    await tester.enterText(
+      find.descendant(
+        of: find.byKey(const ValueKey('user-id-field')),
+        matching: find.byType(EditableText),
+      ),
+      'demo.user',
+    );
+    await tester.enterText(
+      find.descendant(
+        of: find.byKey(const ValueKey('password-field')),
+        matching: find.byType(EditableText),
+      ),
+      'password',
+    );
+    await tester.tap(find.byKey(const ValueKey('login-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(HomePage), findsOneWidget);
+    expect(_secureStorageValues, isNot(contains('loginConsentAccepted')));
   });
 
   testWidgets('policy link opens an in-app WebView dialog', (tester) async {

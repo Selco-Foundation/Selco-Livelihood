@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
@@ -5,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../blocs/auth/authbloc.dart';
+import '../data/secure_storage/secureStore.dart';
 import '../router/app_router.dart';
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
@@ -25,8 +28,45 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
 
   bool _consentAccepted = false;
+  bool _isConsentStatusLoading = true;
+  bool _hasAcceptedConsent = false;
+  bool _shouldPersistConsentOnAuthentication = false;
   String? _userIdError;
   String? _passwordError;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadConsentStatus());
+  }
+
+  Future<void> _loadConsentStatus() async {
+    var hasAcceptedConsent = false;
+    try {
+      hasAcceptedConsent = await SecureStore().hasAcceptedLoginConsent();
+    } catch (error, stackTrace) {
+      debugPrint('Login consent read failed: $error\n$stackTrace');
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _hasAcceptedConsent = hasAcceptedConsent;
+      _isConsentStatusLoading = false;
+    });
+  }
+
+  Future<void> _persistConsentAfterAuthentication() async {
+    if (_hasAcceptedConsent || !_shouldPersistConsentOnAuthentication) {
+      return;
+    }
+
+    try {
+      await SecureStore().setLoginConsentAccepted();
+      _hasAcceptedConsent = true;
+    } catch (error, stackTrace) {
+      debugPrint('Login consent write failed: $error\n$stackTrace');
+    }
+  }
 
   @override
   void dispose() {
@@ -56,7 +96,11 @@ class _LoginPageState extends State<LoginPage> {
           : null;
     });
 
-    if (!userIdMissing && !passwordMissing) {
+    final canSubmitConsent =
+        !_isConsentStatusLoading && (_hasAcceptedConsent || _consentAccepted);
+    if (!userIdMissing && !passwordMissing && canSubmitConsent) {
+      _shouldPersistConsentOnAuthentication =
+          !_hasAcceptedConsent && _consentAccepted;
       FocusManager.instance.primaryFocus?.unfocus();
       context.read<AuthBloc>().add(
             AuthEvent.login(username: userId, password: password),
@@ -84,14 +128,19 @@ class _LoginPageState extends State<LoginPage> {
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, state) {
         state.whenOrNull(
-          authenticated: (accessToken, refreshToken, userRequest) {
+          authenticated: (accessToken, refreshToken, userRequest) async {
+            await _persistConsentAfterAuthentication();
+            if (!context.mounted) return;
             context.router.root.replaceAll(
               const [
                 AuthenticatedRouteWrapper(children: [HomeRoute()])
               ],
             );
           },
-          error: (message) => _showMessage(context.translate(message)),
+          error: (message) {
+            _shouldPersistConsentOnAuthentication = false;
+            _showMessage(context.translate(message));
+          },
         );
       },
       builder: (context, state) {
@@ -140,25 +189,28 @@ class _LoginPageState extends State<LoginPage> {
                       onChange: _clearPasswordError,
                     ),
                   ),
-                  LoginConsentCheckbox(
-                    value: _consentAccepted,
-                    onChanged: (value) {
-                      setState(() => _consentAccepted = value);
-                    },
-                    prefixText: context.translate(i18.login.consentPrefix),
-                    privacyPolicyText:
-                        context.translate(i18.login.privacyPolicy),
-                    connectorText:
-                        context.translate(i18.login.consentConnector),
-                    termsAndConditionsText:
-                        context.translate(i18.login.termsOfUse),
-                    onPrivacyPolicyTap: () => showPrivacyPolicy(context),
-                    onTermsAndConditionsTap: () =>
-                        showTermsAndConditions(context),
-                  ),
+                  if (!_isConsentStatusLoading && !_hasAcceptedConsent)
+                    LoginConsentCheckbox(
+                      value: _consentAccepted,
+                      onChanged: (value) {
+                        setState(() => _consentAccepted = value);
+                      },
+                      prefixText: context.translate(i18.login.consentPrefix),
+                      privacyPolicyText:
+                          context.translate(i18.login.privacyPolicy),
+                      connectorText:
+                          context.translate(i18.login.consentConnector),
+                      termsAndConditionsText:
+                          context.translate(i18.login.termsOfUse),
+                      onPrivacyPolicyTap: () => showPrivacyPolicy(context),
+                      onTermsAndConditionsTap: () =>
+                          showTermsAndConditions(context),
+                    ),
                   DigitButton(
                     key: const ValueKey('login-button'),
-                    isDisabled: !_consentAccepted || isLoading,
+                    isDisabled: isLoading ||
+                        _isConsentStatusLoading ||
+                        (!_hasAcceptedConsent && !_consentAccepted),
                     label: context.translate(i18.login.login),
                     type: DigitButtonType.primary,
                     onPressed: _submit,

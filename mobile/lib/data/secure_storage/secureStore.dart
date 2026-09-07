@@ -11,6 +11,7 @@ class _SecureStorageKeys {
   static const String appConfig = 'appConfig';
   static const String accessToken = 'accessToken';
   static const String accessInfo = 'accessInfo';
+  static const String loginConsentAccepted = 'loginConsentAccepted';
 }
 
 class SecureStore {
@@ -69,5 +70,19 @@ class SecureStore {
 
   Future deleteAccessInfo() async {
     await storage.delete(key: _SecureStorageKeys.accessInfo);
+  }
+
+  Future<bool> hasAcceptedLoginConsent() async {
+    final value = await storage.read(
+      key: _SecureStorageKeys.loginConsentAccepted,
+    );
+    return value != null;
+  }
+
+  Future<void> setLoginConsentAccepted() async {
+    await storage.write(
+      key: _SecureStorageKeys.loginConsentAccepted,
+      value: 'true',
+    );
   }
 }
