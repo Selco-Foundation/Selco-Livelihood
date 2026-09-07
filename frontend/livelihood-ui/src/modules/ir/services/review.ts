@@ -1,6 +1,6 @@
 import { apiClient, type AuthUser } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
-import type { ActivityDocument, SubmitFacilityReviewInput } from "../types/facility-review";
+import type { SubmitFacilityReviewInput } from "../types/facility-review";
 
 const WORKFLOW_ACTION = {
   APPROVE: "APPROVE",
@@ -40,9 +40,7 @@ export async function submitFacilityReview(
   user?: AuthUser | null,
 ): Promise<unknown> {
   const action = input.action === "APPROVE" ? WORKFLOW_ACTION.APPROVE : WORKFLOW_ACTION.REJECT;
-  const comments: Array<{ commentMessage: string; assetType: string }> =
-    input.action === "REJECT" ? flattenRejectionReasons(input) : [];
-  const existingDocuments: ActivityDocument[] = input.existingDocuments ?? [];
+  const comments = input.action === "REJECT" ? flattenRejectionReasons(input) : [];
 
   const { data } = await apiClient.post(
     "/activity/v1/activities/workflow/update",
@@ -51,13 +49,12 @@ export async function submitFacilityReview(
       activityFacilityId: input.entryId,
       workflow: {
         action,
-        comment:
+        comments:
           input.action === "APPROVE"
             ? "Approved by Installation Reviewer"
             : "Rejected by Installation Reviewer",
-        documents: existingDocuments,
       },
-      transactions: [{ comments }],
+      ...(comments.length > 0 ? { transactions: [{ comments }] } : {}),
     },
     { params: { tenantId } },
   );

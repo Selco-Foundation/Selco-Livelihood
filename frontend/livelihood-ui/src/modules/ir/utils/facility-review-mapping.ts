@@ -259,6 +259,5 @@ export function buildFacilityReviewDetail(row: ActivityFacilityRow): FacilityRev
     sections,
     auditTrail: buildAuditTrail(row.workflow, row.transactions),
     sectionDocuments,
-    latestWorkflowDocuments: latestWorkflow?.documents,
   };
 }
