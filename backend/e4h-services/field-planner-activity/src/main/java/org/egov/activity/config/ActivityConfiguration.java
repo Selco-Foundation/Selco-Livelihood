@@ -262,4 +262,16 @@ public class ActivityConfiguration {
 
     @Value("${egov.amc.scheduler.visit.generate.url}")
     private String amcVisitGenerateUrl;
+
+    @Value("${egov.otp.host}")
+    private String otpServiceHost;
+
+    @Value("${egov.otp.create.url}")
+    private String otpServiceCreateUrl;
+
+    @Value("${egov.otp.validate.url}")
+    private String otpServiceValidateUrl;
+
+    @Value("${activity.facility.otp.sms.message.template:Your OTP for facility verification is {otp}.}")
+    private String otpSmsTemplate;
 }
