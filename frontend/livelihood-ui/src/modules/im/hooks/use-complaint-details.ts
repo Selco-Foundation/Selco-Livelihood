@@ -1,15 +1,16 @@
-import { useAuthStore } from "@/shared";
+import { fetchFileUrls, fetchWorkflowBusinessService, useAuthStore } from "@/shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  resolveVerificationMedia,
-  searchIncidentById,
-} from "../services/incident-details";
-import { fetchWorkflowDetails } from "../services/workflow";
+import { LIVELIHOOD_INCIDENT_BUSINESS_SERVICE } from "../constants/workflow";
+import { searchIncidentById } from "../services/incident-details";
+import { searchWorkflowProcess } from "../services/workflow";
 import type {
   ComplaintDetailsData,
   WorkflowDetailsData,
+  WorkflowProcessInstance,
 } from "../types/incident-details";
 import { buildComplaintDetailsData } from "../utils/complaint-details";
+import { mapVerificationMedia } from "../utils/verification-media";
+import { buildWorkflowDetailsData } from "../utils/workflow-mapping";
 
 export function useComplaintDetails(incidentId: string, tenantId: string) {
   const accessToken = useAuthStore((state) => state.accessToken);
@@ -32,12 +33,14 @@ export function useComplaintDetails(incidentId: string, tenantId: string) {
       }
 
       const documents = wrapper.incident.additionalDetail?.fileStoreId ?? [];
-      const media = await resolveVerificationMedia(
-        documents,
+      const fileIds = documents.map((doc) => doc.fileStoreId).filter(Boolean);
+      const fileUrlResponse = await fetchFileUrls(
+        fileIds,
         wrapper.incident.tenantId,
         accessToken!,
         user,
       );
+      const media = mapVerificationMedia(documents, fileUrlResponse);
 
       return buildComplaintDetailsData(
         incidentId,
@@ -58,8 +61,63 @@ export function useComplaintDetails(incidentId: string, tenantId: string) {
   const workflowQuery = useQuery({
     queryKey: workflowQueryKey,
     enabled: Boolean(accessToken && tenantId && incidentId),
-    queryFn: () =>
-      fetchWorkflowDetails(tenantId, incidentId, accessToken!, user),
+    queryFn: async (): Promise<WorkflowDetailsData> => {
+      const workflowResponse = await searchWorkflowProcess(
+        tenantId,
+        incidentId,
+        accessToken!,
+        user,
+      );
+      const processInstances = workflowResponse.ProcessInstances ?? [];
+
+      if (!processInstances.length) {
+        return { timeline: [], nextActions: [], processInstances: [] };
+      }
+
+      const currentInstance = processInstances[0];
+      const businessServiceName =
+        currentInstance.businessService ?? LIVELIHOOD_INCIDENT_BUSINESS_SERVICE;
+
+      const businessServiceResponse = await fetchWorkflowBusinessService(
+        tenantId,
+        businessServiceName,
+        accessToken!,
+        user,
+      );
+
+      const instancesWithMedia: WorkflowProcessInstance[] = [];
+      for (const instance of processInstances) {
+        if (!instance.documents?.length) {
+          instancesWithMedia.push(instance);
+          continue;
+        }
+
+        const ids = instance.documents.map((doc) => doc.fileStoreId).filter(Boolean);
+        const fileUrlResponse = await fetchFileUrls(
+          ids,
+          instance.tenantId ?? tenantId,
+          accessToken!,
+          user,
+        );
+        const media = mapVerificationMedia(instance.documents, fileUrlResponse);
+
+        instancesWithMedia.push({
+          ...instance,
+          thumbnailsToShow: {
+            thumbs: media.thumbs,
+            images: media.images,
+            videos: media.videos,
+          },
+        });
+      }
+
+      return buildWorkflowDetailsData(
+        currentInstance,
+        businessServiceResponse,
+        instancesWithMedia,
+        businessServiceName,
+      );
+    },
   });
 
   const revalidate = async () => {

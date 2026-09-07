@@ -2,9 +2,9 @@ import { fetchFileUrls, useAuthStore, useJurisdictionStore } from "@/shared";
 import { useQuery } from "@tanstack/react-query";
 import { searchAssetsForFacility } from "../services/asset-search";
 import { searchFacilitiesByJurisdiction } from "../services/facility-search";
-import { getOriginalFileUrl } from "../services/incident-details";
 import type { LivelihoodAsset } from "../types/facility-asset";
 import { buildFacilitySearchCriteria } from "../utils/jurisdiction-facility-criteria";
+import { getOriginalFileUrl } from "../utils/verification-media";
 
 export interface EndUserAsset extends LivelihoodAsset {
   imageUrl?: string;
