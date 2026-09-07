@@ -5,6 +5,7 @@ import pandas as pd
 
 from app.utils.excel_utils import add_dropdowns_to_excel, autofit_columns, lock_excel_columns
 from app.utils.file_utils import create_empty_excel_file, create_excel_data_writer, remove_default_empty_sheet
+from app.utils.convertor import HAVE_SOLAR_COLUMN
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,11 @@ class AssetTemplateService:
                     options = [opt.get("display") for opt in mdms_options if opt.get("display")]
                     if options:
                         dropdowns_map[header_name] = options
+
+            # Plain Yes/No flag, not sourced from the MDMS schema.
+            output_list.append(HAVE_SOLAR_COLUMN)
+            allow_blank_map[HAVE_SOLAR_COLUMN] = True
+            dropdowns_map[HAVE_SOLAR_COLUMN] = ["Yes", "No"]
 
             df_asset = pd.DataFrame(columns=output_list)
             writer = create_excel_data_writer(output_path, ASSET_SHEET_NAME)
