@@ -66,6 +66,24 @@ public class ActivityApiController {
         return new ResponseEntity<ActivityFacilityResponse>(activityFacilityResponse, HttpStatus.OK);
     }
 
+    @RequestMapping(value = "/_generate-otp", method = RequestMethod.POST)
+    public ResponseEntity<OtpResponse> generateActivityFacilityOtp(@ApiParam(value = "Activity facility to generate an OTP for.", required = true) @Valid @RequestBody ActivityFacilityOtpRequest request) {
+        OtpResponse otpResponse = activityService.generateActivityFacilityOtp(request);
+        return new ResponseEntity<OtpResponse>(otpResponse, HttpStatus.OK);
+    }
+
+    @RequestMapping(value = "/_validate-otp", method = RequestMethod.POST)
+    public ResponseEntity<OtpResponse> validateActivityFacilityOtp(@ApiParam(value = "Activity facility and OTP to validate.", required = true) @Valid @RequestBody ActivityFacilityOtpValidateRequest request) {
+        OtpResponse otpResponse = activityService.validateActivityFacilityOtp(request);
+        return new ResponseEntity<OtpResponse>(otpResponse, HttpStatus.OK);
+    }
+
+    @RequestMapping(value = "/_resend-otp", method = RequestMethod.POST)
+    public ResponseEntity<OtpResponse> resendActivityFacilityOtp(@ApiParam(value = "Activity facility to resend an OTP for.", required = true) @Valid @RequestBody ActivityFacilityOtpRequest request) {
+        OtpResponse otpResponse = activityService.resendActivityFacilityOtp(request);
+        return new ResponseEntity<OtpResponse>(otpResponse, HttpStatus.OK);
+    }
+
     @RequestMapping(value = "/_delete", method = RequestMethod.POST)
     public ResponseEntity<ActivityFacilityResponse> deleteActivityFacility(@ApiParam(value = "Delete activity Facility.", required = true) @Valid @RequestBody ActivityFacilityBulkRequest request) {
 
