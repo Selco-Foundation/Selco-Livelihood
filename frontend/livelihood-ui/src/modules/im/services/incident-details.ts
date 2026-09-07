@@ -1,10 +1,7 @@
-import { apiClient, type AuthUser } from "@/shared";
+import { apiClient, fetchFileUrls, type AuthUser } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
 import type { VerificationDocument } from "../types/create-incident";
-import type {
-  FileStoreUrlResponse,
-  IncidentSearchResponse,
-} from "../types/incident-details";
+import type { IncidentSearchResponse } from "../types/incident-details";
 
 function getThumbnailUrl(url: string): string {
   if (url.includes(",")) {
@@ -27,29 +24,6 @@ export function getOriginalFileUrl(url: string): string {
       !part.includes("/small/"),
   );
   return original ?? parts[0] ?? url;
-}
-
-export async function fetchFileUrls(
-  fileStoreIds: string[],
-  tenantId: string,
-  accessToken: string,
-  user?: AuthUser | null,
-): Promise<FileStoreUrlResponse> {
-  if (!fileStoreIds.length) {
-    return { fileStoreIds: [] };
-  }
-
-  const { data } = await apiClient.get<FileStoreUrlResponse>(
-    "/filestore/v1/files/url",
-    {
-      params: {
-        tenantId,
-        fileStoreIds: fileStoreIds.join(","),
-      },
-    },
-  );
-
-  return data;
 }
 
 export async function resolveVerificationMedia(

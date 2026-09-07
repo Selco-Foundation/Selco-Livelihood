@@ -1,13 +1,18 @@
 import { translateOr, useTranslate } from "@/shared";
-import { Accordion, AccordionContent, AccordionItem, Button } from "@/ui";
+import { Accordion, AccordionContent, AccordionItem, Button, Skeleton } from "@/ui";
 import { ChevronDown } from "lucide-react";
 import { Accordion as AccordionPrimitive } from "radix-ui";
 import { useState } from "react";
 import type {
+  ActivityDocument,
+  AssetSectionMediaPatch,
+  ImageChecklistMediaPatch,
   RejectionReasonEntry,
   RejectionReasonOption,
+  ReportSectionMediaPatch,
   ReviewSectionContent,
   ReviewSectionId,
+  SectionMediaPatch,
   SectionRejectionReasons,
 } from "../../types/facility-review";
 import { AssetSectionBody } from "./AssetSectionBody";
@@ -18,6 +23,12 @@ import { SectionReasonChips } from "./SectionReasonChips";
 
 interface ReviewSectionsProps {
   sections: ReviewSectionContent[];
+  /** Raw, unresolved documents per section — resolved into media on expand. */
+  sectionDocuments: Partial<Record<ReviewSectionId, ActivityDocument[]>>;
+  loadSectionMedia: (
+    section: ReviewSectionContent,
+    documents: ActivityDocument[],
+  ) => Promise<SectionMediaPatch>;
   reasonOptions: RejectionReasonOption[];
   rejectionReasons: SectionRejectionReasons;
   /** Reasons can only be added/edited/removed while the entry is still
@@ -33,8 +44,39 @@ interface DialogState {
   editing?: RejectionReasonEntry;
 }
 
+function mergeSectionMedia(
+  section: ReviewSectionContent,
+  media: SectionMediaPatch | undefined,
+): ReviewSectionContent {
+  if (!media) {
+    return section;
+  }
+
+  if (section.kind === "ASSET") {
+    const patch = media as AssetSectionMediaPatch;
+    return {
+      ...section,
+      images: patch.images,
+      videos: patch.videos,
+      mediaGroups: section.mediaGroups?.map((group) => ({
+        ...group,
+        images: patch.mediaGroups?.[group.id]?.images ?? group.images,
+        videos: patch.mediaGroups?.[group.id]?.videos ?? group.videos,
+      })),
+    };
+  }
+
+  if (section.kind === "REPORT") {
+    return { ...section, ...(media as ReportSectionMediaPatch) };
+  }
+
+  return { ...section, images: (media as ImageChecklistMediaPatch).images };
+}
+
 export function ReviewSections({
   sections,
+  sectionDocuments,
+  loadSectionMedia,
   reasonOptions,
   rejectionReasons,
   canEditReasons,
@@ -44,6 +86,9 @@ export function ReviewSections({
 }: ReviewSectionsProps) {
   const { t } = useTranslate();
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<ReviewSectionId>>(new Set());
+  const [loadingIds, setLoadingIds] = useState<Set<ReviewSectionId>>(new Set());
+  const [resolvedMedia, setResolvedMedia] = useState<Partial<Record<ReviewSectionId, SectionMediaPatch>>>({});
 
   // A reason already used elsewhere in this section can't be picked again —
   // except the one currently being edited, which must stay selectable as itself.
@@ -55,17 +100,51 @@ export function ReviewSections({
   );
   const availableReasonOptions = reasonOptions.filter((option) => !usedReasonCodes.has(option.code));
 
+  function handleExpand(section: ReviewSectionContent) {
+    setExpandedIds((prev) => new Set(prev).add(section.id));
+
+    if (resolvedMedia[section.id] || loadingIds.has(section.id)) {
+      return;
+    }
+
+    setLoadingIds((prev) => new Set(prev).add(section.id));
+    loadSectionMedia(section, sectionDocuments[section.id] ?? [])
+      .then((media) => {
+        setResolvedMedia((prev) => ({ ...prev, [section.id]: media }));
+      })
+      .finally(() => {
+        setLoadingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(section.id);
+          return next;
+        });
+      });
+  }
+
   return (
     <>
       <div className="space-y-4">
         {sections.map((section) => {
           const reasons = rejectionReasons[section.id] ?? [];
+          const isLoading = loadingIds.has(section.id);
+          const mergedSection = mergeSectionMedia(section, resolvedMedia[section.id]);
 
           return (
             <Accordion
               key={section.id}
               type="multiple"
-              defaultValue={[]}
+              value={expandedIds.has(section.id) ? [section.id] : []}
+              onValueChange={(value) => {
+                if (value.includes(section.id)) {
+                  handleExpand(section);
+                } else {
+                  setExpandedIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(section.id);
+                    return next;
+                  });
+                }
+              }}
               className="livelihood-card px-4"
             >
               <AccordionItem value={section.id}>
@@ -99,12 +178,14 @@ export function ReviewSections({
                   </div>
                 ) : null}
                 <AccordionContent className="space-y-4 pb-4">
-                  {section.kind === "ASSET" ? (
-                    <AssetSectionBody section={section} />
-                  ) : section.kind === "REPORT" ? (
-                    <ReportSectionBody section={section} />
+                  {isLoading ? (
+                    <Skeleton className="h-24 w-full" />
+                  ) : mergedSection.kind === "ASSET" ? (
+                    <AssetSectionBody section={mergedSection} />
+                  ) : mergedSection.kind === "REPORT" ? (
+                    <ReportSectionBody section={mergedSection} />
                   ) : (
-                    <InstallationImageSectionBody section={section} />
+                    <InstallationImageSectionBody section={mergedSection} />
                   )}
                 </AccordionContent>
               </AccordionItem>

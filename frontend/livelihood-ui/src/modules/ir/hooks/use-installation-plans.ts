@@ -1,6 +1,7 @@
 import { useAuthStore } from "@/shared";
 import { useQuery } from "@tanstack/react-query";
-import { searchInstallationPlans } from "../services/installation-plan";
+import { QC_APPROVER_ROLE, searchActivityAssignments, toInstallationPlan } from "../services/installation-plan";
+import type { InstallationPlanSearchResponse } from "../types/installation-plan";
 import { hasIrAccess } from "../utils/access";
 
 export interface UseInstallationPlansOptions {
@@ -22,12 +23,23 @@ export function useInstallationPlans(options: UseInstallationPlansOptions = {}) 
     queryKey: ["ir-installation-plans", employeeTenantId, searchText, pageOffset, pageSize, fieldPlanIds],
     enabled,
     staleTime: 30_000,
-    queryFn: () =>
-      searchInstallationPlans(
-        employeeTenantId!,
-        { searchText, offset: pageOffset, limit: pageSize, fieldPlanIds },
+    queryFn: async (): Promise<InstallationPlanSearchResponse> => {
+      const data = await searchActivityAssignments(
+        {
+          tenantId: employeeTenantId!,
+          roles: [QC_APPROVER_ROLE],
+          ...(searchText ? { fieldPlanCode: searchText } : {}),
+          ...(fieldPlanIds?.length ? { fieldPlanIds } : {}),
+        },
+        { limit: pageSize, offset: pageOffset },
         accessToken!,
         user,
-      ),
+      );
+
+      return {
+        plans: (data.ActivityAssignment ?? []).map(toInstallationPlan),
+        totalCount: data.TotalCount ?? 0,
+      };
+    },
   });
 }

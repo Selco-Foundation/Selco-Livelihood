@@ -45,9 +45,15 @@ export function AuditTrailTimeline({ checkpoints }: AuditTrailTimelineProps) {
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-medium text-ink-950">
                   {statusLabel(checkpoint.status, t)}
+                  {checkpoint.actorName ? (
+                    <span className="font-normal text-ink-600"> — {checkpoint.actorName}</span>
+                  ) : null}
                 </p>
                 <p className="text-xs text-ink-600">{checkpoint.date}</p>
               </div>
+              {checkpoint.comment ? (
+                <p className="text-sm text-ink-600">{checkpoint.comment}</p>
+              ) : null}
               {checkpoint.sectionReasons?.map((section) => (
                 <div key={section.sectionId} className="space-y-1">
                   <p className="text-xs font-semibold text-ink-600">{section.sectionLabel}</p>

@@ -42,6 +42,11 @@ export {
 } from "./api/boundary";
 export { fetchFacilities, type FacilitySummary } from "./api/facility";
 export {
+  fetchFileUrls,
+  type FileStoreUrlEntry,
+  type FileStoreUrlResponse,
+} from "./api/filestore";
+export {
   fetchWorkflowBusinessService,
   type WorkflowBusinessServiceResponse,
   type WorkflowBusinessServiceState,

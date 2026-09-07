@@ -6,22 +6,55 @@ import type {
   FacilityEntry,
 } from "../types/facility-review";
 
-const ACTIVITY_CODE_INSTALLATION = "INS";
+export const ACTIVITY_CODE_INSTALLATION = "INS";
 
-export interface FacilityEntrySearchParams {
+/** The `ActivityFacility` request-body criteria — kept as one typed, extensible
+ * object (matching qc's `ActivityService.fetchActivityFacilities(queryFilter, ...)`)
+ * so every caller shares the same request shape instead of each building its
+ * own ad hoc body. */
+export interface ActivityFacilitySearchCriteria {
+  tenantId: string;
+  ids?: string[];
+  fieldPlanIds?: string[];
+  activityCodes?: string[];
   boundaryCodes?: string[];
   statuses?: string[];
   facilityName?: string;
-  limit?: number;
-  offset?: number;
 }
 
-export interface FacilityEntrySearchResult {
-  entries: FacilityEntry[];
-  totalCount: number;
+/**
+ * The one method that calls `/activity/v1/activities/_search` — picks the
+ * criteria from the call, makes the request, and returns exactly what the
+ * backend sent back. No mapping/orchestration here — that's a hook's job
+ * (see hooks/use-facility-entries.ts, hooks/use-facility-review.ts), since
+ * different call sites (list search, single-row detail fetch, ...) need the
+ * raw response shaped differently.
+ */
+export async function searchActivityFacilities(
+  criteria: ActivityFacilitySearchCriteria,
+  options: { limit?: number; offset?: number } = {},
+  accessToken: string,
+  user?: AuthUser | null,
+): Promise<ActivityFacilitySearchResponse> {
+  const { data } = await apiClient.post<ActivityFacilitySearchResponse>(
+    "/activity/v1/activities/_search",
+    {
+      RequestInfo: createRequestInfo(accessToken, user),
+      ActivityFacility: criteria,
+    },
+    {
+      params: {
+        tenantId: criteria.tenantId || getTenantId(),
+        offset: options.offset ?? 0,
+        limit: options.limit ?? 10,
+      },
+    },
+  );
+
+  return data;
 }
 
-function toFacilityEntry(row: ActivityFacilityRow): FacilityEntry {
+export function toFacilityEntry(row: ActivityFacilityRow): FacilityEntry {
   const { activityFacility } = row;
   const boundary = activityFacility.facility?.boundary;
 
@@ -34,43 +67,6 @@ function toFacilityEntry(row: ActivityFacilityRow): FacilityEntry {
     status: activityFacility.status,
     district: boundary?.district ? { code: boundary.district } : undefined,
     block: boundary?.block ? { code: boundary.block } : undefined,
-  };
-}
-
-export async function searchFacilityEntries(
-  tenantId: string,
-  planId: string,
-  params: FacilityEntrySearchParams,
-  accessToken: string,
-  user?: AuthUser | null,
-): Promise<FacilityEntrySearchResult> {
-  const { data } = await apiClient.post<ActivityFacilitySearchResponse>(
-    "/activity/v1/activities/_search",
-    {
-      RequestInfo: createRequestInfo(accessToken, user),
-      ActivityFacility: {
-        tenantId,
-        fieldPlanIds: [planId],
-        activityCodes: [ACTIVITY_CODE_INSTALLATION],
-        ...(params.boundaryCodes?.length ? { boundaryCodes: params.boundaryCodes } : {}),
-        ...(params.statuses?.length ? { statuses: params.statuses } : {}),
-        ...(params.facilityName ? { facilityName: params.facilityName } : {}),
-      },
-    },
-    {
-      params: {
-        tenantId: tenantId || getTenantId(),
-        offset: params.offset ?? 0,
-        limit: params.limit ?? 10,
-      },
-    },
-  );
-
-  const rows = data.facility ?? [];
-
-  return {
-    entries: rows.map(toFacilityEntry),
-    totalCount: data.totalCount ?? 0,
   };
 }
 
