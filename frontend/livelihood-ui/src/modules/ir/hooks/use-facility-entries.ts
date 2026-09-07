@@ -2,7 +2,7 @@ import { useAuthStore } from "@/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ACTIVITY_CODE_INSTALLATION,
-  bulkApproveFacilityEntries,
+  bulkUpdateActivityFacilitiesWorkflow,
   searchActivityFacilities,
   toFacilityEntry,
 } from "../services/facility";
@@ -79,7 +79,16 @@ export function useBulkApproveFacilityEntries(planId: string) {
 
   return useMutation({
     mutationFn: (entryIds: string[]) =>
-      bulkApproveFacilityEntries({ entryIds }, accessToken!, user),
+      bulkUpdateActivityFacilitiesWorkflow(
+        {
+          workflow: { action: "APPROVE", comments: "Approved by Installation Reviewer" },
+          isAllSelected: false,
+          activityFacilityIds: entryIds,
+        },
+        employeeTenantId!,
+        accessToken!,
+        user,
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["ir-facility-entries", employeeTenantId, planId],

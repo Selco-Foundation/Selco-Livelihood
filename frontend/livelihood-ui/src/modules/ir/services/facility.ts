@@ -70,26 +70,43 @@ export function toFacilityEntry(row: ActivityFacilityRow): FacilityEntry {
   };
 }
 
-export interface BulkApproveFacilityEntriesInput {
-  entryIds: string[];
+/** The `/activity/v1/activities/bulk/workflow/update` request body — matches
+ * qc's `ActivityService.bulkApproveActivityFacilities`. `isAllSelected` true
+ * bulk-approves every row matching `filters.searchCriteria` (qc's "select
+ * all" checkbox); false approves just `activityFacilityIds` — the only mode
+ * our own table's per-row checkbox selection uses. */
+export interface BulkActivityFacilityWorkflowCriteria {
+  workflow: { action: string; comments: string };
+  isAllSelected: boolean;
+  activityFacilityIds?: string[];
+  filters?: {
+    searchCriteria: {
+      statuses?: string[];
+      fieldPlanIds?: string[];
+      activityIds?: string[];
+      facilityName?: string;
+      boundaryCodes?: string[];
+    };
+  };
 }
 
-export interface BulkApproveFacilityEntriesResponse {
-  approvedEntryIds: string[];
-}
-
-/**
- * Dummy implementation — pretends every requested entry approved successfully.
- * No real bulk-approve endpoint contract has been provided yet; swap this out
- * once one is available.
- */
-export async function bulkApproveFacilityEntries(
-  input: BulkApproveFacilityEntriesInput,
+/** The one method that calls `/activity/v1/activities/bulk/workflow/update`
+ * — picks the criteria from the call, makes the request, and returns
+ * exactly what the backend sent back. */
+export async function bulkUpdateActivityFacilitiesWorkflow(
+  criteria: BulkActivityFacilityWorkflowCriteria,
+  tenantId: string,
   accessToken: string,
   user?: AuthUser | null,
-): Promise<BulkApproveFacilityEntriesResponse> {
-  void accessToken;
-  void user;
+): Promise<unknown> {
+  const { data } = await apiClient.post(
+    "/activity/v1/activities/bulk/workflow/update",
+    {
+      RequestInfo: createRequestInfo(accessToken, user),
+      ...criteria,
+    },
+    { params: { tenantId } },
+  );
 
-  return { approvedEntryIds: input.entryIds };
+  return data;
 }
