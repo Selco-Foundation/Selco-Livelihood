@@ -266,9 +266,9 @@ async def upload_boundaries_excel_sheet(
         writer = ExcelDataWriter(output_file_path, output_sheet="Boundary Data")
         writer.write_data(boundary_df)
 
-        error_count = int(
-            boundary_df["status"].astype(str).str.strip().str.lower().eq("fail").sum()
-        )
+        normalized_status = boundary_df["status"].astype(str).str.strip().str.lower()
+        error_count = int(normalized_status.eq("fail").sum())
+        duplicate_count = int(normalized_status.eq("exists").sum())
 
         response = FileResponse(
             path=output_file_path,
@@ -276,6 +276,7 @@ async def upload_boundaries_excel_sheet(
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
         response.headers["X-Error-Count"] = str(error_count)
+        response.headers["X-Duplicate-Count"] = str(duplicate_count)
         return response
 
     except Exception as e:
