@@ -96,7 +96,7 @@ export function FacilityEntryTable({
       ) : (
         <div className="livelihood-card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] border-collapse text-sm">
+            <table className="w-full min-w-[1000px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-border">
                   <th className="w-10 px-5 py-3">
@@ -105,13 +105,16 @@ export function FacilityEntryTable({
                     ) : null}
                   </th>
                   <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
-                    {translateOr(t, "ES_IR_FACILITY", "Facility")}
+                    {translateOr(t, "ES_IR_END_USER", "End User")}
                   </th>
                   <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ES_IR_ENTRY_TYPE", "Type")}
                   </th>
                   <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
-                    {translateOr(t, "ES_IR_LOCATION", "Location")}
+                    {translateOr(t, "ES_IR_DISTRICT", "District")}
+                  </th>
+                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                    {translateOr(t, "ES_IR_BLOCK", "Block")}
                   </th>
                   <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ES_IR_STATUS", "Status")}
@@ -158,9 +161,10 @@ export function FacilityEntryTable({
                           : translateOr(t, "ES_IR_ENTRY_TYPE_SOLAR", "Solar")}
                       </td>
                       <td className="px-5 py-4 text-foreground">
-                        {[boundaryLabel(entry.district, t), boundaryLabel(entry.block, t)]
-                          .filter(Boolean)
-                          .join(" / ")}
+                        {boundaryLabel(entry.district, t) ?? "-"}
+                      </td>
+                      <td className="px-5 py-4 text-foreground">
+                        {boundaryLabel(entry.block, t) ?? "-"}
                       </td>
                       <td className="px-5 py-4">
                         {badgeVariant === "pending" ? (
