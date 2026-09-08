@@ -1,9 +1,9 @@
 import { MACHINE_MEDIA_GROUPS, REVIEW_SECTION_LABELS } from "../constants/review";
-import { INSTALLATION_IMAGE_CRITERIA } from "../constants/installation-images";
 import { REJECTION_REASON_OPTIONS } from "../constants/rejection-reasons";
 import { formatEpochDate } from "./date-format";
 import { toFacilityEntry } from "./facility-entry-mapping";
 import { classifyDocument, INSTALLATION_IMAGE_PREFIX, REPORT_DOCUMENT_TYPES } from "./facility-documents";
+import type { InstallationImageCriterion } from "./installation-image-mapping";
 import type {
   ActivityBillOfMaterial,
   ActivityBomComponent,
@@ -155,8 +155,10 @@ function buildReportSection(bom: ActivityBillOfMaterial | undefined): ReportSect
   };
 }
 
-function buildImageChecklistSections(): ImageChecklistSectionContent[] {
-  return INSTALLATION_IMAGE_CRITERIA.map((criterion) => ({
+function buildImageChecklistSections(
+  criteria: InstallationImageCriterion[],
+): ImageChecklistSectionContent[] {
+  return criteria.map((criterion) => ({
     kind: "IMAGE_CHECKLIST",
     id: `${INSTALLATION_IMAGE_PREFIX}_${criterion.code}`,
     label: criterion.description,
@@ -224,18 +226,26 @@ function buildAuditTrail(
   });
 }
 
-export function buildFacilityReviewDetail(row: ActivityFacilityRow): FacilityReviewDetail {
+export function buildFacilityReviewDetail(
+  row: ActivityFacilityRow,
+  installationImageCriteria: InstallationImageCriterion[],
+): FacilityReviewDetail {
   const { activityFacility } = row;
   const entry = toFacilityEntry(row);
   const latestWorkflow = row.workflow?.[0];
   const latestDocuments = latestWorkflow?.documents ?? [];
 
-  const sections: ReviewSectionContent[] =
-    activityFacility.componentType === "MACHINE"
-      ? [buildMachineSection(activityFacility.billOfMaterial)]
-      : buildSolarSections(activityFacility.billOfMaterial);
+  const isSolar = activityFacility.componentType !== "MACHINE";
+  const sections: ReviewSectionContent[] = isSolar
+    ? buildSolarSections(activityFacility.billOfMaterial)
+    : [buildMachineSection(activityFacility.billOfMaterial)];
   sections.push(buildReportSection(activityFacility.billOfMaterial));
-  sections.push(...buildImageChecklistSections());
+  // The installation-image checklist (site overview / nameplate / earthing
+  // photos) verifies a Solar installation specifically — Machine entries
+  // don't need it.
+  if (isSolar) {
+    sections.push(...buildImageChecklistSections(installationImageCriteria));
+  }
 
   const sectionDocuments: Partial<Record<ReviewSectionId, ActivityDocument[]>> = {};
   for (const section of sections) {
