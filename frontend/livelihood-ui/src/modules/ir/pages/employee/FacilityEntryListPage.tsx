@@ -135,7 +135,7 @@ export function FacilityEntryListPage() {
         </div>
         <div>
           <p className="text-sm leading-[21px] text-ink-600">
-            {translateOr(t, "ES_IR_TOTAL_END_USERS_ASSIGNED", "Total End Users Assigned")}
+            {translateOr(t, "ES_IR_END_USER_SITE", "End User Site(s)")}
           </p>
           <p className="text-base leading-6 font-semibold text-ink-950">
             {plan?.totalFacilities ?? "-"}

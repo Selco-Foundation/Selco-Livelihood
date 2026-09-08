@@ -15,7 +15,7 @@ export function InstallationPlanTable({ plans, isLoading }: InstallationPlanTabl
 
   const columns = [
     { key: "plan", label: translateOr(t, "ES_IR_INSTALLATION_PLAN", "Installation Plan") },
-    { key: "endUserSite", label: translateOr(t, "ES_IR_END_USER_SITE", "End User Site") },
+    { key: "endUserSite", label: translateOr(t, "ES_IR_END_USER_SITE", "End User Site(s)") },
     { key: "startDate", label: translateOr(t, "ES_IR_START_DATE", "Start Date") },
     { key: "endDate", label: translateOr(t, "ES_IR_END_DATE", "End Date") },
     { key: "pending", label: translateOr(t, "ES_IR_PENDING_REVIEW", "Pending Review") },
