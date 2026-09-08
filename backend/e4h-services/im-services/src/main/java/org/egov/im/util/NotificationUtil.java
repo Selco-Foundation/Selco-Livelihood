@@ -194,7 +194,13 @@ public class NotificationUtil {
         body.put("url",actualURL);
         StringBuilder builder = new StringBuilder(config.getUrlShortnerHost());
         builder.append(config.getUrlShortnerEndpoint());
-        String res = restTemplate.postForObject(builder.toString(), body, String.class);
+        String res;
+        try {
+            res = restTemplate.postForObject(builder.toString(), body, String.class);
+        } catch (Exception e) {
+            log.error("URL_SHORTENING_ERROR", "Unable to shorten url: " + actualURL, e);
+            return actualURL;
+        }
 
         if(StringUtils.isEmpty(res)){
             log.error("URL_SHORTENING_ERROR","Unable to shorten url: "+actualURL); ;
