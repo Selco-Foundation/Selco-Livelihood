@@ -58,6 +58,10 @@ public class LivelihoodSmsNotificationService {
                     "A quotation has been submitted for your livelihood support ticket for {ticket_type} with ID {incidentId} "
                             + "submitted on {date}. Please review and click to view the quotation document using this link: "
                             + "{quotation_short_link}. - SELCO Foundation"),
+            Map.entry(LIV_TPL_020,
+                    "A revised quotation has been submitted by the vendor for your livelihood support ticket for {ticket_type} "
+                            + "with ID {incidentId}, raised on {date}. Please review the revised quotation using this link: "
+                            + "{quotation_short_link}. - SELCO Foundation"),
             Map.entry(LIV_TPL_011,
                     "Your livelihood support ticket for {ticket_type} with ID {incidentId} submitted on {date} has been resolved. "
                             + "We hope your issue has been addressed. Not satisfied with the resolution? You can change ticket "
