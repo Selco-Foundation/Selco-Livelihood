@@ -21,6 +21,14 @@ class AuthTokenInterceptor extends Interceptor {
 
   static bool _logoutTriggered = false;
 
+  /// Must be called after a fresh successful login — without it, once one
+  /// session has been force-logged-out, [_triggerLogoutOnce] would silently
+  /// no-op forever afterwards for the lifetime of the app process, even for
+  /// an entirely new session that later also expires.
+  static void resetLogoutGuard() {
+    _logoutTriggered = false;
+  }
+
   static Future<void> _triggerLogoutOnce() async {
     if (_logoutTriggered) return;
     _logoutTriggered = true;
@@ -70,12 +78,15 @@ class AuthTokenInterceptor extends Interceptor {
     try {
       await NetworkService().ensureOnlineOrThrow();
     } on NetworkException catch (e) {
+      final code = e.message.toLowerCase().contains('internet')
+          ? LoginErrorCode.noInternet
+          : LoginErrorCode.noNetwork;
       return handler.reject(
         DioException(
           requestOptions: options,
           type: DioExceptionType.unknown,
-          error: e,
-          message: e.message,
+          error: AppNetworkException(code, rawMessage: e.message),
+          message: code.name,
         ),
       );
     }

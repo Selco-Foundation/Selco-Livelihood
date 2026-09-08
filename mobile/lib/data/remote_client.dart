@@ -22,6 +22,7 @@ class DioClient {
     _dio = Dio()
       ..interceptors.addAll([
         AuthTokenInterceptor(),
+        NetworkErrorNormalizerInterceptor(),
       ])
       ..options = BaseOptions(
         connectTimeout: Duration(

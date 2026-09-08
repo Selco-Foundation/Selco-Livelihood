@@ -6,14 +6,19 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import '../../model/appconfig/mdmsResponse.dart';
 import '../../model/mdms/asset_registry_response.dart';
 import '../../repositories/app_init_repo.dart';
+import '../../utils/error_i18n.dart';
 
 part 'app_init.freezed.dart';
 
 class AppInitialization extends Bloc<InitEvent, InitState> {
-  AppInitialization() : super(const InitState.uninitialized()) {
+  AppInitialization({AppInitRepo? repo})
+      : _repo = repo ?? AppInitRepo(),
+        super(const InitState.uninitialized()) {
     on<_AppLaunchEvent>(_onAppLaunch);
     on<_FetchMdmsEvent>(_onFetchMdms);
   }
+
+  final AppInitRepo _repo;
 
   MdmsResponseModel? _cachedAppConfig;
 
@@ -23,10 +28,8 @@ class AppInitialization extends Bloc<InitEvent, InitState> {
     _AppLaunchEvent event,
     Emitter<InitState> emit,
   ) async {
-    final appInitRepo = AppInitRepo();
-
     try {
-      final appConfig = await appInitRepo.searchAppConfiguration();
+      final appConfig = await _repo.searchAppConfiguration();
 
       _cachedAppConfig = appConfig;
       emit(InitState.defaulted(appConfig: appConfig));
@@ -44,6 +47,7 @@ class AppInitialization extends Bloc<InitEvent, InitState> {
       defaulted: (appConfig) => appConfig,
       loadingMdms: (appConfig) => appConfig,
       initialized: (appConfig, _) => appConfig,
+      mdmsError: (appConfig, _) => appConfig,
       orElse: () => _cachedAppConfig,
     );
     if (appConfig == null) return;
@@ -51,13 +55,16 @@ class AppInitialization extends Bloc<InitEvent, InitState> {
     emit(InitState.loadingMdms(appConfig: appConfig));
 
     try {
-      final assetRegistry = await AppInitRepo().searchAssetRegistry();
+      final assetRegistry = await _repo.searchAssetRegistry();
       emit(InitState.initialized(
         appConfig: appConfig,
         assetRegistry: assetRegistry,
       ));
-    } catch (_) {
-      emit(InitState.defaulted(appConfig: appConfig));
+    } catch (e) {
+      emit(InitState.mdmsError(
+        appConfig: appConfig,
+        message: i18KeyForNetworkError(e),
+      ));
     }
   }
 }
@@ -82,5 +89,9 @@ class InitState with _$InitState {
     required MdmsResponseModel appConfig,
     required AssetRegistryMdmsResponse assetRegistry,
   }) = _Initialized;
+  const factory InitState.mdmsError({
+    required MdmsResponseModel appConfig,
+    required String message,
+  }) = _MdmsError;
   const factory InitState.error(String message) = Error;
 }

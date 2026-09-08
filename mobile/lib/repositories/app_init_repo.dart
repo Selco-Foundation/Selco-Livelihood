@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
+import '../data/network_manager.dart';
 import '../data/remote_client.dart';
 import '../data/secure_storage/secureStore.dart';
 import '../model/appconfig/mdmsResponse.dart';
@@ -95,15 +96,26 @@ class AppInitRepo {
       return result;
     } catch (remoteError) {
       final cached = await storage.getAssetRegistryConfig();
-      if (cached == null) rethrow;
+      if (cached == null) throw _unwrap(remoteError);
 
       try {
         return AssetRegistryMdmsResponse.fromJson(
           json.decode(cached) as Map<String, dynamic>,
         );
       } catch (_) {
-        rethrow;
+        throw _unwrap(remoteError);
       }
     }
+  }
+
+  /// Same unwrapping convention `HttpAuthRepository` already uses — Dio
+  /// wraps our classified `AppNetworkException` inside `DioException.error`,
+  /// so callers that want the classification (not a generic Dio wrapper)
+  /// need it pulled back out.
+  Object _unwrap(Object error) {
+    if (error is DioException && error.error is AppNetworkException) {
+      return error.error as AppNetworkException;
+    }
+    return error;
   }
 }

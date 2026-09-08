@@ -11,6 +11,7 @@ import '../data/secure_storage/secureStore.dart';
 import '../router/app_router.dart';
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
+import '../widgets/errors/app_error_notifier.dart';
 import '../widgets/livelihood_app_bar.dart';
 import '../widgets/login_consent_checkbox.dart';
 import '../widgets/privacy_policy/policy_dialog_launcher.dart';
@@ -77,9 +78,7 @@ class _LoginPageState extends State<LoginPage> {
 
   void _showMessage(String message) {
     FocusManager.instance.primaryFocus?.unfocus();
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    AppErrorNotifier.show(message);
   }
 
   void _submit() {

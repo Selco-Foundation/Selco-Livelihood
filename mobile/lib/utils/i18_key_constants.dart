@@ -35,6 +35,10 @@ class Common {
   String get view => 'COMMON_VIEW';
   String get required => 'COMMON_REQUIRED';
   String get logout => 'COMMON_LOGOUT';
+  String get retry => 'COMMON_RETRY';
+  String get loading => 'COMMON_LOADING';
+  String get somethingWentWrong => 'COMMON_SOMETHING_WENT_WRONG';
+  String get sessionExpired => 'COMMON_SESSION_EXPIRED';
 }
 
 class Welcome {

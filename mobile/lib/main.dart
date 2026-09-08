@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -11,6 +9,7 @@ import 'blocs/auth/authbloc.dart';
 import 'blocs/localization/app_localization.dart';
 import 'blocs/localization/app_localization_delegate.dart';
 import 'blocs/localization/localization.dart';
+import 'data/api_interceptors.dart';
 import 'data/app_shared_preferences.dart';
 import 'model/appconfig/mdmsResponse.dart';
 import 'router/app_router.dart';
@@ -18,6 +17,7 @@ import 'repositories/auth_repo.dart';
 import 'utils/constants.dart';
 import 'utils/envConfig.dart';
 import 'utils/intl_locale.dart';
+import 'widgets/errors/app_error_notifier.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,57 +50,26 @@ class LivelihoodApp extends StatefulWidget {
 class _LivelihoodAppState extends State<LivelihoodApp> {
   late final AppRouter _router = widget.router ?? AppRouter();
   late final AuthBloc _authBloc;
-  StreamSubscription<AuthState>? _authBootstrapSubscription;
-  bool _isRestoringSession = true;
-  bool _sessionRestoreScheduled = false;
 
   @override
   void initState() {
     super.initState();
     _authBloc = AuthBloc(loginAuthRepository);
-    _authBootstrapSubscription = _authBloc.stream.listen(_handleAuthBootstrap);
-  }
+    _authBloc.add(const AuthEvent.attemptLoad());
 
-  void _scheduleSessionRestore() {
-    if (_sessionRestoreScheduled) return;
-    _sessionRestoreScheduled = true;
-    _restoreSessionWhenRouterIsReady();
-  }
-
-  void _restoreSessionWhenRouterIsReady() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (_router.stack.isEmpty) {
-        _restoreSessionWhenRouterIsReady();
-        return;
-      }
-      _authBloc.add(const AuthEvent.attemptLoad());
-    });
-  }
-
-  void _handleAuthBootstrap(AuthState state) {
-    if (!_isRestoringSession) return;
-
-    state.whenOrNull(
-      authenticated: (_, __, ___) {
-        _isRestoringSession = false;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          _router.replaceAll(
-            const [
-              AuthenticatedRouteWrapper(children: [HomeRoute()])
-            ],
-          );
-        });
-      },
-      unauthenticated: () => _isRestoringSession = false,
-      error: (_) => _isRestoringSession = false,
-    );
+    AuthTokenInterceptor.onSessionExpired = () async {
+      _authBloc.add(const AuthEvent.logout());
+      AppErrorNotifier.showSessionExpired();
+      _router.replaceAll(
+        const [
+          UnauthenticatedRouteWrapper(children: [WelcomeRoute()])
+        ],
+      );
+    };
   }
 
   @override
   void dispose() {
-    _authBootstrapSubscription?.cancel();
     _authBloc.close();
     super.dispose();
   }
@@ -146,6 +115,11 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
                 isar: isar,
                 appConfig: appConfig,
               ),
+              mdmsError: (appConfig, _) => _buildShell(
+                context,
+                isar: isar,
+                appConfig: appConfig,
+              ),
               error: (_) => cachedAppConfig != null
                   ? _buildShell(context, isar: isar, appConfig: cachedAppConfig)
                   : const _LoadingApp(),
@@ -161,13 +135,12 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
     Isar? isar,
     MdmsResponseModel? appConfig,
   }) {
-    _scheduleSessionRestore();
-
     if (isar == null || appConfig == null) {
       return MaterialApp.router(
         title: 'Livelihood',
         debugShowCheckedModeBanner: false,
         theme: DigitTheme.instance.mobileTheme,
+        scaffoldMessengerKey: AppErrorNotifier.messengerKey,
         routerConfig: _router.config(),
         localizationsDelegates: const [
           DebugAppLocalizationsDelegate(),
@@ -212,6 +185,7 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
             title: 'Livelihood',
             debugShowCheckedModeBanner: false,
             theme: DigitTheme.instance.mobileTheme,
+            scaffoldMessengerKey: AppErrorNotifier.messengerKey,
             routerConfig: _router.config(),
             supportedLocales: (languages != null && languages.isNotEmpty)
                 ? languages.map((e) {

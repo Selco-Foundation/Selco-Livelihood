@@ -15,8 +15,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:livelihood/blocs/app_init/app_init.dart';
 import 'package:livelihood/blocs/localization/app_localization.dart';
+import 'package:livelihood/data/api_interceptors.dart';
+import 'package:livelihood/data/network_manager.dart';
 import 'package:livelihood/data/nosql/localization.dart' as nosql;
+import 'package:livelihood/model/appconfig/mdmsResponse.dart';
+import 'package:livelihood/model/mdms/asset_registry_response.dart';
+import 'package:livelihood/repositories/app_init_repo.dart';
 import 'package:livelihood/utils/i18_key_constants.dart' as i18;
 import 'package:livelihood/main.dart';
 import 'package:livelihood/model/facility_report_sample.dart';
@@ -104,6 +110,20 @@ ResponseModel _cannedLoginResponse({required bool approved}) {
       tenantId: 'livelihood',
     ),
   );
+}
+
+class _StubAppInitRepo extends AppInitRepo {
+  _StubAppInitRepo({required this.fetchAssetRegistry});
+
+  final Future<AssetRegistryMdmsResponse> Function() fetchAssetRegistry;
+
+  @override
+  Future<MdmsResponseModel> searchAppConfiguration() async =>
+      const MdmsResponseModel(appConfig: null);
+
+  @override
+  Future<AssetRegistryMdmsResponse> searchAssetRegistry() =>
+      fetchAssetRegistry();
 }
 
 final Map<String, String> _localizationMessages = {};
@@ -251,9 +271,9 @@ void main() {
     expect(screenSources, isNot(contains('pushAndRemoveUntil(')));
   });
 
-  testWidgets('stored authenticated session opens Home directly', (
-    tester,
-  ) async {
+  testWidgets(
+      'stored authenticated session shows Welcome, proceeding opens Home directly',
+      (tester) async {
     setMobileViewport(tester, const Size(390, 844));
     final response = _cannedLoginResponse(approved: true);
     _secureStorageValues['accessToken'] = response.access_token;
@@ -263,9 +283,17 @@ void main() {
     await tester.pumpWidget(LivelihoodApp(router: router));
     await tester.pumpAndSettle();
 
+    // Welcome is always the entry screen, even with a valid stored session —
+    // it must not auto-redirect to Home.
+    expect(find.byKey(const ValueKey('proceed-button')), findsOneWidget);
+    expect(find.byType(HomePage), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('proceed-button')));
+    await tester.pumpAndSettle();
+
+    // Tapping Proceed with an existing session skips Login entirely.
     expect(find.byType(HomePage), findsOneWidget);
     expect(find.byKey(const ValueKey('home-menu-button')), findsOneWidget);
-    expect(find.byKey(const ValueKey('proceed-button')), findsNothing);
     expect(find.byType(LoginPage), findsNothing);
   });
 
@@ -419,6 +447,81 @@ void main() {
     expect(_secureStorageValues['loginConsentAccepted'], 'true');
     expect(find.byType(HomePage), findsNothing);
     expect(find.byKey(const ValueKey('proceed-button')), findsOneWidget);
+  });
+
+  testWidgets(
+      'session expiry logs out, notifies, and returns to Welcome — '
+      'repeatably across the app lifetime', (tester) async {
+    addTearDown(AuthTokenInterceptor.resetLogoutGuard);
+
+    loginAuthRepository = _StubAuthRepository(
+      (body) async => _cannedLoginResponse(approved: true),
+    );
+    addTearDown(() => loginAuthRepository = HttpAuthRepository());
+
+    await pumpLogin(tester);
+
+    Future<void> login() async {
+      final consentCheckbox = find.byKey(const ValueKey('consent-checkbox'));
+      if (tester.any(consentCheckbox)) {
+        await tester.tap(consentCheckbox);
+        await tester.pump();
+      }
+      final userIdInput = find.descendant(
+        of: find.byKey(const ValueKey('user-id-field')),
+        matching: find.byType(EditableText),
+      );
+      final passwordInput = find.descendant(
+        of: find.byKey(const ValueKey('password-field')),
+        matching: find.byType(EditableText),
+      );
+      await tester.enterText(userIdInput, 'demo.user');
+      await tester.enterText(passwordInput, 'password');
+      await tester.tap(find.byKey(const ValueKey('login-button')));
+      await tester.pumpAndSettle();
+    }
+
+    // `_triggerLogoutOnce()` (private, exhausted-retries path) always clears
+    // tokens via a hardcoded `HttpAuthRepository()` *before* calling the
+    // `onSessionExpired` hook — replicate that exact sequence here rather
+    // than faking a real 401 round trip just to reach it.
+    await login();
+    expect(find.byType(HomePage), findsOneWidget);
+
+    await HttpAuthRepository().logout();
+    await AuthTokenInterceptor.onSessionExpired!();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(HomePage), findsNothing);
+    expect(find.byKey(const ValueKey('proceed-button')), findsOneWidget);
+    expect(find.text(tr(i18.common.sessionExpired)), findsOneWidget);
+    expect(_secureStorageValues.containsKey('accessToken'), isFalse);
+    expect(_secureStorageValues.containsKey('accessInfo'), isFalse);
+
+    // Let the session-expired SnackBar auto-dismiss — it overlaps the fixed
+    // footer button and would otherwise intercept the next tap.
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+
+    // Log back in and trigger it a second time — the hook itself must stay
+    // correctly wired across repeated logout/login cycles in one app
+    // lifetime, not just fire once. (The private `_logoutTriggered` guard
+    // inside `_triggerLogoutOnce` — reset via `resetLogoutGuard()` on a
+    // fresh login — protects the *real* exhausted-retries 401 path; that
+    // guard itself needs a mocked HTTP round trip to exercise directly and
+    // isn't covered by this test.)
+    await tester.tap(find.byKey(const ValueKey('proceed-button')));
+    await tester.pumpAndSettle();
+    await login();
+    expect(find.byType(HomePage), findsOneWidget);
+
+    await HttpAuthRepository().logout();
+    await AuthTokenInterceptor.onSessionExpired!();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(HomePage), findsNothing);
+    expect(find.byKey(const ValueKey('proceed-button')), findsOneWidget);
+    expect(find.text(tr(i18.common.sessionExpired)), findsOneWidget);
   });
 
   testWidgets(
@@ -2129,5 +2232,99 @@ void main() {
         );
       }
     }
+  });
+
+  testWidgets(
+      "MdmsLoadingGate shows E4H's blocking dialog while MDMS loads, then "
+      'reveals Home content', (tester) async {
+    final completer = Completer<AssetRegistryMdmsResponse>();
+    final repo = _StubAppInitRepo(fetchAssetRegistry: () => completer.future);
+    final bloc = AppInitialization(repo: repo);
+    addTearDown(bloc.close);
+
+    bloc.add(const InitEvent.onLaunch());
+    await bloc.stream.firstWhere((state) => state is Defaulted);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: BlocProvider<AppInitialization>.value(
+          value: bloc,
+          child: const HomePage(),
+        ),
+      ),
+    );
+    // Content is already built underneath (E4H's shape) — step through the
+    // bloc emitting `loadingMdms`, the listener scheduling the dialog on the
+    // next frame, and the dialog's own opening transition. Deliberately not
+    // `pumpAndSettle`: the dialog's `CircularProgressIndicator` animates
+    // indefinitely while shown, which would make `pumpAndSettle` hang.
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.byKey(const ValueKey('home-scroll-view')), findsOneWidget);
+    expect(find.byKey(const ValueKey('mdms-loading-dialog')), findsOneWidget);
+    expect(find.text(tr(i18.common.loading)), findsOneWidget);
+
+    completer.complete(const AssetRegistryMdmsResponse());
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.byKey(const ValueKey('mdms-loading-dialog')), findsNothing);
+    expect(find.byKey(const ValueKey('home-scroll-view')), findsOneWidget);
+  });
+
+  testWidgets(
+      'MdmsLoadingGate blocks Home with a retry screen on hard failure, '
+      'and retry recovers', (tester) async {
+    var attempt = 0;
+    final repo = _StubAppInitRepo(fetchAssetRegistry: () async {
+      attempt++;
+      if (attempt == 1) {
+        throw const AppNetworkException(LoginErrorCode.serverError);
+      }
+      return const AssetRegistryMdmsResponse();
+    });
+    final bloc = AppInitialization(repo: repo);
+    addTearDown(bloc.close);
+
+    bloc.add(const InitEvent.onLaunch());
+    await bloc.stream.firstWhere((state) => state is Defaulted);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: BlocProvider<AppInitialization>.value(
+          value: bloc,
+          child: const HomePage(),
+        ),
+      ),
+    );
+
+    // Bounded pumps rather than `pumpAndSettle`: the fetch fails fast enough
+    // that the loading dialog's open/close can land in the same handful of
+    // frames, and while it's shown its spinner animates indefinitely, which
+    // `pumpAndSettle` can't wait out.
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byKey(const ValueKey('mdms-loading-dialog')), findsNothing);
+    expect(find.byKey(const ValueKey('mdms-retry-button')), findsOneWidget);
+    expect(find.text(tr(i18.login.errorServer)), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-scroll-view')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('mdms-retry-button')));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byKey(const ValueKey('mdms-loading-dialog')), findsNothing);
+    expect(find.byKey(const ValueKey('mdms-retry-button')), findsNothing);
+    expect(find.byKey(const ValueKey('home-scroll-view')), findsOneWidget);
   });
 }

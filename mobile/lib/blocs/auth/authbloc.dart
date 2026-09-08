@@ -3,12 +3,13 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
-import '../../data/network_manager.dart';
+import '../../data/api_interceptors.dart';
 import '../../data/secure_storage/secureStore.dart';
 import '../../model/login/loginModel.dart';
 import '../../model/response/responsemodel.dart';
 import '../../repositories/auth_repo.dart';
 import '../../utils/envConfig.dart';
+import '../../utils/error_i18n.dart';
 import '../../utils/i18_key_constants.dart' as i18;
 
 part 'authbloc.freezed.dart';
@@ -61,6 +62,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         secureStore.setAccessToken(response.access_token),
         secureStore.setAccessInfo(response),
       ]);
+      AuthTokenInterceptor.resetLogoutGuard();
 
       unawaited(_authRepository.reportLogin(userRequest));
 
@@ -70,7 +72,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         userRequest: userRequest,
       ));
     } catch (err) {
-      emit(AuthState.error(_messageFromError(err)));
+      emit(AuthState.error(i18KeyForNetworkError(err)));
     }
   }
 
@@ -107,30 +109,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       ));
     } catch (_) {
       emit(const AuthState.unauthenticated());
-    }
-  }
-
-  /// Returns an i18 key code, not resolved text — blocs have no
-  /// `BuildContext` to translate through, so the UI layer resolves this via
-  /// `context.translate(...)` when it displays the error.
-  String _messageFromError(Object err) {
-    final code = err is AppNetworkException ? err.code : null;
-    switch (code) {
-      case LoginErrorCode.noNetwork:
-        return i18.login.errorNoNetwork;
-      case LoginErrorCode.noInternet:
-        return i18.login.errorNoInternet;
-      case LoginErrorCode.connectionFailed:
-        return i18.login.errorConnectionFailed;
-      case LoginErrorCode.requestTimeout:
-        return i18.login.errorRequestTimeout;
-      case LoginErrorCode.serverError:
-        return i18.login.errorServer;
-      case LoginErrorCode.invalidCredentials:
-        return i18.login.errorInvalidCredentials;
-      case LoginErrorCode.unknown:
-      default:
-        return i18.login.loginFailed;
     }
   }
 }

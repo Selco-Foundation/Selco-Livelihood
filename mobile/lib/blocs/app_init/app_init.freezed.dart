@@ -287,6 +287,8 @@ mixin _$InitState {
     required TResult Function(MdmsResponseModel appConfig,
             AssetRegistryMdmsResponse assetRegistry)
         initialized,
+    required TResult Function(MdmsResponseModel appConfig, String message)
+        mdmsError,
     required TResult Function(String message) error,
   }) =>
       throw _privateConstructorUsedError;
@@ -298,6 +300,7 @@ mixin _$InitState {
     TResult? Function(MdmsResponseModel appConfig,
             AssetRegistryMdmsResponse assetRegistry)?
         initialized,
+    TResult? Function(MdmsResponseModel appConfig, String message)? mdmsError,
     TResult? Function(String message)? error,
   }) =>
       throw _privateConstructorUsedError;
@@ -309,6 +312,7 @@ mixin _$InitState {
     TResult Function(MdmsResponseModel appConfig,
             AssetRegistryMdmsResponse assetRegistry)?
         initialized,
+    TResult Function(MdmsResponseModel appConfig, String message)? mdmsError,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) =>
@@ -319,6 +323,7 @@ mixin _$InitState {
     required TResult Function(Defaulted value) defaulted,
     required TResult Function(_LoadingMdms value) loadingMdms,
     required TResult Function(_Initialized value) initialized,
+    required TResult Function(_MdmsError value) mdmsError,
     required TResult Function(Error value) error,
   }) =>
       throw _privateConstructorUsedError;
@@ -328,6 +333,7 @@ mixin _$InitState {
     TResult? Function(Defaulted value)? defaulted,
     TResult? Function(_LoadingMdms value)? loadingMdms,
     TResult? Function(_Initialized value)? initialized,
+    TResult? Function(_MdmsError value)? mdmsError,
     TResult? Function(Error value)? error,
   }) =>
       throw _privateConstructorUsedError;
@@ -337,6 +343,7 @@ mixin _$InitState {
     TResult Function(Defaulted value)? defaulted,
     TResult Function(_LoadingMdms value)? loadingMdms,
     TResult Function(_Initialized value)? initialized,
+    TResult Function(_MdmsError value)? mdmsError,
     TResult Function(Error value)? error,
     required TResult orElse(),
   }) =>
@@ -404,6 +411,8 @@ class _$UninitializedImpl extends _Uninitialized {
     required TResult Function(MdmsResponseModel appConfig,
             AssetRegistryMdmsResponse assetRegistry)
         initialized,
+    required TResult Function(MdmsResponseModel appConfig, String message)
+        mdmsError,
     required TResult Function(String message) error,
   }) {
     return uninitialized();
@@ -418,6 +427,7 @@ class _$UninitializedImpl extends _Uninitialized {
     TResult? Function(MdmsResponseModel appConfig,
             AssetRegistryMdmsResponse assetRegistry)?
         initialized,
+    TResult? Function(MdmsResponseModel appConfig, String message)? mdmsError,
     TResult? Function(String message)? error,
   }) {
     return uninitialized?.call();
@@ -432,6 +442,7 @@ class _$UninitializedImpl extends _Uninitialized {
     TResult Function(MdmsResponseModel appConfig,
             AssetRegistryMdmsResponse assetRegistry)?
         initialized,
+    TResult Function(MdmsResponseModel appConfig, String message)? mdmsError,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -448,6 +459,7 @@ class _$UninitializedImpl extends _Uninitialized {
     required TResult Function(Defaulted value) defaulted,
     required TResult Function(_LoadingMdms value) loadingMdms,
     required TResult Function(_Initialized value) initialized,
+    required TResult Function(_MdmsError value) mdmsError,
     required TResult Function(Error value) error,
   }) {
     return uninitialized(this);
@@ -460,6 +472,7 @@ class _$UninitializedImpl extends _Uninitialized {
     TResult? Function(Defaulted value)? defaulted,
     TResult? Function(_LoadingMdms value)? loadingMdms,
     TResult? Function(_Initialized value)? initialized,
+    TResult? Function(_MdmsError value)? mdmsError,
     TResult? Function(Error value)? error,
   }) {
     return uninitialized?.call(this);
@@ -472,6 +485,7 @@ class _$UninitializedImpl extends _Uninitialized {
     TResult Function(Defaulted value)? defaulted,
     TResult Function(_LoadingMdms value)? loadingMdms,
     TResult Function(_Initialized value)? initialized,
+    TResult Function(_MdmsError value)? mdmsError,
     TResult Function(Error value)? error,
     required TResult orElse(),
   }) {
@@ -568,6 +582,8 @@ class _$DefaultedImpl extends Defaulted {
     required TResult Function(MdmsResponseModel appConfig,
             AssetRegistryMdmsResponse assetRegistry)
         initialized,
+    required TResult Function(MdmsResponseModel appConfig, String message)
+        mdmsError,
     required TResult Function(String message) error,
   }) {
     return defaulted(appConfig);
@@ -582,6 +598,7 @@ class _$DefaultedImpl extends Defaulted {
     TResult? Function(MdmsResponseModel appConfig,
             AssetRegistryMdmsResponse assetRegistry)?
         initialized,
+    TResult? Function(MdmsResponseModel appConfig, String message)? mdmsError,
     TResult? Function(String message)? error,
   }) {
     return defaulted?.call(appConfig);
@@ -596,6 +613,7 @@ class _$DefaultedImpl extends Defaulted {
     TResult Function(MdmsResponseModel appConfig,
             AssetRegistryMdmsResponse assetRegistry)?
         initialized,
+    TResult Function(MdmsResponseModel appConfig, String message)? mdmsError,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -612,6 +630,7 @@ class _$DefaultedImpl extends Defaulted {
     required TResult Function(Defaulted value) defaulted,
     required TResult Function(_LoadingMdms value) loadingMdms,
     required TResult Function(_Initialized value) initialized,
+    required TResult Function(_MdmsError value) mdmsError,
     required TResult Function(Error value) error,
   }) {
     return defaulted(this);
@@ -624,6 +643,7 @@ class _$DefaultedImpl extends Defaulted {
     TResult? Function(Defaulted value)? defaulted,
     TResult? Function(_LoadingMdms value)? loadingMdms,
     TResult? Function(_Initialized value)? initialized,
+    TResult? Function(_MdmsError value)? mdmsError,
     TResult? Function(Error value)? error,
   }) {
     return defaulted?.call(this);
@@ -636,6 +656,7 @@ class _$DefaultedImpl extends Defaulted {
     TResult Function(Defaulted value)? defaulted,
     TResult Function(_LoadingMdms value)? loadingMdms,
     TResult Function(_Initialized value)? initialized,
+    TResult Function(_MdmsError value)? mdmsError,
     TResult Function(Error value)? error,
     required TResult orElse(),
   }) {
@@ -738,6 +759,8 @@ class _$LoadingMdmsImpl extends _LoadingMdms {
     required TResult Function(MdmsResponseModel appConfig,
             AssetRegistryMdmsResponse assetRegistry)
         initialized,
+    required TResult Function(MdmsResponseModel appConfig, String message)
+        mdmsError,
     required TResult Function(String message) error,
   }) {
     return loadingMdms(appConfig);
@@ -752,6 +775,7 @@ class _$LoadingMdmsImpl extends _LoadingMdms {
     TResult? Function(MdmsResponseModel appConfig,
             AssetRegistryMdmsResponse assetRegistry)?
         initialized,
+    TResult? Function(MdmsResponseModel appConfig, String message)? mdmsError,
     TResult? Function(String message)? error,
   }) {
     return loadingMdms?.call(appConfig);
@@ -766,6 +790,7 @@ class _$LoadingMdmsImpl extends _LoadingMdms {
     TResult Function(MdmsResponseModel appConfig,
             AssetRegistryMdmsResponse assetRegistry)?
         initialized,
+    TResult Function(MdmsResponseModel appConfig, String message)? mdmsError,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -782,6 +807,7 @@ class _$LoadingMdmsImpl extends _LoadingMdms {
     required TResult Function(Defaulted value) defaulted,
     required TResult Function(_LoadingMdms value) loadingMdms,
     required TResult Function(_Initialized value) initialized,
+    required TResult Function(_MdmsError value) mdmsError,
     required TResult Function(Error value) error,
   }) {
     return loadingMdms(this);
@@ -794,6 +820,7 @@ class _$LoadingMdmsImpl extends _LoadingMdms {
     TResult? Function(Defaulted value)? defaulted,
     TResult? Function(_LoadingMdms value)? loadingMdms,
     TResult? Function(_Initialized value)? initialized,
+    TResult? Function(_MdmsError value)? mdmsError,
     TResult? Function(Error value)? error,
   }) {
     return loadingMdms?.call(this);
@@ -806,6 +833,7 @@ class _$LoadingMdmsImpl extends _LoadingMdms {
     TResult Function(Defaulted value)? defaulted,
     TResult Function(_LoadingMdms value)? loadingMdms,
     TResult Function(_Initialized value)? initialized,
+    TResult Function(_MdmsError value)? mdmsError,
     TResult Function(Error value)? error,
     required TResult orElse(),
   }) {
@@ -930,6 +958,8 @@ class _$InitializedImpl extends _Initialized {
     required TResult Function(MdmsResponseModel appConfig,
             AssetRegistryMdmsResponse assetRegistry)
         initialized,
+    required TResult Function(MdmsResponseModel appConfig, String message)
+        mdmsError,
     required TResult Function(String message) error,
   }) {
     return initialized(appConfig, assetRegistry);
@@ -944,6 +974,7 @@ class _$InitializedImpl extends _Initialized {
     TResult? Function(MdmsResponseModel appConfig,
             AssetRegistryMdmsResponse assetRegistry)?
         initialized,
+    TResult? Function(MdmsResponseModel appConfig, String message)? mdmsError,
     TResult? Function(String message)? error,
   }) {
     return initialized?.call(appConfig, assetRegistry);
@@ -958,6 +989,7 @@ class _$InitializedImpl extends _Initialized {
     TResult Function(MdmsResponseModel appConfig,
             AssetRegistryMdmsResponse assetRegistry)?
         initialized,
+    TResult Function(MdmsResponseModel appConfig, String message)? mdmsError,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -974,6 +1006,7 @@ class _$InitializedImpl extends _Initialized {
     required TResult Function(Defaulted value) defaulted,
     required TResult Function(_LoadingMdms value) loadingMdms,
     required TResult Function(_Initialized value) initialized,
+    required TResult Function(_MdmsError value) mdmsError,
     required TResult Function(Error value) error,
   }) {
     return initialized(this);
@@ -986,6 +1019,7 @@ class _$InitializedImpl extends _Initialized {
     TResult? Function(Defaulted value)? defaulted,
     TResult? Function(_LoadingMdms value)? loadingMdms,
     TResult? Function(_Initialized value)? initialized,
+    TResult? Function(_MdmsError value)? mdmsError,
     TResult? Function(Error value)? error,
   }) {
     return initialized?.call(this);
@@ -998,6 +1032,7 @@ class _$InitializedImpl extends _Initialized {
     TResult Function(Defaulted value)? defaulted,
     TResult Function(_LoadingMdms value)? loadingMdms,
     TResult Function(_Initialized value)? initialized,
+    TResult Function(_MdmsError value)? mdmsError,
     TResult Function(Error value)? error,
     required TResult orElse(),
   }) {
@@ -1019,6 +1054,194 @@ abstract class _Initialized extends InitState {
   AssetRegistryMdmsResponse get assetRegistry;
   @JsonKey(ignore: true)
   _$$InitializedImplCopyWith<_$InitializedImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$MdmsErrorImplCopyWith<$Res> {
+  factory _$$MdmsErrorImplCopyWith(
+          _$MdmsErrorImpl value, $Res Function(_$MdmsErrorImpl) then) =
+      __$$MdmsErrorImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({MdmsResponseModel appConfig, String message});
+
+  $MdmsResponseModelCopyWith<$Res> get appConfig;
+}
+
+/// @nodoc
+class __$$MdmsErrorImplCopyWithImpl<$Res>
+    extends _$InitStateCopyWithImpl<$Res, _$MdmsErrorImpl>
+    implements _$$MdmsErrorImplCopyWith<$Res> {
+  __$$MdmsErrorImplCopyWithImpl(
+      _$MdmsErrorImpl _value, $Res Function(_$MdmsErrorImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? appConfig = null,
+    Object? message = null,
+  }) {
+    return _then(_$MdmsErrorImpl(
+      appConfig: null == appConfig
+          ? _value.appConfig
+          : appConfig // ignore: cast_nullable_to_non_nullable
+              as MdmsResponseModel,
+      message: null == message
+          ? _value.message
+          : message // ignore: cast_nullable_to_non_nullable
+              as String,
+    ));
+  }
+
+  @override
+  @pragma('vm:prefer-inline')
+  $MdmsResponseModelCopyWith<$Res> get appConfig {
+    return $MdmsResponseModelCopyWith<$Res>(_value.appConfig, (value) {
+      return _then(_value.copyWith(appConfig: value));
+    });
+  }
+}
+
+/// @nodoc
+
+class _$MdmsErrorImpl extends _MdmsError {
+  const _$MdmsErrorImpl({required this.appConfig, required this.message})
+      : super._();
+
+  @override
+  final MdmsResponseModel appConfig;
+  @override
+  final String message;
+
+  @override
+  String toString() {
+    return 'InitState.mdmsError(appConfig: $appConfig, message: $message)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$MdmsErrorImpl &&
+            (identical(other.appConfig, appConfig) ||
+                other.appConfig == appConfig) &&
+            (identical(other.message, message) || other.message == message));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, appConfig, message);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$MdmsErrorImplCopyWith<_$MdmsErrorImpl> get copyWith =>
+      __$$MdmsErrorImplCopyWithImpl<_$MdmsErrorImpl>(this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() uninitialized,
+    required TResult Function(MdmsResponseModel appConfig) defaulted,
+    required TResult Function(MdmsResponseModel appConfig) loadingMdms,
+    required TResult Function(MdmsResponseModel appConfig,
+            AssetRegistryMdmsResponse assetRegistry)
+        initialized,
+    required TResult Function(MdmsResponseModel appConfig, String message)
+        mdmsError,
+    required TResult Function(String message) error,
+  }) {
+    return mdmsError(appConfig, message);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? uninitialized,
+    TResult? Function(MdmsResponseModel appConfig)? defaulted,
+    TResult? Function(MdmsResponseModel appConfig)? loadingMdms,
+    TResult? Function(MdmsResponseModel appConfig,
+            AssetRegistryMdmsResponse assetRegistry)?
+        initialized,
+    TResult? Function(MdmsResponseModel appConfig, String message)? mdmsError,
+    TResult? Function(String message)? error,
+  }) {
+    return mdmsError?.call(appConfig, message);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? uninitialized,
+    TResult Function(MdmsResponseModel appConfig)? defaulted,
+    TResult Function(MdmsResponseModel appConfig)? loadingMdms,
+    TResult Function(MdmsResponseModel appConfig,
+            AssetRegistryMdmsResponse assetRegistry)?
+        initialized,
+    TResult Function(MdmsResponseModel appConfig, String message)? mdmsError,
+    TResult Function(String message)? error,
+    required TResult orElse(),
+  }) {
+    if (mdmsError != null) {
+      return mdmsError(appConfig, message);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(_Uninitialized value) uninitialized,
+    required TResult Function(Defaulted value) defaulted,
+    required TResult Function(_LoadingMdms value) loadingMdms,
+    required TResult Function(_Initialized value) initialized,
+    required TResult Function(_MdmsError value) mdmsError,
+    required TResult Function(Error value) error,
+  }) {
+    return mdmsError(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(_Uninitialized value)? uninitialized,
+    TResult? Function(Defaulted value)? defaulted,
+    TResult? Function(_LoadingMdms value)? loadingMdms,
+    TResult? Function(_Initialized value)? initialized,
+    TResult? Function(_MdmsError value)? mdmsError,
+    TResult? Function(Error value)? error,
+  }) {
+    return mdmsError?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(_Uninitialized value)? uninitialized,
+    TResult Function(Defaulted value)? defaulted,
+    TResult Function(_LoadingMdms value)? loadingMdms,
+    TResult Function(_Initialized value)? initialized,
+    TResult Function(_MdmsError value)? mdmsError,
+    TResult Function(Error value)? error,
+    required TResult orElse(),
+  }) {
+    if (mdmsError != null) {
+      return mdmsError(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class _MdmsError extends InitState {
+  const factory _MdmsError(
+      {required final MdmsResponseModel appConfig,
+      required final String message}) = _$MdmsErrorImpl;
+  const _MdmsError._() : super._();
+
+  MdmsResponseModel get appConfig;
+  String get message;
+  @JsonKey(ignore: true)
+  _$$MdmsErrorImplCopyWith<_$MdmsErrorImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
 
@@ -1092,6 +1315,8 @@ class _$ErrorImpl extends Error {
     required TResult Function(MdmsResponseModel appConfig,
             AssetRegistryMdmsResponse assetRegistry)
         initialized,
+    required TResult Function(MdmsResponseModel appConfig, String message)
+        mdmsError,
     required TResult Function(String message) error,
   }) {
     return error(message);
@@ -1106,6 +1331,7 @@ class _$ErrorImpl extends Error {
     TResult? Function(MdmsResponseModel appConfig,
             AssetRegistryMdmsResponse assetRegistry)?
         initialized,
+    TResult? Function(MdmsResponseModel appConfig, String message)? mdmsError,
     TResult? Function(String message)? error,
   }) {
     return error?.call(message);
@@ -1120,6 +1346,7 @@ class _$ErrorImpl extends Error {
     TResult Function(MdmsResponseModel appConfig,
             AssetRegistryMdmsResponse assetRegistry)?
         initialized,
+    TResult Function(MdmsResponseModel appConfig, String message)? mdmsError,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -1136,6 +1363,7 @@ class _$ErrorImpl extends Error {
     required TResult Function(Defaulted value) defaulted,
     required TResult Function(_LoadingMdms value) loadingMdms,
     required TResult Function(_Initialized value) initialized,
+    required TResult Function(_MdmsError value) mdmsError,
     required TResult Function(Error value) error,
   }) {
     return error(this);
@@ -1148,6 +1376,7 @@ class _$ErrorImpl extends Error {
     TResult? Function(Defaulted value)? defaulted,
     TResult? Function(_LoadingMdms value)? loadingMdms,
     TResult? Function(_Initialized value)? initialized,
+    TResult? Function(_MdmsError value)? mdmsError,
     TResult? Function(Error value)? error,
   }) {
     return error?.call(this);
@@ -1160,6 +1389,7 @@ class _$ErrorImpl extends Error {
     TResult Function(Defaulted value)? defaulted,
     TResult Function(_LoadingMdms value)? loadingMdms,
     TResult Function(_Initialized value)? initialized,
+    TResult Function(_MdmsError value)? mdmsError,
     TResult Function(Error value)? error,
     required TResult orElse(),
   }) {

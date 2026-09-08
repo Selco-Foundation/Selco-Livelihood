@@ -3,7 +3,9 @@ import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:digit_ui_components/widgets/atoms/digit_divider.dart';
 import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../blocs/auth/authbloc.dart';
 import '../router/app_router.dart';
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
@@ -14,8 +16,21 @@ import '../widgets/livelihood_app_bar.dart';
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
 
-  void _openLogin(BuildContext context) {
-    context.router.replace(const LoginRoute());
+  void _proceed(BuildContext context) {
+    final isAuthenticated = context.read<AuthBloc>().state.maybeWhen(
+          authenticated: (_, __, ___) => true,
+          orElse: () => false,
+        );
+
+    if (isAuthenticated) {
+      context.router.root.replaceAll(
+        const [
+          AuthenticatedRouteWrapper(children: [HomeRoute()])
+        ],
+      );
+    } else {
+      context.router.replace(const LoginRoute());
+    }
   }
 
   @override
@@ -24,15 +39,23 @@ class WelcomePage extends StatelessWidget {
 
     return Scaffold(
       appBar: const LivelihoodAppBar(),
-      body: ScrollableContent(
-        key: const ValueKey('welcome-scroll-view'),
-        enableFixedDigitButton: true,
-        backgroundColor: theme.colorTheme.generic.background,
-        footer: FooterButton(
-          text: context.translate(i18.welcome.proceed),
-          onPressed: () => _openLogin(context),
-        ),
-        children: const [Expanded(child: _WelcomeContent())],
+      body: BlocBuilder<AuthBloc, AuthState>(
+        builder: (context, state) {
+          final isCheckingSession =
+              state.maybeWhen(loading: () => true, orElse: () => false);
+
+          return ScrollableContent(
+            key: const ValueKey('welcome-scroll-view'),
+            enableFixedDigitButton: true,
+            backgroundColor: theme.colorTheme.generic.background,
+            footer: FooterButton(
+              text: context.translate(i18.welcome.proceed),
+              isDisabled: isCheckingSession,
+              onPressed: () => _proceed(context),
+            ),
+            children: const [Expanded(child: _WelcomeContent())],
+          );
+        },
       ),
     );
   }

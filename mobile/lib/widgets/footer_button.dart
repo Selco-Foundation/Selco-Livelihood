@@ -7,10 +7,12 @@ class FooterButton extends StatelessWidget {
     super.key,
     required this.text,
     required this.onPressed,
+    this.isDisabled = false,
   });
 
   final String text;
   final VoidCallback onPressed;
+  final bool isDisabled;
 
   @override
   Widget build(BuildContext context) {
@@ -24,6 +26,7 @@ class FooterButton extends StatelessWidget {
           label: text,
           type: DigitButtonType.primary,
           size: DigitButtonSize.large,
+          isDisabled: isDisabled,
           onPressed: onPressed,
         ),
       ],
