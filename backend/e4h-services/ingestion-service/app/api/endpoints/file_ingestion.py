@@ -43,7 +43,7 @@ from app.utils.convertor import request_info_from_json, create_vendor_request, c
     get_user_creation_payload_supervisors, \
     get_staff_creation_payload, create_project_payload, get_installation_spoc_creation_payload, \
     get_staff_search_payload, create_update_payload, get_incident_request_info, \
-    resolve_boundary_codes_for_dataframe, create_asset_payload
+    resolve_boundary_codes_for_dataframe, create_asset_payloads
 from app.utils.asset_validator import asset_validation
 from app.utils.asset_service_client import AssetServiceClient
 from app.utils.boundary_service_client import BoundaryServiceClient
@@ -670,20 +670,26 @@ async def upload_assets_excel_sheet(
                 vendor_lookup = VendorRegistryClient(org_service_url).get_vendor_code_lookup(request_info_obj)
             for index, row in df[df['status'] != 'success'].iterrows():
                 try:
-                    asset_payload = create_asset_payload(request_info_obj, row, asset_schema, vendor_lookup)
-                    response = asset_client.create_asset(asset_payload)
-                    if response.status_code in (200, 201):
+                    # One row can yield two payloads: the primary asset, plus a
+                    # companion SOLAR asset when "Have Solar" is "Yes".
+                    asset_payloads = create_asset_payloads(request_info_obj, row, asset_schema, vendor_lookup)
+                    failures = []
+                    for asset_payload in asset_payloads:
+                        response = asset_client.create_asset(asset_payload)
+                        if response.status_code in (200, 201):
+                            continue
+                        elif response.status_code == 400:
+                            error_data = response.json()
+                            first_error = error_data.get('Errors', [{}])[0]
+                            failures.append(first_error.get('message') or first_error.get('code') or 'Unknown error')
+                        else:
+                            failures.append(f'{response.status_code}: {response.text}')
+                    if failures:
+                        df.at[index, 'status'] = 'failed'
+                        df.at[index, 'error'] = '; '.join(failures)
+                    else:
                         df.at[index, 'status'] = 'success'
                         df.at[index, 'error'] = ''
-                    elif response.status_code == 400:
-                        error_data = response.json()
-                        first_error = error_data.get('Errors', [{}])[0]
-                        error_message = first_error.get('message') or first_error.get('code') or 'Unknown error'
-                        df.at[index, 'status'] = 'failed'
-                        df.at[index, 'error'] = error_message
-                    else:
-                        df.at[index, 'status'] = 'failed'
-                        df.at[index, 'error'] = f'{response.status_code}: {response.text}'
                 except Exception as e:
                     df.at[index, 'status'] = 'failed'
                     df.at[index, 'error'] = f'Exception: {str(e)}'
