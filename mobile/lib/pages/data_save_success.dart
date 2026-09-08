@@ -2,6 +2,9 @@ import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:digit_ui_components/widgets/molecules/panel_cards.dart';
 import 'package:flutter/material.dart';
+// Required by auto_route when expanding the imported SolarPickMedia typedef.
+// ignore: unused_import
+import 'package:image_picker/image_picker.dart';
 
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
@@ -39,7 +42,8 @@ class DataSaveSuccessPage extends StatelessWidget {
               repeat: true,
               type: PanelType.success,
               title: context.translate(i18.machineForm.dataSavedSuccessfully),
-              description: context.translate(i18.machineForm.dataSavedDescription),
+              description:
+                  context.translate(i18.machineForm.dataSavedDescription),
               actions: [
                 DigitButton(
                   key: const ValueKey('solar-success-next'),

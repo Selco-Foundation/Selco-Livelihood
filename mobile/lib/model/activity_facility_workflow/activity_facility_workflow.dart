@@ -24,6 +24,11 @@ class ActivityFacilityWorkflow with _$ActivityFacilityWorkflow {
 class Workflow with _$Workflow {
   const factory Workflow({
     WorkflowAuditDetails? auditDetails,
+    String? state,
+    String? action,
+    String? businessService,
+    String? comment,
+    List<Map<String, dynamic>>? documents,
   }) = _Workflow;
 
   factory Workflow.fromJson(Map<String, dynamic> json) =>

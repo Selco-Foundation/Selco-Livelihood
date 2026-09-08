@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:file_picker/file_picker.dart';
@@ -8,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
 import '../model/solar_installation_draft.dart';
+import '../pages/media_viewer.dart';
 
 typedef FileUploadPick = Future<List<PlatformFile>> Function();
 
@@ -100,7 +99,10 @@ class _FileUploadWidgetState extends State<FileUploadWidget> {
       });
       widget.onFilesSelected(List.of(files));
     } catch (_) {
-      if (mounted) setState(() => localError = context.translate(i18.installationReport.filePickerError));
+      if (mounted) {
+        setState(() => localError =
+            context.translate(i18.installationReport.filePickerError));
+      }
     } finally {
       if (mounted) setState(() => opening = false);
     }
@@ -214,8 +216,6 @@ class _FilePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final exists = File(file.path).existsSync();
-    final isImage = file.kind == SolarFileKind.image;
     return SizedBox(
       width: Base.imageSize,
       child: Column(
@@ -236,16 +236,11 @@ class _FilePreview extends StatelessWidget {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      if (isImage && exists)
-                        Image.file(File(file.path), fit: BoxFit.cover)
-                      else
-                        Icon(
-                          file.kind == SolarFileKind.pdf
-                              ? Icons.picture_as_pdf
-                              : Icons.insert_drive_file,
-                          size: spacer10,
-                          color: const DigitColors().light.primary1,
-                        ),
+                      MediaThumbnail(
+                        media: file,
+                        width: Base.imageSize,
+                        height: Base.imageSize,
+                      ),
                       Container(
                         color: const DigitColors().background.withOpacity(.7),
                       ),

@@ -25,6 +25,8 @@ mixin _$AssetRegistryMdmsResponse {
   AssetRegistryModule? get assetRegistry => throw _privateConstructorUsedError;
   @JsonKey(name: 'facility')
   FacilityModule? get facility => throw _privateConstructorUsedError;
+  @JsonKey(name: 'common-masters')
+  CommonMastersModule? get commonMasters => throw _privateConstructorUsedError;
 
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
   @JsonKey(ignore: true)
@@ -40,10 +42,12 @@ abstract class $AssetRegistryMdmsResponseCopyWith<$Res> {
   @useResult
   $Res call(
       {@JsonKey(name: 'asset-registry') AssetRegistryModule? assetRegistry,
-      @JsonKey(name: 'facility') FacilityModule? facility});
+      @JsonKey(name: 'facility') FacilityModule? facility,
+      @JsonKey(name: 'common-masters') CommonMastersModule? commonMasters});
 
   $AssetRegistryModuleCopyWith<$Res>? get assetRegistry;
   $FacilityModuleCopyWith<$Res>? get facility;
+  $CommonMastersModuleCopyWith<$Res>? get commonMasters;
 }
 
 /// @nodoc
@@ -62,6 +66,7 @@ class _$AssetRegistryMdmsResponseCopyWithImpl<$Res,
   $Res call({
     Object? assetRegistry = freezed,
     Object? facility = freezed,
+    Object? commonMasters = freezed,
   }) {
     return _then(_value.copyWith(
       assetRegistry: freezed == assetRegistry
@@ -72,6 +77,10 @@ class _$AssetRegistryMdmsResponseCopyWithImpl<$Res,
           ? _value.facility
           : facility // ignore: cast_nullable_to_non_nullable
               as FacilityModule?,
+      commonMasters: freezed == commonMasters
+          ? _value.commonMasters
+          : commonMasters // ignore: cast_nullable_to_non_nullable
+              as CommonMastersModule?,
     ) as $Val);
   }
 
@@ -98,6 +107,18 @@ class _$AssetRegistryMdmsResponseCopyWithImpl<$Res,
       return _then(_value.copyWith(facility: value) as $Val);
     });
   }
+
+  @override
+  @pragma('vm:prefer-inline')
+  $CommonMastersModuleCopyWith<$Res>? get commonMasters {
+    if (_value.commonMasters == null) {
+      return null;
+    }
+
+    return $CommonMastersModuleCopyWith<$Res>(_value.commonMasters!, (value) {
+      return _then(_value.copyWith(commonMasters: value) as $Val);
+    });
+  }
 }
 
 /// @nodoc
@@ -111,12 +132,15 @@ abstract class _$$AssetRegistryMdmsResponseImplCopyWith<$Res>
   @useResult
   $Res call(
       {@JsonKey(name: 'asset-registry') AssetRegistryModule? assetRegistry,
-      @JsonKey(name: 'facility') FacilityModule? facility});
+      @JsonKey(name: 'facility') FacilityModule? facility,
+      @JsonKey(name: 'common-masters') CommonMastersModule? commonMasters});
 
   @override
   $AssetRegistryModuleCopyWith<$Res>? get assetRegistry;
   @override
   $FacilityModuleCopyWith<$Res>? get facility;
+  @override
+  $CommonMastersModuleCopyWith<$Res>? get commonMasters;
 }
 
 /// @nodoc
@@ -134,6 +158,7 @@ class __$$AssetRegistryMdmsResponseImplCopyWithImpl<$Res>
   $Res call({
     Object? assetRegistry = freezed,
     Object? facility = freezed,
+    Object? commonMasters = freezed,
   }) {
     return _then(_$AssetRegistryMdmsResponseImpl(
       assetRegistry: freezed == assetRegistry
@@ -144,6 +169,10 @@ class __$$AssetRegistryMdmsResponseImplCopyWithImpl<$Res>
           ? _value.facility
           : facility // ignore: cast_nullable_to_non_nullable
               as FacilityModule?,
+      commonMasters: freezed == commonMasters
+          ? _value.commonMasters
+          : commonMasters // ignore: cast_nullable_to_non_nullable
+              as CommonMastersModule?,
     ));
   }
 }
@@ -153,7 +182,8 @@ class __$$AssetRegistryMdmsResponseImplCopyWithImpl<$Res>
 class _$AssetRegistryMdmsResponseImpl implements _AssetRegistryMdmsResponse {
   const _$AssetRegistryMdmsResponseImpl(
       {@JsonKey(name: 'asset-registry') this.assetRegistry,
-      @JsonKey(name: 'facility') this.facility});
+      @JsonKey(name: 'facility') this.facility,
+      @JsonKey(name: 'common-masters') this.commonMasters});
 
   factory _$AssetRegistryMdmsResponseImpl.fromJson(Map<String, dynamic> json) =>
       _$$AssetRegistryMdmsResponseImplFromJson(json);
@@ -164,10 +194,13 @@ class _$AssetRegistryMdmsResponseImpl implements _AssetRegistryMdmsResponse {
   @override
   @JsonKey(name: 'facility')
   final FacilityModule? facility;
+  @override
+  @JsonKey(name: 'common-masters')
+  final CommonMastersModule? commonMasters;
 
   @override
   String toString() {
-    return 'AssetRegistryMdmsResponse(assetRegistry: $assetRegistry, facility: $facility)';
+    return 'AssetRegistryMdmsResponse(assetRegistry: $assetRegistry, facility: $facility, commonMasters: $commonMasters)';
   }
 
   @override
@@ -178,12 +211,15 @@ class _$AssetRegistryMdmsResponseImpl implements _AssetRegistryMdmsResponse {
             (identical(other.assetRegistry, assetRegistry) ||
                 other.assetRegistry == assetRegistry) &&
             (identical(other.facility, facility) ||
-                other.facility == facility));
+                other.facility == facility) &&
+            (identical(other.commonMasters, commonMasters) ||
+                other.commonMasters == commonMasters));
   }
 
   @JsonKey(ignore: true)
   @override
-  int get hashCode => Object.hash(runtimeType, assetRegistry, facility);
+  int get hashCode =>
+      Object.hash(runtimeType, assetRegistry, facility, commonMasters);
 
   @JsonKey(ignore: true)
   @override
@@ -204,7 +240,9 @@ abstract class _AssetRegistryMdmsResponse implements AssetRegistryMdmsResponse {
   const factory _AssetRegistryMdmsResponse(
           {@JsonKey(name: 'asset-registry')
           final AssetRegistryModule? assetRegistry,
-          @JsonKey(name: 'facility') final FacilityModule? facility}) =
+          @JsonKey(name: 'facility') final FacilityModule? facility,
+          @JsonKey(name: 'common-masters')
+          final CommonMastersModule? commonMasters}) =
       _$AssetRegistryMdmsResponseImpl;
 
   factory _AssetRegistryMdmsResponse.fromJson(Map<String, dynamic> json) =
@@ -217,9 +255,284 @@ abstract class _AssetRegistryMdmsResponse implements AssetRegistryMdmsResponse {
   @JsonKey(name: 'facility')
   FacilityModule? get facility;
   @override
+  @JsonKey(name: 'common-masters')
+  CommonMastersModule? get commonMasters;
+  @override
   @JsonKey(ignore: true)
   _$$AssetRegistryMdmsResponseImplCopyWith<_$AssetRegistryMdmsResponseImpl>
       get copyWith => throw _privateConstructorUsedError;
+}
+
+CommonMastersModule _$CommonMastersModuleFromJson(Map<String, dynamic> json) {
+  return _CommonMastersModule.fromJson(json);
+}
+
+/// @nodoc
+mixin _$CommonMastersModule {
+  @JsonKey(name: 'BOMFormSchema')
+  List<Map<String, dynamic>> get bomFormSchema =>
+      throw _privateConstructorUsedError;
+  @JsonKey(name: 'SolutionDesignTypeBOMForms')
+  List<Map<String, dynamic>> get solutionDesignTypeBomForms =>
+      throw _privateConstructorUsedError;
+  @JsonKey(name: 'InstallationImages')
+  List<Map<String, dynamic>> get installationImages =>
+      throw _privateConstructorUsedError;
+  @JsonKey(name: 'RequiredBomFormKeys')
+  List<Map<String, dynamic>> get requiredBomFormKeys =>
+      throw _privateConstructorUsedError;
+
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+  @JsonKey(ignore: true)
+  $CommonMastersModuleCopyWith<CommonMastersModule> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $CommonMastersModuleCopyWith<$Res> {
+  factory $CommonMastersModuleCopyWith(
+          CommonMastersModule value, $Res Function(CommonMastersModule) then) =
+      _$CommonMastersModuleCopyWithImpl<$Res, CommonMastersModule>;
+  @useResult
+  $Res call(
+      {@JsonKey(name: 'BOMFormSchema') List<Map<String, dynamic>> bomFormSchema,
+      @JsonKey(name: 'SolutionDesignTypeBOMForms')
+      List<Map<String, dynamic>> solutionDesignTypeBomForms,
+      @JsonKey(name: 'InstallationImages')
+      List<Map<String, dynamic>> installationImages,
+      @JsonKey(name: 'RequiredBomFormKeys')
+      List<Map<String, dynamic>> requiredBomFormKeys});
+}
+
+/// @nodoc
+class _$CommonMastersModuleCopyWithImpl<$Res, $Val extends CommonMastersModule>
+    implements $CommonMastersModuleCopyWith<$Res> {
+  _$CommonMastersModuleCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? bomFormSchema = null,
+    Object? solutionDesignTypeBomForms = null,
+    Object? installationImages = null,
+    Object? requiredBomFormKeys = null,
+  }) {
+    return _then(_value.copyWith(
+      bomFormSchema: null == bomFormSchema
+          ? _value.bomFormSchema
+          : bomFormSchema // ignore: cast_nullable_to_non_nullable
+              as List<Map<String, dynamic>>,
+      solutionDesignTypeBomForms: null == solutionDesignTypeBomForms
+          ? _value.solutionDesignTypeBomForms
+          : solutionDesignTypeBomForms // ignore: cast_nullable_to_non_nullable
+              as List<Map<String, dynamic>>,
+      installationImages: null == installationImages
+          ? _value.installationImages
+          : installationImages // ignore: cast_nullable_to_non_nullable
+              as List<Map<String, dynamic>>,
+      requiredBomFormKeys: null == requiredBomFormKeys
+          ? _value.requiredBomFormKeys
+          : requiredBomFormKeys // ignore: cast_nullable_to_non_nullable
+              as List<Map<String, dynamic>>,
+    ) as $Val);
+  }
+}
+
+/// @nodoc
+abstract class _$$CommonMastersModuleImplCopyWith<$Res>
+    implements $CommonMastersModuleCopyWith<$Res> {
+  factory _$$CommonMastersModuleImplCopyWith(_$CommonMastersModuleImpl value,
+          $Res Function(_$CommonMastersModuleImpl) then) =
+      __$$CommonMastersModuleImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call(
+      {@JsonKey(name: 'BOMFormSchema') List<Map<String, dynamic>> bomFormSchema,
+      @JsonKey(name: 'SolutionDesignTypeBOMForms')
+      List<Map<String, dynamic>> solutionDesignTypeBomForms,
+      @JsonKey(name: 'InstallationImages')
+      List<Map<String, dynamic>> installationImages,
+      @JsonKey(name: 'RequiredBomFormKeys')
+      List<Map<String, dynamic>> requiredBomFormKeys});
+}
+
+/// @nodoc
+class __$$CommonMastersModuleImplCopyWithImpl<$Res>
+    extends _$CommonMastersModuleCopyWithImpl<$Res, _$CommonMastersModuleImpl>
+    implements _$$CommonMastersModuleImplCopyWith<$Res> {
+  __$$CommonMastersModuleImplCopyWithImpl(_$CommonMastersModuleImpl _value,
+      $Res Function(_$CommonMastersModuleImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? bomFormSchema = null,
+    Object? solutionDesignTypeBomForms = null,
+    Object? installationImages = null,
+    Object? requiredBomFormKeys = null,
+  }) {
+    return _then(_$CommonMastersModuleImpl(
+      bomFormSchema: null == bomFormSchema
+          ? _value._bomFormSchema
+          : bomFormSchema // ignore: cast_nullable_to_non_nullable
+              as List<Map<String, dynamic>>,
+      solutionDesignTypeBomForms: null == solutionDesignTypeBomForms
+          ? _value._solutionDesignTypeBomForms
+          : solutionDesignTypeBomForms // ignore: cast_nullable_to_non_nullable
+              as List<Map<String, dynamic>>,
+      installationImages: null == installationImages
+          ? _value._installationImages
+          : installationImages // ignore: cast_nullable_to_non_nullable
+              as List<Map<String, dynamic>>,
+      requiredBomFormKeys: null == requiredBomFormKeys
+          ? _value._requiredBomFormKeys
+          : requiredBomFormKeys // ignore: cast_nullable_to_non_nullable
+              as List<Map<String, dynamic>>,
+    ));
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$CommonMastersModuleImpl implements _CommonMastersModule {
+  const _$CommonMastersModuleImpl(
+      {@JsonKey(name: 'BOMFormSchema')
+      final List<Map<String, dynamic>> bomFormSchema = const [],
+      @JsonKey(name: 'SolutionDesignTypeBOMForms')
+      final List<Map<String, dynamic>> solutionDesignTypeBomForms = const [],
+      @JsonKey(name: 'InstallationImages')
+      final List<Map<String, dynamic>> installationImages = const [],
+      @JsonKey(name: 'RequiredBomFormKeys')
+      final List<Map<String, dynamic>> requiredBomFormKeys = const []})
+      : _bomFormSchema = bomFormSchema,
+        _solutionDesignTypeBomForms = solutionDesignTypeBomForms,
+        _installationImages = installationImages,
+        _requiredBomFormKeys = requiredBomFormKeys;
+
+  factory _$CommonMastersModuleImpl.fromJson(Map<String, dynamic> json) =>
+      _$$CommonMastersModuleImplFromJson(json);
+
+  final List<Map<String, dynamic>> _bomFormSchema;
+  @override
+  @JsonKey(name: 'BOMFormSchema')
+  List<Map<String, dynamic>> get bomFormSchema {
+    if (_bomFormSchema is EqualUnmodifiableListView) return _bomFormSchema;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_bomFormSchema);
+  }
+
+  final List<Map<String, dynamic>> _solutionDesignTypeBomForms;
+  @override
+  @JsonKey(name: 'SolutionDesignTypeBOMForms')
+  List<Map<String, dynamic>> get solutionDesignTypeBomForms {
+    if (_solutionDesignTypeBomForms is EqualUnmodifiableListView)
+      return _solutionDesignTypeBomForms;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_solutionDesignTypeBomForms);
+  }
+
+  final List<Map<String, dynamic>> _installationImages;
+  @override
+  @JsonKey(name: 'InstallationImages')
+  List<Map<String, dynamic>> get installationImages {
+    if (_installationImages is EqualUnmodifiableListView)
+      return _installationImages;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_installationImages);
+  }
+
+  final List<Map<String, dynamic>> _requiredBomFormKeys;
+  @override
+  @JsonKey(name: 'RequiredBomFormKeys')
+  List<Map<String, dynamic>> get requiredBomFormKeys {
+    if (_requiredBomFormKeys is EqualUnmodifiableListView)
+      return _requiredBomFormKeys;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_requiredBomFormKeys);
+  }
+
+  @override
+  String toString() {
+    return 'CommonMastersModule(bomFormSchema: $bomFormSchema, solutionDesignTypeBomForms: $solutionDesignTypeBomForms, installationImages: $installationImages, requiredBomFormKeys: $requiredBomFormKeys)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$CommonMastersModuleImpl &&
+            const DeepCollectionEquality()
+                .equals(other._bomFormSchema, _bomFormSchema) &&
+            const DeepCollectionEquality().equals(
+                other._solutionDesignTypeBomForms,
+                _solutionDesignTypeBomForms) &&
+            const DeepCollectionEquality()
+                .equals(other._installationImages, _installationImages) &&
+            const DeepCollectionEquality()
+                .equals(other._requiredBomFormKeys, _requiredBomFormKeys));
+  }
+
+  @JsonKey(ignore: true)
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      const DeepCollectionEquality().hash(_bomFormSchema),
+      const DeepCollectionEquality().hash(_solutionDesignTypeBomForms),
+      const DeepCollectionEquality().hash(_installationImages),
+      const DeepCollectionEquality().hash(_requiredBomFormKeys));
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$CommonMastersModuleImplCopyWith<_$CommonMastersModuleImpl> get copyWith =>
+      __$$CommonMastersModuleImplCopyWithImpl<_$CommonMastersModuleImpl>(
+          this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$CommonMastersModuleImplToJson(
+      this,
+    );
+  }
+}
+
+abstract class _CommonMastersModule implements CommonMastersModule {
+  const factory _CommonMastersModule(
+          {@JsonKey(name: 'BOMFormSchema')
+          final List<Map<String, dynamic>> bomFormSchema,
+          @JsonKey(name: 'SolutionDesignTypeBOMForms')
+          final List<Map<String, dynamic>> solutionDesignTypeBomForms,
+          @JsonKey(name: 'InstallationImages')
+          final List<Map<String, dynamic>> installationImages,
+          @JsonKey(name: 'RequiredBomFormKeys')
+          final List<Map<String, dynamic>> requiredBomFormKeys}) =
+      _$CommonMastersModuleImpl;
+
+  factory _CommonMastersModule.fromJson(Map<String, dynamic> json) =
+      _$CommonMastersModuleImpl.fromJson;
+
+  @override
+  @JsonKey(name: 'BOMFormSchema')
+  List<Map<String, dynamic>> get bomFormSchema;
+  @override
+  @JsonKey(name: 'SolutionDesignTypeBOMForms')
+  List<Map<String, dynamic>> get solutionDesignTypeBomForms;
+  @override
+  @JsonKey(name: 'InstallationImages')
+  List<Map<String, dynamic>> get installationImages;
+  @override
+  @JsonKey(name: 'RequiredBomFormKeys')
+  List<Map<String, dynamic>> get requiredBomFormKeys;
+  @override
+  @JsonKey(ignore: true)
+  _$$CommonMastersModuleImplCopyWith<_$CommonMastersModuleImpl> get copyWith =>
+      throw _privateConstructorUsedError;
 }
 
 AssetRegistryModule _$AssetRegistryModuleFromJson(Map<String, dynamic> json) {

@@ -7,12 +7,14 @@ import '../blocs/activity_facility/activity_facility.dart';
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
 import '../utils/workflow_status.dart';
-import '../model/facility_report_sample.dart';
+import '../model/facility_report.dart';
+import '../model/activity_facility_workflow/activity_facility_workflow.dart';
 import '../model/solar_installation_draft.dart';
 import '../router/app_router.dart';
 import '../widgets/facility_report_card.dart';
 import '../widgets/facility_search_sort_card.dart';
 import '../widgets/report_navigation_header.dart';
+import '../repositories/installation_draft_repository.dart';
 
 const double _loadMoreScrollThreshold = 200.0;
 
@@ -106,57 +108,28 @@ class _FacilityListPageState extends State<_FacilityListPage> {
     });
   }
 
-  void _showPlaceholder(BuildContext context) {
-    FocusManager.instance.primaryFocus?.unfocus();
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-            content: Text(context.translate(
-                i18.installationReportHome.reportActionNotConnected))),
-      );
-  }
-
   void _handleFacilityAction(
-    BuildContext context,
-    FacilityReportSample sample,
-  ) {
+      BuildContext context, ActivityFacilityWorkflow workflow) {
     final mode = widget.mode;
+    final category = workflow.resolvedAssetCategory;
 
-    if (mode == FacilityReportMode.newReport &&
-        sample.assetCategory == FacilityAssetCategory.machine) {
-      context.router.push(MachineFormRoute(sample: sample));
+    if (category == FacilityAssetCategory.machine) {
+      context.router.push(MachineFormRoute(
+        workflow: workflow,
+        readOnly: mode == FacilityReportMode.pendingApproval ||
+            mode == FacilityReportMode.approved,
+      ));
       return;
     }
-    if (sample.assetCategory == FacilityAssetCategory.solar) {
-      if (mode == FacilityReportMode.newReport) {
-        context.router.push(
-          OverallAssetSummaryRoute(
-            draft: SolarInstallationDraft(
-              facility: sample,
-              mode: SolarWorkflowMode.newReport,
-            ),
-          ),
-        );
-        return;
-      }
-      final solarMode = switch (mode) {
-        FacilityReportMode.pendingApproval => SolarWorkflowMode.pending,
-        FacilityReportMode.resubmissionNeeded => SolarWorkflowMode.resubmission,
-        FacilityReportMode.approved => SolarWorkflowMode.approved,
-        FacilityReportMode.newReport => SolarWorkflowMode.newReport,
-      };
-      context.router.push(
-        OverallAssetSummaryRoute(
-          draft: SolarInstallationDraft.prefilled(
-            facility: sample,
-            mode: solarMode,
-          ),
-        ),
-      );
-      return;
-    }
-    _showPlaceholder(context);
+    final solarMode = switch (mode) {
+      FacilityReportMode.pendingApproval => SolarWorkflowMode.pending,
+      FacilityReportMode.resubmissionNeeded => SolarWorkflowMode.resubmission,
+      FacilityReportMode.approved => SolarWorkflowMode.approved,
+      FacilityReportMode.newReport => SolarWorkflowMode.newReport,
+    };
+    context.router.push(OverallAssetSummaryRoute(
+      draft: installationDraftRepository.createSolar(workflow, solarMode),
+    ));
   }
 
   bool _onScrollNotification(ScrollNotification notification) {
@@ -207,14 +180,19 @@ class _FacilityListPageState extends State<_FacilityListPage> {
                     const SizedBox(height: spacer4),
                     if (widget.showSearch) ...[
                       FacilitySearchSortCard(
-                        onSearchChanged: (query) =>
-                            context.read<ActivityFacilityBloc>().add(
-                                  ActivityFacilityEvent
+                        onSearchChanged: (query) => context
+                            .read<ActivityFacilityBloc>()
+                            .add(
+                              query.trim().isEmpty
+                                  ? ActivityFacilityEvent.clearSearch(
+                                      workflowStatuses: mode.workflowStatuses,
+                                    )
+                                  : ActivityFacilityEvent
                                       .fetchActivityFacilityBySearch(
-                                    query: query,
-                                    workflowStatuses: mode.workflowStatuses,
-                                  ),
-                                ),
+                                      query: query,
+                                      workflowStatuses: mode.workflowStatuses,
+                                    ),
+                            ),
                         onSortApplied: (direction) => context
                             .read<ActivityFacilityBloc>()
                             .add(
@@ -255,14 +233,11 @@ class _FacilityListPageState extends State<_FacilityListPage> {
                             children: [
                               for (final workflow in items) ...[
                                 Builder(builder: (context) {
-                                  final sample =
-                                      FacilityReportSample.fromActivityFacility(
-                                          workflow);
                                   return FacilityReportCard(
-                                    sample: sample,
+                                    workflow: workflow,
                                     mode: mode,
-                                    onAction: () =>
-                                        _handleFacilityAction(context, sample),
+                                    onAction: () => _handleFacilityAction(
+                                        context, workflow),
                                   );
                                 }),
                                 const SizedBox(height: spacer5),

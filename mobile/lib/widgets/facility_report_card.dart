@@ -6,27 +6,28 @@ import 'package:flutter/material.dart';
 
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
-import '../model/facility_report_sample.dart';
+import '../model/activity_facility_workflow/activity_facility_workflow.dart';
+import '../model/facility_report.dart';
 
 class FacilityReportCard extends StatelessWidget {
   const FacilityReportCard({
     super.key,
-    required this.sample,
+    required this.workflow,
     required this.mode,
     required this.onAction,
   });
 
-  final FacilityReportSample sample;
+  final ActivityFacilityWorkflow workflow;
   final FacilityReportMode mode;
   final VoidCallback onAction;
 
   String _status(BuildContext context) => switch (mode) {
-        FacilityReportMode.newReport => context.translate(
-            i18.installationReportHome.pendingInstallation),
+        FacilityReportMode.newReport =>
+          context.translate(i18.installationReportHome.pendingInstallation),
         FacilityReportMode.pendingApproval =>
           context.translate(i18.home.pendingApproval),
-        FacilityReportMode.resubmissionNeeded => context.translate(
-            i18.installationReportHome.resubmissionNeededSingleLine),
+        FacilityReportMode.resubmissionNeeded => context
+            .translate(i18.installationReportHome.resubmissionNeededSingleLine),
         FacilityReportMode.approved => context.translate(i18.home.approved),
       };
 
@@ -37,13 +38,13 @@ class FacilityReportCard extends StatelessWidget {
     final isNew = mode == FacilityReportMode.newReport;
 
     return DigitCard(
-      key: ValueKey('facility-card-${mode.name}-${sample.title}'),
+      key: ValueKey('facility-card-${mode.name}-${workflow.facilityTitle}'),
       children: [
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              sample.title,
+              workflow.facilityTitle,
               style: (isNew ? textTheme.headingL : textTheme.headingM).copyWith(
                 color: isNew
                     ? theme.colorTheme.text.primary
@@ -52,29 +53,42 @@ class FacilityReportCard extends StatelessWidget {
             ),
             const SizedBox(height: spacer4),
             const DigitDivider(dividerType: DividerType.small),
-            _DetailRow(label: context.translate(i18.common.status), value: _status(context)),
+            _DetailRow(
+                label: context.translate(i18.common.status),
+                value: _status(context)),
             if (isNew) ...[
               _DetailRow(
                 label: context.translate(i18.installationReportHome.startDate),
-                value: sample.startDate,
+                value: workflow.reportDate,
               ),
-              _DetailRow(label: context.translate(i18.installationReportHome.endDate), value: sample.endDate),
+              _DetailRow(
+                  label: context.translate(i18.installationReportHome.endDate),
+                  value: workflow.reportDate),
             ] else
               _DetailRow(
-                label: context.translate(i18.installationReportHome.submissionDate),
-                value: sample.submissionDate,
+                label: context
+                    .translate(i18.installationReportHome.submissionDate),
+                value: workflow.reportDate,
               ),
-            _DetailRow(label: context.translate(i18.installationReportHome.state), value: sample.state),
-            _DetailRow(label: context.translate(i18.installationReportHome.district), value: sample.district),
-            _DetailRow(label: context.translate(i18.installationReportHome.block), value: sample.block),
-            if (isNew) _NewReportActions(sample: sample, onAction: onAction),
+            _DetailRow(
+                label: context.translate(i18.installationReportHome.state),
+                value: workflow.facilityLocality.state),
+            _DetailRow(
+                label: context.translate(i18.installationReportHome.district),
+                value: workflow.facilityLocality.district),
+            _DetailRow(
+                label: context.translate(i18.installationReportHome.block),
+                value: workflow.facilityLocality.block),
+            if (isNew)
+              _NewReportActions(workflow: workflow, onAction: onAction),
             if (mode == FacilityReportMode.pendingApproval ||
                 mode == FacilityReportMode.approved) ...[
               const SizedBox(height: spacer4),
               DigitButton(
                 key: const ValueKey('view-summary-button'),
                 mainAxisSize: MainAxisSize.max,
-                label: context.translate(i18.installationReportHome.viewSummary),
+                label:
+                    context.translate(i18.installationReportHome.viewSummary),
                 onPressed: onAction,
                 type: DigitButtonType.secondary,
                 size: DigitButtonSize.large,
@@ -85,7 +99,8 @@ class FacilityReportCard extends StatelessWidget {
               DigitButton(
                 key: const ValueKey('view-details-button'),
                 mainAxisSize: MainAxisSize.max,
-                label: context.translate(i18.installationReportHome.viewDetails),
+                label:
+                    context.translate(i18.installationReportHome.viewDetails),
                 onPressed: onAction,
                 type: DigitButtonType.primary,
                 size: DigitButtonSize.large,
@@ -95,7 +110,8 @@ class FacilityReportCard extends StatelessWidget {
                 key: const ValueKey('resubmit-button'),
                 isDisabled: true,
                 mainAxisSize: MainAxisSize.max,
-                label: context.translate(i18.installationReportHome.resubmitForApproval),
+                label: context
+                    .translate(i18.installationReportHome.resubmitForApproval),
                 onPressed: onAction,
                 type: DigitButtonType.secondary,
                 size: DigitButtonSize.large,
@@ -109,16 +125,17 @@ class FacilityReportCard extends StatelessWidget {
 }
 
 class _NewReportActions extends StatelessWidget {
-  const _NewReportActions({required this.sample, required this.onAction});
+  const _NewReportActions({required this.workflow, required this.onAction});
 
-  final FacilityReportSample sample;
+  final ActivityFacilityWorkflow workflow;
   final VoidCallback onAction;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final textTheme = theme.digitTextTheme(context);
-    final percent = (sample.progress * 100).round();
+    final progress = workflow.installationProgress;
+    final percent = (progress * 100).round();
 
     return Column(
       children: [
@@ -135,7 +152,7 @@ class _NewReportActions extends StatelessWidget {
                   valueColor: AlwaysStoppedAnimation<Color>(
                     theme.colorTheme.alert.success,
                   ),
-                  value: sample.progress,
+                  value: progress,
                   minHeight: spacer3,
                 ),
               ),
@@ -153,8 +170,10 @@ class _NewReportActions extends StatelessWidget {
           key: const ValueKey('start-resume-report-button'),
           mainAxisSize: MainAxisSize.max,
           label: percent > 0
-              ? context.translate(i18.installationReportHome.resumeInstallationReport)
-              : context.translate(i18.installationReportHome.startInstallationReport),
+              ? context.translate(
+                  i18.installationReportHome.resumeInstallationReport)
+              : context.translate(
+                  i18.installationReportHome.startInstallationReport),
           onPressed: onAction,
           type: DigitButtonType.primary,
           size: DigitButtonSize.large,
@@ -163,7 +182,8 @@ class _NewReportActions extends StatelessWidget {
         DigitButton(
           key: const ValueKey('submit-approval-button'),
           mainAxisSize: MainAxisSize.max,
-          label: context.translate(i18.installationReportHome.submitForApproval),
+          label:
+              context.translate(i18.installationReportHome.submitForApproval),
           onPressed: onAction,
           isDisabled: percent < 100,
           type: DigitButtonType.secondary,

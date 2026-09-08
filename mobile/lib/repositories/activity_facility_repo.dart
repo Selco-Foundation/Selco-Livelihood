@@ -140,9 +140,10 @@ class ActivityFacilityRepository {
       );
 
       try {
-        if (offset == 0) {
+        final isSearch = body.facilityName?.trim().isNotEmpty == true;
+        if (!isSearch && offset == 0) {
           await _replaceCache(workflowStatuses, result.items);
-        } else {
+        } else if (!isSearch) {
           await _appendCache(result.items);
         }
       } catch (_) {
@@ -152,7 +153,16 @@ class ActivityFacilityRepository {
 
       return result;
     } catch (_) {
-      final cached = await _readCacheSorted(workflowStatuses, sortDirection);
+      var cached = await _readCacheSorted(workflowStatuses, sortDirection);
+      final query = body.facilityName?.trim().toLowerCase();
+      if (query != null && query.isNotEmpty) {
+        cached = cached
+            .where((item) =>
+                (item.activityFacility.facility?.facilityName ?? '')
+                    .toLowerCase()
+                    .contains(query))
+            .toList();
+      }
       final page = cached.skip(offset).take(limit).toList();
 
       return PaginatedActivityFacilities(
@@ -192,6 +202,18 @@ class ActivityFacilityRepository {
   Future<void> _appendCache(List<ActivityFacilityWorkflow> items) async {
     final isar = await _isar;
     await isar.writeTxn(() async {
+      for (final item in items) {
+        final id = item.activityFacility.id ?? '';
+        if (id.isEmpty) continue;
+        final duplicates = await isar.cacheActivityFacilityWorkflows
+            .filter()
+            .activityFacilityIdEqualTo(id)
+            .findAll();
+        if (duplicates.isNotEmpty) {
+          await isar.cacheActivityFacilityWorkflows
+              .deleteAll(duplicates.map((row) => row.id).toList());
+        }
+      }
       await isar.cacheActivityFacilityWorkflows
           .putAll(items.map(_toCacheRow).toList());
     }).timeout(const Duration(seconds: 2));
@@ -231,7 +253,9 @@ class ActivityFacilityRepository {
           : bKey.compareTo(aKey);
     });
 
+    final seen = <String>{};
     return rows
+        .where((row) => seen.add(row.activityFacilityId))
         .map((row) => ActivityFacilityWorkflow.fromJson(
             jsonDecode(row.rawJson) as Map<String, dynamic>))
         .toList();

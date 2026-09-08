@@ -40,7 +40,6 @@ abstract class _$AppRouter extends RootStackRouter {
         routeData: routeData,
         child: AssetCountPage(
           key: args.key,
-          sample: args.sample,
           draft: args.draft,
           pickMedia: args.pickMedia,
           scanSerial: args.scanSerial,
@@ -104,10 +103,33 @@ abstract class _$AppRouter extends RootStackRouter {
         ),
       );
     },
+    DynamicBomFormRoute.name: (routeData) {
+      final args = routeData.argsAs<DynamicBomFormRouteArgs>();
+      return AutoRoutePage<dynamic>(
+        routeData: routeData,
+        child: DynamicBomFormPage(
+          key: args.key,
+          draft: args.draft,
+          schemaName: args.schemaName,
+          pageName: args.pageName,
+          readOnly: args.readOnly,
+        ),
+      );
+    },
     HomeRoute.name: (routeData) {
       return AutoRoutePage<dynamic>(
         routeData: routeData,
         child: const HomePage(),
+      );
+    },
+    ImageViewerRoute.name: (routeData) {
+      final args = routeData.argsAs<ImageViewerRouteArgs>();
+      return AutoRoutePage<dynamic>(
+        routeData: routeData,
+        child: ImageViewerPage(
+          key: args.key,
+          media: args.media,
+        ),
       );
     },
     InstallationImagesRoute.name: (routeData) {
@@ -119,6 +141,7 @@ abstract class _$AppRouter extends RootStackRouter {
           draft: args.draft,
           readOnly: args.readOnly,
           pickMedia: args.pickMedia,
+          hydrateDraft: args.hydrateDraft,
         ),
       );
     },
@@ -140,8 +163,9 @@ abstract class _$AppRouter extends RootStackRouter {
         routeData: routeData,
         child: MachineFormPage(
           key: args.key,
-          sample: args.sample,
+          workflow: args.workflow,
           pickMedia: args.pickMedia,
+          readOnly: args.readOnly,
         ),
       );
     },
@@ -182,6 +206,16 @@ abstract class _$AppRouter extends RootStackRouter {
           draft: args.draft,
           pickMedia: args.pickMedia,
           pickFiles: args.pickFiles,
+        ),
+      );
+    },
+    PdfViewerRoute.name: (routeData) {
+      final args = routeData.argsAs<PdfViewerRouteArgs>();
+      return AutoRoutePage<dynamic>(
+        routeData: routeData,
+        child: PdfViewerPage(
+          key: args.key,
+          media: args.media,
         ),
       );
     },
@@ -232,6 +266,16 @@ abstract class _$AppRouter extends RootStackRouter {
       return AutoRoutePage<dynamic>(
         routeData: routeData,
         child: const UnauthenticatedScreenWrapper(),
+      );
+    },
+    VideoViewerRoute.name: (routeData) {
+      final args = routeData.argsAs<VideoViewerRouteArgs>();
+      return AutoRoutePage<dynamic>(
+        routeData: routeData,
+        child: VideoViewerPage(
+          key: args.key,
+          media: args.media,
+        ),
       );
     },
     WelcomeRoute.name: (routeData) {
@@ -321,8 +365,7 @@ class ApprovedReportsRoute extends PageRouteInfo<void> {
 class AssetCountRoute extends PageRouteInfo<AssetCountRouteArgs> {
   AssetCountRoute({
     Key? key,
-    required FacilityReportSample sample,
-    SolarInstallationDraft? draft,
+    required SolarInstallationDraft draft,
     Future<XFile?> Function(
       SolarFileKind,
       ImageSource,
@@ -333,7 +376,6 @@ class AssetCountRoute extends PageRouteInfo<AssetCountRouteArgs> {
           AssetCountRoute.name,
           args: AssetCountRouteArgs(
             key: key,
-            sample: sample,
             draft: draft,
             pickMedia: pickMedia,
             scanSerial: scanSerial,
@@ -350,17 +392,14 @@ class AssetCountRoute extends PageRouteInfo<AssetCountRouteArgs> {
 class AssetCountRouteArgs {
   const AssetCountRouteArgs({
     this.key,
-    required this.sample,
-    this.draft,
+    required this.draft,
     this.pickMedia,
     this.scanSerial,
   });
 
   final Key? key;
 
-  final FacilityReportSample sample;
-
-  final SolarInstallationDraft? draft;
+  final SolarInstallationDraft draft;
 
   final Future<XFile?> Function(
     SolarFileKind,
@@ -371,7 +410,7 @@ class AssetCountRouteArgs {
 
   @override
   String toString() {
-    return 'AssetCountRouteArgs{key: $key, sample: $sample, draft: $draft, pickMedia: $pickMedia, scanSerial: $scanSerial}';
+    return 'AssetCountRouteArgs{key: $key, draft: $draft, pickMedia: $pickMedia, scanSerial: $scanSerial}';
   }
 }
 
@@ -610,6 +649,59 @@ class DigitScannerRouteArgs {
 }
 
 /// generated route for
+/// [DynamicBomFormPage]
+class DynamicBomFormRoute extends PageRouteInfo<DynamicBomFormRouteArgs> {
+  DynamicBomFormRoute({
+    Key? key,
+    required SolarInstallationDraft draft,
+    required String schemaName,
+    required String pageName,
+    required bool readOnly,
+    List<PageRouteInfo>? children,
+  }) : super(
+          DynamicBomFormRoute.name,
+          args: DynamicBomFormRouteArgs(
+            key: key,
+            draft: draft,
+            schemaName: schemaName,
+            pageName: pageName,
+            readOnly: readOnly,
+          ),
+          initialChildren: children,
+        );
+
+  static const String name = 'DynamicBomFormRoute';
+
+  static const PageInfo<DynamicBomFormRouteArgs> page =
+      PageInfo<DynamicBomFormRouteArgs>(name);
+}
+
+class DynamicBomFormRouteArgs {
+  const DynamicBomFormRouteArgs({
+    this.key,
+    required this.draft,
+    required this.schemaName,
+    required this.pageName,
+    required this.readOnly,
+  });
+
+  final Key? key;
+
+  final SolarInstallationDraft draft;
+
+  final String schemaName;
+
+  final String pageName;
+
+  final bool readOnly;
+
+  @override
+  String toString() {
+    return 'DynamicBomFormRouteArgs{key: $key, draft: $draft, schemaName: $schemaName, pageName: $pageName, readOnly: $readOnly}';
+  }
+}
+
+/// generated route for
 /// [HomePage]
 class HomeRoute extends PageRouteInfo<void> {
   const HomeRoute({List<PageRouteInfo>? children})
@@ -624,6 +716,44 @@ class HomeRoute extends PageRouteInfo<void> {
 }
 
 /// generated route for
+/// [ImageViewerPage]
+class ImageViewerRoute extends PageRouteInfo<ImageViewerRouteArgs> {
+  ImageViewerRoute({
+    Key? key,
+    required SolarFileRef media,
+    List<PageRouteInfo>? children,
+  }) : super(
+          ImageViewerRoute.name,
+          args: ImageViewerRouteArgs(
+            key: key,
+            media: media,
+          ),
+          initialChildren: children,
+        );
+
+  static const String name = 'ImageViewerRoute';
+
+  static const PageInfo<ImageViewerRouteArgs> page =
+      PageInfo<ImageViewerRouteArgs>(name);
+}
+
+class ImageViewerRouteArgs {
+  const ImageViewerRouteArgs({
+    this.key,
+    required this.media,
+  });
+
+  final Key? key;
+
+  final SolarFileRef media;
+
+  @override
+  String toString() {
+    return 'ImageViewerRouteArgs{key: $key, media: $media}';
+  }
+}
+
+/// generated route for
 /// [InstallationImagesPage]
 class InstallationImagesRoute
     extends PageRouteInfo<InstallationImagesRouteArgs> {
@@ -635,6 +765,7 @@ class InstallationImagesRoute
       SolarFileKind,
       ImageSource,
     )? pickMedia,
+    Future<void> Function(SolarInstallationDraft)? hydrateDraft,
     List<PageRouteInfo>? children,
   }) : super(
           InstallationImagesRoute.name,
@@ -643,6 +774,7 @@ class InstallationImagesRoute
             draft: draft,
             readOnly: readOnly,
             pickMedia: pickMedia,
+            hydrateDraft: hydrateDraft,
           ),
           initialChildren: children,
         );
@@ -659,6 +791,7 @@ class InstallationImagesRouteArgs {
     required this.draft,
     required this.readOnly,
     this.pickMedia,
+    this.hydrateDraft,
   });
 
   final Key? key;
@@ -672,9 +805,11 @@ class InstallationImagesRouteArgs {
     ImageSource,
   )? pickMedia;
 
+  final Future<void> Function(SolarInstallationDraft)? hydrateDraft;
+
   @override
   String toString() {
-    return 'InstallationImagesRouteArgs{key: $key, draft: $draft, readOnly: $readOnly, pickMedia: $pickMedia}';
+    return 'InstallationImagesRouteArgs{key: $key, draft: $draft, readOnly: $readOnly, pickMedia: $pickMedia, hydrateDraft: $hydrateDraft}';
   }
 }
 
@@ -711,18 +846,20 @@ class LoginRoute extends PageRouteInfo<void> {
 class MachineFormRoute extends PageRouteInfo<MachineFormRouteArgs> {
   MachineFormRoute({
     Key? key,
-    required FacilityReportSample sample,
+    required ActivityFacilityWorkflow workflow,
     Future<XFile?> Function(
       MachineMediaKind,
       ImageSource,
     )? pickMedia,
+    bool readOnly = false,
     List<PageRouteInfo>? children,
   }) : super(
           MachineFormRoute.name,
           args: MachineFormRouteArgs(
             key: key,
-            sample: sample,
+            workflow: workflow,
             pickMedia: pickMedia,
+            readOnly: readOnly,
           ),
           initialChildren: children,
         );
@@ -736,22 +873,25 @@ class MachineFormRoute extends PageRouteInfo<MachineFormRouteArgs> {
 class MachineFormRouteArgs {
   const MachineFormRouteArgs({
     this.key,
-    required this.sample,
+    required this.workflow,
     this.pickMedia,
+    this.readOnly = false,
   });
 
   final Key? key;
 
-  final FacilityReportSample sample;
+  final ActivityFacilityWorkflow workflow;
 
   final Future<XFile?> Function(
     MachineMediaKind,
     ImageSource,
   )? pickMedia;
 
+  final bool readOnly;
+
   @override
   String toString() {
-    return 'MachineFormRouteArgs{key: $key, sample: $sample, pickMedia: $pickMedia}';
+    return 'MachineFormRouteArgs{key: $key, workflow: $workflow, pickMedia: $pickMedia, readOnly: $readOnly}';
   }
 }
 
@@ -914,6 +1054,44 @@ class OverallAssetSummaryRouteArgs {
   @override
   String toString() {
     return 'OverallAssetSummaryRouteArgs{key: $key, draft: $draft, pickMedia: $pickMedia, pickFiles: $pickFiles}';
+  }
+}
+
+/// generated route for
+/// [PdfViewerPage]
+class PdfViewerRoute extends PageRouteInfo<PdfViewerRouteArgs> {
+  PdfViewerRoute({
+    Key? key,
+    required SolarFileRef media,
+    List<PageRouteInfo>? children,
+  }) : super(
+          PdfViewerRoute.name,
+          args: PdfViewerRouteArgs(
+            key: key,
+            media: media,
+          ),
+          initialChildren: children,
+        );
+
+  static const String name = 'PdfViewerRoute';
+
+  static const PageInfo<PdfViewerRouteArgs> page =
+      PageInfo<PdfViewerRouteArgs>(name);
+}
+
+class PdfViewerRouteArgs {
+  const PdfViewerRouteArgs({
+    this.key,
+    required this.media,
+  });
+
+  final Key? key;
+
+  final SolarFileRef media;
+
+  @override
+  String toString() {
+    return 'PdfViewerRouteArgs{key: $key, media: $media}';
   }
 }
 
@@ -1084,6 +1262,44 @@ class UnauthenticatedRouteWrapper extends PageRouteInfo<void> {
   static const String name = 'UnauthenticatedRouteWrapper';
 
   static const PageInfo<void> page = PageInfo<void>(name);
+}
+
+/// generated route for
+/// [VideoViewerPage]
+class VideoViewerRoute extends PageRouteInfo<VideoViewerRouteArgs> {
+  VideoViewerRoute({
+    Key? key,
+    required SolarFileRef media,
+    List<PageRouteInfo>? children,
+  }) : super(
+          VideoViewerRoute.name,
+          args: VideoViewerRouteArgs(
+            key: key,
+            media: media,
+          ),
+          initialChildren: children,
+        );
+
+  static const String name = 'VideoViewerRoute';
+
+  static const PageInfo<VideoViewerRouteArgs> page =
+      PageInfo<VideoViewerRouteArgs>(name);
+}
+
+class VideoViewerRouteArgs {
+  const VideoViewerRouteArgs({
+    this.key,
+    required this.media,
+  });
+
+  final Key? key;
+
+  final SolarFileRef media;
+
+  @override
+  String toString() {
+    return 'VideoViewerRouteArgs{key: $key, media: $media}';
+  }
 }
 
 /// generated route for

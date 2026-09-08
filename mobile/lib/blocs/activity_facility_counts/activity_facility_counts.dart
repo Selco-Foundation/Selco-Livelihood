@@ -4,7 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../model/activity_facility/activity_facility.dart';
-import '../../model/facility_report_sample.dart';
+import '../../model/facility_report.dart';
 import '../../repositories/activity_facility_repo.dart';
 import '../../utils/envConfig.dart';
 import '../../utils/workflow_status.dart';

@@ -3,7 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../model/facility_report_sample.dart';
+import '../model/activity_facility_workflow/activity_facility_workflow.dart';
 import '../model/solar_installation_draft.dart';
 import '../pages/asset_flow_pages.dart';
 import '../pages/authenticated.dart';
@@ -15,6 +15,8 @@ import '../pages/installation_report_list_pages.dart';
 import '../pages/login_page.dart';
 import '../pages/machine_form.dart';
 import '../pages/machine_report_success_page.dart';
+import '../pages/media_viewer.dart';
+import '../pages/dynamic_bom_form.dart';
 import '../pages/overall_asset_summary.dart';
 import '../pages/submitted_save_success.dart';
 import '../pages/unauthenticated.dart';
@@ -94,6 +96,11 @@ class AppRouter extends _$AppRouter {
                 page: SubmittedSaveSuccessRoute.page,
                 path: Routes.submittedSaveSuccess),
             AutoRoute(page: DigitScannerRoute.page, path: Routes.scanner),
+            AutoRoute(
+                page: DynamicBomFormRoute.page, path: Routes.dynamicBomForm),
+            AutoRoute(page: ImageViewerRoute.page, path: Routes.imageViewer),
+            AutoRoute(page: VideoViewerRoute.page, path: Routes.videoViewer),
+            AutoRoute(page: PdfViewerRoute.page, path: Routes.pdfViewer),
           ],
         ),
       ];

@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
 import '../model/solar_installation_draft.dart';
+import '../pages/media_viewer.dart';
 import '../utils/app_permission_gateway.dart';
 
 typedef ImageUploaderPick = Future<XFile?> Function(
@@ -139,7 +138,10 @@ class _ImageUploaderState extends State<ImageUploader> {
       });
       _notify();
     } catch (_) {
-      if (mounted) setState(() => localError = context.translate(i18.machineForm.mediaPickerError));
+      if (mounted) {
+        setState(() =>
+            localError = context.translate(i18.machineForm.mediaPickerError));
+      }
     } finally {
       if (mounted) setState(() => opening = false);
     }
@@ -294,16 +296,10 @@ class _ImagePreview extends StatelessWidget {
     final preview = Stack(
       fit: StackFit.expand,
       children: [
-        Image.file(
-          File(file.path),
-          fit: BoxFit.cover,
-          cacheWidth: Base.imageSize.toInt(),
-          cacheHeight: Base.imageSize.toInt(),
-          errorBuilder: (_, __, ___) => Container(
-            color: const DigitColors().background.withOpacity(.5),
-            alignment: Alignment.center,
-            child: const Icon(Icons.image_not_supported, size: spacer10),
-          ),
+        MediaThumbnail(
+          media: file,
+          width: Base.imageSize,
+          height: Base.imageSize,
         ),
         if (removable)
           Positioned(

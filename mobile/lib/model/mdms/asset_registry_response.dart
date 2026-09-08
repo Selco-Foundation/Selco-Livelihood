@@ -21,10 +21,32 @@ class AssetRegistryMdmsResponse with _$AssetRegistryMdmsResponse {
   const factory AssetRegistryMdmsResponse({
     @JsonKey(name: 'asset-registry') AssetRegistryModule? assetRegistry,
     @JsonKey(name: 'facility') FacilityModule? facility,
+    @JsonKey(name: 'common-masters') CommonMastersModule? commonMasters,
   }) = _AssetRegistryMdmsResponse;
 
   factory AssetRegistryMdmsResponse.fromJson(Map<String, dynamic> json) =>
       _$AssetRegistryMdmsResponseFromJson(json);
+}
+
+@freezed
+class CommonMastersModule with _$CommonMastersModule {
+  const factory CommonMastersModule({
+    @JsonKey(name: 'BOMFormSchema')
+    @Default([])
+    List<Map<String, dynamic>> bomFormSchema,
+    @JsonKey(name: 'SolutionDesignTypeBOMForms')
+    @Default([])
+    List<Map<String, dynamic>> solutionDesignTypeBomForms,
+    @JsonKey(name: 'InstallationImages')
+    @Default([])
+    List<Map<String, dynamic>> installationImages,
+    @JsonKey(name: 'RequiredBomFormKeys')
+    @Default([])
+    List<Map<String, dynamic>> requiredBomFormKeys,
+  }) = _CommonMastersModule;
+
+  factory CommonMastersModule.fromJson(Map<String, dynamic> json) =>
+      _$CommonMastersModuleFromJson(json);
 }
 
 @freezed

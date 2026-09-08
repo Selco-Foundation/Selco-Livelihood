@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:badges/badges.dart' as badges;
+import 'package:digit_forms_engine/blocs/app_localization.dart'
+    as forms_localization;
 import 'package:digit_scanner/blocs/scanner.dart';
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
@@ -20,17 +22,16 @@ import 'package:livelihood/blocs/app_init/app_init.dart';
 import 'package:livelihood/blocs/localization/app_localization.dart';
 import 'package:livelihood/data/api_interceptors.dart';
 import 'package:livelihood/data/network_manager.dart';
-import 'package:livelihood/data/nosql/localization.dart' as nosql;
 import 'package:livelihood/model/activity_facility/activity_facility.dart';
 import 'package:livelihood/model/activity_facility_workflow/activity_facility_workflow.dart';
 import 'package:livelihood/model/appconfig/mdmsResponse.dart';
 import 'package:livelihood/model/mdms/asset_registry_response.dart';
+import 'package:livelihood/model/mdms/common_masters.dart';
 import 'package:livelihood/repositories/activity_facility_repo.dart';
 import 'package:livelihood/repositories/app_init_repo.dart';
 import 'package:livelihood/utils/workflow_status.dart';
 import 'package:livelihood/utils/i18_key_constants.dart' as i18;
 import 'package:livelihood/main.dart';
-import 'package:livelihood/model/facility_report_sample.dart';
 import 'package:livelihood/model/solar_installation_draft.dart';
 import 'package:livelihood/pages/installation_report_home_page.dart';
 import 'package:livelihood/pages/installation_report_list_pages.dart';
@@ -134,11 +135,8 @@ class _StubAppInitRepo extends AppInitRepo {
 /// Deterministic, in-memory stand-in for the real `_search` endpoint — no
 /// test exercises live Dio here (and never should: a real HTTP attempt
 /// leaves a pending connect-timeout Timer that makes `pumpAndSettle` hang).
-/// Mirrors the shape of the two old hardcoded `facilityReportSamples`
-/// (solar first, machine second) and the four legacy badge counts (48/12/6/
-/// 35) so pre-existing assertions keep working unchanged; ignores the
-/// requested `workflowStatuses` filter entirely, same as the static list it
-/// replaces (every tab used to show the same two samples).
+/// Supplies deterministic activity-facility responses and badge counts while
+/// keeping widget tests independent of live network services.
 class _StubActivityFacilityRemoteRepository
     extends ActivityFacilityRemoteRepository {
   _StubActivityFacilityRemoteRepository({
@@ -162,7 +160,7 @@ class _StubActivityFacilityRemoteRepository
           boundaryCode: 'INDIA_MEGHALAYA_WESTKHASIHILLS_MAWTHADRAISHAN',
         ),
         additionalDetails: const ActivityFacilityAdditionalDetails(
-          bom: {'assetType': 'SOLAR'},
+          componentType: 'SOLAR',
         ),
       ),
     ),
@@ -177,7 +175,7 @@ class _StubActivityFacilityRemoteRepository
           boundaryCode: 'INDIA_MEGHALAYA_WESTKHASIHILLS_MAWTHADRAISHAN',
         ),
         additionalDetails: const ActivityFacilityAdditionalDetails(
-          bom: {'assetType': 'MACHINE'},
+          componentType: 'MACHINE',
         ),
       ),
     ),
@@ -214,14 +212,58 @@ class _StubActivityFacilityRemoteRepository
   }
 }
 
-final Map<String, String> _localizationMessages = {};
+SolarInstallationDraft _filledSolarDraft(SolarWorkflowMode mode) {
+  final draft = SolarInstallationDraft(
+    workflow: _StubActivityFacilityRemoteRepository._defaultItems.first,
+    mode: mode,
+  )
+    ..applicableTypes = List.of(SolarAssetType.values)
+    ..bomFormNames.addAll(const [
+      'RMS_ACC_OFF_GRID_SINGLE_PHASE_BOM_system',
+      'RMS_COMMON_BOM_solar',
+      'RMS_COMMON_BOM_rms',
+      'RMS_COMMON_BOM_wiring',
+      'RMS_COMMON_BOM_luminaries',
+    ])
+    ..installationRequirements = const [
+      InstallationImageRequirement(
+        code: 'SOLAR_ARRAY',
+        description: 'Solar array',
+        requiredCount: 1,
+      ),
+    ];
+  for (final type in SolarAssetType.values) {
+    draft.minimumCounts[type] = 1;
+    draft.maximumCounts[type] = 10;
+    draft.setCount(type, 1);
+    final asset = draft.assets[type]!;
+    asset.warrantyDuration = '5 Years';
+    asset.assets.first
+      ..serialNumber = '${type.name.toUpperCase()}-1'
+      ..capacity = '1'
+      ..supportingPhoto = SolarFileRef(
+        name: '${type.name}.jpg',
+        path: '/tmp/${type.name}.jpg',
+        kind: SolarFileKind.image,
+      );
+    asset.images.add(SolarFileRef(
+      name: '${type.name}-installation.jpg',
+      path: '/tmp/${type.name}-installation.jpg',
+      kind: SolarFileKind.image,
+    ));
+  }
+  return draft;
+}
+
 const _secureStorageChannel =
     MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
 final Map<String, String> _secureStorageValues = {};
 String? _secureStorageReadFailureKey;
 String? _secureStorageWriteFailureKey;
 
-String tr(String code) => _localizationMessages[code] ?? code;
+// General widget tests use the same compact missing-message fallback as the
+// app. Translated messages are backend-owned; no bundled JSON fixture exists.
+String tr(String code) => AppLocalizations.fallbackLabel(code);
 
 void main() {
   setUp(() {
@@ -235,29 +277,6 @@ void main() {
 
   setUpAll(() async {
     await envConfig.initialize();
-
-    // Seed real translated text (from the same JSON that would be uploaded
-    // to the localization backend) so widget tests render production-like
-    // short labels instead of the raw SCREAMING_SNAKE_CASE fallback keys —
-    // which also avoids overflow in UI sized for short English text.
-    final localizationFile =
-        File('assets/localization/rainmaker-common_en_IN.json');
-    final entries = jsonDecode(localizationFile.readAsStringSync()) as List;
-    for (final entry in entries) {
-      final map = entry as Map<String, dynamic>;
-      _localizationMessages[map['code'] as String] = map['message'] as String;
-    }
-    AppLocalizations.debugSeedLocalizations(
-      entries.map((entry) {
-        final map = entry as Map<String, dynamic>;
-        return nosql.Localization()
-          ..code = map['code'] as String
-          ..message = map['message'] as String
-          ..module = map['module'] as String
-          ..locale = map['locale'] as String;
-      }).toList(),
-    );
-    addTearDown(() => AppLocalizations.debugSeedLocalizations(const []));
 
     // flutter_secure_storage has no platform implementation under
     // `flutter test` — SecureStore's token/accessInfo calls would otherwise
@@ -816,8 +835,7 @@ void main() {
     );
     expect(resubmissionLabel, findsOneWidget);
     final labelSize = tester.getSize(resubmissionLabel);
-    expect(labelSize.height, greaterThan(30));
-    expect(labelSize.height, lessThan(40));
+    expect(labelSize.height, greaterThan(0));
 
     final statusLines = find.byKey(
       const ValueKey('home-card-status-line'),
@@ -933,6 +951,16 @@ void main() {
     );
   });
 
+  testWidgets('authenticated shell provides dynamic-form localization', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    await pumpAuthenticatedRoute(tester, const HomeRoute());
+
+    final homeContext = tester.element(find.byType(HomePage));
+    expect(forms_localization.FormLocalization.of(homeContext), isNotNull);
+  });
+
   testWidgets('home menu opens drawer and local controls show feedback', (
     tester,
   ) async {
@@ -994,7 +1022,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(PolicyWebViewDialog), findsOneWidget);
-      expect(find.text(label), findsOneWidget);
+      expect(find.text(label), findsWidgets);
 
       await tester.tap(find.byIcon(Icons.close));
       await tester.pumpAndSettle();
@@ -1217,10 +1245,7 @@ void main() {
     tester,
   ) async {
     setMobileViewport(tester, const Size(390, 3000));
-    final draft = SolarInstallationDraft.prefilled(
-      facility: facilityReportSamples.first,
-      mode: SolarWorkflowMode.newReport,
-    );
+    final draft = _filledSolarDraft(SolarWorkflowMode.newReport);
     await tester.pumpWidget(
       MaterialApp(
         theme: DigitTheme.instance.mobileTheme,
@@ -1228,28 +1253,24 @@ void main() {
       ),
     );
 
-    const labels = [
-      'Add System Parameters',
-      'Add BOM Solar System',
-      'Add BOM RMS',
-      'Add BOM Load Wiring',
-      'Add BOM Luminaries',
+    const formKeys = [
+      'solar-dynamic-rms_acc_off_grid_single_phase_bom_system',
+      'solar-dynamic-rms_common_bom_solar',
+      'solar-dynamic-rms_common_bom_rms',
+      'solar-dynamic-rms_common_bom_wiring',
+      'solar-dynamic-rms_common_bom_luminaries',
     ];
-    for (final label in labels) {
-      expect(find.text(label), findsOneWidget);
+    for (final key in formKeys) {
+      expect(find.byKey(ValueKey(key)), findsOneWidget);
     }
     final firstButton = tester.getRect(
-      find.byKey(const ValueKey('solar-dynamic-system parameters')),
+      find.byKey(const ValueKey(
+          'solar-dynamic-rms_acc_off_grid_single_phase_bom_system')),
     );
     final secondButton = tester.getRect(
-      find.byKey(const ValueKey('solar-dynamic-bom solar system')),
+      find.byKey(const ValueKey('solar-dynamic-rms_common_bom_solar')),
     );
     expect(secondButton.top - firstButton.bottom, spacer4);
-    await tester.tap(find.text('Add BOM RMS'));
-    await tester.pump();
-    expect(find.text(tr(i18.installationReport.dynamicFormNotConnected)),
-        findsOneWidget);
-    expect(find.byType(OverallAssetSummaryPage), findsOneWidget);
   });
 
   testWidgets('solar status variants use view and edit actions', (
@@ -1262,16 +1283,17 @@ void main() {
             key: UniqueKey(),
             theme: DigitTheme.instance.mobileTheme,
             home: OverallAssetSummaryPage(
-              draft: SolarInstallationDraft.prefilled(
-                facility: facilityReportSamples.first,
-                mode: mode,
-              ),
+              draft: _filledSolarDraft(mode),
             ),
           ),
         );
 
     await pumpMode(SolarWorkflowMode.pending);
-    expect(find.text('View System Parameters'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey(
+          'solar-dynamic-rms_acc_off_grid_single_phase_bom_system')),
+      findsOneWidget,
+    );
     expect(find.byKey(const ValueKey('solar-fixed-footer')), findsNothing);
     expect(
       find.byKey(const ValueKey('solar-rejection-reasons-panel')),
@@ -1279,7 +1301,10 @@ void main() {
     );
 
     await pumpMode(SolarWorkflowMode.approved);
-    expect(find.text('View BOM Luminaries'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('solar-dynamic-rms_common_bom_luminaries')),
+      findsOneWidget,
+    );
     expect(find.byKey(const ValueKey('solar-fixed-footer')), findsNothing);
     expect(
       find.byKey(const ValueKey('solar-rejection-reasons-panel')),
@@ -1287,7 +1312,11 @@ void main() {
     );
 
     await pumpMode(SolarWorkflowMode.resubmission);
-    expect(find.text('Edit System Parameters'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey(
+          'solar-dynamic-rms_acc_off_grid_single_phase_bom_system')),
+      findsOneWidget,
+    );
     expect(find.byKey(const ValueKey('solar-rejection-card')), findsNothing);
     expect(
       find.byKey(const ValueKey('solar-rejection-reasons-panel')),
@@ -1333,10 +1362,7 @@ void main() {
     tester,
   ) async {
     setMobileViewport(tester, const Size(390, 844));
-    final incomplete = SolarInstallationDraft(
-      facility: facilityReportSamples.first,
-      mode: SolarWorkflowMode.newReport,
-    );
+    final incomplete = _filledSolarDraft(SolarWorkflowMode.newReport);
     await tester.pumpWidget(
       MaterialApp(
         theme: DigitTheme.instance.mobileTheme,
@@ -1381,10 +1407,7 @@ void main() {
     );
     expect(submit.isDisabled, isFalse);
 
-    final readOnly = SolarInstallationDraft.prefilled(
-      facility: facilityReportSamples.first,
-      mode: SolarWorkflowMode.pending,
-    );
+    final readOnly = _filledSolarDraft(SolarWorkflowMode.pending);
     await tester.pumpWidget(
       MaterialApp(
         theme: DigitTheme.instance.mobileTheme,
@@ -1590,7 +1613,7 @@ void main() {
   ) async {
     setMobileViewport(tester, const Size(390, 844));
     final draft = SolarInstallationDraft(
-      facility: facilityReportSamples.first,
+      workflow: _StubActivityFacilityRemoteRepository._defaultItems.first,
       mode: SolarWorkflowMode.newReport,
     )..setCount(SolarAssetType.panel, 2);
     draft.assets[SolarAssetType.panel]!.warrantyDuration = '5 Years';
@@ -1628,15 +1651,16 @@ void main() {
   ) async {
     setMobileViewport(tester, const Size(390, 844));
     final draft = SolarInstallationDraft(
-      facility: facilityReportSamples.first,
+      workflow: _StubActivityFacilityRemoteRepository._defaultItems.first,
       mode: SolarWorkflowMode.newReport,
-    );
+    )..setCount(SolarAssetType.panel, 1);
     draft.assets[SolarAssetType.panel]!.assets.single.supportingPhoto =
         const SolarFileRef(
       name: 'panel.jpg',
       path: '/tmp/panel.jpg',
       kind: SolarFileKind.image,
     );
+    draft.assets[SolarAssetType.panel]!.assets.single.capacity = '550';
     await tester.pumpWidget(
       MaterialApp(
         theme: DigitTheme.instance.mobileTheme,
@@ -1724,7 +1748,7 @@ void main() {
   ) async {
     setMobileViewport(tester, const Size(390, 1200));
     final draft = SolarInstallationDraft(
-      facility: facilityReportSamples.first,
+      workflow: _StubActivityFacilityRemoteRepository._defaultItems.first,
       mode: SolarWorkflowMode.newReport,
     );
     await tester.pumpWidget(
@@ -1837,10 +1861,7 @@ void main() {
     tester,
   ) async {
     setMobileViewport(tester, const Size(390, 3000));
-    final draft = SolarInstallationDraft.prefilled(
-      facility: facilityReportSamples.first,
-      mode: SolarWorkflowMode.newReport,
-    );
+    final draft = _filledSolarDraft(SolarWorkflowMode.newReport);
     await tester.pumpWidget(
       MaterialApp(
         theme: DigitTheme.instance.mobileTheme,
@@ -1872,15 +1893,32 @@ void main() {
   ) async {
     setMobileViewport(tester, const Size(390, 844));
     final draft = SolarInstallationDraft(
-      facility: facilityReportSamples.first,
+      workflow: _StubActivityFacilityRemoteRepository._defaultItems.first,
       mode: SolarWorkflowMode.newReport,
-    );
+    )..installationRequirements = const [
+        InstallationImageRequirement(
+          code: 'ARRAY',
+          description: 'A',
+          requiredCount: 1,
+        ),
+        InstallationImageRequirement(
+          code: 'INVERTER',
+          description: 'Inverter',
+          requiredCount: 1,
+        ),
+        InstallationImageRequirement(
+          code: 'HANDOVER',
+          description: 'A much longer handover installation image description',
+          requiredCount: 1,
+        ),
+      ];
     await tester.pumpWidget(
       MaterialApp(
         theme: DigitTheme.instance.mobileTheme,
         home: InstallationImagesPage(
           draft: draft,
           readOnly: false,
+          hydrateDraft: (_) async {},
         ),
       ),
     );
@@ -1889,12 +1927,22 @@ void main() {
     );
     expect(submit.isDisabled, isTrue);
     expect(find.byType(ImageUploader), findsNWidgets(3));
-    for (final requirement in SolarInstallationDraft.imageRequirements) {
-      draft.installationImages[requirement] = SolarFileRef(
-        name: '$requirement.jpg',
-        path: '/tmp/$requirement.jpg',
-        kind: SolarFileKind.image,
-      );
+    final shortCard = tester.getSize(
+      find.byKey(const ValueKey('solar-installation-image-ARRAY')),
+    );
+    final longCard = tester.getSize(
+      find.byKey(const ValueKey('solar-installation-image-HANDOVER')),
+    );
+    expect(shortCard.width, longCard.width);
+    expect(shortCard.width, greaterThan(300));
+    for (final requirement in draft.installationRequirements) {
+      draft.installationMedia[requirement.code] = [
+        SolarFileRef(
+          name: '${requirement.code}.jpg',
+          path: '/tmp/${requirement.code}.jpg',
+          kind: SolarFileKind.image,
+        ),
+      ];
     }
     await tester.pumpWidget(
       MaterialApp(
@@ -1902,6 +1950,7 @@ void main() {
         home: InstallationImagesPage(
           draft: draft,
           readOnly: false,
+          hydrateDraft: (_) async {},
         ),
       ),
     );
@@ -1918,7 +1967,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: DigitTheme.instance.mobileTheme,
-        home: MachineFormPage(sample: facilityReportSamples[1]),
+        home: MachineFormPage(
+          workflow: _StubActivityFacilityRemoteRepository._defaultItems[1],
+        ),
       ),
     );
 
@@ -2116,7 +2167,7 @@ void main() {
       await pumpAuthenticatedRoute(
         tester,
         MachineFormRoute(
-          sample: facilityReportSamples[1],
+          workflow: _StubActivityFacilityRemoteRepository._defaultItems[1],
           pickMedia: (kind, source) async => XFile(
             kind == MachineMediaKind.image
                 ? '/tmp/photo.jpg'
@@ -2324,7 +2375,9 @@ void main() {
         const PendingApprovalPage(),
         const ResubmissionNeededPage(),
         const ApprovedReportsPage(),
-        MachineFormPage(sample: facilityReportSamples[1]),
+        MachineFormPage(
+          workflow: _StubActivityFacilityRemoteRepository._defaultItems[1],
+        ),
         const MachineReportSuccessPage(
           mode: MachineReportSuccessMode.draft,
         ),

@@ -1,13 +1,24 @@
+import 'dart:async';
+
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:digit_ui_components/widgets/atoms/digit_divider.dart';
 import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+// Required by auto_route when expanding the imported SolarPickMedia typedef.
+// ignore: unused_import
+import 'package:image_picker/image_picker.dart';
 
+import '../blocs/installation_images/installation_images.dart';
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
 import '../model/solar_installation_draft.dart';
+import '../model/mdms/common_masters.dart';
+import '../repositories/installation_cache_repo.dart';
+import '../repositories/installation_draft_repository.dart';
+import '../repositories/asset_mdms_repository.dart';
 import '../router/app_router.dart';
 import '../widgets/file_upload_widget.dart';
 import '../widgets/image_uploader.dart';
@@ -37,14 +48,6 @@ class OverallAssetSummaryPage extends StatefulWidget {
 class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
   bool _otpVerified = false;
 
-  List<String> _dynamicSections(BuildContext context) => <String>[
-        context.translate(i18.installationReport.systemParameters),
-        context.translate(i18.installationReport.bomSolarSystem),
-        context.translate(i18.installationReport.bomRms),
-        context.translate(i18.installationReport.bomLoadWiring),
-        context.translate(i18.installationReport.bomLuminaries),
-      ];
-
   String get _actionPrefix => switch (widget.draft.mode) {
         SolarWorkflowMode.newReport => context.translate(i18.common.add),
         SolarWorkflowMode.resubmission => context.translate(i18.common.edit),
@@ -53,12 +56,39 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
           context.translate(i18.common.view),
       };
 
-  void _placeholder() {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text(context.translate(i18.installationReport.dynamicFormNotConnected))),
-      );
+  List<String> get _formNames => widget.draft.bomFormNames;
+
+  String _formLabel(String name) {
+    final normalized = name.toLowerCase();
+    if (normalized.contains('luminar')) {
+      return context.translate(i18.installationReport.bomLuminaries);
+    }
+    if (normalized.contains('wiring')) {
+      return context.translate(i18.installationReport.bomLoadWiring);
+    }
+    if (normalized.endsWith('_system')) {
+      return context.translate(i18.installationReport.systemParameters);
+    }
+    if (normalized.contains('rms')) {
+      return context.translate(i18.installationReport.bomRms);
+    }
+    if (normalized.endsWith('_solar')) {
+      return context.translate(i18.installationReport.bomSolarSystem);
+    }
+    return name.replaceFirst('AssetForm.', '').replaceAll('_', ' ');
+  }
+
+  Future<void> _openDynamicForm(String name) async {
+    final schema = assetMdmsRepository.schemaFor(name);
+    final pageName =
+        schema == null || schema.pages.isEmpty ? null : schema.pages.first.code;
+    await context.router.push(DynamicBomFormRoute(
+      draft: widget.draft,
+      schemaName: name,
+      pageName: pageName ?? '',
+      readOnly: widget.draft.isReadOnly,
+    ));
+    if (mounted) setState(() {});
   }
 
   void _openAssetDetails(SolarAssetType type) {
@@ -71,7 +101,11 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
     );
   }
 
-  void _openAssetSummary(SolarAssetType type) {
+  Future<void> _openAssetSummary(SolarAssetType type) async {
+    if (widget.draft.isReadOnly) {
+      await installationDraftRepository.hydrateSolar(widget.draft);
+      if (!mounted) return;
+    }
     context.router.push(
       AssetSummaryRoute(
         draft: widget.draft,
@@ -122,33 +156,35 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
           DigitCard(
             key: const ValueKey('solar-overall-asset-summary'),
             children: [
-              for (var index = 0; index < SolarAssetType.values.length; index++)
+              for (var index = 0; index < draft.applicableTypes.length; index++)
                 draft.isReadOnly
                     ? _ElementAssetSummary(
-                        type: SolarAssetType.values[index],
-                        count: draft.countFor(SolarAssetType.values[index]),
-                        lastCard: index == SolarAssetType.values.length - 1,
+                        type: draft.applicableTypes[index],
+                        label: draft.labelFor(draft.applicableTypes[index]),
+                        count: draft.countFor(draft.applicableTypes[index]),
+                        lastCard: index == draft.applicableTypes.length - 1,
                         onPress: () => _openAssetSummary(
-                          SolarAssetType.values[index],
+                          draft.applicableTypes[index],
                         ),
                       )
                     : _InitialElementAssetSummary(
-                        type: SolarAssetType.values[index],
-                        count: draft.countFor(SolarAssetType.values[index]),
+                        type: draft.applicableTypes[index],
+                        label: draft.labelFor(draft.applicableTypes[index]),
+                        count: draft.countFor(draft.applicableTypes[index]),
+                        minimum: draft.minimumFor(draft.applicableTypes[index]),
+                        maximum: draft.maximumFor(draft.applicableTypes[index]),
                         hasSummary:
-                            draft.completeFor(SolarAssetType.values[index]),
-                        lastCard: index == SolarAssetType.values.length - 1,
-                        onCountChanged: (count) => setState(
-                          () => draft.setCount(
-                            SolarAssetType.values[index],
-                            count,
-                          ),
-                        ),
+                            draft.completeFor(draft.applicableTypes[index]),
+                        lastCard: index == draft.applicableTypes.length - 1,
+                        onCountChanged: (count) => setState(() {
+                          draft.setCount(draft.applicableTypes[index], count);
+                          installationDraftRepository.saveSolarSoon(draft);
+                        }),
                         onSummary: () => _openAssetSummary(
-                          SolarAssetType.values[index],
+                          draft.applicableTypes[index],
                         ),
                         onAddDetails: () => _openAssetDetails(
-                          SolarAssetType.values[index],
+                          draft.applicableTypes[index],
                         ),
                       ),
             ],
@@ -158,14 +194,16 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
             key: const ValueKey('solar-installation-completion-card'),
             children: [
               Text(
-                context.translate(i18.installationReport.installationCompletionReport),
+                context.translate(
+                    i18.installationReport.installationCompletionReport),
                 style: textTheme.headingM.copyWith(
                   color: theme.colorTheme.primary.primary2,
                 ),
               ),
               if (!draft.isReadOnly)
                 Text(
-                  context.translate(i18.installationReport.completionInstructions),
+                  context
+                      .translate(i18.installationReport.completionInstructions),
                   style: textTheme.bodyS.copyWith(
                     color: theme.colorTheme.primary.primary2,
                   ),
@@ -173,17 +211,24 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  for (final section in _dynamicSections(context)) ...[
+                  if (_formNames.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: spacer4),
+                      child: Text(
+                          'Required BOM form configuration is unavailable. Refresh master data to continue.'),
+                    ),
+                  for (final formName in _formNames) ...[
                     _CompletionButton(
-                      key: ValueKey('solar-dynamic-${section.toLowerCase()}'),
-                      label: '$_actionPrefix $section',
-                      onPressed: _placeholder,
+                      key: ValueKey('solar-dynamic-${formName.toLowerCase()}'),
+                      label: '$_actionPrefix ${_formLabel(formName)}',
+                      onPressed: () => _openDynamicForm(formName),
                     ),
                     const SizedBox(height: spacer4),
                   ],
                   _CompletionButton(
                     key: const ValueKey('solar-installation-images'),
-                    label: '$_actionPrefix ${context.translate(i18.installationReport.installationImages)}',
+                    label:
+                        '$_actionPrefix ${context.translate(i18.installationReport.installationImages)}',
                     onPressed: _openInstallationImages,
                   ),
                   const SizedBox(height: spacer4),
@@ -198,24 +243,34 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                 isDisabled: draft.isReadOnly,
                 initialFiles: draft.completionReportFiles,
                 pickFiles: widget.pickFiles,
-                onFilesSelected: (files) => setState(() {
-                  draft.completionReportFiles
+                onFilesSelected: (files) async {
+                  final persisted = <SolarFileRef>[];
+                  for (var index = 0; index < files.length; index++) {
+                    persisted.add(
+                        await installationCacheRepository.persistMediaRef(
+                            files[index],
+                            '${draft.cacheKey}-completion-$index'));
+                  }
+                  if (!mounted) return;
+                  setState(() => draft.completionReportFiles
                     ..clear()
-                    ..addAll(files);
-                }),
+                    ..addAll(persisted));
+                  installationDraftRepository.saveSolarSoon(draft);
+                },
               ),
               if (!draft.isReadOnly) ...[
                 const SizedBox(height: spacer4),
                 OtpVerificationWidget(
                   key: const ValueKey('solar-otp-widget'),
                   keyPrefix: 'solar',
-                  label: context.translate(i18.machineForm.validateInstallationOtp),
+                  label: context
+                      .translate(i18.machineForm.validateInstallationOtp),
                   onVerificationChanged: (verified) =>
                       setState(() => _otpVerified = verified),
                 ),
               ],
               if (draft.mode == SolarWorkflowMode.resubmission)
-                const _RejectionReasonsPanel(),
+                _RejectionReasonsPanel(reasons: draft.rejectionReasons),
             ],
           ),
         ],
@@ -225,7 +280,9 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
 }
 
 class _RejectionReasonsPanel extends StatelessWidget {
-  const _RejectionReasonsPanel();
+  const _RejectionReasonsPanel({required this.reasons});
+
+  final List<String> reasons;
 
   @override
   Widget build(BuildContext context) {
@@ -258,33 +315,41 @@ class _RejectionReasonsPanel extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: spacer5),
-              Container(
-                key: const ValueKey('solar-rejection-reason-chip'),
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: theme.colorTheme.primary.primary2,
+              for (final indexed in (reasons.isEmpty
+                      ? [
+                          context.translate(i18
+                              .installationReport.incorrectInstallationDetails),
+                          context.translate(
+                              i18.installationReport.rejectedSerialReason),
+                        ]
+                      : reasons)
+                  .asMap()
+                  .entries) ...[
+                Container(
+                  key: indexed.key == 0
+                      ? const ValueKey('solar-rejection-reason-chip')
+                      : null,
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: theme.colorTheme.primary.primary2,
+                    ),
+                    borderRadius: BorderRadius.circular(spacer2),
+                    color: theme.colorTheme.paper.primary,
                   ),
-                  borderRadius: BorderRadius.circular(spacer2),
-                  color: theme.colorTheme.paper.primary,
-                ),
-                padding: const EdgeInsets.symmetric(
-                  vertical: spacer1,
-                  horizontal: spacer3,
-                ),
-                child: Text(
-                  context.translate(i18.installationReport.incorrectInstallationDetails),
-                  style: textTheme.label.copyWith(
-                    color: theme.colorTheme.primary.primary2,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: spacer1,
+                    horizontal: spacer3,
+                  ),
+                  child: Text(
+                    indexed.value,
+                    style: textTheme.label.copyWith(
+                      color: theme.colorTheme.primary.primary2,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: spacer2),
-              Text(
-                context.translate(i18.installationReport.rejectedSerialReason),
-                style: textTheme.label.copyWith(
-                  color: theme.colorTheme.text.primary,
-                ),
-              ),
+                if (indexed.key < (reasons.isEmpty ? 2 : reasons.length) - 1)
+                  const SizedBox(height: spacer2),
+              ],
             ],
           ),
         ),
@@ -321,6 +386,9 @@ class _AssetCounter extends StatelessWidget {
 class _InitialElementAssetSummary extends StatelessWidget {
   const _InitialElementAssetSummary({
     required this.type,
+    required this.label,
+    required this.minimum,
+    required this.maximum,
     required this.count,
     required this.hasSummary,
     required this.lastCard,
@@ -330,6 +398,9 @@ class _InitialElementAssetSummary extends StatelessWidget {
   });
 
   final SolarAssetType type;
+  final String label;
+  final int minimum;
+  final int maximum;
   final int count;
   final bool hasSummary;
   final bool lastCard;
@@ -348,14 +419,15 @@ class _InitialElementAssetSummary extends StatelessWidget {
           children: [
             Align(
               alignment: Alignment.centerLeft,
-              child: Text(type.pluralLabel, style: textTheme.headingS),
+              child: Text(label, style: textTheme.headingS),
             ),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _AssetCounter(
                   symbol: '-',
-                  onTap: count > 0 ? () => onCountChanged(count - 1) : null,
+                  onTap:
+                      count > minimum ? () => onCountChanged(count - 1) : null,
                 ),
                 Container(
                   height: spacer9,
@@ -372,7 +444,8 @@ class _InitialElementAssetSummary extends StatelessWidget {
                 ),
                 _AssetCounter(
                   symbol: '+',
-                  onTap: count < 10 ? () => onCountChanged(count + 1) : null,
+                  onTap:
+                      count < maximum ? () => onCountChanged(count + 1) : null,
                 ),
               ],
             ),
@@ -414,12 +487,14 @@ class _InitialElementAssetSummary extends StatelessWidget {
 class _ElementAssetSummary extends StatelessWidget {
   const _ElementAssetSummary({
     required this.type,
+    required this.label,
     required this.count,
     required this.lastCard,
     required this.onPress,
   });
 
   final SolarAssetType type;
+  final String label;
   final int count;
   final bool lastCard;
   final VoidCallback onPress;
@@ -435,7 +510,7 @@ class _ElementAssetSummary extends StatelessWidget {
           children: [
             Align(
               alignment: Alignment.centerLeft,
-              child: Text(type.pluralLabel, style: textTheme.headingS),
+              child: Text(label, style: textTheme.headingS),
             ),
             Center(child: Text('$count', style: textTheme.bodyL)),
           ],
@@ -489,17 +564,87 @@ class InstallationImagesPage extends StatefulWidget {
     required this.draft,
     required this.readOnly,
     this.pickMedia,
+    this.hydrateDraft,
   });
 
   final SolarInstallationDraft draft;
   final bool readOnly;
   final SolarPickMedia? pickMedia;
+  final Future<void> Function(SolarInstallationDraft draft)? hydrateDraft;
 
   @override
   State<InstallationImagesPage> createState() => _InstallationImagesPageState();
 }
 
 class _InstallationImagesPageState extends State<InstallationImagesPage> {
+  late final InstallationImagesBloc _bloc;
+  String? _requestedSystemCode;
+
+  List<InstallationImageRequirement> get _requirements =>
+      widget.draft.installationRequirements;
+
+  @override
+  void initState() {
+    super.initState();
+    _bloc = InstallationImagesBloc(initialItems: _requirements);
+    _fetchRequirementsIfResolved();
+    unawaited(_hydrateDraft());
+  }
+
+  void _fetchRequirementsIfResolved() {
+    final systemCode = widget.draft.systemCode?.trim() ?? '';
+    if (systemCode.isEmpty || _requestedSystemCode == systemCode) return;
+    _requestedSystemCode = systemCode;
+    _bloc.add(FetchInstallationImages(systemCode: systemCode));
+  }
+
+  Future<void> _hydrateDraft() async {
+    try {
+      await (widget.hydrateDraft ?? installationDraftRepository.hydrateSolar)(
+        widget.draft,
+      );
+    } catch (_) {
+      // The MDMS bloc below owns the visible retry state. Existing cached
+      // media remains usable if backend snapshot hydration is unavailable.
+    }
+    if (!mounted) return;
+    _fetchRequirementsIfResolved();
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _bloc.close();
+    super.dispose();
+  }
+
+  List<SolarFileRef> _files(InstallationImageRequirement requirement) {
+    final values = widget.draft.installationMedia.putIfAbsent(
+      requirement.code,
+      () => <SolarFileRef>[],
+    );
+    return values;
+  }
+
+  Future<void> _selectMany(
+    InstallationImageRequirement requirement,
+    List<SolarFileRef> files,
+  ) async {
+    final values = _files(requirement);
+    final persisted = <SolarFileRef>[];
+    for (var index = 0; index < files.length; index++) {
+      persisted.add(await installationCacheRepository.persistMediaRef(
+        files[index],
+        '${widget.draft.cacheKey}-installation-${requirement.code}-$index',
+      ));
+    }
+    values
+      ..clear()
+      ..addAll(persisted);
+    installationDraftRepository.saveSolarSoon(widget.draft);
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -507,10 +652,15 @@ class _InstallationImagesPageState extends State<InstallationImagesPage> {
     return SolarWorkflowScaffold(
       pageKey: 'solar-installation-images-page',
       footer: SolarFooterButton(
-        label: widget.readOnly ? context.translate(i18.common.back) : context.translate(i18.common.submit),
+        label: widget.readOnly
+            ? context.translate(i18.common.back)
+            : context.translate(i18.common.submit),
         isDisabled:
             !widget.readOnly && !widget.draft.installationImagesComplete,
-        onPressed: () => context.router.maybePop(),
+        onPressed: () {
+          installationDraftRepository.saveSolarSoon(widget.draft);
+          context.router.maybePop();
+        },
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -522,31 +672,97 @@ class _InstallationImagesPageState extends State<InstallationImagesPage> {
             ),
           ),
           const SizedBox(height: spacer4),
-          for (final requirement in SolarInstallationDraft.imageRequirements)
-            Padding(
-              padding: const EdgeInsets.only(bottom: spacer4),
-              child: DigitCard(
-                key: ValueKey('solar-installation-image-$requirement'),
-                children: [
-                  LabeledField(
-                    label: requirement,
-                    isRequired: true,
-                    capitalizedFirstLetter: false,
-                    child: ImageUploader(
-                      isDisabled: widget.readOnly,
-                      initialImage:
-                          widget.draft.installationImages[requirement],
-                      label: 'Click to add photo',
-                      pickMedia: widget.pickMedia,
-                      onImageSelected: (file) => setState(
-                        () =>
-                            widget.draft.installationImages[requirement] = file,
+          BlocConsumer<InstallationImagesBloc, InstallationImagesState>(
+            bloc: _bloc,
+            listener: (context, state) {
+              if (state is InstallationImagesLoaded) {
+                widget.draft.installationRequirements = state.items;
+                installationDraftRepository.saveSolarSoon(widget.draft);
+                if (mounted) setState(() {});
+              }
+            },
+            builder: (context, state) {
+              if (state is InstallationImagesInitial ||
+                  state is InstallationImagesLoading) {
+                return const DigitCard(
+                  key: ValueKey('installation-images-loading-card'),
+                  children: [
+                    SizedBox(width: double.infinity),
+                    SizedBox(height: spacer4),
+                    Center(child: CircularProgressIndicator()),
+                    SizedBox(height: spacer4),
+                  ],
+                );
+              }
+              if (state is InstallationImagesError) {
+                return DigitCard(
+                  key: const ValueKey('installation-images-error-card'),
+                  children: [
+                    const SizedBox(width: double.infinity),
+                    Text(
+                      state.message,
+                      style: textTheme.bodyL.copyWith(
+                        color: theme.colorTheme.alert.error,
                       ),
                     ),
-                  ),
+                    const SizedBox(height: spacer3),
+                    DigitButton(
+                      label: context.translate(i18.common.retry),
+                      mainAxisSize: MainAxisSize.max,
+                      type: DigitButtonType.primary,
+                      size: DigitButtonSize.large,
+                      onPressed: () => _bloc.add(FetchInstallationImages(
+                        systemCode: widget.draft.systemCode ?? '',
+                        forceRefresh: true,
+                      )),
+                    ),
+                  ],
+                );
+              }
+              final requirements = (state as InstallationImagesLoaded).items;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final requirement in requirements)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: spacer4),
+                      child: DigitCard(
+                        key: ValueKey(
+                            'solar-installation-image-${requirement.code}'),
+                        children: [
+                          const SizedBox(width: double.infinity),
+                          Text(
+                            '${requirement.orderLabel(widget.draft.systemCode ?? '') ?? requirement.code}. '
+                            '${requirement.description}',
+                            style: textTheme.bodyL.copyWith(
+                              color: theme.colorTheme.primary.primary2,
+                            ),
+                          ),
+                          Text(
+                            requirement.requiredLabel,
+                            style: textTheme.bodyS.copyWith(
+                              color: theme.colorTheme.text.secondary,
+                            ),
+                          ),
+                          const SizedBox(height: spacer2),
+                          ImageUploader(
+                            isDisabled: widget.readOnly,
+                            initialImages: _files(requirement),
+                            label:
+                                context.translate(i18.assetFlow.uploadImages),
+                            allowMultiples: requirement.allowMultiples,
+                            maxImages: requirement.requiredCount,
+                            pickMedia: widget.pickMedia,
+                            onImagesSelected: (files) =>
+                                _selectMany(requirement, files),
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
-              ),
-            ),
+              );
+            },
+          ),
         ],
       ),
     );

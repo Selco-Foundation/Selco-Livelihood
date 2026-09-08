@@ -74,7 +74,7 @@ class AppLocalizations {
   /// full app shell (e.g. a bare `MaterialApp` in a widget test).
   static String translateCached(String localizedValues) {
     if (_localizedStrings.isEmpty) {
-      return localizedValues;
+      return fallbackLabel(localizedValues);
     } else {
       final index = _localizedStrings.indexWhere(
         (medium) => medium.code == localizedValues,
@@ -82,5 +82,33 @@ class AppLocalizations {
 
       return index != -1 ? _localizedStrings[index].message : localizedValues;
     }
+  }
+
+  /// Readable, compact fallback used only when the backend/cache has no
+  /// message. It keeps tests and first-offline-launch layouts independent of
+  /// a bundled localization asset while preserving backend text precedence.
+  static String fallbackLabel(String code) {
+    const prefixes = [
+      'INSTALLATION_REPORT_HOME_',
+      'INSTALLATION_REPORT_',
+      'MACHINE_FORM_',
+      'ASSET_FLOW_',
+      'COMMON_',
+      'LOGIN_',
+      'HOME_',
+    ];
+    var value = code;
+    for (final prefix in prefixes) {
+      if (value.startsWith(prefix)) {
+        value = value.substring(prefix.length);
+        break;
+      }
+    }
+    if (value == 'TITLE' && code.startsWith('LOGIN_')) return 'Login';
+    return value
+        .split('_')
+        .where((part) => part.isNotEmpty)
+        .map((part) => '${part[0]}${part.substring(1).toLowerCase()}')
+        .join(' ');
   }
 }

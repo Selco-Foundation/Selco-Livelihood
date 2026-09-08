@@ -7,6 +7,8 @@ import 'package:image_picker/image_picker.dart';
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
 import '../utils/app_permission_gateway.dart';
+import '../model/solar_installation_draft.dart';
+import '../pages/media_viewer.dart';
 
 enum MachineMediaKind { image, video }
 
@@ -62,7 +64,8 @@ class _MachineMediaPickerState extends State<MachineMediaPicker> {
       if (file != null) widget.onChanged(file);
     } catch (_) {
       if (!mounted) return;
-      setState(() => _fileError = context.translate(i18.machineForm.mediaPickerError));
+      setState(() =>
+          _fileError = context.translate(i18.machineForm.mediaPickerError));
     } finally {
       if (mounted) setState(() => _isPicking = false);
     }
@@ -161,7 +164,9 @@ class _MachineMediaPickerState extends State<MachineMediaPicker> {
                     color: const DigitColors().light.primary1,
                   ),
                   Text(
-                    _isImage ? context.translate(i18.machineForm.takePhoto) : context.translate(i18.machineForm.takeVideo),
+                    _isImage
+                        ? context.translate(i18.machineForm.takePhoto)
+                        : context.translate(i18.machineForm.takeVideo),
                     style: TextStyle(
                       color: const DigitColors().light.primary1,
                     ),
@@ -236,6 +241,20 @@ class _MachineMediaPickerState extends State<MachineMediaPicker> {
                 ),
               ),
             ),
+            Positioned.fill(
+              child: InkWell(
+                key: const ValueKey('machine-media-open-image'),
+                onTap: () => openMediaViewer(
+                  context,
+                  SolarFileRef(
+                    name: file.name,
+                    path: file.path,
+                    localPath: file.path,
+                    kind: SolarFileKind.image,
+                  ),
+                ),
+              ),
+            ),
             _RemoveControl(onPressed: () => widget.onChanged(null)),
           ],
         ),
@@ -247,36 +266,47 @@ class _MachineMediaPickerState extends State<MachineMediaPicker> {
     return Stack(
       key: const ValueKey('machine-media-video-tile'),
       children: [
-        Container(
-          width: MediaQuery.of(context).size.width,
-          constraints: const BoxConstraints(minHeight: Base.imageSize),
-          padding: const EdgeInsets.all(spacer3),
-          decoration: BoxDecoration(
-            borderRadius: Base.radius,
-            border: Border.all(
-              color: const DigitColors().light.genericDivider,
+        InkWell(
+          onTap: () => openMediaViewer(
+            context,
+            SolarFileRef(
+              name: file.name,
+              path: file.path,
+              localPath: file.path,
+              kind: SolarFileKind.video,
             ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.video_file,
-                color: const DigitColors().light.primary1,
-                size: spacer8,
+          child: Container(
+            width: MediaQuery.of(context).size.width,
+            constraints: const BoxConstraints(minHeight: Base.imageSize),
+            padding: const EdgeInsets.all(spacer3),
+            decoration: BoxDecoration(
+              borderRadius: Base.radius,
+              border: Border.all(
+                color: const DigitColors().light.genericDivider,
               ),
-              const SizedBox(height: spacer2),
-              Text(
-                file.name,
-                key: const ValueKey('machine-media-file-name'),
-                style: typography.bodyS.copyWith(
-                  color: const DigitColors().light.textPrimary,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.video_file,
+                  color: const DigitColors().light.primary1,
+                  size: spacer8,
                 ),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+                const SizedBox(height: spacer2),
+                Text(
+                  file.name,
+                  key: const ValueKey('machine-media-file-name'),
+                  style: typography.bodyS.copyWith(
+                    color: const DigitColors().light.textPrimary,
+                  ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ),
         _RemoveControl(onPressed: () => widget.onChanged(null)),

@@ -29,11 +29,23 @@ _$WorkflowImpl _$$WorkflowImplFromJson(Map<String, dynamic> json) =>
           ? null
           : WorkflowAuditDetails.fromJson(
               json['auditDetails'] as Map<String, dynamic>),
+      state: json['state'] as String?,
+      action: json['action'] as String?,
+      businessService: json['businessService'] as String?,
+      comment: json['comment'] as String?,
+      documents: (json['documents'] as List<dynamic>?)
+          ?.map((e) => e as Map<String, dynamic>)
+          .toList(),
     );
 
 Map<String, dynamic> _$$WorkflowImplToJson(_$WorkflowImpl instance) =>
     <String, dynamic>{
       'auditDetails': instance.auditDetails,
+      'state': instance.state,
+      'action': instance.action,
+      'businessService': instance.businessService,
+      'comment': instance.comment,
+      'documents': instance.documents,
     };
 
 _$WorkflowAuditDetailsImpl _$$WorkflowAuditDetailsImplFromJson(

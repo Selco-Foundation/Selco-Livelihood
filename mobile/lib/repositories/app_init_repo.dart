@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -11,6 +10,7 @@ import '../model/mdms/asset_registry_response.dart';
 import '../model/mdms/mdms_request.dart';
 import '../utils/api_paths.dart';
 import '../utils/envConfig.dart';
+import 'asset_mdms_repository.dart';
 
 class AppInitRepo {
   Future<MdmsResponseModel> searchAppConfiguration() async {
@@ -49,7 +49,7 @@ class AppInitRepo {
     }
   }
 
-  /// Batches all six schemas into one MDMS v1 `_search` call — verified
+  /// Batches the complete installation master set into one MDMS v1 call.
   /// against the live backend to return all of them in a single request.
   Future<AssetRegistryMdmsResponse> searchAssetRegistry() async {
     final storage = SecureStore();
@@ -67,6 +67,15 @@ class AppInitRepo {
               MdmsMasterDetailModel(name: 'SystemSchema'),
               MdmsMasterDetailModel(name: 'WarrantyDurationSchema'),
               MdmsMasterDetailModel(name: 'BrandSchema'),
+            ],
+          ),
+          const MdmsModuleDetailModel(
+            moduleName: 'common-masters',
+            masterDetails: [
+              MdmsMasterDetailModel(name: 'BOMFormSchema'),
+              MdmsMasterDetailModel(name: 'SolutionDesignTypeBOMForms'),
+              MdmsMasterDetailModel(name: 'InstallationImages'),
+              MdmsMasterDetailModel(name: 'RequiredBomFormKeys'),
             ],
           ),
           const MdmsModuleDetailModel(
@@ -91,17 +100,20 @@ class AppInitRepo {
         mdmsRes as Map<String, dynamic>,
       );
 
-      unawaited(storage.setAssetRegistryConfig(json.encode(mdmsRes)));
-
+      await assetMdmsRepository.store(result);
       return result;
     } catch (remoteError) {
+      final isarCached = await assetMdmsRepository.load();
+      if (isarCached != null) return isarCached;
       final cached = await storage.getAssetRegistryConfig();
       if (cached == null) throw _unwrap(remoteError);
 
       try {
-        return AssetRegistryMdmsResponse.fromJson(
+        final result = AssetRegistryMdmsResponse.fromJson(
           json.decode(cached) as Map<String, dynamic>,
         );
+        await assetMdmsRepository.store(result);
+        return result;
       } catch (_) {
         throw _unwrap(remoteError);
       }

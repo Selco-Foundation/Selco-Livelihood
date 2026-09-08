@@ -398,6 +398,11 @@ mixin _$Facility {
   @JsonKey(name: 'facility_name')
   String? get facilityName => throw _privateConstructorUsedError;
   String? get boundaryCode => throw _privateConstructorUsedError;
+  String? get systemCode => throw _privateConstructorUsedError;
+  String? get systemType => throw _privateConstructorUsedError;
+  FacilityDetails? get facilityDetails => throw _privateConstructorUsedError;
+  Map<String, dynamic>? get additionalDetails =>
+      throw _privateConstructorUsedError;
 
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
   @JsonKey(ignore: true)
@@ -412,7 +417,13 @@ abstract class $FacilityCopyWith<$Res> {
   @useResult
   $Res call(
       {@JsonKey(name: 'facility_name') String? facilityName,
-      String? boundaryCode});
+      String? boundaryCode,
+      String? systemCode,
+      String? systemType,
+      FacilityDetails? facilityDetails,
+      Map<String, dynamic>? additionalDetails});
+
+  $FacilityDetailsCopyWith<$Res>? get facilityDetails;
 }
 
 /// @nodoc
@@ -430,6 +441,10 @@ class _$FacilityCopyWithImpl<$Res, $Val extends Facility>
   $Res call({
     Object? facilityName = freezed,
     Object? boundaryCode = freezed,
+    Object? systemCode = freezed,
+    Object? systemType = freezed,
+    Object? facilityDetails = freezed,
+    Object? additionalDetails = freezed,
   }) {
     return _then(_value.copyWith(
       facilityName: freezed == facilityName
@@ -440,7 +455,35 @@ class _$FacilityCopyWithImpl<$Res, $Val extends Facility>
           ? _value.boundaryCode
           : boundaryCode // ignore: cast_nullable_to_non_nullable
               as String?,
+      systemCode: freezed == systemCode
+          ? _value.systemCode
+          : systemCode // ignore: cast_nullable_to_non_nullable
+              as String?,
+      systemType: freezed == systemType
+          ? _value.systemType
+          : systemType // ignore: cast_nullable_to_non_nullable
+              as String?,
+      facilityDetails: freezed == facilityDetails
+          ? _value.facilityDetails
+          : facilityDetails // ignore: cast_nullable_to_non_nullable
+              as FacilityDetails?,
+      additionalDetails: freezed == additionalDetails
+          ? _value.additionalDetails
+          : additionalDetails // ignore: cast_nullable_to_non_nullable
+              as Map<String, dynamic>?,
     ) as $Val);
+  }
+
+  @override
+  @pragma('vm:prefer-inline')
+  $FacilityDetailsCopyWith<$Res>? get facilityDetails {
+    if (_value.facilityDetails == null) {
+      return null;
+    }
+
+    return $FacilityDetailsCopyWith<$Res>(_value.facilityDetails!, (value) {
+      return _then(_value.copyWith(facilityDetails: value) as $Val);
+    });
   }
 }
 
@@ -454,7 +497,14 @@ abstract class _$$FacilityImplCopyWith<$Res>
   @useResult
   $Res call(
       {@JsonKey(name: 'facility_name') String? facilityName,
-      String? boundaryCode});
+      String? boundaryCode,
+      String? systemCode,
+      String? systemType,
+      FacilityDetails? facilityDetails,
+      Map<String, dynamic>? additionalDetails});
+
+  @override
+  $FacilityDetailsCopyWith<$Res>? get facilityDetails;
 }
 
 /// @nodoc
@@ -470,6 +520,10 @@ class __$$FacilityImplCopyWithImpl<$Res>
   $Res call({
     Object? facilityName = freezed,
     Object? boundaryCode = freezed,
+    Object? systemCode = freezed,
+    Object? systemType = freezed,
+    Object? facilityDetails = freezed,
+    Object? additionalDetails = freezed,
   }) {
     return _then(_$FacilityImpl(
       facilityName: freezed == facilityName
@@ -480,6 +534,22 @@ class __$$FacilityImplCopyWithImpl<$Res>
           ? _value.boundaryCode
           : boundaryCode // ignore: cast_nullable_to_non_nullable
               as String?,
+      systemCode: freezed == systemCode
+          ? _value.systemCode
+          : systemCode // ignore: cast_nullable_to_non_nullable
+              as String?,
+      systemType: freezed == systemType
+          ? _value.systemType
+          : systemType // ignore: cast_nullable_to_non_nullable
+              as String?,
+      facilityDetails: freezed == facilityDetails
+          ? _value.facilityDetails
+          : facilityDetails // ignore: cast_nullable_to_non_nullable
+              as FacilityDetails?,
+      additionalDetails: freezed == additionalDetails
+          ? _value._additionalDetails
+          : additionalDetails // ignore: cast_nullable_to_non_nullable
+              as Map<String, dynamic>?,
     ));
   }
 }
@@ -488,7 +558,13 @@ class __$$FacilityImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$FacilityImpl implements _Facility {
   const _$FacilityImpl(
-      {@JsonKey(name: 'facility_name') this.facilityName, this.boundaryCode});
+      {@JsonKey(name: 'facility_name') this.facilityName,
+      this.boundaryCode,
+      this.systemCode,
+      this.systemType,
+      this.facilityDetails,
+      final Map<String, dynamic>? additionalDetails})
+      : _additionalDetails = additionalDetails;
 
   factory _$FacilityImpl.fromJson(Map<String, dynamic> json) =>
       _$$FacilityImplFromJson(json);
@@ -498,10 +574,26 @@ class _$FacilityImpl implements _Facility {
   final String? facilityName;
   @override
   final String? boundaryCode;
+  @override
+  final String? systemCode;
+  @override
+  final String? systemType;
+  @override
+  final FacilityDetails? facilityDetails;
+  final Map<String, dynamic>? _additionalDetails;
+  @override
+  Map<String, dynamic>? get additionalDetails {
+    final value = _additionalDetails;
+    if (value == null) return null;
+    if (_additionalDetails is EqualUnmodifiableMapView)
+      return _additionalDetails;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(value);
+  }
 
   @override
   String toString() {
-    return 'Facility(facilityName: $facilityName, boundaryCode: $boundaryCode)';
+    return 'Facility(facilityName: $facilityName, boundaryCode: $boundaryCode, systemCode: $systemCode, systemType: $systemType, facilityDetails: $facilityDetails, additionalDetails: $additionalDetails)';
   }
 
   @override
@@ -512,12 +604,27 @@ class _$FacilityImpl implements _Facility {
             (identical(other.facilityName, facilityName) ||
                 other.facilityName == facilityName) &&
             (identical(other.boundaryCode, boundaryCode) ||
-                other.boundaryCode == boundaryCode));
+                other.boundaryCode == boundaryCode) &&
+            (identical(other.systemCode, systemCode) ||
+                other.systemCode == systemCode) &&
+            (identical(other.systemType, systemType) ||
+                other.systemType == systemType) &&
+            (identical(other.facilityDetails, facilityDetails) ||
+                other.facilityDetails == facilityDetails) &&
+            const DeepCollectionEquality()
+                .equals(other._additionalDetails, _additionalDetails));
   }
 
   @JsonKey(ignore: true)
   @override
-  int get hashCode => Object.hash(runtimeType, facilityName, boundaryCode);
+  int get hashCode => Object.hash(
+      runtimeType,
+      facilityName,
+      boundaryCode,
+      systemCode,
+      systemType,
+      facilityDetails,
+      const DeepCollectionEquality().hash(_additionalDetails));
 
   @JsonKey(ignore: true)
   @override
@@ -536,7 +643,11 @@ class _$FacilityImpl implements _Facility {
 abstract class _Facility implements Facility {
   const factory _Facility(
       {@JsonKey(name: 'facility_name') final String? facilityName,
-      final String? boundaryCode}) = _$FacilityImpl;
+      final String? boundaryCode,
+      final String? systemCode,
+      final String? systemType,
+      final FacilityDetails? facilityDetails,
+      final Map<String, dynamic>? additionalDetails}) = _$FacilityImpl;
 
   factory _Facility.fromJson(Map<String, dynamic> json) =
       _$FacilityImpl.fromJson;
@@ -547,8 +658,205 @@ abstract class _Facility implements Facility {
   @override
   String? get boundaryCode;
   @override
+  String? get systemCode;
+  @override
+  String? get systemType;
+  @override
+  FacilityDetails? get facilityDetails;
+  @override
+  Map<String, dynamic>? get additionalDetails;
+  @override
   @JsonKey(ignore: true)
   _$$FacilityImplCopyWith<_$FacilityImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+FacilityDetails _$FacilityDetailsFromJson(Map<String, dynamic> json) {
+  return _FacilityDetails.fromJson(json);
+}
+
+/// @nodoc
+mixin _$FacilityDetails {
+  @JsonKey(name: 'solar_solution_design_type')
+  String? get solutionDesignType => throw _privateConstructorUsedError;
+  String? get systemType => throw _privateConstructorUsedError;
+  String? get systemCode => throw _privateConstructorUsedError;
+
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+  @JsonKey(ignore: true)
+  $FacilityDetailsCopyWith<FacilityDetails> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $FacilityDetailsCopyWith<$Res> {
+  factory $FacilityDetailsCopyWith(
+          FacilityDetails value, $Res Function(FacilityDetails) then) =
+      _$FacilityDetailsCopyWithImpl<$Res, FacilityDetails>;
+  @useResult
+  $Res call(
+      {@JsonKey(name: 'solar_solution_design_type') String? solutionDesignType,
+      String? systemType,
+      String? systemCode});
+}
+
+/// @nodoc
+class _$FacilityDetailsCopyWithImpl<$Res, $Val extends FacilityDetails>
+    implements $FacilityDetailsCopyWith<$Res> {
+  _$FacilityDetailsCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? solutionDesignType = freezed,
+    Object? systemType = freezed,
+    Object? systemCode = freezed,
+  }) {
+    return _then(_value.copyWith(
+      solutionDesignType: freezed == solutionDesignType
+          ? _value.solutionDesignType
+          : solutionDesignType // ignore: cast_nullable_to_non_nullable
+              as String?,
+      systemType: freezed == systemType
+          ? _value.systemType
+          : systemType // ignore: cast_nullable_to_non_nullable
+              as String?,
+      systemCode: freezed == systemCode
+          ? _value.systemCode
+          : systemCode // ignore: cast_nullable_to_non_nullable
+              as String?,
+    ) as $Val);
+  }
+}
+
+/// @nodoc
+abstract class _$$FacilityDetailsImplCopyWith<$Res>
+    implements $FacilityDetailsCopyWith<$Res> {
+  factory _$$FacilityDetailsImplCopyWith(_$FacilityDetailsImpl value,
+          $Res Function(_$FacilityDetailsImpl) then) =
+      __$$FacilityDetailsImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call(
+      {@JsonKey(name: 'solar_solution_design_type') String? solutionDesignType,
+      String? systemType,
+      String? systemCode});
+}
+
+/// @nodoc
+class __$$FacilityDetailsImplCopyWithImpl<$Res>
+    extends _$FacilityDetailsCopyWithImpl<$Res, _$FacilityDetailsImpl>
+    implements _$$FacilityDetailsImplCopyWith<$Res> {
+  __$$FacilityDetailsImplCopyWithImpl(
+      _$FacilityDetailsImpl _value, $Res Function(_$FacilityDetailsImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? solutionDesignType = freezed,
+    Object? systemType = freezed,
+    Object? systemCode = freezed,
+  }) {
+    return _then(_$FacilityDetailsImpl(
+      solutionDesignType: freezed == solutionDesignType
+          ? _value.solutionDesignType
+          : solutionDesignType // ignore: cast_nullable_to_non_nullable
+              as String?,
+      systemType: freezed == systemType
+          ? _value.systemType
+          : systemType // ignore: cast_nullable_to_non_nullable
+              as String?,
+      systemCode: freezed == systemCode
+          ? _value.systemCode
+          : systemCode // ignore: cast_nullable_to_non_nullable
+              as String?,
+    ));
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$FacilityDetailsImpl implements _FacilityDetails {
+  const _$FacilityDetailsImpl(
+      {@JsonKey(name: 'solar_solution_design_type') this.solutionDesignType,
+      this.systemType,
+      this.systemCode});
+
+  factory _$FacilityDetailsImpl.fromJson(Map<String, dynamic> json) =>
+      _$$FacilityDetailsImplFromJson(json);
+
+  @override
+  @JsonKey(name: 'solar_solution_design_type')
+  final String? solutionDesignType;
+  @override
+  final String? systemType;
+  @override
+  final String? systemCode;
+
+  @override
+  String toString() {
+    return 'FacilityDetails(solutionDesignType: $solutionDesignType, systemType: $systemType, systemCode: $systemCode)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$FacilityDetailsImpl &&
+            (identical(other.solutionDesignType, solutionDesignType) ||
+                other.solutionDesignType == solutionDesignType) &&
+            (identical(other.systemType, systemType) ||
+                other.systemType == systemType) &&
+            (identical(other.systemCode, systemCode) ||
+                other.systemCode == systemCode));
+  }
+
+  @JsonKey(ignore: true)
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, solutionDesignType, systemType, systemCode);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$FacilityDetailsImplCopyWith<_$FacilityDetailsImpl> get copyWith =>
+      __$$FacilityDetailsImplCopyWithImpl<_$FacilityDetailsImpl>(
+          this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$FacilityDetailsImplToJson(
+      this,
+    );
+  }
+}
+
+abstract class _FacilityDetails implements FacilityDetails {
+  const factory _FacilityDetails(
+      {@JsonKey(name: 'solar_solution_design_type')
+      final String? solutionDesignType,
+      final String? systemType,
+      final String? systemCode}) = _$FacilityDetailsImpl;
+
+  factory _FacilityDetails.fromJson(Map<String, dynamic> json) =
+      _$FacilityDetailsImpl.fromJson;
+
+  @override
+  @JsonKey(name: 'solar_solution_design_type')
+  String? get solutionDesignType;
+  @override
+  String? get systemType;
+  @override
+  String? get systemCode;
+  @override
+  @JsonKey(ignore: true)
+  _$$FacilityDetailsImplCopyWith<_$FacilityDetailsImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
 
@@ -560,6 +868,14 @@ ActivityFacilityAdditionalDetails _$ActivityFacilityAdditionalDetailsFromJson(
 /// @nodoc
 mixin _$ActivityFacilityAdditionalDetails {
   Map<String, dynamic>? get bom => throw _privateConstructorUsedError;
+  Map<String, dynamic>? get battery => throw _privateConstructorUsedError;
+  Map<String, dynamic>? get inverter => throw _privateConstructorUsedError;
+  Map<String, dynamic>? get panel => throw _privateConstructorUsedError;
+  String? get systemCode => throw _privateConstructorUsedError;
+  String? get componentType => throw _privateConstructorUsedError;
+  String? get assetType => throw _privateConstructorUsedError;
+  List<Map<String, dynamic>>? get documents =>
+      throw _privateConstructorUsedError;
 
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
   @JsonKey(ignore: true)
@@ -575,7 +891,15 @@ abstract class $ActivityFacilityAdditionalDetailsCopyWith<$Res> {
       _$ActivityFacilityAdditionalDetailsCopyWithImpl<$Res,
           ActivityFacilityAdditionalDetails>;
   @useResult
-  $Res call({Map<String, dynamic>? bom});
+  $Res call(
+      {Map<String, dynamic>? bom,
+      Map<String, dynamic>? battery,
+      Map<String, dynamic>? inverter,
+      Map<String, dynamic>? panel,
+      String? systemCode,
+      String? componentType,
+      String? assetType,
+      List<Map<String, dynamic>>? documents});
 }
 
 /// @nodoc
@@ -593,12 +917,47 @@ class _$ActivityFacilityAdditionalDetailsCopyWithImpl<$Res,
   @override
   $Res call({
     Object? bom = freezed,
+    Object? battery = freezed,
+    Object? inverter = freezed,
+    Object? panel = freezed,
+    Object? systemCode = freezed,
+    Object? componentType = freezed,
+    Object? assetType = freezed,
+    Object? documents = freezed,
   }) {
     return _then(_value.copyWith(
       bom: freezed == bom
           ? _value.bom
           : bom // ignore: cast_nullable_to_non_nullable
               as Map<String, dynamic>?,
+      battery: freezed == battery
+          ? _value.battery
+          : battery // ignore: cast_nullable_to_non_nullable
+              as Map<String, dynamic>?,
+      inverter: freezed == inverter
+          ? _value.inverter
+          : inverter // ignore: cast_nullable_to_non_nullable
+              as Map<String, dynamic>?,
+      panel: freezed == panel
+          ? _value.panel
+          : panel // ignore: cast_nullable_to_non_nullable
+              as Map<String, dynamic>?,
+      systemCode: freezed == systemCode
+          ? _value.systemCode
+          : systemCode // ignore: cast_nullable_to_non_nullable
+              as String?,
+      componentType: freezed == componentType
+          ? _value.componentType
+          : componentType // ignore: cast_nullable_to_non_nullable
+              as String?,
+      assetType: freezed == assetType
+          ? _value.assetType
+          : assetType // ignore: cast_nullable_to_non_nullable
+              as String?,
+      documents: freezed == documents
+          ? _value.documents
+          : documents // ignore: cast_nullable_to_non_nullable
+              as List<Map<String, dynamic>>?,
     ) as $Val);
   }
 }
@@ -612,7 +971,15 @@ abstract class _$$ActivityFacilityAdditionalDetailsImplCopyWith<$Res>
       __$$ActivityFacilityAdditionalDetailsImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({Map<String, dynamic>? bom});
+  $Res call(
+      {Map<String, dynamic>? bom,
+      Map<String, dynamic>? battery,
+      Map<String, dynamic>? inverter,
+      Map<String, dynamic>? panel,
+      String? systemCode,
+      String? componentType,
+      String? assetType,
+      List<Map<String, dynamic>>? documents});
 }
 
 /// @nodoc
@@ -629,12 +996,47 @@ class __$$ActivityFacilityAdditionalDetailsImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? bom = freezed,
+    Object? battery = freezed,
+    Object? inverter = freezed,
+    Object? panel = freezed,
+    Object? systemCode = freezed,
+    Object? componentType = freezed,
+    Object? assetType = freezed,
+    Object? documents = freezed,
   }) {
     return _then(_$ActivityFacilityAdditionalDetailsImpl(
       bom: freezed == bom
           ? _value._bom
           : bom // ignore: cast_nullable_to_non_nullable
               as Map<String, dynamic>?,
+      battery: freezed == battery
+          ? _value._battery
+          : battery // ignore: cast_nullable_to_non_nullable
+              as Map<String, dynamic>?,
+      inverter: freezed == inverter
+          ? _value._inverter
+          : inverter // ignore: cast_nullable_to_non_nullable
+              as Map<String, dynamic>?,
+      panel: freezed == panel
+          ? _value._panel
+          : panel // ignore: cast_nullable_to_non_nullable
+              as Map<String, dynamic>?,
+      systemCode: freezed == systemCode
+          ? _value.systemCode
+          : systemCode // ignore: cast_nullable_to_non_nullable
+              as String?,
+      componentType: freezed == componentType
+          ? _value.componentType
+          : componentType // ignore: cast_nullable_to_non_nullable
+              as String?,
+      assetType: freezed == assetType
+          ? _value.assetType
+          : assetType // ignore: cast_nullable_to_non_nullable
+              as String?,
+      documents: freezed == documents
+          ? _value._documents
+          : documents // ignore: cast_nullable_to_non_nullable
+              as List<Map<String, dynamic>>?,
     ));
   }
 }
@@ -644,8 +1046,19 @@ class __$$ActivityFacilityAdditionalDetailsImplCopyWithImpl<$Res>
 class _$ActivityFacilityAdditionalDetailsImpl
     implements _ActivityFacilityAdditionalDetails {
   const _$ActivityFacilityAdditionalDetailsImpl(
-      {final Map<String, dynamic>? bom})
-      : _bom = bom;
+      {final Map<String, dynamic>? bom,
+      final Map<String, dynamic>? battery,
+      final Map<String, dynamic>? inverter,
+      final Map<String, dynamic>? panel,
+      this.systemCode,
+      this.componentType,
+      this.assetType,
+      final List<Map<String, dynamic>>? documents})
+      : _bom = bom,
+        _battery = battery,
+        _inverter = inverter,
+        _panel = panel,
+        _documents = documents;
 
   factory _$ActivityFacilityAdditionalDetailsImpl.fromJson(
           Map<String, dynamic> json) =>
@@ -661,9 +1074,55 @@ class _$ActivityFacilityAdditionalDetailsImpl
     return EqualUnmodifiableMapView(value);
   }
 
+  final Map<String, dynamic>? _battery;
+  @override
+  Map<String, dynamic>? get battery {
+    final value = _battery;
+    if (value == null) return null;
+    if (_battery is EqualUnmodifiableMapView) return _battery;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(value);
+  }
+
+  final Map<String, dynamic>? _inverter;
+  @override
+  Map<String, dynamic>? get inverter {
+    final value = _inverter;
+    if (value == null) return null;
+    if (_inverter is EqualUnmodifiableMapView) return _inverter;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(value);
+  }
+
+  final Map<String, dynamic>? _panel;
+  @override
+  Map<String, dynamic>? get panel {
+    final value = _panel;
+    if (value == null) return null;
+    if (_panel is EqualUnmodifiableMapView) return _panel;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(value);
+  }
+
+  @override
+  final String? systemCode;
+  @override
+  final String? componentType;
+  @override
+  final String? assetType;
+  final List<Map<String, dynamic>>? _documents;
+  @override
+  List<Map<String, dynamic>>? get documents {
+    final value = _documents;
+    if (value == null) return null;
+    if (_documents is EqualUnmodifiableListView) return _documents;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
   @override
   String toString() {
-    return 'ActivityFacilityAdditionalDetails(bom: $bom)';
+    return 'ActivityFacilityAdditionalDetails(bom: $bom, battery: $battery, inverter: $inverter, panel: $panel, systemCode: $systemCode, componentType: $componentType, assetType: $assetType, documents: $documents)';
   }
 
   @override
@@ -671,13 +1130,32 @@ class _$ActivityFacilityAdditionalDetailsImpl
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$ActivityFacilityAdditionalDetailsImpl &&
-            const DeepCollectionEquality().equals(other._bom, _bom));
+            const DeepCollectionEquality().equals(other._bom, _bom) &&
+            const DeepCollectionEquality().equals(other._battery, _battery) &&
+            const DeepCollectionEquality().equals(other._inverter, _inverter) &&
+            const DeepCollectionEquality().equals(other._panel, _panel) &&
+            (identical(other.systemCode, systemCode) ||
+                other.systemCode == systemCode) &&
+            (identical(other.componentType, componentType) ||
+                other.componentType == componentType) &&
+            (identical(other.assetType, assetType) ||
+                other.assetType == assetType) &&
+            const DeepCollectionEquality()
+                .equals(other._documents, _documents));
   }
 
   @JsonKey(ignore: true)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, const DeepCollectionEquality().hash(_bom));
+  int get hashCode => Object.hash(
+      runtimeType,
+      const DeepCollectionEquality().hash(_bom),
+      const DeepCollectionEquality().hash(_battery),
+      const DeepCollectionEquality().hash(_inverter),
+      const DeepCollectionEquality().hash(_panel),
+      systemCode,
+      componentType,
+      assetType,
+      const DeepCollectionEquality().hash(_documents));
 
   @JsonKey(ignore: true)
   @override
@@ -698,7 +1176,14 @@ class _$ActivityFacilityAdditionalDetailsImpl
 abstract class _ActivityFacilityAdditionalDetails
     implements ActivityFacilityAdditionalDetails {
   const factory _ActivityFacilityAdditionalDetails(
-          {final Map<String, dynamic>? bom}) =
+          {final Map<String, dynamic>? bom,
+          final Map<String, dynamic>? battery,
+          final Map<String, dynamic>? inverter,
+          final Map<String, dynamic>? panel,
+          final String? systemCode,
+          final String? componentType,
+          final String? assetType,
+          final List<Map<String, dynamic>>? documents}) =
       _$ActivityFacilityAdditionalDetailsImpl;
 
   factory _ActivityFacilityAdditionalDetails.fromJson(
@@ -707,6 +1192,20 @@ abstract class _ActivityFacilityAdditionalDetails
 
   @override
   Map<String, dynamic>? get bom;
+  @override
+  Map<String, dynamic>? get battery;
+  @override
+  Map<String, dynamic>? get inverter;
+  @override
+  Map<String, dynamic>? get panel;
+  @override
+  String? get systemCode;
+  @override
+  String? get componentType;
+  @override
+  String? get assetType;
+  @override
+  List<Map<String, dynamic>>? get documents;
   @override
   @JsonKey(ignore: true)
   _$$ActivityFacilityAdditionalDetailsImplCopyWith<

@@ -23,4 +23,8 @@ class Routes {
   static const installationImages = 'installation-images';
   static const submittedSaveSuccess = 'submitted-save-success';
   static const scanner = 'scanner';
+  static const dynamicBomForm = 'dynamic-bom-form';
+  static const imageViewer = 'image-viewer';
+  static const videoViewer = 'video-viewer';
+  static const pdfViewer = 'pdf-viewer';
 }

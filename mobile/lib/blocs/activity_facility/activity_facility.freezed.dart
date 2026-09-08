@@ -23,6 +23,7 @@ mixin _$ActivityFacilityEvent {
         fetchActivityFacilityByWorkflow,
     required TResult Function(String query, List<String> workflowStatuses)
         fetchActivityFacilityBySearch,
+    required TResult Function(List<String> workflowStatuses) clearSearch,
     required TResult Function(
             List<String> workflowStatuses, String sortDirection)
         fetchActivityFacilitySorted,
@@ -36,6 +37,7 @@ mixin _$ActivityFacilityEvent {
         fetchActivityFacilityByWorkflow,
     TResult? Function(String query, List<String> workflowStatuses)?
         fetchActivityFacilityBySearch,
+    TResult? Function(List<String> workflowStatuses)? clearSearch,
     TResult? Function(List<String> workflowStatuses, String sortDirection)?
         fetchActivityFacilitySorted,
     TResult? Function(List<String> workflowStatuses)? loadMoreActivityFacility,
@@ -47,6 +49,7 @@ mixin _$ActivityFacilityEvent {
         fetchActivityFacilityByWorkflow,
     TResult Function(String query, List<String> workflowStatuses)?
         fetchActivityFacilityBySearch,
+    TResult Function(List<String> workflowStatuses)? clearSearch,
     TResult Function(List<String> workflowStatuses, String sortDirection)?
         fetchActivityFacilitySorted,
     TResult Function(List<String> workflowStatuses)? loadMoreActivityFacility,
@@ -59,6 +62,7 @@ mixin _$ActivityFacilityEvent {
         fetchActivityFacilityByWorkflow,
     required TResult Function(_FetchBySearchEvent value)
         fetchActivityFacilityBySearch,
+    required TResult Function(_ClearSearchEvent value) clearSearch,
     required TResult Function(_FetchSortedEvent value)
         fetchActivityFacilitySorted,
     required TResult Function(_LoadMoreEvent value) loadMoreActivityFacility,
@@ -69,6 +73,7 @@ mixin _$ActivityFacilityEvent {
     TResult? Function(_FetchByWorkflowEvent value)?
         fetchActivityFacilityByWorkflow,
     TResult? Function(_FetchBySearchEvent value)? fetchActivityFacilityBySearch,
+    TResult? Function(_ClearSearchEvent value)? clearSearch,
     TResult? Function(_FetchSortedEvent value)? fetchActivityFacilitySorted,
     TResult? Function(_LoadMoreEvent value)? loadMoreActivityFacility,
   }) =>
@@ -78,6 +83,7 @@ mixin _$ActivityFacilityEvent {
     TResult Function(_FetchByWorkflowEvent value)?
         fetchActivityFacilityByWorkflow,
     TResult Function(_FetchBySearchEvent value)? fetchActivityFacilityBySearch,
+    TResult Function(_ClearSearchEvent value)? clearSearch,
     TResult Function(_FetchSortedEvent value)? fetchActivityFacilitySorted,
     TResult Function(_LoadMoreEvent value)? loadMoreActivityFacility,
     required TResult orElse(),
@@ -206,6 +212,7 @@ class _$FetchByWorkflowEventImpl implements _FetchByWorkflowEvent {
         fetchActivityFacilityByWorkflow,
     required TResult Function(String query, List<String> workflowStatuses)
         fetchActivityFacilityBySearch,
+    required TResult Function(List<String> workflowStatuses) clearSearch,
     required TResult Function(
             List<String> workflowStatuses, String sortDirection)
         fetchActivityFacilitySorted,
@@ -222,6 +229,7 @@ class _$FetchByWorkflowEventImpl implements _FetchByWorkflowEvent {
         fetchActivityFacilityByWorkflow,
     TResult? Function(String query, List<String> workflowStatuses)?
         fetchActivityFacilityBySearch,
+    TResult? Function(List<String> workflowStatuses)? clearSearch,
     TResult? Function(List<String> workflowStatuses, String sortDirection)?
         fetchActivityFacilitySorted,
     TResult? Function(List<String> workflowStatuses)? loadMoreActivityFacility,
@@ -236,6 +244,7 @@ class _$FetchByWorkflowEventImpl implements _FetchByWorkflowEvent {
         fetchActivityFacilityByWorkflow,
     TResult Function(String query, List<String> workflowStatuses)?
         fetchActivityFacilityBySearch,
+    TResult Function(List<String> workflowStatuses)? clearSearch,
     TResult Function(List<String> workflowStatuses, String sortDirection)?
         fetchActivityFacilitySorted,
     TResult Function(List<String> workflowStatuses)? loadMoreActivityFacility,
@@ -254,6 +263,7 @@ class _$FetchByWorkflowEventImpl implements _FetchByWorkflowEvent {
         fetchActivityFacilityByWorkflow,
     required TResult Function(_FetchBySearchEvent value)
         fetchActivityFacilityBySearch,
+    required TResult Function(_ClearSearchEvent value) clearSearch,
     required TResult Function(_FetchSortedEvent value)
         fetchActivityFacilitySorted,
     required TResult Function(_LoadMoreEvent value) loadMoreActivityFacility,
@@ -267,6 +277,7 @@ class _$FetchByWorkflowEventImpl implements _FetchByWorkflowEvent {
     TResult? Function(_FetchByWorkflowEvent value)?
         fetchActivityFacilityByWorkflow,
     TResult? Function(_FetchBySearchEvent value)? fetchActivityFacilityBySearch,
+    TResult? Function(_ClearSearchEvent value)? clearSearch,
     TResult? Function(_FetchSortedEvent value)? fetchActivityFacilitySorted,
     TResult? Function(_LoadMoreEvent value)? loadMoreActivityFacility,
   }) {
@@ -279,6 +290,7 @@ class _$FetchByWorkflowEventImpl implements _FetchByWorkflowEvent {
     TResult Function(_FetchByWorkflowEvent value)?
         fetchActivityFacilityByWorkflow,
     TResult Function(_FetchBySearchEvent value)? fetchActivityFacilityBySearch,
+    TResult Function(_ClearSearchEvent value)? clearSearch,
     TResult Function(_FetchSortedEvent value)? fetchActivityFacilitySorted,
     TResult Function(_LoadMoreEvent value)? loadMoreActivityFacility,
     required TResult orElse(),
@@ -392,6 +404,7 @@ class _$FetchBySearchEventImpl implements _FetchBySearchEvent {
         fetchActivityFacilityByWorkflow,
     required TResult Function(String query, List<String> workflowStatuses)
         fetchActivityFacilityBySearch,
+    required TResult Function(List<String> workflowStatuses) clearSearch,
     required TResult Function(
             List<String> workflowStatuses, String sortDirection)
         fetchActivityFacilitySorted,
@@ -408,6 +421,7 @@ class _$FetchBySearchEventImpl implements _FetchBySearchEvent {
         fetchActivityFacilityByWorkflow,
     TResult? Function(String query, List<String> workflowStatuses)?
         fetchActivityFacilityBySearch,
+    TResult? Function(List<String> workflowStatuses)? clearSearch,
     TResult? Function(List<String> workflowStatuses, String sortDirection)?
         fetchActivityFacilitySorted,
     TResult? Function(List<String> workflowStatuses)? loadMoreActivityFacility,
@@ -422,6 +436,7 @@ class _$FetchBySearchEventImpl implements _FetchBySearchEvent {
         fetchActivityFacilityByWorkflow,
     TResult Function(String query, List<String> workflowStatuses)?
         fetchActivityFacilityBySearch,
+    TResult Function(List<String> workflowStatuses)? clearSearch,
     TResult Function(List<String> workflowStatuses, String sortDirection)?
         fetchActivityFacilitySorted,
     TResult Function(List<String> workflowStatuses)? loadMoreActivityFacility,
@@ -440,6 +455,7 @@ class _$FetchBySearchEventImpl implements _FetchBySearchEvent {
         fetchActivityFacilityByWorkflow,
     required TResult Function(_FetchBySearchEvent value)
         fetchActivityFacilityBySearch,
+    required TResult Function(_ClearSearchEvent value) clearSearch,
     required TResult Function(_FetchSortedEvent value)
         fetchActivityFacilitySorted,
     required TResult Function(_LoadMoreEvent value) loadMoreActivityFacility,
@@ -453,6 +469,7 @@ class _$FetchBySearchEventImpl implements _FetchBySearchEvent {
     TResult? Function(_FetchByWorkflowEvent value)?
         fetchActivityFacilityByWorkflow,
     TResult? Function(_FetchBySearchEvent value)? fetchActivityFacilityBySearch,
+    TResult? Function(_ClearSearchEvent value)? clearSearch,
     TResult? Function(_FetchSortedEvent value)? fetchActivityFacilitySorted,
     TResult? Function(_LoadMoreEvent value)? loadMoreActivityFacility,
   }) {
@@ -465,6 +482,7 @@ class _$FetchBySearchEventImpl implements _FetchBySearchEvent {
     TResult Function(_FetchByWorkflowEvent value)?
         fetchActivityFacilityByWorkflow,
     TResult Function(_FetchBySearchEvent value)? fetchActivityFacilityBySearch,
+    TResult Function(_ClearSearchEvent value)? clearSearch,
     TResult Function(_FetchSortedEvent value)? fetchActivityFacilitySorted,
     TResult Function(_LoadMoreEvent value)? loadMoreActivityFacility,
     required TResult orElse(),
@@ -487,6 +505,188 @@ abstract class _FetchBySearchEvent implements ActivityFacilityEvent {
   @override
   @JsonKey(ignore: true)
   _$$FetchBySearchEventImplCopyWith<_$FetchBySearchEventImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$ClearSearchEventImplCopyWith<$Res>
+    implements $ActivityFacilityEventCopyWith<$Res> {
+  factory _$$ClearSearchEventImplCopyWith(_$ClearSearchEventImpl value,
+          $Res Function(_$ClearSearchEventImpl) then) =
+      __$$ClearSearchEventImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({List<String> workflowStatuses});
+}
+
+/// @nodoc
+class __$$ClearSearchEventImplCopyWithImpl<$Res>
+    extends _$ActivityFacilityEventCopyWithImpl<$Res, _$ClearSearchEventImpl>
+    implements _$$ClearSearchEventImplCopyWith<$Res> {
+  __$$ClearSearchEventImplCopyWithImpl(_$ClearSearchEventImpl _value,
+      $Res Function(_$ClearSearchEventImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? workflowStatuses = null,
+  }) {
+    return _then(_$ClearSearchEventImpl(
+      workflowStatuses: null == workflowStatuses
+          ? _value._workflowStatuses
+          : workflowStatuses // ignore: cast_nullable_to_non_nullable
+              as List<String>,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$ClearSearchEventImpl implements _ClearSearchEvent {
+  const _$ClearSearchEventImpl({required final List<String> workflowStatuses})
+      : _workflowStatuses = workflowStatuses;
+
+  final List<String> _workflowStatuses;
+  @override
+  List<String> get workflowStatuses {
+    if (_workflowStatuses is EqualUnmodifiableListView)
+      return _workflowStatuses;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_workflowStatuses);
+  }
+
+  @override
+  String toString() {
+    return 'ActivityFacilityEvent.clearSearch(workflowStatuses: $workflowStatuses)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$ClearSearchEventImpl &&
+            const DeepCollectionEquality()
+                .equals(other._workflowStatuses, _workflowStatuses));
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      runtimeType, const DeepCollectionEquality().hash(_workflowStatuses));
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$ClearSearchEventImplCopyWith<_$ClearSearchEventImpl> get copyWith =>
+      __$$ClearSearchEventImplCopyWithImpl<_$ClearSearchEventImpl>(
+          this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function(List<String> workflowStatuses)
+        fetchActivityFacilityByWorkflow,
+    required TResult Function(String query, List<String> workflowStatuses)
+        fetchActivityFacilityBySearch,
+    required TResult Function(List<String> workflowStatuses) clearSearch,
+    required TResult Function(
+            List<String> workflowStatuses, String sortDirection)
+        fetchActivityFacilitySorted,
+    required TResult Function(List<String> workflowStatuses)
+        loadMoreActivityFacility,
+  }) {
+    return clearSearch(workflowStatuses);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function(List<String> workflowStatuses)?
+        fetchActivityFacilityByWorkflow,
+    TResult? Function(String query, List<String> workflowStatuses)?
+        fetchActivityFacilityBySearch,
+    TResult? Function(List<String> workflowStatuses)? clearSearch,
+    TResult? Function(List<String> workflowStatuses, String sortDirection)?
+        fetchActivityFacilitySorted,
+    TResult? Function(List<String> workflowStatuses)? loadMoreActivityFacility,
+  }) {
+    return clearSearch?.call(workflowStatuses);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function(List<String> workflowStatuses)?
+        fetchActivityFacilityByWorkflow,
+    TResult Function(String query, List<String> workflowStatuses)?
+        fetchActivityFacilityBySearch,
+    TResult Function(List<String> workflowStatuses)? clearSearch,
+    TResult Function(List<String> workflowStatuses, String sortDirection)?
+        fetchActivityFacilitySorted,
+    TResult Function(List<String> workflowStatuses)? loadMoreActivityFacility,
+    required TResult orElse(),
+  }) {
+    if (clearSearch != null) {
+      return clearSearch(workflowStatuses);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(_FetchByWorkflowEvent value)
+        fetchActivityFacilityByWorkflow,
+    required TResult Function(_FetchBySearchEvent value)
+        fetchActivityFacilityBySearch,
+    required TResult Function(_ClearSearchEvent value) clearSearch,
+    required TResult Function(_FetchSortedEvent value)
+        fetchActivityFacilitySorted,
+    required TResult Function(_LoadMoreEvent value) loadMoreActivityFacility,
+  }) {
+    return clearSearch(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(_FetchByWorkflowEvent value)?
+        fetchActivityFacilityByWorkflow,
+    TResult? Function(_FetchBySearchEvent value)? fetchActivityFacilityBySearch,
+    TResult? Function(_ClearSearchEvent value)? clearSearch,
+    TResult? Function(_FetchSortedEvent value)? fetchActivityFacilitySorted,
+    TResult? Function(_LoadMoreEvent value)? loadMoreActivityFacility,
+  }) {
+    return clearSearch?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(_FetchByWorkflowEvent value)?
+        fetchActivityFacilityByWorkflow,
+    TResult Function(_FetchBySearchEvent value)? fetchActivityFacilityBySearch,
+    TResult Function(_ClearSearchEvent value)? clearSearch,
+    TResult Function(_FetchSortedEvent value)? fetchActivityFacilitySorted,
+    TResult Function(_LoadMoreEvent value)? loadMoreActivityFacility,
+    required TResult orElse(),
+  }) {
+    if (clearSearch != null) {
+      return clearSearch(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class _ClearSearchEvent implements ActivityFacilityEvent {
+  const factory _ClearSearchEvent(
+      {required final List<String> workflowStatuses}) = _$ClearSearchEventImpl;
+
+  @override
+  List<String> get workflowStatuses;
+  @override
+  @JsonKey(ignore: true)
+  _$$ClearSearchEventImplCopyWith<_$ClearSearchEventImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
 
@@ -582,6 +782,7 @@ class _$FetchSortedEventImpl implements _FetchSortedEvent {
         fetchActivityFacilityByWorkflow,
     required TResult Function(String query, List<String> workflowStatuses)
         fetchActivityFacilityBySearch,
+    required TResult Function(List<String> workflowStatuses) clearSearch,
     required TResult Function(
             List<String> workflowStatuses, String sortDirection)
         fetchActivityFacilitySorted,
@@ -598,6 +799,7 @@ class _$FetchSortedEventImpl implements _FetchSortedEvent {
         fetchActivityFacilityByWorkflow,
     TResult? Function(String query, List<String> workflowStatuses)?
         fetchActivityFacilityBySearch,
+    TResult? Function(List<String> workflowStatuses)? clearSearch,
     TResult? Function(List<String> workflowStatuses, String sortDirection)?
         fetchActivityFacilitySorted,
     TResult? Function(List<String> workflowStatuses)? loadMoreActivityFacility,
@@ -612,6 +814,7 @@ class _$FetchSortedEventImpl implements _FetchSortedEvent {
         fetchActivityFacilityByWorkflow,
     TResult Function(String query, List<String> workflowStatuses)?
         fetchActivityFacilityBySearch,
+    TResult Function(List<String> workflowStatuses)? clearSearch,
     TResult Function(List<String> workflowStatuses, String sortDirection)?
         fetchActivityFacilitySorted,
     TResult Function(List<String> workflowStatuses)? loadMoreActivityFacility,
@@ -630,6 +833,7 @@ class _$FetchSortedEventImpl implements _FetchSortedEvent {
         fetchActivityFacilityByWorkflow,
     required TResult Function(_FetchBySearchEvent value)
         fetchActivityFacilityBySearch,
+    required TResult Function(_ClearSearchEvent value) clearSearch,
     required TResult Function(_FetchSortedEvent value)
         fetchActivityFacilitySorted,
     required TResult Function(_LoadMoreEvent value) loadMoreActivityFacility,
@@ -643,6 +847,7 @@ class _$FetchSortedEventImpl implements _FetchSortedEvent {
     TResult? Function(_FetchByWorkflowEvent value)?
         fetchActivityFacilityByWorkflow,
     TResult? Function(_FetchBySearchEvent value)? fetchActivityFacilityBySearch,
+    TResult? Function(_ClearSearchEvent value)? clearSearch,
     TResult? Function(_FetchSortedEvent value)? fetchActivityFacilitySorted,
     TResult? Function(_LoadMoreEvent value)? loadMoreActivityFacility,
   }) {
@@ -655,6 +860,7 @@ class _$FetchSortedEventImpl implements _FetchSortedEvent {
     TResult Function(_FetchByWorkflowEvent value)?
         fetchActivityFacilityByWorkflow,
     TResult Function(_FetchBySearchEvent value)? fetchActivityFacilityBySearch,
+    TResult Function(_ClearSearchEvent value)? clearSearch,
     TResult Function(_FetchSortedEvent value)? fetchActivityFacilitySorted,
     TResult Function(_LoadMoreEvent value)? loadMoreActivityFacility,
     required TResult orElse(),
@@ -759,6 +965,7 @@ class _$LoadMoreEventImpl implements _LoadMoreEvent {
         fetchActivityFacilityByWorkflow,
     required TResult Function(String query, List<String> workflowStatuses)
         fetchActivityFacilityBySearch,
+    required TResult Function(List<String> workflowStatuses) clearSearch,
     required TResult Function(
             List<String> workflowStatuses, String sortDirection)
         fetchActivityFacilitySorted,
@@ -775,6 +982,7 @@ class _$LoadMoreEventImpl implements _LoadMoreEvent {
         fetchActivityFacilityByWorkflow,
     TResult? Function(String query, List<String> workflowStatuses)?
         fetchActivityFacilityBySearch,
+    TResult? Function(List<String> workflowStatuses)? clearSearch,
     TResult? Function(List<String> workflowStatuses, String sortDirection)?
         fetchActivityFacilitySorted,
     TResult? Function(List<String> workflowStatuses)? loadMoreActivityFacility,
@@ -789,6 +997,7 @@ class _$LoadMoreEventImpl implements _LoadMoreEvent {
         fetchActivityFacilityByWorkflow,
     TResult Function(String query, List<String> workflowStatuses)?
         fetchActivityFacilityBySearch,
+    TResult Function(List<String> workflowStatuses)? clearSearch,
     TResult Function(List<String> workflowStatuses, String sortDirection)?
         fetchActivityFacilitySorted,
     TResult Function(List<String> workflowStatuses)? loadMoreActivityFacility,
@@ -807,6 +1016,7 @@ class _$LoadMoreEventImpl implements _LoadMoreEvent {
         fetchActivityFacilityByWorkflow,
     required TResult Function(_FetchBySearchEvent value)
         fetchActivityFacilityBySearch,
+    required TResult Function(_ClearSearchEvent value) clearSearch,
     required TResult Function(_FetchSortedEvent value)
         fetchActivityFacilitySorted,
     required TResult Function(_LoadMoreEvent value) loadMoreActivityFacility,
@@ -820,6 +1030,7 @@ class _$LoadMoreEventImpl implements _LoadMoreEvent {
     TResult? Function(_FetchByWorkflowEvent value)?
         fetchActivityFacilityByWorkflow,
     TResult? Function(_FetchBySearchEvent value)? fetchActivityFacilityBySearch,
+    TResult? Function(_ClearSearchEvent value)? clearSearch,
     TResult? Function(_FetchSortedEvent value)? fetchActivityFacilitySorted,
     TResult? Function(_LoadMoreEvent value)? loadMoreActivityFacility,
   }) {
@@ -832,6 +1043,7 @@ class _$LoadMoreEventImpl implements _LoadMoreEvent {
     TResult Function(_FetchByWorkflowEvent value)?
         fetchActivityFacilityByWorkflow,
     TResult Function(_FetchBySearchEvent value)? fetchActivityFacilityBySearch,
+    TResult Function(_ClearSearchEvent value)? clearSearch,
     TResult Function(_FetchSortedEvent value)? fetchActivityFacilitySorted,
     TResult Function(_LoadMoreEvent value)? loadMoreActivityFacility,
     required TResult orElse(),

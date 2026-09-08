@@ -16,6 +16,10 @@ _$AssetRegistryMdmsResponseImpl _$$AssetRegistryMdmsResponseImplFromJson(
       facility: json['facility'] == null
           ? null
           : FacilityModule.fromJson(json['facility'] as Map<String, dynamic>),
+      commonMasters: json['common-masters'] == null
+          ? null
+          : CommonMastersModule.fromJson(
+              json['common-masters'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$$AssetRegistryMdmsResponseImplToJson(
@@ -23,6 +27,38 @@ Map<String, dynamic> _$$AssetRegistryMdmsResponseImplToJson(
     <String, dynamic>{
       'asset-registry': instance.assetRegistry,
       'facility': instance.facility,
+      'common-masters': instance.commonMasters,
+    };
+
+_$CommonMastersModuleImpl _$$CommonMastersModuleImplFromJson(
+        Map<String, dynamic> json) =>
+    _$CommonMastersModuleImpl(
+      bomFormSchema: (json['BOMFormSchema'] as List<dynamic>?)
+              ?.map((e) => e as Map<String, dynamic>)
+              .toList() ??
+          const [],
+      solutionDesignTypeBomForms:
+          (json['SolutionDesignTypeBOMForms'] as List<dynamic>?)
+                  ?.map((e) => e as Map<String, dynamic>)
+                  .toList() ??
+              const [],
+      installationImages: (json['InstallationImages'] as List<dynamic>?)
+              ?.map((e) => e as Map<String, dynamic>)
+              .toList() ??
+          const [],
+      requiredBomFormKeys: (json['RequiredBomFormKeys'] as List<dynamic>?)
+              ?.map((e) => e as Map<String, dynamic>)
+              .toList() ??
+          const [],
+    );
+
+Map<String, dynamic> _$$CommonMastersModuleImplToJson(
+        _$CommonMastersModuleImpl instance) =>
+    <String, dynamic>{
+      'BOMFormSchema': instance.bomFormSchema,
+      'SolutionDesignTypeBOMForms': instance.solutionDesignTypeBomForms,
+      'InstallationImages': instance.installationImages,
+      'RequiredBomFormKeys': instance.requiredBomFormKeys,
     };
 
 _$AssetRegistryModuleImpl _$$AssetRegistryModuleImplFromJson(

@@ -30,10 +30,26 @@ class Facility with _$Facility {
   const factory Facility({
     @JsonKey(name: 'facility_name') String? facilityName,
     String? boundaryCode,
+    String? systemCode,
+    String? systemType,
+    FacilityDetails? facilityDetails,
+    Map<String, dynamic>? additionalDetails,
   }) = _Facility;
 
   factory Facility.fromJson(Map<String, dynamic> json) =>
       _$FacilityFromJson(json);
+}
+
+@freezed
+class FacilityDetails with _$FacilityDetails {
+  const factory FacilityDetails({
+    @JsonKey(name: 'solar_solution_design_type') String? solutionDesignType,
+    String? systemType,
+    String? systemCode,
+  }) = _FacilityDetails;
+
+  factory FacilityDetails.fromJson(Map<String, dynamic> json) =>
+      _$FacilityDetailsFromJson(json);
 }
 
 /// `additionalDetails` is a freeform JSONB blob on the backend (per the LLD,
@@ -45,6 +61,13 @@ class ActivityFacilityAdditionalDetails
     with _$ActivityFacilityAdditionalDetails {
   const factory ActivityFacilityAdditionalDetails({
     Map<String, dynamic>? bom,
+    Map<String, dynamic>? battery,
+    Map<String, dynamic>? inverter,
+    Map<String, dynamic>? panel,
+    String? systemCode,
+    String? componentType,
+    String? assetType,
+    List<Map<String, dynamic>>? documents,
   }) = _ActivityFacilityAdditionalDetails;
 
   factory ActivityFacilityAdditionalDetails.fromJson(

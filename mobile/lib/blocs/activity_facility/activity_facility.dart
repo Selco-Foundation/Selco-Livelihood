@@ -24,6 +24,7 @@ class ActivityFacilityBloc
         super(const ActivityFacilityState.initial()) {
     on<_FetchByWorkflowEvent>(_onFetchByWorkflow);
     on<_FetchBySearchEvent>(_onFetchBySearch);
+    on<_ClearSearchEvent>(_onClearSearch);
     on<_FetchSortedEvent>(_onFetchSorted);
     on<_LoadMoreEvent>(_onLoadMore);
   }
@@ -51,17 +52,35 @@ class ActivityFacilityBloc
     _FetchBySearchEvent event,
     Emitter<ActivityFacilityState> emit,
   ) async {
-    if (event.query.length < minFacilitySearchQueryLength) {
-      _query = null;
-      emit(const ActivityFacilityState.initial());
+    if (event.query.trim().isEmpty) {
+      await _clearSearch(event.workflowStatuses, emit);
       return;
     }
+    if (event.query.length < minFacilitySearchQueryLength) return;
 
     _query = event.query;
     await _fetchFirstPage(
       event.workflowStatuses,
       emit,
       loading: const ActivityFacilityState.searchLoading(),
+    );
+  }
+
+  FutureOr<void> _onClearSearch(
+    _ClearSearchEvent event,
+    Emitter<ActivityFacilityState> emit,
+  ) =>
+      _clearSearch(event.workflowStatuses, emit);
+
+  Future<void> _clearSearch(
+    List<String> workflowStatuses,
+    Emitter<ActivityFacilityState> emit,
+  ) async {
+    _query = null;
+    await _fetchFirstPage(
+      workflowStatuses,
+      emit,
+      loading: const ActivityFacilityState.loading(),
     );
   }
 
@@ -99,7 +118,12 @@ class ActivityFacilityBloc
       sortDirection: _sortDirection,
     );
 
-    final items = [...current.items, ...result.items];
+    final byId = <String, ActivityFacilityWorkflow>{};
+    for (final item in [...current.items, ...result.items]) {
+      byId[item.activityFacility.id ?? identityHashCode(item).toString()] =
+          item;
+    }
+    final items = byId.values.toList();
     emit(ActivityFacilityState.paginatedLoaded(
       items: items,
       hasMore: items.length < result.totalCount,
@@ -147,6 +171,10 @@ class ActivityFacilityEvent with _$ActivityFacilityEvent {
     required String query,
     required List<String> workflowStatuses,
   }) = _FetchBySearchEvent;
+
+  const factory ActivityFacilityEvent.clearSearch({
+    required List<String> workflowStatuses,
+  }) = _ClearSearchEvent;
 
   const factory ActivityFacilityEvent.fetchActivityFacilitySorted({
     required List<String> workflowStatuses,

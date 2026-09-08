@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
 import '../model/solar_installation_draft.dart';
+import '../pages/media_viewer.dart';
 import '../utils/app_permission_gateway.dart';
 import 'solar_workflow_widgets.dart';
 
@@ -79,7 +80,10 @@ class _VideoUploaderState extends State<VideoUploader> {
       });
       widget.onVideosSelected(List.of(videos));
     } catch (_) {
-      if (mounted) setState(() => localError = context.translate(i18.machineForm.mediaPickerError));
+      if (mounted) {
+        setState(() =>
+            localError = context.translate(i18.machineForm.mediaPickerError));
+      }
     } finally {
       if (mounted) setState(() => opening = false);
     }
@@ -199,31 +203,34 @@ class _VideoUploaderState extends State<VideoUploader> {
                 Stack(
                   key: ValueKey('video-uploader-preview-$index'),
                   children: [
-                    Container(
-                      width: widget.allowMultiples
-                          ? Base.imageSize
-                          : MediaQuery.sizeOf(context).width,
-                      constraints:
-                          const BoxConstraints(minHeight: Base.imageSize),
-                      padding: const EdgeInsets.all(spacer3),
-                      decoration: BoxDecoration(
-                        borderRadius: Base.radius,
-                        border: Border.all(
-                          color: const DigitColors().light.genericDivider,
+                    InkWell(
+                      onTap: () => openMediaViewer(context, videos[index]),
+                      child: Container(
+                        width: widget.allowMultiples
+                            ? Base.imageSize
+                            : MediaQuery.sizeOf(context).width,
+                        constraints:
+                            const BoxConstraints(minHeight: Base.imageSize),
+                        padding: const EdgeInsets.all(spacer3),
+                        decoration: BoxDecoration(
+                          borderRadius: Base.radius,
+                          border: Border.all(
+                            color: const DigitColors().light.genericDivider,
+                          ),
                         ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.video_file,
-                              color: Color(0xFFD4351C), size: spacer8),
-                          const SizedBox(height: spacer2),
-                          Text(videos[index].name,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                              style: textTheme.bodyS),
-                        ],
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.video_file,
+                                color: Color(0xFFD4351C), size: spacer8),
+                            const SizedBox(height: spacer2),
+                            Text(videos[index].name,
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                                style: textTheme.bodyS),
+                          ],
+                        ),
                       ),
                     ),
                     if (!widget.isDisabled)

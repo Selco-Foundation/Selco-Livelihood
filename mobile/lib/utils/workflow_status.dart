@@ -1,4 +1,4 @@
-import '../model/facility_report_sample.dart';
+import '../model/facility_report.dart';
 
 /// `FACILITY_INSTALLATION` business service states this app's single
 /// Field Staff role (`INSTALLATION_REPORT_PART_A_EDITOR`) can see, per the

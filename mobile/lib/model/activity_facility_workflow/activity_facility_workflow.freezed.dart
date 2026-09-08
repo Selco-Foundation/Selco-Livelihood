@@ -242,6 +242,12 @@ Workflow _$WorkflowFromJson(Map<String, dynamic> json) {
 /// @nodoc
 mixin _$Workflow {
   WorkflowAuditDetails? get auditDetails => throw _privateConstructorUsedError;
+  String? get state => throw _privateConstructorUsedError;
+  String? get action => throw _privateConstructorUsedError;
+  String? get businessService => throw _privateConstructorUsedError;
+  String? get comment => throw _privateConstructorUsedError;
+  List<Map<String, dynamic>>? get documents =>
+      throw _privateConstructorUsedError;
 
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
   @JsonKey(ignore: true)
@@ -254,7 +260,13 @@ abstract class $WorkflowCopyWith<$Res> {
   factory $WorkflowCopyWith(Workflow value, $Res Function(Workflow) then) =
       _$WorkflowCopyWithImpl<$Res, Workflow>;
   @useResult
-  $Res call({WorkflowAuditDetails? auditDetails});
+  $Res call(
+      {WorkflowAuditDetails? auditDetails,
+      String? state,
+      String? action,
+      String? businessService,
+      String? comment,
+      List<Map<String, dynamic>>? documents});
 
   $WorkflowAuditDetailsCopyWith<$Res>? get auditDetails;
 }
@@ -273,12 +285,37 @@ class _$WorkflowCopyWithImpl<$Res, $Val extends Workflow>
   @override
   $Res call({
     Object? auditDetails = freezed,
+    Object? state = freezed,
+    Object? action = freezed,
+    Object? businessService = freezed,
+    Object? comment = freezed,
+    Object? documents = freezed,
   }) {
     return _then(_value.copyWith(
       auditDetails: freezed == auditDetails
           ? _value.auditDetails
           : auditDetails // ignore: cast_nullable_to_non_nullable
               as WorkflowAuditDetails?,
+      state: freezed == state
+          ? _value.state
+          : state // ignore: cast_nullable_to_non_nullable
+              as String?,
+      action: freezed == action
+          ? _value.action
+          : action // ignore: cast_nullable_to_non_nullable
+              as String?,
+      businessService: freezed == businessService
+          ? _value.businessService
+          : businessService // ignore: cast_nullable_to_non_nullable
+              as String?,
+      comment: freezed == comment
+          ? _value.comment
+          : comment // ignore: cast_nullable_to_non_nullable
+              as String?,
+      documents: freezed == documents
+          ? _value.documents
+          : documents // ignore: cast_nullable_to_non_nullable
+              as List<Map<String, dynamic>>?,
     ) as $Val);
   }
 
@@ -303,7 +340,13 @@ abstract class _$$WorkflowImplCopyWith<$Res>
       __$$WorkflowImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({WorkflowAuditDetails? auditDetails});
+  $Res call(
+      {WorkflowAuditDetails? auditDetails,
+      String? state,
+      String? action,
+      String? businessService,
+      String? comment,
+      List<Map<String, dynamic>>? documents});
 
   @override
   $WorkflowAuditDetailsCopyWith<$Res>? get auditDetails;
@@ -321,12 +364,37 @@ class __$$WorkflowImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? auditDetails = freezed,
+    Object? state = freezed,
+    Object? action = freezed,
+    Object? businessService = freezed,
+    Object? comment = freezed,
+    Object? documents = freezed,
   }) {
     return _then(_$WorkflowImpl(
       auditDetails: freezed == auditDetails
           ? _value.auditDetails
           : auditDetails // ignore: cast_nullable_to_non_nullable
               as WorkflowAuditDetails?,
+      state: freezed == state
+          ? _value.state
+          : state // ignore: cast_nullable_to_non_nullable
+              as String?,
+      action: freezed == action
+          ? _value.action
+          : action // ignore: cast_nullable_to_non_nullable
+              as String?,
+      businessService: freezed == businessService
+          ? _value.businessService
+          : businessService // ignore: cast_nullable_to_non_nullable
+              as String?,
+      comment: freezed == comment
+          ? _value.comment
+          : comment // ignore: cast_nullable_to_non_nullable
+              as String?,
+      documents: freezed == documents
+          ? _value._documents
+          : documents // ignore: cast_nullable_to_non_nullable
+              as List<Map<String, dynamic>>?,
     ));
   }
 }
@@ -334,17 +402,41 @@ class __$$WorkflowImplCopyWithImpl<$Res>
 /// @nodoc
 @JsonSerializable()
 class _$WorkflowImpl implements _Workflow {
-  const _$WorkflowImpl({this.auditDetails});
+  const _$WorkflowImpl(
+      {this.auditDetails,
+      this.state,
+      this.action,
+      this.businessService,
+      this.comment,
+      final List<Map<String, dynamic>>? documents})
+      : _documents = documents;
 
   factory _$WorkflowImpl.fromJson(Map<String, dynamic> json) =>
       _$$WorkflowImplFromJson(json);
 
   @override
   final WorkflowAuditDetails? auditDetails;
+  @override
+  final String? state;
+  @override
+  final String? action;
+  @override
+  final String? businessService;
+  @override
+  final String? comment;
+  final List<Map<String, dynamic>>? _documents;
+  @override
+  List<Map<String, dynamic>>? get documents {
+    final value = _documents;
+    if (value == null) return null;
+    if (_documents is EqualUnmodifiableListView) return _documents;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
 
   @override
   String toString() {
-    return 'Workflow(auditDetails: $auditDetails)';
+    return 'Workflow(auditDetails: $auditDetails, state: $state, action: $action, businessService: $businessService, comment: $comment, documents: $documents)';
   }
 
   @override
@@ -353,12 +445,26 @@ class _$WorkflowImpl implements _Workflow {
         (other.runtimeType == runtimeType &&
             other is _$WorkflowImpl &&
             (identical(other.auditDetails, auditDetails) ||
-                other.auditDetails == auditDetails));
+                other.auditDetails == auditDetails) &&
+            (identical(other.state, state) || other.state == state) &&
+            (identical(other.action, action) || other.action == action) &&
+            (identical(other.businessService, businessService) ||
+                other.businessService == businessService) &&
+            (identical(other.comment, comment) || other.comment == comment) &&
+            const DeepCollectionEquality()
+                .equals(other._documents, _documents));
   }
 
   @JsonKey(ignore: true)
   @override
-  int get hashCode => Object.hash(runtimeType, auditDetails);
+  int get hashCode => Object.hash(
+      runtimeType,
+      auditDetails,
+      state,
+      action,
+      businessService,
+      comment,
+      const DeepCollectionEquality().hash(_documents));
 
   @JsonKey(ignore: true)
   @override
@@ -375,14 +481,29 @@ class _$WorkflowImpl implements _Workflow {
 }
 
 abstract class _Workflow implements Workflow {
-  const factory _Workflow({final WorkflowAuditDetails? auditDetails}) =
-      _$WorkflowImpl;
+  const factory _Workflow(
+      {final WorkflowAuditDetails? auditDetails,
+      final String? state,
+      final String? action,
+      final String? businessService,
+      final String? comment,
+      final List<Map<String, dynamic>>? documents}) = _$WorkflowImpl;
 
   factory _Workflow.fromJson(Map<String, dynamic> json) =
       _$WorkflowImpl.fromJson;
 
   @override
   WorkflowAuditDetails? get auditDetails;
+  @override
+  String? get state;
+  @override
+  String? get action;
+  @override
+  String? get businessService;
+  @override
+  String? get comment;
+  @override
+  List<Map<String, dynamic>>? get documents;
   @override
   @JsonKey(ignore: true)
   _$$WorkflowImplCopyWith<_$WorkflowImpl> get copyWith =>

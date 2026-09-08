@@ -8,4 +8,7 @@ abstract final class ApiPaths {
   static const localizationSearch = 'localization/messages/v1/_search';
   static const mdmsV1Search = 'egov-mdms-service/v1/_search';
   static const activitySearch = 'activity/v1/activities/_search';
+  static const bomSearch = 'activity/v1/bom/_search';
+  static const assetSearch = 'asset-registry/v1/asset/_search';
+  static const fileStoreFile = 'filestore/v1/files/file';
 }

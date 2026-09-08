@@ -1,3 +1,5 @@
+import 'package:digit_forms_engine/blocs/app_localization.dart'
+    as forms_localization;
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -12,6 +14,7 @@ import 'blocs/localization/app_localization_delegate.dart';
 import 'blocs/localization/localization.dart';
 import 'data/api_interceptors.dart';
 import 'data/app_shared_preferences.dart';
+import 'data/nosql/localization.dart';
 import 'model/appconfig/mdmsResponse.dart';
 import 'router/app_router.dart';
 import 'repositories/auth_repo.dart';
@@ -157,8 +160,12 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
         theme: DigitTheme.instance.mobileTheme,
         scaffoldMessengerKey: AppErrorNotifier.messengerKey,
         routerConfig: _router.config(),
-        localizationsDelegates: const [
-          DebugAppLocalizationsDelegate(),
+        localizationsDelegates: [
+          const DebugAppLocalizationsDelegate(),
+          forms_localization.FormLocalization.getDelegate(
+            Future.value(const <dynamic>[]),
+            const <Language>[Language(label: 'English', value: 'en_IN')],
+          ),
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
           GlobalMaterialLocalizations.delegate,
@@ -212,6 +219,10 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
                 : [resolvedLocale],
             localizationsDelegates: [
               AppLocalizations.getDelegate(appConfig.appConfig!, isar),
+              forms_localization.FormLocalization.getDelegate(
+                _getLocalizationStrings(isar, selectedLocale),
+                languages ?? const <Language>[],
+              ),
               GlobalWidgetsLocalizations.delegate,
               GlobalCupertinoLocalizations.delegate,
               GlobalMaterialLocalizations.delegate,
@@ -222,6 +233,19 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
       ),
     );
   }
+}
+
+Future<List<dynamic>> _getLocalizationStrings(
+  Isar isar,
+  String? selectedLocale,
+) async {
+  if (selectedLocale == null || selectedLocale.isEmpty) return const [];
+  final wrappers = await isar.localizationWrappers
+      .filter()
+      .localeEqualTo(selectedLocale)
+      .findAll();
+  if (wrappers.isEmpty) return const [];
+  return wrappers.first.localization ?? const [];
 }
 
 class _LoadingApp extends StatelessWidget {

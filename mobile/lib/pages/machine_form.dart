@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
@@ -7,24 +9,31 @@ import 'package:image_picker/image_picker.dart';
 
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
-import '../model/facility_report_sample.dart';
+import '../model/facility_report.dart';
+import '../model/activity_facility_workflow/activity_facility_workflow.dart';
+import '../model/solar_installation_draft.dart';
+import '../repositories/asset_repository.dart';
+import '../repositories/installation_cache_repo.dart';
 import '../router/app_router.dart';
 import '../utils/app_permission_gateway.dart';
 import '../widgets/machine_media_picker.dart';
 import '../widgets/otp_verification_widget.dart';
 import '../widgets/report_navigation_header.dart';
 import 'machine_report_success_page.dart';
+import 'media_viewer.dart';
 
 @RoutePage()
 class MachineFormPage extends StatefulWidget {
   const MachineFormPage({
     super.key,
-    required this.sample,
+    required this.workflow,
     this.pickMedia,
+    this.readOnly = false,
   });
 
-  final FacilityReportSample sample;
   final MachinePickMedia? pickMedia;
+  final ActivityFacilityWorkflow workflow;
+  final bool readOnly;
 
   @override
   State<MachineFormPage> createState() => _MachineFormPageState();
@@ -40,16 +49,28 @@ class _MachineFormPageState extends State<MachineFormPage> {
   XFile? _electricBoardPhoto;
   XFile? _demoVideo;
   XFile? _endUserPhoto;
+  SolarFileRef? _electricBoardMedia;
+  SolarFileRef? _demoMedia;
+  SolarFileRef? _endUserMedia;
   bool _trainedEndUser = true;
   bool _otpVerified = false;
+
+  String get _cacheKey => widget.workflow.activityFacilityCacheKey;
+
+  @override
+  void initState() {
+    super.initState();
+    _seed(widget.workflow.activityFacility.additionalDetails?.bom ?? const {});
+    unawaited(_loadDraft());
+  }
 
   bool get _canSubmit =>
       _poController.text.trim().isNotEmpty &&
       _capacityController.text.trim().isNotEmpty &&
       _warrantyController.text.trim().isNotEmpty &&
-      _electricBoardPhoto != null &&
-      _demoVideo != null &&
-      _endUserPhoto != null &&
+      (_electricBoardPhoto != null || _electricBoardMedia != null) &&
+      (_demoVideo != null || _demoMedia != null) &&
+      (_endUserPhoto != null || _endUserMedia != null) &&
       _otpVerified;
 
   @override
@@ -74,10 +95,157 @@ class _MachineFormPageState extends State<MachineFormPage> {
         : picker.pickVideo(source: source);
   }
 
-  void _refresh([String? _]) => setState(() {});
+  void _refresh([String? _]) {
+    setState(() {});
+    _saveSoon();
+  }
+
+  void _seed(Map<String, dynamic> values) {
+    _poController.text =
+        (values['poNumber'] ?? values['po_number'] ?? _poController.text)
+            .toString();
+    _serialController.text = (values['serialNumber'] ??
+            values['serial_number'] ??
+            _serialController.text)
+        .toString();
+    _invoiceController.text = (values['invoiceNumber'] ??
+            values['manufacturerInvoiceNumber'] ??
+            _invoiceController.text)
+        .toString();
+    _capacityController.text = (values['capacity'] ??
+            values['machineCapacity'] ??
+            _capacityController.text)
+        .toString();
+    _warrantyController.text = (values['warrantyYears'] ??
+            values['warranty'] ??
+            _warrantyController.text)
+        .toString();
+    if (values['trainedEndUser'] is bool) {
+      _trainedEndUser = values['trainedEndUser'] as bool;
+    }
+  }
+
+  Future<void> _loadDraft() async {
+    if (widget.readOnly && _cacheKey.isNotEmpty) {
+      final assets = await assetRepository.search(_cacheKey);
+      if (assets.isNotEmpty) {
+        final asset = assets.first;
+        final details = asset['additionalDetails'] is Map
+            ? Map<String, dynamic>.from(asset['additionalDetails'] as Map)
+            : <String, dynamic>{};
+        details['serialNumber'] ??= asset['serialNumber'];
+        _seed(details);
+        _loadDocuments(asset['documents']);
+      }
+    }
+    final cached =
+        await installationCacheRepository.getJson('machine-draft', _cacheKey);
+    if (!widget.readOnly && cached is Map) {
+      final values = Map<String, dynamic>.from(cached);
+      _seed(values);
+      _trainedEndUser = values['trainedEndUser'] != false;
+      _electricBoardMedia = _media(values['electricBoardPhoto']);
+      _demoMedia = _media(values['demoVideo']);
+      _endUserMedia = _media(values['endUserPhoto']);
+      _electricBoardPhoto = _xfile(_electricBoardMedia);
+      _demoVideo = _xfile(_demoMedia);
+      _endUserPhoto = _xfile(_endUserMedia);
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _loadDocuments(dynamic value) {
+    final documents = (value as List<dynamic>? ?? const []).whereType<Map>();
+    for (final raw in documents) {
+      final document = Map<String, dynamic>.from(raw);
+      final type = (document['documentType'] ?? document['type'] ?? '')
+          .toString()
+          .toLowerCase();
+      final id =
+          (document['fileStoreId'] ?? document['fileStore'] ?? '').toString();
+      if (id.isEmpty) continue;
+      final kind =
+          type.contains('video') ? SolarFileKind.video : SolarFileKind.image;
+      final media = SolarFileRef(
+        name: (document['fileName'] ?? document['name'] ?? type).toString(),
+        path: id,
+        remoteId: id,
+        documentType: type,
+        kind: kind,
+      );
+      if (type.contains('electric')) {
+        _electricBoardMedia = media;
+      } else if (kind == SolarFileKind.video) {
+        _demoMedia = media;
+      } else {
+        _endUserMedia = media;
+      }
+    }
+  }
+
+  SolarFileRef? _media(dynamic value) => value is Map
+      ? SolarFileRef.fromJson(Map<String, dynamic>.from(value))
+      : null;
+
+  XFile? _xfile(SolarFileRef? value) => value == null || value.isRemote
+      ? null
+      : XFile(value.localPath ?? value.path, name: value.name);
+
+  Future<void> _save() {
+    if (_cacheKey.isEmpty) return Future.value();
+    return installationCacheRepository.putJson('machine-draft', _cacheKey, {
+      'poNumber': _poController.text,
+      'serialNumber': _serialController.text,
+      'invoiceNumber': _invoiceController.text,
+      'capacity': _capacityController.text,
+      'warrantyYears': _warrantyController.text,
+      'trainedEndUser': _trainedEndUser,
+      if (_electricBoardMedia != null)
+        'electricBoardPhoto': _electricBoardMedia!.toJson(),
+      if (_demoMedia != null) 'demoVideo': _demoMedia!.toJson(),
+      if (_endUserMedia != null) 'endUserPhoto': _endUserMedia!.toJson(),
+    });
+  }
+
+  void _saveSoon() {
+    if (!widget.readOnly) unawaited(_save());
+  }
+
+  Future<void> _setMedia(MachineMediaKind kind, XFile? file) async {
+    SolarFileRef? persisted;
+    if (file != null) {
+      final ref = SolarFileRef(
+        name: file.name,
+        path: file.path,
+        kind: kind == MachineMediaKind.video
+            ? SolarFileKind.video
+            : SolarFileKind.image,
+      );
+      setState(() {
+        if (kind == MachineMediaKind.video) {
+          _demoVideo = file;
+          _demoMedia = ref;
+        }
+      });
+      persisted = await installationCacheRepository.persistMediaRef(
+        ref,
+        '$_cacheKey-${kind.name}-${DateTime.now().millisecondsSinceEpoch}',
+      );
+    }
+    if (!mounted) return;
+    setState(() {
+      if (kind == MachineMediaKind.video) {
+        _demoVideo =
+            file == null ? null : XFile(persisted!.path, name: persisted.name);
+        _demoMedia = persisted;
+      }
+    });
+    _saveSoon();
+  }
 
   void _openSuccess(MachineReportSuccessMode mode) {
     FocusManager.instance.primaryFocus?.unfocus();
+    unawaited(_save());
     context.router.push(MachineReportSuccessRoute(mode: mode));
   }
 
@@ -90,17 +258,21 @@ class _MachineFormPageState extends State<MachineFormPage> {
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: spacer2),
         child: ScrollableContent(
-          key: ValueKey('machine-form-${widget.sample.title}'),
+          key: ValueKey('machine-form-${widget.workflow.facilityTitle}'),
           enableFixedDigitButton: true,
           backgroundColor: theme.colorTheme.generic.background,
           header: ReportNavigationHeader(
             onBackPressed: () => context.router.maybePop(),
           ),
-          footer: _MachineFormFooter(
-            canSubmit: _canSubmit,
-            onSaveDraft: () => _openSuccess(MachineReportSuccessMode.draft),
-            onSubmit: () => _openSuccess(MachineReportSuccessMode.submitted),
-          ),
+          footer: widget.readOnly
+              ? null
+              : _MachineFormFooter(
+                  canSubmit: _canSubmit,
+                  onSaveDraft: () =>
+                      _openSuccess(MachineReportSuccessMode.draft),
+                  onSubmit: () =>
+                      _openSuccess(MachineReportSuccessMode.submitted),
+                ),
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(
@@ -127,6 +299,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
                         controller: _poController,
                         isRequired: true,
                         onChanged: _refresh,
+                        disabled: widget.readOnly,
                       ),
                       const SizedBox(height: spacer5),
                       _TextField(
@@ -137,6 +310,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
                             .translate(i18.machineForm.enterSerialNumber),
                         controller: _serialController,
                         onChanged: _refresh,
+                        disabled: widget.readOnly,
                       ),
                       const SizedBox(height: spacer5),
                       _TextField(
@@ -147,6 +321,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
                             .translate(i18.machineForm.enterInvoiceNumber),
                         controller: _invoiceController,
                         onChanged: _refresh,
+                        disabled: widget.readOnly,
                       ),
                       const SizedBox(height: spacer5),
                       _TextField(
@@ -157,6 +332,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
                         controller: _capacityController,
                         isRequired: true,
                         onChanged: _refresh,
+                        disabled: widget.readOnly,
                       ),
                       const SizedBox(height: spacer5),
                       _TextField(
@@ -170,24 +346,54 @@ class _MachineFormPageState extends State<MachineFormPage> {
                           FilteringTextInputFormatter.digitsOnly
                         ],
                         onChanged: _refresh,
+                        disabled: widget.readOnly,
                       ),
                       const SizedBox(height: spacer5),
                       LabeledField(
                         label: context.translate(i18.machineForm.electricBoard),
                         isRequired: true,
                         capitalizedFirstLetter: false,
-                        child: MachineMediaPicker(
-                          key: const ValueKey('electric-board-picker'),
-                          kind: MachineMediaKind.image,
-                          selectedFile: _electricBoardPhoto,
-                          pickMedia: _pickMedia,
-                          permissionGateway: widget.pickMedia == null
-                              ? defaultPermissionGateway
-                              : null,
-                          onChanged: (file) => setState(
-                            () => _electricBoardPhoto = file,
-                          ),
-                        ),
+                        child: widget.readOnly
+                            ? _ReadOnlyMachineMedia(media: _electricBoardMedia)
+                            : MachineMediaPicker(
+                                key: const ValueKey('electric-board-picker'),
+                                kind: MachineMediaKind.image,
+                                selectedFile: _electricBoardPhoto,
+                                pickMedia: _pickMedia,
+                                permissionGateway: widget.pickMedia == null
+                                    ? defaultPermissionGateway
+                                    : null,
+                                onChanged: (file) async {
+                                  setState(() {
+                                    _electricBoardPhoto = file;
+                                    _electricBoardMedia = file == null
+                                        ? null
+                                        : SolarFileRef(
+                                            name: file.name,
+                                            path: file.path,
+                                            kind: SolarFileKind.image,
+                                          );
+                                  });
+                                  SolarFileRef? value;
+                                  if (file != null) {
+                                    value = await installationCacheRepository
+                                        .persistMediaRef(
+                                            SolarFileRef(
+                                                name: file.name,
+                                                path: file.path,
+                                                kind: SolarFileKind.image),
+                                            '$_cacheKey-electric-board');
+                                  }
+                                  if (!mounted) return;
+                                  setState(() {
+                                    _electricBoardMedia = value;
+                                    _electricBoardPhoto = value == null
+                                        ? null
+                                        : XFile(value.path, name: value.name);
+                                  });
+                                  _saveSoon();
+                                },
+                              ),
                       ),
                       const SizedBox(height: spacer5),
                       LabeledField(
@@ -195,17 +401,19 @@ class _MachineFormPageState extends State<MachineFormPage> {
                             context.translate(i18.machineForm.rawMaterialDemo),
                         isRequired: true,
                         capitalizedFirstLetter: false,
-                        child: MachineMediaPicker(
-                          key: const ValueKey('demo-video-picker'),
-                          kind: MachineMediaKind.video,
-                          selectedFile: _demoVideo,
-                          pickMedia: _pickMedia,
-                          permissionGateway: widget.pickMedia == null
-                              ? defaultPermissionGateway
-                              : null,
-                          onChanged: (file) =>
-                              setState(() => _demoVideo = file),
-                        ),
+                        child: widget.readOnly
+                            ? _ReadOnlyMachineMedia(media: _demoMedia)
+                            : MachineMediaPicker(
+                                key: const ValueKey('demo-video-picker'),
+                                kind: MachineMediaKind.video,
+                                selectedFile: _demoVideo,
+                                pickMedia: _pickMedia,
+                                permissionGateway: widget.pickMedia == null
+                                    ? defaultPermissionGateway
+                                    : null,
+                                onChanged: (file) =>
+                                    _setMedia(MachineMediaKind.video, file),
+                              ),
                       ),
                       const SizedBox(height: spacer5),
                       LabeledField(
@@ -213,18 +421,47 @@ class _MachineFormPageState extends State<MachineFormPage> {
                             context.translate(i18.machineForm.photoWithEndUser),
                         isRequired: true,
                         capitalizedFirstLetter: false,
-                        child: MachineMediaPicker(
-                          key: const ValueKey('end-user-photo-picker'),
-                          kind: MachineMediaKind.image,
-                          selectedFile: _endUserPhoto,
-                          pickMedia: _pickMedia,
-                          permissionGateway: widget.pickMedia == null
-                              ? defaultPermissionGateway
-                              : null,
-                          onChanged: (file) => setState(
-                            () => _endUserPhoto = file,
-                          ),
-                        ),
+                        child: widget.readOnly
+                            ? _ReadOnlyMachineMedia(media: _endUserMedia)
+                            : MachineMediaPicker(
+                                key: const ValueKey('end-user-photo-picker'),
+                                kind: MachineMediaKind.image,
+                                selectedFile: _endUserPhoto,
+                                pickMedia: _pickMedia,
+                                permissionGateway: widget.pickMedia == null
+                                    ? defaultPermissionGateway
+                                    : null,
+                                onChanged: (file) async {
+                                  setState(() {
+                                    _endUserPhoto = file;
+                                    _endUserMedia = file == null
+                                        ? null
+                                        : SolarFileRef(
+                                            name: file.name,
+                                            path: file.path,
+                                            kind: SolarFileKind.image,
+                                          );
+                                  });
+                                  SolarFileRef? value;
+                                  if (file != null) {
+                                    value = await installationCacheRepository
+                                        .persistMediaRef(
+                                            SolarFileRef(
+                                                name: file.name,
+                                                path: file.path,
+                                                kind: SolarFileKind.image),
+                                            '$_cacheKey-end-user');
+                                  }
+                                  if (!mounted) return;
+                                  setState(() {
+                                    _endUserMedia = value;
+                                    _endUserPhoto = value == null
+                                        ? null
+                                        : XFile(value.path, name: value.name);
+                                  });
+                                  _saveSoon();
+                                },
+                              ),
                       ),
                       const SizedBox(height: spacer5),
                       LabeledField(
@@ -238,8 +475,12 @@ class _MachineFormPageState extends State<MachineFormPage> {
                                 key: const ValueKey('trained-yes'),
                                 label: context.translate(i18.common.yes),
                                 selected: _trainedEndUser,
-                                onPressed: () =>
-                                    setState(() => _trainedEndUser = true),
+                                onPressed: widget.readOnly
+                                    ? () {}
+                                    : () {
+                                        setState(() => _trainedEndUser = true);
+                                        _saveSoon();
+                                      },
                               ),
                             ),
                             const SizedBox(width: spacer4),
@@ -248,22 +489,27 @@ class _MachineFormPageState extends State<MachineFormPage> {
                                 key: const ValueKey('trained-no'),
                                 label: context.translate(i18.common.no),
                                 selected: !_trainedEndUser,
-                                onPressed: () =>
-                                    setState(() => _trainedEndUser = false),
+                                onPressed: widget.readOnly
+                                    ? () {}
+                                    : () {
+                                        setState(() => _trainedEndUser = false);
+                                        _saveSoon();
+                                      },
                               ),
                             ),
                           ],
                         ),
                       ),
                       const SizedBox(height: spacer5),
-                      OtpVerificationWidget(
-                        key: const ValueKey('machine-otp-widget'),
-                        keyPrefix: 'machine',
-                        label: context
-                            .translate(i18.machineForm.validateTrainingOtp),
-                        onVerificationChanged: (verified) =>
-                            setState(() => _otpVerified = verified),
-                      ),
+                      if (!widget.readOnly)
+                        OtpVerificationWidget(
+                          key: const ValueKey('machine-otp-widget'),
+                          keyPrefix: 'machine',
+                          label: context
+                              .translate(i18.machineForm.validateTrainingOtp),
+                          onVerificationChanged: (verified) =>
+                              setState(() => _otpVerified = verified),
+                        ),
                     ],
                   ),
                 ],
@@ -276,6 +522,23 @@ class _MachineFormPageState extends State<MachineFormPage> {
   }
 }
 
+class _ReadOnlyMachineMedia extends StatelessWidget {
+  const _ReadOnlyMachineMedia({required this.media});
+  final SolarFileRef? media;
+
+  @override
+  Widget build(BuildContext context) => media == null
+      ? Container(
+          height: 120,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            border: Border.all(color: const DigitColors().light.genericDivider),
+          ),
+          child: const Text('No media available'),
+        )
+      : MediaThumbnail(media: media!, width: double.infinity, height: 180);
+}
+
 class _TextField extends StatelessWidget {
   const _TextField({
     super.key,
@@ -286,6 +549,7 @@ class _TextField extends StatelessWidget {
     this.isRequired = false,
     this.keyboardType,
     this.inputFormatters,
+    this.disabled = false,
   });
 
   final String label;
@@ -295,6 +559,7 @@ class _TextField extends StatelessWidget {
   final bool isRequired;
   final TextInputType? keyboardType;
   final List<TextInputFormatter>? inputFormatters;
+  final bool disabled;
 
   @override
   Widget build(BuildContext context) {
@@ -308,6 +573,8 @@ class _TextField extends StatelessWidget {
         innerLabel: hint,
         keyboardType: keyboardType,
         inputFormatters: inputFormatters,
+        isDisabled: disabled,
+        readOnly: disabled,
         onChange: onChanged,
       ),
     );
