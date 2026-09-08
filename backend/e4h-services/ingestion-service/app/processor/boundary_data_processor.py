@@ -471,6 +471,8 @@ class BoundaryDataProcessor:
         for level in self.hierarchy_levels:
             for code, data in self.boundary_data[level].items():
                 full_code = data["full_code"]
+                if full_code in self.failed_boundaries:
+                    continue  # Boundary entity was never created; don't localize it
                 # Human-readable label for localization (spaces preserved; leading/trailing stripped)
                 raw_display_name = data.get("localization_label") or data.get("name") or code
                 display_name = re.sub(r"\s+", " ", raw_display_name).strip()
