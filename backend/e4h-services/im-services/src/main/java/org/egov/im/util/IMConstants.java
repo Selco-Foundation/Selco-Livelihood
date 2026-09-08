@@ -1,15 +1,13 @@
 package org.egov.im.util;
 
-import lombok.NoArgsConstructor;
-import org.springframework.stereotype.Component;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-@Component
-@NoArgsConstructor
-public class IMConstants {
+public final class IMConstants {
+
+    private IMConstants() {
+    }
 
 
     public static final String IM_BUSINESSSERVICE = "Incident";
@@ -124,9 +122,9 @@ public class IMConstants {
 
     public static final String LIV_TPL_017 = "LIV-TPL-017";
 
-    public static final String LIV_TPL_018 = "LIV-TPL-018";
+    public static final String LIV_TPL_019 = "LIV-TPL-019";
 
-    public static final String LIVELIHOOD_EMAIL_SUBJECT_SUFFIX = "-SUBJECT";
+    public static final String LIV_TPL_020 = "LIV-TPL-020";
 
     public static final String LIV_TPL_032 = "LIV-TPL-032";
 
