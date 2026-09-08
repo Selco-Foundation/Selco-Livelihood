@@ -1,7 +1,7 @@
 import { employeeHomePath, translateOr, useAuthStore, useBoundary, useTranslate } from "@/shared";
 import { TopBar } from "@/ui";
 import { useMemo, useState } from "react";
-import { downloadFacilityEntries, FacilityEntryTable } from "../../components/facility/FacilityEntryTable";
+import { FacilityEntryTable } from "../../components/facility/FacilityEntryTable";
 import {
   EMPTY_FACILITY_FILTERS,
   FacilityEntryFilter,
@@ -150,7 +150,6 @@ export function FacilityEntryListPage() {
         searchText={searchText}
         onFilterChange={handleFilterChange}
         onSearchTextChange={handleSearchTextChange}
-        onDownload={() => downloadFacilityEntries(planId, data?.entries ?? [], t)}
         selectedCount={selected.size}
         onApprove={handleBulkApprove}
         isApproving={bulkApprove.isPending}
