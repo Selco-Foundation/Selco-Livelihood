@@ -2,7 +2,7 @@ import { contextPath, translateOr, useModuleI18n, useTranslate } from "@/shared"
 import type { AnyRoute } from "@tanstack/react-router";
 import { createRoute, Outlet, redirect } from "@tanstack/react-router";
 import { ClipboardCheck } from "lucide-react";
-import { IrDetails, IrKpis } from "./components/IrOverview";
+import { IrKpis } from "./components/IrOverview";
 import { IR_ROUTES } from "./constants/routes";
 import { FacilityEntryListPage } from "./pages/employee/FacilityEntryListPage";
 import { FacilityReviewPage } from "./pages/employee/FacilityReviewPage";
@@ -102,6 +102,6 @@ export function createIrModule(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
     order: 2,
     routes,
     navItems,
-    overview: { kpis: IrKpis, details: IrDetails },
+    overview: { kpis: IrKpis },
   };
 }
