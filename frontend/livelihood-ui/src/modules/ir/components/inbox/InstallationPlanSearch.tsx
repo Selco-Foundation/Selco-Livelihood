@@ -1,7 +1,7 @@
-import { translateOr, useTranslate } from "@/shared";
-import { Button, Input, Label } from "@/ui";
+import { translateOr, useDebouncedValue, useTranslate } from "@/shared";
+import { Input, Label } from "@/ui";
 import { Search } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface InstallationPlanSearchProps {
   initialSearchText?: string;
@@ -14,24 +14,19 @@ export function InstallationPlanSearch({
 }: InstallationPlanSearchProps) {
   const { t } = useTranslate();
   const [searchText, setSearchText] = useState(initialSearchText);
+  const debouncedSearchText = useDebouncedValue(searchText);
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    onSearch(searchText.trim());
-  }
+  useEffect(() => {
+    onSearch(debouncedSearchText.trim());
+  }, [debouncedSearchText]);
 
   function clearSearch() {
     setSearchText("");
     onSearch("");
   }
 
-  function handleSearchTextChange(value: string) {
-    setSearchText(value);
-    onSearch(value.trim());
-  }
-
   return (
-    <form onSubmit={handleSubmit} className="livelihood-card p-4 md:p-5">
+    <div className="livelihood-card p-4 md:p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <Label htmlFor="installation-plan-search" className="shrink-0">
           {translateOr(t, "ES_IR_SEARCH_INSTALLATION_PLAN", "Search Installation Plan")}
@@ -43,22 +38,19 @@ export function InstallationPlanSearch({
               id="installation-plan-search"
               name="installation-plan-search"
               value={searchText}
-              onChange={(event) => handleSearchTextChange(event.target.value)}
+              onChange={(event) => setSearchText(event.target.value)}
               className="pl-9"
             />
           </div>
           <button
             type="button"
             onClick={clearSearch}
-            className="order-2 cursor-pointer text-left text-sm font-semibold text-primary hover:underline sm:order-1"
+            className="cursor-pointer text-left text-sm font-semibold text-primary hover:underline"
           >
             {translateOr(t, "ES_COMMON_CLEAR_SEARCH", "Clear Search")}
           </button>
-          <Button type="submit" size="sm" className="order-1 sm:order-2">
-            {translateOr(t, "ES_COMMON_SEARCH", "Search")}
-          </Button>
         </div>
       </div>
-    </form>
+    </div>
   );
 }

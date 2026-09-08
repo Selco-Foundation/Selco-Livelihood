@@ -76,6 +76,7 @@ export {
 export { queryClient } from "./query/query-client";
 export { QueryProvider } from "./query/provider";
 export { useBoundary } from "./hooks/use-boundary";
+export { useDebouncedValue } from "./hooks/use-debounced-value";
 export { useFacility } from "./hooks/use-facility";
 export { useLanguages } from "./hooks/use-languages";
 export { useLoginBannerImages } from "./hooks/use-login-banner-images";
