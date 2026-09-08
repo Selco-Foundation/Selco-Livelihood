@@ -1,15 +1,13 @@
 package org.egov.im.util;
 
-import lombok.NoArgsConstructor;
-import org.springframework.stereotype.Component;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-@Component
-@NoArgsConstructor
-public class IMConstants {
+public final class IMConstants {
+
+    private IMConstants() {
+    }
 
 
     public static final String IM_BUSINESSSERVICE = "Incident";

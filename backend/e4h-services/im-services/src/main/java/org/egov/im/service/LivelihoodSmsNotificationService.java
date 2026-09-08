@@ -97,10 +97,6 @@ public class LivelihoodSmsNotificationService {
 
     public void sendSms(IncidentRequest request, String mobileNumber, String templateCode,
                         Map<String, String> extraPlaceholders) {
-        log.info(request.toString());
-        log.info(mobileNumber.toString());
-        log.info(templateCode.toString());
-        log.info(extraPlaceholders.toString());
         if (config.getIsSMSEnabled() == null || !config.getIsSMSEnabled()) {
             return;
         }
