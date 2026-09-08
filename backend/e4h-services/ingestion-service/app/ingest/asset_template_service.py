@@ -49,9 +49,6 @@ class AssetTemplateService:
                     if options:
                         dropdowns_map[header_name] = options
 
-            # Plain Yes/No flag, not sourced from the MDMS schema.
-            output_list.append(HAVE_SOLAR_COLUMN)
-            allow_blank_map[HAVE_SOLAR_COLUMN] = True
             dropdowns_map[HAVE_SOLAR_COLUMN] = ["Yes", "No"]
 
             df_asset = pd.DataFrame(columns=output_list)
