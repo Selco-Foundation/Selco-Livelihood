@@ -7,4 +7,5 @@ abstract final class ApiPaths {
   static const reportLogin = 'im-services/user/login/_report';
   static const localizationSearch = 'localization/messages/v1/_search';
   static const mdmsV1Search = 'egov-mdms-service/v1/_search';
+  static const activitySearch = 'activity/v1/activities/_search';
 }

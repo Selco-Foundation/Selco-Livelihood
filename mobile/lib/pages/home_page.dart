@@ -1,7 +1,9 @@
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../blocs/activity_facility_counts/activity_facility_counts.dart';
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
 import '../router/app_router.dart';
@@ -29,6 +31,10 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    context
+        .read<ActivityFacilityCountsBloc>()
+        .add(const ActivityFacilityCountsEvent.fetch());
+    final counts = context.watch<ActivityFacilityCountsBloc>().state;
 
     return Scaffold(
       body: MdmsLoadingGate(
@@ -84,21 +90,31 @@ class HomePage extends StatelessWidget {
                       children: [
                         HomeItemCard(
                           key: const ValueKey('assigned-report-card'),
-                          count: '48',
+                          count: counts.maybeWhen(
+                            loaded: (assigned, _, __, ___) => '$assigned',
+                            orElse: () => '—',
+                          ),
                           label: context.translate(i18.home.assigned),
                           contentColor: const DigitColors().light.primary1,
                           onPressed: () => _showPlaceholder(context),
                         ),
                         HomeItemCard(
                           key: const ValueKey('pending-approval-report-card'),
-                          count: '12',
+                          count: counts.maybeWhen(
+                            loaded: (_, pendingApproval, __, ___) =>
+                                '$pendingApproval',
+                            orElse: () => '—',
+                          ),
                           label: context.translate(i18.home.pendingApproval),
                           contentColor: const DigitColors().light.primary2,
                           onPressed: () => _showPlaceholder(context),
                         ),
                         HomeItemCard(
                           key: const ValueKey('approved-report-card'),
-                          count: '35',
+                          count: counts.maybeWhen(
+                            loaded: (_, __, ___, approved) => '$approved',
+                            orElse: () => '—',
+                          ),
                           label: context.translate(i18.home.approved),
                           contentColor: const DigitColors().light.alertSuccess,
                           accentColor: const DigitColors().light.alertSuccess,
@@ -106,7 +122,11 @@ class HomePage extends StatelessWidget {
                         ),
                         HomeItemCard(
                           key: const ValueKey('resubmission-report-card'),
-                          count: '6',
+                          count: counts.maybeWhen(
+                            loaded: (_, __, resubmission, ___) =>
+                                '$resubmission',
+                            orElse: () => '—',
+                          ),
                           label: context.translate(i18.home.resubmissionNeeded),
                           contentColor: const DigitColors().light.alertError,
                           accentColor: const DigitColors().light.alertError,

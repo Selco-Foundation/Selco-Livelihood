@@ -15,14 +15,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:livelihood/blocs/activity_facility_counts/activity_facility_counts.dart';
 import 'package:livelihood/blocs/app_init/app_init.dart';
 import 'package:livelihood/blocs/localization/app_localization.dart';
 import 'package:livelihood/data/api_interceptors.dart';
 import 'package:livelihood/data/network_manager.dart';
 import 'package:livelihood/data/nosql/localization.dart' as nosql;
+import 'package:livelihood/model/activity_facility/activity_facility.dart';
+import 'package:livelihood/model/activity_facility_workflow/activity_facility_workflow.dart';
 import 'package:livelihood/model/appconfig/mdmsResponse.dart';
 import 'package:livelihood/model/mdms/asset_registry_response.dart';
+import 'package:livelihood/repositories/activity_facility_repo.dart';
 import 'package:livelihood/repositories/app_init_repo.dart';
+import 'package:livelihood/utils/workflow_status.dart';
 import 'package:livelihood/utils/i18_key_constants.dart' as i18;
 import 'package:livelihood/main.dart';
 import 'package:livelihood/model/facility_report_sample.dart';
@@ -126,6 +131,89 @@ class _StubAppInitRepo extends AppInitRepo {
       fetchAssetRegistry();
 }
 
+/// Deterministic, in-memory stand-in for the real `_search` endpoint — no
+/// test exercises live Dio here (and never should: a real HTTP attempt
+/// leaves a pending connect-timeout Timer that makes `pumpAndSettle` hang).
+/// Mirrors the shape of the two old hardcoded `facilityReportSamples`
+/// (solar first, machine second) and the four legacy badge counts (48/12/6/
+/// 35) so pre-existing assertions keep working unchanged; ignores the
+/// requested `workflowStatuses` filter entirely, same as the static list it
+/// replaces (every tab used to show the same two samples).
+class _StubActivityFacilityRemoteRepository
+    extends ActivityFacilityRemoteRepository {
+  _StubActivityFacilityRemoteRepository({
+    List<ActivityFacilityWorkflow>? items,
+    Map<String, int>? countsByStatus,
+  })  : _items = items ?? _defaultItems,
+        _countsByStatus = countsByStatus ?? _defaultCounts;
+
+  final List<ActivityFacilityWorkflow> _items;
+  final Map<String, int> _countsByStatus;
+
+  static final _defaultItems = <ActivityFacilityWorkflow>[
+    ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'activity-facility-solar-1',
+        facilityId: 'facility-solar-1',
+        status: FacilityInstallationStatus.assignedToFieldStaff,
+        scheduledAt: DateTime(2026, 2, 23).millisecondsSinceEpoch,
+        facility: const Facility(
+          facilityName: 'Rajesh Kumar - Solar',
+          boundaryCode: 'INDIA_MEGHALAYA_WESTKHASIHILLS_MAWTHADRAISHAN',
+        ),
+        additionalDetails: const ActivityFacilityAdditionalDetails(
+          bom: {'assetType': 'SOLAR'},
+        ),
+      ),
+    ),
+    ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'activity-facility-machine-1',
+        facilityId: 'facility-machine-1',
+        status: FacilityInstallationStatus.assignedToFieldStaff,
+        scheduledAt: DateTime(2026, 2, 12).millisecondsSinceEpoch,
+        facility: const Facility(
+          facilityName: 'Sunita Sharma - Sewing Machine',
+          boundaryCode: 'INDIA_MEGHALAYA_WESTKHASIHILLS_MAWTHADRAISHAN',
+        ),
+        additionalDetails: const ActivityFacilityAdditionalDetails(
+          bom: {'assetType': 'MACHINE'},
+        ),
+      ),
+    ),
+  ];
+
+  static const _defaultCounts = <String, int>{
+    FacilityInstallationStatus.assignedToFieldStaff: 48,
+    FacilityInstallationStatus.submittedByFieldStaff: 12,
+    FacilityInstallationStatus.rejectedByQcSpoc: 6,
+    FacilityInstallationStatus.approvedByQcSpoc: 35,
+  };
+
+  @override
+  Future<PaginatedActivityFacilities> searchByWorkflow({
+    required ActivityFacilitySearchModel body,
+    required List<String> workflowStatuses,
+    int limit = 10,
+    int offset = 0,
+    String sortDirection = defaultSortDirection,
+  }) async {
+    final page = _items.skip(offset).take(limit).toList();
+    return PaginatedActivityFacilities(items: page, totalCount: _items.length);
+  }
+
+  @override
+  Future<int> searchByWorkflowCount({
+    required ActivityFacilitySearchModel body,
+    required List<String> workflowStatuses,
+  }) async {
+    return workflowStatuses.fold<int>(
+      0,
+      (sum, status) => sum + (_countsByStatus[status] ?? 0),
+    );
+  }
+}
+
 final Map<String, String> _localizationMessages = {};
 const _secureStorageChannel =
     MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
@@ -140,6 +228,9 @@ void main() {
     _secureStorageValues.clear();
     _secureStorageReadFailureKey = null;
     _secureStorageWriteFailureKey = null;
+    activityFacilityRepository = ActivityFacilityRepository(
+      remote: _StubActivityFacilityRemoteRepository(),
+    );
   });
 
   setUpAll(() async {
@@ -200,6 +291,22 @@ void main() {
           return null;
       }
     });
+
+    // path_provider has no platform implementation under `flutter test`
+    // either — `Constants().isar`'s `getApplicationDocumentsDirectory()`
+    // call would otherwise hang waiting on a channel response that never
+    // arrives (rather than throwing), which is what made `pumpAndSettle`
+    // time out before this was added. A plain temp directory is enough:
+    // Isar itself still isn't initialized under the test VM, so every
+    // Isar.open() call fails fast afterwards and callers fall back to their
+    // "nothing cached" path — this mock only needs to stop the hang.
+    final tempDir = Directory.systemTemp.createTempSync('isar_test');
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      const MethodChannel('plugins.flutter.io/path_provider'),
+      (call) async => tempDir.path,
+    );
   });
 
   TextSpan findTextSpan(TextSpan root, String text) {
@@ -991,12 +1098,17 @@ void main() {
   ) async {
     setMobileViewport(tester, const Size(390, 844));
 
-    Future<void> pumpPage(Widget page) => tester.pumpWidget(
-          MaterialApp(
-            theme: DigitTheme.instance.mobileTheme,
-            home: page,
-          ),
-        );
+    Future<void> pumpPage(Widget page) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: DigitTheme.instance.mobileTheme,
+          home: page,
+        ),
+      );
+      // Lets the page's initState-dispatched fetch (against the stubbed
+      // repository) resolve and the list rebuild before assertions run.
+      await tester.pumpAndSettle();
+    }
 
     await pumpPage(const NewReportFacilitiesPage());
     expect(find.byType(FacilitySearchSortCard), findsOneWidget);
@@ -2196,7 +2308,10 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: DigitTheme.instance.mobileTheme,
-          home: const HomePage(),
+          home: BlocProvider<ActivityFacilityCountsBloc>(
+            create: (_) => ActivityFacilityCountsBloc(),
+            child: const HomePage(),
+          ),
         ),
       );
       await tester.pump();
@@ -2221,7 +2336,10 @@ void main() {
           MaterialApp(
             key: UniqueKey(),
             theme: DigitTheme.instance.mobileTheme,
-            home: page,
+            home: BlocProvider<ActivityFacilityCountsBloc>(
+              create: (_) => ActivityFacilityCountsBloc(),
+              child: page,
+            ),
           ),
         );
         await tester.pump();
@@ -2250,7 +2368,10 @@ void main() {
         theme: DigitTheme.instance.mobileTheme,
         home: BlocProvider<AppInitialization>.value(
           value: bloc,
-          child: const HomePage(),
+          child: BlocProvider<ActivityFacilityCountsBloc>(
+            create: (_) => ActivityFacilityCountsBloc(),
+            child: const HomePage(),
+          ),
         ),
       ),
     );
@@ -2298,7 +2419,10 @@ void main() {
         theme: DigitTheme.instance.mobileTheme,
         home: BlocProvider<AppInitialization>.value(
           value: bloc,
-          child: const HomePage(),
+          child: BlocProvider<ActivityFacilityCountsBloc>(
+            create: (_) => ActivityFacilityCountsBloc(),
+            child: const HomePage(),
+          ),
         ),
       ),
     );

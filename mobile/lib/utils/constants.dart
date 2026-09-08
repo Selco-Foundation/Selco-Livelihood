@@ -1,6 +1,7 @@
 import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../data/nosql/cache_activity_facility_workflow.dart';
 import '../data/nosql/localization.dart';
 
 class Constants {
@@ -26,6 +27,7 @@ class Constants {
       return await Isar.open(
         [
           LocalizationWrapperSchema,
+          CacheActivityFacilityWorkflowSchema,
         ],
         name: 'Livelihood',
         inspector: true,
@@ -35,7 +37,6 @@ class Constants {
       return await Future.value(Isar.getInstance());
     }
   }
-
 }
 
 class RequestInfoData {

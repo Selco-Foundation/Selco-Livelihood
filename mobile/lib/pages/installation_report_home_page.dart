@@ -1,7 +1,9 @@
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../blocs/activity_facility_counts/activity_facility_counts.dart';
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
 import '../router/app_router.dart';
@@ -29,6 +31,13 @@ class InstallationReportHomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final textTheme = theme.digitTextTheme(context);
+    // Idempotent past the first call (see ActivityFacilityCountsBloc) — if
+    // HomePage already triggered this fetch, this is a no-op and both
+    // screens read the same 4 numbers.
+    context
+        .read<ActivityFacilityCountsBloc>()
+        .add(const ActivityFacilityCountsEvent.fetch());
+    final counts = context.watch<ActivityFacilityCountsBloc>().state;
 
     return Scaffold(
       body: Padding(
@@ -66,7 +75,10 @@ class InstallationReportHomePage extends StatelessWidget {
                         context.translate(i18.installationReportHome.newReport),
                     description: context.translate(
                         i18.installationReportHome.newReportDescription),
-                    count: '48',
+                    count: counts.maybeWhen(
+                      loaded: (assigned, _, __, ___) => '$assigned',
+                      orElse: () => '—',
+                    ),
                     color: theme.colorTheme.primary.primary1,
                     onPressed: () => _open(
                       context,
@@ -79,7 +91,11 @@ class InstallationReportHomePage extends StatelessWidget {
                     heading: context.translate(i18.home.pendingApproval),
                     description: context.translate(
                         i18.installationReportHome.pendingApprovalDescription),
-                    count: '12',
+                    count: counts.maybeWhen(
+                      loaded: (_, pendingApproval, __, ___) =>
+                          '$pendingApproval',
+                      orElse: () => '—',
+                    ),
                     color: const Color(0xFF505A6B),
                     onPressed: () => _open(
                       context,
@@ -93,7 +109,10 @@ class InstallationReportHomePage extends StatelessWidget {
                         .installationReportHome.resubmissionNeededSingleLine),
                     description: context.translate(
                         i18.installationReportHome.resubmissionDescription),
-                    count: '6',
+                    count: counts.maybeWhen(
+                      loaded: (_, __, resubmission, ___) => '$resubmission',
+                      orElse: () => '—',
+                    ),
                     color: theme.colorTheme.alert.error,
                     accentColor: theme.colorTheme.alert.error,
                     onPressed: () => _open(
@@ -107,7 +126,10 @@ class InstallationReportHomePage extends StatelessWidget {
                     heading: context.translate(i18.home.approved),
                     description: context.translate(
                         i18.installationReportHome.approvedDescription),
-                    count: '35',
+                    count: counts.maybeWhen(
+                      loaded: (_, __, ___, approved) => '$approved',
+                      orElse: () => '—',
+                    ),
                     color: theme.colorTheme.alert.success,
                     onPressed: () => _open(
                       context,

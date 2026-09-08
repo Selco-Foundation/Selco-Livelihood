@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:isar/isar.dart';
 
+import 'blocs/activity_facility_counts/activity_facility_counts.dart';
 import 'blocs/app_init/app_init.dart';
 import 'blocs/auth/authbloc.dart';
 import 'blocs/localization/app_localization.dart';
@@ -77,54 +78,68 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
   @override
   Widget build(BuildContext context) {
     final isar = widget.isar;
+
+    // Provided unconditionally (like AuthBloc), not nested inside the
+    // isar/appConfig-gated branch below: this bloc only ever touches Isar
+    // lazily inside its async event handler, never synchronously at
+    // construction, so it doesn't need to wait on the MDMS/localization
+    // gate — and plenty of existing widget tests intentionally exercise
+    // `LivelihoodApp(router: ...)` with no `isar` at all to skip that gate.
     if (isar == null) {
       return BlocProvider<AuthBloc>.value(
         value: _authBloc,
-        child: _buildShell(context),
+        child: BlocProvider<ActivityFacilityCountsBloc>(
+          create: (_) => ActivityFacilityCountsBloc(),
+          child: _buildShell(context),
+        ),
       );
     }
 
     return BlocProvider<AuthBloc>.value(
       value: _authBloc,
-      child: MultiBlocProvider(
-        providers: [
-          BlocProvider(
-            create: (context) =>
-                AppInitialization()..add(const InitEvent.onLaunch()),
-          ),
-        ],
-        child: BlocBuilder<AppInitialization, InitState>(
-          builder: (context, state) {
-            final cachedAppConfig =
-                context.read<AppInitialization>().cachedAppConfig;
+      child: BlocProvider<ActivityFacilityCountsBloc>(
+        create: (_) => ActivityFacilityCountsBloc(),
+        child: MultiBlocProvider(
+          providers: [
+            BlocProvider(
+              create: (context) =>
+                  AppInitialization()..add(const InitEvent.onLaunch()),
+            ),
+          ],
+          child: BlocBuilder<AppInitialization, InitState>(
+            builder: (context, state) {
+              final cachedAppConfig =
+                  context.read<AppInitialization>().cachedAppConfig;
 
-            return state.maybeWhen(
-              orElse: () => const _LoadingApp(),
-              defaulted: (appConfig) => _buildShell(
-                context,
-                isar: isar,
-                appConfig: appConfig,
-              ),
-              loadingMdms: (appConfig) => _buildShell(
-                context,
-                isar: isar,
-                appConfig: appConfig,
-              ),
-              initialized: (appConfig, _) => _buildShell(
-                context,
-                isar: isar,
-                appConfig: appConfig,
-              ),
-              mdmsError: (appConfig, _) => _buildShell(
-                context,
-                isar: isar,
-                appConfig: appConfig,
-              ),
-              error: (_) => cachedAppConfig != null
-                  ? _buildShell(context, isar: isar, appConfig: cachedAppConfig)
-                  : const _LoadingApp(),
-            );
-          },
+              return state.maybeWhen(
+                orElse: () => const _LoadingApp(),
+                defaulted: (appConfig) => _buildShell(
+                  context,
+                  isar: isar,
+                  appConfig: appConfig,
+                ),
+                loadingMdms: (appConfig) => _buildShell(
+                  context,
+                  isar: isar,
+                  appConfig: appConfig,
+                ),
+                initialized: (appConfig, _) => _buildShell(
+                  context,
+                  isar: isar,
+                  appConfig: appConfig,
+                ),
+                mdmsError: (appConfig, _) => _buildShell(
+                  context,
+                  isar: isar,
+                  appConfig: appConfig,
+                ),
+                error: (_) => cachedAppConfig != null
+                    ? _buildShell(context,
+                        isar: isar, appConfig: cachedAppConfig)
+                    : const _LoadingApp(),
+              );
+            },
+          ),
         ),
       ),
     );

@@ -12,10 +12,12 @@ import '../utils/i18_key_constants.dart' as i18;
 class FacilitySearchSortCard extends StatefulWidget {
   const FacilitySearchSortCard({
     super.key,
-    required this.onUiAction,
+    required this.onSearchChanged,
+    required this.onSortApplied,
   });
 
-  final VoidCallback onUiAction;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<String> onSortApplied;
 
   @override
   State<FacilitySearchSortCard> createState() => _FacilitySearchSortCardState();
@@ -80,7 +82,7 @@ class _FacilitySearchSortCardState extends State<FacilitySearchSortCard> {
                     isDisabled: _sortDirection == null,
                     onPressed: () {
                       Navigator.of(popupContext).pop();
-                      widget.onUiAction();
+                      widget.onSortApplied(_sortDirection!);
                     },
                     type: DigitButtonType.primary,
                     size: DigitButtonSize.large,
@@ -120,7 +122,7 @@ class _FacilitySearchSortCardState extends State<FacilitySearchSortCard> {
                     key: const ValueKey('facility-search-field'),
                     innerLabel: context.translate(i18.installationReportHome.searchHealthFacility),
                     suffixIcon: Icons.search,
-                    onChange: (_) {},
+                    onChange: widget.onSearchChanged,
                   ),
                 ),
                 const SizedBox(width: spacer2),

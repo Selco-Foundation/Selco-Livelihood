@@ -127,6 +127,7 @@ class InstallationReportHome {
   String get viewDetails => 'INSTALLATION_REPORT_HOME_VIEW_DETAILS';
   String get resubmitForApproval => 'INSTALLATION_REPORT_HOME_RESUBMIT_FOR_APPROVAL';
   String get reportActionNotConnected => 'INSTALLATION_REPORT_HOME_REPORT_ACTION_NOT_CONNECTED';
+  String get noReportsFound => 'INSTALLATION_REPORT_HOME_NO_REPORTS_FOUND';
 }
 
 class MachineForm {
