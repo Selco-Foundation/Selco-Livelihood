@@ -66,10 +66,9 @@ public class LivelihoodNotificationService {
             notifyComplainantSms(request, LIV_TPL_002);
             notifyVendorSms(request, LIV_TPL_003);
         } else {
-            // End user self-create, auto-assigned (LIV-TPL-001 / 017 / 018).
+            // End user self-create, auto-assigned (LIV-TPL-001 / 017).
             notifyComplainantSms(request, LIV_TPL_001);
             notifyVendorSms(request, LIV_TPL_017);
-            notifyPoc(request);
         }
     }
 
@@ -110,6 +109,11 @@ public class LivelihoodNotificationService {
                     notifyPocOutOfWarranty(request);
                 }
             }
+            case LIVELIHOOD_WF_REVISE_QUOTATION -> {
+                if (LIVELIHOOD_OUT_OF_WARRANTY_PENDING_VENDOR.equalsIgnoreCase(newStatus)) {
+                    notifyComplainantSms(request, LIV_TPL_020);
+                }
+            }
             case LIVELIHOOD_WF_DECLINE -> {
                 if (LIVELIHOOD_CLOSED_AFTER_DECLINE.equalsIgnoreCase(newStatus)) {
                     notifyComplainantSms(request, LIV_TPL_014);
@@ -138,10 +142,11 @@ public class LivelihoodNotificationService {
     }
 
     /**
-     * Vendor SLA breached — vendor SMS (LIV-TPL-004) and POC email (LIV-TPL-005).
+     * Vendor SLA breached — vendor SMS (LIV-TPL-004), vendor email (LIV-TPL-019) and POC email (LIV-TPL-005).
      */
     public void notifyVendorSlaBreached(IncidentRequest request) {
         notifyVendorSms(request, LIV_TPL_004);
+        notifyVendorEmail(request, LIV_TPL_019);
         notifyPocSlaBreached(request);
     }
 
@@ -254,6 +259,26 @@ public class LivelihoodNotificationService {
         }
     }
 
+    private void notifyVendorEmail(IncidentRequest request, String templateCode) {
+        List<String> assignees = request.getWorkflow() != null ? request.getWorkflow().getAssignes() : null;
+        if (CollectionUtils.isEmpty(assignees)) {
+            log.warn("No vendor assignee for email template {} incidentId={}", templateCode,
+                    request.getIncident().getIncidentId());
+            return;
+        }
+        try {
+            String email = fetchUserEmail(assignees.get(0), request.getRequestInfo(), request.getIncident().getTenantId());
+            if (StringUtils.isBlank(email)) {
+                log.warn("Vendor email not found for uuid={} template={} incidentId={}", assignees.get(0),
+                        templateCode, request.getIncident().getIncidentId());
+                return;
+            }
+            livelihoodEmailNotificationService.sendEmail(request, email, templateCode);
+        } catch (Exception e) {
+            log.error("Failed vendor email for incidentId={}", request.getIncident().getIncidentId(), e);
+        }
+    }
+
     private void notifyPocOutOfScope(IncidentRequest request) {
         sendPocEmail(request, LIV_TPL_006,
                 Map.of("out_of_scope_reason", resolveOutOfScopeReason(request)));
@@ -265,10 +290,6 @@ public class LivelihoodNotificationService {
 
     private void notifyPocVendorDeclined(IncidentRequest request) {
         sendPocEmail(request, LIV_TPL_015, Map.of("reason", resolveDeclineReason(request)));
-    }
-
-    private void notifyPoc(IncidentRequest request) {
-        sendPocEmail(request, LIV_TPL_018);
     }
 
     private void sendPocEmail(IncidentRequest request, String templateCode) {
@@ -372,6 +393,11 @@ public class LivelihoodNotificationService {
     private String fetchUserMobile(String uuid, RequestInfo requestInfo, String tenantId) {
         User user = notificationService.fetchUserByUUID(uuid, requestInfo, tenantId);
         return user != null ? user.getMobileNumber() : null;
+    }
+
+    private String fetchUserEmail(String uuid, RequestInfo requestInfo, String tenantId) {
+        User user = notificationService.fetchUserByUUID(uuid, requestInfo, tenantId);
+        return user != null ? user.getEmailId() : null;
     }
 
     private String fetchPocEmail(String tenantId, String boundaryCode, RequestInfo requestInfo) {
