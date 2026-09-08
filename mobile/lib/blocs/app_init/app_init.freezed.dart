@@ -19,32 +19,38 @@ mixin _$InitEvent {
   @optionalTypeArgs
   TResult when<TResult extends Object?>({
     required TResult Function() onLaunch,
+    required TResult Function() fetchMdms,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? onLaunch,
+    TResult? Function()? fetchMdms,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? onLaunch,
+    TResult Function()? fetchMdms,
     required TResult orElse(),
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult map<TResult extends Object?>({
     required TResult Function(_AppLaunchEvent value) onLaunch,
+    required TResult Function(_FetchMdmsEvent value) fetchMdms,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult? mapOrNull<TResult extends Object?>({
     TResult? Function(_AppLaunchEvent value)? onLaunch,
+    TResult? Function(_FetchMdmsEvent value)? fetchMdms,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult maybeMap<TResult extends Object?>({
     TResult Function(_AppLaunchEvent value)? onLaunch,
+    TResult Function(_FetchMdmsEvent value)? fetchMdms,
     required TResult orElse(),
   }) =>
       throw _privateConstructorUsedError;
@@ -106,6 +112,7 @@ class _$AppLaunchEventImpl implements _AppLaunchEvent {
   @optionalTypeArgs
   TResult when<TResult extends Object?>({
     required TResult Function() onLaunch,
+    required TResult Function() fetchMdms,
   }) {
     return onLaunch();
   }
@@ -114,6 +121,7 @@ class _$AppLaunchEventImpl implements _AppLaunchEvent {
   @optionalTypeArgs
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? onLaunch,
+    TResult? Function()? fetchMdms,
   }) {
     return onLaunch?.call();
   }
@@ -122,6 +130,7 @@ class _$AppLaunchEventImpl implements _AppLaunchEvent {
   @optionalTypeArgs
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? onLaunch,
+    TResult Function()? fetchMdms,
     required TResult orElse(),
   }) {
     if (onLaunch != null) {
@@ -134,6 +143,7 @@ class _$AppLaunchEventImpl implements _AppLaunchEvent {
   @optionalTypeArgs
   TResult map<TResult extends Object?>({
     required TResult Function(_AppLaunchEvent value) onLaunch,
+    required TResult Function(_FetchMdmsEvent value) fetchMdms,
   }) {
     return onLaunch(this);
   }
@@ -142,6 +152,7 @@ class _$AppLaunchEventImpl implements _AppLaunchEvent {
   @optionalTypeArgs
   TResult? mapOrNull<TResult extends Object?>({
     TResult? Function(_AppLaunchEvent value)? onLaunch,
+    TResult? Function(_FetchMdmsEvent value)? fetchMdms,
   }) {
     return onLaunch?.call(this);
   }
@@ -150,6 +161,7 @@ class _$AppLaunchEventImpl implements _AppLaunchEvent {
   @optionalTypeArgs
   TResult maybeMap<TResult extends Object?>({
     TResult Function(_AppLaunchEvent value)? onLaunch,
+    TResult Function(_FetchMdmsEvent value)? fetchMdms,
     required TResult orElse(),
   }) {
     if (onLaunch != null) {
@@ -164,11 +176,117 @@ abstract class _AppLaunchEvent implements InitEvent {
 }
 
 /// @nodoc
+abstract class _$$FetchMdmsEventImplCopyWith<$Res> {
+  factory _$$FetchMdmsEventImplCopyWith(_$FetchMdmsEventImpl value,
+          $Res Function(_$FetchMdmsEventImpl) then) =
+      __$$FetchMdmsEventImplCopyWithImpl<$Res>;
+}
+
+/// @nodoc
+class __$$FetchMdmsEventImplCopyWithImpl<$Res>
+    extends _$InitEventCopyWithImpl<$Res, _$FetchMdmsEventImpl>
+    implements _$$FetchMdmsEventImplCopyWith<$Res> {
+  __$$FetchMdmsEventImplCopyWithImpl(
+      _$FetchMdmsEventImpl _value, $Res Function(_$FetchMdmsEventImpl) _then)
+      : super(_value, _then);
+}
+
+/// @nodoc
+
+class _$FetchMdmsEventImpl implements _FetchMdmsEvent {
+  const _$FetchMdmsEventImpl();
+
+  @override
+  String toString() {
+    return 'InitEvent.fetchMdms()';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType && other is _$FetchMdmsEventImpl);
+  }
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() onLaunch,
+    required TResult Function() fetchMdms,
+  }) {
+    return fetchMdms();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? onLaunch,
+    TResult? Function()? fetchMdms,
+  }) {
+    return fetchMdms?.call();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? onLaunch,
+    TResult Function()? fetchMdms,
+    required TResult orElse(),
+  }) {
+    if (fetchMdms != null) {
+      return fetchMdms();
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(_AppLaunchEvent value) onLaunch,
+    required TResult Function(_FetchMdmsEvent value) fetchMdms,
+  }) {
+    return fetchMdms(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(_AppLaunchEvent value)? onLaunch,
+    TResult? Function(_FetchMdmsEvent value)? fetchMdms,
+  }) {
+    return fetchMdms?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(_AppLaunchEvent value)? onLaunch,
+    TResult Function(_FetchMdmsEvent value)? fetchMdms,
+    required TResult orElse(),
+  }) {
+    if (fetchMdms != null) {
+      return fetchMdms(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class _FetchMdmsEvent implements InitEvent {
+  const factory _FetchMdmsEvent() = _$FetchMdmsEventImpl;
+}
+
+/// @nodoc
 mixin _$InitState {
   @optionalTypeArgs
   TResult when<TResult extends Object?>({
     required TResult Function() uninitialized,
     required TResult Function(MdmsResponseModel appConfig) defaulted,
+    required TResult Function(MdmsResponseModel appConfig) loadingMdms,
+    required TResult Function(MdmsResponseModel appConfig,
+            AssetRegistryMdmsResponse assetRegistry)
+        initialized,
     required TResult Function(String message) error,
   }) =>
       throw _privateConstructorUsedError;
@@ -176,6 +294,10 @@ mixin _$InitState {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? uninitialized,
     TResult? Function(MdmsResponseModel appConfig)? defaulted,
+    TResult? Function(MdmsResponseModel appConfig)? loadingMdms,
+    TResult? Function(MdmsResponseModel appConfig,
+            AssetRegistryMdmsResponse assetRegistry)?
+        initialized,
     TResult? Function(String message)? error,
   }) =>
       throw _privateConstructorUsedError;
@@ -183,6 +305,10 @@ mixin _$InitState {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? uninitialized,
     TResult Function(MdmsResponseModel appConfig)? defaulted,
+    TResult Function(MdmsResponseModel appConfig)? loadingMdms,
+    TResult Function(MdmsResponseModel appConfig,
+            AssetRegistryMdmsResponse assetRegistry)?
+        initialized,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) =>
@@ -191,6 +317,8 @@ mixin _$InitState {
   TResult map<TResult extends Object?>({
     required TResult Function(_Uninitialized value) uninitialized,
     required TResult Function(Defaulted value) defaulted,
+    required TResult Function(_LoadingMdms value) loadingMdms,
+    required TResult Function(_Initialized value) initialized,
     required TResult Function(Error value) error,
   }) =>
       throw _privateConstructorUsedError;
@@ -198,6 +326,8 @@ mixin _$InitState {
   TResult? mapOrNull<TResult extends Object?>({
     TResult? Function(_Uninitialized value)? uninitialized,
     TResult? Function(Defaulted value)? defaulted,
+    TResult? Function(_LoadingMdms value)? loadingMdms,
+    TResult? Function(_Initialized value)? initialized,
     TResult? Function(Error value)? error,
   }) =>
       throw _privateConstructorUsedError;
@@ -205,6 +335,8 @@ mixin _$InitState {
   TResult maybeMap<TResult extends Object?>({
     TResult Function(_Uninitialized value)? uninitialized,
     TResult Function(Defaulted value)? defaulted,
+    TResult Function(_LoadingMdms value)? loadingMdms,
+    TResult Function(_Initialized value)? initialized,
     TResult Function(Error value)? error,
     required TResult orElse(),
   }) =>
@@ -268,6 +400,10 @@ class _$UninitializedImpl extends _Uninitialized {
   TResult when<TResult extends Object?>({
     required TResult Function() uninitialized,
     required TResult Function(MdmsResponseModel appConfig) defaulted,
+    required TResult Function(MdmsResponseModel appConfig) loadingMdms,
+    required TResult Function(MdmsResponseModel appConfig,
+            AssetRegistryMdmsResponse assetRegistry)
+        initialized,
     required TResult Function(String message) error,
   }) {
     return uninitialized();
@@ -278,6 +414,10 @@ class _$UninitializedImpl extends _Uninitialized {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? uninitialized,
     TResult? Function(MdmsResponseModel appConfig)? defaulted,
+    TResult? Function(MdmsResponseModel appConfig)? loadingMdms,
+    TResult? Function(MdmsResponseModel appConfig,
+            AssetRegistryMdmsResponse assetRegistry)?
+        initialized,
     TResult? Function(String message)? error,
   }) {
     return uninitialized?.call();
@@ -288,6 +428,10 @@ class _$UninitializedImpl extends _Uninitialized {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? uninitialized,
     TResult Function(MdmsResponseModel appConfig)? defaulted,
+    TResult Function(MdmsResponseModel appConfig)? loadingMdms,
+    TResult Function(MdmsResponseModel appConfig,
+            AssetRegistryMdmsResponse assetRegistry)?
+        initialized,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -302,6 +446,8 @@ class _$UninitializedImpl extends _Uninitialized {
   TResult map<TResult extends Object?>({
     required TResult Function(_Uninitialized value) uninitialized,
     required TResult Function(Defaulted value) defaulted,
+    required TResult Function(_LoadingMdms value) loadingMdms,
+    required TResult Function(_Initialized value) initialized,
     required TResult Function(Error value) error,
   }) {
     return uninitialized(this);
@@ -312,6 +458,8 @@ class _$UninitializedImpl extends _Uninitialized {
   TResult? mapOrNull<TResult extends Object?>({
     TResult? Function(_Uninitialized value)? uninitialized,
     TResult? Function(Defaulted value)? defaulted,
+    TResult? Function(_LoadingMdms value)? loadingMdms,
+    TResult? Function(_Initialized value)? initialized,
     TResult? Function(Error value)? error,
   }) {
     return uninitialized?.call(this);
@@ -322,6 +470,8 @@ class _$UninitializedImpl extends _Uninitialized {
   TResult maybeMap<TResult extends Object?>({
     TResult Function(_Uninitialized value)? uninitialized,
     TResult Function(Defaulted value)? defaulted,
+    TResult Function(_LoadingMdms value)? loadingMdms,
+    TResult Function(_Initialized value)? initialized,
     TResult Function(Error value)? error,
     required TResult orElse(),
   }) {
@@ -414,6 +564,10 @@ class _$DefaultedImpl extends Defaulted {
   TResult when<TResult extends Object?>({
     required TResult Function() uninitialized,
     required TResult Function(MdmsResponseModel appConfig) defaulted,
+    required TResult Function(MdmsResponseModel appConfig) loadingMdms,
+    required TResult Function(MdmsResponseModel appConfig,
+            AssetRegistryMdmsResponse assetRegistry)
+        initialized,
     required TResult Function(String message) error,
   }) {
     return defaulted(appConfig);
@@ -424,6 +578,10 @@ class _$DefaultedImpl extends Defaulted {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? uninitialized,
     TResult? Function(MdmsResponseModel appConfig)? defaulted,
+    TResult? Function(MdmsResponseModel appConfig)? loadingMdms,
+    TResult? Function(MdmsResponseModel appConfig,
+            AssetRegistryMdmsResponse assetRegistry)?
+        initialized,
     TResult? Function(String message)? error,
   }) {
     return defaulted?.call(appConfig);
@@ -434,6 +592,10 @@ class _$DefaultedImpl extends Defaulted {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? uninitialized,
     TResult Function(MdmsResponseModel appConfig)? defaulted,
+    TResult Function(MdmsResponseModel appConfig)? loadingMdms,
+    TResult Function(MdmsResponseModel appConfig,
+            AssetRegistryMdmsResponse assetRegistry)?
+        initialized,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -448,6 +610,8 @@ class _$DefaultedImpl extends Defaulted {
   TResult map<TResult extends Object?>({
     required TResult Function(_Uninitialized value) uninitialized,
     required TResult Function(Defaulted value) defaulted,
+    required TResult Function(_LoadingMdms value) loadingMdms,
+    required TResult Function(_Initialized value) initialized,
     required TResult Function(Error value) error,
   }) {
     return defaulted(this);
@@ -458,6 +622,8 @@ class _$DefaultedImpl extends Defaulted {
   TResult? mapOrNull<TResult extends Object?>({
     TResult? Function(_Uninitialized value)? uninitialized,
     TResult? Function(Defaulted value)? defaulted,
+    TResult? Function(_LoadingMdms value)? loadingMdms,
+    TResult? Function(_Initialized value)? initialized,
     TResult? Function(Error value)? error,
   }) {
     return defaulted?.call(this);
@@ -468,6 +634,8 @@ class _$DefaultedImpl extends Defaulted {
   TResult maybeMap<TResult extends Object?>({
     TResult Function(_Uninitialized value)? uninitialized,
     TResult Function(Defaulted value)? defaulted,
+    TResult Function(_LoadingMdms value)? loadingMdms,
+    TResult Function(_Initialized value)? initialized,
     TResult Function(Error value)? error,
     required TResult orElse(),
   }) {
@@ -486,6 +654,371 @@ abstract class Defaulted extends InitState {
   MdmsResponseModel get appConfig;
   @JsonKey(ignore: true)
   _$$DefaultedImplCopyWith<_$DefaultedImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$LoadingMdmsImplCopyWith<$Res> {
+  factory _$$LoadingMdmsImplCopyWith(
+          _$LoadingMdmsImpl value, $Res Function(_$LoadingMdmsImpl) then) =
+      __$$LoadingMdmsImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({MdmsResponseModel appConfig});
+
+  $MdmsResponseModelCopyWith<$Res> get appConfig;
+}
+
+/// @nodoc
+class __$$LoadingMdmsImplCopyWithImpl<$Res>
+    extends _$InitStateCopyWithImpl<$Res, _$LoadingMdmsImpl>
+    implements _$$LoadingMdmsImplCopyWith<$Res> {
+  __$$LoadingMdmsImplCopyWithImpl(
+      _$LoadingMdmsImpl _value, $Res Function(_$LoadingMdmsImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? appConfig = null,
+  }) {
+    return _then(_$LoadingMdmsImpl(
+      appConfig: null == appConfig
+          ? _value.appConfig
+          : appConfig // ignore: cast_nullable_to_non_nullable
+              as MdmsResponseModel,
+    ));
+  }
+
+  @override
+  @pragma('vm:prefer-inline')
+  $MdmsResponseModelCopyWith<$Res> get appConfig {
+    return $MdmsResponseModelCopyWith<$Res>(_value.appConfig, (value) {
+      return _then(_value.copyWith(appConfig: value));
+    });
+  }
+}
+
+/// @nodoc
+
+class _$LoadingMdmsImpl extends _LoadingMdms {
+  const _$LoadingMdmsImpl({required this.appConfig}) : super._();
+
+  @override
+  final MdmsResponseModel appConfig;
+
+  @override
+  String toString() {
+    return 'InitState.loadingMdms(appConfig: $appConfig)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$LoadingMdmsImpl &&
+            (identical(other.appConfig, appConfig) ||
+                other.appConfig == appConfig));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, appConfig);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$LoadingMdmsImplCopyWith<_$LoadingMdmsImpl> get copyWith =>
+      __$$LoadingMdmsImplCopyWithImpl<_$LoadingMdmsImpl>(this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() uninitialized,
+    required TResult Function(MdmsResponseModel appConfig) defaulted,
+    required TResult Function(MdmsResponseModel appConfig) loadingMdms,
+    required TResult Function(MdmsResponseModel appConfig,
+            AssetRegistryMdmsResponse assetRegistry)
+        initialized,
+    required TResult Function(String message) error,
+  }) {
+    return loadingMdms(appConfig);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? uninitialized,
+    TResult? Function(MdmsResponseModel appConfig)? defaulted,
+    TResult? Function(MdmsResponseModel appConfig)? loadingMdms,
+    TResult? Function(MdmsResponseModel appConfig,
+            AssetRegistryMdmsResponse assetRegistry)?
+        initialized,
+    TResult? Function(String message)? error,
+  }) {
+    return loadingMdms?.call(appConfig);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? uninitialized,
+    TResult Function(MdmsResponseModel appConfig)? defaulted,
+    TResult Function(MdmsResponseModel appConfig)? loadingMdms,
+    TResult Function(MdmsResponseModel appConfig,
+            AssetRegistryMdmsResponse assetRegistry)?
+        initialized,
+    TResult Function(String message)? error,
+    required TResult orElse(),
+  }) {
+    if (loadingMdms != null) {
+      return loadingMdms(appConfig);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(_Uninitialized value) uninitialized,
+    required TResult Function(Defaulted value) defaulted,
+    required TResult Function(_LoadingMdms value) loadingMdms,
+    required TResult Function(_Initialized value) initialized,
+    required TResult Function(Error value) error,
+  }) {
+    return loadingMdms(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(_Uninitialized value)? uninitialized,
+    TResult? Function(Defaulted value)? defaulted,
+    TResult? Function(_LoadingMdms value)? loadingMdms,
+    TResult? Function(_Initialized value)? initialized,
+    TResult? Function(Error value)? error,
+  }) {
+    return loadingMdms?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(_Uninitialized value)? uninitialized,
+    TResult Function(Defaulted value)? defaulted,
+    TResult Function(_LoadingMdms value)? loadingMdms,
+    TResult Function(_Initialized value)? initialized,
+    TResult Function(Error value)? error,
+    required TResult orElse(),
+  }) {
+    if (loadingMdms != null) {
+      return loadingMdms(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class _LoadingMdms extends InitState {
+  const factory _LoadingMdms({required final MdmsResponseModel appConfig}) =
+      _$LoadingMdmsImpl;
+  const _LoadingMdms._() : super._();
+
+  MdmsResponseModel get appConfig;
+  @JsonKey(ignore: true)
+  _$$LoadingMdmsImplCopyWith<_$LoadingMdmsImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$InitializedImplCopyWith<$Res> {
+  factory _$$InitializedImplCopyWith(
+          _$InitializedImpl value, $Res Function(_$InitializedImpl) then) =
+      __$$InitializedImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call(
+      {MdmsResponseModel appConfig, AssetRegistryMdmsResponse assetRegistry});
+
+  $MdmsResponseModelCopyWith<$Res> get appConfig;
+  $AssetRegistryMdmsResponseCopyWith<$Res> get assetRegistry;
+}
+
+/// @nodoc
+class __$$InitializedImplCopyWithImpl<$Res>
+    extends _$InitStateCopyWithImpl<$Res, _$InitializedImpl>
+    implements _$$InitializedImplCopyWith<$Res> {
+  __$$InitializedImplCopyWithImpl(
+      _$InitializedImpl _value, $Res Function(_$InitializedImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? appConfig = null,
+    Object? assetRegistry = null,
+  }) {
+    return _then(_$InitializedImpl(
+      appConfig: null == appConfig
+          ? _value.appConfig
+          : appConfig // ignore: cast_nullable_to_non_nullable
+              as MdmsResponseModel,
+      assetRegistry: null == assetRegistry
+          ? _value.assetRegistry
+          : assetRegistry // ignore: cast_nullable_to_non_nullable
+              as AssetRegistryMdmsResponse,
+    ));
+  }
+
+  @override
+  @pragma('vm:prefer-inline')
+  $MdmsResponseModelCopyWith<$Res> get appConfig {
+    return $MdmsResponseModelCopyWith<$Res>(_value.appConfig, (value) {
+      return _then(_value.copyWith(appConfig: value));
+    });
+  }
+
+  @override
+  @pragma('vm:prefer-inline')
+  $AssetRegistryMdmsResponseCopyWith<$Res> get assetRegistry {
+    return $AssetRegistryMdmsResponseCopyWith<$Res>(_value.assetRegistry,
+        (value) {
+      return _then(_value.copyWith(assetRegistry: value));
+    });
+  }
+}
+
+/// @nodoc
+
+class _$InitializedImpl extends _Initialized {
+  const _$InitializedImpl(
+      {required this.appConfig, required this.assetRegistry})
+      : super._();
+
+  @override
+  final MdmsResponseModel appConfig;
+  @override
+  final AssetRegistryMdmsResponse assetRegistry;
+
+  @override
+  String toString() {
+    return 'InitState.initialized(appConfig: $appConfig, assetRegistry: $assetRegistry)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$InitializedImpl &&
+            (identical(other.appConfig, appConfig) ||
+                other.appConfig == appConfig) &&
+            (identical(other.assetRegistry, assetRegistry) ||
+                other.assetRegistry == assetRegistry));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, appConfig, assetRegistry);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$InitializedImplCopyWith<_$InitializedImpl> get copyWith =>
+      __$$InitializedImplCopyWithImpl<_$InitializedImpl>(this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() uninitialized,
+    required TResult Function(MdmsResponseModel appConfig) defaulted,
+    required TResult Function(MdmsResponseModel appConfig) loadingMdms,
+    required TResult Function(MdmsResponseModel appConfig,
+            AssetRegistryMdmsResponse assetRegistry)
+        initialized,
+    required TResult Function(String message) error,
+  }) {
+    return initialized(appConfig, assetRegistry);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? uninitialized,
+    TResult? Function(MdmsResponseModel appConfig)? defaulted,
+    TResult? Function(MdmsResponseModel appConfig)? loadingMdms,
+    TResult? Function(MdmsResponseModel appConfig,
+            AssetRegistryMdmsResponse assetRegistry)?
+        initialized,
+    TResult? Function(String message)? error,
+  }) {
+    return initialized?.call(appConfig, assetRegistry);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? uninitialized,
+    TResult Function(MdmsResponseModel appConfig)? defaulted,
+    TResult Function(MdmsResponseModel appConfig)? loadingMdms,
+    TResult Function(MdmsResponseModel appConfig,
+            AssetRegistryMdmsResponse assetRegistry)?
+        initialized,
+    TResult Function(String message)? error,
+    required TResult orElse(),
+  }) {
+    if (initialized != null) {
+      return initialized(appConfig, assetRegistry);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(_Uninitialized value) uninitialized,
+    required TResult Function(Defaulted value) defaulted,
+    required TResult Function(_LoadingMdms value) loadingMdms,
+    required TResult Function(_Initialized value) initialized,
+    required TResult Function(Error value) error,
+  }) {
+    return initialized(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(_Uninitialized value)? uninitialized,
+    TResult? Function(Defaulted value)? defaulted,
+    TResult? Function(_LoadingMdms value)? loadingMdms,
+    TResult? Function(_Initialized value)? initialized,
+    TResult? Function(Error value)? error,
+  }) {
+    return initialized?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(_Uninitialized value)? uninitialized,
+    TResult Function(Defaulted value)? defaulted,
+    TResult Function(_LoadingMdms value)? loadingMdms,
+    TResult Function(_Initialized value)? initialized,
+    TResult Function(Error value)? error,
+    required TResult orElse(),
+  }) {
+    if (initialized != null) {
+      return initialized(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class _Initialized extends InitState {
+  const factory _Initialized(
+          {required final MdmsResponseModel appConfig,
+          required final AssetRegistryMdmsResponse assetRegistry}) =
+      _$InitializedImpl;
+  const _Initialized._() : super._();
+
+  MdmsResponseModel get appConfig;
+  AssetRegistryMdmsResponse get assetRegistry;
+  @JsonKey(ignore: true)
+  _$$InitializedImplCopyWith<_$InitializedImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
 
@@ -555,6 +1088,10 @@ class _$ErrorImpl extends Error {
   TResult when<TResult extends Object?>({
     required TResult Function() uninitialized,
     required TResult Function(MdmsResponseModel appConfig) defaulted,
+    required TResult Function(MdmsResponseModel appConfig) loadingMdms,
+    required TResult Function(MdmsResponseModel appConfig,
+            AssetRegistryMdmsResponse assetRegistry)
+        initialized,
     required TResult Function(String message) error,
   }) {
     return error(message);
@@ -565,6 +1102,10 @@ class _$ErrorImpl extends Error {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? uninitialized,
     TResult? Function(MdmsResponseModel appConfig)? defaulted,
+    TResult? Function(MdmsResponseModel appConfig)? loadingMdms,
+    TResult? Function(MdmsResponseModel appConfig,
+            AssetRegistryMdmsResponse assetRegistry)?
+        initialized,
     TResult? Function(String message)? error,
   }) {
     return error?.call(message);
@@ -575,6 +1116,10 @@ class _$ErrorImpl extends Error {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? uninitialized,
     TResult Function(MdmsResponseModel appConfig)? defaulted,
+    TResult Function(MdmsResponseModel appConfig)? loadingMdms,
+    TResult Function(MdmsResponseModel appConfig,
+            AssetRegistryMdmsResponse assetRegistry)?
+        initialized,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -589,6 +1134,8 @@ class _$ErrorImpl extends Error {
   TResult map<TResult extends Object?>({
     required TResult Function(_Uninitialized value) uninitialized,
     required TResult Function(Defaulted value) defaulted,
+    required TResult Function(_LoadingMdms value) loadingMdms,
+    required TResult Function(_Initialized value) initialized,
     required TResult Function(Error value) error,
   }) {
     return error(this);
@@ -599,6 +1146,8 @@ class _$ErrorImpl extends Error {
   TResult? mapOrNull<TResult extends Object?>({
     TResult? Function(_Uninitialized value)? uninitialized,
     TResult? Function(Defaulted value)? defaulted,
+    TResult? Function(_LoadingMdms value)? loadingMdms,
+    TResult? Function(_Initialized value)? initialized,
     TResult? Function(Error value)? error,
   }) {
     return error?.call(this);
@@ -609,6 +1158,8 @@ class _$ErrorImpl extends Error {
   TResult maybeMap<TResult extends Object?>({
     TResult Function(_Uninitialized value)? uninitialized,
     TResult Function(Defaulted value)? defaulted,
+    TResult Function(_LoadingMdms value)? loadingMdms,
+    TResult Function(_Initialized value)? initialized,
     TResult Function(Error value)? error,
     required TResult orElse(),
   }) {

@@ -136,6 +136,16 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
                 isar: isar,
                 appConfig: appConfig,
               ),
+              loadingMdms: (appConfig) => _buildShell(
+                context,
+                isar: isar,
+                appConfig: appConfig,
+              ),
+              initialized: (appConfig, _) => _buildShell(
+                context,
+                isar: isar,
+                appConfig: appConfig,
+              ),
               error: (_) => cachedAppConfig != null
                   ? _buildShell(context, isar: isar, appConfig: cachedAppConfig)
                   : const _LoadingApp(),

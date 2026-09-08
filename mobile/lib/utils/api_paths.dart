@@ -6,4 +6,5 @@ abstract final class ApiPaths {
   static const oauthToken = 'user/oauth/token';
   static const reportLogin = 'im-services/user/login/_report';
   static const localizationSearch = 'localization/messages/v1/_search';
+  static const mdmsV1Search = 'egov-mdms-service/v1/_search';
 }

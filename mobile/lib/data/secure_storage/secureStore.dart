@@ -12,6 +12,7 @@ class _SecureStorageKeys {
   static const String accessToken = 'accessToken';
   static const String accessInfo = 'accessInfo';
   static const String loginConsentAccepted = 'loginConsentAccepted';
+  static const String assetRegistryConfig = 'assetRegistryConfig';
 }
 
 class SecureStore {
@@ -84,5 +85,16 @@ class SecureStore {
       key: _SecureStorageKeys.loginConsentAccepted,
       value: 'true',
     );
+  }
+
+  Future<void> setAssetRegistryConfig(String jsonAssetRegistry) async {
+    await storage.write(
+      key: _SecureStorageKeys.assetRegistryConfig,
+      value: jsonAssetRegistry,
+    );
+  }
+
+  Future<String?> getAssetRegistryConfig() async {
+    return await storage.read(key: _SecureStorageKeys.assetRegistryConfig);
   }
 }
