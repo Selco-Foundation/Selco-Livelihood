@@ -2,6 +2,10 @@ import { fetchFileUrls, useAuthStore } from "@/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MACHINE_MEDIA_GROUPS } from "../constants/review";
 import { REJECTION_REASON_OPTIONS } from "../constants/rejection-reasons";
+import {
+  fetchInstallationImageCriteriaQuery,
+  installationImageCriteriaQueryKey,
+} from "./use-installation-image-criteria";
 import { searchActivityFacilities } from "../services/facility";
 import { submitFacilityReview } from "../services/review";
 import {
@@ -26,19 +30,31 @@ export function useFacilityReview(entryId: string) {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
   const employeeTenantId = useAuthStore((state) => state.employeeTenantId);
+  const queryClient = useQueryClient();
 
   return useQuery({
     queryKey: ["ir-facility-review", employeeTenantId, entryId],
     enabled: Boolean(accessToken && employeeTenantId && entryId),
     queryFn: async (): Promise<FacilityReviewDetail | null> => {
-      const data = await searchActivityFacilities(
-        { tenantId: employeeTenantId!, ids: [entryId] },
-        { limit: 1, offset: 0 },
-        accessToken!,
-        user,
-      );
+      // The installation-image checklist master is the same for every entry,
+      // so it's fetched through the shared query key (queryClient.fetchQuery
+      // reuses useInstallationImageCriteria's cache instead of re-fetching it
+      // per review) rather than being entry-scoped like the facility row.
+      const [data, installationImageCriteria] = await Promise.all([
+        searchActivityFacilities(
+          { tenantId: employeeTenantId!, ids: [entryId] },
+          { limit: 1, offset: 0 },
+          accessToken!,
+          user,
+        ),
+        queryClient.fetchQuery({
+          queryKey: installationImageCriteriaQueryKey(employeeTenantId!),
+          queryFn: fetchInstallationImageCriteriaQuery(employeeTenantId!, accessToken!, user),
+          staleTime: 5 * 60_000,
+        }),
+      ]);
       const row = data.facility?.[0];
-      return row ? buildFacilityReviewDetail(row) : null;
+      return row ? buildFacilityReviewDetail(row, installationImageCriteria) : null;
     },
   });
 }
