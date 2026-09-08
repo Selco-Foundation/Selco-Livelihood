@@ -1,6 +1,13 @@
-import { employeeHomePath, translateOr, useAuthStore, useBoundary, useTranslate } from "@/shared";
+import {
+  employeeHomePath,
+  translateOr,
+  useAuthStore,
+  useBoundary,
+  useDebouncedValue,
+  useTranslate,
+} from "@/shared";
 import { TopBar } from "@/ui";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FacilityEntryTable } from "../../components/facility/FacilityEntryTable";
 import {
   EMPTY_FACILITY_FILTERS,
@@ -34,7 +41,8 @@ export function FacilityEntryListPage() {
   const { planId } = useFacilityEntriesRouteParams();
 
   const [filters, setFilters] = useState<FacilityEntryFilterState>(EMPTY_FACILITY_FILTERS);
-  const [searchText, setSearchText] = useState("");
+  const [rawSearchText, setRawSearchText] = useState("");
+  const searchText = useDebouncedValue(rawSearchText);
   const [pageOffset, setPageOffset] = useState(0);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -55,6 +63,10 @@ export function FacilityEntryListPage() {
   // response, so they stay stable across filters/pagination and cascade
   // properly (matches im's InboxFilter pattern).
   const { data: boundaryData } = useBoundary(plan?.stateCode ? [plan.stateCode] : []);
+
+  useEffect(() => {
+    setPageOffset(0);
+  }, [searchText]);
 
   const { data, isLoading } = useFacilityEntries(planId, {
     boundaryCodes: resolveBoundaryCodes(filters, boundaryData?.blocks ?? [], boundaryData?.facilities ?? []),
@@ -93,11 +105,6 @@ export function FacilityEntryListPage() {
       ...nextFilters,
       block: nextFilters.block.filter((code) => validBlockCodes.has(code)),
     });
-    setPageOffset(0);
-  }
-
-  function handleSearchTextChange(nextSearchText: string) {
-    setSearchText(nextSearchText);
     setPageOffset(0);
   }
 
@@ -147,9 +154,9 @@ export function FacilityEntryListPage() {
         blockOptions={blockOptions}
         statusOptions={statusOptions}
         filters={filters}
-        searchText={searchText}
+        searchText={rawSearchText}
         onFilterChange={handleFilterChange}
-        onSearchTextChange={handleSearchTextChange}
+        onSearchTextChange={setRawSearchText}
         selectedCount={selected.size}
         onApprove={handleBulkApprove}
         isApproving={bulkApprove.isPending}
