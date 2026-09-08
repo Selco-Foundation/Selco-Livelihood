@@ -16,7 +16,7 @@ import {
   SheetTrigger,
   cn,
 } from "@/ui";
-import { ChevronDown, Download, Filter, Search } from "lucide-react";
+import { ChevronDown, Filter, Search } from "lucide-react";
 import { useState } from "react";
 
 export interface FacilityFilterOption {
@@ -40,9 +40,7 @@ interface FacilityEntryFilterProps {
   searchText: string;
   onFilterChange: (filters: FacilityEntryFilterState) => void;
   onSearchTextChange: (searchText: string) => void;
-  onDownload: () => void;
-  /** While any rows are selected, the Download slot becomes an Approve
-   * action for that selection instead. */
+  /** Approve Selected only renders while rows are selected. */
   selectedCount: number;
   onApprove: () => void;
   isApproving: boolean;
@@ -62,7 +60,6 @@ export function FacilityEntryFilter({
   searchText,
   onFilterChange,
   onSearchTextChange,
-  onDownload,
   selectedCount,
   onApprove,
   isApproving,
@@ -304,18 +301,7 @@ export function FacilityEntryFilter({
             <Button type="button" size="sm" disabled={isApproving} onClick={onApprove}>
               {translateOr(t, "ES_IR_BULK_APPROVE", "Approve Selected")} ({selectedCount})
             </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              onClick={onDownload}
-            >
-              <Download className="size-4" />
-              {translateOr(t, "ES_COMMON_DOWNLOAD", "Download")}
-            </Button>
-          )}
+          ) : null}
           <button
             type="button"
             disabled={!hasActiveFilters}

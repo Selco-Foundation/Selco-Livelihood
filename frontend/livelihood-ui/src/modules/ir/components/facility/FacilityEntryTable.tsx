@@ -27,36 +27,6 @@ function boundaryLabel(
   return boundary.name ?? boundaryDisplayName(boundary.code, t);
 }
 
-/** Exported so the page (which owns the Download button, now living in
- * FacilityEntryFilter) can trigger the same export without duplicating the
- * row-formatting helpers above. */
-export function downloadFacilityEntries(
-  planId: string,
-  entries: FacilityEntry[],
-  t: ReturnType<typeof useTranslate>["t"],
-) {
-  const headers = ["Facility", "Type", "Location", "Status"];
-  const rows = entries.map((entry) => [
-    entry.facilityName,
-    entry.entryType === "MACHINE"
-      ? translateOr(t, "ES_IR_ENTRY_TYPE_MACHINE", "Machine")
-      : translateOr(t, "ES_IR_ENTRY_TYPE_SOLAR", "Solar"),
-    [boundaryLabel(entry.district, t), boundaryLabel(entry.block, t)].filter(Boolean).join(" / "),
-    statusLabel(entry.status, t),
-  ]);
-
-  const csv = [headers, ...rows]
-    .map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))
-    .join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${planId}-review-sites.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
 interface FacilityEntryTableProps {
   planId: string;
   entries: FacilityEntry[];
