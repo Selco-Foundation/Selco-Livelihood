@@ -603,8 +603,9 @@ def create_facility_payload(
 
 
 HAVE_SOLAR_COLUMN = "Have Solar"
-SOLAR_ASSET_TYPE_ID = "SOLAR"
+SOLAR_ASSET_TYPE_ID = "SOLAR PANEL"
 SOLAR_ASSET_NAME = "Solar"
+SOLAR_SERIAL_SUFFIX = "SOLAR"
 
 
 def create_asset_payloads(
@@ -716,8 +717,8 @@ def create_asset_payloads(
     have_solar_val = safe_get(row, HAVE_SOLAR_COLUMN)
     if not is_blank(have_solar_val) and str(have_solar_val).strip().lower() == "yes":
         # Companion SOLAR asset for the same site/vendor; equipment-specific fields
-        # (itemCode, serialNumber, brandID, model, warranty) belong to the primary
-        # asset's row and don't carry over.
+        # (itemCode, brandID, model, warranty) belong to the primary asset's row
+        # and don't carry over. serialNumber is derived below, not carried over either.
         solar_asset = {
             "tenantId": asset["tenantId"],
             "vendorId": asset["vendorId"],
@@ -729,6 +730,11 @@ def create_asset_payloads(
         }
         if asset.get("facilityID"):
             solar_asset["facilityID"] = asset["facilityID"]
+            # serialNumber is mandatory and there's no real one for a shared SOLAR
+            # asset; derive it from the End User so it's stable per facility -- a
+            # second "Have Solar" row for the same facility then hits the normal
+            # duplicate-asset check instead of creating a second SOLAR asset.
+            solar_asset["serialNumber"] = f"{asset['facilityID']}-{SOLAR_SERIAL_SUFFIX}"
         if asset.get("boundaryCode"):
             solar_asset["boundaryCode"] = asset["boundaryCode"]
         payloads.append({
