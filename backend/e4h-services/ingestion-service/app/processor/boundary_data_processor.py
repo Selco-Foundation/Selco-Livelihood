@@ -1,4 +1,5 @@
 import os
+import time
 from typing import List, Dict, Set, Tuple, Optional, Any
 import re
 import pandas as pd
@@ -24,6 +25,12 @@ boundary_service_url = os.getenv("BOUNDARY_SERVICE_URL")
 localization_service_url = os.getenv("LOCALIZATION_SERVICE_URL")
 
 logger = AppLogger().get_logger()
+
+# Boundary relationship creation is persisted asynchronously off Kafka on the
+# boundary-service side, so a parent relationship can report success before it's
+# actually queryable — retry PARENT_NOT_FOUND with incremental backoff (1+2+3+4s,
+# 10s max) before giving up on a child relationship.
+PARENT_NOT_FOUND_RETRY_DELAYS_SECONDS = [1, 2, 3, 4]
 
 
 class BoundaryDataProcessor:
@@ -412,30 +419,43 @@ class BoundaryDataProcessor:
                     f"Failed: {len(self.failed_relationships)}")
 
     def _create_single_relationship(self, full_code, boundary_type, parent_full_code):
-        """Create a single boundary relationship"""
-        try:
-            response_data = self.boundary_service_client.create_boundary_relationship(
-                request_info=self.request_info,
-                tenant_id=LIVELIHOOD_TENANT_ID,
-                code=full_code,
-                hierarchy_type="SELCO",
-                boundary_type=boundary_type,
-                parent=parent_full_code
-            )
+        """Create a single boundary relationship, retrying if the parent relationship
+        hasn't been persisted yet (see PARENT_NOT_FOUND_RETRY_DELAYS_SECONDS)."""
+        retry_delays = iter(PARENT_NOT_FOUND_RETRY_DELAYS_SECONDS)
+        while True:
+            try:
+                response_data = self.boundary_service_client.create_boundary_relationship(
+                    request_info=self.request_info,
+                    tenant_id=LIVELIHOOD_TENANT_ID,
+                    code=full_code,
+                    hierarchy_type="SELCO",
+                    boundary_type=boundary_type,
+                    parent=parent_full_code
+                )
 
-            if "Errors" in response_data:
-                if any(error.get("code") == "DUPLICATE_RECORD" for error in response_data["Errors"]):
-                    return True, None  # Relationship already exists
-                else:
+                if "Errors" in response_data:
+                    if any(error.get("code") == "DUPLICATE_RECORD" for error in response_data["Errors"]):
+                        return True, None  # Relationship already exists
+
+                    if any(error.get("code") == "PARENT_NOT_FOUND" for error in response_data["Errors"]):
+                        delay = next(retry_delays, None)
+                        if delay is not None:
+                            logger.warning(
+                                "Parent relationship for '%s' not yet persisted; retrying '%s' in %ds",
+                                parent_full_code, full_code, delay,
+                            )
+                            time.sleep(delay)
+                            continue
+
                     error_msg = ", ".join(
                         error.get("message") or error.get("code") or str(error)
                         for error in response_data["Errors"]
                     )
                     return False, error_msg
-            return True, None
+                return True, None
 
-        except Exception as e:
-            return False, str(e)
+            except Exception as e:
+                return False, str(e)
 
     def _upsert_localization_for_boundaries(self):
         """Upsert localization messages for all boundaries in this ingestion."""
