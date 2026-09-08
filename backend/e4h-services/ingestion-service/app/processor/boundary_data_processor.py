@@ -65,6 +65,9 @@ class BoundaryDataProcessor:
         self.failed_boundaries: Dict[str, str] = {}  # {full_code: error_message}
         self.failed_relationships: Dict[Tuple[str, str], str] = {}  # {(full_code, boundary_type): error_message}
         self.successful_relationship_codes: Set[str] = set()
+        # Relationship codes that were already linked before this run (snapshot
+        # taken right after _check_existing_relationships, before any creation).
+        self.pre_existing_relationship_codes: Set[str] = set()
 
     def process_data(self):
         """Process and validate boundary data"""
@@ -94,6 +97,7 @@ class BoundaryDataProcessor:
         self._organize_boundary_data(valid_boundaries_df)
         self._check_existing_boundaries()
         self._check_existing_relationships()
+        self.pre_existing_relationship_codes = set(self.successful_relationship_codes)
         self._create_new_boundaries()
         self._create_boundary_relationships()
         self._upsert_localization_for_boundaries()
@@ -252,6 +256,19 @@ class BoundaryDataProcessor:
     def _boundary_exists(self, full_code: str) -> bool:
         return full_code.casefold() in self.existing_boundaries_casefold
 
+    def _existed_but_relation_added(self, full_code: str) -> bool:
+        """True if this boundary already existed and its relationship was newly
+        linked in this run (as opposed to already being linked beforehand)."""
+        return (
+            self._boundary_exists(full_code)
+            and full_code in self.successful_relationship_codes
+            and full_code not in self.pre_existing_relationship_codes
+        )
+
+    def _no_action_needed(self, full_code: str) -> bool:
+        """True if this boundary and its relationship both already existed before this run."""
+        return self._boundary_exists(full_code) and full_code in self.pre_existing_relationship_codes
+
     def _mark_boundary_failure(self, full_code: str, error_message: str) -> None:
         self.failed_boundaries[full_code] = error_message
 
@@ -361,22 +378,6 @@ class BoundaryDataProcessor:
                 return
             for boundary in chunk:
                 self._mark_boundary_failure(boundary["code"], str(e))
-
-    def _deepest_full_code_for_row(self, row) -> Optional[str]:
-        country = normalize_boundary_segment(str(row.get('Country', '')).strip())
-        state = normalize_boundary_segment(str(row.get('State', '')).strip())
-        district = normalize_boundary_segment(str(row.get('District', '')).strip())
-        block = normalize_boundary_segment(str(row.get('Block', '')).strip())
-
-        if block and district and state and country:
-            return build_boundary_full_code(country, state, district, block)
-        if district and state and country:
-            return build_boundary_full_code(country, state, district)
-        if state and country:
-            return build_boundary_full_code(country, state)
-        if country:
-            return country
-        return None
 
     def _create_boundary_relationships(self):
         """Create boundary relationships in hierarchical order"""
@@ -521,13 +522,8 @@ class BoundaryDataProcessor:
                 continue  # Keep validation failures and skipped rows as-is
 
             row_failed = False
+            row_had_action = False
             row_errors = []
-
-            deepest_code = self._deepest_full_code_for_row(row)
-            if deepest_code and self._boundary_exists(deepest_code) and deepest_code not in self.failed_boundaries:
-                existing_code = self.existing_boundaries_casefold[deepest_code.casefold()]
-                row_failed = True
-                row_errors.append(f"Boundary already exists: {existing_code}")
 
             country = normalize_boundary_segment(str(row.get('Country', '')).strip())
             state = normalize_boundary_segment(str(row.get('State', '')).strip())
@@ -540,6 +536,11 @@ class BoundaryDataProcessor:
                 if full_code in self.failed_boundaries:
                     row_failed = True
                     row_errors.append(f"Failed to create Country '{country}': {self.failed_boundaries[full_code]}")
+                elif self._existed_but_relation_added(full_code):
+                    row_errors.append(f"Country '{country}' boundary already existed; relation added")
+                    row_had_action = True
+                elif not self._no_action_needed(full_code):
+                    row_had_action = True
 
             if state and country:
                 full_code = build_boundary_full_code(country, state)
@@ -550,6 +551,11 @@ class BoundaryDataProcessor:
                     row_failed = True
                     row_errors.append(
                         f"Failed relationship for State '{state}': {self.failed_relationships[(full_code, 'State')]}")
+                elif self._existed_but_relation_added(full_code):
+                    row_errors.append(f"State '{state}' boundary already existed; relation added")
+                    row_had_action = True
+                elif not self._no_action_needed(full_code):
+                    row_had_action = True
 
             if district and state and country:
                 full_code = build_boundary_full_code(country, state, district)
@@ -561,6 +567,11 @@ class BoundaryDataProcessor:
                     row_failed = True
                     row_errors.append(
                         f"Failed relationship for District '{district}': {self.failed_relationships[(full_code, 'District')]}")
+                elif self._existed_but_relation_added(full_code):
+                    row_errors.append(f"District '{district}' boundary already existed; relation added")
+                    row_had_action = True
+                elif not self._no_action_needed(full_code):
+                    row_had_action = True
 
             if block and district and state and country:
                 full_code = build_boundary_full_code(country, state, district, block)
@@ -571,12 +582,18 @@ class BoundaryDataProcessor:
                     row_failed = True
                     row_errors.append(
                         f"Failed relationship for Block '{block}': {self.failed_relationships[(full_code, 'Block')]}")
+                elif self._existed_but_relation_added(full_code):
+                    row_errors.append(f"Block '{block}' boundary already existed; relation added")
+                    row_had_action = True
+                elif not self._no_action_needed(full_code):
+                    row_had_action = True
 
             if row_failed:
                 boundary_df.loc[index, "status"] = "fail"
-                boundary_df.loc[index, "error"] = ", ".join(row_errors)
-            else:
+            elif row_had_action:
                 boundary_df.loc[index, "status"] = "success"
-                boundary_df.loc[index, "error"] = ""
+            else:
+                boundary_df.loc[index, "status"] = "exists"
+            boundary_df.loc[index, "error"] = ", ".join(row_errors)
 
         return boundary_df
