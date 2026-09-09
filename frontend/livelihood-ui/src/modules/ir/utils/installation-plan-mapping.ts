@@ -9,6 +9,7 @@ const STATUS_PENDING_REVIEW = "SUBMITTED_BY_FIELD_STAFF";
 
 export function toInstallationPlan(row: ActivityAssignment): InstallationPlan {
   const totalFacilities = row.additionalDetails?.countFieldPlanFacilities ?? 0;
+  const geographyDetails = row.fieldPlan?.geographyDetails;
   const statusCounts = new Map(
     (row.additionalDetails?.statusAgregation ?? []).map((entry) => [entry.status, entry.occurrences]),
   );
@@ -28,6 +29,8 @@ export function toInstallationPlan(row: ActivityAssignment): InstallationPlan {
     endDate: formatEpochDate(row.endDate),
     pendingReviewCount: statusCounts.get(STATUS_PENDING_REVIEW) ?? 0,
     completionRate,
-    stateCode: row.fieldPlan?.geographyDetails?.state,
+    stateCode: geographyDetails?.state,
+    districtCodes: geographyDetails?.districts ?? [],
+    facilityBoundaryCodes: geographyDetails?.blocks ?? [],
   };
 }

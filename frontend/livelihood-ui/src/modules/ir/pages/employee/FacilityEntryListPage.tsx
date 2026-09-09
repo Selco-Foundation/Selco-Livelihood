@@ -57,12 +57,23 @@ export function FacilityEntryListPage() {
   const startDate = plan?.startDate ?? "-";
   const endDate = plan?.endDate ?? "-";
 
-  // Same shared boundary-service lookup as qc's Filter.js
-  // (`useBoundary(fieldPlan?.stateBoundaryCode, "State")`) and im's InboxFilter
-  // — District/Block options come from here, not from the facility search
-  // response, so they stay stable across filters/pagination and cascade
-  // properly (matches im's InboxFilter pattern).
+  // Fetches every district/block in the state — District/Block filter
+  // *options* are then narrowed down from this full list to just the ones
+  // actually part of this field plan (below), rather than showing the
+  // whole state's boundaries.
   const { data: boundaryData } = useBoundary(plan?.stateCode ? [plan.stateCode] : []);
+
+  // The assignment's own "blocks" field is actually facility-level leaf
+  // codes (not block codes) — map each to its parent block via the state
+  // boundary tree's `facilities` list to get the real set of block codes
+  // this plan uses.
+  const planFacilityCodes = new Set(plan?.facilityBoundaryCodes ?? []);
+  const planBlockCodes = new Set(
+    (boundaryData?.facilities ?? [])
+      .filter((facility) => planFacilityCodes.has(facility.code))
+      .map((facility) => facility.parentCode),
+  );
+  const planBlocks = (boundaryData?.blocks ?? []).filter((block) => planBlockCodes.has(block.code));
 
   useEffect(() => {
     setPageOffset(0);
@@ -79,12 +90,12 @@ export function FacilityEntryListPage() {
   const bulkApprove = useBulkApproveFacilityEntries(planId);
   const { options: statusOptions } = useFacilityStatusOptions();
 
-  const districtOptions: FacilityFilterOption[] = (boundaryData?.districts ?? []).map((district) => ({
-    code: district.code,
-    name: boundaryDisplayName(district.code, t),
-  }));
+  const planDistrictCodes = new Set(plan?.districtCodes ?? []);
+  const districtOptions: FacilityFilterOption[] = (boundaryData?.districts ?? [])
+    .filter((district) => planDistrictCodes.has(district.code))
+    .map((district) => ({ code: district.code, name: boundaryDisplayName(district.code, t) }));
   const blockOptions: FacilityFilterOption[] = cascadeBlockOptions(
-    boundaryData?.blocks ?? [],
+    planBlocks,
     filters.district,
   ).map((block) => ({ code: block.code, name: boundaryDisplayName(block.code, t) }));
 
@@ -99,7 +110,7 @@ export function FacilityEntryListPage() {
     // Selecting a district can invalidate an already-selected block from a
     // different district — prune it, matching im's InboxFilter cascade.
     const validBlockCodes = new Set(
-      cascadeBlockOptions(boundaryData?.blocks ?? [], nextFilters.district).map((block) => block.code),
+      cascadeBlockOptions(planBlocks, nextFilters.district).map((block) => block.code),
     );
     setFilters({
       ...nextFilters,
