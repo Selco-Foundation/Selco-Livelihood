@@ -551,6 +551,10 @@ class BoundaryDataProcessor:
                 if full_code in self.failed_boundaries:
                     row_failed = True
                     row_errors.append(f"Failed to create Country '{country_label}': {self.failed_boundaries[full_code]}")
+                elif (full_code, "Country") in self.failed_relationships:
+                    row_failed = True
+                    row_errors.append(
+                        f"Failed relationship for Country '{country_label}': {self.failed_relationships[(full_code, 'Country')]}")
                 elif self._existed_but_relation_added(full_code):
                     row_errors.append(f"Country '{country_label}' boundary already existed; relation added")
                     row_had_action = True
