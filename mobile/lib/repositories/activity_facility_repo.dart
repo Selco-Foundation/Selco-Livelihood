@@ -93,6 +93,27 @@ class ActivityFacilityRemoteRepository {
 
     return response.data['totalCount'] as int? ?? 0;
   }
+
+  /// `POST activity/v1/activities/workflow/update` — moves an activity
+  /// facility to its next workflow state (e.g. `SUBMIT_REPORT` →
+  /// `SUBMITTED_BY_FIELD_STAFF`). Called from the submission pipeline
+  /// (`lib/utils/background_service.dart`) as the final step of Submit.
+  Future<void> transitionWorkflow({
+    required String activityFacilityId,
+    required String action,
+    String? comments,
+  }) async {
+    await _dio.post(
+      ApiPaths.workflowUpdate,
+      data: {
+        'activityFacilityId': activityFacilityId,
+        'workflow': {
+          'action': action,
+          if (comments != null) 'comments': comments,
+        },
+      },
+    ).timeout(const Duration(seconds: 30));
+  }
 }
 
 /// The repository `ActivityFacilityBloc`/`ActivityFacilityCountsBloc` use by

@@ -9,6 +9,7 @@ const machineForm = MachineForm();
 const assetFlow = AssetFlow();
 const installationReport = InstallationReport();
 const scanner = Scanner();
+const syncLoading = SyncLoading();
 
 class Common {
   const Common();
@@ -183,9 +184,12 @@ class MachineForm {
   String get enterOtp => 'MACHINE_FORM_ENTER_OTP';
   String get verify => 'MACHINE_FORM_VERIFY';
   String get resendOtp => 'MACHINE_FORM_RESEND_OTP';
+  String get requestOtp => 'MACHINE_FORM_REQUEST_OTP';
   String get otpRequired => 'MACHINE_FORM_OTP_REQUIRED';
   String get otpVerified => 'MACHINE_FORM_OTP_VERIFIED';
   String get otpResent => 'MACHINE_FORM_OTP_RESENT';
+  String get otpRequestSent => 'MACHINE_FORM_OTP_REQUEST_SENT';
+  String get otpRequestFailed => 'MACHINE_FORM_OTP_REQUEST_FAILED';
   String get mediaPickerError => 'MACHINE_FORM_MEDIA_PICKER_ERROR';
   String get cameraPermissionRequired =>
       'MACHINE_FORM_CAMERA_PERMISSION_REQUIRED';
@@ -257,6 +261,15 @@ class InstallationReport {
   String get rejectedSerialReason =>
       'INSTALLATION_REPORT_REJECTED_SERIAL_REASON';
   String get resubmit => 'INSTALLATION_REPORT_RESUBMIT';
+}
+
+class SyncLoading {
+  const SyncLoading();
+
+  String get preparingSync => 'SYNC_LOADING_PREPARING_SYNC';
+  String get syncingReports => 'SYNC_LOADING_SYNCING_REPORTS';
+  String get successful => 'SYNC_LOADING_SUCCESSFUL';
+  String get failed => 'SYNC_LOADING_FAILED';
 }
 
 class Scanner {

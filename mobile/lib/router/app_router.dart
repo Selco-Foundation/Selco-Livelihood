@@ -19,6 +19,7 @@ import '../pages/media_viewer.dart';
 import '../pages/dynamic_bom_form.dart';
 import '../pages/overall_asset_summary.dart';
 import '../pages/submitted_save_success.dart';
+import '../pages/sync_loading.dart';
 import '../pages/unauthenticated.dart';
 import '../pages/welcome_page.dart';
 import '../widgets/machine_media_picker.dart';
@@ -101,6 +102,7 @@ class AppRouter extends _$AppRouter {
             AutoRoute(page: ImageViewerRoute.page, path: Routes.imageViewer),
             AutoRoute(page: VideoViewerRoute.page, path: Routes.videoViewer),
             AutoRoute(page: PdfViewerRoute.page, path: Routes.pdfViewer),
+            AutoRoute(page: SyncLoadingRoute.page, path: Routes.syncLoading),
           ],
         ),
       ];

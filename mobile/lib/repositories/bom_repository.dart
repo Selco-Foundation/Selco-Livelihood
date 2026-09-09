@@ -38,6 +38,22 @@ class BomRepository {
           .toList();
     }
   }
+
+  /// Submits the final BOM `data`/`documents` for one activity-facility's
+  /// asset-type row. No local caching on write — this is only ever called
+  /// from the submission pipeline (`lib/utils/background_service.dart`),
+  /// which owns retry/progress semantics itself.
+  Future<BillOfMaterial> update(BillOfMaterial bom) async {
+    final response = await DioClient().dio.post(
+      ApiPaths.bomUpdate,
+      data: {
+        'bom': [bom.toJson()],
+      },
+    ).timeout(const Duration(seconds: 30));
+    final raw = response.data['bom'] as List<dynamic>? ?? const [];
+    if (raw.isEmpty) return bom;
+    return BillOfMaterial.fromJson(Map<String, dynamic>.from(raw.first as Map));
+  }
 }
 
 final bomRepository = BomRepository();

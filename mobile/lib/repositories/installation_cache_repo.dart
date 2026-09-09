@@ -16,31 +16,38 @@ import '../utils/envConfig.dart';
 class InstallationCacheRepository {
   Future<Isar> get _isar => Constants().isar;
 
+  /// Best-effort: a write failure (e.g. Isar unavailable) shouldn't block
+  /// the caller — callers that need to confirm persistence read back
+  /// through [getJson], which already degrades to "nothing cached".
   Future<void> putJson(
     String namespace,
     String key,
     Object? payload,
   ) async {
-    final isar = await _isar;
-    await isar.writeTxn(() async {
-      final rows = await isar.cacheInstallationDatas
-          .filter()
-          .namespaceEqualTo(namespace)
-          .and()
-          .cacheKeyEqualTo(key)
-          .findAll();
-      final row = rows.isEmpty ? CacheInstallationData() : rows.first;
-      row
-        ..namespace = namespace
-        ..cacheKey = key
-        ..rawJson = jsonEncode(payload)
-        ..updatedAt = DateTime.now();
-      await isar.cacheInstallationDatas.put(row);
-      if (rows.length > 1) {
-        await isar.cacheInstallationDatas
-            .deleteAll(rows.skip(1).map((item) => item.id).toList());
-      }
-    });
+    try {
+      final isar = await _isar;
+      await isar.writeTxn(() async {
+        final rows = await isar.cacheInstallationDatas
+            .filter()
+            .namespaceEqualTo(namespace)
+            .and()
+            .cacheKeyEqualTo(key)
+            .findAll();
+        final row = rows.isEmpty ? CacheInstallationData() : rows.first;
+        row
+          ..namespace = namespace
+          ..cacheKey = key
+          ..rawJson = jsonEncode(payload)
+          ..updatedAt = DateTime.now();
+        await isar.cacheInstallationDatas.put(row);
+        if (rows.length > 1) {
+          await isar.cacheInstallationDatas
+              .deleteAll(rows.skip(1).map((item) => item.id).toList());
+        }
+      });
+    } catch (_) {
+      // Best-effort — see doc comment above.
+    }
   }
 
   Future<dynamic> getJson(String namespace, String key) async {

@@ -8,6 +8,7 @@ import 'package:isar/isar.dart';
 
 import 'blocs/activity_facility_counts/activity_facility_counts.dart';
 import 'blocs/app_init/app_init.dart';
+import 'blocs/asset_submission/asset_submission.dart';
 import 'blocs/auth/authbloc.dart';
 import 'blocs/localization/app_localization.dart';
 import 'blocs/localization/app_localization_delegate.dart';
@@ -18,6 +19,7 @@ import 'data/nosql/localization.dart';
 import 'model/appconfig/mdmsResponse.dart';
 import 'router/app_router.dart';
 import 'repositories/auth_repo.dart';
+import 'utils/background_service.dart';
 import 'utils/constants.dart';
 import 'utils/envConfig.dart';
 import 'utils/intl_locale.dart';
@@ -33,6 +35,8 @@ void main() async {
   if (AppSharedPreferences().isFirstLaunch) {
     await AppSharedPreferences().appLaunchedFirstTime();
   }
+
+  await setupBackgroundService();
 
   runApp(LivelihoodApp(isar: isar));
 }
@@ -93,7 +97,10 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
         value: _authBloc,
         child: BlocProvider<ActivityFacilityCountsBloc>(
           create: (_) => ActivityFacilityCountsBloc(),
-          child: _buildShell(context),
+          child: BlocProvider<AssetSubmissionBloc>(
+            create: (_) => AssetSubmissionBloc(),
+            child: _buildShell(context),
+          ),
         ),
       );
     }
@@ -102,46 +109,49 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
       value: _authBloc,
       child: BlocProvider<ActivityFacilityCountsBloc>(
         create: (_) => ActivityFacilityCountsBloc(),
-        child: MultiBlocProvider(
-          providers: [
-            BlocProvider(
-              create: (context) =>
-                  AppInitialization()..add(const InitEvent.onLaunch()),
-            ),
-          ],
-          child: BlocBuilder<AppInitialization, InitState>(
-            builder: (context, state) {
-              final cachedAppConfig =
-                  context.read<AppInitialization>().cachedAppConfig;
+        child: BlocProvider<AssetSubmissionBloc>(
+          create: (_) => AssetSubmissionBloc(),
+          child: MultiBlocProvider(
+            providers: [
+              BlocProvider(
+                create: (context) =>
+                    AppInitialization()..add(const InitEvent.onLaunch()),
+              ),
+            ],
+            child: BlocBuilder<AppInitialization, InitState>(
+              builder: (context, state) {
+                final cachedAppConfig =
+                    context.read<AppInitialization>().cachedAppConfig;
 
-              return state.maybeWhen(
-                orElse: () => const _LoadingApp(),
-                defaulted: (appConfig) => _buildShell(
-                  context,
-                  isar: isar,
-                  appConfig: appConfig,
-                ),
-                loadingMdms: (appConfig) => _buildShell(
-                  context,
-                  isar: isar,
-                  appConfig: appConfig,
-                ),
-                initialized: (appConfig, _) => _buildShell(
-                  context,
-                  isar: isar,
-                  appConfig: appConfig,
-                ),
-                mdmsError: (appConfig, _) => _buildShell(
-                  context,
-                  isar: isar,
-                  appConfig: appConfig,
-                ),
-                error: (_) => cachedAppConfig != null
-                    ? _buildShell(context,
-                        isar: isar, appConfig: cachedAppConfig)
-                    : const _LoadingApp(),
-              );
-            },
+                return state.maybeWhen(
+                  orElse: () => const _LoadingApp(),
+                  defaulted: (appConfig) => _buildShell(
+                    context,
+                    isar: isar,
+                    appConfig: appConfig,
+                  ),
+                  loadingMdms: (appConfig) => _buildShell(
+                    context,
+                    isar: isar,
+                    appConfig: appConfig,
+                  ),
+                  initialized: (appConfig, _) => _buildShell(
+                    context,
+                    isar: isar,
+                    appConfig: appConfig,
+                  ),
+                  mdmsError: (appConfig, _) => _buildShell(
+                    context,
+                    isar: isar,
+                    appConfig: appConfig,
+                  ),
+                  error: (_) => cachedAppConfig != null
+                      ? _buildShell(context,
+                          isar: isar, appConfig: cachedAppConfig)
+                      : const _LoadingApp(),
+                );
+              },
+            ),
           ),
         ),
       ),

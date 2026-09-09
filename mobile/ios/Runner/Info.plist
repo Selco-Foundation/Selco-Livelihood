@@ -51,5 +51,15 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Extends the window for the installation-report submission pipeline
+	     (lib/utils/background_service.dart) to keep running briefly after
+	     the app is backgrounded. iOS still fundamentally limits background
+	     execution time regardless of this — there is no true indefinite
+	     background service the way Android's foreground service provides. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
 </dict>
 </plist>

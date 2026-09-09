@@ -41,6 +41,25 @@ class AssetRepository {
           .toList();
     }
   }
+
+  /// Creates one physical asset unit (`assetDetail.Asset`, per
+  /// `asset-registry`'s `Asset.java`). Called once per `SolarAssetEntry`
+  /// (or once for the machine) from the submission pipeline.
+  Future<Map<String, dynamic>> create(
+    Map<String, dynamic> assetPayload,
+  ) async {
+    final response = await DioClient().dio.post(
+      ApiPaths.assetCreate,
+      data: {
+        'assetDetail': {'Asset': assetPayload},
+      },
+    ).timeout(const Duration(seconds: 30));
+    final body = response.data;
+    final asset = body is Map && body['assetDetail'] is Map
+        ? (body['assetDetail'] as Map)['Asset']
+        : null;
+    return asset is Map ? Map<String, dynamic>.from(asset) : assetPayload;
+  }
 }
 
 final assetRepository = AssetRepository();

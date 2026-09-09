@@ -20,10 +20,12 @@ import '../repositories/installation_cache_repo.dart';
 import '../repositories/installation_draft_repository.dart';
 import '../repositories/asset_mdms_repository.dart';
 import '../router/app_router.dart';
+import '../utils/submission_payload.dart';
 import '../widgets/file_upload_widget.dart';
 import '../widgets/image_uploader.dart';
 import '../widgets/otp_verification_widget.dart';
 import '../widgets/solar_workflow_widgets.dart';
+import 'sync_loading.dart';
 
 typedef SolarPickFiles = Future<List<PlatformFile>> Function();
 
@@ -47,6 +49,29 @@ class OverallAssetSummaryPage extends StatefulWidget {
 
 class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
   bool _otpVerified = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_resync());
+  }
+
+  /// Mirrors E4H's overall/inbox summary pages, which resync BOM + asset
+  /// data from the backend on every mount regardless of workflow state —
+  /// unlike this page's original `createSolar`-only entry, which only
+  /// reflected whatever the last report-list fetch happened to embed.
+  /// Safe to run unconditionally: `hydrateSolar` merges backend data first,
+  /// then (for non-read-only drafts) overlays the local in-progress draft
+  /// on top via `_hydrateLocal`, so local edits always win over the
+  /// backend snapshot.
+  Future<void> _resync() async {
+    try {
+      await installationDraftRepository.hydrateSolar(widget.draft);
+    } catch (_) {
+      // Keep showing whatever's already in the draft if the resync fails.
+    }
+    if (mounted) setState(() {});
+  }
 
   String get _actionPrefix => switch (widget.draft.mode) {
         SolarWorkflowMode.newReport => context.translate(i18.common.add),
@@ -115,6 +140,30 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
     );
   }
 
+  /// Fire-and-forget the cache writes (matching
+  /// `installationDraftRepository.saveSolarSoon`'s existing convention
+  /// elsewhere on this page) rather than blocking navigation on Isar I/O —
+  /// the background service reports a clear, retryable failure if it ever
+  /// reads the payload before this write lands, which in practice loses
+  /// the race only if Isar itself is unusually slow.
+  void _submit() {
+    final draft = widget.draft;
+    final activityFacilityId = draft.workflow.activityFacility.id;
+    final facilityId = draft.workflow.activityFacility.facilityId;
+    if (activityFacilityId == null || facilityId == null) return;
+    unawaited(installationDraftRepository.saveSolar(draft));
+    unawaited(installationCacheRepository.putJson(
+      'submission-payload',
+      activityFacilityId,
+      buildSolarSubmissionPayload(draft),
+    ));
+    context.router.push(SyncLoadingRoute(
+      activityFacilityId: activityFacilityId,
+      facilityId: facilityId,
+      target: SyncSuccessTarget.solar,
+    ));
+  }
+
   Future<void> _openInstallationImages() async {
     await context.router.push<void>(
       InstallationImagesRoute(
@@ -140,8 +189,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                   ? context.translate(i18.installationReport.resubmit)
                   : context.translate(i18.common.submit),
               isDisabled: !draft.allCountsEntered || !_otpVerified,
-              onPressed: () =>
-                  context.router.push(const SubmittedSaveSuccessRoute()),
+              onPressed: _submit,
             ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -263,6 +311,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                 OtpVerificationWidget(
                   key: const ValueKey('solar-otp-widget'),
                   keyPrefix: 'solar',
+                  activityFacilityId: draft.workflow.activityFacility.id ?? '',
                   label: context
                       .translate(i18.machineForm.validateInstallationOtp),
                   onVerificationChanged: (verified) =>

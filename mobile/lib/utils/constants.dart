@@ -3,6 +3,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../data/nosql/cache_activity_facility_workflow.dart';
 import '../data/nosql/cache_installation_data.dart';
+import '../data/nosql/cache_submission_job.dart';
 import '../data/nosql/localization.dart';
 
 class Constants {
@@ -30,6 +31,7 @@ class Constants {
           LocalizationWrapperSchema,
           CacheActivityFacilityWorkflowSchema,
           CacheInstallationDataSchema,
+          CacheSubmissionJobSchema,
         ],
         name: 'Livelihood',
         inspector: true,

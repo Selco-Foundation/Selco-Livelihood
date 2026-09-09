@@ -9,6 +9,14 @@ abstract final class ApiPaths {
   static const mdmsV1Search = 'egov-mdms-service/v1/_search';
   static const activitySearch = 'activity/v1/activities/_search';
   static const bomSearch = 'activity/v1/bom/_search';
+  static const bomUpdate = 'activity/v1/bom/_update';
   static const assetSearch = 'asset-registry/v1/asset/_search';
+  static const assetCreate = 'asset-registry/v1/asset/_create';
   static const fileStoreFile = 'filestore/v1/files/file';
+  static const fileStoreUpload = 'filestore/v1/files';
+  static const workflowUpdate = 'activity/v1/activities/workflow/update';
+  static const otpGenerate = 'activity/v1/activities/_generate-otp';
+  static const otpValidate = 'activity/v1/activities/_validate-otp';
+  static const otpResend = 'activity/v1/activities/_resend-otp';
+  static const vendorOrgUserSearch = 'vendor/organisation/v1/user/_search';
 }

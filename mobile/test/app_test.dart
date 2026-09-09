@@ -61,6 +61,7 @@ import 'package:livelihood/widgets/home_item_card.dart';
 import 'package:livelihood/widgets/livelihood_app_bar.dart';
 import 'package:livelihood/widgets/machine_media_picker.dart';
 import 'package:livelihood/widgets/navigation/drawer.dart';
+import 'package:livelihood/repositories/otp_repository.dart';
 import 'package:livelihood/widgets/otp_verification_widget.dart';
 import 'package:livelihood/widgets/privacy_policy/policy_webview_dialog.dart';
 
@@ -208,6 +209,42 @@ class _StubActivityFacilityRemoteRepository
     return workflowStatuses.fold<int>(
       0,
       (sum, status) => sum + (_countsByStatus[status] ?? 0),
+    );
+  }
+}
+
+class _FakeOtpRepository extends OtpRepository {
+  _FakeOtpRepository({
+    this.generateSucceeds = true,
+    this.resendSucceeds = true,
+    this.validateSucceeds = true,
+  });
+
+  bool generateSucceeds;
+  bool resendSucceeds;
+  bool validateSucceeds;
+  int generateCalls = 0;
+  int resendCalls = 0;
+  int validateCalls = 0;
+
+  @override
+  Future<OtpResult> generate(String activityFacilityId) async {
+    generateCalls++;
+    return OtpResult(success: generateSucceeds);
+  }
+
+  @override
+  Future<OtpResult> resend(String activityFacilityId) async {
+    resendCalls++;
+    return OtpResult(success: resendSucceeds);
+  }
+
+  @override
+  Future<OtpResult> validate(String activityFacilityId, String otp) async {
+    validateCalls++;
+    return OtpResult(
+      success: validateSucceeds,
+      message: validateSucceeds ? null : 'Incorrect OTP, please try again',
     );
   }
 }
@@ -1362,6 +1399,10 @@ void main() {
     tester,
   ) async {
     setMobileViewport(tester, const Size(390, 844));
+    final originalOtpRepository = otpRepository;
+    otpRepository = _FakeOtpRepository();
+    addTearDown(() => otpRepository = originalOtpRepository);
+
     final incomplete = _filledSolarDraft(SolarWorkflowMode.newReport);
     await tester.pumpWidget(
       MaterialApp(
@@ -1385,6 +1426,17 @@ void main() {
     expect(find.byKey(const ValueKey('solar-installation-images')),
         findsOneWidget);
     expect(find.byKey(const ValueKey('solar-otp-widget')), findsOneWidget);
+
+    final requestButton =
+        find.byKey(const ValueKey('solar-request-otp-button'));
+    final requestCenter = tester.getCenter(requestButton);
+    await tester.drag(
+      find.byType(CustomScrollView),
+      Offset(0, 600 - requestCenter.dy),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(requestButton);
+    await tester.pump();
 
     await tester.enterText(
       find.descendant(
@@ -1804,11 +1856,13 @@ void main() {
     expect(selected.single.kind, SolarFileKind.pdf);
   });
 
-  testWidgets('shared OTP widget verifies, resets on edit, and resends', (
+  testWidgets(
+      'shared OTP widget requests, verifies, resets on edit, and resends', (
     tester,
   ) async {
     setMobileViewport(tester, const Size(390, 844));
     final verificationChanges = <bool>[];
+    final fakeRepo = _FakeOtpRepository();
     await tester.pumpWidget(
       MaterialApp(
         theme: DigitTheme.instance.mobileTheme,
@@ -1816,11 +1870,19 @@ void main() {
           body: OtpVerificationWidget(
             label: tr(i18.machineForm.validateTrainingOtp),
             keyPrefix: 'test',
+            activityFacilityId: 'activity-facility-otp-test',
+            repository: fakeRepo,
             onVerificationChanged: verificationChanges.add,
           ),
         ),
       ),
     );
+
+    // Initial state: only the "Request OTP" action is visible.
+    expect(find.byKey(const ValueKey('test-otp-field')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('test-request-otp-button')));
+    await tester.pump();
+    expect(fakeRepo.generateCalls, 1);
 
     await tester.tap(find.byKey(const ValueKey('test-verify-otp-button')));
     await tester.pump();
@@ -1855,6 +1917,43 @@ void main() {
     expect(verificationChanges, [isTrue, isFalse, isTrue, isFalse]);
     expect(tester.widget<EditableText>(input).controller.text, isEmpty);
     expect(find.text(tr(i18.machineForm.otpResent)), findsOneWidget);
+    expect(fakeRepo.resendCalls, 1);
+
+    // "Request OTP" stays available alongside "Resend OTP" once requested.
+    await tester.tap(find.byKey(const ValueKey('test-request-otp-button')));
+    await tester.pump();
+    expect(fakeRepo.generateCalls, 2);
+  });
+
+  testWidgets('shared OTP widget surfaces a failed request/verify message', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    final fakeRepo = _FakeOtpRepository(
+      generateSucceeds: false,
+      validateSucceeds: false,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: Scaffold(
+          body: OtpVerificationWidget(
+            label: tr(i18.machineForm.validateTrainingOtp),
+            keyPrefix: 'test-fail',
+            activityFacilityId: 'activity-facility-otp-test',
+            repository: fakeRepo,
+            onVerificationChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(
+        find.byKey(const ValueKey('test-fail-request-otp-button')));
+    await tester.pump();
+    expect(find.text(tr(i18.machineForm.otpRequestFailed)), findsOneWidget);
+    // A failed generate keeps the widget in its pre-request state.
+    expect(find.byKey(const ValueKey('test-fail-otp-field')), findsNothing);
   });
 
   testWidgets('solar asset summary has edit controls only when editable', (
@@ -1986,7 +2085,8 @@ void main() {
     expect(find.byKey(const ValueKey('end-user-photo-picker')), findsOneWidget);
     expect(find.byKey(const ValueKey('trained-yes')), findsOneWidget);
     expect(find.byKey(const ValueKey('trained-no')), findsOneWidget);
-    expect(find.byKey(const ValueKey('machine-otp-field')), findsOneWidget);
+    expect(find.byKey(const ValueKey('machine-request-otp-button')),
+        findsOneWidget);
 
     final submit = tester.widget<DigitButton>(
       find.byKey(const ValueKey('submit-machine-report-button')),
@@ -2158,10 +2258,13 @@ void main() {
     expect(find.byKey(const ValueKey('machine-media-opening')), findsNothing);
   });
 
-  testWidgets('machine draft and completed submit use success panels', (
-    tester,
-  ) async {
+  testWidgets(
+      'machine draft saves via success panel; submit hands off to sync screen',
+      (tester) async {
     setMobileViewport(tester, const Size(390, 844));
+    final originalOtpRepository = otpRepository;
+    otpRepository = _FakeOtpRepository();
+    addTearDown(() => otpRepository = originalOtpRepository);
 
     Future<void> pumpForm() async {
       await pumpAuthenticatedRoute(
@@ -2246,6 +2349,13 @@ void main() {
     await scrollIntoView(find.byKey(const ValueKey('trained-no')));
     await tester.tap(find.byKey(const ValueKey('trained-no')));
     await tester.pump();
+    await scrollIntoView(
+      find.byKey(const ValueKey('machine-request-otp-button')),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('machine-request-otp-button')),
+    );
+    await tester.pump();
     expect(find.byKey(const ValueKey('machine-otp-field')), findsOneWidget);
     expect(
       tester
@@ -2286,20 +2396,21 @@ void main() {
       find.byKey(const ValueKey('machine-verify-otp-button')),
     );
     await tester.pump();
+    // Dismiss the "OTP verified" SnackBar the tap above raised — it sits at
+    // the bottom of the screen and would otherwise cover the fixed footer's
+    // submit button below.
+    await tester.pump(const Duration(seconds: 5));
+
+    // Tapping submit hands off to the background submission service and the
+    // sync-loading screen (see `sync_loading.dart`); actually driving that
+    // service to completion isn't exercisable under `flutter test` (no
+    // platform channel for `flutter_background_service`), so this only
+    // verifies the handoff, not the full submission outcome.
     await tester.tap(
       find.byKey(const ValueKey('submit-machine-report-button')),
     );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 600));
-    expect(
-        find.text(tr(i18.machineForm.submittedSuccessfully)), findsOneWidget);
-    expect(
-      find.byWidgetPredicate(
-        (widget) => widget.runtimeType.toString() == 'Lottie',
-      ),
-      findsOneWidget,
-    );
-    expect(tester.takeException(), isNull);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('sync-loading-page')), findsOneWidget);
   });
 
   testWidgets('machine success screens match E4H panel and DIGIT footer', (

@@ -27,4 +27,5 @@ class Routes {
   static const imageViewer = 'image-viewer';
   static const videoViewer = 'video-viewer';
   static const pdfViewer = 'pdf-viewer';
+  static const syncLoading = 'sync-loading';
 }

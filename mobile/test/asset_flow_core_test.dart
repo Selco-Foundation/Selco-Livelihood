@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:digit_forms_engine/models/schema_object/schema_object.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:livelihood/blocs/activity_facility/activity_facility.dart';
+import 'package:livelihood/blocs/asset_submission/asset_submission.dart';
 import 'package:livelihood/model/activity_facility/activity_facility.dart';
 import 'package:livelihood/model/activity_facility_workflow/activity_facility_workflow.dart';
 import 'package:livelihood/model/asset_count/asset_count.dart';
@@ -12,8 +15,10 @@ import 'package:livelihood/model/mdms/common_masters.dart';
 import 'package:livelihood/model/warranty/warranty.dart';
 import 'package:livelihood/repositories/activity_facility_repo.dart';
 import 'package:livelihood/repositories/asset_mdms_repository.dart';
+import 'package:livelihood/repositories/operation_progress_repo.dart';
 import 'package:livelihood/utils/envConfig.dart';
 import 'package:livelihood/utils/dynamic_form_schema.dart';
+import 'package:livelihood/utils/operation_progress.dart';
 
 void main() {
   setUpAll(() async => envConfig.initialize());
@@ -389,6 +394,149 @@ void main() {
     expect(repository.offsets, [0, 0, 0]);
     await bloc.close();
   });
+
+  test('AssetSubmissionBloc mirrors job progress: queued -> running -> success',
+      () async {
+    final progressRepo = _StubOperationProgressRepository();
+    final bloc = AssetSubmissionBloc(progressRepository: progressRepo);
+    const activityFacilityId = 'activity-facility-submit-1';
+
+    final states = <AssetSubmissionState>[];
+    final sub = bloc.stream.listen(states.add);
+
+    bloc.add(const WatchSubmission(activityFacilityId));
+    await pumpEventQueue();
+
+    await progressRepo.upsertJob(
+      activityFacilityId: activityFacilityId,
+      status: OperationStatuses.queued,
+      stageKey: submitStages.first.key,
+      completedSteps: 0,
+      totalSteps: submitStages.length,
+    );
+    await pumpEventQueue();
+
+    await progressRepo.upsertJob(
+      activityFacilityId: activityFacilityId,
+      status: OperationStatuses.running,
+      stageKey: 'submitting_bom',
+      completedSteps: 3,
+      totalSteps: submitStages.length,
+    );
+    await pumpEventQueue();
+
+    await progressRepo.upsertJob(
+      activityFacilityId: activityFacilityId,
+      status: OperationStatuses.success,
+      stageKey: 'submission_successful',
+      completedSteps: submitStages.length,
+      totalSteps: submitStages.length,
+    );
+    await pumpEventQueue();
+
+    expect(states, [
+      isA<AssetSubmissionInProgress>().having(
+          (s) => s.progress.status, 'status', OperationStatuses.queued),
+      isA<AssetSubmissionInProgress>().having(
+          (s) => s.progress.status, 'status', OperationStatuses.running),
+      isA<AssetSubmissionSuccess>(),
+    ]);
+
+    await sub.cancel();
+    await bloc.close();
+  });
+
+  test('AssetSubmissionBloc surfaces a failed stage as a failure state',
+      () async {
+    final progressRepo = _StubOperationProgressRepository();
+    final bloc = AssetSubmissionBloc(progressRepository: progressRepo);
+    const activityFacilityId = 'activity-facility-submit-2';
+
+    final states = <AssetSubmissionState>[];
+    final sub = bloc.stream.listen(states.add);
+
+    bloc.add(const WatchSubmission(activityFacilityId));
+    await pumpEventQueue();
+
+    await progressRepo.upsertJob(
+      activityFacilityId: activityFacilityId,
+      status: OperationStatuses.running,
+      stageKey: 'resolving_vendor_org',
+      completedSteps: 1,
+      totalSteps: submitStages.length,
+    );
+    await pumpEventQueue();
+
+    await progressRepo.upsertJob(
+      activityFacilityId: activityFacilityId,
+      status: OperationStatuses.failed,
+      stageKey: 'resolving_vendor_org',
+      completedSteps: 1,
+      totalSteps: submitStages.length,
+      lastError: 'You are not authorized to access this resource',
+    );
+    await pumpEventQueue();
+
+    expect(states.last, isA<AssetSubmissionFailure>());
+    final failure = states.last as AssetSubmissionFailure;
+    expect(failure.progress.canRetry, isTrue);
+    expect(failure.progress.errorMessage,
+        'You are not authorized to access this resource');
+
+    await sub.cancel();
+    await bloc.close();
+  });
+}
+
+/// In-memory stand-in for [OperationProgressRepository] — writes are
+/// immediately visible to [watchJob], mirroring how the real
+/// Isar-backed implementation's reactive query behaves.
+class _StubOperationProgressRepository implements OperationProgressRepository {
+  final _controller = StreamController<OperationProgressModel?>.broadcast();
+  OperationProgressModel? _current;
+
+  @override
+  Future<void> upsertJob({
+    required String activityFacilityId,
+    required String status,
+    required String stageKey,
+    required int completedSteps,
+    required int totalSteps,
+    int retryCount = 0,
+    String? lastError,
+  }) async {
+    _current = OperationProgressModel(
+      activityFacilityId: activityFacilityId,
+      operationType: OperationTypes.submit,
+      status: status,
+      stageKey: stageKey,
+      stageLabel: stageForKey(stageKey).label,
+      completedSteps: completedSteps,
+      totalSteps: totalSteps,
+      progressPercent: progressPercent(
+        completedSteps: completedSteps,
+        totalSteps: totalSteps,
+      ),
+      retryCount: retryCount,
+      errorMessage: lastError,
+    );
+    _controller.add(_current);
+  }
+
+  @override
+  Future<OperationProgressModel?> readJob(String activityFacilityId) async =>
+      _current;
+
+  @override
+  Stream<OperationProgressModel?> watchJob(String activityFacilityId) async* {
+    yield _current;
+    yield* _controller.stream;
+  }
+
+  @override
+  Future<void> clearJob(String activityFacilityId) async {
+    _current = null;
+  }
 }
 
 class _RecordingActivityRepository extends ActivityFacilityRepository {

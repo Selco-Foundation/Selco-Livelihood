@@ -16,11 +16,13 @@ import '../repositories/asset_repository.dart';
 import '../repositories/installation_cache_repo.dart';
 import '../router/app_router.dart';
 import '../utils/app_permission_gateway.dart';
+import '../utils/submission_payload.dart';
 import '../widgets/machine_media_picker.dart';
 import '../widgets/otp_verification_widget.dart';
 import '../widgets/report_navigation_header.dart';
 import 'machine_report_success_page.dart';
 import 'media_viewer.dart';
+import 'sync_loading.dart';
 
 @RoutePage()
 class MachineFormPage extends StatefulWidget {
@@ -249,6 +251,40 @@ class _MachineFormPageState extends State<MachineFormPage> {
     context.router.push(MachineReportSuccessRoute(mode: mode));
   }
 
+  /// Fire-and-forget the cache writes (matching `_openSuccess`'s existing
+  /// `unawaited(_save())` convention) rather than blocking navigation on
+  /// Isar I/O — the background service reports a clear, retryable failure
+  /// if it ever reads the payload before this write lands, which in
+  /// practice loses the race only if Isar itself is unusually slow.
+  void _submit() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final activityFacilityId = widget.workflow.activityFacility.id;
+    final facilityId = widget.workflow.activityFacility.facilityId;
+    if (activityFacilityId == null || facilityId == null) return;
+    unawaited(_save());
+    unawaited(installationCacheRepository.putJson(
+      'submission-payload',
+      activityFacilityId,
+      buildMachineSubmissionPayload(
+        workflow: widget.workflow,
+        poNumber: _poController.text.trim(),
+        serialNumber: _serialController.text.trim(),
+        invoiceNumber: _invoiceController.text.trim(),
+        capacity: _capacityController.text.trim(),
+        warrantyYears: _warrantyController.text.trim(),
+        trainedEndUser: _trainedEndUser,
+        electricBoardMedia: _electricBoardMedia,
+        demoMedia: _demoMedia,
+        endUserMedia: _endUserMedia,
+      ),
+    ));
+    context.router.push(SyncLoadingRoute(
+      activityFacilityId: activityFacilityId,
+      facilityId: facilityId,
+      target: SyncSuccessTarget.machine,
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -270,8 +306,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
                   canSubmit: _canSubmit,
                   onSaveDraft: () =>
                       _openSuccess(MachineReportSuccessMode.draft),
-                  onSubmit: () =>
-                      _openSuccess(MachineReportSuccessMode.submitted),
+                  onSubmit: _submit,
                 ),
           children: [
             Padding(
@@ -505,6 +540,8 @@ class _MachineFormPageState extends State<MachineFormPage> {
                         OtpVerificationWidget(
                           key: const ValueKey('machine-otp-widget'),
                           keyPrefix: 'machine',
+                          activityFacilityId:
+                              widget.workflow.activityFacility.id ?? '',
                           label: context
                               .translate(i18.machineForm.validateTrainingOtp),
                           onVerificationChanged: (verified) =>
