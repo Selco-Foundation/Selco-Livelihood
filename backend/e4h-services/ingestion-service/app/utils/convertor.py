@@ -275,8 +275,23 @@ def convert_json_to_object(json_str: str) -> Optional[IngestionSchemaResponse]:
 
 def convert_json_to_boundary(json_str: str) -> List[Boundary]:
     data = json.loads(json_str)
-    locations = [Boundary(**item) for item in data]
-    return locations
+    # /getAllBoundaries returns each level's own full hierarchical code (not its display
+    # name) in country/state/district/block, so those double as the *_code fields that
+    # the BOUNDARY_<code> localization lookup requires.
+    return [
+        Boundary(
+            country=item.get("country") or "",
+            state=item.get("state") or "",
+            district=item.get("district") or "",
+            block=item.get("block") or "",
+            code=item.get("code") or "",
+            country_code=item.get("country") or "",
+            state_code=item.get("state") or "",
+            district_code=item.get("district") or "",
+            block_code=item.get("block") or "",
+        )
+        for item in data
+    ]
 
 
 def create_vendor_request(request_info: RequestInfo, vendor: Vendor):
