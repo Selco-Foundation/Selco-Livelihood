@@ -10,14 +10,14 @@ interface ComplaintTableProps {
   readonly data: InboxRow[];
 }
 
-function SlaBadge({ value, overdueLabel }: { value: string; overdueLabel: string }) {
+function SlaBadge({ value, overdueLabel, urgent }: { value: string; overdueLabel: string; urgent: boolean }) {
   if (value === "-") {
     return <span className="livelihood-sla-badge-muted">-</span>;
   }
   if (value === SLA_OVERDUE_MARKER) {
-    return <span className="livelihood-sla-badge-muted">{overdueLabel}</span>;
+    return <span className="livelihood-sla-badge-urgent">{overdueLabel}</span>;
   }
-  return <span className="livelihood-sla-badge">{value}</span>;
+  return <span className={urgent ? "livelihood-sla-badge-urgent" : "livelihood-sla-badge"}>{value}</span>;
 }
 
 export function ComplaintTable({ data }: ComplaintTableProps) {
@@ -108,7 +108,7 @@ export function ComplaintTable({ data }: ComplaintTableProps) {
                   </td>
                   <td className="px-5 py-4 text-foreground">{row.taskOwner}</td>
                   <td className="px-5 py-4">
-                    <SlaBadge value={row.sla} overdueLabel={overdueLabel} />
+                    <SlaBadge value={row.sla} urgent={row.slaUrgent} overdueLabel={overdueLabel} />
                   </td>
                 </tr>
               );
