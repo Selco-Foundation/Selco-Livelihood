@@ -2,12 +2,13 @@ import { contextPath, translateOr, useModuleI18n, useTranslate } from "@/shared"
 import type { AnyRoute } from "@tanstack/react-router";
 import { createRoute, Outlet, redirect } from "@tanstack/react-router";
 import { Inbox } from "lucide-react";
-import { ImOverview } from "./components/ImOverview";
+import { ImDetails, ImKpis, ImOverviewActions } from "./components/ImOverview";
 import { IM_ROUTES } from "./constants/routes";
 import { ComplaintDetailsPage } from "./pages/employee/ComplaintDetailsPage";
 import { CreateIncidentPage } from "./pages/employee/CreateIncidentPage";
 import { InboxPage } from "./pages/employee/InboxPage";
 import type { ImInboxFilters } from "./types/inbox";
+import { IM_ROLES } from "./utils/access";
 
 export interface InboxRouteSearch {
   filter?: ImInboxFilters;
@@ -112,6 +113,7 @@ export function createImRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
         to: inboxPath,
         icon: Inbox,
         matchPrefixes: [`/${basePath}${IM_ROUTES.complaintDetails}`],
+        roles: [...IM_ROLES],
       },
     ],
   };
@@ -125,6 +127,6 @@ export function createImModule(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
     order: 1,
     routes,
     navItems,
-    overview: ImOverview,
+    overview: { kpis: ImKpis, details: ImDetails, actions: ImOverviewActions },
   };
 }

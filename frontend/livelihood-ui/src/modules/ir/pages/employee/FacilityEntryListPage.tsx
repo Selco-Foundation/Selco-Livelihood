@@ -1,0 +1,194 @@
+import {
+  employeeHomePath,
+  translateOr,
+  useAuthStore,
+  useBoundary,
+  useDebouncedValue,
+  useTranslate,
+} from "@/shared";
+import { TopBar } from "@/ui";
+import { useEffect, useMemo, useState } from "react";
+import { FacilityEntryTable } from "../../components/facility/FacilityEntryTable";
+import {
+  EMPTY_FACILITY_FILTERS,
+  FacilityEntryFilter,
+  type FacilityEntryFilterState,
+  type FacilityFilterOption,
+} from "../../components/facility/FacilityEntryFilter";
+import { useBulkApproveFacilityEntries, useFacilityEntries } from "../../hooks/use-facility-entries";
+import { useFacilityStatusOptions } from "../../hooks/use-facility-status-options";
+import { useInstallationPlans } from "../../hooks/use-installation-plans";
+import { boundaryDisplayName, cascadeBlockOptions, resolveBoundaryCodes } from "../../utils/boundary";
+import { hasIrAccess } from "../../utils/access";
+import { irInstallationPlansPath } from "../../utils/paths";
+
+const DEFAULT_PAGE_SIZE = 10;
+
+// The entries route's path is computed at runtime via contextPath(), so there's no
+// static `Route` export for typed params — read the plan id from the URL segments
+// directly instead, same convention as ComplaintDetailsPage.
+function useFacilityEntriesRouteParams() {
+  return useMemo(() => {
+    const segments = window.location.pathname.split("/").filter(Boolean);
+    const index = segments.indexOf("entries");
+    return { planId: index >= 0 ? (segments[index + 1] ?? "") : "" };
+  }, []);
+}
+
+export function FacilityEntryListPage() {
+  const { t } = useTranslate();
+  const user = useAuthStore((state) => state.user);
+  const { planId } = useFacilityEntriesRouteParams();
+
+  const [filters, setFilters] = useState<FacilityEntryFilterState>(EMPTY_FACILITY_FILTERS);
+  const [rawSearchText, setRawSearchText] = useState("");
+  const searchText = useDebouncedValue(rawSearchText);
+  const [pageOffset, setPageOffset] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // Scoped to this one field plan via fieldPlanIds — the authoritative source
+  // for breadcrumb/summary data and the field plan's state (which seeds the
+  // boundary lookup below), independent of the facility search's own
+  // filters/pagination.
+  const { data: plansData } = useInstallationPlans({ fieldPlanIds: planId ? [planId] : undefined });
+  const plan = plansData?.plans.find((item) => item.planId === planId);
+  const planName = plan?.planName ?? planId;
+  const startDate = plan?.startDate ?? "-";
+  const endDate = plan?.endDate ?? "-";
+
+  // Fetches every district/block in the state — District/Block filter
+  // *options* are then narrowed down from this full list to just the ones
+  // actually part of this field plan (below), rather than showing the
+  // whole state's boundaries.
+  const { data: boundaryData } = useBoundary(plan?.stateCode ? [plan.stateCode] : []);
+
+  // The assignment's own "blocks" field is actually facility-level leaf
+  // codes (not block codes) — map each to its parent block via the state
+  // boundary tree's `facilities` list to get the real set of block codes
+  // this plan uses.
+  const planFacilityCodes = new Set(plan?.facilityBoundaryCodes ?? []);
+  const planBlockCodes = new Set(
+    (boundaryData?.facilities ?? [])
+      .filter((facility) => planFacilityCodes.has(facility.code))
+      .map((facility) => facility.parentCode),
+  );
+  const planBlocks = (boundaryData?.blocks ?? []).filter((block) => planBlockCodes.has(block.code));
+
+  useEffect(() => {
+    setPageOffset(0);
+  }, [searchText]);
+
+  const { data, isLoading } = useFacilityEntries(planId, {
+    boundaryCodes: resolveBoundaryCodes(filters, boundaryData?.blocks ?? [], boundaryData?.facilities ?? []),
+    statuses: filters.status.length > 0 ? filters.status : undefined,
+    searchText,
+    pageOffset,
+    pageSize,
+  });
+
+  const bulkApprove = useBulkApproveFacilityEntries(planId);
+  const { options: statusOptions } = useFacilityStatusOptions();
+
+  const planDistrictCodes = new Set(plan?.districtCodes ?? []);
+  const districtOptions: FacilityFilterOption[] = (boundaryData?.districts ?? [])
+    .filter((district) => planDistrictCodes.has(district.code))
+    .map((district) => ({ code: district.code, name: boundaryDisplayName(district.code, t) }));
+  const blockOptions: FacilityFilterOption[] = cascadeBlockOptions(
+    planBlocks,
+    filters.district,
+  ).map((block) => ({ code: block.code, name: boundaryDisplayName(block.code, t) }));
+
+  if (!hasIrAccess(user?.roles)) {
+    return null;
+  }
+
+  const totalCount = data?.totalCount ?? 0;
+  const currentPage = Math.floor(pageOffset / pageSize);
+
+  function handleFilterChange(nextFilters: FacilityEntryFilterState) {
+    // Selecting a district can invalidate an already-selected block from a
+    // different district — prune it, matching im's InboxFilter cascade.
+    const validBlockCodes = new Set(
+      cascadeBlockOptions(planBlocks, nextFilters.district).map((block) => block.code),
+    );
+    setFilters({
+      ...nextFilters,
+      block: nextFilters.block.filter((code) => validBlockCodes.has(code)),
+    });
+    setPageOffset(0);
+  }
+
+  function handleBulkApprove() {
+    bulkApprove.mutate(Array.from(selected), {
+      onSuccess: () => setSelected(new Set()),
+    });
+  }
+
+  return (
+    <div className="space-y-6">
+      <TopBar
+        title={translateOr(t, "ES_IR_REVIEW_SITES", "Review Sites")}
+        breadcrumbs={[
+          { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: employeeHomePath() },
+          {
+            label: translateOr(t, "ES_IR_INSTALLATION_PLANS", "Installation Plans"),
+            to: irInstallationPlansPath(),
+          },
+          { label: planName },
+        ]}
+      />
+      <div className="livelihood-card grid gap-6 px-6 py-5 sm:grid-cols-3 sm:px-7">
+        <div>
+          <p className="text-sm leading-[21px] text-ink-600">
+            {translateOr(t, "ES_IR_START_DATE", "Start Date")}
+          </p>
+          <p className="text-base leading-6 font-semibold text-ink-950">{startDate}</p>
+        </div>
+        <div>
+          <p className="text-sm leading-[21px] text-ink-600">
+            {translateOr(t, "ES_IR_COMPLETION_DATE", "Completion Date")}
+          </p>
+          <p className="text-base leading-6 font-semibold text-ink-950">{endDate}</p>
+        </div>
+        <div>
+          <p className="text-sm leading-[21px] text-ink-600">
+            {translateOr(t, "ES_IR_END_USER_SITE", "End User Site(s)")}
+          </p>
+          <p className="text-base leading-6 font-semibold text-ink-950">
+            {plan?.totalFacilities ?? "-"}
+          </p>
+        </div>
+      </div>
+      <FacilityEntryFilter
+        districtOptions={districtOptions}
+        blockOptions={blockOptions}
+        statusOptions={statusOptions}
+        filters={filters}
+        searchText={rawSearchText}
+        onFilterChange={handleFilterChange}
+        onSearchTextChange={setRawSearchText}
+        selectedCount={selected.size}
+        onApprove={handleBulkApprove}
+        isApproving={bulkApprove.isPending}
+      />
+      <FacilityEntryTable
+        planId={planId}
+        entries={data?.entries ?? []}
+        isLoading={isLoading}
+        selected={selected}
+        onSelectedChange={setSelected}
+        currentPage={currentPage}
+        totalRecords={totalCount}
+        pageSizeLimit={pageSize}
+        onNextPage={() => setPageOffset(pageOffset + pageSize)}
+        onPrevPage={() => setPageOffset(Math.max(0, pageOffset - pageSize))}
+        onPageChange={(page) => setPageOffset(page * pageSize)}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPageOffset(0);
+        }}
+      />
+    </div>
+  );
+}

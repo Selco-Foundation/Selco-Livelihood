@@ -1,10 +1,10 @@
 import { translateOr, useTranslate } from "@/shared";
-import { cn } from "@/ui";
+import { cn } from "@/ui/lib/utils";
 import { ArrowLeft, ArrowRight, ChevronDown } from "lucide-react";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
-interface InboxPaginationProps {
+export interface PaginationProps {
   readonly currentPage: number;
   readonly totalRecords: number;
   readonly pageSizeLimit: number;
@@ -14,7 +14,7 @@ interface InboxPaginationProps {
   readonly onPageSizeChange: (size: number) => void;
 }
 
-export function InboxPagination({
+export function Pagination({
   currentPage,
   totalRecords,
   pageSizeLimit,
@@ -22,7 +22,7 @@ export function InboxPagination({
   onPrevPage,
   onPageChange,
   onPageSizeChange,
-}: InboxPaginationProps) {
+}: PaginationProps) {
   const { t } = useTranslate();
   const totalPages = Math.max(1, Math.ceil(totalRecords / pageSizeLimit));
   const canGoPrev = currentPage > 0;
@@ -32,12 +32,12 @@ export function InboxPagination({
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 px-1">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <label htmlFor="inbox-page-size">
-          {translateOr(t, "ES_IM_ITEMS_PER_PAGE", "Items per Page")}
+        <label htmlFor="pagination-page-size">
+          {translateOr(t, "ES_COMMON_ITEMS_PER_PAGE", "Items per Page")}
         </label>
         <div className="relative">
           <select
-            id="inbox-page-size"
+            id="pagination-page-size"
             className="livelihood-filter-select h-8 w-auto pr-7"
             value={pageSizeLimit}
             onChange={(event) => onPageSizeChange(Number(event.target.value))}

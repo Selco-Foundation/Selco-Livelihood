@@ -1,14 +1,14 @@
 import { setLocale, translateOr, useLanguages, useLocaleStore, useTranslate } from "@/shared";
+import { useState } from "react";
+import { ChevronDown, Languages } from "lucide-react";
+import { Button } from "./ui/button";
 import {
-  Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  toast,
-} from "@/ui";
-import {ChevronDown, Languages} from "lucide-react";
-import { useState } from "react";
+} from "./ui/dropdown-menu";
+import { toast } from "sonner";
 
 interface LanguageSwitcherProps {
   compact?: boolean;
