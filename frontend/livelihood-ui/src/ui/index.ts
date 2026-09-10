@@ -133,6 +133,11 @@ export {
   SelectTrigger,
   SelectValue,
 } from "./components/ui/select";
+export { MultiSelect } from "./components/ui/multi-select";
+export type { MultiSelectOption, MultiSelectProps } from "./components/ui/multi-select";
+export { Stepper } from "./components/ui/stepper";
+export type { StepperProps, StepDefinition } from "./components/ui/stepper";
+export { Calendar } from "./components/ui/calendar";
 export { DataTable } from "./components/data-table";
 export { StatTile } from "./components/stat-tile";
 export type { StatTileProps } from "./components/stat-tile";
