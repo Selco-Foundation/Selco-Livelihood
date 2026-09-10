@@ -1,5 +1,15 @@
-import { apiClient, type AuthUser } from "@/shared";
+import { apiClient, tenantId, type AuthUser } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
+
+/** The gateway route in front of `/ingestion-service` authenticates with the
+ *  raw legacy headers (`auth-token`, lowercase `tenantid`) rather than the
+ *  `Authorization: Bearer` / `X-Tenant-Id` pair the shared apiClient
+ *  interceptor sets for every other request — without these, every call
+ *  below fails with "Auth Token not found" / "TenantId not found in header"
+ *  before it ever reaches ingestion-service. */
+function ingestionServiceHeaders(accessToken: string): Record<string, string> {
+  return { "auth-token": accessToken, tenantid: tenantId() };
+}
 
 export interface BoundaryTreeNode {
   boundaryCode: string;
@@ -33,7 +43,7 @@ export async function downloadFacilityIngestionTemplate(
       project_id: projectId,
       boundary_data: boundaryData,
     },
-    { responseType: "blob" },
+    { headers: ingestionServiceHeaders(accessToken), responseType: "blob" },
   );
 
   return {
@@ -83,7 +93,10 @@ export async function validateFacilitiesExcel(
     const response = await apiClient.post(
       "/ingestion-service/ingest/facilitiesValidateData",
       formData,
-      { headers: { "Content-Type": "multipart/form-data" }, responseType: "blob" },
+      {
+        headers: { "Content-Type": "multipart/form-data", ...ingestionServiceHeaders(accessToken) },
+        responseType: "blob",
+      },
     );
 
     const errorCountHeader =
@@ -124,7 +137,10 @@ export async function createFacilitiesAndUpdateProject(
     const response = await apiClient.post(
       "/ingestion-service/ingest/createFacilityAndUpdateProject",
       formData,
-      { headers: { "Content-Type": "multipart/form-data" }, responseType: "blob" },
+      {
+        headers: { "Content-Type": "multipart/form-data", ...ingestionServiceHeaders(accessToken) },
+        responseType: "blob",
+      },
     );
 
     return {
