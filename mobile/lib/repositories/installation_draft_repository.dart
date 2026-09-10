@@ -156,7 +156,6 @@ class InstallationDraftRepository {
             'system': entry.value.system,
             'totalCapacity': entry.value.totalCapacity,
             'capacityUnit': entry.value.capacityUnit,
-            'warrantyStartDate': entry.value.warrantyStartDate,
             'warrantyDuration': entry.value.warrantyDuration,
             'selectedBrandCode': entry.value.selectedBrandCode,
             'entries': entry.value.assets
@@ -379,8 +378,6 @@ class InstallationDraftRepository {
             value['totalCapacity']?.toString() ?? target.totalCapacity;
         target.capacityUnit =
             value['capacityUnit']?.toString() ?? target.capacityUnit;
-        target.warrantyStartDate =
-            value['warrantyStartDate']?.toString() ?? target.warrantyStartDate;
         target.warrantyDuration =
             value['warrantyDuration']?.toString() ?? target.warrantyDuration;
         target.selectedBrandCode = value['selectedBrandCode']?.toString();

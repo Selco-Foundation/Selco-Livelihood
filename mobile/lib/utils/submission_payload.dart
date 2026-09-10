@@ -1,5 +1,6 @@
 import '../model/activity_facility_workflow/activity_facility_workflow.dart';
 import '../model/solar_installation_draft.dart';
+import 'warranty.dart';
 
 /// Builds the JSON-serializable submission payload cached (via
 /// `installationCacheRepository.putJson('submission-payload', activityFacilityId, ...)`)
@@ -49,6 +50,7 @@ Map<String, dynamic> buildSolarSubmissionPayload(SolarInstallationDraft draft) {
     final assetDraft = draft.assets[type]!;
     final assetTypeCode = draft.assetTypeCodes[type] ?? type.name.toUpperCase();
     for (final entry in assetDraft.assets) {
+      final warrantyYears = parseWarrantyYears(assetDraft.warrantyDuration);
       assets.add({
         'system': draft.systemCode,
         'assetTypeID': assetTypeCode,
@@ -61,8 +63,13 @@ Map<String, dynamic> buildSolarSubmissionPayload(SolarInstallationDraft draft) {
         'name': assetDraft.system.isNotEmpty
             ? assetDraft.system
             : draft.labelFor(type),
-        'warrantyStartDateMillis': _parseDateMillis(assetDraft.warrantyStartDate),
-        'warrantyDurationYears': _parseWarrantyYears(assetDraft.warrantyDuration),
+        // Matches E4H exactly: the warranty start date is never user-entered
+        // — it's the submission timestamp, only set when there's an actual
+        // warranty (years > 0), and sent as an ISO-8601 string.
+        'warrantyStartDate': warrantyYears > 0
+            ? DateTime.now().toUtc().toIso8601String()
+            : null,
+        'warrantyDurationYears': warrantyYears,
         'assetDetails': {
           'name': draft.labelFor(type),
           'capacity': entry.capacity,
@@ -107,6 +114,7 @@ Map<String, dynamic> buildMachineSubmissionPayload({
 
   final assetTypeCode =
       workflow.activityFacility.additionalDetails?.componentType ?? 'MACHINE';
+  final years = parseWarrantyYears(warrantyYears);
 
   return {
     'kind': 'machine',
@@ -122,8 +130,9 @@ Map<String, dynamic> buildMachineSubmissionPayload({
         'brandID': null,
         'itemCode': assetTypeCode,
         'name': 'Machine',
-        'warrantyStartDateMillis': DateTime.now().millisecondsSinceEpoch,
-        'warrantyDurationYears': int.tryParse(warrantyYears.trim()) ?? 0,
+        'warrantyStartDate':
+            years > 0 ? DateTime.now().toUtc().toIso8601String() : null,
+        'warrantyDurationYears': years,
         'assetDetails': {
           'poNumber': poNumber,
           'invoiceNumber': invoiceNumber,
@@ -141,14 +150,4 @@ Map<String, dynamic> _docEntry(SolarFileRef file, String fallbackType) {
   return file.isRemote
       ? {'documentType': documentType, 'remoteId': file.remoteId ?? file.path}
       : {'documentType': documentType, 'localPath': file.localPath ?? file.path};
-}
-
-int _parseDateMillis(String value) {
-  final parsed = DateTime.tryParse(value.trim());
-  return (parsed ?? DateTime.now()).millisecondsSinceEpoch;
-}
-
-int _parseWarrantyYears(String value) {
-  final match = RegExp(r'\d+').firstMatch(value);
-  return match == null ? 0 : int.parse(match.group(0)!);
 }

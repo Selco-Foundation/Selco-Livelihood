@@ -2,6 +2,7 @@ import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../data/nosql/cache_activity_facility_workflow.dart';
+import '../data/nosql/cache_asset_count.dart';
 import '../data/nosql/cache_installation_data.dart';
 import '../data/nosql/cache_submission_job.dart';
 import '../data/nosql/localization.dart';
@@ -32,6 +33,7 @@ class Constants {
           CacheActivityFacilityWorkflowSchema,
           CacheInstallationDataSchema,
           CacheSubmissionJobSchema,
+          CacheAssetCountSchema,
         ],
         name: 'Livelihood',
         inspector: true,

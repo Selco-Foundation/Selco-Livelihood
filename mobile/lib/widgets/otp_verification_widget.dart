@@ -83,13 +83,13 @@ class _OtpVerificationWidgetState extends State<OtpVerificationWidget> {
   }
 
   Future<void> _verify() async {
-    final otp = _controller.text.trim();
-    if (otp.isEmpty) {
+    if (_controller.text.trim().isEmpty) {
       _showMessage(context.translate(i18.machineForm.otpRequired));
       return;
     }
     setState(() => _isBusy = true);
-    final result = await _repository.validate(widget.activityFacilityId, otp);
+    final result =
+        await _repository.validate(widget.activityFacilityId, _controller.text.trim());
     if (!mounted) return;
     setState(() => _isBusy = false);
     _setVerified(result.success);
@@ -103,22 +103,6 @@ class _OtpVerificationWidgetState extends State<OtpVerificationWidget> {
     final theme = Theme.of(context);
     final textTheme = theme.digitTextTheme(context);
     final prefix = widget.keyPrefix;
-
-    if (!_otpRequested) {
-      return LabeledField(
-        label: widget.label,
-        capitalizedFirstLetter: false,
-        child: DigitButton(
-          key: ValueKey('$prefix-request-otp-button'),
-          mainAxisSize: MainAxisSize.max,
-          label: context.translate(i18.machineForm.requestOtp),
-          onPressed: () => _requestOtp(),
-          isDisabled: _isBusy,
-          type: DigitButtonType.secondary,
-          size: DigitButtonSize.large,
-        ),
-      );
-    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,30 +150,16 @@ class _OtpVerificationWidgetState extends State<OtpVerificationWidget> {
           ),
         ],
         const SizedBox(height: spacer2),
-        Wrap(
-          alignment: WrapAlignment.end,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: spacer4,
-          children: [
-            DigitButton(
-              key: ValueKey('$prefix-resend-otp-button'),
-              label: context.translate(i18.machineForm.resendOtp),
-              onPressed: () => _resendOtp(),
-              isDisabled: _isBusy,
-              type: DigitButtonType.tertiary,
-              size: DigitButtonSize.medium,
-              textColor: theme.colorTheme.primary.primary1,
-            ),
-            DigitButton(
-              key: ValueKey('$prefix-request-otp-button'),
-              label: context.translate(i18.machineForm.requestOtp),
-              onPressed: () => _requestOtp(),
-              isDisabled: _isBusy,
-              type: DigitButtonType.tertiary,
-              size: DigitButtonSize.medium,
-              textColor: theme.colorTheme.primary.primary1,
-            ),
-          ],
+        DigitButton(
+          key: ValueKey('$prefix-otp-request-resend-button'),
+          label: context.translate(_otpRequested
+              ? i18.machineForm.resendOtp
+              : i18.machineForm.requestOtp),
+          onPressed: () => _otpRequested ? _resendOtp() : _requestOtp(),
+          isDisabled: _isBusy,
+          type: DigitButtonType.tertiary,
+          size: DigitButtonSize.medium,
+          textColor: theme.colorTheme.primary.primary1,
         ),
       ],
     );

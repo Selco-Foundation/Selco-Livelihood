@@ -19,6 +19,7 @@ import '../model/mdms/common_masters.dart';
 import '../repositories/installation_cache_repo.dart';
 import '../repositories/installation_draft_repository.dart';
 import '../repositories/asset_mdms_repository.dart';
+import '../repositories/asset_progress_repo.dart';
 import '../router/app_router.dart';
 import '../utils/submission_payload.dart';
 import '../widgets/file_upload_widget.dart';
@@ -225,8 +226,17 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                             draft.completeFor(draft.applicableTypes[index]),
                         lastCard: index == draft.applicableTypes.length - 1,
                         onCountChanged: (count) => setState(() {
-                          draft.setCount(draft.applicableTypes[index], count);
+                          final type = draft.applicableTypes[index];
+                          draft.setCount(type, count);
                           installationDraftRepository.saveSolarSoon(draft);
+                          final activityFacilityId = draft.workflow.activityFacility.id;
+                          if (count > 0 && activityFacilityId != null) {
+                            unawaited(assetProgressRepository.recordStep(
+                              activityFacilityId: activityFacilityId,
+                              assetType: type.name,
+                              step: 1,
+                            ));
+                          }
                         }),
                         onSummary: () => _openAssetSummary(
                           draft.applicableTypes[index],

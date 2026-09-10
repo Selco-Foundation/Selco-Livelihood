@@ -219,6 +219,8 @@ class AssetFlow {
   String get unit => 'ASSET_FLOW_UNIT';
   String get details => 'ASSET_FLOW_DETAILS';
   String get warrantyStartDate => 'ASSET_FLOW_WARRANTY_START_DATE';
+  String get warrantyStartDateDefaultToday =>
+      'ASSET_FLOW_WARRANTY_START_DATE_DEFAULT_TODAY';
   String get warrantyDuration => 'ASSET_FLOW_WARRANTY_DURATION';
   String get brand => 'ASSET_FLOW_BRAND';
   String get serialNumber => 'ASSET_FLOW_SERIAL_NUMBER';

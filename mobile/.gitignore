@@ -31,6 +31,13 @@ migrate_working_dir/
 .pub/
 /build/
 
+# Isar's native core, copied into the project root by
+# test/flutter_test_config.dart so `flutter test` can exercise real Isar
+# behavior — regenerated automatically, never hand-authored.
+/libisar.dylib
+/libisar.so
+/isar.dll
+
 # Symbolication related
 app.*.symbols
 

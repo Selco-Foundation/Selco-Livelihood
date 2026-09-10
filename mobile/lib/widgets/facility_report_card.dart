@@ -132,9 +132,30 @@ class _NewReportActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return FutureBuilder<double>(
+      future: workflow.installationProgress(),
+      builder: (context, snapshot) {
+        // Defaults to 0 while loading — never shows a stale/full bar before
+        // the local cache-derived fraction resolves.
+        return _NewReportProgress(
+          progress: snapshot.data ?? 0.0,
+          onAction: onAction,
+        );
+      },
+    );
+  }
+}
+
+class _NewReportProgress extends StatelessWidget {
+  const _NewReportProgress({required this.progress, required this.onAction});
+
+  final double progress;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final textTheme = theme.digitTextTheme(context);
-    final progress = workflow.installationProgress;
     final percent = (progress * 100).round();
 
     return Column(

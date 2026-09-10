@@ -15,13 +15,20 @@ typedef ImageUploaderPick = Future<XFile?> Function(
 );
 typedef ImageUploaderPickMultiple = Future<List<XFile>> Function();
 
-/// In-memory adaptation of E4H's shared image uploader.
+/// In-memory adaptation of E4H's shared image uploader. Matches E4H's API
+/// exactly: incoming/outgoing data is always list-based via
+/// `initialImages`/`onImagesSelected`, regardless of `allowMultiples` —
+/// which only affects *behavior* (hide the upload control once one image
+/// exists in single mode; replace vs. append on new picks), never which
+/// prop carries the data. A prior singular `initialImage`/`onImageSelected`
+/// variant existed here and caused a real bug: in single-image mode it was
+/// read instead of `initialImages`, so a caller that only ever populated
+/// `initialImages` (as every caller here does) saw its freshly-picked image
+/// wiped back to empty on the very next rebuild.
 class ImageUploader extends StatefulWidget {
   const ImageUploader({
     super.key,
-    this.onImageSelected,
-    this.onImagesSelected,
-    this.initialImage,
+    required this.onImagesSelected,
     this.initialImages,
     this.pickMedia,
     this.pickMultiple,
@@ -31,12 +38,10 @@ class ImageUploader extends StatefulWidget {
     this.maxImages,
     this.isDisabled = false,
     this.permissionGateway,
-  }) : assert(onImageSelected != null || onImagesSelected != null);
+  });
 
-  final SolarFileRef? initialImage;
   final List<SolarFileRef>? initialImages;
-  final ValueChanged<SolarFileRef?>? onImageSelected;
-  final ValueChanged<List<SolarFileRef>>? onImagesSelected;
+  final ValueChanged<List<SolarFileRef>> onImagesSelected;
   final ImageUploaderPick? pickMedia;
   final ImageUploaderPickMultiple? pickMultiple;
   final String? label;
@@ -68,9 +73,8 @@ class _ImageUploaderState extends State<ImageUploader> {
     if (_paths(incoming) != _paths(images)) images = incoming;
   }
 
-  List<SolarFileRef> _incomingImages() => widget.allowMultiples
-      ? List<SolarFileRef>.of(widget.initialImages ?? const [])
-      : [if (widget.initialImage != null) widget.initialImage!];
+  List<SolarFileRef> _incomingImages() =>
+      List<SolarFileRef>.of(widget.initialImages ?? const []);
 
   String _paths(List<SolarFileRef> value) =>
       value.map((file) => file.path).join('\u0000');
@@ -148,8 +152,7 @@ class _ImageUploaderState extends State<ImageUploader> {
   }
 
   void _notify() {
-    widget.onImagesSelected?.call(List<SolarFileRef>.of(images));
-    widget.onImageSelected?.call(images.isEmpty ? null : images.first);
+    widget.onImagesSelected(List<SolarFileRef>.of(images));
   }
 
   void _openPicker() {

@@ -303,7 +303,7 @@ Future<void> _performSubmission({
       'vendorId': vendorId,
       'isOperational': true,
       'isActive': true,
-      'warrantyStartDate': asset['warrantyStartDateMillis'],
+      'warrantyStartDate': asset['warrantyStartDate'],
       'warrantyDuration': asset['warrantyDurationYears'],
       'assetDetails': asset['assetDetails'],
       'documents': documents,

@@ -1,3 +1,4 @@
+import '../repositories/asset_progress_repo.dart';
 import '../utils/boundary_code.dart';
 import 'activity_facility_workflow/activity_facility_workflow.dart';
 
@@ -38,8 +39,15 @@ extension FacilityReportPresentation on ActivityFacilityWorkflow {
   BoundaryLocality get facilityLocality =>
       BoundaryLocality.parse(activityFacility.facility?.boundaryCode);
 
-  double get installationProgress =>
-      activityFacility.completedAt != null ? 1 : 0;
+  /// Fraction of the asset-filling flow completed so far, computed from
+  /// local cache fill-state (see `AssetProgressRepository`) rather than any
+  /// backend flag — matches E4H's `_fractionForProject`. A facility nobody
+  /// has started filling in yet is genuinely `0.0`.
+  Future<double> installationProgress() {
+    final id = activityFacility.id;
+    if (id == null) return Future.value(0.0);
+    return assetProgressRepository.fractionFor(id);
+  }
 
   FacilityAssetCategory get resolvedAssetCategory =>
       activityFacility.additionalDetails?.componentType?.trim().toUpperCase() ==

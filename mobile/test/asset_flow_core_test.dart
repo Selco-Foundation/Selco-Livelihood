@@ -19,6 +19,7 @@ import 'package:livelihood/repositories/operation_progress_repo.dart';
 import 'package:livelihood/utils/envConfig.dart';
 import 'package:livelihood/utils/dynamic_form_schema.dart';
 import 'package:livelihood/utils/operation_progress.dart';
+import 'package:livelihood/utils/warranty.dart';
 
 void main() {
   setUpAll(() async => envConfig.initialize());
@@ -485,6 +486,12 @@ void main() {
 
     await sub.cancel();
     await bloc.close();
+  });
+
+  test('parseWarrantyYears extracts the leading digit count', () {
+    expect(parseWarrantyYears('2 Years'), 2);
+    expect(parseWarrantyYears('10 Years'), 10);
+    expect(parseWarrantyYears('No warranty'), 0);
   });
 }
 

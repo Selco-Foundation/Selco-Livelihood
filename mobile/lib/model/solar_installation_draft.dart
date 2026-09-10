@@ -115,7 +115,6 @@ class SolarAssetDraft {
   String system = '';
   String totalCapacity = '';
   String capacityUnit = '';
-  String warrantyStartDate = '';
   String warrantyDuration = '';
   final List<SolarAssetEntry> assets = [];
   final List<SolarFileRef> images = [];

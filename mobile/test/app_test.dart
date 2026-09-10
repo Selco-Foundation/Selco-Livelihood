@@ -1276,6 +1276,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(MachineFormPage), findsOneWidget);
     expect(find.text(tr(i18.machineForm.machineReportTitle)), findsOneWidget);
+
+    // Each `pumpNewReports()` call above renders facility cards whose
+    // progress bar starts a real Isar `.timeout()` guard (now genuinely
+    // exercised — see `test/flutter_test_config.dart`); navigating away
+    // before those resolve leaves them "pending" at test end otherwise.
+    await tester.pump(const Duration(seconds: 3));
   });
 
   testWidgets('overall summary shows all E4H BOM buttons in order', (
@@ -1428,7 +1434,7 @@ void main() {
     expect(find.byKey(const ValueKey('solar-otp-widget')), findsOneWidget);
 
     final requestButton =
-        find.byKey(const ValueKey('solar-request-otp-button'));
+        find.byKey(const ValueKey('solar-otp-request-resend-button'));
     final requestCenter = tester.getCenter(requestButton);
     await tester.drag(
       find.byType(CustomScrollView),
@@ -1751,20 +1757,21 @@ void main() {
     tester,
   ) async {
     setMobileViewport(tester, const Size(390, 844));
-    SolarFileRef? selected;
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: DigitTheme.instance.mobileTheme,
-        home: Scaffold(
-          body: ImageUploader(
-            label: 'Click to add photo',
-            initialImage: selected,
-            pickMedia: (_, __) async => XFile('/tmp/supporting-photo.jpg'),
-            onImageSelected: (file) => selected = file,
+    var selected = <SolarFileRef>[];
+
+    Widget buildUploader() => MaterialApp(
+          theme: DigitTheme.instance.mobileTheme,
+          home: Scaffold(
+            body: ImageUploader(
+              label: 'Click to add photo',
+              initialImages: selected,
+              pickMedia: (_, __) async => XFile('/tmp/supporting-photo.jpg'),
+              onImagesSelected: (files) => selected = files,
+            ),
           ),
-        ),
-      ),
-    );
+        );
+
+    await tester.pumpWidget(buildUploader());
 
     final empty = tester.widget<Container>(
       find.byKey(const ValueKey('image-uploader-empty')),
@@ -1782,6 +1789,18 @@ void main() {
 
     expect(
         find.byKey(const ValueKey('image-uploader-preview')), findsOneWidget);
+    expect(selected, hasLength(1));
+
+    // Regression check: a real single-image caller (e.g.
+    // `InstallationImagesPage` for a `requiredCount == 1` requirement)
+    // rebuilds the uploader with the now-updated `initialImages` right
+    // after the callback fires — this used to wipe the just-picked image
+    // back to empty (see `image_uploader.dart` doc comment).
+    await tester.pumpWidget(buildUploader());
+    await tester.pump();
+    expect(
+        find.byKey(const ValueKey('image-uploader-preview')), findsOneWidget);
+
     final closeInk = tester.widget<InkWell>(
       find.byKey(const ValueKey('image-uploader-remove')),
     );
@@ -1791,7 +1810,7 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('image-uploader-remove')));
     await tester.pump();
-    expect(selected, isNull);
+    expect(selected, isEmpty);
     expect(find.byKey(const ValueKey('image-uploader-empty')), findsOneWidget);
   });
 
@@ -1878,11 +1897,9 @@ void main() {
       ),
     );
 
-    // Initial state: only the "Request OTP" action is visible.
-    expect(find.byKey(const ValueKey('test-otp-field')), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('test-request-otp-button')));
-    await tester.pump();
-    expect(fakeRepo.generateCalls, 1);
+    // OTP field + Verify are always visible; the toggle starts as "Request OTP".
+    expect(find.byKey(const ValueKey('test-otp-field')), findsOneWidget);
+    expect(find.text(tr(i18.machineForm.requestOtp)), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('test-verify-otp-button')));
     await tester.pump();
@@ -1912,17 +1929,25 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('test-verify-otp-button')));
     await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('test-resend-otp-button')));
+    expect(verificationChanges, [isTrue, isFalse, isTrue]);
+
+    // Toggle still reads "Request OTP" until tapped once.
+    final toggleButton =
+        find.byKey(const ValueKey('test-otp-request-resend-button'));
+    await tester.tap(toggleButton);
     await tester.pump();
+    expect(fakeRepo.generateCalls, 1);
+    expect(find.text(tr(i18.machineForm.otpRequestSent)), findsOneWidget);
+    expect(find.text(tr(i18.machineForm.resendOtp)), findsOneWidget);
+
+    // Toggle now reads "Resend OTP" — tapping it calls resend, not generate.
+    await tester.tap(toggleButton);
+    await tester.pump();
+    expect(fakeRepo.resendCalls, 1);
+    expect(fakeRepo.generateCalls, 1);
     expect(verificationChanges, [isTrue, isFalse, isTrue, isFalse]);
     expect(tester.widget<EditableText>(input).controller.text, isEmpty);
     expect(find.text(tr(i18.machineForm.otpResent)), findsOneWidget);
-    expect(fakeRepo.resendCalls, 1);
-
-    // "Request OTP" stays available alongside "Resend OTP" once requested.
-    await tester.tap(find.byKey(const ValueKey('test-request-otp-button')));
-    await tester.pump();
-    expect(fakeRepo.generateCalls, 2);
   });
 
   testWidgets('shared OTP widget surfaces a failed request/verify message', (
@@ -1949,11 +1974,11 @@ void main() {
     );
 
     await tester.tap(
-        find.byKey(const ValueKey('test-fail-request-otp-button')));
+        find.byKey(const ValueKey('test-fail-otp-request-resend-button')));
     await tester.pump();
     expect(find.text(tr(i18.machineForm.otpRequestFailed)), findsOneWidget);
-    // A failed generate keeps the widget in its pre-request state.
-    expect(find.byKey(const ValueKey('test-fail-otp-field')), findsNothing);
+    // A failed generate keeps the toggle reading "Request OTP".
+    expect(find.text(tr(i18.machineForm.requestOtp)), findsOneWidget);
   });
 
   testWidgets('solar asset summary has edit controls only when editable', (
@@ -2085,8 +2110,9 @@ void main() {
     expect(find.byKey(const ValueKey('end-user-photo-picker')), findsOneWidget);
     expect(find.byKey(const ValueKey('trained-yes')), findsOneWidget);
     expect(find.byKey(const ValueKey('trained-no')), findsOneWidget);
-    expect(find.byKey(const ValueKey('machine-request-otp-button')),
+    expect(find.byKey(const ValueKey('machine-otp-request-resend-button')),
         findsOneWidget);
+    expect(find.byKey(const ValueKey('machine-otp-field')), findsOneWidget);
 
     final submit = tester.widget<DigitButton>(
       find.byKey(const ValueKey('submit-machine-report-button')),
@@ -2349,13 +2375,6 @@ void main() {
     await scrollIntoView(find.byKey(const ValueKey('trained-no')));
     await tester.tap(find.byKey(const ValueKey('trained-no')));
     await tester.pump();
-    await scrollIntoView(
-      find.byKey(const ValueKey('machine-request-otp-button')),
-    );
-    await tester.tap(
-      find.byKey(const ValueKey('machine-request-otp-button')),
-    );
-    await tester.pump();
     expect(find.byKey(const ValueKey('machine-otp-field')), findsOneWidget);
     expect(
       tester
@@ -2400,16 +2419,37 @@ void main() {
     // the bottom of the screen and would otherwise cover the fixed footer's
     // submit button below.
     await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+
+    // The "OTP verified" SnackBar sits at the bottom of the screen and
+    // overlaps this page's fixed (non-Scaffold-managed) footer button —
+    // clear it explicitly rather than relying on its auto-dismiss timing.
+    ScaffoldMessenger.of(tester.element(find.byType(Scaffold).first))
+        .clearSnackBars();
+    await tester.pumpAndSettle();
 
     // Tapping submit hands off to the background submission service and the
     // sync-loading screen (see `sync_loading.dart`); actually driving that
     // service to completion isn't exercisable under `flutter test` (no
     // platform channel for `flutter_background_service`), so this only
-    // verifies the handoff, not the full submission outcome.
-    await tester.tap(
-      find.byKey(const ValueKey('submit-machine-report-button')),
-    );
-    await tester.pumpAndSettle();
+    // verifies the handoff, not the full submission outcome. `SyncLoadingPage`
+    // dispatches `SubmitAll`, which (once the platform-channel call fails, as
+    // expected here) writes a failure via real Isar I/O
+    // (`OperationProgressRepository`, now genuinely available under
+    // `flutter test` — see `test/flutter_test_config.dart`). `runAsync` lets
+    // that real async chain actually finish in real time — under bare
+    // `pump`/`pumpAndSettle`, FakeAsync's virtual clock can leave its
+    // `.timeout()` Timer "pending" past the end of the test.
+    await tester.runAsync(() async {
+      await tester.tap(
+        find.byKey(const ValueKey('submit-machine-report-button')),
+      );
+      await tester.pumpAndSettle();
+      // Give the bloc's live Isar watch subscription (started by this
+      // submission) time to fully establish and its connection-timeout
+      // guard time to resolve/cancel, all still in real time.
+      await Future<void>.delayed(const Duration(seconds: 1));
+    });
     expect(find.byKey(const ValueKey('sync-loading-page')), findsOneWidget);
   });
 
@@ -2514,6 +2554,13 @@ void main() {
         );
       }
     }
+
+    // Each report-list page above renders facility cards whose progress bar
+    // and cache reads start real Isar `.timeout()` guards (now genuinely
+    // exercised — see `test/flutter_test_config.dart`); moving to the next
+    // page/size before those resolve leaves them "pending" at test end
+    // otherwise.
+    await tester.pump(const Duration(seconds: 3));
   });
 
   testWidgets(

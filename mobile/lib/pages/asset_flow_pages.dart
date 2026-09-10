@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:digit_ui_components/digit_components.dart';
+import 'package:digit_ui_components/theme/TextTheme/digit_text_theme.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:digit_ui_components/widgets/atoms/input_wrapper.dart';
 import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
@@ -11,9 +14,11 @@ import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
 import '../model/solar_installation_draft.dart';
 import '../router/app_router.dart';
+import '../repositories/asset_progress_repo.dart';
 import '../repositories/installation_cache_repo.dart';
 import '../repositories/installation_draft_repository.dart';
 import '../utils/app_permission_gateway.dart';
+import '../utils/warranty.dart';
 import '../widgets/image_uploader.dart';
 import '../widgets/solar_workflow_widgets.dart';
 import '../widgets/video_uploader.dart';
@@ -21,6 +26,22 @@ import 'digit_scanner_page.dart';
 import 'media_viewer.dart';
 
 typedef SolarScanSerial = Future<String?> Function(BuildContext context);
+
+/// Records the highest wizard step reached for one asset type — see
+/// `AssetProgressRepository` (mirrors E4H's per-type `CacheAssetCount`).
+void _recordAssetProgress(
+  SolarInstallationDraft draft,
+  SolarAssetType assetType,
+  int step,
+) {
+  final activityFacilityId = draft.workflow.activityFacility.id;
+  if (activityFacilityId == null) return;
+  unawaited(assetProgressRepository.recordStep(
+    activityFacilityId: activityFacilityId,
+    assetType: assetType.name,
+    step: step,
+  ));
+}
 
 @RoutePage()
 class AssetCountPage extends StatefulWidget {
@@ -213,14 +234,17 @@ class _SpecificationPageState extends State<SpecificationPage> {
       stepIndex: 2,
       footer: SolarFooterButton(
         label: context.translate(i18.common.next),
-        onPressed: () => context.router.push(
-          AssetTypeDetailRoute(
-            draft: draft,
-            assetType: assetType,
-            pickMedia: widget.pickMedia,
-            scanSerial: widget.scanSerial,
-          ),
-        ),
+        onPressed: () {
+          _recordAssetProgress(draft, assetType, 2);
+          context.router.push(
+            AssetTypeDetailRoute(
+              draft: draft,
+              assetType: assetType,
+              pickMedia: widget.pickMedia,
+              scanSerial: widget.scanSerial,
+            ),
+          );
+        },
       ),
       child: DigitCard(
         key: const ValueKey('solar-specification-card'),
@@ -238,26 +262,16 @@ class _SpecificationPageState extends State<SpecificationPage> {
             children: [
               Expanded(
                 flex: 3,
-                child: _OptionOrReadOnlyField(
+                child: _ReadOnlyField(
                   label: context.translate(i18.assetFlow.totalCapacity),
                   value: asset.totalCapacity,
-                  options: asset.formOptions['total_capacity'] ?? const [],
-                  onChanged: (value) => setState(() {
-                    asset.totalCapacity = value;
-                    installationDraftRepository.saveSolarSoon(draft);
-                  }),
                 ),
               ),
               const SizedBox(width: spacer6),
               Expanded(
-                child: _OptionOrReadOnlyField(
+                child: _ReadOnlyField(
                   label: context.translate(i18.assetFlow.unit),
                   value: asset.capacityUnit,
-                  options: asset.formOptions['total_capacity_uom'] ?? const [],
-                  onChanged: (value) => setState(() {
-                    asset.capacityUnit = value;
-                    installationDraftRepository.saveSolarSoon(draft);
-                  }),
                 ),
               ),
             ],
@@ -299,14 +313,17 @@ class _AssetTypeDetailPageState extends State<AssetTypeDetailPage> {
       footer: SolarFooterButton(
         label: context.translate(i18.common.next),
         isDisabled: !asset.detailsComplete,
-        onPressed: () => context.router.push(
-          AddNewAssetRoute(
-            draft: widget.draft,
-            assetType: widget.assetType,
-            pickMedia: widget.pickMedia,
-            scanSerial: widget.scanSerial,
-          ),
-        ),
+        onPressed: () {
+          _recordAssetProgress(widget.draft, widget.assetType, 3);
+          context.router.push(
+            AddNewAssetRoute(
+              draft: widget.draft,
+              assetType: widget.assetType,
+              pickMedia: widget.pickMedia,
+              scanSerial: widget.scanSerial,
+            ),
+          );
+        },
       ),
       child: DigitCard(
         key: const ValueKey('solar-asset-details-card'),
@@ -317,9 +334,16 @@ class _AssetTypeDetailPageState extends State<AssetTypeDetailPage> {
               color: theme.colorTheme.primary.primary2,
             ),
           ),
-          _ReadOnlyField(
+          LabeledField(
             label: context.translate(i18.assetFlow.warrantyStartDate),
-            value: asset.warrantyStartDate,
+            capitalizedFirstLetter: false,
+            child: DigitDateFormInput(
+              controller: TextEditingController(),
+              initialValue:
+                  context.translate(i18.assetFlow.warrantyStartDateDefaultToday),
+              isDisabled: true,
+              readOnly: true,
+            ),
           ),
           LabeledField(
             label: context.translate(i18.assetFlow.warrantyDuration),
@@ -329,12 +353,15 @@ class _AssetTypeDetailPageState extends State<AssetTypeDetailPage> {
               key: const ValueKey('solar-warranty-dropdown'),
               sentenceCaseEnabled: false,
               selectedOption: DropdownItem(
-                name: asset.warrantyDuration,
+                name: parseWarrantyYears(asset.warrantyDuration).toString(),
                 code: asset.warrantyDuration,
               ),
               items: widget.draft
                   .warrantiesFor(widget.assetType)
-                  .map((value) => DropdownItem(name: value, code: value))
+                  .map((value) => DropdownItem(
+                        name: parseWarrantyYears(value).toString(),
+                        code: value,
+                      ))
                   .toList(),
               onSelect: (item) => setState(() {
                 asset.warrantyDuration = item.code;
@@ -342,14 +369,9 @@ class _AssetTypeDetailPageState extends State<AssetTypeDetailPage> {
               }),
             ),
           ),
-          _OptionOrReadOnlyField(
+          _ReadOnlyField(
             label: context.translate(i18.assetFlow.brand),
             value: asset.selectedBrandCode ?? '',
-            options: widget.draft.brandsFor(widget.assetType),
-            onChanged: (value) => setState(() {
-              asset.selectedBrandCode = value;
-              installationDraftRepository.saveSolarSoon(widget.draft);
-            }),
           ),
         ],
       ),
@@ -385,6 +407,25 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
         if (mounted) requestAssetWorkflowPermissions(context);
       });
     }
+    // Mirrors E4H's `_applyPrefilledCapacityToAllAssets`: every unit of this
+    // type shares the same capacity, sourced from the facility's
+    // additionalDetails rather than user entry.
+    final capacity = _prefilledCapacityFor(widget.assetType);
+    if (capacity.isNotEmpty) {
+      for (final entry in widget.draft.assets[widget.assetType]!.assets) {
+        if (entry.capacity.isEmpty) entry.capacity = capacity;
+      }
+    }
+  }
+
+  String _prefilledCapacityFor(SolarAssetType type) {
+    final details = widget.draft.workflow.activityFacility.additionalDetails;
+    final map = switch (type) {
+      SolarAssetType.battery => details?.battery,
+      SolarAssetType.inverter => details?.inverter,
+      SolarAssetType.panel => details?.panel,
+    };
+    return (map?['capacity'] ?? '').toString();
   }
 
   Future<void> _scan(int index) async {
@@ -415,16 +456,23 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
       footer: SolarFooterButton(
         label: context.translate(i18.common.next),
         isDisabled: !complete,
-        onPressed: () => context.router.push(
-          MediaUploadRoute(
-            draft: widget.draft,
-            assetType: widget.assetType,
-            pickMedia: widget.pickMedia,
-          ),
-        ),
+        onPressed: () {
+          _recordAssetProgress(widget.draft, widget.assetType, 4);
+          context.router.push(
+            MediaUploadRoute(
+              draft: widget.draft,
+              assetType: widget.assetType,
+              pickMedia: widget.pickMedia,
+            ),
+          );
+        },
       ),
       child: Column(
         children: [
+          if (widget.assetType == SolarAssetType.battery)
+            _batteryCapacityCard(theme, textTheme, assetDraft),
+          if (widget.assetType == SolarAssetType.panel)
+            _panelCapacityCard(theme, textTheme, assetDraft),
           for (final indexed in entries.asMap().entries)
             Padding(
               padding: const EdgeInsets.only(bottom: spacer4),
@@ -492,10 +540,14 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
                     capitalizedFirstLetter: false,
                     child: ImageUploader(
                       key: ValueKey('solar-photo-${indexed.key}'),
-                      initialImage: indexed.value.supportingPhoto,
+                      initialImages: [
+                        if (indexed.value.supportingPhoto != null)
+                          indexed.value.supportingPhoto!,
+                      ],
                       label: 'Click to add photo',
                       pickMedia: widget.pickMedia,
-                      onImageSelected: (file) async {
+                      onImagesSelected: (files) async {
+                        final file = files.isEmpty ? null : files.last;
                         final persisted = file == null
                             ? null
                             : await installationCacheRepository.persistMediaRef(
@@ -509,57 +561,89 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
                       },
                     ),
                   ),
-                  _OptionOrReadOnlyField(
-                    label: context.translate(i18.assetFlow.capacity),
-                    value: indexed.value.capacity.split(' ').first,
-                    options: assetDraft.formOptions['capacity'] ?? const [],
-                    onChanged: (value) => setState(() {
-                      final units = assetDraft.formOptions['capacity_uom'];
-                      indexed.value.capacity =
-                          '$value${units?.isNotEmpty == true ? ' ${units!.first}' : ''}';
-                      installationDraftRepository.saveSolarSoon(widget.draft);
-                    }),
-                  ),
-                  if (assetDraft.typeOptions.isNotEmpty)
-                    _OptionOrReadOnlyField(
-                      label: context.translate(i18.assetFlow.assetType),
-                      value: indexed.value.fields['type']?.toString() ??
-                          assetDraft.typeOptions.first,
-                      options: assetDraft.typeOptions,
-                      onChanged: (value) => setState(() {
-                        indexed.value.fields['type'] = value;
-                        installationDraftRepository.saveSolarSoon(widget.draft);
-                      }),
-                    ),
-                  for (final field in assetDraft.formOptions.entries.where(
-                    (field) =>
-                        !const {
-                          'total_capacity',
-                          'total_capacity_uom',
-                          'capacity',
-                          'capacity_uom',
-                        }.contains(field.key) &&
-                        !field.key.endsWith('_uom'),
-                  ))
-                    _OptionOrReadOnlyField(
-                      label: field.key.replaceAll('_', ' '),
-                      value: indexed.value.fields[field.key]?.toString() ??
-                          field.value.first,
-                      options: field.value,
-                      onChanged: (value) => setState(() {
-                        indexed.value.fields[field.key] = value;
-                        final units =
-                            assetDraft.formOptions['${field.key}_uom'];
-                        if (units?.isNotEmpty == true) {
-                          indexed.value.fields['${field.key}_uom'] =
-                              units!.first;
-                        }
-                        installationDraftRepository.saveSolarSoon(widget.draft);
-                      }),
+                  if (widget.assetType == SolarAssetType.inverter)
+                    _ReadOnlyField(
+                      label: context.translate(i18.assetFlow.capacity),
+                      value: _prefilledCapacityFor(SolarAssetType.inverter),
                     ),
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  /// Shared, once-per-batch card (not per unit) — mirrors E4H's
+  /// `_batteryCapacity`: a "Type" dropdown that applies to every unit of
+  /// this type at once, plus a disabled capacity field prefilled from the
+  /// facility's additionalDetails.
+  Widget _batteryCapacityCard(
+    ThemeData theme,
+    DigitTextTheme textTheme,
+    SolarAssetDraft assetDraft,
+  ) {
+    final selectedType = assetDraft.assets.isNotEmpty
+        ? assetDraft.assets.first.fields['type']?.toString() ?? ''
+        : '';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: spacer4),
+      child: DigitCard(
+        key: const ValueKey('solar-battery-capacity-card'),
+        children: [
+          Text(
+            '${widget.draft.labelFor(widget.assetType)} ${context.translate(i18.assetFlow.capacity)}',
+            style: textTheme.headingXl
+                .copyWith(color: theme.colorTheme.primary.primary2),
+          ),
+          LabeledField(
+            label:
+                '${widget.draft.labelFor(widget.assetType)} ${context.translate(i18.assetFlow.assetType)}',
+            capitalizedFirstLetter: false,
+            child: DigitDropdown(
+              key: const ValueKey('solar-battery-type-dropdown'),
+              sentenceCaseEnabled: false,
+              selectedOption: DropdownItem(name: selectedType, code: selectedType),
+              items: assetDraft.typeOptions
+                  .map((type) => DropdownItem(name: type, code: type))
+                  .toList(),
+              onSelect: (item) => setState(() {
+                for (final entry in assetDraft.assets) {
+                  entry.fields['type'] = item.code;
+                }
+                installationDraftRepository.saveSolarSoon(widget.draft);
+              }),
+            ),
+          ),
+          _ReadOnlyField(
+            label: context.translate(i18.assetFlow.capacity),
+            value: _prefilledCapacityFor(SolarAssetType.battery),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Shared, once-per-batch card — mirrors E4H's `_panelCapacity`.
+  Widget _panelCapacityCard(
+    ThemeData theme,
+    DigitTextTheme textTheme,
+    SolarAssetDraft assetDraft,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: spacer4),
+      child: DigitCard(
+        key: const ValueKey('solar-panel-capacity-card'),
+        children: [
+          Text(
+            '${widget.draft.labelFor(widget.assetType)} ${context.translate(i18.assetFlow.capacity)}',
+            style: textTheme.headingXl
+                .copyWith(color: theme.colorTheme.primary.primary2),
+          ),
+          _ReadOnlyField(
+            label: context.translate(i18.assetFlow.capacity),
+            value: _prefilledCapacityFor(SolarAssetType.panel),
+          ),
         ],
       ),
     );
@@ -595,13 +679,16 @@ class _MediaUploadPageState extends State<MediaUploadPage> {
       footer: SolarFooterButton(
         label: context.translate(i18.common.next),
         isDisabled: asset.images.isEmpty,
-        onPressed: () => context.router.push(
-          AssetSummaryRoute(
-            draft: widget.draft,
-            assetType: widget.assetType,
-            pickMedia: widget.pickMedia,
-          ),
-        ),
+        onPressed: () {
+          _recordAssetProgress(widget.draft, widget.assetType, 5);
+          context.router.push(
+            AssetSummaryRoute(
+              draft: widget.draft,
+              assetType: widget.assetType,
+              pickMedia: widget.pickMedia,
+            ),
+          );
+        },
       ),
       child: Column(
         children: [
@@ -776,7 +863,7 @@ class AssetSummaryPage extends StatelessWidget {
             title: context.translate(i18.assetFlow.details),
             values: {
               context.translate(i18.assetFlow.warrantyStartDate):
-                  asset.warrantyStartDate,
+                  context.translate(i18.assetFlow.warrantyStartDateDefaultToday),
               context.translate(i18.assetFlow.warrantyDuration):
                   asset.warrantyDuration,
               context.translate(i18.assetFlow.brand):
@@ -879,39 +966,6 @@ class _ReadOnlyField extends StatelessWidget {
           keyboardType: TextInputType.none,
         ),
       );
-}
-
-class _OptionOrReadOnlyField extends StatelessWidget {
-  const _OptionOrReadOnlyField({
-    required this.label,
-    required this.value,
-    required this.options,
-    required this.onChanged,
-  });
-
-  final String label;
-  final String value;
-  final List<String> options;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    if (options.isEmpty) return _ReadOnlyField(label: label, value: value);
-    final selected = options.contains(value) ? value : options.first;
-    return LabeledField(
-      label: label,
-      isRequired: true,
-      capitalizedFirstLetter: false,
-      child: DigitDropdown(
-        sentenceCaseEnabled: false,
-        selectedOption: DropdownItem(name: selected, code: selected),
-        items: options
-            .map((item) => DropdownItem(name: item, code: item))
-            .toList(),
-        onSelect: (item) => onChanged(item.code),
-      ),
-    );
-  }
 }
 
 class _SummaryCard extends StatelessWidget {
