@@ -124,6 +124,20 @@ public class VendorMappedAssetResolver {
         return code != null ? code.toString() : null;
     }
 
+    /**
+     * Asset ids for the given asset types. Lets the inbox filter tickets by asset type using the
+     * incident's indexed assetId, with asset-registry staying the source of truth for the type.
+     */
+    public List<String> resolveAssetIdsByTypes(RequestInfo requestInfo, String tenantId, List<String> assetTypes) {
+        if (requestInfo == null || StringUtils.isBlank(tenantId) || CollectionUtils.isEmpty(assetTypes)) {
+            return Collections.emptyList();
+        }
+        Map<String, Object> criteria = new HashMap<>();
+        criteria.put("tenantId", tenantId);
+        criteria.put("assetType", assetTypes);
+        return new ArrayList<>(collectAssetIds(requestInfo, criteria));
+    }
+
     private Set<String> searchAssetIdsByVendorKeys(RequestInfo requestInfo, String tenantId, Set<String> vendorKeys) {
         Set<String> assetIds = new LinkedHashSet<>();
         if (CollectionUtils.isEmpty(vendorKeys) || StringUtils.isBlank(config.getAssetHost())) {
@@ -134,38 +148,43 @@ public class VendorMappedAssetResolver {
             if (StringUtils.isBlank(vendorKey)) {
                 continue;
             }
-            int offset = 0;
-            while (true) {
-                List<Map<String, Object>> page = searchAssetsPage(requestInfo, tenantId, vendorKey.trim(), offset);
-                if (CollectionUtils.isEmpty(page)) {
-                    break;
-                }
-                for (Map<String, Object> asset : page) {
-                    Object assetId = asset.get("assetId");
-                    if (assetId != null && StringUtils.isNotBlank(assetId.toString())) {
-                        assetIds.add(assetId.toString().trim());
-                    }
-                }
-                if (page.size() < ASSET_PAGE_SIZE) {
-                    break;
-                }
-                offset += ASSET_PAGE_SIZE;
+            Map<String, Object> criteria = new HashMap<>();
+            criteria.put("tenantId", tenantId);
+            criteria.put("vendorId", vendorKey.trim());
+            assetIds.addAll(collectAssetIds(requestInfo, criteria));
+        }
+        return assetIds;
+    }
+
+    private Set<String> collectAssetIds(RequestInfo requestInfo, Map<String, Object> criteria) {
+        Set<String> assetIds = new LinkedHashSet<>();
+        int offset = 0;
+        while (true) {
+            List<Map<String, Object>> page = searchAssetsPage(requestInfo, criteria, offset);
+            if (CollectionUtils.isEmpty(page)) {
+                break;
             }
+            for (Map<String, Object> asset : page) {
+                Object assetId = asset.get("assetId");
+                if (assetId != null && StringUtils.isNotBlank(assetId.toString())) {
+                    assetIds.add(assetId.toString().trim());
+                }
+            }
+            if (page.size() < ASSET_PAGE_SIZE) {
+                break;
+            }
+            offset += ASSET_PAGE_SIZE;
         }
         return assetIds;
     }
 
     private List<Map<String, Object>> searchAssetsPage(
-            RequestInfo requestInfo, String tenantId, String vendorId, int offset) {
+            RequestInfo requestInfo, Map<String, Object> criteria, int offset) {
         String uri = UriComponentsBuilder
                 .fromUriString(config.getAssetHost() + config.getAssetSearchPath())
                 .queryParam("limit", ASSET_PAGE_SIZE)
                 .queryParam("offset", offset)
                 .toUriString();
-
-        Map<String, Object> criteria = new HashMap<>();
-        criteria.put("tenantId", tenantId);
-        criteria.put("vendorId", vendorId);
 
         Map<String, Object> body = new HashMap<>();
         body.put("RequestInfo", requestInfo);
@@ -178,9 +197,9 @@ public class VendorMappedAssetResolver {
         } catch (CustomException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Failed to search assets for vendorId={} uri={}", vendorId, uri, e);
+            log.error("Failed to search assets for criteria={} uri={}", criteria, uri, e);
             throw new CustomException("ASSET_REGISTRY_ERROR",
-                    "Failed to search assets for vendor scope: " + e.getMessage());
+                    "Failed to search assets: " + e.getMessage());
         }
     }
 

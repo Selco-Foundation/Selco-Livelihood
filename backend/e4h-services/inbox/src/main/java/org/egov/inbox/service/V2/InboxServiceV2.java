@@ -102,6 +102,8 @@ public class InboxServiceV2 {
             applyVendorMappedAssetScope(inboxRequest);
         }
 
+        applyAssetTypeScope(inboxRequest);
+
         // Gestion du tenantId pour les vendors
         Object tenantIdFromRequest = inboxRequest.getInbox().getModuleSearchCriteria().get("tenantId");
         if (isVendor && tenantIdFromRequest instanceof String) {
@@ -827,6 +829,49 @@ public class InboxServiceV2 {
             moduleSearchCriteria.put(ASSET_ID_PARAM, mappedAssetIds);
             log.info("Vendor inbox scoped to {} mapped asset(s)", mappedAssetIds.size());
         }
+    }
+
+    /**
+     * Filters by asset type via the incident's indexed assetId, resolving the matching assets from
+     * asset-registry (the source of truth for the type). Gated to Livelihood — E4H shares this inbox.
+     */
+    private void applyAssetTypeScope(InboxRequest inboxRequest) {
+        HashMap<String, Object> moduleSearchCriteria = inboxRequest.getInbox().getModuleSearchCriteria();
+        if (!StringUtils.equalsIgnoreCase(inboxRequest.getInbox().getTenantId(), config.getLivelihoodTenantId())
+                || CollectionUtils.isEmpty(moduleSearchCriteria)
+                || !moduleSearchCriteria.containsKey(ASSET_TYPE_PARAM)) {
+            return;
+        }
+
+        List<String> assetTypes = asStringList(moduleSearchCriteria.remove(ASSET_TYPE_PARAM));
+        if (CollectionUtils.isEmpty(assetTypes)) {
+            return;
+        }
+
+        List<String> assetIds = vendorMappedAssetResolver.resolveAssetIdsByTypes(
+                inboxRequest.getRequestInfo(), inboxRequest.getInbox().getTenantId(), assetTypes);
+
+        // A vendor's mapped-asset scope is already narrower, so intersect rather than replace it.
+        List<String> vendorScopedAssetIds = asStringList(moduleSearchCriteria.get(ASSET_ID_PARAM));
+        if (!CollectionUtils.isEmpty(vendorScopedAssetIds)) {
+            assetIds = new ArrayList<>(assetIds);
+            assetIds.retainAll(new HashSet<>(vendorScopedAssetIds));
+        }
+
+        moduleSearchCriteria.put(ASSET_ID_PARAM, CollectionUtils.isEmpty(assetIds)
+                ? Collections.singletonList(NO_MAPPED_ASSETS_SENTINEL)
+                : assetIds);
+        log.info("Inbox scoped to {} asset(s) for assetTypes={}", assetIds.size(), assetTypes);
+    }
+
+    private List<String> asStringList(Object value) {
+        if (value instanceof Collection) {
+            return ((Collection<?>) value).stream()
+                    .filter(Objects::nonNull)
+                    .map(Object::toString)
+                    .collect(Collectors.toList());
+        }
+        return value == null ? Collections.emptyList() : Collections.singletonList(value.toString());
     }
 
     /**
