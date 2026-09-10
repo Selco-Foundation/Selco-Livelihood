@@ -50,9 +50,11 @@ class OperationProgressRepository {
           ..lastError = lastError
           ..updatedAt = DateTime.now();
         await isar.cacheSubmissionJobs.put(row);
-      });
+      }).timeout(const Duration(seconds: 5));
     } catch (_) {
-      // Best-effort — see doc comment above.
+      // Best-effort — see doc comment above. The timeout guards against
+      // Isar's per-instance write-transaction lock stalling indefinitely
+      // when many writes overlap.
     }
   }
 
@@ -100,7 +102,7 @@ class OperationProgressRepository {
         if (existing != null) {
           await isar.cacheSubmissionJobs.delete(existing.id);
         }
-      });
+      }).timeout(const Duration(seconds: 5));
     } catch (_) {
       // Best-effort — see upsertJob's doc comment.
     }

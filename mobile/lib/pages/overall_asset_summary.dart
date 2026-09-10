@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:digit_ui_components/digit_components.dart';
+import 'package:digit_ui_components/theme/TextTheme/digit_text_theme.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:digit_ui_components/widgets/atoms/digit_divider.dart';
 import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
@@ -11,6 +12,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 // ignore: unused_import
 import 'package:image_picker/image_picker.dart';
 
+import '../blocs/asset_submission/asset_submission.dart';
 import '../blocs/installation_images/installation_images.dart';
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
@@ -21,12 +23,13 @@ import '../repositories/installation_draft_repository.dart';
 import '../repositories/asset_mdms_repository.dart';
 import '../repositories/asset_progress_repo.dart';
 import '../router/app_router.dart';
+import '../utils/feature_flags.dart';
 import '../utils/submission_payload.dart';
 import '../widgets/file_upload_widget.dart';
 import '../widgets/image_uploader.dart';
+import '../widgets/operation_progress_overlay.dart';
 import '../widgets/otp_verification_widget.dart';
 import '../widgets/solar_workflow_widgets.dart';
-import 'sync_loading.dart';
 
 typedef SolarPickFiles = Future<List<PlatformFile>> Function();
 
@@ -141,28 +144,32 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
     );
   }
 
-  /// Fire-and-forget the cache writes (matching
-  /// `installationDraftRepository.saveSolarSoon`'s existing convention
-  /// elsewhere on this page) rather than blocking navigation on Isar I/O —
-  /// the background service reports a clear, retryable failure if it ever
-  /// reads the payload before this write lands, which in practice loses
-  /// the race only if Isar itself is unusually slow.
-  void _submit() {
+  /// Awaits the cache writes **sequentially** before dispatching submit —
+  /// firing them concurrently (as unawaited calls) alongside the bloc's own
+  /// `upsertJob` write can deadlock Isar's per-instance write-transaction
+  /// lock when multiple `writeTxn` calls race against each other. Since
+  /// submit no longer navigates away (the overlay stays on this page),
+  /// there's no UI-responsiveness reason to fire these concurrently anymore.
+  ///
+  /// Dispatches straight into `AssetSubmissionBloc` and stays on this page
+  /// (matching E4H: submit progress is an in-place overlay, never a
+  /// separate route) rather than navigating to a sync-loading screen.
+  Future<void> _submit() async {
     final draft = widget.draft;
     final activityFacilityId = draft.workflow.activityFacility.id;
     final facilityId = draft.workflow.activityFacility.facilityId;
     if (activityFacilityId == null || facilityId == null) return;
-    unawaited(installationDraftRepository.saveSolar(draft));
-    unawaited(installationCacheRepository.putJson(
+    await installationDraftRepository.saveSolar(draft);
+    await installationCacheRepository.putJson(
       'submission-payload',
       activityFacilityId,
       buildSolarSubmissionPayload(draft),
-    ));
-    context.router.push(SyncLoadingRoute(
-      activityFacilityId: activityFacilityId,
-      facilityId: facilityId,
-      target: SyncSuccessTarget.solar,
-    ));
+    );
+    if (!mounted) return;
+    context.read<AssetSubmissionBloc>().add(SubmitAll(
+          activityFacilityId: activityFacilityId,
+          facilityId: facilityId,
+        ));
   }
 
   Future<void> _openInstallationImages() async {
@@ -176,11 +183,53 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
     if (mounted) setState(() {});
   }
 
+  void _onRetrySubmit() {
+    final activityFacilityId = widget.draft.workflow.activityFacility.id;
+    final facilityId = widget.draft.workflow.activityFacility.facilityId;
+    if (activityFacilityId == null || facilityId == null) return;
+    context.read<AssetSubmissionBloc>().add(RetrySubmission(
+          activityFacilityId: activityFacilityId,
+          facilityId: facilityId,
+        ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final textTheme = theme.digitTextTheme(context);
     final draft = widget.draft;
+    return BlocConsumer<AssetSubmissionBloc, AssetSubmissionState>(
+      listener: (context, state) {
+        if (state is AssetSubmissionSuccess) {
+          context.read<AssetSubmissionBloc>().add(const DismissSubmission());
+          context.router.push(const SubmittedSaveSuccessRoute());
+        }
+      },
+      builder: (context, state) => Stack(
+        children: [
+          _buildScaffold(context, theme, textTheme, draft),
+          OperationProgressOverlay(
+            progress: switch (state) {
+              AssetSubmissionInProgress(:final progress) => progress,
+              AssetSubmissionFailure(:final progress) => progress,
+              _ => null,
+            },
+            onRetry: _onRetrySubmit,
+            onClose: () => context
+                .read<AssetSubmissionBloc>()
+                .add(const DismissSubmission()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScaffold(
+    BuildContext context,
+    ThemeData theme,
+    DigitTextTheme textTheme,
+    SolarInstallationDraft draft,
+  ) {
     return SolarWorkflowScaffold(
       pageKey: 'solar-overall-summary-${draft.mode.name}',
       footer: draft.isReadOnly
@@ -189,7 +238,8 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
               label: draft.mode == SolarWorkflowMode.resubmission
                   ? context.translate(i18.installationReport.resubmit)
                   : context.translate(i18.common.submit),
-              isDisabled: !draft.allCountsEntered || !_otpVerified,
+              isDisabled: !draft.allCountsEntered ||
+                  (!otpVerificationBypassed && !_otpVerified),
               onPressed: _submit,
             ),
       child: Column(

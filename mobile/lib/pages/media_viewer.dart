@@ -50,6 +50,34 @@ class MediaThumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Matches E4H's split exactly: images render as a raw thumbnail with no
+    // caption at all (`assetImageCard`); videos never get a real thumbnail —
+    // just a play icon plus a truncated filename underneath (`videoCard`).
+    if (media.kind == SolarFileKind.video) {
+      return InkWell(
+        onTap: () => openMediaViewer(context, media),
+        child: SizedBox(
+          width: width,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: width,
+                height: height,
+                child: const Icon(Icons.play_circle_fill, size: 40),
+              ),
+              Text(
+                media.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     Widget child;
     final local = media.localPath ?? media.path;
     if (media.kind == SolarFileKind.image &&
@@ -66,11 +94,7 @@ class MediaThumbnail extends StatelessWidget {
       child = Image.file(File(local), fit: fit);
     } else {
       child = Icon(
-        media.kind == SolarFileKind.video
-            ? Icons.play_circle_fill
-            : media.kind == SolarFileKind.pdf
-                ? Icons.picture_as_pdf
-                : Icons.image,
+        media.kind == SolarFileKind.pdf ? Icons.picture_as_pdf : Icons.image,
         size: 40,
       );
     }

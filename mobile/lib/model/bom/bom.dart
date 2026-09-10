@@ -1,6 +1,7 @@
 class BillOfMaterial {
   const BillOfMaterial({
     this.id,
+    this.tenantId,
     this.facilityId,
     this.activityFacilityId,
     this.name,
@@ -12,6 +13,7 @@ class BillOfMaterial {
   });
 
   final String? id;
+  final String? tenantId;
   final String? facilityId;
   final String? activityFacilityId;
   final String? name;
@@ -23,6 +25,7 @@ class BillOfMaterial {
 
   factory BillOfMaterial.fromJson(Map<String, dynamic> json) => BillOfMaterial(
         id: json['id']?.toString(),
+        tenantId: json['tenantId']?.toString(),
         facilityId: json['facilityId']?.toString(),
         activityFacilityId: json['activityFacilityId']?.toString(),
         name: json['name']?.toString(),
@@ -38,6 +41,7 @@ class BillOfMaterial {
 
   Map<String, dynamic> toJson() => {
         if (id != null) 'id': id,
+        if (tenantId != null) 'tenantId': tenantId,
         if (facilityId != null) 'facilityId': facilityId,
         if (activityFacilityId != null) 'activityFacilityId': activityFacilityId,
         if (name != null) 'name': name,
@@ -55,6 +59,7 @@ class BillOfMaterial {
   }) =>
       BillOfMaterial(
         id: id,
+        tenantId: tenantId,
         facilityId: facilityId,
         activityFacilityId: activityFacilityId,
         name: name,

@@ -339,8 +339,7 @@ class _AssetTypeDetailPageState extends State<AssetTypeDetailPage> {
             capitalizedFirstLetter: false,
             child: DigitDateFormInput(
               controller: TextEditingController(),
-              initialValue:
-                  context.translate(i18.assetFlow.warrantyStartDateDefaultToday),
+              initialValue: warrantyStartDateDisplay(),
               isDisabled: true,
               readOnly: true,
             ),
@@ -352,10 +351,13 @@ class _AssetTypeDetailPageState extends State<AssetTypeDetailPage> {
             child: DigitDropdown(
               key: const ValueKey('solar-warranty-dropdown'),
               sentenceCaseEnabled: false,
-              selectedOption: DropdownItem(
-                name: parseWarrantyYears(asset.warrantyDuration).toString(),
-                code: asset.warrantyDuration,
-              ),
+              selectedOption: asset.warrantyDuration.isEmpty
+                  ? null
+                  : DropdownItem(
+                      name: parseWarrantyYears(asset.warrantyDuration)
+                          .toString(),
+                      code: asset.warrantyDuration,
+                    ),
               items: widget.draft
                   .warrantiesFor(widget.assetType)
                   .map((value) => DropdownItem(
@@ -863,7 +865,7 @@ class AssetSummaryPage extends StatelessWidget {
             title: context.translate(i18.assetFlow.details),
             values: {
               context.translate(i18.assetFlow.warrantyStartDate):
-                  context.translate(i18.assetFlow.warrantyStartDateDefaultToday),
+                  warrantyStartDateDisplay(),
               context.translate(i18.assetFlow.warrantyDuration):
                   asset.warrantyDuration,
               context.translate(i18.assetFlow.brand):

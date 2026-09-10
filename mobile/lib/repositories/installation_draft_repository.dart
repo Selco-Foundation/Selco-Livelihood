@@ -286,19 +286,51 @@ class InstallationDraftRepository {
         assetMdmsRepository.installationImagesFor(draft.systemCode);
   }
 
+  /// TEMPORARY test fixture: `ActivityFacilityAdditionalDetails.battery/
+  /// inverter/panel` isn't populated by the backend yet, so a brand-new
+  /// report's brand/capacity fields would otherwise start blank — which,
+  /// for capacity, permanently blocks `AddNewAssetPage`'s "Next" button
+  /// whenever MDMS also has no selectable `capacity` options for the type
+  /// (so there's no other way to set it). Remove this map once the backend
+  /// actually sends real prefill data.
+  static const _testComponentDefaults = <SolarAssetType, Map<String, String>>{
+    SolarAssetType.battery: {
+      'brandCode': 'NED',
+      'brandName': 'NED',
+      'capacity': '125',
+    },
+    SolarAssetType.inverter: {
+      'brandCode': 'ETERNITY',
+      'brandName': 'Eternity',
+      'capacity': '1',
+    },
+    SolarAssetType.panel: {
+      'brandCode': 'RENEW',
+      'brandName': 'ReNew',
+      'capacity': '330',
+    },
+  };
+
   void _hydrateComponent(
     SolarInstallationDraft draft,
     SolarAssetType type,
     Map<String, dynamic>? value,
   ) {
-    if (value == null) return;
+    final effective = value ?? _testComponentDefaults[type];
+    if (effective == null) return;
     final asset = draft.assets[type]!;
-    final brand = value['brandName']?.toString();
+    final brand = effective['brandName']?.toString();
     asset.selectedBrandCode =
-        brand?.isNotEmpty == true ? brand : value['brandCode']?.toString();
-    final capacity = value['capacity']?.toString();
+        brand?.isNotEmpty == true ? brand : effective['brandCode']?.toString();
+    final capacity = effective['capacity']?.toString();
     if (capacity != null && capacity.isNotEmpty) {
       asset.totalCapacity = capacity;
+      // Also seed each already-created unit's own capacity (normally an
+      // MDMS-driven dropdown default via `_configureMdms`) so the per-unit
+      // "Next" gate on `AddNewAssetPage` isn't stuck blank either.
+      for (final entry in asset.assets) {
+        if (entry.capacity.trim().isEmpty) entry.capacity = capacity;
+      }
     }
   }
 
@@ -380,23 +412,34 @@ class InstallationDraftRepository {
             value['capacityUnit']?.toString() ?? target.capacityUnit;
         target.warrantyDuration =
             value['warrantyDuration']?.toString() ?? target.warrantyDuration;
-        target.selectedBrandCode = value['selectedBrandCode']?.toString();
+        target.selectedBrandCode =
+            value['selectedBrandCode']?.toString() ?? target.selectedBrandCode;
         final entries = value['entries'];
         if (entries is List) {
+          // Preserve the current (e.g. `_hydrateComponent` test-default)
+          // capacity/photo by index when the cached entry doesn't have one
+          // — a cache saved before a value was ever set would otherwise
+          // permanently blank it out on every future load, the same
+          // clobbering bug just fixed above for `selectedBrandCode`.
+          final existing = List<SolarAssetEntry>.of(target.assets);
           target.assets
             ..clear()
-            ..addAll(entries.whereType<Map>().map((rawEntry) {
-              final entry = Map<String, dynamic>.from(rawEntry);
+            ..addAll(entries.whereType<Map>().indexed.map((indexed) {
+              final index = indexed.$1;
+              final entry = Map<String, dynamic>.from(indexed.$2);
+              final prior = index < existing.length ? existing[index] : null;
+              final cachedCapacity = entry['capacity']?.toString() ?? '';
               return SolarAssetEntry(
                 serialNumber: entry['serialNumber']?.toString() ?? '',
-                capacity: entry['capacity']?.toString() ?? '',
+                capacity:
+                    cachedCapacity.isNotEmpty ? cachedCapacity : (prior?.capacity ?? ''),
                 fields: entry['fields'] is Map
                     ? Map<String, dynamic>.from(entry['fields'] as Map)
                     : const {},
                 supportingPhoto: entry['supportingPhoto'] is Map
                     ? SolarFileRef.fromJson(Map<String, dynamic>.from(
                         entry['supportingPhoto'] as Map))
-                    : null,
+                    : prior?.supportingPhoto,
               );
             }));
         }

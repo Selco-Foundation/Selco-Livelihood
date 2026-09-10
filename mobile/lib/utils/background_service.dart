@@ -106,8 +106,14 @@ class BackgroundServiceController {
       totalSteps: submitStages.length,
     );
 
-    if (!await service.isRunning()) {
-      await service.startService();
+    // `flutter_background_service`'s platform channel calls can hang
+    // indefinitely rather than throwing when there's no responder (observed
+    // under `flutter test`, where no platform implementation is registered
+    // at all) — bound them so a genuinely unresponsive channel surfaces as
+    // a normal, retryable submission failure instead of stalling forever.
+    const channelTimeout = Duration(seconds: 5);
+    if (!await service.isRunning().timeout(channelTimeout)) {
+      await service.startService().timeout(channelTimeout);
     } else {
       await ensureAndroidNotificationPermission();
     }
@@ -256,8 +262,9 @@ Future<void> _performSubmission({
                 'fileStoreId': doc['remoteId'],
               })
           .toList();
-      await bomRepository.update(BillOfMaterial(
+      final bom = BillOfMaterial(
         id: existing?.id,
+        tenantId: envConfig.variables.tenantId,
         facilityId: facilityId,
         activityFacilityId: activityFacilityId,
         name: name,
@@ -267,7 +274,14 @@ Future<void> _performSubmission({
             ? Map<String, dynamic>.from(bomEntry['data'] as Map)
             : const {},
         documents: documents,
-      ));
+      );
+      // `_update` rejects an id the backend has never seen — only call it
+      // once a matching BOM (by name) was actually found; otherwise create.
+      if (existing == null) {
+        await bomRepository.create(bom);
+      } else {
+        await bomRepository.update(bom);
+      }
     }
   }
 

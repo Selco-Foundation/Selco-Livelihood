@@ -39,10 +39,29 @@ class BomRepository {
     }
   }
 
+  /// Submits a brand-new BOM row (no prior server id) for one
+  /// activity-facility's asset-type row. `_update` would reject an id the
+  /// backend has never seen (`BomValidator.validateUpdateAgainstDB`), so the
+  /// submission pipeline (`lib/utils/background_service.dart`) must call
+  /// this instead of [update] whenever no existing BOM was found for that
+  /// name — matching E4H's `isUpdate` branch in `dynamic_form_repo.dart`.
+  Future<BillOfMaterial> create(BillOfMaterial bom) async {
+    final response = await DioClient().dio.post(
+      ApiPaths.bomCreate,
+      data: {
+        'bom': [bom.toJson()],
+      },
+    ).timeout(const Duration(seconds: 30));
+    final raw = response.data['bom'] as List<dynamic>? ?? const [];
+    if (raw.isEmpty) return bom;
+    return BillOfMaterial.fromJson(Map<String, dynamic>.from(raw.first as Map));
+  }
+
   /// Submits the final BOM `data`/`documents` for one activity-facility's
-  /// asset-type row. No local caching on write — this is only ever called
-  /// from the submission pipeline (`lib/utils/background_service.dart`),
-  /// which owns retry/progress semantics itself.
+  /// asset-type row that already has a server id (see [create] otherwise).
+  /// No local caching on write — this is only ever called from the
+  /// submission pipeline (`lib/utils/background_service.dart`), which owns
+  /// retry/progress semantics itself.
   Future<BillOfMaterial> update(BillOfMaterial bom) async {
     final response = await DioClient().dio.post(
       ApiPaths.bomUpdate,

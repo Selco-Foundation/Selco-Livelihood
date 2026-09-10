@@ -9,6 +9,7 @@ abstract final class ApiPaths {
   static const mdmsV1Search = 'egov-mdms-service/v1/_search';
   static const activitySearch = 'activity/v1/activities/_search';
   static const bomSearch = 'activity/v1/bom/_search';
+  static const bomCreate = 'activity/v1/bom/_create';
   static const bomUpdate = 'activity/v1/bom/_update';
   static const assetSearch = 'asset-registry/v1/asset/_search';
   static const assetCreate = 'asset-registry/v1/asset/_create';

@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 import 'package:synchronized/synchronized.dart';
 
 import '../model/request/requestInfo.dart';
@@ -254,5 +257,88 @@ class NetworkErrorNormalizerInterceptor extends Interceptor {
         msg.contains('connection error') ||
         msg.contains('network is unreachable') ||
         msg.contains('connection reset');
+  }
+}
+
+/// Debug-only request/error logging for troubleshooting API issues (e.g.
+/// the currently-broken OTP endpoints). Gated on `kDebugMode` so nothing
+/// ships in release builds. Registered last in `DioClient`'s interceptor
+/// list (`lib/data/remote_client.dart`) so its `onRequest` sees the fully
+/// built request — after `AuthTokenInterceptor` has injected the
+/// `RequestInfo` envelope — and its `onError` sees the raw error before
+/// `NetworkErrorNormalizerInterceptor` gets a chance to transform it (Dio
+/// runs `onRequest` in list order, `onError` in reverse list order).
+///
+/// Successful *responses* are never logged — some endpoints (MDMS bulk
+/// fetches in particular) return payloads large enough to bury the console
+/// for minutes, making the log effectively unusable. Requests still log in
+/// full regardless of outcome (so you can see what was sent), and a failed
+/// call logs everything, including the response body, via [onError].
+class LoggingInterceptor extends Interceptor {
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (kDebugMode) {
+      _log('REQUEST', [
+        '${options.method} ${options.uri}',
+        'Headers: ${_redactHeaders(options.headers)}',
+        'Body: ${_pretty(_redactBody(options.data))}',
+      ]);
+    }
+    handler.next(options);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    if (kDebugMode) {
+      _log('ERROR', [
+        '${err.requestOptions.method} ${err.requestOptions.uri}',
+        'Headers: ${_redactHeaders(err.requestOptions.headers)}',
+        'Request body: ${_pretty(_redactBody(err.requestOptions.data))}',
+        'Status: ${err.response?.statusCode}',
+        'Response body: ${_pretty(err.response?.data)}',
+        'Message: ${err.message}',
+      ]);
+    }
+    handler.next(err);
+  }
+
+  void _log(String label, List<String> lines) {
+    debugPrint('┌── HTTP $label ──');
+    for (final line in lines) {
+      debugPrint(line);
+    }
+    debugPrint('└──────────────────');
+  }
+
+  Map<String, dynamic> _redactHeaders(Map<String, dynamic> headers) {
+    final copy = Map<String, dynamic>.from(headers);
+    for (final key in copy.keys.toList()) {
+      if (key.toLowerCase() == 'authorization') copy[key] = '***';
+    }
+    return copy;
+  }
+
+  /// DIGIT/eGov puts the auth token in the request body's `RequestInfo.
+  /// authToken` field (see `AuthTokenInterceptor.onRequest` above), not an
+  /// `Authorization` header — that's the one thing worth masking here.
+  dynamic _redactBody(dynamic data) {
+    if (data is Map) {
+      final copy = Map<String, dynamic>.from(data);
+      final requestInfo = copy['RequestInfo'];
+      if (requestInfo is Map && requestInfo['authToken'] != null) {
+        copy['RequestInfo'] = {...requestInfo, 'authToken': '***'};
+      }
+      return copy;
+    }
+    return data;
+  }
+
+  String _pretty(dynamic data) {
+    if (data == null) return 'null';
+    try {
+      return const JsonEncoder.withIndent('  ').convert(data);
+    } catch (_) {
+      return data.toString();
+    }
   }
 }

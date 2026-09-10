@@ -1,12 +1,15 @@
 import 'dart:async';
 
 import 'package:digit_ui_components/digit_components.dart';
+import 'package:digit_ui_components/theme/TextTheme/digit_text_theme.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../blocs/asset_submission/asset_submission.dart';
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
 import '../model/facility_report.dart';
@@ -16,13 +19,14 @@ import '../repositories/asset_repository.dart';
 import '../repositories/installation_cache_repo.dart';
 import '../router/app_router.dart';
 import '../utils/app_permission_gateway.dart';
+import '../utils/feature_flags.dart';
 import '../utils/submission_payload.dart';
 import '../widgets/machine_media_picker.dart';
+import '../widgets/operation_progress_overlay.dart';
 import '../widgets/otp_verification_widget.dart';
 import '../widgets/report_navigation_header.dart';
 import 'machine_report_success_page.dart';
 import 'media_viewer.dart';
-import 'sync_loading.dart';
 
 @RoutePage()
 class MachineFormPage extends StatefulWidget {
@@ -73,7 +77,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
       (_electricBoardPhoto != null || _electricBoardMedia != null) &&
       (_demoVideo != null || _demoMedia != null) &&
       (_endUserPhoto != null || _endUserMedia != null) &&
-      _otpVerified;
+      (otpVerificationBypassed || _otpVerified);
 
   @override
   void dispose() {
@@ -251,18 +255,23 @@ class _MachineFormPageState extends State<MachineFormPage> {
     context.router.push(MachineReportSuccessRoute(mode: mode));
   }
 
-  /// Fire-and-forget the cache writes (matching `_openSuccess`'s existing
-  /// `unawaited(_save())` convention) rather than blocking navigation on
-  /// Isar I/O — the background service reports a clear, retryable failure
-  /// if it ever reads the payload before this write lands, which in
-  /// practice loses the race only if Isar itself is unusually slow.
-  void _submit() {
+  /// Awaits the cache writes **sequentially** before dispatching submit —
+  /// firing them concurrently (as unawaited calls) alongside the bloc's own
+  /// `upsertJob` write can deadlock Isar's per-instance write-transaction
+  /// lock when multiple `writeTxn` calls race against each other. Since
+  /// submit no longer navigates away (the overlay stays on this page),
+  /// there's no UI-responsiveness reason to fire these concurrently anymore.
+  ///
+  /// Dispatches straight into `AssetSubmissionBloc` and stays on this page
+  /// (matching E4H: submit progress is an in-place overlay, never a
+  /// separate route) rather than navigating to a sync-loading screen.
+  Future<void> _submit() async {
     FocusManager.instance.primaryFocus?.unfocus();
     final activityFacilityId = widget.workflow.activityFacility.id;
     final facilityId = widget.workflow.activityFacility.facilityId;
     if (activityFacilityId == null || facilityId == null) return;
-    unawaited(_save());
-    unawaited(installationCacheRepository.putJson(
+    await _save();
+    await installationCacheRepository.putJson(
       'submission-payload',
       activityFacilityId,
       buildMachineSubmissionPayload(
@@ -277,12 +286,22 @@ class _MachineFormPageState extends State<MachineFormPage> {
         demoMedia: _demoMedia,
         endUserMedia: _endUserMedia,
       ),
-    ));
-    context.router.push(SyncLoadingRoute(
-      activityFacilityId: activityFacilityId,
-      facilityId: facilityId,
-      target: SyncSuccessTarget.machine,
-    ));
+    );
+    if (!mounted) return;
+    context.read<AssetSubmissionBloc>().add(SubmitAll(
+          activityFacilityId: activityFacilityId,
+          facilityId: facilityId,
+        ));
+  }
+
+  void _onRetrySubmit() {
+    final activityFacilityId = widget.workflow.activityFacility.id;
+    final facilityId = widget.workflow.activityFacility.facilityId;
+    if (activityFacilityId == null || facilityId == null) return;
+    context.read<AssetSubmissionBloc>().add(RetrySubmission(
+          activityFacilityId: activityFacilityId,
+          facilityId: facilityId,
+        ));
   }
 
   @override
@@ -290,6 +309,38 @@ class _MachineFormPageState extends State<MachineFormPage> {
     final theme = Theme.of(context);
     final textTheme = theme.digitTextTheme(context);
 
+    return BlocConsumer<AssetSubmissionBloc, AssetSubmissionState>(
+      listener: (context, state) {
+        if (state is AssetSubmissionSuccess) {
+          context.read<AssetSubmissionBloc>().add(const DismissSubmission());
+          context.router.push(
+              MachineReportSuccessRoute(mode: MachineReportSuccessMode.submitted));
+        }
+      },
+      builder: (context, state) => Stack(
+        children: [
+          _buildScaffold(context, theme, textTheme),
+          OperationProgressOverlay(
+            progress: switch (state) {
+              AssetSubmissionInProgress(:final progress) => progress,
+              AssetSubmissionFailure(:final progress) => progress,
+              _ => null,
+            },
+            onRetry: _onRetrySubmit,
+            onClose: () => context
+                .read<AssetSubmissionBloc>()
+                .add(const DismissSubmission()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScaffold(
+    BuildContext context,
+    ThemeData theme,
+    DigitTextTheme textTheme,
+  ) {
     return Scaffold(
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: spacer2),

@@ -44,9 +44,11 @@ class InstallationCacheRepository {
           await isar.cacheInstallationDatas
               .deleteAll(rows.skip(1).map((item) => item.id).toList());
         }
-      });
+      }).timeout(const Duration(seconds: 5));
     } catch (_) {
-      // Best-effort — see doc comment above.
+      // Best-effort — see doc comment above. The timeout guards against
+      // Isar's per-instance write-transaction lock stalling indefinitely
+      // when many writes (e.g. rapid `saveSolarSoon` calls) overlap.
     }
   }
 

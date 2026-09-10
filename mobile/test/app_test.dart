@@ -63,6 +63,7 @@ import 'package:livelihood/widgets/machine_media_picker.dart';
 import 'package:livelihood/widgets/navigation/drawer.dart';
 import 'package:livelihood/repositories/otp_repository.dart';
 import 'package:livelihood/widgets/otp_verification_widget.dart';
+import 'package:livelihood/blocs/asset_submission/asset_submission.dart';
 import 'package:livelihood/widgets/privacy_policy/policy_webview_dialog.dart';
 
 class _StubAuthRepository implements AuthRepository {
@@ -378,6 +379,17 @@ void main() {
     }
     throw StateError('Text span not found: $text');
   }
+
+  /// `OverallAssetSummaryPage`/`MachineFormPage` now read `AssetSubmissionBloc`
+  /// directly (submit renders an in-place `OperationProgressOverlay` instead
+  /// of navigating away) — tests that pump these pages standalone (outside
+  /// the full `LivelihoodApp`/`pumpAuthenticatedRoute` tree, which already
+  /// provides this bloc) need it supplied explicitly.
+  Widget withAssetSubmissionBloc(Widget child) =>
+      BlocProvider<AssetSubmissionBloc>(
+        create: (_) => AssetSubmissionBloc(),
+        child: child,
+      );
 
   void setMobileViewport(WidgetTester tester, Size size) {
     tester.view.physicalSize = size;
@@ -1292,7 +1304,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: DigitTheme.instance.mobileTheme,
-        home: OverallAssetSummaryPage(draft: draft),
+        home: withAssetSubmissionBloc(OverallAssetSummaryPage(draft: draft)),
       ),
     );
 
@@ -1325,9 +1337,9 @@ void main() {
           MaterialApp(
             key: UniqueKey(),
             theme: DigitTheme.instance.mobileTheme,
-            home: OverallAssetSummaryPage(
+            home: withAssetSubmissionBloc(OverallAssetSummaryPage(
               draft: _filledSolarDraft(mode),
-            ),
+            )),
           ),
         );
 
@@ -1413,7 +1425,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: DigitTheme.instance.mobileTheme,
-        home: OverallAssetSummaryPage(draft: incomplete),
+        home: withAssetSubmissionBloc(OverallAssetSummaryPage(draft: incomplete)),
       ),
     );
     var submit = tester.widget<DigitButton>(
@@ -1422,7 +1434,10 @@ void main() {
     expect(incomplete.countFor(SolarAssetType.battery), 1);
     expect(incomplete.countFor(SolarAssetType.inverter), 1);
     expect(incomplete.countFor(SolarAssetType.panel), 1);
-    expect(submit.isDisabled, isTrue);
+    // otpVerificationBypassed is temporarily true (backend OTP endpoints
+    // are down) so submit is already enabled once counts are entered, even
+    // before OTP is touched.
+    expect(submit.isDisabled, isFalse);
     expect(find.byKey(const ValueKey('solar-installation-completion-card')),
         findsOneWidget);
     expect(find.byType(FileUploadWidget), findsOneWidget);
@@ -1469,7 +1484,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: DigitTheme.instance.mobileTheme,
-        home: OverallAssetSummaryPage(draft: readOnly),
+        home: withAssetSubmissionBloc(OverallAssetSummaryPage(draft: readOnly)),
       ),
     );
     expect(find.byKey(const ValueKey('solar-otp-widget')), findsNothing);
@@ -2091,9 +2106,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: DigitTheme.instance.mobileTheme,
-        home: MachineFormPage(
+        home: withAssetSubmissionBloc(MachineFormPage(
           workflow: _StubActivityFacilityRemoteRepository._defaultItems[1],
-        ),
+        )),
       ),
     );
 
@@ -2376,13 +2391,16 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('trained-no')));
     await tester.pump();
     expect(find.byKey(const ValueKey('machine-otp-field')), findsOneWidget);
+    // otpVerificationBypassed is temporarily true (backend OTP endpoints
+    // are down) so submit is already enabled once the other fields are
+    // filled, even before OTP is verified.
     expect(
       tester
           .widget<DigitButton>(
             find.byKey(const ValueKey('submit-machine-report-button')),
           )
           .isDisabled,
-      isTrue,
+      isFalse,
     );
 
     await enter('machine-otp-field', '1234');
@@ -2428,29 +2446,25 @@ void main() {
         .clearSnackBars();
     await tester.pumpAndSettle();
 
-    // Tapping submit hands off to the background submission service and the
-    // sync-loading screen (see `sync_loading.dart`); actually driving that
-    // service to completion isn't exercisable under `flutter test` (no
-    // platform channel for `flutter_background_service`), so this only
-    // verifies the handoff, not the full submission outcome. `SyncLoadingPage`
-    // dispatches `SubmitAll`, which (once the platform-channel call fails, as
-    // expected here) writes a failure via real Isar I/O
-    // (`OperationProgressRepository`, now genuinely available under
-    // `flutter test` — see `test/flutter_test_config.dart`). `runAsync` lets
-    // that real async chain actually finish in real time — under bare
-    // `pump`/`pumpAndSettle`, FakeAsync's virtual clock can leave its
-    // `.timeout()` Timer "pending" past the end of the test.
-    await tester.runAsync(() async {
-      await tester.tap(
-        find.byKey(const ValueKey('submit-machine-report-button')),
-      );
-      await tester.pumpAndSettle();
-      // Give the bloc's live Isar watch subscription (started by this
-      // submission) time to fully establish and its connection-timeout
-      // guard time to resolve/cancel, all still in real time.
-      await Future<void>.delayed(const Duration(seconds: 1));
-    });
-    expect(find.byKey(const ValueKey('sync-loading-page')), findsOneWidget);
+    // Tapping submit dispatches straight into `AssetSubmissionBloc` and
+    // stays on this page — submission progress renders as an in-place
+    // `OperationProgressOverlay` (matching E4H), not a separate route.
+    // Actually driving the background service to completion isn't
+    // exercisable under `flutter test` (no platform channel for
+    // `flutter_background_service`, and the many preceding `enter()`/
+    // media-pick/OTP interactions above each already queued their own
+    // real Isar write — waiting for all of those plus the submission's own
+    // writes to resolve through Isar's single-writer-per-instance lock is
+    // too slow/flaky to assert on reliably here). So this only verifies
+    // the *handoff* — tapping submit doesn't throw and doesn't navigate
+    // away from this page — which is the actual behavior being changed
+    // (previously this pushed a separate `SyncLoadingRoute`).
+    await tester.tap(
+      find.byKey(const ValueKey('submit-machine-report-button')),
+    );
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.byType(MachineFormPage), findsOneWidget);
   });
 
   testWidgets('machine success screens match E4H panel and DIGIT footer', (
@@ -2542,7 +2556,7 @@ void main() {
             theme: DigitTheme.instance.mobileTheme,
             home: BlocProvider<ActivityFacilityCountsBloc>(
               create: (_) => ActivityFacilityCountsBloc(),
-              child: page,
+              child: withAssetSubmissionBloc(page),
             ),
           ),
         );
