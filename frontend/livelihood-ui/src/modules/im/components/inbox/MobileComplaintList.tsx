@@ -72,7 +72,7 @@ export function MobileComplaintList({ data }: MobileComplaintListProps) {
             <p className="flex items-center gap-1.5 text-sm text-ink-600">
               <Clock className="size-4 shrink-0" />
               {slaLabel}:{" "}
-              <span className="font-semibold text-ink-950">
+              <span className={row.slaUrgent ? "livelihood-sla-badge-urgent" : "font-semibold text-ink-950"}>
                 {row.sla === SLA_OVERDUE_MARKER ? overdueLabel : row.sla}
               </span>
             </p>

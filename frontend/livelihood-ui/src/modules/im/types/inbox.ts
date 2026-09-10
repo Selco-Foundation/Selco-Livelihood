@@ -73,6 +73,7 @@ export interface InboxRow {
   status: string;
   taskOwner: string;
   sla: string;
+  slaUrgent: boolean;
   endUser: string;
   tenantId: string;
   potentialDuplicate: boolean;
