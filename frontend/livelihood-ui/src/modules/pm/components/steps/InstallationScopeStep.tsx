@@ -1,36 +1,38 @@
 import { translateOr, useTranslate } from "@/shared";
 import { Button, cn } from "@/ui";
-import { CheckCircle2, Download, FileSpreadsheet, Upload } from "lucide-react";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { useFacilityIngestion } from "../../hooks/use-facility-ingestion";
-import type { GeographyDetails } from "../../types/project";
+import { CheckCircle2, Download, ListChecks, Upload } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useInstallationScopeIngestion } from "../../hooks/use-installation-scope-ingestion";
+import type { InstallationPlanScopeEntry } from "../../types/installation-plan";
 import { StepSectionCard } from "../StepSectionCard";
 
-export interface EndUserDataStepHandle {
-  submit: () => Promise<void>;
+export type ScopeValue = InstallationPlanScopeEntry[];
+
+export function isScopeValid(value: ScopeValue): boolean {
+  const included = value.filter((entry) => entry.included);
+  return included.length > 0 && included.every((entry) => Boolean(entry.solutionCode));
 }
 
-interface EndUserDataStepProps {
-  projectId: string | undefined;
-  geographyDetails: GeographyDetails;
-  onComplete: () => Promise<void>;
-  /** Fired once validated end-user data has been applied. */
-  onValidated?: () => void;
-  /** Reports whether an async download/validate/create call is in flight,
-   *  so the parent can disable step navigation while one is running. */
+interface InstallationScopeStepProps {
+  planId: string | undefined;
+  planCode?: string;
+  sectorCode: string;
+  value: ScopeValue;
+  onChange: (value: ScopeValue) => void;
   onBusyChange?: (isBusy: boolean) => void;
-  /** Lets the wizard footer enable Submit only after end-user data is applied. */
-  onSubmitAvailabilityChange?: (isAvailable: boolean) => void;
+  /** Commits successfully applied scope entries to the parent wizard. */
+  onScopeApplied?: (value: ScopeValue) => void;
 }
 
-export const EndUserDataStep = forwardRef<EndUserDataStepHandle, EndUserDataStepProps>(function EndUserDataStep({
-  projectId,
-  geographyDetails,
-  onComplete,
-  onValidated,
+export function InstallationScopeStep({
+  planId,
+  planCode,
+  sectorCode,
+  value,
+  onChange,
   onBusyChange,
-  onSubmitAvailabilityChange,
-}, ref) {
+  onScopeApplied,
+}: InstallationScopeStepProps) {
   const { t } = useTranslate();
   const inputRef = useRef<HTMLInputElement>(null);
   const [simulateErrors, setSimulateErrors] = useState(false);
@@ -40,41 +42,36 @@ export const EndUserDataStep = forwardRef<EndUserDataStepHandle, EndUserDataStep
     downloadTemplate,
     uploadAndValidate,
     downloadErrorReport,
-  } = useFacilityIngestion(projectId, geographyDetails);
+  } = useInstallationScopeIngestion(planId, sectorCode, value);
 
   const isBusy = status === "downloading" || status === "validating" || status === "creating";
+
   useEffect(() => {
     onBusyChange?.(isBusy);
   }, [isBusy, onBusyChange]);
 
-  useEffect(() => {
-    if (status === "done") onValidated?.();
-  }, [onValidated, status]);
-
-  const handleSubmit = useCallback(async () => {
-    await onComplete();
-  }, [onComplete]);
-
-  useImperativeHandle(ref, () => ({ submit: handleSubmit }), [handleSubmit]);
-
-  useEffect(() => {
-    onSubmitAvailabilityChange?.(status === "done" && !isBusy);
-  }, [isBusy, onSubmitAvailabilityChange, status]);
-
   return (
     <StepSectionCard
-      icon={FileSpreadsheet}
-      title={translateOr(t, "ES_PM_END_USER_DATA", "End User Data")}
+      icon={ListChecks}
+      title={translateOr(t, "ES_PM_INSTALLATION_SCOPE", "Installation Scope")}
       description={translateOr(
         t,
-        "ES_PM_END_USER_DATA_DESC",
-        "Download the facility template, fill it in, and upload it back",
+        "ES_PM_INSTALLATION_SCOPE_DESC",
+        "Download the installation scope sheet, mark the sites and solutions to include, then upload it back",
       )}
     >
       <div className="space-y-4">
-        <Button type="button" variant="outline" size="sm" onClick={downloadTemplate} disabled={isBusy}>
+        {planCode ? (
+          <div className="flex items-center gap-2 text-sm">
+            <span className="font-medium text-muted-foreground">
+              {translateOr(t, "ES_PM_INSTALLATION_PLAN_CODE", "Installation Plan Code")}:
+            </span>
+            <span className="font-semibold text-foreground">{planCode}</span>
+          </div>
+        ) : null}
+        <Button type="button" variant="outline" size="sm" onClick={downloadTemplate} disabled={isBusy || !planId}>
           <Download className="size-4" />
-          {translateOr(t, "ES_PM_DOWNLOAD_TEMPLATE", "Download Template")}
+          {translateOr(t, "ES_PM_DOWNLOAD_INSTALLATION_SCOPE", "Download Installation Scope")}
         </Button>
 
         {/* Dev-only helper: there's no real validation backend yet, so this
@@ -120,7 +117,7 @@ export const EndUserDataStep = forwardRef<EndUserDataStepHandle, EndUserDataStep
           <span className="text-sm text-muted-foreground">
             {status === "validating"
               ? translateOr(t, "ES_PM_VALIDATING", "Validating...")
-              : translateOr(t, "ES_PM_UPLOAD_HINT", "Click to upload the filled-in template")}
+              : translateOr(t, "ES_PM_UPLOAD_HINT", "Click to upload the filled-in scope sheet")}
           </span>
         </button>
         <input
@@ -130,7 +127,14 @@ export const EndUserDataStep = forwardRef<EndUserDataStepHandle, EndUserDataStep
           className="hidden"
           onChange={(event) => {
             const file = event.target.files?.[0];
-            if (file) void uploadAndValidate(file, simulateErrors);
+            if (file) {
+              void uploadAndValidate(file, simulateErrors).then((entries) => {
+                if (entries) {
+                  onChange(entries);
+                  onScopeApplied?.(entries);
+                }
+              });
+            }
             event.target.value = "";
           }}
         />
@@ -150,11 +154,11 @@ export const EndUserDataStep = forwardRef<EndUserDataStepHandle, EndUserDataStep
         {status === "done" ? (
           <p className="flex items-center gap-2 text-sm font-medium text-primary">
             <CheckCircle2 className="size-4" />
-            {translateOr(t, "ES_PM_FILE_UPLOADED_SUCCESSFULLY", "File uploaded successfully")}
+            {translateOr(t, "ES_PM_SCOPE_APPLIED", "Installation scope applied")}
           </p>
         ) : null}
 
       </div>
     </StepSectionCard>
   );
-});
+}

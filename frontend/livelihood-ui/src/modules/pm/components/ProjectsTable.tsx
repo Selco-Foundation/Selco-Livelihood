@@ -3,7 +3,7 @@ import { Skeleton } from "@/ui";
 import { Link } from "@tanstack/react-router";
 import type { ProjectStatusWrapper } from "../types/project";
 import { resolveStateNames } from "../utils/geography";
-import { pmCreateProjectPath } from "../utils/paths";
+import { pmCreateProjectPath, pmProjectDetailsPath } from "../utils/paths";
 
 interface ProjectsTableProps {
   projects: ProjectStatusWrapper[];
@@ -59,16 +59,38 @@ export function ProjectsTable({ projects, isLoading }: ProjectsTableProps) {
           <tbody>
             {projects.map(({ project, status }, index) => {
               const isDraft = !status || status === "DRAFT";
-              const stateNames =
-                resolveStateNames(project.additionalDetails?.geographyDetails) || project.address?.boundary || "-";
+              const isActive = status === "ACTIVE";
+              const stateNames = resolveStateNames(project.additionalDetails?.geographyDetails);
+              const stateList = stateNames ? stateNames.split(", ") : [];
+              const visibleStateNames = stateList.slice(0, 2).join(", ");
+              const remainingStateCount = stateList.length - 2;
+              const stateSummary = stateNames
+                ? remainingStateCount > 0
+                  ? `${visibleStateNames} ${translateOr(t, "ES_PM_ADDITIONAL_STATES", "+{{count}}").replace("{{count}}", String(remainingStateCount))}`
+                  : stateNames
+                : project.address?.boundary || "-";
 
               return (
                 <tr
                   key={project.id}
                   className={"border-b border-border/70 hover:bg-muted/40" + (index % 2 === 1 ? " bg-accent" : "")}
                 >
-                  <td className="px-5 py-4 font-semibold text-foreground">{project.name ?? "-"}</td>
-                  <td className="px-5 py-4 text-foreground">{stateNames}</td>
+                  <td className="px-5 py-4 font-semibold text-foreground">
+                    {isActive && project.id ? (
+                      <Link
+                        to={pmProjectDetailsPath()}
+                        search={{ projectId: project.id }}
+                        className="hover:text-primary hover:underline"
+                      >
+                        {project.name ?? "-"}
+                      </Link>
+                    ) : (
+                      (project.name ?? "-")
+                    )}
+                  </td>
+                  <td className="px-5 py-4 text-foreground" title={stateNames || project.address?.boundary}>
+                    {stateSummary}
+                  </td>
                   <td className="px-5 py-4 text-foreground">{formatDate(project.startDate)}</td>
                   <td className="px-5 py-4 text-foreground">{formatDate(project.endDate)}</td>
                   <td className="px-5 py-4">

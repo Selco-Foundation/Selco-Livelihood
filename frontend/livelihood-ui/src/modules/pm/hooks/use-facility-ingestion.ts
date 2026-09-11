@@ -3,34 +3,24 @@ import {
   createFacilitiesAndUpdateProject,
   downloadFacilityIngestionTemplate,
   validateFacilitiesExcel,
-  type DownloadedFile,
 } from "../services/ingestion";
+import type { GeographyDetails } from "../types/project";
+import { triggerBrowserDownload, type DownloadedFile } from "../utils/file-download";
 
 type IngestionStatus = "idle" | "downloading" | "validating" | "invalid" | "creating" | "done" | "error";
 
-function triggerBrowserDownload(file: DownloadedFile) {
-  const url = URL.createObjectURL(file.blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = file.filename;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
 /** State machine wrapping the (mock) ingestion service for the end-user data
- *  step: download a template, upload+validate it, then create facilities
- *  from the validated file. */
-export function useFacilityIngestion(projectId: string | undefined) {
+ *  step: download a template, then validate and apply a clean file directly. */
+export function useFacilityIngestion(projectId: string | undefined, geographyDetails: GeographyDetails) {
   const [status, setStatus] = useState<IngestionStatus>("idle");
   const [errorCount, setErrorCount] = useState(0);
-  const [validatedFile, setValidatedFile] = useState<DownloadedFile | null>(null);
   const [errorReportFile, setErrorReportFile] = useState<DownloadedFile | null>(null);
 
   async function downloadTemplate() {
     if (!projectId) return;
     setStatus("downloading");
     try {
-      const file = await downloadFacilityIngestionTemplate(projectId);
+      const file = await downloadFacilityIngestionTemplate(projectId, geographyDetails);
       triggerBrowserDownload(file);
       setStatus("idle");
     } catch {
@@ -45,13 +35,15 @@ export function useFacilityIngestion(projectId: string | undefined) {
       const result = await validateFacilitiesExcel(file, simulateErrors);
       setErrorCount(result.errorCount);
       if (result.errorCount > 0) {
-        setValidatedFile(null);
         setErrorReportFile(result.file);
         setStatus("invalid");
         return;
       }
-      setValidatedFile(result.file);
-      setStatus("idle");
+      // A clean validation is sufficient to create/update the project's
+      // end-user data. The real API call will replace this mock operation.
+      setStatus("creating");
+      await createFacilitiesAndUpdateProject(result.file);
+      setStatus("done");
     } catch {
       setStatus("error");
     }
@@ -61,24 +53,11 @@ export function useFacilityIngestion(projectId: string | undefined) {
     if (errorReportFile) triggerBrowserDownload(errorReportFile);
   }
 
-  async function createFacilities() {
-    if (!validatedFile) return;
-    setStatus("creating");
-    try {
-      await createFacilitiesAndUpdateProject(validatedFile);
-      setStatus("done");
-    } catch {
-      setStatus("error");
-    }
-  }
-
   return {
     status,
     errorCount,
-    validatedFile,
     downloadTemplate,
     uploadAndValidate,
     downloadErrorReport,
-    createFacilities,
   };
 }

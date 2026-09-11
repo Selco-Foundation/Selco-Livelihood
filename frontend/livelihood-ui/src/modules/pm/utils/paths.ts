@@ -8,3 +8,11 @@ export function pmMyProjectsPath() {
 export function pmCreateProjectPath() {
   return `/${contextPath()}${PM_ROUTES.createProject}`;
 }
+
+export function pmProjectDetailsPath() {
+  return `/${contextPath()}${PM_ROUTES.projectDetails}`;
+}
+
+export function pmCreateInstallationPlanPath() {
+  return `/${contextPath()}${PM_ROUTES.createInstallationPlan}`;
+}

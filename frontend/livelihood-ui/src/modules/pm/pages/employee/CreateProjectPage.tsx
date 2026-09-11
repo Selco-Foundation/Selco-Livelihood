@@ -2,14 +2,15 @@ import { employeeHomePath, translateOr, useTranslate } from "@/shared";
 import { Button, Stepper, TopBar } from "@/ui";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { EndUserDataStep } from "../../components/steps/EndUserDataStep";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { EndUserDataStep, type EndUserDataStepHandle } from "../../components/steps/EndUserDataStep";
 import { GeographyDetailsStep, isGeographyDetailsValid } from "../../components/steps/GeographyDetailsStep";
 import {
   isProjectDetailsValid,
   ProjectDetailsStep,
   type ProjectDetailsValue,
 } from "../../components/steps/ProjectDetailsStep";
+import { WizardActionFooter } from "../../components/WizardActionFooter";
 import { useSaveProject } from "../../hooks/use-create-project";
 import { useProjectById } from "../../hooks/use-project-by-id";
 import type { CreateProjectRouteSearch } from "../../routes";
@@ -57,6 +58,11 @@ export function CreateProjectPage() {
   const [geographyDetails, setGeographyDetails] = useState<GeographyDetails>({});
   const [endUserDataReady, setEndUserDataReady] = useState(false);
   const [endUserDataBusy, setEndUserDataBusy] = useState(false);
+  const [endUserDataCanSubmit, setEndUserDataCanSubmit] = useState(false);
+  const endUserDataStepRef = useRef<EndUserDataStepHandle>(null);
+  const handleEndUserSubmitAvailabilityChange = useCallback((isAvailable: boolean) => {
+    setEndUserDataCanSubmit(isAvailable);
+  }, []);
 
   useEffect(() => {
     if (!existingProject) return;
@@ -100,14 +106,6 @@ export function CreateProjectPage() {
     // Later steps stay unreachable until the project exists.
     if (step === 3 && !projectId && !isGeographyDetailsValid(geographyDetails)) return;
 
-    // Leaving the geography step with a valid selection persists it, so
-    // jumping around the stepper while editing a draft never loses edits.
-    if (currentStep === 2 && isGeographyDetailsValid(geographyDetails)) {
-      void persistGeography().then((saved) => {
-        void navigate({ search: () => ({ projectId: saved.id, step }), replace: true });
-      });
-      return;
-    }
     void navigate({ search: (prev) => ({ ...prev, step }), replace: true });
   }
 
@@ -117,7 +115,12 @@ export function CreateProjectPage() {
       return;
     }
     if (currentStep === 2) {
-      goToStep(3);
+      // A project is deliberately created only from this explicit forward
+      // action. Going Back or changing the geography keeps all draft values
+      // in component state and must not write a project record.
+      void persistGeography().then((saved) => {
+        void navigate({ search: () => ({ projectId: saved.id, step: 3 }), replace: true });
+      });
     }
   }
 
@@ -143,7 +146,7 @@ export function CreateProjectPage() {
   const progressPercent = endUserDataReady ? 100 : isEditingExisting ? 50 : 0;
 
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full space-y-6 pb-20">
       <TopBar
         title={translateOr(t, "ES_PM_CREATE_PROJECT", "Create Project")}
         breadcrumbs={[
@@ -175,18 +178,22 @@ export function CreateProjectPage() {
       ) : null}
       {currentStep === 3 ? (
         <EndUserDataStep
+          ref={endUserDataStepRef}
           projectId={projectId}
+          geographyDetails={geographyDetails}
           onComplete={handleComplete}
           onValidated={() => setEndUserDataReady(true)}
           onBusyChange={setEndUserDataBusy}
+          onSubmitAvailabilityChange={handleEndUserSubmitAvailabilityChange}
         />
       ) : null}
 
-      <div className="flex justify-end gap-3">
+      <WizardActionFooter>
         {currentStep > 1 ? (
           <Button
             type="button"
             variant="outline"
+            size="sm"
             onClick={() => goToStep(currentStep - 1)}
             disabled={isNavigationBusy}
           >
@@ -194,11 +201,22 @@ export function CreateProjectPage() {
           </Button>
         ) : null}
         {currentStep < 3 ? (
-          <Button type="button" onClick={handleNext} disabled={!canGoNext || isNavigationBusy}>
+          <Button type="button" size="sm" className="px-5" onClick={handleNext} disabled={!canGoNext || isNavigationBusy}>
             {translateOr(t, "CORE_COMMON_NEXT", "Next")}
           </Button>
         ) : null}
-      </div>
+        {currentStep === 3 ? (
+          <Button
+            type="button"
+            size="sm"
+            className="px-5"
+            onClick={() => void endUserDataStepRef.current?.submit()}
+            disabled={isNavigationBusy || !endUserDataCanSubmit}
+          >
+            {translateOr(t, "ES_PM_SUBMIT", "Submit")}
+          </Button>
+        ) : null}
+      </WizardActionFooter>
     </div>
   );
 }

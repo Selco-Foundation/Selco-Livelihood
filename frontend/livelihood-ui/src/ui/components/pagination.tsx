@@ -40,6 +40,11 @@ export function Pagination({
 }: PaginationProps) {
   const { t } = useTranslate();
   const totalPages = Math.max(1, Math.ceil(totalRecords / pageSizeLimit));
+
+  if (totalPages <= 1) {
+    return null;
+  }
+
   const canGoPrev = currentPage > 0;
   const canGoNext = (currentPage + 1) * pageSizeLimit < totalRecords;
   const pageNumbers = buildPageNumbers(currentPage, totalPages);

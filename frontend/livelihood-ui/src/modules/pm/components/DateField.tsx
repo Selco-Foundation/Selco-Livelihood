@@ -1,3 +1,4 @@
+import { translateOr, useTranslate } from "@/shared";
 import { Button, Calendar, cn, Popover, PopoverContent, PopoverTrigger } from "@/ui";
 import { format } from "date-fns";
 import { CalendarIcon, Info } from "lucide-react";
@@ -11,11 +12,24 @@ interface DateFieldProps {
   disabled?: boolean;
   error?: string;
   minDate?: Date;
+  maxDate?: Date;
 }
 
-export function DateField({ label, required = false, value, onChange, disabled, error, minDate }: DateFieldProps) {
+export function DateField({
+  label,
+  required = false,
+  value,
+  onChange,
+  disabled,
+  error,
+  minDate,
+  maxDate,
+}: DateFieldProps) {
+  const { t } = useTranslate();
   const [open, setOpen] = useState(false);
   const selectedDate = value ? new Date(value) : undefined;
+  const disabledMatcher =
+    minDate && maxDate ? { before: minDate, after: maxDate } : minDate ? { before: minDate } : maxDate ? { after: maxDate } : undefined;
 
   return (
     <div className="min-w-0 space-y-1.5">
@@ -27,16 +41,17 @@ export function DateField({ label, required = false, value, onChange, disabled, 
         <PopoverTrigger asChild>
           <Button
             type="button"
+            size="sm"
             variant="outline"
             disabled={disabled}
             className={cn(
-              "h-11 w-full justify-start gap-2 rounded-[10px] text-left text-sm font-normal",
+              "w-full justify-start gap-2 text-left font-normal",
               !selectedDate && "text-muted-foreground",
               error && "border-destructive",
             )}
           >
             <CalendarIcon className="size-4" />
-            {selectedDate ? format(selectedDate, "dd MMM yyyy") : "Select date"}
+            {selectedDate ? format(selectedDate, "dd MMM yyyy") : translateOr(t, "ES_PM_SELECT_DATE", "Select date")}
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-auto p-0">
@@ -49,7 +64,7 @@ export function DateField({ label, required = false, value, onChange, disabled, 
               // nothing left to do once a day is chosen.
               setOpen(false);
             }}
-            disabled={minDate ? { before: minDate } : undefined}
+            disabled={disabledMatcher}
             autoFocus
           />
         </PopoverContent>

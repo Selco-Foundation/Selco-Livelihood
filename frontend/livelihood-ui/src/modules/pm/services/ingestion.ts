@@ -4,10 +4,10 @@
 // ingestion service is available; the shapes below already match what it
 // returns.
 
-export interface DownloadedFile {
-  blob: Blob;
-  filename: string;
-}
+import type { DownloadedFile } from "../utils/file-download";
+import { MOCK_BOUNDARY_HIERARCHY } from "../constants/boundary-data";
+import { END_USER_SITES } from "../constants/end-user-sites";
+import type { GeographyDetails } from "../types/project";
 
 export interface ValidationResult {
   file: DownloadedFile;
@@ -24,9 +24,35 @@ function delay(ms: number): Promise<void> {
  * Mock stand-in for `POST /ingestion-service/template/facilityIngestionTemplateWithData`
  * (body: `{ RequestInfo, project_id, boundary_data }`, response: an xlsx blob).
  */
-export async function downloadFacilityIngestionTemplate(projectId: string): Promise<DownloadedFile> {
+export async function downloadFacilityIngestionTemplate(
+  projectId: string,
+  geographyDetails: GeographyDetails,
+): Promise<DownloadedFile> {
   await delay(400);
-  const csv = "facility_name,latitude,longitude,contact_number\n";
+  const selectedBlockCodes = new Set(geographyDetails.blocks?.map((block) => block.code) ?? []);
+  const boundaryName = (kind: "states" | "districts" | "blocks", code: string) =>
+    MOCK_BOUNDARY_HIERARCHY[kind].find((boundary) => boundary.code === code)?.name ?? code;
+  const headers = [
+    "End User Id",
+    "End User Name (Mandatory)",
+    "State",
+    "District",
+    "Block",
+    "Phone Number (Mandatory)",
+    "Include in Project",
+  ];
+  const rows = END_USER_SITES.filter((site) => selectedBlockCodes.has(site.blockCode)).map((site) => [
+    site.id,
+    site.name,
+    boundaryName("states", site.stateCode),
+    boundaryName("districts", site.districtCode),
+    boundaryName("blocks", site.blockCode),
+    site.phoneNumber,
+    "No",
+  ]);
+  const csv = [headers, ...rows]
+    .map((row) => row.map((cell) => (/[,"\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell)).join(","))
+    .join("\n");
   return {
     blob: new Blob([csv], { type: "text/csv" }),
     filename: `facility-ingestion-template-${projectId}.csv`,
