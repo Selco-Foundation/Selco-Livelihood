@@ -6,8 +6,10 @@ import {
   fetchInstallationImageCriteriaQuery,
   installationImageCriteriaQueryKey,
 } from "./use-installation-image-criteria";
+import { searchAssetsForActivityFacility } from "../services/asset";
 import { searchActivityFacilities } from "../services/facility";
 import { submitFacilityReview } from "../services/review";
+import { ASSET_PHOTO_DOCUMENT_TYPE_PREFIX, buildSolarAssetSections } from "../utils/asset-mapping";
 import {
   buildAssetSectionMedia,
   buildImageChecklistMedia,
@@ -16,6 +18,7 @@ import {
 import { buildFacilityReviewDetail } from "../utils/facility-review-mapping";
 import type {
   ActivityDocument,
+  AssetSectionContent,
   FacilityReviewDetail,
   ReviewSectionContent,
   SectionMediaPatch,
@@ -54,7 +57,51 @@ export function useFacilityReview(entryId: string) {
         }),
       ]);
       const row = data.facility?.[0];
-      return row ? buildFacilityReviewDetail(row, installationImageCriteria) : null;
+      if (!row) {
+        return null;
+      }
+
+      // Solar's Panel/Battery/Inverter sections are sourced from the real
+      // asset-registry search (matches qc's useAsset.js), not the BOM — a
+      // Machine entry has no equivalent, so it stays an empty array. If the
+      // asset search comes back empty (or fails) the page still renders,
+      // just without those sections — same as qc when its own asset query
+      // returns nothing.
+      const isSolar = row.activityFacility.componentType !== "MACHINE";
+      let solarAssetSections: AssetSectionContent[] = [];
+      if (isSolar) {
+        try {
+          const assets = await searchAssetsForActivityFacility(
+            entryId,
+            employeeTenantId!,
+            accessToken!,
+            user,
+          );
+          const assetImageFileStoreIds = assets
+            .flatMap((asset) => asset.documents ?? [])
+            .filter((document) =>
+              document.documentType?.toUpperCase().startsWith(ASSET_PHOTO_DOCUMENT_TYPE_PREFIX),
+            )
+            .map((document) => document.fileStore)
+            .filter((id): id is string => Boolean(id));
+          const assetImageUrls = await fetchFileUrls(
+            assetImageFileStoreIds,
+            employeeTenantId!,
+            accessToken!,
+            user,
+          );
+          const assetImageUrlById = new Map(
+            (assetImageUrls.fileStoreIds ?? [])
+              .filter((entry): entry is { id: string; url: string } => Boolean(entry.id && entry.url))
+              .map((entry) => [entry.id, entry.url]),
+          );
+          solarAssetSections = buildSolarAssetSections(assets, assetImageUrlById);
+        } catch (error) {
+          console.error("Failed to load asset details for facility review:", error);
+        }
+      }
+
+      return buildFacilityReviewDetail(row, installationImageCriteria, solarAssetSections);
     },
   });
 }
