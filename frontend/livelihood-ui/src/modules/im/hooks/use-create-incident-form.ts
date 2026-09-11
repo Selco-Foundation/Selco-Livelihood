@@ -188,9 +188,7 @@ export function useCreateIncidentForm(inboxPath: string) {
         );
         return {
           code: asset.assetId,
-          name: asset.serialNumber
-            ? `${assetName} (${asset.serialNumber})`
-            : assetName,
+          name: assetName,
         };
       }),
     [assets, t],

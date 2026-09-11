@@ -275,8 +275,23 @@ def convert_json_to_object(json_str: str) -> Optional[IngestionSchemaResponse]:
 
 def convert_json_to_boundary(json_str: str) -> List[Boundary]:
     data = json.loads(json_str)
-    locations = [Boundary(**item) for item in data]
-    return locations
+    # /getAllBoundaries returns each level's own full hierarchical code (not its display
+    # name) in country/state/district/block, so those double as the *_code fields that
+    # the BOUNDARY_<code> localization lookup requires.
+    return [
+        Boundary(
+            country=item.get("country") or "",
+            state=item.get("state") or "",
+            district=item.get("district") or "",
+            block=item.get("block") or "",
+            code=item.get("code") or "",
+            country_code=item.get("country") or "",
+            state_code=item.get("state") or "",
+            district_code=item.get("district") or "",
+            block_code=item.get("block") or "",
+        )
+        for item in data
+    ]
 
 
 def create_vendor_request(request_info: RequestInfo, vendor: Vendor):
@@ -602,15 +617,25 @@ def create_facility_payload(
     }
 
 
-def create_asset_payload(
+HAVE_SOLAR_COLUMN = "Have Solar"
+SOLAR_ASSET_TYPE_ID = "SOLAR PANEL"
+SOLAR_ASSET_NAME = "Solar"
+SOLAR_SERIAL_SUFFIX = "SOLAR"
+
+
+def create_asset_payloads(
     request_info: RequestInfo,
     row: Series,
     asset_schema: List[Dict[str, Any]],
     vendor_lookup: Dict[str, str],
-):
-    """Build the asset-registry create payload for one template row.
+) -> List[Dict[str, Any]]:
+    """Build the asset-registry create payload(s) for one template row.
     Reads each value by the template header derived from the asset schema
-    (column name + '(Mandatory)' for required columns)."""
+    (column name + '(Mandatory)' for required columns).
+
+    When the row's "Have Solar" flag is "Yes", a second payload is returned for a
+    companion SOLAR asset at the same End User (facilityID) / Vendor Code, so the
+    row still creates its primary asset (pulverizer, motor, etc.) as well."""
 
     def header_for(code: str) -> Optional[str]:
         for c in asset_schema:
@@ -650,9 +675,7 @@ def create_asset_payload(
     # Item Code is an MDMS dropdown (livelihood.ItemCode): the cell holds the master's
     # display name, so resolve it to the code asset-registry validates against.
     item_code_val = val("itemCode")
-    if is_blank(item_code_val):
-        raise ValueError("Item Code is required")
-    item_code_code = resolve_mdms_value(asset_schema, "Item Code", item_code_val)
+    item_code_code = None if is_blank(item_code_val) else resolve_mdms_value(asset_schema, "Item Code", item_code_val)
 
     # Brand ID is an MDMS dropdown (asset-registry.Brand); required per schema, but
     # resolved defensively here too in case that ever changes to optional.
@@ -701,10 +724,40 @@ def create_asset_payload(
     # asset-registry dereferences documents without a null-check -> always send an empty list.
     asset["documents"] = []
 
-    return {
+    payloads = [{
         "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
         "assetDetail": {"Asset": asset},
-    }
+    }]
+
+    have_solar_val = safe_get(row, HAVE_SOLAR_COLUMN)
+    if not is_blank(have_solar_val) and str(have_solar_val).strip().lower() == "yes":
+        # Companion SOLAR asset for the same site/vendor; equipment-specific fields
+        # (itemCode, brandID, model, warranty) belong to the primary asset's row
+        # and don't carry over. serialNumber is derived below, not carried over either.
+        solar_asset = {
+            "tenantId": asset["tenantId"],
+            "vendorId": asset["vendorId"],
+            "assetTypeID": SOLAR_ASSET_TYPE_ID,
+            "assetDetails": {"name": SOLAR_ASSET_NAME},
+            "isOperational": True,
+            "isActive": True,
+            "documents": [],
+        }
+        if asset.get("facilityID"):
+            solar_asset["facilityID"] = asset["facilityID"]
+            # serialNumber is mandatory and there's no real one for a shared SOLAR
+            # asset; derive it from the End User so it's stable per facility -- a
+            # second "Have Solar" row for the same facility then hits the normal
+            # duplicate-asset check instead of creating a second SOLAR asset.
+            solar_asset["serialNumber"] = f"{asset['facilityID']}-{SOLAR_SERIAL_SUFFIX}"
+        if asset.get("boundaryCode"):
+            solar_asset["boundaryCode"] = asset["boundaryCode"]
+        payloads.append({
+            "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
+            "assetDetail": {"Asset": solar_asset},
+        })
+
+    return payloads
 
 
 def convert_response_to_facility(response: Dict[str, Any], role_type: str):

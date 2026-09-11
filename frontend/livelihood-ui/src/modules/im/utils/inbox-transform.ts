@@ -77,6 +77,7 @@ export function combineInboxResponses(
       status: incident.applicationStatus,
       taskOwner: assignee?.name || "-",
       sla: `${slaValue}`,
+      slaUrgent: slaValue === SLA_OVERDUE_MARKER || (typeof slaValue === "number" && slaValue <= 1),
       endUser: incident.reporter?.name || "-",
       tenantId: incident.tenantId,
       potentialDuplicate:

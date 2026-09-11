@@ -10,9 +10,7 @@ interface EndUserAssetsListProps {
 }
 
 function assetSubtitle(asset: EndUserAsset) {
-  const category = asset.modelNumber ?? asset.assetTypeId;
-  const serial = asset.serialNumber ? `#${asset.serialNumber}` : undefined;
-  return [category, serial].filter(Boolean).join(" • ");
+  return asset.modelNumber ?? asset.assetTypeId ?? "";
 }
 
 function AssetThumbnail({ asset, name }: { asset: EndUserAsset; name: string }) {
