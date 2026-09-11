@@ -22,29 +22,13 @@ import type {
   ReportSectionContent,
   ReviewSectionContent,
   ReviewSectionId,
-  SolarSectionId,
 } from "../types/facility-review";
 
-const SOLAR_ASSET_SECTION_IDS: SolarSectionId[] = ["PANEL", "BATTERY", "INVERTER"];
-
-function humanize(id: string): string {
+export function humanize(id: string): string {
   return id
     .replace(/_/g, " ")
     .toLowerCase()
     .replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-function normalizeSolarCategory(category: string | undefined): SolarSectionId {
-  const normalized = category?.toLowerCase() ?? "";
-  if (normalized.includes("batter")) {
-    return "BATTERY";
-  }
-  if (normalized.includes("invert")) {
-    return "INVERTER";
-  }
-  // Falls back to Panel — the only category confirmed in a real sample so
-  // far; adjust once a multi-category BOM sample is available.
-  return "PANEL";
 }
 
 function toAssetItems(components: ActivityBomComponent[]): AssetItem[] {
@@ -104,31 +88,6 @@ function buildMachineSection(bom: ActivityBillOfMaterial | undefined): AssetSect
       videos: [],
     })),
   };
-}
-
-function buildSolarSections(bom: ActivityBillOfMaterial | undefined): AssetSectionContent[] {
-  const components = bom?.data?.components ?? [];
-  const grouped = new Map<SolarSectionId, ActivityBomComponent[]>();
-  for (const component of components) {
-    const sectionId = normalizeSolarCategory(component.category);
-    grouped.set(sectionId, [...(grouped.get(sectionId) ?? []), component]);
-  }
-
-  return SOLAR_ASSET_SECTION_IDS.filter((id) => grouped.get(id)?.length).map((id) => {
-    const { labelKey, label } = REVIEW_SECTION_LABELS[id];
-    const items = toAssetItems(grouped.get(id) ?? []);
-    return {
-      kind: "ASSET",
-      id,
-      labelKey,
-      label,
-      count: items.length,
-      specifications: [],
-      items,
-      images: [],
-      videos: [],
-    } satisfies AssetSectionContent;
-  });
 }
 
 function buildReportSection(bom: ActivityBillOfMaterial | undefined): ReportSectionContent {
@@ -229,6 +188,11 @@ function buildAuditTrail(
 export function buildFacilityReviewDetail(
   row: ActivityFacilityRow,
   installationImageCriteria: InstallationImageCriterion[],
+  // Real Panel/Battery/Inverter sections sourced from the asset-registry
+  // search (see hooks/use-facility-review.ts + utils/asset-mapping.ts) — the
+  // BOM no longer drives Solar's asset sections; a Machine entry gets an
+  // empty array here since it doesn't use it.
+  solarAssetSections: AssetSectionContent[],
 ): FacilityReviewDetail {
   const { activityFacility } = row;
   const entry = toFacilityEntry(row);
@@ -237,7 +201,7 @@ export function buildFacilityReviewDetail(
 
   const isSolar = activityFacility.componentType !== "MACHINE";
   const sections: ReviewSectionContent[] = isSolar
-    ? buildSolarSections(activityFacility.billOfMaterial)
+    ? solarAssetSections
     : [buildMachineSection(activityFacility.billOfMaterial)];
   sections.push(buildReportSection(activityFacility.billOfMaterial));
   // The installation-image checklist (site overview / nameplate / earthing
