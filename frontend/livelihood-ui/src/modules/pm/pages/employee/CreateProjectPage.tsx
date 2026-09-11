@@ -2,7 +2,9 @@ import { employeeHomePath, translateOr, useTranslate } from "@/shared";
 import { Button, Stepper, TopBar } from "@/ui";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
+import { CheckCircle2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ConfirmSubmitProjectDialog } from "../../components/ConfirmSubmitProjectDialog";
 import { EndUserDataStep, type EndUserDataStepHandle } from "../../components/steps/EndUserDataStep";
 import { GeographyDetailsStep, isGeographyDetailsValid } from "../../components/steps/GeographyDetailsStep";
 import {
@@ -16,7 +18,7 @@ import { useProjectById } from "../../hooks/use-project-by-id";
 import type { CreateProjectRouteSearch } from "../../routes";
 import { scheduleProject } from "../../services/project";
 import type { GeographyDetails, Project } from "../../types/project";
-import { pmMyProjectsPath } from "../../utils/paths";
+import { pmMyProjectsPath, pmProjectDetailsPath } from "../../utils/paths";
 
 const STEP_DEFINITIONS = [
   { label: "Project Details" },
@@ -59,6 +61,8 @@ export function CreateProjectPage() {
   const [endUserDataReady, setEndUserDataReady] = useState(false);
   const [endUserDataBusy, setEndUserDataBusy] = useState(false);
   const [endUserDataCanSubmit, setEndUserDataCanSubmit] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [completedProject, setCompletedProject] = useState<Project | null>(null);
   const endUserDataStepRef = useRef<EndUserDataStepHandle>(null);
   const handleEndUserSubmitAvailabilityChange = useCallback((isAvailable: boolean) => {
     setEndUserDataCanSubmit(isAvailable);
@@ -124,9 +128,10 @@ export function CreateProjectPage() {
     }
   }
 
-  async function handleComplete() {
-    await scheduleMutation.mutateAsync();
-    void rawNavigate({ to: pmMyProjectsPath() });
+  async function handleConfirmSubmit() {
+    const scheduledProject = await scheduleMutation.mutateAsync();
+    setConfirmOpen(false);
+    setCompletedProject(scheduledProject);
   }
 
   const canGoNext =
@@ -144,6 +149,34 @@ export function CreateProjectPage() {
   // -> half; end-user data uploaded (validated, whether or not the final
   // "Submit" has been clicked yet) -> full, and it stays full from then on.
   const progressPercent = endUserDataReady ? 100 : isEditingExisting ? 50 : 0;
+
+  if (completedProject) {
+    return (
+      <div className="w-full space-y-6">
+        <div className="livelihood-card overflow-hidden">
+          <div className="flex flex-col items-center gap-4 bg-primary px-6 py-12 text-center text-primary-foreground">
+            <h1 className="text-2xl font-bold">{translateOr(t, "ES_PM_PROJECT_CREATED", "Project Created!")}</h1>
+            <CheckCircle2 className="size-12" />
+            <div>
+              <p className="text-sm font-medium">{translateOr(t, "ES_PM_PROJECT_NAME", "Project Name")}</p>
+              <p className="text-lg font-semibold">{completedProject.name}</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 p-4">
+            <Button variant="outline" size="sm" onClick={() => void rawNavigate({ to: employeeHomePath() })}>
+              {translateOr(t, "CORE_COMMON_OVERVIEW", "Overview")}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => void rawNavigate({ to: pmProjectDetailsPath(), search: { projectId: completedProject.id } })}
+            >
+              {translateOr(t, "ES_PM_GO_TO_PROJECT", "Go To Project")}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full space-y-6 pb-20">
@@ -181,7 +214,9 @@ export function CreateProjectPage() {
           ref={endUserDataStepRef}
           projectId={projectId}
           geographyDetails={geographyDetails}
-          onComplete={handleComplete}
+          onComplete={async () => {
+            setConfirmOpen(true);
+          }}
           onValidated={() => setEndUserDataReady(true)}
           onBusyChange={setEndUserDataBusy}
           onSubmitAvailabilityChange={handleEndUserSubmitAvailabilityChange}
@@ -217,6 +252,13 @@ export function CreateProjectPage() {
           </Button>
         ) : null}
       </WizardActionFooter>
+
+      <ConfirmSubmitProjectDialog
+        open={confirmOpen}
+        isSubmitting={scheduleMutation.isPending}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() => void handleConfirmSubmit()}
+      />
     </div>
   );
 }

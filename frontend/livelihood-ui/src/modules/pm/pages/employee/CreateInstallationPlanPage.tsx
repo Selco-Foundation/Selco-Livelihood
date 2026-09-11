@@ -266,6 +266,7 @@ export function CreateInstallationPlanPage() {
       {currentStep === 3 ? (
         <TemplateStep
           planId={planId}
+          planCode={existingPlan?.name}
           scope={workflowScope}
           value={templates}
           onChange={setTemplates}
@@ -275,6 +276,7 @@ export function CreateInstallationPlanPage() {
       ) : null}
       {currentStep === 4 ? (
         <TechnicianAssignmentStep
+          planCode={existingPlan?.name}
           scope={workflowScope}
           value={assignments}
           onChange={setAssignments}

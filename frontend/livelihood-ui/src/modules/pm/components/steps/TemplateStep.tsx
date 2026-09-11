@@ -165,6 +165,7 @@ function SolutionTemplateCard({
 
 interface TemplateStepProps {
   planId: string | undefined;
+  planCode?: string;
   scope: InstallationPlanScopeEntry[];
   value: TemplateValue;
   onChange: (value: TemplateValue) => void;
@@ -173,7 +174,7 @@ interface TemplateStepProps {
   locked?: boolean;
 }
 
-export function TemplateStep({ planId, scope, value, onChange, onBusyChange, locked = false }: TemplateStepProps) {
+export function TemplateStep({ planId, planCode, scope, value, onChange, onBusyChange, locked = false }: TemplateStepProps) {
   const { t } = useTranslate();
   const busySolutionsRef = useRef(new Set<string>());
 
@@ -215,6 +216,14 @@ export function TemplateStep({ planId, scope, value, onChange, onBusyChange, loc
       )}
     >
       <div className="space-y-4">
+        {planCode ? (
+          <div className="flex items-center gap-2 text-sm">
+            <span className="font-medium text-muted-foreground">
+              {translateOr(t, "ES_PM_INSTALLATION_PLAN_CODE", "Installation Plan Code")}:
+            </span>
+            <span className="font-semibold text-foreground">{planCode}</span>
+          </div>
+        ) : null}
         {solutionsInScope.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             {translateOr(t, "ES_PM_NO_SOLUTIONS_IN_SCOPE", "No solutions in scope yet — go back and include a site")}
