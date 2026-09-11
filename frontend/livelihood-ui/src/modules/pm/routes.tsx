@@ -13,17 +13,29 @@ import { FolderKanban } from "lucide-react";
 import { PmKpis } from "./components/PmKpis";
 import { PmOverview } from "./components/PmOverview";
 import { PM_ROUTES } from "./constants/routes";
+import { CreateInstallationPlanPage } from "./pages/employee/CreateInstallationPlanPage";
 import { CreateProjectPage } from "./pages/employee/CreateProjectPage";
 import { MyProjectsPage } from "./pages/employee/MyProjectsPage";
+import { ProjectDetailsPage } from "./pages/employee/ProjectDetailsPage";
 
 export interface CreateProjectRouteSearch {
   projectId?: string;
   step?: number;
 }
 
-function toStepNumber(value: unknown): number | undefined {
+export interface ProjectDetailsRouteSearch {
+  projectId: string;
+}
+
+export interface InstallationPlanRouteSearch {
+  projectId: string;
+  planId?: string;
+  step?: number;
+}
+
+function toStepNumber(value: unknown, maxStep: number): number | undefined {
   const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 1 && parsed <= 3 ? parsed : undefined;
+  return Number.isFinite(parsed) && parsed >= 1 && parsed <= maxStep ? parsed : undefined;
 }
 
 /**
@@ -51,6 +63,8 @@ export function createPmRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
   const pmRootPath = `/${basePath}${PM_ROUTES.pmRoot}`;
   const myProjectsPath = `/${basePath}${PM_ROUTES.myProjects}`;
   const createProjectPath = `/${basePath}${PM_ROUTES.createProject}`;
+  const projectDetailsPath = `/${basePath}${PM_ROUTES.projectDetails}`;
+  const createInstallationPlanPath = `/${basePath}${PM_ROUTES.createInstallationPlan}`;
   const homePath = `/${basePath}/employee`;
 
   // Parent route — loads rainmaker-pm translations and gates the whole PM
@@ -86,13 +100,40 @@ export function createPmRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
     path: createProjectPath,
     validateSearch: (search: Record<string, unknown>): CreateProjectRouteSearch => ({
       projectId: typeof search.projectId === "string" ? search.projectId : undefined,
-      step: toStepNumber(search.step),
+      step: toStepNumber(search.step, 3),
     }),
     component: CreateProjectPage,
   });
 
+  const projectDetailsRoute = createRoute({
+    getParentRoute: () => pmParentRoute,
+    path: projectDetailsPath,
+    validateSearch: (search: Record<string, unknown>): ProjectDetailsRouteSearch => ({
+      projectId: typeof search.projectId === "string" ? search.projectId : "",
+    }),
+    component: ProjectDetailsPage,
+  });
+
+  const createInstallationPlanRoute = createRoute({
+    getParentRoute: () => pmParentRoute,
+    path: createInstallationPlanPath,
+    validateSearch: (search: Record<string, unknown>): InstallationPlanRouteSearch => ({
+      projectId: typeof search.projectId === "string" ? search.projectId : "",
+      planId: typeof search.planId === "string" ? search.planId : undefined,
+      step: toStepNumber(search.step, 4),
+    }),
+    component: CreateInstallationPlanPage,
+  });
+
   return {
-    routes: [pmParentRoute, pmIndexRoute, myProjectsRoute, createProjectRoute],
+    routes: [
+      pmParentRoute,
+      pmIndexRoute,
+      myProjectsRoute,
+      createProjectRoute,
+      projectDetailsRoute,
+      createInstallationPlanRoute,
+    ],
     navItems: [
       {
         id: "pm-my-projects",

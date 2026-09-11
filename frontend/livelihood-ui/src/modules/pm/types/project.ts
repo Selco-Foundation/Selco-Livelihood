@@ -54,6 +54,12 @@ export interface ProjectSearchCriteria {
   subProjectTypeId?: string;
 }
 
+/** Client-side filters for the static Project Manager list. */
+export interface ProjectListFilters {
+  stateCodes: string[];
+  statuses: string[];
+}
+
 export interface ProjectStatusWrapper {
   project: Project;
   status?: string;

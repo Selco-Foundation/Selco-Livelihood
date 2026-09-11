@@ -1,5 +1,5 @@
 import { getModuleOverviews } from "@/module-registry";
-import { translateOr, useAuthStore, useTranslate } from "@/shared";
+import { isProjectManager, translateOr, useAuthStore, useTranslate } from "@/shared";
 import { TopBar } from "@/ui";
 
 export function HomePage() {
@@ -16,6 +16,11 @@ export function HomePage() {
             {translateOr(t, "CORE_HOME_WELCOME", "Welcome")}
             {displayName ? <span>, {displayName}</span> : null}
           </>
+        }
+        description={
+          isProjectManager(user?.roles)
+            ? translateOr(t, "ES_PM_MANAGE_PROJECTS", "Manage Projects")
+            : undefined
         }
         actions={
           actions.length > 0

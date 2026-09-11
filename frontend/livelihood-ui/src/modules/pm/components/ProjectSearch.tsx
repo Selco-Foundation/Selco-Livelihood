@@ -1,6 +1,6 @@
 import { translateOr, useDebouncedValue, useTranslate } from "@/shared";
-import { Input, Label } from "@/ui";
-import { Search } from "lucide-react";
+import { Button, Input, Label } from "@/ui";
+import { Search, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface ProjectSearchProps {
@@ -23,30 +23,31 @@ export function ProjectSearch({ initialSearchText = "", onSearch }: ProjectSearc
   }
 
   return (
-    <div className="livelihood-card p-4 md:p-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <Label htmlFor="project-search" className="shrink-0">
-          {translateOr(t, "ES_PM_SEARCH_PROJECT", "Search Project")}
-        </Label>
-        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center lg:justify-end">
-          <div className="relative sm:w-120 lg:w-[520px]">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id="project-search"
-              name="project-search"
-              value={searchText}
-              onChange={(event) => setSearchText(event.target.value)}
-              className="pl-9"
-            />
-          </div>
-          <button
+    <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
+      <Label htmlFor="project-search" className="sr-only">
+        {translateOr(t, "ES_PM_SEARCH_PROJECT", "Search Project")}
+      </Label>
+      <div className="relative sm:w-100 lg:w-[520px]">
+        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          id="project-search"
+          name="project-search"
+          value={searchText}
+          onChange={(event) => setSearchText(event.target.value)}
+          className="pl-9 pr-9"
+        />
+        {searchText ? (
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-xs"
             onClick={clearSearch}
-            className="cursor-pointer text-left text-sm font-semibold text-primary hover:underline"
+            aria-label={translateOr(t, "ES_COMMON_CLEAR_SEARCH", "Clear Search")}
+            className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
-            {translateOr(t, "ES_COMMON_CLEAR_SEARCH", "Clear Search")}
-          </button>
-        </div>
+            <X className="size-3.5" />
+          </Button>
+        ) : null}
       </div>
     </div>
   );

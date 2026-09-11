@@ -1,4 +1,4 @@
-import type { Project, ProjectSearchCriteria, ProjectV2SearchResult } from "../types/project";
+import type { Project, ProjectListFilters, ProjectSearchCriteria, ProjectV2SearchResult } from "../types/project";
 
 // No `/project` backend endpoint is wired up yet — this whole file stands in
 // for it with a `localStorage`-backed mock store, so a project (and an
@@ -6,7 +6,11 @@ import type { Project, ProjectSearchCriteria, ProjectV2SearchResult } from "../t
 // Swap each function's body for the matching `apiClient.post` call
 // documented above it once the real project service is available; the
 // request/response shapes here already match what the backend expects.
-const STORAGE_KEY = "pm-mock-projects";
+// Bump the "-v2" suffix whenever the seed shape/status values change, so a
+// browser that already seeded under an older shape (e.g. status "SCHEDULED"
+// before it was renamed to "ACTIVE") doesn't keep serving stale mock data
+// forever — the seed-on-first-read only writes when the key is absent.
+const STORAGE_KEY = "pm-mock-projects-v2";
 
 const SEED_PROJECTS: Project[] = [
   {
@@ -123,10 +127,12 @@ export async function updateProject(project: Project): Promise<Project> {
  */
 export async function searchProjects({
   criteria,
+  filters,
   limit = 10,
   offset = 0,
 }: {
   criteria?: ProjectSearchCriteria;
+  filters?: ProjectListFilters;
   limit?: number;
   offset?: number;
 }): Promise<ProjectV2SearchResult> {
@@ -139,6 +145,16 @@ export async function searchProjects({
   if (criteria?.name) {
     const query = criteria.name.toLowerCase();
     projects = projects.filter((project) => project.name?.toLowerCase().includes(query));
+  }
+  if (filters?.stateCodes.length) {
+    const selectedStates = new Set(filters.stateCodes);
+    projects = projects.filter((project) =>
+      project.additionalDetails?.geographyDetails?.states?.some((state) => selectedStates.has(state.code)),
+    );
+  }
+  if (filters?.statuses.length) {
+    const selectedStatuses = new Set(filters.statuses);
+    projects = projects.filter((project) => selectedStatuses.has(project.additionalDetails?.status ?? "DRAFT"));
   }
 
   const totalCount = projects.length;

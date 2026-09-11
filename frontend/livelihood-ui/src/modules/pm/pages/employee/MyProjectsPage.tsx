@@ -3,8 +3,10 @@ import { Pagination, TopBar } from "@/ui";
 import { useState } from "react";
 import { NewProjectButton } from "../../components/NewProjectButton";
 import { ProjectSearch } from "../../components/ProjectSearch";
+import { ProjectFilter } from "../../components/ProjectFilter";
 import { ProjectsTable } from "../../components/ProjectsTable";
 import { useProjectsSearch } from "../../hooks/use-projects-search";
+import type { ProjectListFilters } from "../../types/project";
 
 const DEFAULT_PAGE_SIZE = 10;
 
@@ -14,10 +16,12 @@ export function MyProjectsPage() {
   const [searchText, setSearchText] = useState("");
   const [pageOffset, setPageOffset] = useState(0);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [filters, setFilters] = useState<ProjectListFilters>({ stateCodes: [], statuses: [] });
   const { data, isLoading } = useProjectsSearch({
     name: searchText || undefined,
     limit: pageSize,
     offset: pageOffset,
+    filters,
   });
 
   if (!isProjectManager(user?.roles)) {
@@ -42,7 +46,14 @@ export function MyProjectsPage() {
         ]}
         actions={<NewProjectButton />}
       />
-      <ProjectSearch initialSearchText={searchText} onSearch={handleSearch} />
+      <ProjectFilter
+        value={filters}
+        onChange={(nextFilters) => {
+          setFilters(nextFilters);
+          setPageOffset(0);
+        }}
+        searchSlot={<ProjectSearch initialSearchText={searchText} onSearch={handleSearch} />}
+      />
       <ProjectsTable projects={data?.projects ?? []} isLoading={isLoading} />
       {totalCount > 0 ? (
         <Pagination

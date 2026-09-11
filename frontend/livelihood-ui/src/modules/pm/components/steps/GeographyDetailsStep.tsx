@@ -23,10 +23,11 @@ interface SelectedGroupProps {
   title: string;
   emptyLabel: string;
   items: { code: string; name: string }[];
-  onRemove: (code: string) => void;
+  onRemove?: (code: string) => void;
+  disabled?: boolean;
 }
 
-function SelectedGroup({ title, emptyLabel, items, onRemove }: SelectedGroupProps) {
+export function SelectedGroup({ title, emptyLabel, items, onRemove, disabled = false }: SelectedGroupProps) {
   return (
     <div>
       <p className="mb-1.5 text-xs font-medium text-muted-foreground">{title}</p>
@@ -40,14 +41,16 @@ function SelectedGroup({ title, emptyLabel, items, onRemove }: SelectedGroupProp
               className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground"
             >
               {item.name}
-              <button
-                type="button"
-                onClick={() => onRemove(item.code)}
-                aria-label={`Remove ${item.name}`}
-                className="rounded-full hover:bg-black/10"
-              >
-                <X className="size-3" />
-              </button>
+              {!disabled && onRemove ? (
+                <button
+                  type="button"
+                  onClick={() => onRemove(item.code)}
+                  aria-label={`Remove ${item.name}`}
+                  className="rounded-full hover:bg-black/10"
+                >
+                  <X className="size-3" />
+                </button>
+              ) : null}
             </span>
           ))}
         </div>
