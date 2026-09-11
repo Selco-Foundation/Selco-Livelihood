@@ -62,6 +62,7 @@ const List<OperationStage> submitStages = [
   OperationStage('uploading_media', 'Uploading photos and videos'),
   OperationStage('submitting_bom', 'Submitting bill of materials'),
   OperationStage('submitting_assets', 'Submitting assets'),
+  OperationStage('verifying_assets', 'Verifying saved assets'),
   OperationStage(
       'finalizing_workflow_submission', 'Finalizing workflow submission'),
   OperationStage('cleaning_up_local_cache', 'Cleaning up local cache'),

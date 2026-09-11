@@ -279,7 +279,8 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                           final type = draft.applicableTypes[index];
                           draft.setCount(type, count);
                           installationDraftRepository.saveSolarSoon(draft);
-                          final activityFacilityId = draft.workflow.activityFacility.id;
+                          final activityFacilityId =
+                              draft.workflow.activityFacility.id;
                           if (count > 0 && activityFacilityId != null) {
                             unawaited(assetProgressRepository.recordStep(
                               activityFacilityId: activityFacilityId,
@@ -535,8 +536,9 @@ class _InitialElementAssetSummary extends StatelessWidget {
               children: [
                 _AssetCounter(
                   symbol: '-',
-                  onTap:
-                      count > minimum ? () => onCountChanged(count - 1) : null,
+                  onTap: count > (minimum > 0 ? minimum : 1)
+                      ? () => onCountChanged(count - 1)
+                      : null,
                 ),
                 Container(
                   height: spacer9,
@@ -553,8 +555,13 @@ class _InitialElementAssetSummary extends StatelessWidget {
                 ),
                 _AssetCounter(
                   symbol: '+',
-                  onTap:
-                      count < maximum ? () => onCountChanged(count + 1) : null,
+                  onTap: count < maximum
+                      ? () => onCountChanged(
+                            count == 0
+                                ? (minimum > 0 ? minimum : 1)
+                                : count + 1,
+                          )
+                      : null,
                 ),
               ],
             ),

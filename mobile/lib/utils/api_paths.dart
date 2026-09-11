@@ -13,6 +13,7 @@ abstract final class ApiPaths {
   static const bomUpdate = 'activity/v1/bom/_update';
   static const assetSearch = 'asset-registry/v1/asset/_search';
   static const assetCreate = 'asset-registry/v1/asset/_create';
+  static const assetUpdate = 'asset-registry/v1/asset/_update';
   static const fileStoreFile = 'filestore/v1/files/file';
   static const fileStoreUpload = 'filestore/v1/files';
   static const workflowUpdate = 'activity/v1/activities/workflow/update';

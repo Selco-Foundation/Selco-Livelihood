@@ -91,14 +91,20 @@ class SolarFileRef {
 
 class SolarAssetEntry {
   SolarAssetEntry({
+    this.assetId,
+    this.itemCode,
     this.serialNumber = '',
     this.capacity = '',
+    this.batteryType = '',
     this.supportingPhoto,
     this.fields = const {},
   });
 
+  String? assetId;
+  String? itemCode;
   String serialNumber;
   String capacity;
+  String batteryType;
   SolarFileRef? supportingPhoto;
   Map<String, dynamic> fields;
 
@@ -169,6 +175,8 @@ class SolarInstallationDraft {
   String labelFor(SolarAssetType type) => assetTypeLabels[type] ?? type.label;
   int minimumFor(SolarAssetType type) => minimumCounts[type] ?? 1;
   int maximumFor(SolarAssetType type) => maximumCounts[type] ?? 10;
+  int activationCountFor(SolarAssetType type) =>
+      minimumFor(type) > 0 ? minimumFor(type) : 1;
   List<String> warrantiesFor(SolarAssetType type) =>
       warrantyOptions[type] ?? const [];
   List<String> brandsFor(SolarAssetType type) => brandOptions[type] ?? const [];
@@ -176,24 +184,48 @@ class SolarInstallationDraft {
   int countFor(SolarAssetType type) => counts[type] ?? 0;
 
   void setCount(SolarAssetType type, int count) {
-    counts[type] = count.clamp(minimumFor(type), maximumFor(type));
+    if (count <= 0) {
+      if (countFor(type) == 0) {
+        counts[type] = 0;
+        assets[type]!.assets.clear();
+      }
+      return;
+    }
+    final lowerBound = activationCountFor(type);
+    final normalized = count.clamp(lowerBound, maximumFor(type));
+    counts[type] = normalized;
+    reconcileEntries(type);
+  }
+
+  /// Keeps the selected count and its editable unit slots in lockstep.
+  /// Cached drafts created by older app versions can contain a count without
+  /// the corresponding entry maps; padding those slots prevents an otherwise
+  /// empty Add New Asset page while preserving every entry that does exist.
+  void reconcileEntries(SolarAssetType type) {
+    final selectedCount = countFor(type);
     final entries = assets[type]!.assets;
-    while (entries.length < count) {
+    while (entries.length < selectedCount) {
       entries.add(SolarAssetEntry());
     }
-    if (entries.length > count) {
-      entries.removeRange(count, entries.length);
+    if (entries.length > selectedCount) {
+      entries.removeRange(selectedCount, entries.length);
     }
+  }
+
+  void resetCount(SolarAssetType type) {
+    counts[type] = 0;
+    assets[type]!.assets.clear();
   }
 
   bool completeFor(SolarAssetType type) {
     final count = countFor(type);
-    if (count == 0) return minimumFor(type) == 0;
+    if (count == 0) return false;
     return assets[type]!.assets.length == count && assets[type]!.isComplete;
   }
 
   bool get allCountsEntered => applicableTypes.every((type) =>
-      countFor(type) >= minimumFor(type) && countFor(type) <= maximumFor(type));
+      countFor(type) >= activationCountFor(type) &&
+      countFor(type) <= maximumFor(type));
   bool get allAssetTypesComplete => applicableTypes.every(completeFor);
   bool get installationImagesComplete =>
       installationRequirements.isNotEmpty &&

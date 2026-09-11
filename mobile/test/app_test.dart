@@ -1328,6 +1328,44 @@ void main() {
     expect(secondButton.top - firstButton.bottom, spacer4);
   });
 
+  testWidgets('overall asset counts activate from zero at the MDMS minimum',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 1200));
+    final draft = SolarInstallationDraft(
+      workflow: _StubActivityFacilityRemoteRepository._defaultItems.first,
+      mode: SolarWorkflowMode.newReport,
+    )
+      ..applicableTypes = const [SolarAssetType.battery]
+      ..minimumCounts[SolarAssetType.battery] = 2
+      ..maximumCounts[SolarAssetType.battery] = 4;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: withAssetSubmissionBloc(OverallAssetSummaryPage(draft: draft)),
+      ),
+    );
+
+    expect(draft.countFor(SolarAssetType.battery), 0);
+    var addDetails = tester.widget<DigitButton>(
+      find.byKey(const ValueKey('solar-add-details-battery')),
+    );
+    expect(addDetails.isDisabled, isTrue);
+
+    await tester.tap(find.text('+').first);
+    await tester.pump();
+    expect(draft.countFor(SolarAssetType.battery), 2);
+    addDetails = tester.widget<DigitButton>(
+      find.byKey(const ValueKey('solar-add-details-battery')),
+    );
+    expect(addDetails.isDisabled, isFalse);
+
+    await tester.tap(find.text('-').first);
+    await tester.pump();
+    expect(draft.countFor(SolarAssetType.battery), 2);
+    await tester.pump(const Duration(seconds: 3));
+  });
+
   testWidgets('solar status variants use view and edit actions', (
     tester,
   ) async {
@@ -1425,7 +1463,8 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: DigitTheme.instance.mobileTheme,
-        home: withAssetSubmissionBloc(OverallAssetSummaryPage(draft: incomplete)),
+        home:
+            withAssetSubmissionBloc(OverallAssetSummaryPage(draft: incomplete)),
       ),
     );
     var submit = tester.widget<DigitButton>(
@@ -1719,6 +1758,62 @@ void main() {
     expect(find.byType(ImageUploader), findsNWidgets(2));
   });
 
+  testWidgets('inverter page repairs missing cached entry slots',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 1600));
+    final draft = SolarInstallationDraft(
+      workflow: _StubActivityFacilityRemoteRepository._defaultItems.first,
+      mode: SolarWorkflowMode.newReport,
+    )..setCount(SolarAssetType.inverter, 3);
+    draft.assets[SolarAssetType.inverter]!.assets.clear();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: AddNewAssetPage(
+          draft: draft,
+          assetType: SolarAssetType.inverter,
+          scanSerial: (_) async => null,
+        ),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('solar-no-assets-state')), findsNothing);
+    expect(find.byKey(const ValueKey('solar-asset-card-0')), findsOneWidget);
+    expect(find.byKey(const ValueKey('solar-asset-card-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('solar-asset-card-2')), findsOneWidget);
+    expect(find.text('1/3'), findsOneWidget);
+    expect(find.text('3/3'), findsOneWidget);
+  });
+
+  testWidgets('zero-count asset route shows a controlled empty state',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 844));
+    final draft = SolarInstallationDraft(
+      workflow: _StubActivityFacilityRemoteRepository._defaultItems.first,
+      mode: SolarWorkflowMode.newReport,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: AddNewAssetPage(
+          draft: draft,
+          assetType: SolarAssetType.inverter,
+          scanSerial: (_) async => null,
+        ),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('solar-no-assets-state')), findsOneWidget);
+    expect(find.byKey(const ValueKey('solar-no-assets-back')), findsOneWidget);
+    expect(find.byKey(const ValueKey('solar-asset-card-0')), findsNothing);
+    final next = tester.widget<DigitButton>(
+      find.byKey(const ValueKey('solar-footer-next')),
+    );
+    expect(next.isDisabled, isTrue);
+  });
+
   testWidgets('scanner result rebuilds the disabled field and enables Next', (
     tester,
   ) async {
@@ -1988,8 +2083,8 @@ void main() {
       ),
     );
 
-    await tester.tap(
-        find.byKey(const ValueKey('test-fail-otp-request-resend-button')));
+    await tester
+        .tap(find.byKey(const ValueKey('test-fail-otp-request-resend-button')));
     await tester.pump();
     expect(find.text(tr(i18.machineForm.otpRequestFailed)), findsOneWidget);
     // A failed generate keeps the toggle reading "Request OTP".
@@ -2025,6 +2120,46 @@ void main() {
     );
     expect(find.text(tr(i18.common.edit)), findsNothing);
     expect(find.byKey(const ValueKey('solar-fixed-footer')), findsNothing);
+  });
+
+  testWidgets(
+      'asset summary shows canonical Battery Type and image-only thumbnails',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 3000));
+    final draft = _filledSolarDraft(SolarWorkflowMode.newReport);
+    draft.assets[SolarAssetType.battery]!.assets.first.batteryType =
+        'LITHIUM_ION';
+    draft.assets[SolarAssetType.battery]!.videos.add(const SolarFileRef(
+      name: 'commissioning-video.mp4',
+      path: '/tmp/commissioning-video.mp4',
+      kind: SolarFileKind.video,
+    ));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: AssetSummaryPage(
+          draft: draft,
+          assetType: SolarAssetType.battery,
+        ),
+      ),
+    );
+
+    expect(find.text('LITHIUM_ION'), findsOneWidget);
+    expect(find.text('battery.jpg'), findsNothing);
+    expect(find.text('battery-installation.jpg'), findsNothing);
+    expect(find.text('commissioning-video.mp4'), findsOneWidget);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: AssetSummaryPage(
+          draft: draft,
+          assetType: SolarAssetType.inverter,
+        ),
+      ),
+    );
+    expect(find.text('LITHIUM_ION'), findsNothing);
   });
 
   testWidgets('installation images page enforces its local requirements', (

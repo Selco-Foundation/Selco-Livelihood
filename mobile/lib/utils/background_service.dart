@@ -7,7 +7,9 @@ import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../data/secure_storage/secureStore.dart';
+import '../model/asset/asset_submission.dart';
 import '../model/bom/bom.dart';
+import '../model/document/submission_document.dart';
 import '../repositories/activity_facility_repo.dart';
 import '../repositories/asset_repository.dart';
 import '../repositories/bom_repository.dart';
@@ -17,6 +19,7 @@ import '../repositories/operation_progress_repo.dart';
 import '../repositories/vendor_org_repository.dart';
 import 'envConfig.dart';
 import 'operation_progress.dart';
+import 'submission_payload.dart';
 
 const String kMethodSubmit = 'submit';
 const String kEvtDone = 'submission_done';
@@ -158,12 +161,15 @@ void onStart(ServiceInstance service) async {
       );
       service.invoke(kEvtDone, {'activityFacilityId': activityFacilityId});
     } catch (e) {
+      final current =
+          await operationProgressRepository.readJob(activityFacilityId);
       await operationProgressRepository.upsertJob(
         activityFacilityId: activityFacilityId,
         status: OperationStatuses.failed,
-        stageKey: 'preparing_submission',
-        completedSteps: 0,
+        stageKey: current?.stageKey ?? 'preparing_submission',
+        completedSteps: current?.completedSteps ?? 0,
         totalSteps: submitStages.length,
+        retryCount: (current?.retryCount ?? 0) + 1,
         lastError: e.toString(),
       );
       service.invoke(kEvtError, {
@@ -207,12 +213,17 @@ Future<void> _performSubmission({
     service: service,
   );
 
-  final raw =
-      await installationCacheRepository.getJson('submission-payload', activityFacilityId);
+  final raw = await installationCacheRepository.getJson(
+      'submission-payload', activityFacilityId);
   if (raw is! Map) {
-    throw Exception('No submission data found for this report. Please reopen and submit again.');
+    throw Exception(
+        'No submission data found for this report. Please reopen and submit again.');
   }
   var payload = Map<String, dynamic>.from(raw);
+  if (payload['bom'] == null && payload['boms'] is List) {
+    throw Exception(
+        'This saved submission uses the old page-level BOM format. Reopen the report and submit again to create one merged BOM.');
+  }
 
   await _reportStage(
     activityFacilityId: activityFacilityId,
@@ -220,7 +231,12 @@ Future<void> _performSubmission({
     completedSteps: 1,
     service: service,
   );
-  final vendorId = await vendorOrgRepository.currentUserOrgId();
+  final resolvedVendorId = await vendorOrgRepository.currentUserOrgId();
+  if (resolvedVendorId == null || resolvedVendorId.trim().isEmpty) {
+    throw Exception(
+        'No vendor organization is linked to the signed-in user. Ask an administrator to configure the vendor user mapping.');
+  }
+  final vendorId = resolvedVendorId.trim();
 
   await _reportStage(
     activityFacilityId: activityFacilityId,
@@ -236,32 +252,49 @@ Future<void> _performSubmission({
     completedSteps: 3,
     service: service,
   );
-  final boms = (payload['boms'] as List<dynamic>? ?? const [])
-      .whereType<Map>()
-      .map((item) => Map<String, dynamic>.from(item))
-      .toList();
-  if (boms.isNotEmpty) {
+  final rawBom = payload['bom'];
+  if (rawBom is Map) {
+    final bomEntry = Map<String, dynamic>.from(rawBom);
+    final data = bomEntry['data'] is Map
+        ? Map<String, dynamic>.from(bomEntry['data'] as Map)
+        : const <String, dynamic>{};
+    if (bomEntry['required'] == true && data.isEmpty) {
+      throw Exception(
+          'The bill of materials has no saved form values. Reopen the BOM forms and try again.');
+    }
+    final missingRequired = missingRequiredBomFields(
+      data,
+      bomEntry['requiredKeys'] as List<dynamic>? ?? const [],
+    );
+    if (missingRequired.isNotEmpty) {
+      throw Exception(
+          'Complete these required BOM fields before submitting: ${missingRequired.join(', ')}.');
+    }
     final currentUserId =
         (await SecureStore().getAccessInfo())?.userRequest?.uuid;
-    final existingBoms = await bomRepository.search(activityFacilityId);
-    for (final bomEntry in boms) {
-      final name = bomEntry['name']?.toString();
-      BillOfMaterial? existing;
-      if (name != null) {
-        for (final item in existingBoms) {
-          if (item.name == name) {
-            existing = item;
-            break;
-          }
-        }
-      }
-      final documents = (bomEntry['documents'] as List<dynamic>? ?? const [])
-          .whereType<Map>()
-          .map((doc) => {
-                'documentType': doc['documentType'],
-                'fileStoreId': doc['remoteId'],
-              })
-          .toList();
+    final name = bomEntry['name']?.toString().trim();
+    final componentType =
+        payload['componentType']?.toString().trim().toUpperCase() ?? 'SOLAR';
+    if (name == null || name.isEmpty) {
+      throw Exception('The bill of materials name is missing.');
+    }
+    BillOfMaterial? existing;
+    final checkpointId = bomEntry['remoteId']?.toString();
+    if (checkpointId?.trim().isNotEmpty == true) {
+      existing = BillOfMaterial(id: checkpointId);
+    } else {
+      final existingBoms = await bomRepository.search(activityFacilityId);
+      existing = bomRepository.matchingForSubmission(
+        records: existingBoms,
+        componentType: componentType,
+        name: name,
+      );
+    }
+    if (bomEntry['submitted'] != true || existing == null) {
+      final additionalDetails = bomEntry['additionalDetails'] is Map
+          ? Map<String, dynamic>.from(bomEntry['additionalDetails'] as Map)
+          : <String, dynamic>{};
+      additionalDetails['componentType'] = componentType;
       final bom = BillOfMaterial(
         id: existing?.id,
         tenantId: envConfig.variables.tenantId,
@@ -270,18 +303,34 @@ Future<void> _performSubmission({
         name: name,
         assignUser: currentUserId,
         isActive: true,
-        data: bomEntry['data'] is Map
-            ? Map<String, dynamic>.from(bomEntry['data'] as Map)
-            : const {},
-        documents: documents,
+        data: data,
+        documents: const [],
+        additionalDetails: additionalDetails,
       );
-      // `_update` rejects an id the backend has never seen — only call it
-      // once a matching BOM (by name) was actually found; otherwise create.
-      if (existing == null) {
-        await bomRepository.create(bom);
-      } else {
-        await bomRepository.update(bom);
-      }
+      final submitted = existing == null
+          ? await bomRepository.create(bom)
+          : await bomRepository.update(bom);
+      bomEntry
+        ..['remoteId'] = submitted.id
+        ..['submitted'] = true;
+      payload['bom'] = bomEntry;
+      await _saveSubmissionPayload(activityFacilityId, payload);
+    }
+    try {
+      await _waitForBom(
+        activityFacilityId: activityFacilityId,
+        bomId: bomEntry['remoteId']?.toString(),
+      );
+    } catch (_) {
+      // A successful HTTP response only confirms the Kafka publish. Clear the
+      // optimistic checkpoint when the row never becomes searchable so Retry
+      // can resolve an eventually persisted row or safely create it again.
+      bomEntry
+        ..['submitted'] = false
+        ..remove('remoteId');
+      payload['bom'] = bomEntry;
+      await _saveSubmissionPayload(activityFacilityId, payload);
+      rethrow;
     }
   }
 
@@ -295,55 +344,135 @@ Future<void> _performSubmission({
       .whereType<Map>()
       .map((item) => Map<String, dynamic>.from(item))
       .toList();
-  for (final asset in assets) {
-    final documents = (asset['documents'] as List<dynamic>? ?? const [])
-        .whereType<Map>()
-        .map((doc) => {
-              'documentType': doc['documentType'],
-              'fileStoreId': doc['remoteId'],
-            })
-        .toList();
-    await assetRepository.create({
-      'tenantId': envConfig.variables.tenantId,
-      'system': asset['system'],
-      'facilityID': facilityId,
-      'activityFacilityID': activityFacilityId,
-      'assetTypeID': asset['assetTypeID'],
-      'serialNumber': asset['serialNumber'],
-      'modelNumber': asset['modelNumber'],
-      'brandID': asset['brandID'],
-      'itemCode': asset['itemCode'],
-      'name': asset['name'],
-      'vendorId': vendorId,
-      'isOperational': true,
-      'isActive': true,
-      'warrantyStartDate': asset['warrantyStartDate'],
-      'warrantyDuration': asset['warrantyDurationYears'],
-      'assetDetails': asset['assetDetails'],
-      'documents': documents,
-    });
+  for (var index = 0; index < assets.length; index++) {
+    final asset = assets[index];
+    var submission = AssetSubmission.fromCheckpoint(asset);
+    if (submission.missingRequiredFields.isNotEmpty) {
+      throw Exception(
+          'Asset submission is missing ${submission.missingRequiredFields.join(', ')}. Reopen the asset form and try again.');
+    }
+    if (submission.documents.any((document) => !document.isUploaded)) {
+      throw Exception(
+          'One or more supporting photos for asset ${submission.serialNumber} were not uploaded.');
+    }
+
+    final checkpointId = submission.assetId?.trim();
+    if (asset['submitted'] == true && checkpointId?.isNotEmpty == true) {
+      final saved = await assetRepository.searchRemote(
+        activityFacilityId: activityFacilityId,
+        assetId: checkpointId,
+      );
+      if (saved.isNotEmpty) continue;
+    }
+
+    Map<String, dynamic>? existing;
+    final matches = await assetRepository.searchRemote(
+      activityFacilityId: activityFacilityId,
+      serialNumber: submission.serialNumber,
+    );
+    if (matches.isNotEmpty) existing = matches.first;
+    final remoteAssetId =
+        (existing?['assetId'] ?? existing?['assetID'])?.toString();
+    if (remoteAssetId?.trim().isNotEmpty == true) {
+      final existingFileStores =
+          (existing?['documents'] as List<dynamic>? ?? const [])
+              .whereType<Map>()
+              .map((document) => SubmissionDocument.fromJson(
+                    Map<String, dynamic>.from(document),
+                  ).fileStore)
+              .whereType<String>()
+              .toSet();
+      submission = submission.copyWith(
+        assetId: remoteAssetId,
+        documents: submission.documents
+            .where((document) =>
+                document.fileStore == null ||
+                !existingFileStores.contains(document.fileStore))
+            .toList(),
+      );
+    }
+    Map<String, dynamic> submittedAsset;
+    try {
+      submittedAsset = await assetRepository.createOrUpdate(
+        asset: submission,
+        facilityId: facilityId,
+        activityFacilityId: activityFacilityId,
+        vendorId: vendorId,
+      );
+    } catch (_) {
+      // Match E4H's duplicate-create recovery. The first create may have
+      // reached Kafka before the client received its response.
+      final duplicate = await assetRepository.searchRemote(
+        activityFacilityId: activityFacilityId,
+        serialNumber: submission.serialNumber,
+      );
+      if (duplicate.isEmpty) rethrow;
+      final duplicateId =
+          (duplicate.first['assetId'] ?? duplicate.first['assetID'])
+              ?.toString();
+      if (duplicateId == null || duplicateId.trim().isEmpty) rethrow;
+      submittedAsset = Map<String, dynamic>.from(duplicate.first);
+    }
+    asset
+      ..['assetId'] =
+          (submittedAsset['assetId'] ?? submittedAsset['assetID']).toString()
+      ..['submitted'] = true
+      ..['documents'] = submission.documents
+          .map((document) => document.toCacheJson())
+          .toList();
+    assets[index] = asset;
+    payload['assets'] = assets;
+    await _saveSubmissionPayload(activityFacilityId, payload);
   }
 
   await _reportStage(
     activityFacilityId: activityFacilityId,
-    stageKey: 'finalizing_workflow_submission',
+    stageKey: 'verifying_assets',
     completedSteps: 5,
     service: service,
   );
-  await activityFacilityRepository.remote.transitionWorkflow(
+  await _waitForAssets(
     activityFacilityId: activityFacilityId,
-    action: payload['workflowAction']?.toString() ?? 'SUBMIT_REPORT',
+    expectedSerialNumbers:
+        assets.map((asset) => asset['serialNumber']?.toString() ?? '').toSet(),
   );
 
   await _reportStage(
     activityFacilityId: activityFacilityId,
-    stageKey: 'cleaning_up_local_cache',
+    stageKey: 'finalizing_workflow_submission',
     completedSteps: 6,
+    service: service,
+  );
+  if (payload['workflowSubmitted'] != true) {
+    final workflowDocuments =
+        (payload['workflowDocuments'] as List<dynamic>? ?? const [])
+            .whereType<Map>()
+            .map((document) => SubmissionDocument.fromJson(
+                  Map<String, dynamic>.from(document),
+                ))
+            .toList();
+    if (workflowDocuments.any((document) => !document.isUploaded)) {
+      throw Exception('One or more workflow documents were not uploaded.');
+    }
+    await activityFacilityRepository.remote.transitionWorkflow(
+      activityFacilityId: activityFacilityId,
+      action: payload['workflowAction']?.toString() ?? 'SUBMIT_REPORT',
+      documents: workflowDocuments,
+    );
+    payload['workflowSubmitted'] = true;
+    await _saveSubmissionPayload(activityFacilityId, payload);
+  }
+
+  await _reportStage(
+    activityFacilityId: activityFacilityId,
+    stageKey: 'cleaning_up_local_cache',
+    completedSteps: 7,
     service: service,
   );
   final draftNamespace =
       payload['kind'] == 'machine' ? 'machine-draft' : 'solar-draft';
-  await installationCacheRepository.putJson(draftNamespace, activityFacilityId, null);
+  await installationCacheRepository.putJson(
+      draftNamespace, activityFacilityId, null);
   await installationCacheRepository.putJson(
       'submission-payload', activityFacilityId, null);
 
@@ -369,26 +498,25 @@ Future<Map<String, dynamic>> _uploadPendingMedia(
     for (var i = 0; i < list.length; i++) {
       final doc = list[i];
       if (doc is! Map) continue;
-      if (doc['remoteId'] != null) continue;
-      final localPath = doc['localPath']?.toString();
+      final document = SubmissionDocument.fromJson(
+        Map<String, dynamic>.from(doc),
+      );
+      if (document.isUploaded) continue;
+      final localPath = document.localPath;
       if (localPath == null || localPath.isEmpty) continue;
       final fileStoreId = await filestoreRepository.upload(
         localPath,
         module: 'InstallationReport',
       );
-      list[i] = {
-        'documentType': doc['documentType'],
-        'remoteId': fileStoreId,
-      };
-      await installationCacheRepository.putJson(
-          'submission-payload', activityFacilityId, payload);
+      list[i] = document.copyWith(fileStore: fileStoreId).toCacheJson()
+        ..remove('localPath');
+      await _saveSubmissionPayload(activityFacilityId, payload);
     }
   }
 
-  for (final bom in (payload['boms'] as List<dynamic>? ?? const [])) {
-    if (bom is Map && bom['documents'] is List) {
-      await uploadListInPlace(bom['documents'] as List<dynamic>);
-    }
+  final workflowDocuments = payload['workflowDocuments'];
+  if (workflowDocuments is List) {
+    await uploadListInPlace(workflowDocuments);
   }
   for (final asset in (payload['assets'] as List<dynamic>? ?? const [])) {
     if (asset is Map && asset['documents'] is List) {
@@ -396,4 +524,53 @@ Future<Map<String, dynamic>> _uploadPendingMedia(
     }
   }
   return payload;
+}
+
+Future<void> _saveSubmissionPayload(
+  String activityFacilityId,
+  Map<String, dynamic> payload,
+) =>
+    installationCacheRepository.putJson(
+      'submission-payload',
+      activityFacilityId,
+      payload,
+    );
+
+Future<void> _waitForAssets({
+  required String activityFacilityId,
+  required Set<String> expectedSerialNumbers,
+}) async {
+  final expected =
+      expectedSerialNumbers.where((value) => value.isNotEmpty).toSet();
+  if (expected.isEmpty) return;
+
+  for (var attempt = 0; attempt < 10; attempt++) {
+    final remote = await assetRepository.searchRemote(
+      activityFacilityId: activityFacilityId,
+    );
+    final persisted = remote
+        .map((asset) => asset['serialNumber']?.toString() ?? '')
+        .where((value) => value.isNotEmpty)
+        .toSet();
+    if (persisted.containsAll(expected)) return;
+    if (attempt < 9) await Future<void>.delayed(const Duration(seconds: 1));
+  }
+  throw Exception(
+      'Asset Registry accepted the request but the assets are not searchable yet. Retry will resume safely.');
+}
+
+Future<void> _waitForBom({
+  required String activityFacilityId,
+  required String? bomId,
+}) async {
+  if (bomId == null || bomId.trim().isEmpty) {
+    throw Exception('The submitted bill of materials has no server id.');
+  }
+  for (var attempt = 0; attempt < 10; attempt++) {
+    final records = await bomRepository.searchRemote(activityFacilityId);
+    if (records.any((record) => record.id == bomId)) return;
+    if (attempt < 9) await Future<void>.delayed(const Duration(seconds: 1));
+  }
+  throw Exception(
+      'The backend accepted the bill of materials but it is not searchable yet. Retry will resume safely.');
 }

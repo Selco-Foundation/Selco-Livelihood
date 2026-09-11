@@ -8,21 +8,145 @@ import 'package:livelihood/model/activity_facility/activity_facility.dart';
 import 'package:livelihood/model/activity_facility_workflow/activity_facility_workflow.dart';
 import 'package:livelihood/model/asset_count/asset_count.dart';
 import 'package:livelihood/model/asset_type/asset_type.dart';
+import 'package:livelihood/model/asset/asset_submission.dart';
 import 'package:livelihood/model/brand/brand.dart';
+import 'package:livelihood/model/bom/bom.dart';
+import 'package:livelihood/model/document/submission_document.dart';
 import 'package:livelihood/model/facility_report.dart';
 import 'package:livelihood/model/mdms/asset_registry_response.dart';
 import 'package:livelihood/model/mdms/common_masters.dart';
 import 'package:livelihood/model/warranty/warranty.dart';
+import 'package:livelihood/model/solar_installation_draft.dart';
 import 'package:livelihood/repositories/activity_facility_repo.dart';
+import 'package:livelihood/repositories/activity_facility_mock_overlay.dart';
 import 'package:livelihood/repositories/asset_mdms_repository.dart';
+import 'package:livelihood/repositories/bom_repository.dart';
 import 'package:livelihood/repositories/operation_progress_repo.dart';
 import 'package:livelihood/utils/envConfig.dart';
 import 'package:livelihood/utils/dynamic_form_schema.dart';
 import 'package:livelihood/utils/operation_progress.dart';
+import 'package:livelihood/utils/submission_payload.dart';
 import 'package:livelihood/utils/warranty.dart';
 
 void main() {
   setUpAll(() async => envConfig.initialize());
+
+  test('temporary Solar component payload is merged before deserialization',
+      () async {
+    final overlay = ActivityFacilityMockOverlay(
+      readAsset: (_) async => '''
+        {
+          "battery": {"brandName": "NED", "capacity": "125"},
+          "inverter": {"brandName": "Eternity", "capacity": "1"},
+          "panel": {"brandName": "ReNew", "capacity": "330"}
+        }
+      ''',
+    );
+    final enriched = await overlay.apply({
+      'activityFacility': {
+        'id': 'solar-1',
+        'additionalDetails': {
+          'componentType': 'SOLAR',
+          'battery': {'capacity': '150'},
+        },
+      },
+    });
+    final workflow = ActivityFacilityWorkflow.fromJson(enriched);
+
+    expect(workflow.activityFacility.additionalDetails?.battery,
+        {'brandName': 'NED', 'capacity': '150'});
+    expect(workflow.activityFacility.additionalDetails?.inverter?['capacity'],
+        '1');
+    expect(
+        workflow.activityFacility.additionalDetails?.panel?['capacity'], '330');
+  });
+
+  test('temporary Solar component payload is a no-op for Machine or no file',
+      () async {
+    final machine = {
+      'activityFacility': {
+        'id': 'machine-1',
+        'additionalDetails': {'componentType': ' MACHINE '},
+      },
+    };
+    final overlay = ActivityFacilityMockOverlay(
+      readAsset: (_) async => '{"battery":{"capacity":"125"}}',
+    );
+    expect(await overlay.apply(machine), same(machine));
+
+    final missing = ActivityFacilityMockOverlay(
+      readAsset: (_) => Future<String>.error(Exception('missing')),
+    );
+    final solar = {
+      'activityFacility': {
+        'id': 'solar-1',
+        'additionalDetails': {'componentType': 'SOLAR'},
+      },
+    };
+    expect(await missing.apply(solar), same(solar));
+  });
+
+  test('asset counts stay zero until activated and never fall below minimum',
+      () {
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(id: 'count-1'),
+    );
+    final draft = SolarInstallationDraft(
+      workflow: workflow,
+      mode: SolarWorkflowMode.newReport,
+    )
+      ..applicableTypes = const [SolarAssetType.battery]
+      ..minimumCounts[SolarAssetType.battery] = 2
+      ..maximumCounts[SolarAssetType.battery] = 4;
+
+    expect(draft.countFor(SolarAssetType.battery), 0);
+    expect(draft.allCountsEntered, isFalse);
+    draft.setCount(SolarAssetType.battery, 1);
+    expect(draft.countFor(SolarAssetType.battery), 2);
+    expect(draft.assets[SolarAssetType.battery]!.assets, hasLength(2));
+    draft.setCount(SolarAssetType.battery, 0);
+    expect(draft.countFor(SolarAssetType.battery), 2);
+    expect(draft.assets[SolarAssetType.battery]!.assets, hasLength(2));
+    draft.setCount(SolarAssetType.battery, 10);
+    expect(draft.countFor(SolarAssetType.battery), 4);
+  });
+
+  test('asset entry reconciliation pads, trims, and preserves cached values',
+      () {
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(id: 'reconcile-1'),
+    );
+    final draft = SolarInstallationDraft(
+      workflow: workflow,
+      mode: SolarWorkflowMode.newReport,
+    )..setCount(SolarAssetType.inverter, 3);
+    const preservedPhoto = SolarFileRef(
+      name: 'inverter.jpg',
+      path: '/tmp/inverter.jpg',
+      kind: SolarFileKind.image,
+    );
+    draft.assets[SolarAssetType.inverter]!.assets
+      ..clear()
+      ..add(SolarAssetEntry(
+        assetId: 'asset-1',
+        serialNumber: 'INV-001',
+        capacity: '1',
+        supportingPhoto: preservedPhoto,
+      ));
+
+    draft.reconcileEntries(SolarAssetType.inverter);
+    final entries = draft.assets[SolarAssetType.inverter]!.assets;
+    expect(entries, hasLength(3));
+    expect(entries.first.assetId, 'asset-1');
+    expect(entries.first.serialNumber, 'INV-001');
+    expect(entries.first.capacity, '1');
+    expect(entries.first.supportingPhoto, same(preservedPhoto));
+
+    draft.setCount(SolarAssetType.inverter, 2);
+    expect(draft.assets[SolarAssetType.inverter]!.assets, hasLength(2));
+    expect(
+        draft.assets[SolarAssetType.inverter]!.assets.first.assetId, 'asset-1');
+  });
 
   test('BOM masters parse v1 data and wrapped records', () {
     final schema = BomFormSchema.fromJson({
@@ -74,6 +198,188 @@ void main() {
       'required_count': 2,
     });
     expect(image.requiredCount, 2);
+  });
+
+  test('documents use endpoint-specific filestore keys', () {
+    final document = SubmissionDocument.fromJson({
+      'documentType': 'PHOTO',
+      'fileStoreId': 'filestore-1',
+      'documentUid': 'document-1',
+    });
+
+    expect(document.fileStore, 'filestore-1');
+    expect(document.toAssetJson()['fileStore'], 'filestore-1');
+    expect(document.toAssetJson().containsKey('fileStoreId'), isFalse);
+    expect(document.toWorkflowJson()['fileStoreId'], 'filestore-1');
+    expect(document.toWorkflowJson()['status'], 'ACTIVE');
+    expect(document.toWorkflowJson().containsKey('fileStore'), isFalse);
+  });
+
+  test('typed asset writes backend identifiers and asset-owned documents', () {
+    final asset = AssetSubmission.fromCheckpoint({
+      'system': 'DC',
+      'assetTypeID': 'PANEL',
+      'serialNumber': 'P-001',
+      'modelNumber': 'SP330',
+      'brandID': 'RENEW',
+      'itemCode': 'SP-330WP',
+      'name': 'Solar panel',
+      'documents': [
+        {'documentType': 'PHOTO', 'fileStoreId': 'fs-asset-photo'},
+      ],
+    });
+
+    final json = asset.toRegistryJson(
+      tenantId: 'livelihood',
+      facilityId: 'facility-1',
+      activityFacilityId: 'activity-facility-1',
+      vendorId: 'vendor-1',
+    );
+
+    expect(json['activityFacilityID'], 'activity-facility-1');
+    expect(json['itemCode'], 'SP-330WP');
+    expect(json['isOperational'], isFalse);
+    expect((json['documents'] as List).single, contains('fileStore'));
+    expect((json['documents'] as List).single, isNot(contains('fileStoreId')));
+  });
+
+  test('required BOM keys reject blank and missing merged values', () {
+    final missing = missingRequiredBomFields(
+      {'panelCount': 4, 'serial': '  '},
+      [
+        {'fieldName': 'panelCount', 'label': 'Panel count'},
+        {'fieldName': 'serial', 'label': 'Serial number'},
+        {'fieldName': 'rating', 'label': 'System rating'},
+      ],
+    );
+
+    expect(missing, ['Serial number', 'System rating']);
+  });
+
+  test('solar submission merges pages into one document-free BOM', () {
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'activity-facility-1',
+        facilityId: 'facility-1',
+        facility: Facility(
+          facilityDetails: FacilityDetails(
+            solutionDesignType: 'RMS_ACC_OFF_GRID_SINGLE_PHASE',
+          ),
+        ),
+      ),
+    );
+    final draft = SolarInstallationDraft(
+      workflow: workflow,
+      mode: SolarWorkflowMode.newReport,
+    )
+      ..systemCode = 'DC'
+      ..applicableTypes = const [SolarAssetType.panel]
+      ..bomFormNames.addAll(['DC_BOM_Solar', 'DC_BOM_system'])
+      ..mergedBom.addAll({'panelCount': 4, 'weather': 'CLEAR'});
+    draft.assetTypeCodes[SolarAssetType.panel] = 'PANEL';
+    draft.assets[SolarAssetType.panel]!
+      ..selectedBrandCode = 'RENEW'
+      ..warrantyDuration = '5 Years'
+      ..assets.add(SolarAssetEntry(
+        itemCode: 'SP-330WP',
+        serialNumber: 'SERIAL-1',
+        capacity: '330',
+        supportingPhoto: const SolarFileRef(
+          name: 'asset.jpg',
+          path: 'asset-filestore',
+          remoteId: 'asset-filestore',
+          kind: SolarFileKind.image,
+        ),
+      ))
+      ..images.add(const SolarFileRef(
+        name: 'overview.jpg',
+        path: 'workflow-filestore',
+        remoteId: 'workflow-filestore',
+        kind: SolarFileKind.image,
+      ));
+
+    final payload = buildSolarSubmissionPayload(draft);
+    final bom = payload['bom'] as Map;
+    final asset = (payload['assets'] as List).single as Map;
+    final workflowDocument =
+        (payload['workflowDocuments'] as List).single as Map;
+
+    expect(payload.containsKey('boms'), isFalse);
+    expect(bom['name'], 'RMS_ACC_OFF_GRID_SINGLE_PHASE');
+    expect(bom['data'], {'panelCount': 4, 'weather': 'CLEAR'});
+    expect(bom.containsKey('documents'), isFalse);
+    expect((asset['documents'] as List).single['fileStore'], 'asset-filestore');
+    expect(asset['itemCode'], 'SP-330WP');
+    expect(workflowDocument['fileStore'], 'workflow-filestore');
+  });
+
+  test('Battery Type is submitted only through canonical batteryType', () {
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'activity-facility-1',
+        facilityId: 'facility-1',
+      ),
+    );
+    final draft = SolarInstallationDraft(
+      workflow: workflow,
+      mode: SolarWorkflowMode.newReport,
+    )
+      ..systemCode = 'DC'
+      ..applicableTypes = const [SolarAssetType.battery];
+    draft.assetTypeCodes[SolarAssetType.battery] = 'BATTERY';
+    draft.assets[SolarAssetType.battery]!
+      ..selectedBrandCode = 'NED'
+      ..warrantyDuration = '5 Years'
+      ..assets.add(SolarAssetEntry(
+        itemCode: 'BAT-125',
+        serialNumber: 'BATTERY-1',
+        capacity: '125',
+        batteryType: 'LITHIUM_ION',
+        fields: const {
+          'type': 'LEGACY_TYPE',
+          'battery_type': 'LEGACY_SNAKE_CASE',
+        },
+        supportingPhoto: const SolarFileRef(
+          name: 'battery.jpg',
+          path: 'asset-filestore',
+          remoteId: 'asset-filestore',
+          kind: SolarFileKind.image,
+        ),
+      ));
+
+    final payload = buildSolarSubmissionPayload(draft);
+    final asset = (payload['assets'] as List).single as Map;
+    final details = asset['assetDetails'] as Map;
+    expect(details['batteryType'], 'LITHIUM_ION');
+    expect(details, isNot(contains('type')));
+    expect(details, isNot(contains('battery_type')));
+  });
+
+  test('BOM matching never selects Machine or split-page rows for Solar', () {
+    final repository = BomRepository();
+    final result = repository.matchingForSubmission(
+      records: const [
+        BillOfMaterial(
+          id: 'machine',
+          name: 'Machine',
+          additionalDetails: {'componentType': 'MACHINE'},
+        ),
+        BillOfMaterial(
+          id: 'split',
+          name: 'DC_BOM_Solar',
+          additionalDetails: {'componentType': 'SOLAR'},
+        ),
+        BillOfMaterial(
+          id: 'solar',
+          name: 'RMS_ACC_OFF_GRID_SINGLE_PHASE',
+          additionalDetails: {'componentType': 'SOLAR'},
+        ),
+      ],
+      componentType: 'SOLAR',
+      name: 'RMS_ACC_OFF_GRID_SINGLE_PHASE',
+    );
+
+    expect(result?.id, 'solar');
   });
 
   test('asset MDMS selectors join records by stable asset type code', () {
@@ -436,8 +742,8 @@ void main() {
     await pumpEventQueue();
 
     expect(states, [
-      isA<AssetSubmissionInProgress>().having(
-          (s) => s.progress.status, 'status', OperationStatuses.queued),
+      isA<AssetSubmissionInProgress>()
+          .having((s) => s.progress.status, 'status', OperationStatuses.queued),
       isA<AssetSubmissionInProgress>().having(
           (s) => s.progress.status, 'status', OperationStatuses.running),
       isA<AssetSubmissionSuccess>(),

@@ -7,10 +7,12 @@ import '../data/nosql/cache_activity_facility_workflow.dart';
 import '../data/remote_client.dart';
 import '../model/activity_facility/activity_facility.dart';
 import '../model/activity_facility_workflow/activity_facility_workflow.dart';
+import '../model/document/submission_document.dart';
 import '../utils/api_paths.dart';
 import '../utils/constants.dart';
 import '../utils/envConfig.dart';
 import '../utils/workflow_status.dart';
+import 'activity_facility_mock_overlay.dart';
 
 /// One page of activity-facility search results, tagged with whether it
 /// came from the network or from the persisted offline cache.
@@ -58,10 +60,14 @@ class ActivityFacilityRemoteRepository {
     );
 
     final rawList = response.data['facility'] as List<dynamic>? ?? [];
-    final items = rawList
-        .map(
-            (e) => ActivityFacilityWorkflow.fromJson(e as Map<String, dynamic>))
-        .toList();
+    final items = await Future.wait(
+      rawList.whereType<Map>().map((value) async {
+        final enriched = await activityFacilityMockOverlay.apply(
+          Map<String, dynamic>.from(value),
+        );
+        return ActivityFacilityWorkflow.fromJson(enriched);
+      }),
+    );
     final totalCount = response.data['totalCount'] as int? ?? items.length;
 
     return PaginatedActivityFacilities(items: items, totalCount: totalCount);
@@ -102,6 +108,7 @@ class ActivityFacilityRemoteRepository {
     required String activityFacilityId,
     required String action,
     String? comments,
+    List<SubmissionDocument> documents = const [],
   }) async {
     await _dio.post(
       ApiPaths.workflowUpdate,
@@ -110,6 +117,9 @@ class ActivityFacilityRemoteRepository {
         'workflow': {
           'action': action,
           if (comments != null) 'comments': comments,
+          if (documents.isNotEmpty)
+            'documents':
+                documents.map((document) => document.toWorkflowJson()).toList(),
         },
       },
     ).timeout(const Duration(seconds: 30));
@@ -275,11 +285,16 @@ class ActivityFacilityRepository {
     });
 
     final seen = <String>{};
-    return rows
-        .where((row) => seen.add(row.activityFacilityId))
-        .map((row) => ActivityFacilityWorkflow.fromJson(
-            jsonDecode(row.rawJson) as Map<String, dynamic>))
-        .toList();
+    final uniqueRows =
+        rows.where((row) => seen.add(row.activityFacilityId)).toList();
+    return Future.wait(uniqueRows.map((row) async {
+      final raw = jsonDecode(row.rawJson);
+      if (raw is! Map) return null;
+      final enriched = await activityFacilityMockOverlay.apply(
+        Map<String, dynamic>.from(raw),
+      );
+      return ActivityFacilityWorkflow.fromJson(enriched);
+    })).then((items) => items.whereType<ActivityFacilityWorkflow>().toList());
   }
 
   CacheActivityFacilityWorkflow _toCacheRow(

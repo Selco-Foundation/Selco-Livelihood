@@ -1,0 +1,17 @@
+{
+  "battery": {
+    "brandCode": "NED",
+    "brandName": "NED",
+    "capacity": "125"
+  },
+  "inverter": {
+    "brandCode": "ETERNITY",
+    "brandName": "Eternity",
+    "capacity": "1"
+  },
+  "panel": {
+    "brandCode": "RENEW",
+    "brandName": "ReNew",
+    "capacity": "330"
+  }
+}

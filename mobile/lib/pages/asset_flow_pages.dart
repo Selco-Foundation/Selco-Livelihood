@@ -103,15 +103,18 @@ class _AssetCountPageState extends State<AssetCountPage> {
               capitalizedFirstLetter: false,
               labelStyle: textTheme.headingS,
               child: InputField(
-                key: ValueKey('solar-count-${type.name}'),
-                minValue: draft.minimumFor(type),
+                key: ValueKey(
+                    'solar-count-${type.name}-${draft.countFor(type)}'),
+                minValue: draft.countFor(type) == 0
+                    ? 0
+                    : draft.activationCountFor(type),
                 maxValue: draft.maximumFor(type),
                 type: InputType.numeric,
                 editable: false,
                 initialValue: draft.countFor(type).toString(),
                 onChange: (value) => setState(() {
                   draft.setCount(
-                      type, int.tryParse(value) ?? draft.minimumFor(type));
+                      type, int.tryParse(value) ?? draft.countFor(type));
                   installationDraftRepository.saveSolarSoon(draft);
                 }),
               ),
@@ -354,8 +357,8 @@ class _AssetTypeDetailPageState extends State<AssetTypeDetailPage> {
               selectedOption: asset.warrantyDuration.isEmpty
                   ? null
                   : DropdownItem(
-                      name: parseWarrantyYears(asset.warrantyDuration)
-                          .toString(),
+                      name:
+                          parseWarrantyYears(asset.warrantyDuration).toString(),
                       code: asset.warrantyDuration,
                     ),
               items: widget.draft
@@ -404,6 +407,7 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
   @override
   void initState() {
     super.initState();
+    widget.draft.reconcileEntries(widget.assetType);
     if (widget.scanSerial == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) requestAssetWorkflowPermissions(context);
@@ -448,9 +452,10 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
     final textTheme = theme.digitTextTheme(context);
     final assetDraft = widget.draft.assets[widget.assetType]!;
     final entries = assetDraft.assets;
-    final complete =
+    final count = widget.draft.countFor(widget.assetType);
+    final complete = count > 0 &&
         entries.length == widget.draft.countFor(widget.assetType) &&
-            entries.every((entry) => entry.isComplete);
+        entries.every((entry) => entry.isComplete);
 
     return SolarWorkflowScaffold(
       pageKey: 'solar-add-assets-${widget.assetType.name}',
@@ -471,106 +476,137 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
       ),
       child: Column(
         children: [
-          if (widget.assetType == SolarAssetType.battery)
-            _batteryCapacityCard(theme, textTheme, assetDraft),
-          if (widget.assetType == SolarAssetType.panel)
-            _panelCapacityCard(theme, textTheme, assetDraft),
-          for (final indexed in entries.asMap().entries)
-            Padding(
-              padding: const EdgeInsets.only(bottom: spacer4),
+          if (count == 0)
+            SizedBox(
+              width: double.infinity,
               child: DigitCard(
-                key: ValueKey('solar-asset-card-${indexed.key}'),
+                key: const ValueKey('solar-no-assets-state'),
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '${widget.assetType == SolarAssetType.panel ? 'Panel' : widget.assetType.label} ${indexed.key + 1}',
-                          style: textTheme.headingXl.copyWith(
-                            color: theme.colorTheme.primary.primary2,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: spacer2),
-                      Text('${indexed.key + 1}/${entries.length}'),
-                    ],
+                  Text(
+                    context.translate(i18.assetFlow.assetCountTitle),
+                    style: textTheme.headingXl.copyWith(
+                      color: theme.colorTheme.primary.primary2,
+                    ),
                   ),
-                  LabeledField(
-                    label: context.translate(i18.assetFlow.serialNumber),
-                    isRequired: true,
-                    capitalizedFirstLetter: false,
-                    child: Row(
+                  Text(
+                    context.translate(i18.assetFlow.chooseAssetCount),
+                    style: textTheme.bodyL,
+                  ),
+                  DigitButton(
+                    key: const ValueKey('solar-no-assets-back'),
+                    mainAxisSize: MainAxisSize.max,
+                    label: context.translate(i18.common.back),
+                    type: DigitButtonType.secondary,
+                    size: DigitButtonSize.large,
+                    onPressed: () => context.router.maybePop(),
+                  ),
+                ],
+              ),
+            )
+          else ...[
+            if (widget.assetType == SolarAssetType.battery)
+              _batteryCapacityCard(theme, textTheme, assetDraft),
+            if (widget.assetType == SolarAssetType.panel)
+              _panelCapacityCard(theme, textTheme, assetDraft),
+            for (final indexed in entries.asMap().entries)
+              Padding(
+                padding: const EdgeInsets.only(bottom: spacer4),
+                child: DigitCard(
+                  key: ValueKey('solar-asset-card-${indexed.key}'),
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(
-                          flex: 6,
-                          child: GestureDetector(
-                            key: ValueKey(
-                              'asset-serial-scanner-${indexed.key}',
-                            ),
-                            onTap: () => _scan(indexed.key),
-                            child: DigitTextFormInput(
-                              key: ValueKey('solar-serial-${indexed.key}'),
-                              initialValue: indexed.value.serialNumber,
-                              innerLabel: indexed.value.serialNumber.isEmpty
-                                  ? context
-                                      .translate(i18.assetFlow.scanSerialNumber)
-                                  : indexed.value.serialNumber,
-                              keyboardType: TextInputType.none,
-                              isDisabled: true,
+                          child: Text(
+                            '${widget.assetType == SolarAssetType.panel ? 'Panel' : widget.assetType.label} ${indexed.key + 1}',
+                            style: textTheme.headingXl.copyWith(
+                              color: theme.colorTheme.primary.primary2,
                             ),
                           ),
                         ),
                         const SizedBox(width: spacer2),
-                        Expanded(
-                          flex: 3,
-                          child: DigitButton(
-                            key: ValueKey('solar-scan-${indexed.key}'),
-                            mainAxisSize: MainAxisSize.max,
-                            label: context.translate(i18.assetFlow.scan),
-                            type: DigitButtonType.secondary,
-                            size: DigitButtonSize.large,
-                            onPressed: () => _scan(indexed.key),
+                        Text('${indexed.key + 1}/${entries.length}'),
+                      ],
+                    ),
+                    LabeledField(
+                      label: context.translate(i18.assetFlow.serialNumber),
+                      isRequired: true,
+                      capitalizedFirstLetter: false,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: 6,
+                            child: GestureDetector(
+                              key: ValueKey(
+                                'asset-serial-scanner-${indexed.key}',
+                              ),
+                              onTap: () => _scan(indexed.key),
+                              child: DigitTextFormInput(
+                                key: ValueKey('solar-serial-${indexed.key}'),
+                                initialValue: indexed.value.serialNumber,
+                                innerLabel: indexed.value.serialNumber.isEmpty
+                                    ? context.translate(
+                                        i18.assetFlow.scanSerialNumber)
+                                    : indexed.value.serialNumber,
+                                keyboardType: TextInputType.none,
+                                isDisabled: true,
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: spacer2),
+                          Expanded(
+                            flex: 3,
+                            child: DigitButton(
+                              key: ValueKey('solar-scan-${indexed.key}'),
+                              mainAxisSize: MainAxisSize.max,
+                              label: context.translate(i18.assetFlow.scan),
+                              type: DigitButtonType.secondary,
+                              size: DigitButtonSize.large,
+                              onPressed: () => _scan(indexed.key),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  LabeledField(
-                    label: context.translate(i18.assetFlow.supportingPhoto),
-                    isRequired: true,
-                    capitalizedFirstLetter: false,
-                    child: ImageUploader(
-                      key: ValueKey('solar-photo-${indexed.key}'),
-                      initialImages: [
-                        if (indexed.value.supportingPhoto != null)
-                          indexed.value.supportingPhoto!,
-                      ],
-                      label: 'Click to add photo',
-                      pickMedia: widget.pickMedia,
-                      onImagesSelected: (files) async {
-                        final file = files.isEmpty ? null : files.last;
-                        final persisted = file == null
-                            ? null
-                            : await installationCacheRepository.persistMediaRef(
-                                file,
-                                '${widget.draft.cacheKey}-${widget.assetType.name}-${indexed.key}-support',
-                              );
-                        if (!mounted) return;
-                        setState(
-                            () => indexed.value.supportingPhoto = persisted);
-                        installationDraftRepository.saveSolarSoon(widget.draft);
-                      },
+                    LabeledField(
+                      label: context.translate(i18.assetFlow.supportingPhoto),
+                      isRequired: true,
+                      capitalizedFirstLetter: false,
+                      child: ImageUploader(
+                        key: ValueKey('solar-photo-${indexed.key}'),
+                        initialImages: [
+                          if (indexed.value.supportingPhoto != null)
+                            indexed.value.supportingPhoto!,
+                        ],
+                        label: 'Click to add photo',
+                        pickMedia: widget.pickMedia,
+                        onImagesSelected: (files) async {
+                          final file = files.isEmpty ? null : files.last;
+                          final persisted = file == null
+                              ? null
+                              : await installationCacheRepository
+                                  .persistMediaRef(
+                                  file,
+                                  '${widget.draft.cacheKey}-${widget.assetType.name}-${indexed.key}-support',
+                                );
+                          if (!mounted) return;
+                          setState(
+                              () => indexed.value.supportingPhoto = persisted);
+                          installationDraftRepository
+                              .saveSolarSoon(widget.draft);
+                        },
+                      ),
                     ),
-                  ),
-                  if (widget.assetType == SolarAssetType.inverter)
-                    _ReadOnlyField(
-                      label: context.translate(i18.assetFlow.capacity),
-                      value: _prefilledCapacityFor(SolarAssetType.inverter),
-                    ),
-                ],
+                    if (widget.assetType == SolarAssetType.inverter)
+                      _ReadOnlyField(
+                        label: context.translate(i18.assetFlow.capacity),
+                        value: _prefilledCapacityFor(SolarAssetType.inverter),
+                      ),
+                  ],
+                ),
               ),
-            ),
+          ],
         ],
       ),
     );
@@ -585,9 +621,8 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
     DigitTextTheme textTheme,
     SolarAssetDraft assetDraft,
   ) {
-    final selectedType = assetDraft.assets.isNotEmpty
-        ? assetDraft.assets.first.fields['type']?.toString() ?? ''
-        : '';
+    final selectedType =
+        assetDraft.assets.isNotEmpty ? assetDraft.assets.first.batteryType : '';
     return Padding(
       padding: const EdgeInsets.only(bottom: spacer4),
       child: DigitCard(
@@ -605,13 +640,14 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
             child: DigitDropdown(
               key: const ValueKey('solar-battery-type-dropdown'),
               sentenceCaseEnabled: false,
-              selectedOption: DropdownItem(name: selectedType, code: selectedType),
+              selectedOption:
+                  DropdownItem(name: selectedType, code: selectedType),
               items: assetDraft.typeOptions
                   .map((type) => DropdownItem(name: type, code: type))
                   .toList(),
               onSelect: (item) => setState(() {
                 for (final entry in assetDraft.assets) {
-                  entry.fields['type'] = item.code;
+                  entry.batteryType = item.code;
                 }
                 installationDraftRepository.saveSolarSoon(widget.draft);
               }),
@@ -889,10 +925,9 @@ class AssetSummaryPage extends StatelessWidget {
                     indexed.value.serialNumber,
                 context.translate(i18.assetFlow.capacity):
                     indexed.value.capacity,
-                context.translate(i18.assetFlow.assetType):
-                    indexed.value.fields['type']?.toString() ?? '—',
-                context.translate(i18.assetFlow.images):
-                    indexed.value.supportingPhoto?.name ?? '—',
+                if (assetType == SolarAssetType.battery)
+                  context.translate(i18.assetFlow.assetType):
+                      indexed.value.batteryType,
               },
               media: indexed.value.supportingPhoto == null
                   ? const []
@@ -910,10 +945,7 @@ class AssetSummaryPage extends StatelessWidget {
           _SummaryCard(
             title:
                 '${draft.labelFor(assetType)} ${context.translate(i18.assetFlow.images)}',
-            values: {
-              context.translate(i18.assetFlow.images):
-                  asset.images.map((file) => file.name).join(', '),
-            },
+            values: const {},
             media: asset.images,
             onEdit: readOnly
                 ? null
@@ -929,10 +961,7 @@ class AssetSummaryPage extends StatelessWidget {
             _SummaryCard(
               title:
                   '${draft.labelFor(assetType)} ${context.translate(i18.assetFlow.videos)}',
-              values: {
-                context.translate(i18.assetFlow.videos):
-                    asset.videos.map((file) => file.name).join(', '),
-              },
+              values: const {},
               media: asset.videos,
               onEdit: readOnly
                   ? null

@@ -102,6 +102,11 @@ class InstallationDraftRepository {
     SolarInstallationDraft draft,
     List<Map<String, dynamic>> values,
   ) {
+    if (draft.isReadOnly) {
+      for (final type in SolarAssetType.values) {
+        draft.resetCount(type);
+      }
+    }
     final grouped = <SolarAssetType, List<SolarAssetEntry>>{};
     for (final value in values) {
       final rawType = (value['assetTypeID'] ??
@@ -111,9 +116,11 @@ class InstallationDraftRepository {
           .toString();
       final type = _solarType(rawType, rawType);
       if (type == null) continue;
-      final details = value['additionalDetails'] is Map
-          ? Map<String, dynamic>.from(value['additionalDetails'] as Map)
+      final details = value['assetDetails'] is Map
+          ? Map<String, dynamic>.from(value['assetDetails'] as Map)
           : const <String, dynamic>{};
+      final extraFields = Map<String, dynamic>.from(details)
+        ..remove('batteryType');
       final documents = (value['documents'] as List<dynamic>? ?? const [])
           .whereType<Map>()
           .map((item) => Map<String, dynamic>.from(item))
@@ -126,13 +133,18 @@ class InstallationDraftRepository {
         photo = temporary.completionReportFiles.firstOrNull;
       }
       grouped.putIfAbsent(type, () => []).add(SolarAssetEntry(
+            assetId: (value['assetId'] ?? value['assetID'])?.toString(),
+            itemCode: value['itemCode']?.toString(),
             serialNumber:
                 (value['serialNumber'] ?? details['serialNumber'] ?? '')
                     .toString(),
             capacity:
                 (details['capacity'] ?? value['capacity'] ?? '').toString(),
+            batteryType: type == SolarAssetType.battery
+                ? (details['batteryType'] ?? '').toString()
+                : '',
             supportingPhoto: photo,
-            fields: details,
+            fields: extraFields,
           ));
     }
     for (final entry in grouped.entries) {
@@ -160,8 +172,12 @@ class InstallationDraftRepository {
             'selectedBrandCode': entry.value.selectedBrandCode,
             'entries': entry.value.assets
                 .map((asset) => {
+                      if (asset.assetId != null) 'assetId': asset.assetId,
+                      if (asset.itemCode != null) 'itemCode': asset.itemCode,
                       'serialNumber': asset.serialNumber,
                       'capacity': asset.capacity,
+                      if (entry.key == SolarAssetType.battery)
+                        'batteryType': asset.batteryType,
                       'fields': asset.fields,
                       if (asset.supportingPhoto != null)
                         'supportingPhoto': asset.supportingPhoto!.toJson(),
@@ -229,9 +245,6 @@ class InstallationDraftRepository {
       if (constraint != null) {
         draft.minimumCounts[local] = constraint.min;
         draft.maximumCounts[local] = constraint.max;
-        if (draft.countFor(local) == 0 && draft.assets[local]!.assets.isEmpty) {
-          draft.setCount(local, constraint.min);
-        }
       }
       draft.brandOptions[local] = assetMdmsRepository
           .brandsFor(type.code)
@@ -286,43 +299,17 @@ class InstallationDraftRepository {
         assetMdmsRepository.installationImagesFor(draft.systemCode);
   }
 
-  /// TEMPORARY test fixture: `ActivityFacilityAdditionalDetails.battery/
-  /// inverter/panel` isn't populated by the backend yet, so a brand-new
-  /// report's brand/capacity fields would otherwise start blank — which,
-  /// for capacity, permanently blocks `AddNewAssetPage`'s "Next" button
-  /// whenever MDMS also has no selectable `capacity` options for the type
-  /// (so there's no other way to set it). Remove this map once the backend
-  /// actually sends real prefill data.
-  static const _testComponentDefaults = <SolarAssetType, Map<String, String>>{
-    SolarAssetType.battery: {
-      'brandCode': 'NED',
-      'brandName': 'NED',
-      'capacity': '125',
-    },
-    SolarAssetType.inverter: {
-      'brandCode': 'ETERNITY',
-      'brandName': 'Eternity',
-      'capacity': '1',
-    },
-    SolarAssetType.panel: {
-      'brandCode': 'RENEW',
-      'brandName': 'ReNew',
-      'capacity': '330',
-    },
-  };
-
   void _hydrateComponent(
     SolarInstallationDraft draft,
     SolarAssetType type,
     Map<String, dynamic>? value,
   ) {
-    final effective = value ?? _testComponentDefaults[type];
-    if (effective == null) return;
+    if (value == null) return;
     final asset = draft.assets[type]!;
-    final brand = effective['brandName']?.toString();
+    final brand = value['brandName']?.toString();
     asset.selectedBrandCode =
-        brand?.isNotEmpty == true ? brand : effective['brandCode']?.toString();
-    final capacity = effective['capacity']?.toString();
+        brand?.isNotEmpty == true ? brand : value['brandCode']?.toString();
+    final capacity = value['capacity']?.toString();
     if (capacity != null && capacity.isNotEmpty) {
       asset.totalCapacity = capacity;
       // Also seed each already-created unit's own capacity (normally an
@@ -337,9 +324,27 @@ class InstallationDraftRepository {
   void _mergeBackend(
       SolarInstallationDraft draft, List<BillOfMaterial> values) {
     for (final bom in values) {
-      draft.mergedBom.addAll(bom.data);
-      if (bom.name != null) {
-        draft.dynamicFormAnswers.putIfAbsent(bom.name!, () => Map.of(bom.data));
+      final componentType = bom.additionalDetails['componentType']
+          ?.toString()
+          .trim()
+          .toUpperCase();
+      if (componentType == 'MACHINE') continue;
+
+      // Old app versions incorrectly created one backend BOM row per MDMS
+      // form page. Keep their documents viewable, but never merge those rows
+      // back into the canonical single Solar BOM.
+      final name = bom.name?.trim() ?? '';
+      final isSplitPage = draft.bomFormNames.any(
+            (form) => form.trim().toUpperCase() == name.toUpperCase(),
+          ) ||
+          name.toUpperCase().startsWith('ASSETFORM.') ||
+          name.toUpperCase().contains('_BOM_');
+      if (!isSplitPage) {
+        draft.mergedBom.addAll(bom.data);
+        if (bom.name != null) {
+          draft.dynamicFormAnswers
+              .putIfAbsent(bom.name!, () => Map.of(bom.data));
+        }
       }
       draft.backendDocuments.addAll(bom.documents);
       _hydrateDocuments(draft, bom.documents);
@@ -416,11 +421,8 @@ class InstallationDraftRepository {
             value['selectedBrandCode']?.toString() ?? target.selectedBrandCode;
         final entries = value['entries'];
         if (entries is List) {
-          // Preserve the current (e.g. `_hydrateComponent` test-default)
-          // capacity/photo by index when the cached entry doesn't have one
-          // — a cache saved before a value was ever set would otherwise
-          // permanently blank it out on every future load, the same
-          // clobbering bug just fixed above for `selectedBrandCode`.
+          // Preserve activity-payload prefill by index when an older cache
+          // entry did not yet contain capacity or a supporting photo.
           final existing = List<SolarAssetEntry>.of(target.assets);
           target.assets
             ..clear()
@@ -430,11 +432,20 @@ class InstallationDraftRepository {
               final prior = index < existing.length ? existing[index] : null;
               final cachedCapacity = entry['capacity']?.toString() ?? '';
               return SolarAssetEntry(
+                assetId: entry['assetId']?.toString() ?? prior?.assetId,
+                itemCode: entry['itemCode']?.toString() ?? prior?.itemCode,
                 serialNumber: entry['serialNumber']?.toString() ?? '',
-                capacity:
-                    cachedCapacity.isNotEmpty ? cachedCapacity : (prior?.capacity ?? ''),
+                capacity: cachedCapacity.isNotEmpty
+                    ? cachedCapacity
+                    : (prior?.capacity ?? ''),
+                batteryType: type == SolarAssetType.battery
+                    ? (entry['batteryType'] ?? '').toString()
+                    : '',
                 fields: entry['fields'] is Map
-                    ? Map<String, dynamic>.from(entry['fields'] as Map)
+                    ? (Map<String, dynamic>.from(entry['fields'] as Map)
+                      ..remove('type')
+                      ..remove('battery_type')
+                      ..remove('batteryType'))
                     : const {},
                 supportingPhoto: entry['supportingPhoto'] is Map
                     ? SolarFileRef.fromJson(Map<String, dynamic>.from(
@@ -442,6 +453,14 @@ class InstallationDraftRepository {
                     : prior?.supportingPhoto,
               );
             }));
+        }
+        final cachedCount = counts is Map ? counts[type.name] : null;
+        if (cachedCount is num && cachedCount > 0) {
+          draft.setCount(type, cachedCount.toInt());
+        } else if (cachedCount == null && target.assets.isNotEmpty) {
+          draft.setCount(type, target.assets.length);
+        } else {
+          draft.reconcileEntries(type);
         }
         target.images
           ..clear()
