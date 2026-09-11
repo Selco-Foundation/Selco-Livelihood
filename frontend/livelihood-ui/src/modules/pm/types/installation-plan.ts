@@ -21,6 +21,8 @@ export interface InstallationPlanTemplateEntry {
 export interface InstallationPlanAssignmentEntry {
   siteId: string;
   solutionCode: string;
+  /** Static asset identifier within an end-user site's solution. */
+  assetCode?: string;
   vendorOrgCode?: string;
   vendorUserCode?: string;
   vendorEmail?: string;

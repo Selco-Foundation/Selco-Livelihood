@@ -175,13 +175,17 @@ export async function searchProjects({
  * Only reached after end-user data has been validated and facilities
  * created — moves the project out of "DRAFT" into "ACTIVE".
  */
-export async function scheduleProject(projectId: string): Promise<void> {
+export async function scheduleProject(projectId: string): Promise<Project> {
   const projects = readStore();
-  writeStore(
-    projects.map((project) =>
-      project.id === projectId
-        ? { ...project, additionalDetails: { ...project.additionalDetails, status: "ACTIVE" } }
-        : project,
-    ),
+  const updatedProjects = projects.map((project) =>
+    project.id === projectId
+      ? { ...project, additionalDetails: { ...project.additionalDetails, status: "ACTIVE" } }
+      : project,
   );
+  writeStore(updatedProjects);
+
+  const updatedProject = updatedProjects.find((project) => project.id === projectId);
+  if (!updatedProject) throw new Error("Project not found");
+
+  return updatedProject;
 }
