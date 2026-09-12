@@ -3,6 +3,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import '../asset_count/asset_count.dart';
 import '../asset_type/asset_type.dart';
 import '../brand/brand.dart';
+import '../item_code/item_code.dart';
 import '../solution_design_type/solution_design_type.dart';
 import '../system/system.dart';
 import '../warranty/warranty.dart';
@@ -22,6 +23,7 @@ class AssetRegistryMdmsResponse with _$AssetRegistryMdmsResponse {
     @JsonKey(name: 'asset-registry') AssetRegistryModule? assetRegistry,
     @JsonKey(name: 'facility') FacilityModule? facility,
     @JsonKey(name: 'common-masters') CommonMastersModule? commonMasters,
+    @JsonKey(name: 'livelihood') LivelihoodModule? livelihood,
   }) = _AssetRegistryMdmsResponse;
 
   factory AssetRegistryMdmsResponse.fromJson(Map<String, dynamic> json) =>
@@ -79,4 +81,14 @@ class FacilityModule with _$FacilityModule {
 
   factory FacilityModule.fromJson(Map<String, dynamic> json) =>
       _$FacilityModuleFromJson(json);
+}
+
+@freezed
+class LivelihoodModule with _$LivelihoodModule {
+  const factory LivelihoodModule({
+    @JsonKey(name: 'ItemCode') @Default([]) List<ItemCode> itemCode,
+  }) = _LivelihoodModule;
+
+  factory LivelihoodModule.fromJson(Map<String, dynamic> json) =>
+      _$LivelihoodModuleFromJson(json);
 }

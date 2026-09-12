@@ -20,6 +20,10 @@ _$AssetRegistryMdmsResponseImpl _$$AssetRegistryMdmsResponseImplFromJson(
           ? null
           : CommonMastersModule.fromJson(
               json['common-masters'] as Map<String, dynamic>),
+      livelihood: json['livelihood'] == null
+          ? null
+          : LivelihoodModule.fromJson(
+              json['livelihood'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$$AssetRegistryMdmsResponseImplToJson(
@@ -28,6 +32,7 @@ Map<String, dynamic> _$$AssetRegistryMdmsResponseImplToJson(
       'asset-registry': instance.assetRegistry,
       'facility': instance.facility,
       'common-masters': instance.commonMasters,
+      'livelihood': instance.livelihood,
     };
 
 _$CommonMastersModuleImpl _$$CommonMastersModuleImplFromJson(
@@ -110,4 +115,19 @@ Map<String, dynamic> _$$FacilityModuleImplToJson(
         _$FacilityModuleImpl instance) =>
     <String, dynamic>{
       'SolarSolutionDesignType': instance.solarSolutionDesignType,
+    };
+
+_$LivelihoodModuleImpl _$$LivelihoodModuleImplFromJson(
+        Map<String, dynamic> json) =>
+    _$LivelihoodModuleImpl(
+      itemCode: (json['ItemCode'] as List<dynamic>?)
+              ?.map((e) => ItemCode.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+    );
+
+Map<String, dynamic> _$$LivelihoodModuleImplToJson(
+        _$LivelihoodModuleImpl instance) =>
+    <String, dynamic>{
+      'ItemCode': instance.itemCode,
     };

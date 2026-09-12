@@ -383,9 +383,16 @@ class InstallationDraftRepository {
         mimeType: document['mimeType']?.toString(),
         documentType: type,
       );
-      if (type.startsWith('INSTALLATION_IMAGE-')) {
-        final code =
-            type.substring('INSTALLATION_IMAGE-'.length).split('-').first;
+      final assetMediaMatch =
+          RegExp(r'^(battery|inverter|panel)-(image|video)$').firstMatch(type);
+      if (assetMediaMatch != null) {
+        final assetType = SolarAssetType.values.byName(assetMediaMatch.group(1)!);
+        final bucket = assetMediaMatch.group(2) == 'video'
+            ? draft.assets[assetType]!.videos
+            : draft.assets[assetType]!.images;
+        if (!bucket.any((item) => item.remoteId == remoteId)) bucket.add(media);
+      } else if (type.startsWith('INSTALLATION_IMAGE-')) {
+        final code = type.substring('INSTALLATION_IMAGE-'.length);
         final target = draft.installationMedia.putIfAbsent(code, () => []);
         if (!target.any((item) => item.remoteId == remoteId)) target.add(media);
       } else if (!draft.completionReportFiles

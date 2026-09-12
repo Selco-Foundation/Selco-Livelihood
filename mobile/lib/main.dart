@@ -37,6 +37,7 @@ void main() async {
   }
 
   await setupBackgroundService();
+  await ensureAndroidNotificationPermission();
 
   runApp(LivelihoodApp(isar: isar));
 }

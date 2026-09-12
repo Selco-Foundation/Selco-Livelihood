@@ -270,6 +270,8 @@ class SyncLoading {
   String get syncingReports => 'SYNC_LOADING_SYNCING_REPORTS';
   String get successful => 'SYNC_LOADING_SUCCESSFUL';
   String get failed => 'SYNC_LOADING_FAILED';
+  String get pleaseWait => 'SYNC_LOADING_PLEASE_WAIT';
+  String get somethingWentWrong => 'SYNC_LOADING_SOMETHING_WENT_WRONG';
 }
 
 class Scanner {

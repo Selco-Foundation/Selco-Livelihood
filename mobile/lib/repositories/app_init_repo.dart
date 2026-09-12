@@ -84,6 +84,12 @@ class AppInitRepo {
               MdmsMasterDetailModel(name: 'SolarSolutionDesignType'),
             ],
           ),
+          const MdmsModuleDetailModel(
+            moduleName: 'livelihood',
+            masterDetails: [
+              MdmsMasterDetailModel(name: 'ItemCode'),
+            ],
+          ),
         ],
       ),
     );

@@ -13,6 +13,7 @@ import 'package:livelihood/model/brand/brand.dart';
 import 'package:livelihood/model/bom/bom.dart';
 import 'package:livelihood/model/document/submission_document.dart';
 import 'package:livelihood/model/facility_report.dart';
+import 'package:livelihood/model/item_code/item_code.dart';
 import 'package:livelihood/model/mdms/asset_registry_response.dart';
 import 'package:livelihood/model/mdms/common_masters.dart';
 import 'package:livelihood/model/warranty/warranty.dart';
@@ -21,6 +22,7 @@ import 'package:livelihood/repositories/activity_facility_repo.dart';
 import 'package:livelihood/repositories/activity_facility_mock_overlay.dart';
 import 'package:livelihood/repositories/asset_mdms_repository.dart';
 import 'package:livelihood/repositories/bom_repository.dart';
+import 'package:livelihood/repositories/installation_draft_repository.dart';
 import 'package:livelihood/repositories/operation_progress_repo.dart';
 import 'package:livelihood/utils/envConfig.dart';
 import 'package:livelihood/utils/dynamic_form_schema.dart';
@@ -353,6 +355,223 @@ void main() {
     expect(details['batteryType'], 'LITHIUM_ION');
     expect(details, isNot(contains('type')));
     expect(details, isNot(contains('battery_type')));
+  });
+
+  test('machine assetTypeID resolves from the ItemCode MDMS catalog',
+      () async {
+    await assetMdmsRepository.store(const AssetRegistryMdmsResponse(
+      livelihood: LivelihoodModule(
+        itemCode: [
+          ItemCode(
+            code: 'HULLER-RICE-3HP',
+            name: 'Huller Rice 3HP AC 150 kgs/hr',
+            active: true,
+            category: 'RICE HULLER',
+            solarAsset: false,
+          ),
+          ItemCode(
+            code: 'SP-300WP',
+            name: 'Solar Panel 300Wp',
+            active: true,
+            category: 'SOLAR PANEL',
+            solarAsset: true,
+          ),
+        ],
+      ),
+    ));
+    addTearDown(
+        () => assetMdmsRepository.store(const AssetRegistryMdmsResponse()));
+
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'activity-facility-1',
+        facilityId: 'facility-1',
+        additionalDetails: ActivityFacilityAdditionalDetails(
+          componentType: 'MACHINE',
+          bom: {
+            'components': [
+              {'itemCode': 'HULLER-RICE-3HP'},
+            ],
+          },
+        ),
+      ),
+    );
+
+    final payload = buildMachineSubmissionPayload(
+      workflow: workflow,
+      poNumber: 'PO-1',
+      serialNumber: 'SER-1',
+      invoiceNumber: 'INV-1',
+      capacity: '3',
+      warrantyYears: '5',
+      trainedEndUser: true,
+    );
+    final asset = (payload['assets'] as List).single as Map;
+    expect(asset['assetTypeID'], 'RICE HULLER');
+    expect(asset['itemCode'], 'HULLER-RICE-3HP');
+  });
+
+  test(
+      'solar itemCode stays unset when the catalog has no entry for the '
+      'asset type', () async {
+    await assetMdmsRepository.store(const AssetRegistryMdmsResponse(
+      livelihood: LivelihoodModule(
+        itemCode: [
+          ItemCode(
+            code: 'SP-300WP',
+            name: 'Solar Panel 300Wp',
+            active: true,
+            category: 'SOLAR PANEL',
+            solarAsset: true,
+          ),
+          ItemCode(
+            code: 'SP-330WP',
+            name: 'Solar Panel 330Wp',
+            active: true,
+            category: 'SOLAR PANEL',
+            solarAsset: true,
+          ),
+        ],
+      ),
+    ));
+    addTearDown(
+        () => assetMdmsRepository.store(const AssetRegistryMdmsResponse()));
+
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'activity-facility-1',
+        facilityId: 'facility-1',
+      ),
+    );
+    final draft = SolarInstallationDraft(
+      workflow: workflow,
+      mode: SolarWorkflowMode.newReport,
+    )
+      ..systemCode = 'DC'
+      ..applicableTypes = const [SolarAssetType.battery];
+    draft.assetTypeCodes[SolarAssetType.battery] = 'BATTERY';
+    draft.assets[SolarAssetType.battery]!
+      ..selectedBrandCode = 'NED'
+      ..warrantyDuration = '5 Years'
+      ..assets.add(SolarAssetEntry(
+        serialNumber: 'BATTERY-1',
+        capacity: '125',
+        batteryType: 'LITHIUM_ION',
+      ));
+
+    final payload = buildSolarSubmissionPayload(draft);
+    final asset = (payload['assets'] as List).single as Map;
+    expect(asset.containsKey('itemCode'), isFalse);
+  });
+
+  test(
+      'battery image and panel video round-trip through submit and reopen '
+      'using the E4H-matching lowercase documentType', () {
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'activity-facility-1',
+        facilityId: 'facility-1',
+      ),
+    );
+    final draft = SolarInstallationDraft(
+      workflow: workflow,
+      mode: SolarWorkflowMode.newReport,
+    )
+      ..systemCode = 'DC'
+      ..applicableTypes = const [SolarAssetType.battery, SolarAssetType.panel];
+    draft.assetTypeCodes[SolarAssetType.battery] = 'BATTERY';
+    draft.assetTypeCodes[SolarAssetType.panel] = 'PANEL';
+    draft.assets[SolarAssetType.battery]!
+      ..selectedBrandCode = 'NED'
+      ..warrantyDuration = '5 Years'
+      ..assets.add(SolarAssetEntry(
+        serialNumber: 'BATTERY-1',
+        capacity: '125',
+        batteryType: 'LITHIUM_ION',
+      ))
+      ..images.add(const SolarFileRef(
+        name: 'battery.jpg',
+        path: 'battery-filestore',
+        remoteId: 'battery-filestore',
+        kind: SolarFileKind.image,
+      ));
+    draft.assets[SolarAssetType.panel]!
+      ..selectedBrandCode = 'RENEW'
+      ..warrantyDuration = '5 Years'
+      ..assets.add(SolarAssetEntry(
+        serialNumber: 'PANEL-1',
+        capacity: '330',
+      ))
+      ..videos.add(const SolarFileRef(
+        name: 'panel.mp4',
+        path: 'panel-filestore',
+        remoteId: 'panel-filestore',
+        kind: SolarFileKind.video,
+      ));
+
+    final payload = buildSolarSubmissionPayload(draft);
+    final workflowDocuments = payload['workflowDocuments'] as List;
+    final batteryDoc = workflowDocuments.cast<Map>().firstWhere(
+        (document) => document['fileStore'] == 'battery-filestore');
+    final panelDoc = workflowDocuments.cast<Map>().firstWhere(
+        (document) => document['fileStore'] == 'panel-filestore');
+    expect(batteryDoc['documentType'], 'battery-image');
+    expect(panelDoc['documentType'], 'panel-video');
+
+    final reopenedWorkflow = ActivityFacilityWorkflow(
+      activityFacility: workflow.activityFacility,
+      workflow: Workflow(
+        documents: [
+          {
+            'documentType': batteryDoc['documentType'],
+            'fileStoreId': batteryDoc['fileStore'],
+          },
+          {
+            'documentType': panelDoc['documentType'],
+            'fileStoreId': panelDoc['fileStore'],
+          },
+        ],
+      ),
+    );
+    final reopenedDraft = InstallationDraftRepository()
+        .createSolar(reopenedWorkflow, SolarWorkflowMode.pending);
+    expect(
+        reopenedDraft.assets[SolarAssetType.battery]!.images
+            .map((file) => file.remoteId),
+        contains('battery-filestore'));
+    expect(
+        reopenedDraft.assets[SolarAssetType.panel]!.videos
+            .map((file) => file.remoteId),
+        contains('panel-filestore'));
+  });
+
+  test(
+      'INSTALLATION_IMAGE- hydration keeps the full hyphenated MDMS code '
+      'instead of truncating it', () {
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'activity-facility-1',
+        facilityId: 'facility-1',
+      ),
+    );
+    final reopenedWorkflow = ActivityFacilityWorkflow(
+      activityFacility: workflow.activityFacility,
+      workflow: const Workflow(
+        documents: [
+          {
+            'documentType': 'INSTALLATION_IMAGE-roof-mount-photo',
+            'fileStoreId': 'roof-filestore',
+          },
+        ],
+      ),
+    );
+    final reopenedDraft = InstallationDraftRepository()
+        .createSolar(reopenedWorkflow, SolarWorkflowMode.pending);
+    expect(
+        reopenedDraft.installationMedia['roof-mount-photo']
+            ?.map((file) => file.remoteId),
+        contains('roof-filestore'));
+    expect(reopenedDraft.installationMedia['roof'], isNull);
   });
 
   test('BOM matching never selects Machine or split-page rows for Solar', () {

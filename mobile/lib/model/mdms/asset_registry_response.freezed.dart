@@ -27,6 +27,8 @@ mixin _$AssetRegistryMdmsResponse {
   FacilityModule? get facility => throw _privateConstructorUsedError;
   @JsonKey(name: 'common-masters')
   CommonMastersModule? get commonMasters => throw _privateConstructorUsedError;
+  @JsonKey(name: 'livelihood')
+  LivelihoodModule? get livelihood => throw _privateConstructorUsedError;
 
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
   @JsonKey(ignore: true)
@@ -43,11 +45,13 @@ abstract class $AssetRegistryMdmsResponseCopyWith<$Res> {
   $Res call(
       {@JsonKey(name: 'asset-registry') AssetRegistryModule? assetRegistry,
       @JsonKey(name: 'facility') FacilityModule? facility,
-      @JsonKey(name: 'common-masters') CommonMastersModule? commonMasters});
+      @JsonKey(name: 'common-masters') CommonMastersModule? commonMasters,
+      @JsonKey(name: 'livelihood') LivelihoodModule? livelihood});
 
   $AssetRegistryModuleCopyWith<$Res>? get assetRegistry;
   $FacilityModuleCopyWith<$Res>? get facility;
   $CommonMastersModuleCopyWith<$Res>? get commonMasters;
+  $LivelihoodModuleCopyWith<$Res>? get livelihood;
 }
 
 /// @nodoc
@@ -67,6 +71,7 @@ class _$AssetRegistryMdmsResponseCopyWithImpl<$Res,
     Object? assetRegistry = freezed,
     Object? facility = freezed,
     Object? commonMasters = freezed,
+    Object? livelihood = freezed,
   }) {
     return _then(_value.copyWith(
       assetRegistry: freezed == assetRegistry
@@ -81,6 +86,10 @@ class _$AssetRegistryMdmsResponseCopyWithImpl<$Res,
           ? _value.commonMasters
           : commonMasters // ignore: cast_nullable_to_non_nullable
               as CommonMastersModule?,
+      livelihood: freezed == livelihood
+          ? _value.livelihood
+          : livelihood // ignore: cast_nullable_to_non_nullable
+              as LivelihoodModule?,
     ) as $Val);
   }
 
@@ -119,6 +128,18 @@ class _$AssetRegistryMdmsResponseCopyWithImpl<$Res,
       return _then(_value.copyWith(commonMasters: value) as $Val);
     });
   }
+
+  @override
+  @pragma('vm:prefer-inline')
+  $LivelihoodModuleCopyWith<$Res>? get livelihood {
+    if (_value.livelihood == null) {
+      return null;
+    }
+
+    return $LivelihoodModuleCopyWith<$Res>(_value.livelihood!, (value) {
+      return _then(_value.copyWith(livelihood: value) as $Val);
+    });
+  }
 }
 
 /// @nodoc
@@ -133,7 +154,8 @@ abstract class _$$AssetRegistryMdmsResponseImplCopyWith<$Res>
   $Res call(
       {@JsonKey(name: 'asset-registry') AssetRegistryModule? assetRegistry,
       @JsonKey(name: 'facility') FacilityModule? facility,
-      @JsonKey(name: 'common-masters') CommonMastersModule? commonMasters});
+      @JsonKey(name: 'common-masters') CommonMastersModule? commonMasters,
+      @JsonKey(name: 'livelihood') LivelihoodModule? livelihood});
 
   @override
   $AssetRegistryModuleCopyWith<$Res>? get assetRegistry;
@@ -141,6 +163,8 @@ abstract class _$$AssetRegistryMdmsResponseImplCopyWith<$Res>
   $FacilityModuleCopyWith<$Res>? get facility;
   @override
   $CommonMastersModuleCopyWith<$Res>? get commonMasters;
+  @override
+  $LivelihoodModuleCopyWith<$Res>? get livelihood;
 }
 
 /// @nodoc
@@ -159,6 +183,7 @@ class __$$AssetRegistryMdmsResponseImplCopyWithImpl<$Res>
     Object? assetRegistry = freezed,
     Object? facility = freezed,
     Object? commonMasters = freezed,
+    Object? livelihood = freezed,
   }) {
     return _then(_$AssetRegistryMdmsResponseImpl(
       assetRegistry: freezed == assetRegistry
@@ -173,6 +198,10 @@ class __$$AssetRegistryMdmsResponseImplCopyWithImpl<$Res>
           ? _value.commonMasters
           : commonMasters // ignore: cast_nullable_to_non_nullable
               as CommonMastersModule?,
+      livelihood: freezed == livelihood
+          ? _value.livelihood
+          : livelihood // ignore: cast_nullable_to_non_nullable
+              as LivelihoodModule?,
     ));
   }
 }
@@ -183,7 +212,8 @@ class _$AssetRegistryMdmsResponseImpl implements _AssetRegistryMdmsResponse {
   const _$AssetRegistryMdmsResponseImpl(
       {@JsonKey(name: 'asset-registry') this.assetRegistry,
       @JsonKey(name: 'facility') this.facility,
-      @JsonKey(name: 'common-masters') this.commonMasters});
+      @JsonKey(name: 'common-masters') this.commonMasters,
+      @JsonKey(name: 'livelihood') this.livelihood});
 
   factory _$AssetRegistryMdmsResponseImpl.fromJson(Map<String, dynamic> json) =>
       _$$AssetRegistryMdmsResponseImplFromJson(json);
@@ -197,10 +227,13 @@ class _$AssetRegistryMdmsResponseImpl implements _AssetRegistryMdmsResponse {
   @override
   @JsonKey(name: 'common-masters')
   final CommonMastersModule? commonMasters;
+  @override
+  @JsonKey(name: 'livelihood')
+  final LivelihoodModule? livelihood;
 
   @override
   String toString() {
-    return 'AssetRegistryMdmsResponse(assetRegistry: $assetRegistry, facility: $facility, commonMasters: $commonMasters)';
+    return 'AssetRegistryMdmsResponse(assetRegistry: $assetRegistry, facility: $facility, commonMasters: $commonMasters, livelihood: $livelihood)';
   }
 
   @override
@@ -213,13 +246,15 @@ class _$AssetRegistryMdmsResponseImpl implements _AssetRegistryMdmsResponse {
             (identical(other.facility, facility) ||
                 other.facility == facility) &&
             (identical(other.commonMasters, commonMasters) ||
-                other.commonMasters == commonMasters));
+                other.commonMasters == commonMasters) &&
+            (identical(other.livelihood, livelihood) ||
+                other.livelihood == livelihood));
   }
 
   @JsonKey(ignore: true)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, assetRegistry, facility, commonMasters);
+  int get hashCode => Object.hash(
+      runtimeType, assetRegistry, facility, commonMasters, livelihood);
 
   @JsonKey(ignore: true)
   @override
@@ -238,12 +273,12 @@ class _$AssetRegistryMdmsResponseImpl implements _AssetRegistryMdmsResponse {
 
 abstract class _AssetRegistryMdmsResponse implements AssetRegistryMdmsResponse {
   const factory _AssetRegistryMdmsResponse(
-          {@JsonKey(name: 'asset-registry')
-          final AssetRegistryModule? assetRegistry,
-          @JsonKey(name: 'facility') final FacilityModule? facility,
-          @JsonKey(name: 'common-masters')
-          final CommonMastersModule? commonMasters}) =
-      _$AssetRegistryMdmsResponseImpl;
+      {@JsonKey(name: 'asset-registry')
+      final AssetRegistryModule? assetRegistry,
+      @JsonKey(name: 'facility') final FacilityModule? facility,
+      @JsonKey(name: 'common-masters') final CommonMastersModule? commonMasters,
+      @JsonKey(name: 'livelihood')
+      final LivelihoodModule? livelihood}) = _$AssetRegistryMdmsResponseImpl;
 
   factory _AssetRegistryMdmsResponse.fromJson(Map<String, dynamic> json) =
       _$AssetRegistryMdmsResponseImpl.fromJson;
@@ -257,6 +292,9 @@ abstract class _AssetRegistryMdmsResponse implements AssetRegistryMdmsResponse {
   @override
   @JsonKey(name: 'common-masters')
   CommonMastersModule? get commonMasters;
+  @override
+  @JsonKey(name: 'livelihood')
+  LivelihoodModule? get livelihood;
   @override
   @JsonKey(ignore: true)
   _$$AssetRegistryMdmsResponseImplCopyWith<_$AssetRegistryMdmsResponseImpl>
@@ -987,5 +1025,155 @@ abstract class _FacilityModule implements FacilityModule {
   @override
   @JsonKey(ignore: true)
   _$$FacilityModuleImplCopyWith<_$FacilityModuleImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+LivelihoodModule _$LivelihoodModuleFromJson(Map<String, dynamic> json) {
+  return _LivelihoodModule.fromJson(json);
+}
+
+/// @nodoc
+mixin _$LivelihoodModule {
+  @JsonKey(name: 'ItemCode')
+  List<ItemCode> get itemCode => throw _privateConstructorUsedError;
+
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+  @JsonKey(ignore: true)
+  $LivelihoodModuleCopyWith<LivelihoodModule> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $LivelihoodModuleCopyWith<$Res> {
+  factory $LivelihoodModuleCopyWith(
+          LivelihoodModule value, $Res Function(LivelihoodModule) then) =
+      _$LivelihoodModuleCopyWithImpl<$Res, LivelihoodModule>;
+  @useResult
+  $Res call({@JsonKey(name: 'ItemCode') List<ItemCode> itemCode});
+}
+
+/// @nodoc
+class _$LivelihoodModuleCopyWithImpl<$Res, $Val extends LivelihoodModule>
+    implements $LivelihoodModuleCopyWith<$Res> {
+  _$LivelihoodModuleCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? itemCode = null,
+  }) {
+    return _then(_value.copyWith(
+      itemCode: null == itemCode
+          ? _value.itemCode
+          : itemCode // ignore: cast_nullable_to_non_nullable
+              as List<ItemCode>,
+    ) as $Val);
+  }
+}
+
+/// @nodoc
+abstract class _$$LivelihoodModuleImplCopyWith<$Res>
+    implements $LivelihoodModuleCopyWith<$Res> {
+  factory _$$LivelihoodModuleImplCopyWith(_$LivelihoodModuleImpl value,
+          $Res Function(_$LivelihoodModuleImpl) then) =
+      __$$LivelihoodModuleImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({@JsonKey(name: 'ItemCode') List<ItemCode> itemCode});
+}
+
+/// @nodoc
+class __$$LivelihoodModuleImplCopyWithImpl<$Res>
+    extends _$LivelihoodModuleCopyWithImpl<$Res, _$LivelihoodModuleImpl>
+    implements _$$LivelihoodModuleImplCopyWith<$Res> {
+  __$$LivelihoodModuleImplCopyWithImpl(_$LivelihoodModuleImpl _value,
+      $Res Function(_$LivelihoodModuleImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? itemCode = null,
+  }) {
+    return _then(_$LivelihoodModuleImpl(
+      itemCode: null == itemCode
+          ? _value._itemCode
+          : itemCode // ignore: cast_nullable_to_non_nullable
+              as List<ItemCode>,
+    ));
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$LivelihoodModuleImpl implements _LivelihoodModule {
+  const _$LivelihoodModuleImpl(
+      {@JsonKey(name: 'ItemCode') final List<ItemCode> itemCode = const []})
+      : _itemCode = itemCode;
+
+  factory _$LivelihoodModuleImpl.fromJson(Map<String, dynamic> json) =>
+      _$$LivelihoodModuleImplFromJson(json);
+
+  final List<ItemCode> _itemCode;
+  @override
+  @JsonKey(name: 'ItemCode')
+  List<ItemCode> get itemCode {
+    if (_itemCode is EqualUnmodifiableListView) return _itemCode;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_itemCode);
+  }
+
+  @override
+  String toString() {
+    return 'LivelihoodModule(itemCode: $itemCode)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$LivelihoodModuleImpl &&
+            const DeepCollectionEquality().equals(other._itemCode, _itemCode));
+  }
+
+  @JsonKey(ignore: true)
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, const DeepCollectionEquality().hash(_itemCode));
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$LivelihoodModuleImplCopyWith<_$LivelihoodModuleImpl> get copyWith =>
+      __$$LivelihoodModuleImplCopyWithImpl<_$LivelihoodModuleImpl>(
+          this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$LivelihoodModuleImplToJson(
+      this,
+    );
+  }
+}
+
+abstract class _LivelihoodModule implements LivelihoodModule {
+  const factory _LivelihoodModule(
+          {@JsonKey(name: 'ItemCode') final List<ItemCode> itemCode}) =
+      _$LivelihoodModuleImpl;
+
+  factory _LivelihoodModule.fromJson(Map<String, dynamic> json) =
+      _$LivelihoodModuleImpl.fromJson;
+
+  @override
+  @JsonKey(name: 'ItemCode')
+  List<ItemCode> get itemCode;
+  @override
+  @JsonKey(ignore: true)
+  _$$LivelihoodModuleImplCopyWith<_$LivelihoodModuleImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }

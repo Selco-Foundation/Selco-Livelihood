@@ -24,6 +24,7 @@ import 'submission_payload.dart';
 const String kMethodSubmit = 'submit';
 const String kEvtDone = 'submission_done';
 const String kEvtError = 'submission_error';
+const String kEvtReady = 'service_ready';
 
 const String _svcChannelId = 'asset_submission_channel';
 const String _svcChannelName = 'Asset Submission';
@@ -109,6 +110,13 @@ class BackgroundServiceController {
       totalSteps: submitStages.length,
     );
 
+    final reqId = DateTime.now().microsecondsSinceEpoch.toString();
+    void send() => service.invoke(kMethodSubmit, {
+          'activityFacilityId': activityFacilityId,
+          'facilityId': facilityId,
+          'reqId': reqId,
+        });
+
     // `flutter_background_service`'s platform channel calls can hang
     // indefinitely rather than throwing when there's no responder (observed
     // under `flutter test`, where no platform implementation is registered
@@ -117,13 +125,27 @@ class BackgroundServiceController {
     const channelTimeout = Duration(seconds: 5);
     if (!await service.isRunning().timeout(channelTimeout)) {
       await service.startService().timeout(channelTimeout);
+      // On a cold start, `startService()` returns as soon as Android's
+      // foreground-service call returns — it does not wait for the new
+      // engine/isolate inside the service to finish booting and register
+      // its `kMethodSubmit` listener, so an invoke sent immediately after
+      // can be silently dropped. Send now, again once the isolate signals
+      // it's actually ready, and again via a short timer as a safety net;
+      // `onStart`'s reqId dedupe means only the first delivery is acted on.
+      StreamSubscription? readySub;
+      readySub = service.on(kEvtReady).listen((_) {
+        send();
+        readySub?.cancel();
+      });
+      send();
+      Timer(const Duration(milliseconds: 200), () {
+        send();
+        readySub?.cancel();
+      });
     } else {
       await ensureAndroidNotificationPermission();
+      send();
     }
-    service.invoke(kMethodSubmit, {
-      'activityFacilityId': activityFacilityId,
-      'facilityId': facilityId,
-    });
   }
 }
 
@@ -141,10 +163,14 @@ void onStart(ServiceInstance service) async {
     );
   }
 
+  String? lastHandledReqId;
   service.on(kMethodSubmit).listen((payload) async {
     final activityFacilityId = payload?['activityFacilityId'] as String?;
     final facilityId = payload?['facilityId'] as String?;
+    final reqId = payload?['reqId'] as String?;
     if (activityFacilityId == null || facilityId == null) return;
+    if (reqId != null && reqId == lastHandledReqId) return;
+    lastHandledReqId = reqId;
 
     if (service is AndroidServiceInstance) {
       await service.setForegroundNotificationInfo(
@@ -178,6 +204,8 @@ void onStart(ServiceInstance service) async {
       });
     }
   });
+
+  service.invoke(kEvtReady);
 }
 
 Future<void> _reportStage({

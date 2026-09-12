@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../model/asset_count/asset_count.dart';
 import '../model/asset_type/asset_type.dart';
 import '../model/brand/brand.dart';
+import '../model/item_code/item_code.dart';
 import '../model/mdms/asset_registry_response.dart';
 import '../model/mdms/common_masters.dart';
 import '../model/solution_design_type/solution_design_type.dart';
@@ -53,6 +54,13 @@ class AssetMdmsRepository {
           facility.solarSolutionDesignType
               .map((item) => item.toJson())
               .toList());
+    }
+    final livelihood = value.livelihood;
+    if (livelihood != null) {
+      await installationCacheRepository.putJson(
+          'mdms-master',
+          'livelihood.ItemCode',
+          livelihood.itemCode.map((item) => item.toJson()).toList());
     }
     if (common != null) {
       await installationCacheRepository.putJson(
@@ -131,6 +139,14 @@ class AssetMdmsRepository {
           .where((item) => item.active)
           .toList() ??
       const [];
+
+  List<ItemCode> get itemCodes =>
+      (_memory?.livelihood?.itemCode ?? const [])
+          .where((item) => item.active)
+          .toList();
+
+  ItemCode? itemCodeFor(String code) =>
+      itemCodes.where((item) => item.code == code).firstOrNull;
 
   List<SolutionDesignType> get solutionDesigns =>
       _memory?.facility?.solarSolutionDesignType

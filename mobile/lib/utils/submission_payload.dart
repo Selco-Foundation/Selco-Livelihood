@@ -24,11 +24,9 @@ Map<String, dynamic> buildSolarSubmissionPayload(SolarInstallationDraft draft) {
         _document(file, 'INSTALLATION_IMAGE-${media.key}'),
     for (final type in draft.applicableTypes) ...[
       for (final file in draft.assets[type]!.images)
-        _document(file,
-            '${draft.assetTypeCodes[type] ?? type.name.toUpperCase()}-IMAGE'),
+        _document(file, '${type.name}-image'),
       for (final file in draft.assets[type]!.videos)
-        _document(file,
-            '${draft.assetTypeCodes[type] ?? type.name.toUpperCase()}-VIDEO'),
+        _document(file, '${type.name}-video'),
     ],
   ];
 
@@ -132,18 +130,21 @@ Map<String, dynamic> buildMachineSubmissionPayload({
           : const <String, dynamic>{};
   final componentType =
       activityFacility.additionalDetails?.componentType?.trim().toUpperCase();
+  final itemCode = _firstNonBlank([
+    firstComponent['itemCode'],
+    firstComponent['item_code'],
+    templateBom['itemCode'],
+  ]);
+  final resolvedItem =
+      itemCode == null ? null : assetMdmsRepository.itemCodeFor(itemCode);
   final assetTypeCode = _firstNonBlank([
+        resolvedItem?.category,
         firstComponent['assetTypeID'],
         firstComponent['assetTypeCode'],
         firstComponent['category'],
         componentType,
       ]) ??
       'MACHINE';
-  final itemCode = _firstNonBlank([
-    firstComponent['itemCode'],
-    firstComponent['item_code'],
-    templateBom['itemCode'],
-  ]);
   final brandCode = _firstNonBlank([
     firstComponent['brandID'],
     firstComponent['brandCode'],

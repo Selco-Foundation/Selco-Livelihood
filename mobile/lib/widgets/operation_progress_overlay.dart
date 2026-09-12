@@ -36,20 +36,24 @@ class OperationProgressOverlay extends StatelessWidget {
     final progressValue =
         (progress.progressPercent.clamp(0, 100).toDouble() / 100).clamp(0.0, 1.0);
 
+    final showIndeterminate = progress.isActive && progress.progressPercent <= 0;
+
     return Positioned.fill(
       child: ColoredBox(
-        color: theme.colorTheme.generic.background.withOpacity(0.92),
+        color: Colors.black45,
         child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(spacer4),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
             child: DigitCard(
               key: const ValueKey('operation-progress-overlay'),
+              margin: const EdgeInsets.all(spacer1),
               children: [
                 Text(
                   isFailure
                       ? context.translate(i18.syncLoading.failed)
                       : context.translate(i18.syncLoading.syncingReports),
-                  style: textTheme.headingM.copyWith(
+                  textAlign: TextAlign.center,
+                  style: textTheme.headingL.copyWith(
                     color: isFailure
                         ? theme.colorTheme.alert.error
                         : theme.colorTheme.primary.primary2,
@@ -64,31 +68,37 @@ class OperationProgressOverlay extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: textTheme.bodyL.copyWith(
                     color: theme.colorTheme.text.primary,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: spacer4),
+                const SizedBox(height: spacer2),
                 LinearProgressIndicator(
                   key: const ValueKey('operation-progress-linear'),
-                  borderRadius: BorderRadius.circular(spacer2),
-                  backgroundColor: theme.colorTheme.generic.background,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    isFailure
-                        ? theme.colorTheme.alert.error
-                        : theme.colorTheme.alert.success,
-                  ),
-                  value: progress.status == OperationStatuses.queued
-                      ? null
-                      : progressValue,
+                  value: showIndeterminate ? null : progressValue,
                   minHeight: spacer3,
                 ),
                 const SizedBox(height: spacer2),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    '${progress.progressPercent}%',
-                    key: const ValueKey('operation-progress-percent'),
-                    style: textTheme.headingS
-                        .copyWith(color: theme.colorTheme.primary.primary2),
+                Text(
+                  '${progress.progressPercent}%',
+                  key: const ValueKey('operation-progress-percent'),
+                  textAlign: TextAlign.center,
+                  style: textTheme.headingL.copyWith(
+                    color: theme.colorTheme.primary.primary2,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: spacer2),
+                Text(
+                  isFailure
+                      ? (progress.errorMessage ??
+                          context.translate(i18.syncLoading.somethingWentWrong))
+                      : context.translate(i18.syncLoading.pleaseWait),
+                  key: const ValueKey('operation-progress-footnote'),
+                  textAlign: TextAlign.center,
+                  style: textTheme.bodyS.copyWith(
+                    color: isFailure
+                        ? theme.colorTheme.alert.error
+                        : theme.colorTheme.text.secondary,
                   ),
                 ),
                 if (isFailure) ...[
