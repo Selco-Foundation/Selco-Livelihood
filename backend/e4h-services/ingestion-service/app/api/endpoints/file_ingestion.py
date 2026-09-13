@@ -33,6 +33,8 @@ from app.utils.field_plan_locks import build_project_lock_map, solution_codes_by
     solution_names_by_code, PLAN_STATUS_PUBLISHED
 from app.utils.icc_template_parser import annotate_worksheet, first_data_sheet, parse_worksheet, \
     to_sections, validate_line_items
+from app.ingest.bom_form_catalog import BomFormError, load_solution_forms, structural_errors
+from app.ingest.bom_field_mapper import build_field_map
 from fastapi import APIRouter, File, Form, UploadFile, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import FileResponse
 import psycopg2
@@ -3066,10 +3068,14 @@ def _load_and_parse_template(temp_path: str):
 
 
 def _check_template_upload(request_info, fieldplan_id: str, solution_code: str, parsed):
-    """Sheet-level checks shared by validate and create.
+    """Sheet-level checks shared by validate and create, and the Solution's MDMS forms.
 
     These have no row to annotate, so each raises a 400 with a plain message rather than
     coming back inside the workbook.
+
+    Returns the SolutionForms the caller needs to name the workbook's cells. Loading them here
+    rather than only in create is deliberate: validate must fail for exactly the same reasons
+    create would, or a Project Manager gets a green light followed by a red one.
     """
     if not fieldPlan_service_url:
         raise HTTPException(status_code=500, detail="Field plan service is not configured")
@@ -3118,6 +3124,15 @@ def _check_template_upload(request_info, fieldplan_id: str, solution_code: str, 
             detail=f"This workbook is the template for Solution {parsed.bundle_code}, not "
                    f"{solution_code}. Please upload the file downloaded for this Solution.")
 
+    # Field names come from MDMS and are assigned by position, so without the forms there is
+    # nothing to name the cells against. Fail closed: a template stored unnamed yields a bom.data
+    # neither the mobile app nor the PDF generator can read, and nothing downstream would say why.
+    try:
+        return load_solution_forms(request_info, solution_code)
+    except BomFormError as e:
+        logger.error(f"BOM form lookup failed for {solution_code}: {e.message}", exc_info=True)
+        raise HTTPException(status_code=502 if e.retryable else 400, detail=e.message)
+
 
 @router.post('/installationTemplateValidateData',
              summary='Validate a filled IC Report template before creating it',
@@ -3141,9 +3156,14 @@ async def validate_installation_template(
     try:
         temp_file, _ = await _save_upload_to_temp_file(template_file, suffix=".xlsx")
         workbook, sheet, parsed = _load_and_parse_template(temp_file.name)
-        _check_template_upload(request_info_obj, fieldplan_id, solution_code, parsed)
+        forms = _check_template_upload(request_info_obj, fieldplan_id, solution_code, parsed)
 
         row_errors, sheet_errors = validate_line_items(parsed)
+        # A structural mismatch is not annotated and handed back: the status/error columns say
+        # "fix this row", whereas the answer here is either "undo your edit and re-download" or
+        # "an administrator must regenerate this Solution's form". A workbook that looked
+        # green apart from one red row would point at the wrong thing entirely.
+        sheet_errors = sheet_errors + structural_errors(parsed, forms)
         if sheet_errors:
             raise HTTPException(status_code=400, detail=" ".join(sheet_errors))
 
@@ -3195,9 +3215,10 @@ async def create_installation_template(
     try:
         temp_file, _ = await _save_upload_to_temp_file(template_file, suffix=".xlsx")
         _workbook, _sheet, parsed = _load_and_parse_template(temp_file.name)
-        _check_template_upload(request_info_obj, fieldplan_id, solution_code, parsed)
+        forms = _check_template_upload(request_info_obj, fieldplan_id, solution_code, parsed)
 
         row_errors, sheet_errors = validate_line_items(parsed)
+        sheet_errors = sheet_errors + structural_errors(parsed, forms)
         if sheet_errors:
             raise HTTPException(status_code=400, detail=" ".join(sheet_errors))
         if row_errors:
@@ -3207,7 +3228,7 @@ async def create_installation_template(
                 detail=f"{len(row_errors)} line item(s) still have errors (rows {rows}). "
                        f"Run the validation step and fix the flagged rows before saving.")
 
-        machine_section, solar_section = to_sections(parsed)
+        fields, machine_section, solar_section, form_meta = build_field_map(parsed, forms)
 
         try:
             FieldPlanServiceClient(fieldPlan_service_url).create_field_plan_template(
@@ -3218,6 +3239,8 @@ async def create_installation_template(
                 solar_section=solar_section,
                 tender_number=parsed.tender_number,
                 purchase_order_number=parsed.purchase_order_number,
+                fields=fields,
+                form_meta=form_meta,
             )
         except Exception as e:
             logger.error(f"Could not save field plan template: {e}", exc_info=True)
@@ -3225,12 +3248,15 @@ async def create_installation_template(
 
         logger.info(
             f"Stored IC Report template: fieldplan={fieldplan_id} solution={solution_code} "
-            f"machines={len(machine_section)} solar={len(solar_section)}")
+            f"machines={len(machine_section)} solar={len(solar_section)} fields={len(fields)}")
         return JSONResponse(content={
             "fieldPlanId": fieldplan_id,
             "solutionId": solution_code,
             "machineCount": len(machine_section),
             "solarLineItemCount": len(solar_section),
+            # The cheapest end-to-end proof that naming actually happened, without a DB query.
+            "fieldCount": len(fields),
+            "formIds": form_meta.get("forms", {}),
             "tenderNumber": parsed.tender_number,
             "purchaseOrderNumber": parsed.purchase_order_number,
             "message": "IC Report template saved.",
