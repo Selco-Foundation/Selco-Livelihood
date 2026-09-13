@@ -17,7 +17,8 @@ from app.decorators.rbac_validator import get_authorized_request_info
 from app.ingest.facility_template_service import FacilityTemplateService
 from app.ingest.asset_template_service import AssetTemplateService
 from app.ingest.project_service import ProjectService
-from app.ingest.icc_template_service import append_sites_sheet
+from app.ingest.icc_template_service import append_sites_sheet, protect_input_cells
+from app.utils.icc_template_parser import first_data_sheet, parse_worksheet
 from app.schemas.boundary import Boundary, flatten_boundaries
 from app.utils.amc_scheduler_service_client import AMCSchedulerServiceClient
 from app.utils.convertor import request_info_from_json, build_boundary_localization_map, \
@@ -630,7 +631,16 @@ async def get_installation_template(
         with open(output_file_path, "wb") as handle:
             handle.write(workbook_bytes)
 
-        # 4. Append the read-only Sites sheet. Reference only -- never read back on upload.
+        # 4. Lock the template's structure. Not optional and not inside a try/except, unlike the
+        # Sites sheet below: field names are assigned by position on upload, so serving a sheet
+        # whose rows can be inserted or renumbered invites a silent mis-naming of every cell after
+        # the edit. A template that cannot be protected should not be served.
+        workbook = load_workbook(output_file_path)
+        template_sheet = first_data_sheet(workbook)
+        protect_input_cells(template_sheet, parse_worksheet(template_sheet))
+        workbook.save(output_file_path)
+
+        # 5. Append the read-only Sites sheet. Reference only -- never read back on upload.
         try:
             sites = _sites_for_template(
                 request_info, fieldplan_client, sites_for_solution, boundary_data, fieldplan_id)

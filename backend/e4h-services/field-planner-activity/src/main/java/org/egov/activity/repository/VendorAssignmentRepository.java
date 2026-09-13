@@ -182,6 +182,37 @@ public class VendorAssignmentRepository {
         }
     }
 
+    /** A nested JSON object out of template_data, or an empty map when it is absent. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> readMap(Map<String, Object> templateData, String key) {
+        Object raw = templateData == null ? null : templateData.get(key);
+        return raw instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
+    }
+
+    /**
+     * A list of strings from a nested path, e.g. formMeta -> systemFields. Empty when any step of
+     * the path is missing, which is what a template written before field names existed looks like.
+     */
+    public List<String> readStringList(Map<String, Object> templateData, String... path) {
+        Object current = templateData;
+        for (String key : path) {
+            if (!(current instanceof Map<?, ?> map)) {
+                return List.of();
+            }
+            current = map.get(key);
+        }
+        if (!(current instanceof List<?> list)) {
+            return List.of();
+        }
+        List<String> out = new ArrayList<>();
+        for (Object item : list) {
+            if (item != null) {
+                out.add(String.valueOf(item));
+            }
+        }
+        return out;
+    }
+
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> readSection(Map<String, Object> templateData, String key) {
         Object raw = templateData == null ? null : templateData.get(key);
