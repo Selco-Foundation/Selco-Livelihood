@@ -4,9 +4,17 @@ The workbook is served straight out of filestore, so its layout is the source IC
 columns A-E are `Sl. No. | Product | Make | Capacity | Quantity`, and rows come in exactly
 three kinds -- section headers, category rows, and line items. See SECTION_* below.
 
-Everything here is position-independent. The Project Manager can insert and delete rows
-freely, so nothing may key off a fixed row number; the parser walks column A and tracks
-which section and category it is currently inside.
+Nothing here keys off a fixed row number -- the parser walks column A and tracks which section
+and category it is currently inside, so the header block growing a line or a spacer row moving
+changes nothing.
+
+That is not the same as the Project Manager being free to restructure the sheet, and since field
+names arrived it no longer is. Every cell is named from MDMS **by position**, so inserting or
+deleting a line item re-points every name after it. The served workbook is protected to make that
+hard to do by accident (`icc_template_service.protect_input_cells`) and the upload rejects a
+workbook whose categories no longer match the form (`bom_form_catalog.structural_errors`). This
+module stays deliberately ignorant of both: it reports what the sheet says, and the caller decides
+whether that is allowed.
 """
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
@@ -54,6 +62,11 @@ class ParsedTemplate(NamedTuple):
     tender_number: Optional[str]
     purchase_order_number: Optional[str]
     bundle_code: Optional[str]
+    # Where the two Project-Manager-editable header values live, so the download can unlock
+    # exactly those cells before protecting the sheet. Defaulted and trailing so existing
+    # positional construction of this tuple keeps working.
+    tender_row: Optional[int] = None
+    purchase_order_row: Optional[int] = None
 
 
 def _text(value: Any) -> str:
@@ -92,6 +105,7 @@ def parse_worksheet(sheet: Worksheet) -> ParsedTemplate:
     """
     line_items: List[LineItem] = []
     tender_number = purchase_order_number = bundle_code = None
+    tender_row = purchase_order_row = None
     section: Optional[str] = None
     category = ""
 
@@ -104,8 +118,10 @@ def parse_worksheet(sheet: Worksheet) -> ParsedTemplate:
             lowered = label.lower()
             if lowered.startswith(LABEL_TENDER):
                 tender_number = _text(second) or None
+                tender_row = row[0].row
             elif lowered.startswith(LABEL_PURCHASE_ORDER):
                 purchase_order_number = _text(second) or None
+                purchase_order_row = row[0].row
             elif LABEL_BUNDLE_CODE in lowered:
                 bundle_code = _text(second) or None
 
@@ -137,7 +153,8 @@ def parse_worksheet(sheet: Worksheet) -> ParsedTemplate:
     logger.info(
         f"Parsed template sheet {sheet.title!r}: {sum(1 for i in line_items if i.section == 'solar')} "
         f"solar and {sum(1 for i in line_items if i.section == 'machine')} machine line items")
-    return ParsedTemplate(line_items, tender_number, purchase_order_number, bundle_code)
+    return ParsedTemplate(line_items, tender_number, purchase_order_number, bundle_code,
+                          tender_row, purchase_order_row)
 
 
 def _validate_quantity(raw: Any) -> Optional[str]:

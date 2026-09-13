@@ -68,6 +68,27 @@ public class FieldPlanTemplate {
     @JsonProperty("purchaseOrderNumber")
     private String purchaseOrderNumber = null;
 
+    /**
+     * The whole template as a flat {fieldName: value} map -- the contract the mobile app and the
+     * PDF generator bind to. Field names come from MDMS (livelihood.BOMFormSchema), assigned by
+     * position at upload time, and Vendor Assignment slices this map into each asset's bom.data.
+     *
+     * Blanks are present as "" rather than omitted: a constant key set is the entire point, so no
+     * consumer should ever have to tell "absent" from "blank". The per-line-item arrays above keep
+     * their existing behaviour of omitting blank make/quantity.
+     */
+    @JsonProperty("fields")
+    private Map<String, Object> fields = null;
+
+    /**
+     * Provenance for the names above: which MDMS forms they came from, the 93 system-parameter
+     * names Vendor Assignment seeds onto the SOLAR asset, and the category fingerprint the
+     * workbook matched when it was uploaded. Kept so an operator can see that MDMS has drifted
+     * since this row was named without having to re-query it.
+     */
+    @JsonProperty("formMeta")
+    private Map<String, Object> formMeta = null;
+
     @JsonProperty("auditDetails")
     protected @Valid AuditDetails auditDetails;
 }
