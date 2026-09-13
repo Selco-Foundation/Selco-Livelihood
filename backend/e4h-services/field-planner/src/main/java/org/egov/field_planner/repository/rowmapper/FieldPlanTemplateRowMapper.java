@@ -20,6 +20,10 @@ public class FieldPlanTemplateRowMapper implements RowMapper<FieldPlanTemplate> 
             new TypeReference<List<Map<String, Object>>>() {
             };
 
+    private static final TypeReference<Map<String, Object>> NESTED_OBJECT =
+            new TypeReference<Map<String, Object>>() {
+            };
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -30,8 +34,10 @@ public class FieldPlanTemplateRowMapper implements RowMapper<FieldPlanTemplate> 
                 .tenantId(resultSet.getString("fpt_tenantId"))
                 .fieldPlanId(resultSet.getString("fpt_fieldPlanId"))
                 .solutionId(resultSet.getString("fpt_solutionId"))
+                .fields(nested(templateData, "fields"))
                 .machineSection(section(templateData, "machineSection"))
                 .solarSection(section(templateData, "solarSection"))
+                .formMeta(nested(templateData, "formMeta"))
                 .tenderNumber(resultSet.getString("fpt_tenderNumber"))
                 .purchaseOrderNumber(resultSet.getString("fpt_purchaseOrderNumber"))
                 .auditDetails(AuditDetails.builder()
@@ -65,5 +71,18 @@ public class FieldPlanTemplateRowMapper implements RowMapper<FieldPlanTemplate> 
             return List.of();
         }
         return objectMapper.convertValue(raw, LINE_ITEMS);
+    }
+
+    /**
+     * Same reasoning as {@link #section}: absent reads back as empty, not null. A template
+     * written before field names existed has neither key, and its caller should see "none"
+     * rather than have to distinguish a missing key from a null one.
+     */
+    private Map<String, Object> nested(Map<String, Object> templateData, String key) {
+        Object raw = templateData.get(key);
+        if (raw == null) {
+            return Map.of();
+        }
+        return objectMapper.convertValue(raw, NESTED_OBJECT);
     }
 }
