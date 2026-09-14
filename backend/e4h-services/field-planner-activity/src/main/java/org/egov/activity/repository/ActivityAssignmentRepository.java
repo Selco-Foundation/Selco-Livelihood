@@ -38,6 +38,25 @@ public class ActivityAssignmentRepository extends GenericRepository<ActivityAssi
         this.activityRowMapper = activityRowMapper;
     }
 
+    /**
+     * The plan's PO/WO number, kept on activity_assignments rather than field_plans. All of a
+     * plan's assignment rows share it (ActivityValidator enforces that on create), so the earliest
+     * non-deleted row is authoritative; returns null when the plan has no assignment yet.
+     */
+    public String getPocNumberByFieldPlanId(String fieldPlanId) {
+        if (fieldPlanId == null || fieldPlanId.isBlank()) {
+            return null;
+        }
+
+        String query = "SELECT poc_number FROM activity_assignments "
+                + "WHERE field_plan_id = ? AND COALESCE(isdeleted, false) = false "
+                + "ORDER BY created_time ASC NULLS LAST LIMIT 1";
+
+        List<String> pocNumbers = jdbcTemplate.query(query,
+                (rs, rowNum) -> rs.getString("poc_number"), fieldPlanId);
+        return pocNumbers.isEmpty() ? null : pocNumbers.get(0);
+    }
+
     public List<ActivityAssignment> getActivitiesAssignment(ActivityAssignmentSearchRequest request, Integer limit, Integer offset, String tenantId, Boolean includeDeleted, Long lastChangedSince) {
         //Fetch FieldPlans based on search criteria
         List<Object> preparedStmtList = new ArrayList<>();

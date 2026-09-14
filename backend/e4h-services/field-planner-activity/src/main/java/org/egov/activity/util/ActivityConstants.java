@@ -10,6 +10,10 @@ public class ActivityConstants {
     public static final String MASTER_STATE_INFO = "StateInfo";
     public static final String MASTER_ACTIVITIES = "Activities";
     public static final String BOM_FORM = "BOM_FORM";
+    public static final String MASTER_INSTALLATION_IMAGES = "InstallationImages";
+    public static final String INSTALLATION_IMAGE_FIELD = "InstallationImage";
+    public static final String INSTALLATION_IMAGE_DOCUMENT_TYPE_PREFIX = "INSTALLATION_IMAGE-";
+    public static final String INSTALLATION_IMAGE_SYSTEM_TYPES_FIELD = "system_types";
     //location
     public static final String DRAFT_STATUS = "DRAFT";
 
@@ -48,6 +52,18 @@ public class ActivityConstants {
     public static final String ACTION_SUBMIT_REPORT = "SUBMIT_REPORT";
     public static final String ACTION_APPROVE = "APPROVE";
     public static final String ACTION_REJECT_AND_ASSIGN_FOR_FIELD_QC = "REJECT_AND_ASSIGN_FOR_FIELD_QC";
+
+    /**
+     * Report (re)submission actions that trigger backend generation of the BOM installation report
+     * PDF, see ActivityService#attachBomInstallationReportDocument.
+     */
+    public static final String ACTION_SUBMIT_REPORT_A = "SUBMIT_REPORT_A";
+    public static final String ACTION_SUBMIT_REPORT_B = "SUBMIT_REPORT_B";
+
+    // Boundary code -> human readable name, resolved through the localization service.
+    public static final String BOUNDARY_LOCALIZATION_MODULE = "rainmaker-in";
+    public static final String LOCALIZATION_LOCALE = "en_IN";
+    public static final String LOCALIZATION_TENANT_ID = TENANTID;
 
     public static final String LOCK_STATUS_LOCKED = "LOCKED";
     public static final String LOCK_STATUS_UNLOCKED = "UNLOCKED";
