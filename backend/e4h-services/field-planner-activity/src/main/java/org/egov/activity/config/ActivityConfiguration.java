@@ -81,6 +81,26 @@ public class ActivityConfiguration {
     @Value("${egov.pdf.host}")
     private String pdfServiceHost;
 
+    // Ingestion service - merges the appendable BOM documents onto the end of the generated report.
+    @Value("${egov.ingestion.host}")
+    private String ingestionServiceHost;
+
+    @Value("${egov.ingestion.document.append.url}")
+    private String ingestionDocumentAppendUrl;
+
+    @Value("${egov.ingestion.document.append.module}")
+    private String ingestionDocumentAppendModule;
+
+    // Localization - boundary codes rendered on the report are resolved to readable names.
+    @Value("${egov.localization.host}")
+    private String localizationHost;
+
+    @Value("${egov.localization.context.path}")
+    private String localizationContextPath;
+
+    @Value("${egov.localization.search.endpoint}")
+    private String localizationSearchEndpoint;
+
     @Value("${egov.createnosave.pdf.url}")
     private String pdfCreateNoSaveUrl;
 
@@ -93,20 +113,47 @@ public class ActivityConfiguration {
     @Value("${egov.kafka.notification.sms.topic:egov.core.notification.sms}")
     private String notificationSmsTopic;
 
-    @Value("${egov.off.grid.single.phase.key}")
-    private String bomACOffGridSinglePhase;
+    @Value("${egov.iccreport.erispinning.key}")
+    private String iccreportEriSpinning;
 
-    @Value("${egov.off.grid.three.phase.key}")
-    private String bomACOffGridSThreePhase;
+    @Value("${egov.iccreport.lightmanufacturing.key}")
+    private String iccreportLightManufacturing;
 
-    @Value("${egov.hybrid.single.phase.key}")
-    private String bomHybridSinglePhase;
+    @Value("${egov.iccreport.lsklaptop.key}")
+    private String iccreportLskLaptop;
 
-    @Value("${egov.hybrid.three.phase.key}")
-    private String bomHybridThreePhase;
+    @Value("${egov.iccreport.multistageprocessingmillet.key}")
+    private String iccreportMultiStageProcessingMillet;
 
-    @Value("${egov.dc.system.key}")
-    private String bomDCSystem;
+    @Value("${egov.iccreport.multistageprocessing.key}")
+    private String iccreportMultiStageProcessing;
+
+    @Value("${egov.iccreport.oilmill.key}")
+    private String iccreportOilMill;
+
+    @Value("${egov.iccreport.paddyintegratedprocessing.key}")
+    private String iccreportPaddyIntegratedProcessing;
+
+    @Value("${egov.iccreport.printer.key}")
+    private String iccreportPrinter;
+
+    @Value("${egov.iccreport.pulverizer.key}")
+    private String iccreportPulverizer;
+
+    @Value("${egov.iccreport.refrigerator.key}")
+    private String iccreportRefrigerator;
+
+    @Value("${egov.iccreport.ricehuller.key}")
+    private String iccreportRiceHuller;
+
+    @Value("${egov.iccreport.roaster.key}")
+    private String iccreportRoaster;
+
+    @Value("${egov.iccreport.sewingmachine.key}")
+    private String iccreportSewingMachine;
+
+    @Value("${egov.iccreport.textilelighting.key}")
+    private String iccreportTextileLighting;
 
     @Value("${search.api.limit:100}")
     private String searchApiLimit;
@@ -226,6 +273,15 @@ public class ActivityConfiguration {
 
     @Value("${egov.asset.update.url}")
     private String assetUpdateUrl;
+
+    /**
+     * Explicit page size for the asset search behind the installation report's serial-number
+     * section: asset-registry defaults limit to 10, which would silently truncate the panel /
+     * battery / inverter serial numbers on any sizeable installation. Defaulted inline so
+     * environments that predate this property still start.
+     */
+    @Value("${egov.asset.search.limit:1000}")
+    private Integer assetSearchLimit;
 
     @Value("${email.activity.assignment.subject}")
     private String activityEmailSubject;
