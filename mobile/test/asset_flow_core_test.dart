@@ -99,6 +99,67 @@ void main() {
     expect(draft.countFor(SolarAssetType.battery), 1);
   });
 
+  test('fresh BOM metadata overrides stale blank Solar draft values', () {
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'solar-refresh',
+        componentType: 'SOLAR',
+        solutionId: 'solution-141',
+      ),
+    );
+    final repository = InstallationDraftRepository();
+    final draft = repository.createSolar(workflow, SolarWorkflowMode.newReport)
+      ..mergedBom.addAll({
+        'bom_battery_make': '',
+        'bom_battery_capacity': '',
+        'bom_battery_quantity': 0,
+        'bom_inverter_pcu_make': '',
+        'bom_inverter_pcu_capacity': '',
+        'bom_inverter_pcu_quantity': 0,
+        'bom_solar_panel_make': '',
+        'bom_solar_panel_capacity': '',
+        'bom_solar_panel_quantity': 0,
+      });
+    for (final asset in draft.assets.values) {
+      asset.selectedBrandCode = '';
+      asset.totalCapacity = '';
+    }
+
+    repository.applyFreshBomDerivedValues(draft, const [
+      BillOfMaterial(
+        id: 'solar-bom',
+        name: 'Solar',
+        additionalDetails: {'componentType': 'SOLAR'},
+        data: {
+          'bom_battery_product': 'BATTERY-ITEM',
+          'bom_battery_make': 'Battery Make',
+          'bom_battery_capacity': '20 Ah',
+          'bom_battery_quantity': 1,
+          'bom_inverter_pcu_product': 'INVERTER-ITEM',
+          'bom_inverter_pcu_make': 'Inverter Make',
+          'bom_inverter_pcu_capacity': '1 kVA',
+          'bom_inverter_pcu_quantity': 1,
+          'bom_solar_panel_product': 'PANEL-ITEM',
+          'bom_solar_panel_make': 'Panel Make',
+          'bom_solar_panel_capacity': '330 Wp',
+          'bom_solar_panel_quantity': 1,
+        },
+      ),
+    ]);
+    repository.applyBomDerivedValues(draft);
+
+    expect(draft.assets[SolarAssetType.battery]!.selectedBrandCode,
+        'Battery Make');
+    expect(draft.assets[SolarAssetType.inverter]!.selectedBrandCode,
+        'Inverter Make');
+    expect(draft.assets[SolarAssetType.panel]!.selectedBrandCode, 'Panel Make');
+    for (final type in SolarAssetType.values) {
+      expect(draft.countFor(type), 1);
+      expect(draft.assets[type]!.totalCapacity, isNotEmpty);
+      expect(draft.assets[type]!.assets.single.itemCode, isNotEmpty);
+    }
+  });
+
   test('asset counts stay zero until activated and never fall below minimum',
       () {
     const workflow = ActivityFacilityWorkflow(
@@ -601,6 +662,24 @@ void main() {
   });
 
   test('asset MDMS selectors use livelihood BOM records and asset codes', () {
+    final parsedBattery = AssetType.fromJson({
+      'code': 'BATTERY',
+      'name': 'Battery',
+      'active': true,
+      'form_fields': [
+        {
+          'key': 'capacity',
+          'system': 'DC',
+          'options': ['125'],
+        },
+        {
+          'types': ['Lithium', 'Lead Acid', 'VRLA'],
+        },
+      ],
+    });
+    expect(parsedBattery.formFields.expand((field) => field.types),
+        ['Lithium', 'Lead Acid', 'VRLA']);
+
     const response = AssetRegistryMdmsResponse(
       livelihood: LivelihoodModule(
         bomFormSchema: [
@@ -631,6 +710,16 @@ void main() {
             id: 1,
             assetType: [
               AssetType(
+                code: 'BATTERY',
+                name: 'Battery',
+                active: true,
+                formFields: [
+                  AssetTypeFormField(
+                    types: ['Lithium', '', 'Lead Acid', 'Lithium', 'VRLA'],
+                  ),
+                ],
+              ),
+              AssetType(
                 code: 'PANEL',
                 name: 'Panel',
                 active: true,
@@ -654,7 +743,10 @@ void main() {
       ),
     );
     final repository = AssetMdmsRepository(initial: response);
-    expect(repository.assetTypes.single.code, 'PANEL');
+    expect(
+        repository.assetTypes.map((item) => item.code), ['BATTERY', 'PANEL']);
+    expect(repository.typesFor('battery'), ['Lithium', 'Lead Acid', 'VRLA']);
+    expect(repository.typesFor('PANEL'), isEmpty);
     expect(repository.warrantiesFor('PANEL').single.duration, '5');
     expect(repository.rawBomSchemaFor('System'), isNotNull);
     expect(repository.rawBomSchemaFor('Inactive'), isNull);
@@ -663,6 +755,74 @@ void main() {
       'LIVELIHOOD_BOM_machines',
       'LIVELIHOOD_COMMON_BOM_system',
     ]);
+  });
+
+  test('Battery type options validate and reconcile cached selections', () {
+    const mdms = AssetRegistryMdmsResponse(
+      assetRegistry: AssetRegistryModule(
+        assetTypeSchema: [
+          AssetTypeData(
+            id: 1,
+            assetType: [
+              AssetType(
+                code: 'BATTERY',
+                name: 'Battery',
+                active: true,
+                formFields: [
+                  AssetTypeFormField(
+                    types: ['Lithium', 'Lead Acid', 'VRLA'],
+                  ),
+                ],
+              ),
+              AssetType(code: 'INVERTER', name: 'Inverter', active: true),
+              AssetType(code: 'PANEL', name: 'Panel', active: true),
+            ],
+          ),
+        ],
+      ),
+    );
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'battery-types',
+        componentType: 'SOLAR',
+        billOfMaterial: BillOfMaterial(
+          name: 'Solar',
+          data: {
+            'bom_battery_product': 'BATTERY-ITEM',
+            'bom_battery_make': 'Battery Make',
+            'bom_battery_capacity': '20 Ah',
+            'bom_battery_quantity': 1,
+          },
+        ),
+      ),
+    );
+    final repository = InstallationDraftRepository(
+      mdmsRepository: AssetMdmsRepository(initial: mdms),
+    );
+    final draft = repository.createSolar(workflow, SolarWorkflowMode.newReport);
+    final battery = draft.assets[SolarAssetType.battery]!;
+    final entry = battery.assets.single
+      ..serialNumber = 'BATTERY-1'
+      ..supportingPhoto = const SolarFileRef(
+        name: 'battery.jpg',
+        path: '/tmp/battery.jpg',
+        kind: SolarFileKind.image,
+      );
+
+    expect(battery.typeOptions, ['Lithium', 'Lead Acid', 'VRLA']);
+    expect(draft.assets[SolarAssetType.inverter]!.typeOptions, isEmpty);
+    expect(draft.assets[SolarAssetType.panel]!.typeOptions, isEmpty);
+    expect(battery.entryComplete(entry), isFalse);
+
+    entry.batteryType = 'Lead Acid';
+    repository.applyBomDerivedValues(draft);
+    expect(entry.batteryType, 'Lead Acid');
+    expect(battery.entryComplete(entry), isTrue);
+
+    entry.batteryType = 'OBSOLETE';
+    repository.applyBomDerivedValues(draft);
+    expect(entry.batteryType, isEmpty);
+    expect(battery.entryComplete(entry), isFalse);
   });
 
   test('installation images include every active item in response order', () {

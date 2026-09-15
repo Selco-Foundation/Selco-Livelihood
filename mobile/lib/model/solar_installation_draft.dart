@@ -134,10 +134,16 @@ class SolarAssetDraft {
       warrantyDuration.isNotEmpty &&
       selectedBrandCode?.trim().isNotEmpty == true &&
       totalCapacity.trim().isNotEmpty;
+
+  bool entryComplete(SolarAssetEntry entry) =>
+      entry.isComplete &&
+      (type != SolarAssetType.battery ||
+          typeOptions.contains(entry.batteryType));
+
   bool get isComplete =>
       detailsComplete &&
       assets.isNotEmpty &&
-      assets.every((asset) => asset.isComplete) &&
+      assets.every(entryComplete) &&
       images.isNotEmpty;
 }
 

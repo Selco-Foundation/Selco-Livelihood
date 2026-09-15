@@ -376,7 +376,7 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
     final count = widget.draft.countFor(widget.assetType);
     final complete = count > 0 &&
         entries.length == widget.draft.countFor(widget.assetType) &&
-        entries.every((entry) => entry.isComplete);
+        entries.every(assetDraft.entryComplete);
 
     return SolarWorkflowScaffold(
       pageKey: 'solar-add-assets-${widget.assetType.name}',

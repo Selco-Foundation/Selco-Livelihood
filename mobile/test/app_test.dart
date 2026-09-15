@@ -290,6 +290,10 @@ SolarInstallationDraft _filledSolarDraft(SolarWorkflowMode mode) {
         path: '/tmp/${type.name}.jpg',
         kind: SolarFileKind.image,
       );
+    if (type == SolarAssetType.battery) {
+      asset.typeOptions.add('LITHIUM_ION');
+      asset.assets.first.batteryType = 'LITHIUM_ION';
+    }
     asset.images.add(SolarFileRef(
       name: '${type.name}-installation.jpg',
       path: '/tmp/${type.name}-installation.jpg',
@@ -1848,6 +1852,54 @@ void main() {
         findsOneWidget,
       );
     }
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('Battery Type uses MDMS options and is required for Next',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 1600));
+    final draft = _filledSolarDraft(SolarWorkflowMode.newReport);
+    final battery = draft.assets[SolarAssetType.battery]!;
+    battery.typeOptions
+      ..clear()
+      ..addAll(['Lithium', 'Lead Acid', 'VRLA']);
+    for (final entry in battery.assets) {
+      entry.batteryType = '';
+    }
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: AddNewAssetPage(
+          draft: draft,
+          assetType: SolarAssetType.battery,
+          scanSerial: (_) async => null,
+        ),
+      ),
+    );
+
+    var next = tester.widget<DigitButton>(
+      find.byKey(const ValueKey('solar-footer-next')),
+    );
+    expect(next.isDisabled, isTrue);
+    final dropdown = tester.widget<DigitDropdown>(
+      find.byKey(const ValueKey('solar-battery-type-dropdown')),
+    );
+    expect(dropdown.items.map((item) => item.code),
+        ['Lithium', 'Lead Acid', 'VRLA']);
+
+    dropdown.onSelect!(
+      const DropdownItem(name: 'Lead Acid', code: 'Lead Acid'),
+    );
+    await tester.pump();
+
+    expect(battery.assets.every((entry) => entry.batteryType == 'Lead Acid'),
+        isTrue);
+    next = tester.widget<DigitButton>(
+      find.byKey(const ValueKey('solar-footer-next')),
+    );
+    expect(next.isDisabled, isFalse);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 1));
   });

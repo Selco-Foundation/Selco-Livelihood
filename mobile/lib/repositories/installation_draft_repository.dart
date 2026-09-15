@@ -9,11 +9,16 @@ import 'bom_repository.dart';
 import 'installation_cache_repo.dart';
 
 class InstallationDraftRepository {
+  InstallationDraftRepository({AssetMdmsRepository? mdmsRepository})
+      : _mdmsRepository = mdmsRepository ?? assetMdmsRepository;
+
+  final AssetMdmsRepository _mdmsRepository;
+
   Future<SolarInstallationDraft> loadSolar(
     ActivityFacilityWorkflow workflow,
     SolarWorkflowMode mode,
   ) async {
-    await assetMdmsRepository.load();
+    await _mdmsRepository.load();
     final draft = createSolar(workflow, mode);
     final id = workflow.activityFacility.id;
     if (!draft.isReadOnly && id != null && id.isNotEmpty) {
@@ -62,7 +67,7 @@ class InstallationDraftRepository {
   }
 
   Future<void> hydrateSolar(SolarInstallationDraft draft) async {
-    await assetMdmsRepository.load();
+    await _mdmsRepository.load();
     _configureFromBom(draft, initializeCounts: false);
     final id = draft.workflow.activityFacility.id;
     if (id != null && id.isNotEmpty) {
@@ -79,6 +84,11 @@ class InstallationDraftRepository {
       if (!draft.isReadOnly && local is Map) {
         _hydrateLocal(draft, Map<String, dynamic>.from(local));
       }
+      // Local drafts own user-entered form/asset data, but these fields are
+      // contractual BOM metadata. Reapply the fresh server values after the
+      // local overlay so a stale blank make/capacity/quantity cannot disable
+      // Asset Details or undo a refreshed maximum count.
+      applyFreshBomDerivedValues(draft, backend);
     }
     _configureFromBom(draft, initializeCounts: false);
   }
@@ -214,6 +224,30 @@ class InstallationDraftRepository {
   void applyBomDerivedValues(SolarInstallationDraft draft) =>
       _configureFromBom(draft, initializeCounts: false);
 
+  void applyFreshBomDerivedValues(
+    SolarInstallationDraft draft,
+    List<BillOfMaterial> records,
+  ) {
+    BillOfMaterial? canonical;
+    for (final bom in records) {
+      if (_isCanonicalSolarBom(draft, bom)) canonical = bom;
+    }
+    if (canonical == null) return;
+    for (final type in SolarAssetType.values) {
+      final keys = _bomKeys(type);
+      for (final key in [
+        keys.product,
+        keys.make,
+        keys.capacity,
+        keys.quantity,
+      ]) {
+        // A missing fresh value must also replace stale cached data: it is
+        // intentionally interpreted as an invalid/zero BOM configuration.
+        draft.mergedBom[key] = canonical.data[key];
+      }
+    }
+  }
+
   void _configureFromBom(
     SolarInstallationDraft draft, {
     required bool initializeCounts,
@@ -224,21 +258,26 @@ class InstallationDraftRepository {
     draft.applicableTypes = SolarAssetType.values;
 
     for (final type in SolarAssetType.values) {
-      final mdmsType = assetMdmsRepository.assetTypes
+      final mdmsType = _mdmsRepository.assetTypes
           .where((item) => _solarType(item.code, item.name) == type)
           .firstOrNull;
       draft.assetTypeCodes[type] = mdmsType?.code ?? type.name.toUpperCase();
       draft.assetTypeLabels[type] = mdmsType?.name ?? type.label;
       draft.minimumCounts[type] = 1;
-      draft.warrantyOptions[type] = assetMdmsRepository
+      draft.warrantyOptions[type] = _mdmsRepository
           .warrantiesFor(draft.assetTypeCodes[type]!)
           .map((warranty) => '${warranty.duration} ${warranty.format}')
           .toList();
+      final asset = draft.assets[type]!;
+      asset.typeOptions
+        ..clear()
+        ..addAll(type == SolarAssetType.battery
+            ? _mdmsRepository.typesFor(draft.assetTypeCodes[type]!)
+            : const <String>[]);
 
       final keys = _bomKeys(type);
       final quantity = _positiveInteger(draft.mergedBom[keys.quantity]);
       draft.maximumCounts[type] = quantity;
-      final asset = draft.assets[type]!;
       asset.system = draft.assetTypeLabels[type]!;
       asset.selectedBrandCode =
           (draft.mergedBom[keys.make] ?? '').toString().trim();
@@ -252,6 +291,8 @@ class InstallationDraftRepository {
       }
       if (initializeCounts) {
         draft.setCount(type, quantity);
+      } else if (draft.countFor(type) == 0) {
+        draft.setCount(type, quantity);
       } else if (draft.countFor(type) > quantity) {
         draft.setCount(type, quantity);
       }
@@ -259,13 +300,17 @@ class InstallationDraftRepository {
       for (final entry in asset.assets) {
         entry.itemCode = product;
         entry.capacity = asset.totalCapacity;
+        if (type == SolarAssetType.battery &&
+            !asset.typeOptions.contains(entry.batteryType)) {
+          entry.batteryType = '';
+        }
       }
     }
 
     draft.bomFormNames
       ..clear()
-      ..addAll(assetMdmsRepository.formsFor(draft.solutionId));
-    draft.installationRequirements = assetMdmsRepository.installationImages;
+      ..addAll(_mdmsRepository.formsFor(draft.solutionId));
+    draft.installationRequirements = _mdmsRepository.installationImages;
   }
 
   int _positiveInteger(dynamic value) {
@@ -323,22 +368,8 @@ class InstallationDraftRepository {
   void _mergeBackend(
       SolarInstallationDraft draft, List<BillOfMaterial> values) {
     for (final bom in values) {
-      final componentType = bom.additionalDetails['componentType']
-          ?.toString()
-          .trim()
-          .toUpperCase();
-      if (componentType == 'MACHINE') continue;
-
-      // Old app versions incorrectly created one backend BOM row per MDMS
-      // form page. Keep their documents viewable, but never merge those rows
-      // back into the canonical single Solar BOM.
-      final name = bom.name?.trim() ?? '';
-      final isSplitPage = draft.bomFormNames.any(
-            (form) => form.trim().toUpperCase() == name.toUpperCase(),
-          ) ||
-          name.toUpperCase().startsWith('ASSETFORM.') ||
-          name.toUpperCase().contains('_BOM_');
-      if (!isSplitPage) {
+      if (_componentType(bom) == 'MACHINE') continue;
+      if (_isCanonicalSolarBom(draft, bom)) {
         draft.mergedBom.addAll(bom.data);
         draft.remoteBomId = bom.id;
         draft.remoteBomName = bom.name;
@@ -352,6 +383,27 @@ class InstallationDraftRepository {
       _hydrateDocuments(draft, bom.documents);
     }
   }
+
+  bool _isCanonicalSolarBom(
+    SolarInstallationDraft draft,
+    BillOfMaterial bom,
+  ) {
+    if (_componentType(bom) == 'MACHINE') return false;
+
+    // Old app versions incorrectly created one backend BOM row per MDMS form
+    // page. Keep their documents viewable, but never use them as the single
+    // canonical Solar BOM.
+    final name = bom.name?.trim() ?? '';
+    return !draft.bomFormNames.any(
+          (form) => form.trim().toUpperCase() == name.toUpperCase(),
+        ) &&
+        !name.toUpperCase().startsWith('ASSETFORM.') &&
+        !name.toUpperCase().contains('_BOM_');
+  }
+
+  String _componentType(BillOfMaterial bom) =>
+      bom.additionalDetails['componentType']?.toString().trim().toUpperCase() ??
+      '';
 
   void _hydrateDocuments(
     SolarInstallationDraft draft,

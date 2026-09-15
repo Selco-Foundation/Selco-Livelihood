@@ -23,6 +23,8 @@ mixin _$AssetType {
   String get code => throw _privateConstructorUsedError;
   String get name => throw _privateConstructorUsedError;
   bool get active => throw _privateConstructorUsedError;
+  @JsonKey(name: 'form_fields')
+  List<AssetTypeFormField> get formFields => throw _privateConstructorUsedError;
 
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
   @JsonKey(ignore: true)
@@ -35,7 +37,11 @@ abstract class $AssetTypeCopyWith<$Res> {
   factory $AssetTypeCopyWith(AssetType value, $Res Function(AssetType) then) =
       _$AssetTypeCopyWithImpl<$Res, AssetType>;
   @useResult
-  $Res call({String code, String name, bool active});
+  $Res call(
+      {String code,
+      String name,
+      bool active,
+      @JsonKey(name: 'form_fields') List<AssetTypeFormField> formFields});
 }
 
 /// @nodoc
@@ -54,6 +60,7 @@ class _$AssetTypeCopyWithImpl<$Res, $Val extends AssetType>
     Object? code = null,
     Object? name = null,
     Object? active = null,
+    Object? formFields = null,
   }) {
     return _then(_value.copyWith(
       code: null == code
@@ -68,6 +75,10 @@ class _$AssetTypeCopyWithImpl<$Res, $Val extends AssetType>
           ? _value.active
           : active // ignore: cast_nullable_to_non_nullable
               as bool,
+      formFields: null == formFields
+          ? _value.formFields
+          : formFields // ignore: cast_nullable_to_non_nullable
+              as List<AssetTypeFormField>,
     ) as $Val);
   }
 }
@@ -80,7 +91,11 @@ abstract class _$$AssetTypeImplCopyWith<$Res>
       __$$AssetTypeImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({String code, String name, bool active});
+  $Res call(
+      {String code,
+      String name,
+      bool active,
+      @JsonKey(name: 'form_fields') List<AssetTypeFormField> formFields});
 }
 
 /// @nodoc
@@ -97,6 +112,7 @@ class __$$AssetTypeImplCopyWithImpl<$Res>
     Object? code = null,
     Object? name = null,
     Object? active = null,
+    Object? formFields = null,
   }) {
     return _then(_$AssetTypeImpl(
       code: null == code
@@ -111,6 +127,10 @@ class __$$AssetTypeImplCopyWithImpl<$Res>
           ? _value.active
           : active // ignore: cast_nullable_to_non_nullable
               as bool,
+      formFields: null == formFields
+          ? _value._formFields
+          : formFields // ignore: cast_nullable_to_non_nullable
+              as List<AssetTypeFormField>,
     ));
   }
 }
@@ -119,7 +139,12 @@ class __$$AssetTypeImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$AssetTypeImpl implements _AssetType {
   const _$AssetTypeImpl(
-      {required this.code, required this.name, required this.active});
+      {required this.code,
+      required this.name,
+      required this.active,
+      @JsonKey(name: 'form_fields')
+      final List<AssetTypeFormField> formFields = const []})
+      : _formFields = formFields;
 
   factory _$AssetTypeImpl.fromJson(Map<String, dynamic> json) =>
       _$$AssetTypeImplFromJson(json);
@@ -130,10 +155,18 @@ class _$AssetTypeImpl implements _AssetType {
   final String name;
   @override
   final bool active;
+  final List<AssetTypeFormField> _formFields;
+  @override
+  @JsonKey(name: 'form_fields')
+  List<AssetTypeFormField> get formFields {
+    if (_formFields is EqualUnmodifiableListView) return _formFields;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_formFields);
+  }
 
   @override
   String toString() {
-    return 'AssetType(code: $code, name: $name, active: $active)';
+    return 'AssetType(code: $code, name: $name, active: $active, formFields: $formFields)';
   }
 
   @override
@@ -143,12 +176,15 @@ class _$AssetTypeImpl implements _AssetType {
             other is _$AssetTypeImpl &&
             (identical(other.code, code) || other.code == code) &&
             (identical(other.name, name) || other.name == name) &&
-            (identical(other.active, active) || other.active == active));
+            (identical(other.active, active) || other.active == active) &&
+            const DeepCollectionEquality()
+                .equals(other._formFields, _formFields));
   }
 
   @JsonKey(ignore: true)
   @override
-  int get hashCode => Object.hash(runtimeType, code, name, active);
+  int get hashCode => Object.hash(runtimeType, code, name, active,
+      const DeepCollectionEquality().hash(_formFields));
 
   @JsonKey(ignore: true)
   @override
@@ -168,7 +204,9 @@ abstract class _AssetType implements AssetType {
   const factory _AssetType(
       {required final String code,
       required final String name,
-      required final bool active}) = _$AssetTypeImpl;
+      required final bool active,
+      @JsonKey(name: 'form_fields')
+      final List<AssetTypeFormField> formFields}) = _$AssetTypeImpl;
 
   factory _AssetType.fromJson(Map<String, dynamic> json) =
       _$AssetTypeImpl.fromJson;
@@ -180,8 +218,157 @@ abstract class _AssetType implements AssetType {
   @override
   bool get active;
   @override
+  @JsonKey(name: 'form_fields')
+  List<AssetTypeFormField> get formFields;
+  @override
   @JsonKey(ignore: true)
   _$$AssetTypeImplCopyWith<_$AssetTypeImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+AssetTypeFormField _$AssetTypeFormFieldFromJson(Map<String, dynamic> json) {
+  return _AssetTypeFormField.fromJson(json);
+}
+
+/// @nodoc
+mixin _$AssetTypeFormField {
+  List<String> get types => throw _privateConstructorUsedError;
+
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+  @JsonKey(ignore: true)
+  $AssetTypeFormFieldCopyWith<AssetTypeFormField> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $AssetTypeFormFieldCopyWith<$Res> {
+  factory $AssetTypeFormFieldCopyWith(
+          AssetTypeFormField value, $Res Function(AssetTypeFormField) then) =
+      _$AssetTypeFormFieldCopyWithImpl<$Res, AssetTypeFormField>;
+  @useResult
+  $Res call({List<String> types});
+}
+
+/// @nodoc
+class _$AssetTypeFormFieldCopyWithImpl<$Res, $Val extends AssetTypeFormField>
+    implements $AssetTypeFormFieldCopyWith<$Res> {
+  _$AssetTypeFormFieldCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? types = null,
+  }) {
+    return _then(_value.copyWith(
+      types: null == types
+          ? _value.types
+          : types // ignore: cast_nullable_to_non_nullable
+              as List<String>,
+    ) as $Val);
+  }
+}
+
+/// @nodoc
+abstract class _$$AssetTypeFormFieldImplCopyWith<$Res>
+    implements $AssetTypeFormFieldCopyWith<$Res> {
+  factory _$$AssetTypeFormFieldImplCopyWith(_$AssetTypeFormFieldImpl value,
+          $Res Function(_$AssetTypeFormFieldImpl) then) =
+      __$$AssetTypeFormFieldImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({List<String> types});
+}
+
+/// @nodoc
+class __$$AssetTypeFormFieldImplCopyWithImpl<$Res>
+    extends _$AssetTypeFormFieldCopyWithImpl<$Res, _$AssetTypeFormFieldImpl>
+    implements _$$AssetTypeFormFieldImplCopyWith<$Res> {
+  __$$AssetTypeFormFieldImplCopyWithImpl(_$AssetTypeFormFieldImpl _value,
+      $Res Function(_$AssetTypeFormFieldImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? types = null,
+  }) {
+    return _then(_$AssetTypeFormFieldImpl(
+      types: null == types
+          ? _value._types
+          : types // ignore: cast_nullable_to_non_nullable
+              as List<String>,
+    ));
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$AssetTypeFormFieldImpl implements _AssetTypeFormField {
+  const _$AssetTypeFormFieldImpl({final List<String> types = const []})
+      : _types = types;
+
+  factory _$AssetTypeFormFieldImpl.fromJson(Map<String, dynamic> json) =>
+      _$$AssetTypeFormFieldImplFromJson(json);
+
+  final List<String> _types;
+  @override
+  @JsonKey()
+  List<String> get types {
+    if (_types is EqualUnmodifiableListView) return _types;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_types);
+  }
+
+  @override
+  String toString() {
+    return 'AssetTypeFormField(types: $types)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$AssetTypeFormFieldImpl &&
+            const DeepCollectionEquality().equals(other._types, _types));
+  }
+
+  @JsonKey(ignore: true)
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, const DeepCollectionEquality().hash(_types));
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$AssetTypeFormFieldImplCopyWith<_$AssetTypeFormFieldImpl> get copyWith =>
+      __$$AssetTypeFormFieldImplCopyWithImpl<_$AssetTypeFormFieldImpl>(
+          this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$AssetTypeFormFieldImplToJson(
+      this,
+    );
+  }
+}
+
+abstract class _AssetTypeFormField implements AssetTypeFormField {
+  const factory _AssetTypeFormField({final List<String> types}) =
+      _$AssetTypeFormFieldImpl;
+
+  factory _AssetTypeFormField.fromJson(Map<String, dynamic> json) =
+      _$AssetTypeFormFieldImpl.fromJson;
+
+  @override
+  List<String> get types;
+  @override
+  @JsonKey(ignore: true)
+  _$$AssetTypeFormFieldImplCopyWith<_$AssetTypeFormFieldImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
 

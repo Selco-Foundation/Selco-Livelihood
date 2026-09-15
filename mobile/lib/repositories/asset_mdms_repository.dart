@@ -83,6 +83,21 @@ class AssetMdmsRepository {
     return values;
   }
 
+  List<String> typesFor(String assetTypeCode) {
+    final normalizedCode = assetTypeCode.trim().toUpperCase();
+    final seen = <String>{};
+    final result = <String>[];
+    for (final assetType in assetTypes.where(
+      (item) => item.code.trim().toUpperCase() == normalizedCode,
+    )) {
+      for (final value in assetType.formFields.expand((field) => field.types)) {
+        final type = value.trim();
+        if (type.isNotEmpty && seen.add(type.toLowerCase())) result.add(type);
+      }
+    }
+    return result;
+  }
+
   List<Warranty> warrantiesFor(String assetTypeCode) =>
       _memory?.assetRegistry?.warrantyDurationSchema
           .expand((wrapper) => wrapper.warrantyDuration)
