@@ -61,12 +61,22 @@ public class LivelihoodPocSummaryEmailService {
                 continue;
             }
             log.info("POC {} boundaries={} prefixes={}", poc.getEmail(), poc.getStateBoundaryCodes(), prefixes);
-            Map<String, String> basePlaceholders = buildBasePlaceholders(poc, window, appUrl);
 
+            if (weekly) {
+                sendCombinedWeeklySummary(tenantId, poc, window, appUrl, prefixes);
+                sent++;
+                continue;
+            }
+
+            Map<String, String> basePlaceholders = buildBasePlaceholders(poc, window, appUrl);
             for (LivelihoodSummaryEventType eventType : LivelihoodSummaryEventType.values()) {
+                String templateCode = eventType.templateCode(false);
+                if (templateCode == null) {
+                    // Weekly-only metric (e.g. RESOLVED, REASSIGNED_AFTER_ESCALATION) — no daily email for it.
+                    continue;
+                }
                 int count = summaryCountService.count(
                         eventType, tenantId, window.fromMs(), window.toMs(), prefixes);
-                String templateCode = eventType.templateCode(weekly);
                 if (count <= 0) {
                     log.info("Skip {} for {} count={}", templateCode, poc.getEmail(), count);
                     continue;
@@ -84,6 +94,52 @@ public class LivelihoodPocSummaryEmailService {
         log.info("Livelihood {} summary digest completed tenantId={} emailsSent={}",
                 weekly ? "weekly" : "daily", tenantId, sent);
         return sent;
+    }
+
+    /**
+     * Sends one combined weekly ticket-lifecycle digest email to a POC, covering all 8 metrics
+     * from the "Expand Weekly Summary Notification" spec (including zero-count ones).
+     */
+    private void sendCombinedWeeklySummary(String tenantId, LivelihoodPocRecipient poc, Window window,
+                                           String appUrl, List<String> prefixes) {
+        int newTickets = summaryCountService.count(
+                LivelihoodSummaryEventType.NEW_TICKETS, tenantId, window.fromMs(), window.toMs(), prefixes);
+        int slaBreaches = summaryCountService.count(
+                LivelihoodSummaryEventType.SLA_BREACHES, tenantId, window.fromMs(), window.toMs(), prefixes);
+        int outOfScope = summaryCountService.count(
+                LivelihoodSummaryEventType.OUT_OF_SCOPE, tenantId, window.fromMs(), window.toMs(), prefixes);
+        int reassigned = summaryCountService.count(
+                LivelihoodSummaryEventType.REASSIGNED_AFTER_ESCALATION, tenantId, window.fromMs(), window.toMs(), prefixes);
+        int quotations = summaryCountService.count(
+                LivelihoodSummaryEventType.QUOTATIONS_PENDING, tenantId, window.fromMs(), window.toMs(), prefixes);
+        int resolved = summaryCountService.count(
+                LivelihoodSummaryEventType.RESOLVED, tenantId, window.fromMs(), window.toMs(), prefixes);
+        int closedNoResolution = summaryCountService.count(
+                LivelihoodSummaryEventType.CLOSED_WITHOUT_RESOLUTION, tenantId, window.fromMs(), window.toMs(), prefixes);
+        int vendorDeclined = summaryCountService.count(
+                LivelihoodSummaryEventType.VENDOR_DECLINED, tenantId, window.fromMs(), window.toMs(), prefixes);
+
+        int total = newTickets + slaBreaches + outOfScope + reassigned + quotations
+                + resolved + closedNoResolution + vendorDeclined;
+
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("APP_NAME", LIVELIHOOD_APP_NAME);
+        placeholders.put("POC_NAME", poc.getName());
+        placeholders.put("WEEK_START_DATE", window.weekStartLabel());
+        placeholders.put("WEEK_DATE_RANGE", window.weekRangeLabel());
+        placeholders.put("PLATFORM_LINK", appUrl);
+        placeholders.put("TOTAL_EVENT_COUNT", String.valueOf(total));
+        placeholders.put("NEW_TICKET_COUNT", String.valueOf(newTickets));
+        placeholders.put("SLA_BREACH_COUNT", String.valueOf(slaBreaches));
+        placeholders.put("OUT_OF_SCOPE_COUNT", String.valueOf(outOfScope));
+        placeholders.put("REASSIGNED_COUNT", String.valueOf(reassigned));
+        placeholders.put("QUOTATION_COUNT", String.valueOf(quotations));
+        placeholders.put("RESOLVED_COUNT", String.valueOf(resolved));
+        placeholders.put("CLOSED_NO_RESOLUTION_COUNT", String.valueOf(closedNoResolution));
+        placeholders.put("VENDOR_DECLINED_COUNT", String.valueOf(vendorDeclined));
+
+        log.info("Send combined weekly summary to {} total={}", poc.getEmail(), total);
+        summaryEmailTemplateService.sendCombinedWeeklySummaryEmail(tenantId, poc.getEmail(), placeholders);
     }
 
     private RequestInfo resolveRequestInfo(LivelihoodSummaryEmailRequest request) {

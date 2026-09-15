@@ -24,7 +24,10 @@ public enum LivelihoodSummaryEventType {
     SUPPORT_REJECTED(LIV_SUM_D_009, LIV_SUM_W_009, false),
     FIELD_VISITS_ASSIGNED(LIV_SUM_D_010, LIV_SUM_W_010, false),
     SLA_NEARING(LIV_SUM_D_011, LIV_SUM_W_011, true),
-    EQUIPMENT_REPORTS(LIV_SUM_D_012, LIV_SUM_W_012, false);
+    EQUIPMENT_REPORTS(LIV_SUM_D_012, LIV_SUM_W_012, false),
+    // Weekly-only: counted for the combined weekly digest, not sent as an individual daily email.
+    RESOLVED(null, null, true),
+    REASSIGNED_AFTER_ESCALATION(null, null, true);
 
     private final String dailyTemplateCode;
     private final String weeklyTemplateCode;
