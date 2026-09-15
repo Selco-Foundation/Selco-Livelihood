@@ -11,10 +11,10 @@ import { ReviewSections } from "../../components/review/ReviewSections";
 import {
   useFacilityReview,
   useLoadSectionMedia,
-  useRejectionReasonOptions,
   useSubmitFacilityReview,
 } from "../../hooks/use-facility-review";
 import { useInstallationPlans } from "../../hooks/use-installation-plans";
+import { useRejectionReasonOptions } from "../../hooks/use-rejection-reason-options";
 import type {
   RejectionReasonEntry,
   ReviewDecisionAction,
@@ -46,7 +46,7 @@ export function FacilityReviewPage() {
   const { data: detail, isLoading } = useFacilityReview(entryId);
   const submitReview = useSubmitFacilityReview(entryId);
   const loadSectionMedia = useLoadSectionMedia(entryId, detail?.entry.facilityName ?? "");
-  const reasonOptions = useRejectionReasonOptions();
+  const { data: reasonOptions = [] } = useRejectionReasonOptions();
   const [rejectionReasons, setRejectionReasons] = useState<SectionRejectionReasons>({});
   const [pendingAction, setPendingAction] = useState<ReviewDecisionAction | null>(null);
   const { data: plansData } = useInstallationPlans({ fieldPlanIds: planId ? [planId] : undefined });

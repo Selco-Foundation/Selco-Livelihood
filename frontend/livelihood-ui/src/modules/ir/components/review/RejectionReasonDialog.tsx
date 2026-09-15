@@ -15,6 +15,7 @@ import {
 } from "@/ui";
 import { useEffect, useState } from "react";
 import type { RejectionReasonOption } from "../../types/facility-review";
+import { isOtherReason } from "../../utils/rejection-reason-mapping";
 
 export interface RejectionReasonDraft {
   reasonCode: string;
@@ -45,6 +46,7 @@ export function RejectionReasonDialog({
   const isEditing = Boolean(initialValue);
   const [reasonCode, setReasonCode] = useState(initialValue?.reasonCode ?? "");
   const [comment, setComment] = useState(initialValue?.comment ?? "");
+  const [commentError, setCommentError] = useState("");
 
   // Dialog content is mounted once and reused across opens (Radix keeps it in
   // the tree for the close animation), so the draft needs to reset whenever a
@@ -53,6 +55,7 @@ export function RejectionReasonDialog({
     if (open) {
       setReasonCode(initialValue?.reasonCode ?? "");
       setComment(initialValue?.comment ?? "");
+      setCommentError("");
     }
   }, [open, initialValue]);
 
@@ -61,7 +64,14 @@ export function RejectionReasonDialog({
     if (!selected) {
       return;
     }
-    onSubmit({ reasonCode: selected.code, reasonLabel: selected.name, comment: comment.trim() });
+    const trimmedComment = comment.trim();
+    // Matches qc's isOtherReason + OTHER_ERRMSG check exactly — comment is
+    // otherwise optional, but an "Other" reason can't be saved without one.
+    if (isOtherReason(selected) && !trimmedComment) {
+      setCommentError(translateOr(t, "ES_IR_OTHER_REASON_COMMENT_REQUIRED", "Please add a comment for this reason"));
+      return;
+    }
+    onSubmit({ reasonCode: selected.code, reasonLabel: selected.name, comment: trimmedComment });
     onOpenChange(false);
   }
 
@@ -92,7 +102,13 @@ export function RejectionReasonDialog({
             <label className="text-sm font-medium text-ink-950">
               {translateOr(t, "ES_IR_REJECTION_REASON", "Reason")}
             </label>
-            <Select value={reasonCode} onValueChange={setReasonCode}>
+            <Select
+              value={reasonCode}
+              onValueChange={(value) => {
+                setReasonCode(value);
+                setCommentError("");
+              }}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder={translateOr(t, "ES_IR_SELECT_REASON", "Select a reason")} />
               </SelectTrigger>
@@ -113,8 +129,12 @@ export function RejectionReasonDialog({
               className="min-h-[80px] w-full rounded border border-ink-300 bg-card px-3 py-2 text-sm placeholder:text-ink-300"
               placeholder={translateOr(t, "ES_IR_REJECTION_COMMENT_PLACEHOLDER", "Add details for this reason")}
               value={comment}
-              onChange={(event) => setComment(event.target.value)}
+              onChange={(event) => {
+                setComment(event.target.value);
+                setCommentError("");
+              }}
             />
+            {commentError ? <p className="text-sm text-destructive">{commentError}</p> : null}
           </div>
         </div>
         <DialogFooter>

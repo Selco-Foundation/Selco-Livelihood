@@ -1,11 +1,14 @@
 import { fetchFileUrls, useAuthStore } from "@/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MACHINE_MEDIA_GROUPS } from "../constants/review";
-import { REJECTION_REASON_OPTIONS } from "../constants/rejection-reasons";
 import {
   fetchInstallationImageCriteriaQuery,
   installationImageCriteriaQueryKey,
 } from "./use-installation-image-criteria";
+import {
+  fetchRejectionReasonOptionsQuery,
+  rejectionReasonOptionsQueryKey,
+} from "./use-rejection-reason-options";
 import { searchAssetsForActivityFacility } from "../services/asset";
 import { searchActivityFacilities } from "../services/facility";
 import { submitFacilityReview } from "../services/review";
@@ -25,10 +28,6 @@ import type {
   SubmitFacilityReviewInput,
 } from "../types/facility-review";
 
-export function useRejectionReasonOptions() {
-  return REJECTION_REASON_OPTIONS;
-}
-
 export function useFacilityReview(entryId: string) {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
@@ -39,11 +38,13 @@ export function useFacilityReview(entryId: string) {
     queryKey: ["ir-facility-review", employeeTenantId, entryId],
     enabled: Boolean(accessToken && employeeTenantId && entryId),
     queryFn: async (): Promise<FacilityReviewDetail | null> => {
-      // The installation-image checklist master is the same for every entry,
-      // so it's fetched through the shared query key (queryClient.fetchQuery
-      // reuses useInstallationImageCriteria's cache instead of re-fetching it
-      // per review) rather than being entry-scoped like the facility row.
-      const [data, installationImageCriteria] = await Promise.all([
+      // The installation-image checklist master and the rejection-reason
+      // options master are both the same for every entry, so they're fetched
+      // through their own shared query keys (queryClient.fetchQuery reuses
+      // useInstallationImageCriteria's/useRejectionReasonOptions' cache
+      // instead of re-fetching per review) rather than being entry-scoped
+      // like the facility row.
+      const [data, installationImageCriteria, rejectionReasonOptions] = await Promise.all([
         searchActivityFacilities(
           { tenantId: employeeTenantId!, ids: [entryId] },
           { limit: 1, offset: 0 },
@@ -53,6 +54,11 @@ export function useFacilityReview(entryId: string) {
         queryClient.fetchQuery({
           queryKey: installationImageCriteriaQueryKey(employeeTenantId!),
           queryFn: fetchInstallationImageCriteriaQuery(employeeTenantId!, accessToken!, user),
+          staleTime: 5 * 60_000,
+        }),
+        queryClient.fetchQuery({
+          queryKey: rejectionReasonOptionsQueryKey(employeeTenantId!),
+          queryFn: fetchRejectionReasonOptionsQuery(employeeTenantId!, accessToken!, user),
           staleTime: 5 * 60_000,
         }),
       ]);
@@ -101,7 +107,12 @@ export function useFacilityReview(entryId: string) {
         }
       }
 
-      return buildFacilityReviewDetail(row, installationImageCriteria, solarAssetSections);
+      return buildFacilityReviewDetail(
+        row,
+        installationImageCriteria,
+        solarAssetSections,
+        rejectionReasonOptions,
+      );
     },
   });
 }

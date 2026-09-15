@@ -1,5 +1,4 @@
 import { MACHINE_MEDIA_GROUPS, REVIEW_SECTION_LABELS } from "../constants/review";
-import { REJECTION_REASON_OPTIONS } from "../constants/rejection-reasons";
 import { formatEpochDate } from "./date-format";
 import { toFacilityEntry } from "./facility-entry-mapping";
 import { classifyDocument, INSTALLATION_IMAGE_PREFIX, REPORT_DOCUMENT_TYPES } from "./facility-documents";
@@ -19,6 +18,7 @@ import type {
   FacilityReviewDetail,
   ImageChecklistSectionContent,
   LabeledValue,
+  RejectionReasonOption,
   ReportSectionContent,
   ReviewSectionContent,
   ReviewSectionId,
@@ -125,7 +125,10 @@ function buildImageChecklistSections(
   }));
 }
 
-function buildSectionReasons(transaction: ActivityTransaction | undefined): AuditSectionReasons[] {
+function buildSectionReasons(
+  transaction: ActivityTransaction | undefined,
+  reasonOptions: RejectionReasonOption[],
+): AuditSectionReasons[] {
   if (!transaction?.comments?.length) {
     return [];
   }
@@ -141,7 +144,7 @@ function buildSectionReasons(transaction: ActivityTransaction | undefined): Audi
 
     const sectionId = comment.assetType ?? "OTHER";
     const reasonLabel =
-      REJECTION_REASON_OPTIONS.find((option) => option.code === parsed.reasonCode)?.name ??
+      reasonOptions.find((option) => option.code === parsed.reasonCode)?.name ??
       (parsed.reasonCode ? humanize(parsed.reasonCode) : sectionId);
 
     bySection.set(sectionId, [
@@ -160,6 +163,7 @@ function buildSectionReasons(transaction: ActivityTransaction | undefined): Audi
 function buildAuditTrail(
   workflow: ActivityWorkflowEntry[] | undefined,
   transactions: ActivityTransaction[] | undefined,
+  reasonOptions: RejectionReasonOption[],
 ): FacilityAuditCheckpoint[] {
   const transactionByProcessInstanceId = new Map(
     (transactions ?? [])
@@ -172,7 +176,7 @@ function buildAuditTrail(
   // order, latest at the top.
   return (workflow ?? []).map((entry, index) => {
     const transaction = entry.id ? transactionByProcessInstanceId.get(entry.id) : undefined;
-    const sectionReasons = buildSectionReasons(transaction);
+    const sectionReasons = buildSectionReasons(transaction, reasonOptions);
 
     return {
       id: entry.id ?? `checkpoint-${index}`,
@@ -193,6 +197,10 @@ export function buildFacilityReviewDetail(
   // BOM no longer drives Solar's asset sections; a Machine entry gets an
   // empty array here since it doesn't use it.
   solarAssetSections: AssetSectionContent[],
+  // MDMS `Installation.RejectionReasons` options (see
+  // hooks/use-rejection-reason-options.ts) — used here only to resolve a
+  // historical audit-trail comment's reasonCode back to its display name.
+  reasonOptions: RejectionReasonOption[],
 ): FacilityReviewDetail {
   const { activityFacility } = row;
   const entry = toFacilityEntry(row);
@@ -231,7 +239,7 @@ export function buildFacilityReviewDetail(
   return {
     entry,
     sections,
-    auditTrail: buildAuditTrail(row.workflow, row.transactions),
+    auditTrail: buildAuditTrail(row.workflow, row.transactions, reasonOptions),
     sectionDocuments,
   };
 }
