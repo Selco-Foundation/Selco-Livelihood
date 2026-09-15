@@ -1,6 +1,7 @@
 package facility.service;
 
 import facility.config.Configuration;
+import facility.kafka.Producer;
 import facility.repository.ServiceRequestRepository;
 import facility.util.MdmsUtil;
 import facility.web.models.Facility;
@@ -27,9 +28,21 @@ public class HRMSService {
     private static final String MDMS_COMMON_MASTERS_MODULE = "common-masters";
     private static final String MDMS_DESIGNATION_MASTER = "Designation";
 
+    // Localization module/locale for the credentials SMS template, matching the
+    // rainmaker-livelihood LIV-TPL-* catalog used for ticket notifications (im-services).
+    private static final String LOCALIZATION_MODULE = "rainmaker-livelihood";
+    private static final String LOCALIZATION_LOCALE = "en_IN";
+    private static final String CREDENTIALS_SMS_TEMPLATE_CODE = "LIV-TPL-034";
+
+    // Placeholder copy until the client-approved LIV-TPL-034 message is uploaded to localization.
+    private static final String DEFAULT_CREDENTIALS_SMS_TEMPLATE =
+            "Hi {name}, your Livelihood account has been created. Login with username {mobileNumber} "
+                    + "and password {password}. - SELCO Foundation";
+
     private final ServiceRequestRepository serviceRequestRepository;
     private final Configuration configs;
     private final MdmsUtil mdmsUtil;
+    private final Producer producer;
 
     /**
      * Searches for an employee by mobile number (phone number) in HRMS.
@@ -346,7 +359,8 @@ public class HRMSService {
             }
 
             // Set password derived from the POC's name and mobile number
-            user.put("password", generateDefaultPassword((String) user.get("name"), (String) user.get("mobileNumber")));
+            String plainPassword = generateDefaultPassword((String) user.get("name"), (String) user.get("mobileNumber"));
+            user.put("password", plainPassword);
 
             // Build user update request
             Map<String, Object> userUpdateRequest = new HashMap<>();
@@ -355,17 +369,98 @@ public class HRMSService {
 
             // Build user update URI
             String updateUri = configs.getUserHost() + configs.getUserContextPath() + configs.getUserUpdateEndpoint();
-            
+
             log.debug("Updating password for user: {}", sanitizeForLog((String) user.get("userName")));
-            
+
             // Call user service to update password
             serviceRequestRepository.fetchResult(new StringBuilder(updateUri), userUpdateRequest);
-            
+
             log.info("Successfully updated password for user: {}", sanitizeForLog((String) user.get("userName")));
+
+            sendCredentialsSms(user, plainPassword, requestInfo);
+
             log.trace("Exiting updateUserPassword method");
         } catch (Exception e) {
             log.error("Error updating user password: {}", e.getMessage(), e);
         }
+    }
+
+    /**
+     * Sends the newly generated login credentials to the POC's mobile number via SMS.
+     * Failures here must never affect facility/employee creation, so all errors are logged and swallowed.
+     */
+    private void sendCredentialsSms(Map<String, Object> user, String plainPassword, RequestInfo requestInfo) {
+        String mobileNumber = (String) user.get("mobileNumber");
+        if (mobileNumber == null || mobileNumber.isBlank()) {
+            log.debug("Skipping credentials SMS: no mobile number on user");
+            return;
+        }
+
+        String smsTopic = configs.getSmsNotificationTopic();
+        if (smsTopic == null || smsTopic.isBlank()) {
+            log.debug("Skipping credentials SMS: sms notification topic not configured");
+            return;
+        }
+
+        try {
+            String tenantId = (String) user.get("tenantId");
+            String message = resolveCredentialsSmsTemplate(tenantId, requestInfo)
+                    .replace("{name}", firstNonBlank((String) user.get("name"), ""))
+                    .replace("{mobileNumber}", mobileNumber)
+                    .replace("{password}", plainPassword);
+
+            Map<String, Object> smsRequest = new HashMap<>();
+            smsRequest.put("mobileNumber", mobileNumber);
+            smsRequest.put("message", message);
+            smsRequest.put("category", "NOTIFICATION");
+            smsRequest.put("tenantId", tenantId);
+
+            producer.push(smsTopic, smsRequest);
+            log.info("Pushed credentials SMS for user: {}", sanitizeForLog((String) user.get("userName")));
+        } catch (Exception e) {
+            log.error("Error sending credentials SMS for user {}: {}",
+                    sanitizeForLog((String) user.get("userName")), e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Resolves the credentials SMS template from localization (LIV-TPL-034), falling back
+     * to a hardcoded default until the client-approved copy is uploaded to localization.
+     */
+    private String resolveCredentialsSmsTemplate(String tenantId, RequestInfo requestInfo) {
+        try {
+            String searchUri = UriComponentsBuilder
+                    .fromUriString(configs.getLocalizationHost())
+                    .path(configs.getLocalizationContextPath())
+                    .path(configs.getLocalizationSearchEndpoint())
+                    .queryParam("tenantId", tenantId)
+                    .queryParam("module", LOCALIZATION_MODULE)
+                    .queryParam("locale", LOCALIZATION_LOCALE)
+                    .toUriString();
+
+            Map<String, Object> searchRequest = new HashMap<>();
+            searchRequest.put("RequestInfo", requestInfo);
+
+            Map<String, Object> response = (Map<String, Object>) serviceRequestRepository.fetchResult(
+                    new StringBuilder(searchUri), searchRequest
+            );
+
+            List<Map<String, Object>> messages = response == null
+                    ? null : (List<Map<String, Object>>) response.get("messages");
+            if (messages != null) {
+                for (Map<String, Object> entry : messages) {
+                    if (CREDENTIALS_SMS_TEMPLATE_CODE.equals(entry.get("code"))) {
+                        Object message = entry.get("message");
+                        if (message != null && !((String) message).isBlank()) {
+                            return (String) message;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Could not fetch credentials SMS template from localization, using default: {}", e.getMessage());
+        }
+        return DEFAULT_CREDENTIALS_SMS_TEMPLATE;
     }
 
     /**
