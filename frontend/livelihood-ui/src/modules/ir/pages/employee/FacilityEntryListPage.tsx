@@ -116,6 +116,10 @@ export function FacilityEntryListPage() {
       ...nextFilters,
       block: nextFilters.block.filter((code) => validBlockCodes.has(code)),
     });
+    // A selection made under one filter set shouldn't silently carry over to
+    // rows a *different* filter set surfaces — the user can no longer see
+    // what they'd be bulk-approving.
+    setSelected(new Set());
     setPageOffset(0);
   }
 
@@ -167,7 +171,10 @@ export function FacilityEntryListPage() {
         filters={filters}
         searchText={rawSearchText}
         onFilterChange={handleFilterChange}
-        onSearchTextChange={setRawSearchText}
+        onSearchTextChange={(value) => {
+          setRawSearchText(value);
+          setSelected(new Set());
+        }}
         selectedCount={selected.size}
         onApprove={handleBulkApprove}
         isApproving={bulkApprove.isPending}
