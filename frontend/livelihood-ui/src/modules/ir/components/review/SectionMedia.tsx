@@ -33,6 +33,7 @@ export function SectionImageGrid({ titleKey, title, images, bare = false }: Sect
           href={entry.url}
           target="_blank"
           rel="noreferrer"
+          aria-label={`${translateOr(t, "ES_IR_IMAGE", "Image")} ${index + 1}`}
           className="block h-24 w-32 shrink-0 overflow-hidden rounded-md border border-border"
         >
           <img src={entry.url} alt="" className="h-full w-full object-cover" />
@@ -78,11 +79,17 @@ export function SectionVideoList({ titleKey, title, videos, bare = false }: Sect
           key={`${entry.url}-${index}`}
           className="inline-flex shrink-0 flex-col gap-1.5 rounded-md border border-border bg-card p-2"
         >
-          <video src={entry.url} controls className="h-20 w-32 rounded bg-black" />
+          <video
+            src={entry.url}
+            controls
+            aria-label={`${translateOr(t, "ES_IR_VIDEO", "Video")} ${index + 1}`}
+            className="h-20 w-32 rounded bg-black"
+          />
           <a
             href={entry.url}
             target="_blank"
             rel="noreferrer"
+            aria-label={`${translateOr(t, "ES_IR_DOWNLOAD_VIDEO", "Download video")} ${index + 1}`}
             className="flex items-center justify-center gap-1.5 text-xs text-primary hover:underline"
           >
             <Download className="size-3.5" />
