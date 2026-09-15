@@ -99,7 +99,7 @@ export function RejectionReasonDialog({
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-ink-950">
+            <label id="rejection-reason-label" className="text-sm font-medium text-ink-950">
               {translateOr(t, "ES_IR_REJECTION_REASON", "Reason")}
             </label>
             <Select
@@ -109,7 +109,7 @@ export function RejectionReasonDialog({
                 setCommentError("");
               }}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full" aria-labelledby="rejection-reason-label">
                 <SelectValue placeholder={translateOr(t, "ES_IR_SELECT_REASON", "Select a reason")} />
               </SelectTrigger>
               <SelectContent>
@@ -122,10 +122,11 @@ export function RejectionReasonDialog({
             </Select>
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-ink-950">
+            <label htmlFor="rejection-reason-comment" className="text-sm font-medium text-ink-950">
               {translateOr(t, "ES_IR_REJECTION_COMMENT", "Comment")}
             </label>
             <textarea
+              id="rejection-reason-comment"
               className="min-h-[80px] w-full rounded border border-ink-300 bg-card px-3 py-2 text-sm placeholder:text-ink-300"
               placeholder={translateOr(t, "ES_IR_REJECTION_COMMENT_PLACEHOLDER", "Add details for this reason")}
               value={comment}
