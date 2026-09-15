@@ -19,6 +19,7 @@ import {
   buildReportSectionMedia,
 } from "../utils/facility-media";
 import { buildFacilityReviewDetail } from "../utils/facility-review-mapping";
+import { hasIrAccess } from "../utils/access";
 import type {
   ActivityDocument,
   AssetSectionContent,
@@ -36,7 +37,7 @@ export function useFacilityReview(entryId: string) {
 
   return useQuery({
     queryKey: ["ir-facility-review", employeeTenantId, entryId],
-    enabled: Boolean(accessToken && employeeTenantId && entryId),
+    enabled: Boolean(accessToken && employeeTenantId && entryId && hasIrAccess(user?.roles)),
     queryFn: async (): Promise<FacilityReviewDetail | null> => {
       // The installation-image checklist master and the rejection-reason
       // options master are both the same for every entry, so they're fetched
