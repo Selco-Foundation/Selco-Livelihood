@@ -21,6 +21,7 @@ import 'package:livelihood/repositories/asset_mdms_repository.dart';
 import 'package:livelihood/repositories/bom_repository.dart';
 import 'package:livelihood/repositories/installation_draft_repository.dart';
 import 'package:livelihood/repositories/operation_progress_repo.dart';
+import 'package:livelihood/repositories/pending_submission_repository.dart';
 import 'package:livelihood/utils/envConfig.dart';
 import 'package:livelihood/utils/dynamic_form_schema.dart';
 import 'package:livelihood/utils/operation_progress.dart';
@@ -29,6 +30,65 @@ import 'package:livelihood/utils/warranty.dart';
 
 void main() {
   setUpAll(() async => envConfig.initialize());
+
+  setUp(() => pendingSubmissionRepository.clearForTests());
+
+  test('pending submission lifecycle persists OTP approval without OTP data',
+      () async {
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'pending-lifecycle-1',
+        facilityId: 'facility-1',
+        componentType: 'MACHINE',
+        facility: Facility(facilityName: 'Machine facility'),
+      ),
+    );
+
+    await pendingSubmissionRepository.markOtpRequested(workflow);
+    var record = await pendingSubmissionRepository.read('pending-lifecycle-1');
+    expect(record?.state, PendingSubmissionState.pendingOtpApproval);
+    expect(record?.otpRequested, isTrue);
+    expect(record?.otpVerified, isFalse);
+
+    await pendingSubmissionRepository.markOtpVerified(workflow);
+    record = await pendingSubmissionRepository.read('pending-lifecycle-1');
+    expect(record?.state, PendingSubmissionState.pendingApproval);
+    expect(record?.otpVerified, isTrue);
+    expect(record?.canSync, isTrue);
+
+    await pendingSubmissionRepository
+        .markSubmissionCompleted('pending-lifecycle-1');
+    record = await pendingSubmissionRepository.read('pending-lifecycle-1');
+    expect(record?.submissionCompleted, isTrue);
+    expect(record?.canSync, isFalse);
+
+    await pendingSubmissionRepository.removeConfirmed(['pending-lifecycle-1']);
+    expect(
+        await pendingSubmissionRepository.read('pending-lifecycle-1'), isNull);
+  });
+
+  test('saving a Solar draft queues it for OTP without approving OTP',
+      () async {
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'solar-draft-1',
+        facilityId: 'facility-1',
+        componentType: 'SOLAR',
+        facility: Facility(facilityName: 'Solar facility'),
+      ),
+    );
+
+    await pendingSubmissionRepository.saveDraft(
+      workflow,
+      workflowMode: 'newReport',
+    );
+
+    final record = await pendingSubmissionRepository.read('solar-draft-1');
+    expect(record?.state, PendingSubmissionState.pendingOtpApproval);
+    expect(record?.otpRequested, isFalse);
+    expect(record?.otpVerified, isFalse);
+    expect(record?.workflowMode, 'newReport');
+  });
 
   test('activity facility reads top-level component, solution and BOM', () {
     final workflow = ActivityFacilityWorkflow.fromJson({
@@ -1122,6 +1182,79 @@ void main() {
     await bloc.close();
   });
 
+  test('bulk submission aggregates only OTP-approved local jobs', () async {
+    const first = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'bulk-1',
+        facilityId: 'facility-1',
+        componentType: 'MACHINE',
+      ),
+    );
+    const second = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'bulk-2',
+        facilityId: 'facility-2',
+        componentType: 'SOLAR',
+      ),
+    );
+    const otpOnly = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'bulk-otp-only',
+        facilityId: 'facility-3',
+        componentType: 'SOLAR',
+      ),
+    );
+    await pendingSubmissionRepository.markOtpVerified(first);
+    await pendingSubmissionRepository.markOtpVerified(second);
+    await pendingSubmissionRepository.markOtpRequested(otpOnly);
+
+    final progressRepo = _MultiStubOperationProgressRepository();
+    await progressRepo.upsertJob(
+      activityFacilityId: 'bulk-1',
+      status: OperationStatuses.running,
+      stageKey: 'submitting_assets',
+      completedSteps: 4,
+      totalSteps: submitStages.length,
+    );
+    await progressRepo.upsertJob(
+      activityFacilityId: 'bulk-2',
+      status: OperationStatuses.running,
+      stageKey: 'uploading_media',
+      completedSteps: 2,
+      totalSteps: submitStages.length,
+    );
+    final bloc = AssetSubmissionBloc(progressRepository: progressRepo);
+    bloc.add(const SubmitAllPending());
+    await pumpEventQueue();
+
+    final terminalFuture = bloc.stream
+        .where((state) => state is BulkSubmissionProgress)
+        .cast<BulkSubmissionProgress>()
+        .firstWhere((state) => state.isTerminal);
+
+    await progressRepo.upsertJob(
+      activityFacilityId: 'bulk-1',
+      status: OperationStatuses.success,
+      stageKey: 'submission_successful',
+      completedSteps: submitStages.length,
+      totalSteps: submitStages.length,
+    );
+    await progressRepo.upsertJob(
+      activityFacilityId: 'bulk-2',
+      status: OperationStatuses.failed,
+      stageKey: 'uploading_media',
+      completedSteps: 2,
+      totalSteps: submitStages.length,
+      lastError: 'offline',
+    );
+
+    final terminal = await terminalFuture;
+    expect(terminal.total, 2);
+    expect(terminal.completed, 1);
+    expect(terminal.failedCount, 1);
+    await bloc.close();
+  });
+
   test('parseWarrantyYears extracts the leading digit count', () {
     expect(parseWarrantyYears('2 Years'), 2);
     expect(parseWarrantyYears('10 Years'), 10);
@@ -1177,6 +1310,57 @@ class _StubOperationProgressRepository implements OperationProgressRepository {
   @override
   Future<void> clearJob(String activityFacilityId) async {
     _current = null;
+  }
+}
+
+class _MultiStubOperationProgressRepository
+    implements OperationProgressRepository {
+  final _controller = StreamController<OperationProgressModel>.broadcast();
+  final _jobs = <String, OperationProgressModel>{};
+
+  @override
+  Future<void> upsertJob({
+    required String activityFacilityId,
+    required String status,
+    required String stageKey,
+    required int completedSteps,
+    required int totalSteps,
+    int retryCount = 0,
+    String? lastError,
+  }) async {
+    final job = OperationProgressModel(
+      activityFacilityId: activityFacilityId,
+      operationType: OperationTypes.submit,
+      status: status,
+      stageKey: stageKey,
+      stageLabel: stageForKey(stageKey).label,
+      completedSteps: completedSteps,
+      totalSteps: totalSteps,
+      progressPercent: progressPercent(
+        completedSteps: completedSteps,
+        totalSteps: totalSteps,
+      ),
+      retryCount: retryCount,
+      errorMessage: lastError,
+    );
+    _jobs[activityFacilityId] = job;
+    _controller.add(job);
+  }
+
+  @override
+  Future<OperationProgressModel?> readJob(String activityFacilityId) async =>
+      _jobs[activityFacilityId];
+
+  @override
+  Stream<OperationProgressModel?> watchJob(String activityFacilityId) async* {
+    yield _jobs[activityFacilityId];
+    yield* _controller.stream
+        .where((job) => job.activityFacilityId == activityFacilityId);
+  }
+
+  @override
+  Future<void> clearJob(String activityFacilityId) async {
+    _jobs.remove(activityFacilityId);
   }
 }
 

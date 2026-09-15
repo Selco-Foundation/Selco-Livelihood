@@ -15,11 +15,15 @@ class FacilityReportCard extends StatelessWidget {
     required this.workflow,
     required this.mode,
     required this.onAction,
+    this.statusLabel,
+    this.actionLabel,
   });
 
   final ActivityFacilityWorkflow workflow;
   final FacilityReportMode mode;
   final VoidCallback onAction;
+  final String? statusLabel;
+  final String? actionLabel;
 
   String get _componentType =>
       switch (workflow.activityFacility.componentType?.trim().toUpperCase()) {
@@ -62,7 +66,7 @@ class FacilityReportCard extends StatelessWidget {
             const DigitDivider(dividerType: DividerType.small),
             _DetailRow(
                 label: context.translate(i18.common.status),
-                value: _status(context)),
+                value: statusLabel ?? _status(context)),
             if (isNew) ...[
               _DetailRow(
                 label: context.translate(i18.installationReportHome.startDate),
@@ -99,7 +103,7 @@ class FacilityReportCard extends StatelessWidget {
               DigitButton(
                 key: const ValueKey('view-summary-button'),
                 mainAxisSize: MainAxisSize.max,
-                label:
+                label: actionLabel ??
                     context.translate(i18.installationReportHome.viewSummary),
                 onPressed: onAction,
                 type: DigitButtonType.secondary,

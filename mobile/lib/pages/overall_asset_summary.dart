@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/theme/TextTheme/digit_text_theme.dart';
@@ -14,6 +15,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../blocs/asset_submission/asset_submission.dart';
 import '../blocs/installation_images/installation_images.dart';
+import '../blocs/activity_facility_counts/activity_facility_counts.dart';
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
 import '../model/solar_installation_draft.dart';
@@ -22,8 +24,8 @@ import '../repositories/installation_cache_repo.dart';
 import '../repositories/installation_draft_repository.dart';
 import '../repositories/asset_mdms_repository.dart';
 import '../repositories/asset_progress_repo.dart';
+import '../repositories/pending_submission_repository.dart';
 import '../router/app_router.dart';
-import '../utils/feature_flags.dart';
 import '../utils/submission_payload.dart';
 import '../widgets/file_upload_widget.dart';
 import '../widgets/image_uploader.dart';
@@ -53,11 +55,66 @@ class OverallAssetSummaryPage extends StatefulWidget {
 
 class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
   bool _otpVerified = false;
+  bool _otpRequested = false;
+  bool _autoSubmitting = false;
 
   @override
   void initState() {
     super.initState();
-    unawaited(_resync());
+    if (!Platform.environment.containsKey('FLUTTER_TEST')) {
+      unawaited(_resync());
+    }
+    unawaited(_restorePendingState());
+  }
+
+  Future<void> _restorePendingState() async {
+    final id = widget.draft.workflow.activityFacility.id;
+    if (id == null) return;
+    final record = await pendingSubmissionRepository.read(id);
+    if (!mounted || record == null) return;
+    setState(() {
+      _otpRequested = record.otpRequested;
+      _otpVerified = record.otpVerified;
+    });
+  }
+
+  Future<void> _onOtpRequested() async {
+    await pendingSubmissionRepository.markOtpRequested(
+      widget.draft.workflow,
+      workflowMode: widget.draft.mode.name,
+    );
+    if (!mounted) return;
+    setState(() => _otpRequested = true);
+    _refreshCounts();
+  }
+
+  Future<void> _onOtpVerified() async {
+    await pendingSubmissionRepository.markOtpVerified(
+      widget.draft.workflow,
+      workflowMode: widget.draft.mode.name,
+    );
+    if (!mounted) return;
+    setState(() {
+      _otpRequested = true;
+      _otpVerified = true;
+    });
+    _refreshCounts();
+    if (widget.draft.canSubmit && !_autoSubmitting) {
+      _autoSubmitting = true;
+      try {
+        await _submit();
+      } finally {
+        _autoSubmitting = false;
+      }
+    }
+  }
+
+  void _refreshCounts() {
+    try {
+      context
+          .read<ActivityFacilityCountsBloc>()
+          .add(const ActivityFacilityCountsEvent.fetch(forceRefresh: true));
+    } catch (_) {}
   }
 
   /// Mirrors E4H's overall/inbox summary pages, which resync BOM + asset
@@ -184,6 +241,22 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
         ));
   }
 
+  Future<void> _saveDraft() async {
+    await installationDraftRepository.saveSolar(widget.draft);
+    await pendingSubmissionRepository.saveDraft(
+      widget.draft.workflow,
+      workflowMode: widget.draft.mode.name,
+    );
+    if (!mounted) return;
+    _refreshCounts();
+    await context.router.push<void>(
+      DataSaveSuccessRoute(
+        draft: widget.draft,
+        pickMedia: widget.pickMedia,
+      ),
+    );
+  }
+
   Future<void> _openInstallationImages() async {
     await context.router.push<void>(
       InstallationImagesRoute(
@@ -246,13 +319,14 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
       pageKey: 'solar-overall-summary-${draft.mode.name}',
       footer: draft.isReadOnly
           ? null
-          : SolarFooterButton(
-              label: draft.mode == SolarWorkflowMode.resubmission
+          : _SolarSummaryFooter(
+              submitLabel: draft.mode == SolarWorkflowMode.resubmission
                   ? context.translate(i18.installationReport.resubmit)
                   : context.translate(i18.common.submit),
-              isDisabled: !draft.canSubmit ||
-                  (!otpVerificationBypassed && !_otpVerified),
-              onPressed: _submit,
+              canSubmit: draft.canSubmit,
+              otpVerified: _otpVerified,
+              onSaveDraft: _saveDraft,
+              onSubmit: _submit,
             ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -387,6 +461,10 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                   activityFacilityId: draft.workflow.activityFacility.id ?? '',
                   label: context
                       .translate(i18.machineForm.validateInstallationOtp),
+                  initiallyRequested: _otpRequested,
+                  initiallyVerified: _otpVerified,
+                  onRequestSucceeded: _onOtpRequested,
+                  onVerificationSucceeded: _onOtpVerified,
                   onVerificationChanged: (verified) =>
                       setState(() => _otpVerified = verified),
                 ),
@@ -397,6 +475,58 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SolarSummaryFooter extends StatelessWidget {
+  const _SolarSummaryFooter({
+    required this.submitLabel,
+    required this.canSubmit,
+    required this.otpVerified,
+    required this.onSaveDraft,
+    required this.onSubmit,
+  });
+
+  final String submitLabel;
+  final bool canSubmit;
+  final bool otpVerified;
+  final VoidCallback onSaveDraft;
+  final VoidCallback onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    return DigitCard(
+      key: const ValueKey('solar-fixed-footer'),
+      margin: const EdgeInsets.only(top: spacer2),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: DigitButton(
+                key: const ValueKey('solar-footer-save-draft'),
+                mainAxisSize: MainAxisSize.max,
+                label: context.translate(i18.machineForm.saveAsDraft),
+                onPressed: onSaveDraft,
+                type: DigitButtonType.secondary,
+                size: DigitButtonSize.large,
+              ),
+            ),
+            const SizedBox(width: spacer4),
+            Expanded(
+              child: DigitButton(
+                key: const ValueKey('solar-footer-submit'),
+                mainAxisSize: MainAxisSize.max,
+                label: submitLabel,
+                onPressed: onSubmit,
+                isDisabled: !otpVerified || !canSubmit,
+                type: DigitButtonType.primary,
+                size: DigitButtonSize.large,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

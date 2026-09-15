@@ -22,7 +22,8 @@ AssetType _$AssetTypeFromJson(Map<String, dynamic> json) {
 mixin _$AssetType {
   String get code => throw _privateConstructorUsedError;
   String get name => throw _privateConstructorUsedError;
-  bool get active => throw _privateConstructorUsedError;
+  bool get active =>
+      throw _privateConstructorUsedError; // ignore: invalid_annotation_target
   @JsonKey(name: 'form_fields')
   List<AssetTypeFormField> get formFields => throw _privateConstructorUsedError;
 
@@ -155,7 +156,9 @@ class _$AssetTypeImpl implements _AssetType {
   final String name;
   @override
   final bool active;
+// ignore: invalid_annotation_target
   final List<AssetTypeFormField> _formFields;
+// ignore: invalid_annotation_target
   @override
   @JsonKey(name: 'form_fields')
   List<AssetTypeFormField> get formFields {
@@ -217,7 +220,7 @@ abstract class _AssetType implements AssetType {
   String get name;
   @override
   bool get active;
-  @override
+  @override // ignore: invalid_annotation_target
   @JsonKey(name: 'form_fields')
   List<AssetTypeFormField> get formFields;
   @override

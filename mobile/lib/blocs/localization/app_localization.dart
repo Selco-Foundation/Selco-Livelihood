@@ -89,6 +89,8 @@ class AppLocalizations {
   /// a bundled localization asset while preserving backend text precedence.
   static String fallbackLabel(String code) {
     const prefixes = [
+      'DRAFT_',
+      'SYNC_LOADING_',
       'INSTALLATION_REPORT_HOME_',
       'INSTALLATION_REPORT_',
       'MACHINE_FORM_',

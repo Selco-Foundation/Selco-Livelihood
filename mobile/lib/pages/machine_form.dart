@@ -10,6 +10,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../blocs/asset_submission/asset_submission.dart';
+import '../blocs/activity_facility_counts/activity_facility_counts.dart';
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
 import '../model/facility_report.dart';
@@ -17,9 +18,9 @@ import '../model/activity_facility_workflow/activity_facility_workflow.dart';
 import '../model/solar_installation_draft.dart';
 import '../repositories/asset_repository.dart';
 import '../repositories/installation_cache_repo.dart';
+import '../repositories/pending_submission_repository.dart';
 import '../router/app_router.dart';
 import '../utils/app_permission_gateway.dart';
-import '../utils/feature_flags.dart';
 import '../utils/submission_payload.dart';
 import '../widgets/machine_media_picker.dart';
 import '../widgets/operation_progress_overlay.dart';
@@ -60,6 +61,8 @@ class _MachineFormPageState extends State<MachineFormPage> {
   SolarFileRef? _endUserMedia;
   bool _trainedEndUser = true;
   bool _otpVerified = false;
+  bool _otpRequested = false;
+  bool _autoSubmitting = false;
 
   String get _cacheKey => widget.workflow.activityFacilityCacheKey;
 
@@ -70,16 +73,60 @@ class _MachineFormPageState extends State<MachineFormPage> {
         widget.workflow.activityFacility.additionalDetails?.bom ??
         const {});
     unawaited(_loadDraft());
+    unawaited(_restorePendingState());
   }
 
-  bool get _canSubmit =>
+  bool get _formComplete =>
       _poController.text.trim().isNotEmpty &&
       _capacityController.text.trim().isNotEmpty &&
       _warrantyController.text.trim().isNotEmpty &&
       (_electricBoardPhoto != null || _electricBoardMedia != null) &&
       (_demoVideo != null || _demoMedia != null) &&
-      (_endUserPhoto != null || _endUserMedia != null) &&
-      (otpVerificationBypassed || _otpVerified);
+      (_endUserPhoto != null || _endUserMedia != null);
+
+  Future<void> _restorePendingState() async {
+    final id = widget.workflow.activityFacility.id;
+    if (id == null) return;
+    final record = await pendingSubmissionRepository.read(id);
+    if (!mounted || record == null) return;
+    setState(() {
+      _otpRequested = record.otpRequested;
+      _otpVerified = record.otpVerified;
+    });
+  }
+
+  Future<void> _onOtpRequested() async {
+    await pendingSubmissionRepository.markOtpRequested(widget.workflow);
+    if (!mounted) return;
+    setState(() => _otpRequested = true);
+    _refreshCounts();
+  }
+
+  Future<void> _onOtpVerified() async {
+    await pendingSubmissionRepository.markOtpVerified(widget.workflow);
+    if (!mounted) return;
+    setState(() {
+      _otpRequested = true;
+      _otpVerified = true;
+    });
+    _refreshCounts();
+    if (_formComplete && !_autoSubmitting) {
+      _autoSubmitting = true;
+      try {
+        await _submit();
+      } finally {
+        _autoSubmitting = false;
+      }
+    }
+  }
+
+  void _refreshCounts() {
+    try {
+      context
+          .read<ActivityFacilityCountsBloc>()
+          .add(const ActivityFacilityCountsEvent.fetch(forceRefresh: true));
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
@@ -254,9 +301,15 @@ class _MachineFormPageState extends State<MachineFormPage> {
     _saveSoon();
   }
 
-  void _openSuccess(MachineReportSuccessMode mode) {
+  Future<void> _openSuccess(MachineReportSuccessMode mode) async {
     FocusManager.instance.primaryFocus?.unfocus();
-    unawaited(_save());
+    await _save();
+    if (mode == MachineReportSuccessMode.draft) {
+      await pendingSubmissionRepository.saveDraft(widget.workflow);
+      if (!mounted) return;
+      _refreshCounts();
+    }
+    if (!mounted) return;
     context.router.push(MachineReportSuccessRoute(mode: mode));
   }
 
@@ -359,7 +412,8 @@ class _MachineFormPageState extends State<MachineFormPage> {
           footer: widget.readOnly
               ? null
               : _MachineFormFooter(
-                  canSubmit: _canSubmit,
+                  canSubmit: _formComplete,
+                  otpVerified: _otpVerified,
                   onSaveDraft: () =>
                       _openSuccess(MachineReportSuccessMode.draft),
                   onSubmit: _submit,
@@ -600,6 +654,10 @@ class _MachineFormPageState extends State<MachineFormPage> {
                               widget.workflow.activityFacility.id ?? '',
                           label: context
                               .translate(i18.machineForm.validateTrainingOtp),
+                          initiallyRequested: _otpRequested,
+                          initiallyVerified: _otpVerified,
+                          onRequestSucceeded: _onOtpRequested,
+                          onVerificationSucceeded: _onOtpVerified,
                           onVerificationChanged: (verified) =>
                               setState(() => _otpVerified = verified),
                         ),
@@ -717,11 +775,13 @@ class _TrainingChoice extends StatelessWidget {
 class _MachineFormFooter extends StatelessWidget {
   const _MachineFormFooter({
     required this.canSubmit,
+    required this.otpVerified,
     required this.onSaveDraft,
     required this.onSubmit,
   });
 
   final bool canSubmit;
+  final bool otpVerified;
   final VoidCallback onSaveDraft;
   final VoidCallback onSubmit;
 
@@ -750,7 +810,7 @@ class _MachineFormFooter extends StatelessWidget {
                 mainAxisSize: MainAxisSize.max,
                 label: context.translate(i18.machineForm.submitReport),
                 onPressed: onSubmit,
-                isDisabled: !canSubmit,
+                isDisabled: !otpVerified || !canSubmit,
                 type: DigitButtonType.primary,
                 size: DigitButtonSize.large,
               ),

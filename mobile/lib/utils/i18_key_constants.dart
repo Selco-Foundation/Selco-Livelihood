@@ -153,6 +153,10 @@ class InstallationReportHome {
   String get reportActionNotConnected =>
       'INSTALLATION_REPORT_HOME_REPORT_ACTION_NOT_CONNECTED';
   String get noReportsFound => 'INSTALLATION_REPORT_HOME_NO_REPORTS_FOUND';
+  String get pendingOtpApproval => 'DRAFT_PENDING_OTP_APPROVAL';
+  String get pendingApprovalTab => 'DRAFT_PENDING_APPROVAL';
+  String get noDraftsToDisplay => 'DRAFT_NO_DRAFTS_TO_DISPLAY';
+  String get sync => 'DRAFT_SYNC';
 }
 
 class MachineForm {
@@ -273,6 +277,8 @@ class SyncLoading {
   String get failed => 'SYNC_LOADING_FAILED';
   String get pleaseWait => 'SYNC_LOADING_PLEASE_WAIT';
   String get somethingWentWrong => 'SYNC_LOADING_SOMETHING_WENT_WRONG';
+  String get of => 'SYNC_LOADING_OF';
+  String get completedSuffix => 'SYNC_LOADING_COMPLETED_SUFFIX';
 }
 
 class Scanner {

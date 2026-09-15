@@ -9,27 +9,10 @@ import '../blocs/asset_submission/asset_submission.dart';
 import '../router/app_router.dart';
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
-import 'machine_report_success_page.dart';
-
-/// Which success page to land on once the background submission job
-/// reports `submission_successful` — Solar and Machine already have their
-/// own, differently-worded success screens (`SubmittedSaveSuccessPage`,
-/// `MachineReportSuccessPage`), so this reuses them rather than inventing a
-/// third.
-enum SyncSuccessTarget { solar, machine }
 
 @RoutePage()
 class SyncLoadingPage extends StatefulWidget {
-  const SyncLoadingPage({
-    super.key,
-    required this.activityFacilityId,
-    required this.facilityId,
-    required this.target,
-  });
-
-  final String activityFacilityId;
-  final String facilityId;
-  final SyncSuccessTarget target;
+  const SyncLoadingPage({super.key});
 
   @override
   State<SyncLoadingPage> createState() => _SyncLoadingPageState();
@@ -39,27 +22,7 @@ class _SyncLoadingPageState extends State<SyncLoadingPage> {
   @override
   void initState() {
     super.initState();
-    context.read<AssetSubmissionBloc>().add(SubmitAll(
-          activityFacilityId: widget.activityFacilityId,
-          facilityId: widget.facilityId,
-        ));
-  }
-
-  void _goToSuccess() {
-    if (widget.target == SyncSuccessTarget.machine) {
-      context.router.replace(
-        MachineReportSuccessRoute(mode: MachineReportSuccessMode.submitted),
-      );
-    } else {
-      context.router.replace(const SubmittedSaveSuccessRoute());
-    }
-  }
-
-  void _retry() {
-    context.read<AssetSubmissionBloc>().add(RetrySubmission(
-          activityFacilityId: widget.activityFacilityId,
-          facilityId: widget.facilityId,
-        ));
+    context.read<AssetSubmissionBloc>().add(const SubmitAllPending());
   }
 
   @override
@@ -68,22 +31,23 @@ class _SyncLoadingPageState extends State<SyncLoadingPage> {
     final textTheme = theme.digitTextTheme(context);
 
     return BlocConsumer<AssetSubmissionBloc, AssetSubmissionState>(
-      listener: (context, state) {
-        if (state is AssetSubmissionSuccess) _goToSuccess();
+      listener: (context, state) async {
+        if (state is BulkSubmissionProgress && state.isTerminal) {
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+          if (!context.mounted) return;
+          context
+              .read<AssetSubmissionBloc>()
+              .add(const DismissBulkSubmission());
+          context.router.maybePop(state.isSuccessful);
+        }
       },
       builder: (context, state) {
-        final isFailure = state is AssetSubmissionFailure;
-        final progressPercent = switch (state) {
-          AssetSubmissionInProgress(:final progress) => progress.progressPercent,
-          AssetSubmissionFailure(:final progress) => progress.progressPercent,
-          _ => 0,
-        };
-        final stageLabel = switch (state) {
-          AssetSubmissionInProgress(:final progress) => progress.stageLabel,
-          AssetSubmissionFailure(:final progress) =>
-            progress.errorMessage ?? progress.stageLabel,
-          _ => context.translate(i18.syncLoading.preparingSync),
-        };
+        final bulk = state is BulkSubmissionProgress ? state : null;
+        final progressPercent = bulk?.progressPercent ?? 0;
+        final isFailure = bulk?.failedCount != 0 && bulk?.isTerminal == true;
+        final stageLabel = bulk?.label.isNotEmpty == true
+            ? bulk!.label
+            : context.translate(i18.syncLoading.preparingSync);
         final progressValue =
             (progressPercent.clamp(0, 100).toDouble() / 100).clamp(0.0, 1.0);
 
@@ -116,7 +80,8 @@ class _SyncLoadingPageState extends State<SyncLoadingPage> {
                           ? context.translate(i18.syncLoading.failed)
                           : progressPercent >= 100
                               ? context.translate(i18.syncLoading.successful)
-                              : context.translate(i18.syncLoading.syncingReports),
+                              : context
+                                  .translate(i18.syncLoading.syncingReports),
                       style: textTheme.headingS.copyWith(
                         color: isFailure
                             ? theme.colorTheme.alert.error
@@ -154,17 +119,13 @@ class _SyncLoadingPageState extends State<SyncLoadingPage> {
                             .copyWith(color: theme.colorTheme.primary.primary2),
                       ),
                     ),
-                    if (isFailure) ...[
-                      const SizedBox(height: spacer6),
-                      DigitButton(
-                        key: const ValueKey('sync-loading-retry-button'),
-                        label: context.translate(i18.common.retry),
-                        mainAxisSize: MainAxisSize.max,
-                        type: DigitButtonType.primary,
-                        size: DigitButtonSize.large,
-                        onPressed: _retry,
-                      ),
-                    ],
+                    const SizedBox(height: spacer2),
+                    Text(
+                      '${bulk?.completed ?? 0} ${context.translate(i18.syncLoading.of)} ${bulk?.total ?? 0} ${context.translate(i18.syncLoading.completedSuffix)}',
+                      key: const ValueKey('sync-loading-completed-text'),
+                      style: textTheme.bodyS
+                          .copyWith(color: theme.colorTheme.text.secondary),
+                    ),
                   ],
                 ),
               ),
@@ -229,24 +190,36 @@ class _CloudPainter extends CustomPainter {
     final path = Path()
       ..moveTo(w * 0.15, h * 0.65)
       ..cubicTo(
-        w * 0.05, h * 0.65,
-        w * 0.05, h * 0.45,
-        w * 0.20, h * 0.40,
+        w * 0.05,
+        h * 0.65,
+        w * 0.05,
+        h * 0.45,
+        w * 0.20,
+        h * 0.40,
       )
       ..cubicTo(
-        w * 0.23, h * 0.25,
-        w * 0.33, h * 0.20,
-        w * 0.40, h * 0.25,
+        w * 0.23,
+        h * 0.25,
+        w * 0.33,
+        h * 0.20,
+        w * 0.40,
+        h * 0.25,
       )
       ..cubicTo(
-        w * 0.45, h * 0.02,
-        w * 0.70, h * 0.02,
-        w * 0.80, h * 0.40,
+        w * 0.45,
+        h * 0.02,
+        w * 0.70,
+        h * 0.02,
+        w * 0.80,
+        h * 0.40,
       )
       ..cubicTo(
-        w * 0.95, h * 0.45,
-        w * 0.95, h * 0.65,
-        w * 0.85, h * 0.65,
+        w * 0.95,
+        h * 0.45,
+        w * 0.95,
+        h * 0.65,
+        w * 0.85,
+        h * 0.65,
       )
       ..lineTo(w * 0.60, h * 0.65)
       ..moveTo(w * 0.40, h * 0.65)

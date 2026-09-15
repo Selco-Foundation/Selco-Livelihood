@@ -73,7 +73,8 @@ class HomePage extends StatelessWidget {
                           icon: Icons.autorenew,
                           label: context.translate(i18.home.syncPending),
                           contentColor: const DigitColors().light.primary1,
-                          onPressed: () => _showPlaceholder(context),
+                          onPressed: () =>
+                              context.router.push(const PendingApprovalRoute()),
                         ),
                       ],
                     ),
@@ -107,7 +108,8 @@ class HomePage extends StatelessWidget {
                           ),
                           label: context.translate(i18.home.pendingApproval),
                           contentColor: const DigitColors().light.primary2,
-                          onPressed: () => _showPlaceholder(context),
+                          onPressed: () =>
+                              context.router.push(const PendingApprovalRoute()),
                         ),
                         HomeItemCard(
                           key: const ValueKey('approved-report-card'),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +16,10 @@ class OtpVerificationWidget extends StatefulWidget {
     required this.onVerificationChanged,
     required this.keyPrefix,
     required this.activityFacilityId,
+    this.initiallyRequested = false,
+    this.initiallyVerified = false,
+    this.onRequestSucceeded,
+    this.onVerificationSucceeded,
     this.repository,
   });
 
@@ -21,6 +27,10 @@ class OtpVerificationWidget extends StatefulWidget {
   final ValueChanged<bool> onVerificationChanged;
   final String keyPrefix;
   final String activityFacilityId;
+  final bool initiallyRequested;
+  final bool initiallyVerified;
+  final FutureOr<void> Function()? onRequestSucceeded;
+  final FutureOr<void> Function()? onVerificationSucceeded;
 
   /// Overridable for tests; defaults to the shared [otpRepository] instance.
   final OtpRepository? repository;
@@ -31,11 +41,29 @@ class OtpVerificationWidget extends StatefulWidget {
 
 class _OtpVerificationWidgetState extends State<OtpVerificationWidget> {
   final _controller = TextEditingController();
-  bool _isVerified = false;
-  bool _otpRequested = false;
+  late bool _isVerified;
+  late bool _otpRequested;
   bool _isBusy = false;
 
   OtpRepository get _repository => widget.repository ?? otpRepository;
+
+  @override
+  void initState() {
+    super.initState();
+    _isVerified = widget.initiallyVerified;
+    _otpRequested = widget.initiallyRequested || widget.initiallyVerified;
+  }
+
+  @override
+  void didUpdateWidget(covariant OtpVerificationWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initiallyVerified && !_isVerified) {
+      _isVerified = true;
+      _otpRequested = true;
+    } else if (widget.initiallyRequested && !_otpRequested) {
+      _otpRequested = true;
+    }
+  }
 
   @override
   void dispose() {
@@ -67,7 +95,9 @@ class _OtpVerificationWidgetState extends State<OtpVerificationWidget> {
     });
     _showMessage(result.success
         ? context.translate(i18.machineForm.otpRequestSent)
-        : result.message ?? context.translate(i18.machineForm.otpRequestFailed));
+        : result.message ??
+            context.translate(i18.machineForm.otpRequestFailed));
+    if (result.success) await widget.onRequestSucceeded?.call();
   }
 
   Future<void> _resendOtp() async {
@@ -79,7 +109,8 @@ class _OtpVerificationWidgetState extends State<OtpVerificationWidget> {
     _setVerified(false);
     _showMessage(result.success
         ? context.translate(i18.machineForm.otpResent)
-        : result.message ?? context.translate(i18.machineForm.otpRequestFailed));
+        : result.message ??
+            context.translate(i18.machineForm.otpRequestFailed));
   }
 
   Future<void> _verify() async {
@@ -88,14 +119,15 @@ class _OtpVerificationWidgetState extends State<OtpVerificationWidget> {
       return;
     }
     setState(() => _isBusy = true);
-    final result =
-        await _repository.validate(widget.activityFacilityId, _controller.text.trim());
+    final result = await _repository.validate(
+        widget.activityFacilityId, _controller.text.trim());
     if (!mounted) return;
     setState(() => _isBusy = false);
     _setVerified(result.success);
     _showMessage(result.success
         ? context.translate(i18.machineForm.otpVerified)
         : result.message ?? context.translate(i18.machineForm.otpRequired));
+    if (result.success) await widget.onVerificationSucceeded?.call();
   }
 
   @override
@@ -122,6 +154,7 @@ class _OtpVerificationWidgetState extends State<OtpVerificationWidget> {
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   onChange: (_) => _setVerified(false),
+                  isDisabled: _isVerified,
                 ),
               ),
               const SizedBox(width: spacer2),
@@ -131,7 +164,7 @@ class _OtpVerificationWidgetState extends State<OtpVerificationWidget> {
                   mainAxisSize: MainAxisSize.max,
                   label: context.translate(i18.machineForm.verify),
                   onPressed: () => _verify(),
-                  isDisabled: _isBusy,
+                  isDisabled: _isBusy || _isVerified || !_otpRequested,
                   type: DigitButtonType.secondary,
                   size: DigitButtonSize.large,
                 ),
@@ -156,7 +189,7 @@ class _OtpVerificationWidgetState extends State<OtpVerificationWidget> {
               ? i18.machineForm.resendOtp
               : i18.machineForm.requestOtp),
           onPressed: () => _otpRequested ? _resendOtp() : _requestOtp(),
-          isDisabled: _isBusy,
+          isDisabled: _isBusy || _isVerified,
           type: DigitButtonType.tertiary,
           size: DigitButtonSize.medium,
           textColor: theme.colorTheme.primary.primary1,

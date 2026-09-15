@@ -8,6 +8,7 @@ import '../../model/facility_report.dart';
 import '../../repositories/activity_facility_repo.dart';
 import '../../utils/envConfig.dart';
 import '../../utils/workflow_status.dart';
+import '../../repositories/pending_submission_repository.dart';
 
 part 'activity_facility_counts.freezed.dart';
 
@@ -62,9 +63,29 @@ class ActivityFacilityCountsBloc
       countFor(FacilityReportMode.approved),
     ]);
 
+    final local = await pendingSubmissionRepository.readAll();
+    final localAssignedIds = local
+        .where((record) =>
+            (record.workflow.status ??
+                record.workflow.activityFacility.status ??
+                FacilityInstallationStatus.assignedToFieldStaff) ==
+            FacilityInstallationStatus.assignedToFieldStaff)
+        .map((record) => record.activityFacilityId)
+        .toSet();
+    final cachedBackendPending = await _repository
+        .readCache(FacilityReportMode.pendingApproval.workflowStatuses);
+    final cachedBackendIds = cachedBackendPending
+        .map((item) => item.activityFacility.id)
+        .whereType<String>()
+        .toSet();
+    final localPendingCount = local
+        .where(
+            (record) => !cachedBackendIds.contains(record.activityFacilityId))
+        .length;
+
     emit(ActivityFacilityCountsState.loaded(
-      assigned: results[0],
-      pendingApproval: results[1],
+      assigned: (results[0] - localAssignedIds.length).clamp(0, results[0]),
+      pendingApproval: results[1] + localPendingCount,
       resubmission: results[2],
       approved: results[3],
     ));

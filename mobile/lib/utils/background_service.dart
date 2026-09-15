@@ -16,6 +16,7 @@ import '../repositories/bom_repository.dart';
 import '../repositories/filestore_repository.dart';
 import '../repositories/installation_cache_repo.dart';
 import '../repositories/operation_progress_repo.dart';
+import '../repositories/pending_submission_repository.dart';
 import '../repositories/vendor_org_repository.dart';
 import 'envConfig.dart';
 import 'operation_progress.dart';
@@ -490,6 +491,7 @@ Future<void> _performSubmission({
   );
   final draftNamespace =
       payload['kind'] == 'machine' ? 'machine-draft' : 'solar-draft';
+  await pendingSubmissionRepository.markSubmissionCompleted(activityFacilityId);
   await installationCacheRepository.putJson(
       draftNamespace, activityFacilityId, null);
   await installationCacheRepository.putJson(

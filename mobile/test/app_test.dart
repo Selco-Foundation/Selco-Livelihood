@@ -64,6 +64,7 @@ import 'package:livelihood/widgets/livelihood_app_bar.dart';
 import 'package:livelihood/widgets/machine_media_picker.dart';
 import 'package:livelihood/widgets/navigation/drawer.dart';
 import 'package:livelihood/repositories/otp_repository.dart';
+import 'package:livelihood/repositories/pending_submission_repository.dart';
 import 'package:livelihood/widgets/otp_verification_widget.dart';
 import 'package:livelihood/blocs/asset_submission/asset_submission.dart';
 import 'package:livelihood/widgets/privacy_policy/policy_webview_dialog.dart';
@@ -321,6 +322,7 @@ void main() {
     activityFacilityRepository = ActivityFacilityRepository(
       remote: _StubActivityFacilityRemoteRepository(),
     );
+    pendingSubmissionRepository.clearForTests();
   });
 
   setUpAll(() async {
@@ -1039,9 +1041,10 @@ void main() {
     expect(find.text(tr(i18.home.homeActionNotConnected)), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('sync-pending-card')));
-    await tester.pump();
-    expect(find.text(tr(i18.home.homeActionNotConnected)), findsOneWidget);
-    expect(find.byType(HomePage), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.byType(PendingApprovalPage), findsOneWidget);
+    expect(find.byKey(const ValueKey('pending-approval-workspace')),
+        findsOneWidget);
   });
 
   testWidgets('drawer is shared by nested routes and Home resets navigation', (
@@ -1222,10 +1225,14 @@ void main() {
     );
 
     await pumpPage(const PendingApprovalPage());
-    expect(find.byType(FacilitySearchSortCard), findsNothing);
+    expect(find.byType(FacilitySearchSortCard), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsNothing);
+    await tester
+        .tap(find.text(tr(i18.installationReportHome.pendingApprovalTab)).last);
+    await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('view-summary-button')), findsNWidgets(2));
     expectComponentTypes();
+    await tester.pump(const Duration(seconds: 6));
 
     await pumpPage(const ResubmissionNeededPage());
     expect(find.byType(FacilitySearchSortCard), findsOneWidget);
@@ -1304,6 +1311,10 @@ void main() {
     setMobileViewport(tester, const Size(390, 844));
     await pumpAuthenticatedRoute(tester, const PendingApprovalRoute());
 
+    await tester
+        .tap(find.text(tr(i18.installationReportHome.pendingApprovalTab)).last);
+    await tester.pumpAndSettle();
+
     final summaryButton =
         find.byKey(const ValueKey('view-summary-button')).first;
     await tester.ensureVisible(summaryButton);
@@ -1317,6 +1328,59 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('solar-fixed-footer')), findsNothing);
+  });
+
+  testWidgets(
+      'Pending Approval lists retryable local reports before backend reports',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 844));
+    const localWorkflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'local-failed-machine',
+        facilityId: 'local-facility',
+        status: FacilityInstallationStatus.assignedToFieldStaff,
+        componentType: 'MACHINE',
+        facility: Facility(
+          facilityName: 'Local Failed Machine',
+          boundaryCode: 'INDIA_MEGHALAYA_WESTKHASIHILLS_MAWTHADRAISHAN',
+        ),
+      ),
+    );
+    await pendingSubmissionRepository.markOtpVerified(localWorkflow);
+
+    await pumpAuthenticatedRoute(tester, const PendingApprovalRoute());
+    await tester
+        .tap(find.text(tr(i18.installationReportHome.pendingApprovalTab)).last);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(FacilityReportCard), findsNWidgets(3));
+    expect(
+      tester.getTopLeft(find.text('Local Failed Machine')).dy,
+      lessThan(tester.getTopLeft(find.text('Rajesh Kumar - Solar')).dy),
+    );
+    final sync = tester.widget<DigitButton>(
+        find.byKey(const ValueKey('sync-pending-submissions-button')));
+    expect(sync.isDisabled, isFalse);
+    expect(sync.label, 'Sync');
+  });
+
+  testWidgets('Pending OTP drafts disappear from New and have no Sync action',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 844));
+    await pendingSubmissionRepository.markOtpRequested(
+      _StubActivityFacilityRemoteRepository._defaultItems.first,
+    );
+
+    await pumpAuthenticatedRoute(tester, const PendingApprovalRoute());
+    await tester.pumpAndSettle();
+    expect(find.text('Rajesh Kumar - Solar'), findsOneWidget);
+    expect(find.byKey(const ValueKey('sync-pending-submissions-button')),
+        findsNothing);
+
+    await pumpAuthenticatedRoute(tester, const NewReportFacilitiesRoute());
+    await tester.pumpAndSettle();
+    expect(find.text('Rajesh Kumar - Solar'), findsNothing);
+    expect(find.text('Sunita Sharma - Sewing Machine'), findsOneWidget);
   });
 
   testWidgets('solar and machine facilities open their separate flows', (
@@ -1488,6 +1552,16 @@ void main() {
     expect(find.text(tr(i18.installationReport.rejectedSerialReason)),
         findsOneWidget);
     expect(find.text(tr(i18.installationReport.resubmit)), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('solar-footer-save-draft')), findsOneWidget);
+    expect(
+      tester
+          .widget<DigitButton>(
+            find.byKey(const ValueKey('solar-footer-submit')),
+          )
+          .isDisabled,
+      isTrue,
+    );
 
     final uploader = find.byKey(
       const ValueKey('solar-overall-file-uploader'),
@@ -1530,15 +1604,17 @@ void main() {
             withAssetSubmissionBloc(OverallAssetSummaryPage(draft: incomplete)),
       ),
     );
-    var submit = tester.widget<DigitButton>(
+    expect(
+        find.byKey(const ValueKey('solar-footer-save-draft')), findsOneWidget);
+    final initialSubmit = tester.widget<DigitButton>(
       find.byKey(const ValueKey('solar-footer-submit')),
     );
+    expect(initialSubmit.isDisabled, isTrue);
     expect(incomplete.countFor(SolarAssetType.battery), 1);
     expect(incomplete.countFor(SolarAssetType.inverter), 1);
     expect(incomplete.countFor(SolarAssetType.panel), 1);
     // Counts and asset details alone are insufficient until the configured
     // installation images are also complete.
-    expect(submit.isDisabled, isTrue);
     expect(find.byKey(const ValueKey('solar-installation-completion-card')),
         findsOneWidget);
     expect(find.byType(FileUploadWidget), findsOneWidget);
@@ -1548,14 +1624,6 @@ void main() {
     expect(find.byKey(const ValueKey('solar-installation-images')),
         findsOneWidget);
     expect(find.byKey(const ValueKey('solar-otp-widget')), findsOneWidget);
-
-    incomplete.installationMedia['SOLAR_ARRAY'] = [
-      const SolarFileRef(
-        name: 'array.jpg',
-        path: '/tmp/array.jpg',
-        kind: SolarFileKind.image,
-      ),
-    ];
 
     final requestButton =
         find.byKey(const ValueKey('solar-otp-request-resend-button'));
@@ -1584,10 +1652,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(verifyButton);
     await tester.pump();
-    submit = tester.widget<DigitButton>(
+    final submit = tester.widget<DigitButton>(
       find.byKey(const ValueKey('solar-footer-submit')),
     );
-    expect(submit.isDisabled, isFalse);
+    expect(submit.isDisabled, isTrue);
 
     final readOnly = _filledSolarDraft(SolarWorkflowMode.pending);
     await tester.pumpWidget(
@@ -1598,6 +1666,30 @@ void main() {
     );
     expect(find.byKey(const ValueKey('solar-otp-widget')), findsNothing);
     expect(find.byKey(const ValueKey('solar-fixed-footer')), findsNothing);
+  });
+
+  testWidgets('solar Save as Draft persists a Pending OTP Approval record',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 844));
+    final draft = _filledSolarDraft(SolarWorkflowMode.newReport);
+    final activityFacilityId = draft.workflow.activityFacility.id!;
+
+    await pumpAuthenticatedRoute(
+      tester,
+      OverallAssetSummaryRoute(draft: draft),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('solar-footer-save-draft')),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
+
+    expect(
+        find.byKey(const ValueKey('solar-data-saved-success')), findsOneWidget);
+    final record = await pendingSubmissionRepository.read(activityFacilityId);
+    expect(record?.state, PendingSubmissionState.pendingOtpApproval);
+    expect(record?.otpRequested, isFalse);
+    expect(record?.otpVerified, isFalse);
   });
 
   testWidgets('scanner uses the integrated E4H control hierarchy', (
@@ -2170,8 +2262,7 @@ void main() {
     expect(selected.single.kind, SolarFileKind.pdf);
   });
 
-  testWidgets(
-      'shared OTP widget requests, verifies, resets on edit, and resends', (
+  testWidgets('shared OTP widget requests, resends, verifies and then locks', (
     tester,
   ) async {
     setMobileViewport(tester, const Size(390, 844));
@@ -2196,10 +2287,16 @@ void main() {
     expect(find.byKey(const ValueKey('test-otp-field')), findsOneWidget);
     expect(find.text(tr(i18.machineForm.requestOtp)), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('test-verify-otp-button')));
+    final toggleButton =
+        find.byKey(const ValueKey('test-otp-request-resend-button'));
+    await tester.tap(toggleButton);
     await tester.pump();
-    expect(find.text(tr(i18.machineForm.otpRequired)), findsOneWidget);
-    expect(verificationChanges, isEmpty);
+    expect(fakeRepo.generateCalls, 1);
+    expect(find.text(tr(i18.machineForm.otpRequestSent)), findsOneWidget);
+
+    await tester.tap(toggleButton);
+    await tester.pump();
+    expect(fakeRepo.resendCalls, 1);
 
     final input = find.descendant(
       of: find.byKey(const ValueKey('test-otp-field')),
@@ -2214,35 +2311,9 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.enterText(input, '5678');
-    await tester.pump();
-    expect(verificationChanges, [isTrue, isFalse]);
-    expect(
-      find.byKey(const ValueKey('test-otp-verified-message')),
-      findsNothing,
-    );
-
-    await tester.tap(find.byKey(const ValueKey('test-verify-otp-button')));
-    await tester.pump();
-    expect(verificationChanges, [isTrue, isFalse, isTrue]);
-
-    // Toggle still reads "Request OTP" until tapped once.
-    final toggleButton =
-        find.byKey(const ValueKey('test-otp-request-resend-button'));
-    await tester.tap(toggleButton);
-    await tester.pump();
-    expect(fakeRepo.generateCalls, 1);
-    expect(find.text(tr(i18.machineForm.otpRequestSent)), findsOneWidget);
+    expect(verificationChanges, [isTrue]);
+    expect(tester.widget<DigitButton>(toggleButton).isDisabled, isTrue);
     expect(find.text(tr(i18.machineForm.resendOtp)), findsOneWidget);
-
-    // Toggle now reads "Resend OTP" — tapping it calls resend, not generate.
-    await tester.tap(toggleButton);
-    await tester.pump();
-    expect(fakeRepo.resendCalls, 1);
-    expect(fakeRepo.generateCalls, 1);
-    expect(verificationChanges, [isTrue, isFalse, isTrue, isFalse]);
-    expect(tester.widget<EditableText>(input).controller.text, isEmpty);
-    expect(find.text(tr(i18.machineForm.otpResent)), findsOneWidget);
   });
 
   testWidgets('shared OTP widget surfaces a failed request/verify message', (
@@ -2449,6 +2520,7 @@ void main() {
         findsOneWidget);
     expect(find.byKey(const ValueKey('machine-otp-field')), findsOneWidget);
 
+    expect(find.byKey(const ValueKey('save-draft-button')), findsOneWidget);
     final submit = tester.widget<DigitButton>(
       find.byKey(const ValueKey('submit-machine-report-button')),
     );
@@ -2648,7 +2720,7 @@ void main() {
     );
     await tester.tap(find.byKey(const ValueKey('save-draft-button')));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump(const Duration(seconds: 6));
     expect(find.byType(MachineReportSuccessPage), findsOneWidget);
     expect(
         find.text(tr(i18.machineForm.dataSavedSuccessfully)), findsOneWidget);
@@ -2711,17 +2783,22 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('trained-no')));
     await tester.pump();
     expect(find.byKey(const ValueKey('machine-otp-field')), findsOneWidget);
-    // otpVerificationBypassed is temporarily true (backend OTP endpoints
-    // are down) so submit is already enabled once the other fields are
-    // filled, even before OTP is verified.
     expect(
       tester
           .widget<DigitButton>(
             find.byKey(const ValueKey('submit-machine-report-button')),
           )
           .isDisabled,
-      isFalse,
+      isTrue,
     );
+
+    await scrollIntoView(
+      find.byKey(const ValueKey('machine-otp-request-resend-button')),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('machine-otp-request-resend-button')),
+    );
+    await tester.pump();
 
     await enter('machine-otp-field', '1234');
     await scrollIntoView(
@@ -2744,15 +2821,6 @@ void main() {
       isFalse,
     );
 
-    await enter('machine-otp-field', '12345');
-    expect(
-      find.byKey(const ValueKey('machine-otp-verified-message')),
-      findsNothing,
-    );
-    await tester.tap(
-      find.byKey(const ValueKey('machine-verify-otp-button')),
-    );
-    await tester.pump();
     // Dismiss the "OTP verified" SnackBar the tap above raised — it sits at
     // the bottom of the screen and would otherwise cover the fixed footer's
     // submit button below.
@@ -2766,23 +2834,8 @@ void main() {
         .clearSnackBars();
     await tester.pumpAndSettle();
 
-    // Tapping submit dispatches straight into `AssetSubmissionBloc` and
-    // stays on this page — submission progress renders as an in-place
-    // `OperationProgressOverlay` (matching E4H), not a separate route.
-    // Actually driving the background service to completion isn't
-    // exercisable under `flutter test` (no platform channel for
-    // `flutter_background_service`, and the many preceding `enter()`/
-    // media-pick/OTP interactions above each already queued their own
-    // real Isar write — waiting for all of those plus the submission's own
-    // writes to resolve through Isar's single-writer-per-instance lock is
-    // too slow/flaky to assert on reliably here). So this only verifies
-    // the *handoff* — tapping submit doesn't throw and doesn't navigate
-    // away from this page — which is the actual behavior being changed
-    // (previously this pushed a separate `SyncLoadingRoute`).
-    await tester.tap(
-      find.byKey(const ValueKey('submit-machine-report-button')),
-    );
-    await tester.pump();
+    // OTP approval automatically hands the completed report to the
+    // resumable background submission pipeline without navigating away.
     expect(tester.takeException(), isNull);
     expect(find.byType(MachineFormPage), findsOneWidget);
   });

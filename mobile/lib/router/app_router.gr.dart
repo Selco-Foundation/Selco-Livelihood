@@ -250,15 +250,9 @@ abstract class _$AppRouter extends RootStackRouter {
       );
     },
     SyncLoadingRoute.name: (routeData) {
-      final args = routeData.argsAs<SyncLoadingRouteArgs>();
       return AutoRoutePage<dynamic>(
         routeData: routeData,
-        child: SyncLoadingPage(
-          key: args.key,
-          activityFacilityId: args.activityFacilityId,
-          facilityId: args.facilityId,
-          target: args.target,
-        ),
+        child: const SyncLoadingPage(),
       );
     },
     UnauthenticatedRouteWrapper.name: (routeData) {
@@ -1192,50 +1186,16 @@ class SubmittedSaveSuccessRoute extends PageRouteInfo<void> {
 
 /// generated route for
 /// [SyncLoadingPage]
-class SyncLoadingRoute extends PageRouteInfo<SyncLoadingRouteArgs> {
-  SyncLoadingRoute({
-    Key? key,
-    required String activityFacilityId,
-    required String facilityId,
-    required SyncSuccessTarget target,
-    List<PageRouteInfo>? children,
-  }) : super(
+class SyncLoadingRoute extends PageRouteInfo<void> {
+  const SyncLoadingRoute({List<PageRouteInfo>? children})
+      : super(
           SyncLoadingRoute.name,
-          args: SyncLoadingRouteArgs(
-            key: key,
-            activityFacilityId: activityFacilityId,
-            facilityId: facilityId,
-            target: target,
-          ),
           initialChildren: children,
         );
 
   static const String name = 'SyncLoadingRoute';
 
-  static const PageInfo<SyncLoadingRouteArgs> page =
-      PageInfo<SyncLoadingRouteArgs>(name);
-}
-
-class SyncLoadingRouteArgs {
-  const SyncLoadingRouteArgs({
-    this.key,
-    required this.activityFacilityId,
-    required this.facilityId,
-    required this.target,
-  });
-
-  final Key? key;
-
-  final String activityFacilityId;
-
-  final String facilityId;
-
-  final SyncSuccessTarget target;
-
-  @override
-  String toString() {
-    return 'SyncLoadingRouteArgs{key: $key, activityFacilityId: $activityFacilityId, facilityId: $facilityId, target: $target}';
-  }
+  static const PageInfo<void> page = PageInfo<void>(name);
 }
 
 /// generated route for

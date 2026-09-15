@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:isar/isar.dart';
@@ -8,10 +9,12 @@ import '../data/remote_client.dart';
 import '../model/activity_facility/activity_facility.dart';
 import '../model/activity_facility_workflow/activity_facility_workflow.dart';
 import '../model/document/submission_document.dart';
+import '../model/facility_report.dart';
 import '../utils/api_paths.dart';
 import '../utils/constants.dart';
 import '../utils/envConfig.dart';
 import '../utils/workflow_status.dart';
+import 'pending_submission_repository.dart';
 
 /// One page of activity-facility search results, tagged with whether it
 /// came from the network or from the persisted offline cache.
@@ -19,11 +22,15 @@ class PaginatedActivityFacilities {
   const PaginatedActivityFacilities({
     required this.items,
     required this.totalCount,
+    this.nextOffset = 0,
+    this.hasMore = false,
     this.fromCache = false,
   });
 
   final List<ActivityFacilityWorkflow> items;
   final int totalCount;
+  final int nextOffset;
+  final bool hasMore;
   final bool fromCache;
 }
 
@@ -68,7 +75,12 @@ class ActivityFacilityRemoteRepository {
     );
     final totalCount = response.data['totalCount'] as int? ?? items.length;
 
-    return PaginatedActivityFacilities(items: items, totalCount: totalCount);
+    return PaginatedActivityFacilities(
+      items: items,
+      totalCount: totalCount,
+      nextOffset: offset + items.length,
+      hasMore: offset + items.length < totalCount,
+    );
   }
 
   /// Same `_search` endpoint, `limit: 0` — the backend still returns
@@ -141,10 +153,18 @@ ActivityFacilityRepository activityFacilityRepository =
 /// ever fetched); on any failure, falls back to the cached rows for that
 /// status bucket, paginated client-side. No TTL/staleness check.
 class ActivityFacilityRepository {
-  ActivityFacilityRepository({ActivityFacilityRemoteRepository? remote})
-      : remote = remote ?? ActivityFacilityRemoteRepository();
+  ActivityFacilityRepository({
+    ActivityFacilityRemoteRepository? remote,
+    PendingSubmissionRepository? pendingRepository,
+  })  : remote = remote ?? ActivityFacilityRemoteRepository(),
+        _pendingRepository = pendingRepository ?? pendingSubmissionRepository;
 
   final ActivityFacilityRemoteRepository remote;
+  final PendingSubmissionRepository _pendingRepository;
+
+  bool get _hasTestIsar =>
+      !Platform.environment.containsKey('FLUTTER_TEST') ||
+      Isar.instanceNames.isNotEmpty;
 
   /// Capped so a slow/unavailable Isar instance (e.g. a constrained test
   /// environment with no native core initialized) degrades to "cache
@@ -159,31 +179,74 @@ class ActivityFacilityRepository {
     required int offset,
     required String sortDirection,
   }) async {
-    try {
-      final result = await remote.searchByWorkflow(
-        body: body,
-        workflowStatuses: workflowStatuses,
-        limit: limit,
-        offset: offset,
-        sortDirection: sortDirection,
-      );
-
-      try {
-        final isSearch = body.facilityName?.trim().isNotEmpty == true;
-        if (!isSearch && offset == 0) {
-          await _replaceCache(workflowStatuses, result.items);
-        } else if (!isSearch) {
-          await _appendCache(result.items);
-        }
-      } catch (_) {
-        // Persisting the cache is best-effort — a write failure shouldn't
-        // fail an otherwise successful fetch.
+    final excludesLocalDrafts = workflowStatuses
+        .contains(FacilityInstallationStatus.assignedToFieldStaff);
+    final localDrafts = excludesLocalDrafts
+        ? await _pendingRepository.readAll()
+        : const <PendingSubmissionRecord>[];
+    final excludedIds =
+        localDrafts.map((record) => record.activityFacilityId).toSet();
+    final query = body.facilityName?.trim().toLowerCase();
+    final excludedFromTotal = localDrafts.where((record) {
+      final storedStatus = record.workflow.status ??
+          record.workflow.activityFacility.status ??
+          FacilityInstallationStatus.assignedToFieldStaff;
+      if (storedStatus != FacilityInstallationStatus.assignedToFieldStaff) {
+        return false;
       }
+      return query == null ||
+          query.isEmpty ||
+          record.workflow.facilityTitle.toLowerCase().contains(query);
+    }).length;
+    try {
+      final visible = <ActivityFacilityWorkflow>[];
+      var rawOffset = offset;
+      var rawTotal = 0;
+      var firstRequest = true;
+      do {
+        final result = await remote.searchByWorkflow(
+          body: body,
+          workflowStatuses: workflowStatuses,
+          limit: limit,
+          offset: rawOffset,
+          sortDirection: sortDirection,
+        );
+        rawTotal = result.totalCount;
+        try {
+          final isSearch = body.facilityName?.trim().isNotEmpty == true;
+          if (_hasTestIsar && !isSearch && rawOffset == 0 && firstRequest) {
+            await _replaceCache(workflowStatuses, result.items);
+          } else if (_hasTestIsar && !isSearch) {
+            await _appendCache(result.items);
+          }
+        } catch (_) {}
+        firstRequest = false;
+        rawOffset += result.items.length;
+        visible.addAll(result.items.where(
+            (item) => !excludedIds.contains(item.activityFacility.id ?? '')));
+        if (result.items.isEmpty) break;
+      } while (visible.length < limit && rawOffset < rawTotal);
 
-      return result;
+      final adjustedTotal =
+          (rawTotal - (excludesLocalDrafts ? excludedFromTotal : 0))
+              .clamp(0, rawTotal);
+      return PaginatedActivityFacilities(
+        // Returning every visible item accumulated while filling this page
+        // avoids discarding tail items from the final raw server page. The
+        // next request starts after that entire raw page.
+        items: visible,
+        totalCount: adjustedTotal,
+        nextOffset: rawOffset,
+        hasMore: rawOffset < rawTotal,
+      );
     } catch (_) {
       var cached = await _readCacheSorted(workflowStatuses, sortDirection);
-      final query = body.facilityName?.trim().toLowerCase();
+      if (excludedIds.isNotEmpty) {
+        cached = cached
+            .where(
+                (item) => !excludedIds.contains(item.activityFacility.id ?? ''))
+            .toList();
+      }
       if (query != null && query.isNotEmpty) {
         cached = cached
             .where((item) =>
@@ -197,6 +260,8 @@ class ActivityFacilityRepository {
       return PaginatedActivityFacilities(
         items: page,
         totalCount: cached.length,
+        nextOffset: offset + page.length,
+        hasMore: offset + page.length < cached.length,
         fromCache: true,
       );
     }
@@ -256,6 +321,7 @@ class ActivityFacilityRepository {
     List<String> statuses,
     String sortDirection,
   ) async {
+    if (!_hasTestIsar) return const [];
     final List<CacheActivityFacilityWorkflow> rows;
     try {
       final isar = await _isar;

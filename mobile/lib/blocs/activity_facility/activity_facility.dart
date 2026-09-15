@@ -34,6 +34,7 @@ class ActivityFacilityBloc
   final ActivityFacilityRepository _repository;
   String? _query;
   String _sortDirection = defaultSortDirection;
+  int _nextOffset = 0;
 
   FutureOr<void> _onFetchByWorkflow(
     _FetchByWorkflowEvent event,
@@ -109,7 +110,7 @@ class ActivityFacilityBloc
 
     emit(current.copyWith(isLoadingMore: true));
 
-    final offset = current.items.length;
+    final offset = _nextOffset;
     final result = await _repository.fetchByWorkflowPaginated(
       body: _searchBody(),
       workflowStatuses: event.workflowStatuses,
@@ -124,9 +125,10 @@ class ActivityFacilityBloc
           item;
     }
     final items = byId.values.toList();
+    _nextOffset = result.nextOffset;
     emit(ActivityFacilityState.paginatedLoaded(
       items: items,
-      hasMore: items.length < result.totalCount,
+      hasMore: result.hasMore,
       totalCount: result.totalCount,
       fromCache: result.fromCache,
     ));
@@ -146,10 +148,11 @@ class ActivityFacilityBloc
       offset: 0,
       sortDirection: _sortDirection,
     );
+    _nextOffset = result.nextOffset;
 
     emit(ActivityFacilityState.paginatedLoaded(
       items: result.items,
-      hasMore: result.items.length < result.totalCount,
+      hasMore: result.hasMore,
       totalCount: result.totalCount,
       fromCache: result.fromCache,
     ));

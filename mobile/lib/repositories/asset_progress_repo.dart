@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:isar/isar.dart';
 
 import '../data/nosql/cache_asset_count.dart';
@@ -19,6 +21,10 @@ class AssetProgressRepository {
   Future<Isar> get _isar =>
       Constants().isar.timeout(const Duration(seconds: 2));
 
+  bool get _hasTestIsar =>
+      !Platform.environment.containsKey('FLUTTER_TEST') ||
+      Isar.instanceNames.isNotEmpty;
+
   /// Records the given step as reached for [assetType], never regressing a
   /// higher step already recorded (matches E4H's "highest step reached").
   Future<void> recordStep({
@@ -26,6 +32,7 @@ class AssetProgressRepository {
     required String assetType,
     required int step,
   }) async {
+    if (!_hasTestIsar) return;
     try {
       final isar = await _isar;
       await isar.writeTxn(() async {
@@ -57,6 +64,7 @@ class AssetProgressRepository {
     String activityFacilityId, {
     Set<String> disabledTypes = const {},
   }) async {
+    if (!_hasTestIsar) return 0.0;
     try {
       final isar = await _isar;
       final rows = await isar.cacheAssetCounts

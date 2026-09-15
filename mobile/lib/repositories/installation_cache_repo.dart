@@ -16,6 +16,10 @@ import '../utils/envConfig.dart';
 class InstallationCacheRepository {
   Future<Isar> get _isar => Constants().isar;
 
+  bool get _hasTestIsar =>
+      !Platform.environment.containsKey('FLUTTER_TEST') ||
+      Isar.instanceNames.isNotEmpty;
+
   /// Best-effort: a write failure (e.g. Isar unavailable) shouldn't block
   /// the caller — callers that need to confirm persistence read back
   /// through [getJson], which already degrades to "nothing cached".
@@ -24,6 +28,7 @@ class InstallationCacheRepository {
     String key,
     Object? payload,
   ) async {
+    if (!_hasTestIsar) return;
     try {
       final isar = await _isar;
       await isar.writeTxn(() async {
@@ -53,6 +58,7 @@ class InstallationCacheRepository {
   }
 
   Future<dynamic> getJson(String namespace, String key) async {
+    if (!_hasTestIsar) return null;
     final isar = await _isar;
     final rows = await isar.cacheInstallationDatas
         .filter()
@@ -99,7 +105,8 @@ class InstallationCacheRepository {
       return media.localPath!;
     }
     if (!media.isRemote) {
-      throw FileSystemException('Media file is no longer available', media.path);
+      throw FileSystemException(
+          'Media file is no longer available', media.path);
     }
 
     final cacheKey = media.remoteId ?? media.path;
