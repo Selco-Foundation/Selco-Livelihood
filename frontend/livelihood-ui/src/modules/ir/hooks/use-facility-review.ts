@@ -10,7 +10,7 @@ import {
   rejectionReasonOptionsQueryKey,
 } from "./use-rejection-reason-options";
 import { searchAssetsForActivityFacility } from "../services/asset";
-import { searchActivityFacilities } from "../services/facility";
+import { ACTIVITY_CODE_INSTALLATION, searchActivityFacilities } from "../services/facility";
 import { submitFacilityReview } from "../services/review";
 import { ASSET_PHOTO_DOCUMENT_TYPE_PREFIX, buildSolarAssetSections } from "../utils/asset-mapping";
 import {
@@ -46,7 +46,11 @@ export function useFacilityReview(entryId: string) {
       // like the facility row.
       const [data, installationImageCriteria, rejectionReasonOptions] = await Promise.all([
         searchActivityFacilities(
-          { tenantId: employeeTenantId!, ids: [entryId] },
+          {
+            tenantId: employeeTenantId!,
+            ids: [entryId],
+            activityCodes: [ACTIVITY_CODE_INSTALLATION],
+          },
           { limit: 1, offset: 0 },
           accessToken!,
           user,
