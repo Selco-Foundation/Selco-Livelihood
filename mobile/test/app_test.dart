@@ -25,6 +25,7 @@ import 'package:livelihood/data/network_manager.dart';
 import 'package:livelihood/model/activity_facility/activity_facility.dart';
 import 'package:livelihood/model/activity_facility_workflow/activity_facility_workflow.dart';
 import 'package:livelihood/model/appconfig/mdmsResponse.dart';
+import 'package:livelihood/model/facility_report.dart';
 import 'package:livelihood/model/mdms/asset_registry_response.dart';
 import 'package:livelihood/model/mdms/common_masters.dart';
 import 'package:livelihood/repositories/activity_facility_repo.dart';
@@ -40,6 +41,7 @@ import 'package:livelihood/pages/login_page.dart';
 import 'package:livelihood/pages/machine_form.dart';
 import 'package:livelihood/pages/machine_report_success_page.dart';
 import 'package:livelihood/pages/add_new_asset.dart';
+import 'package:livelihood/pages/asset_type_detail.dart';
 import 'package:livelihood/pages/asset_summary.dart';
 import 'package:livelihood/pages/digit_scanner_page.dart';
 import 'package:livelihood/pages/installation_images.dart';
@@ -157,6 +159,7 @@ class _StubActivityFacilityRemoteRepository
         facilityId: 'facility-solar-1',
         status: FacilityInstallationStatus.assignedToFieldStaff,
         scheduledAt: DateTime(2026, 2, 23).millisecondsSinceEpoch,
+        componentType: 'SOLAR',
         facility: const Facility(
           facilityName: 'Rajesh Kumar - Solar',
           boundaryCode: 'INDIA_MEGHALAYA_WESTKHASIHILLS_MAWTHADRAISHAN',
@@ -172,6 +175,7 @@ class _StubActivityFacilityRemoteRepository
         facilityId: 'facility-machine-1',
         status: FacilityInstallationStatus.assignedToFieldStaff,
         scheduledAt: DateTime(2026, 2, 12).millisecondsSinceEpoch,
+        componentType: 'MACHINE',
         facility: const Facility(
           facilityName: 'Sunita Sharma - Sewing Machine',
           boundaryCode: 'INDIA_MEGHALAYA_WESTKHASIHILLS_MAWTHADRAISHAN',
@@ -257,11 +261,9 @@ SolarInstallationDraft _filledSolarDraft(SolarWorkflowMode mode) {
   )
     ..applicableTypes = List.of(SolarAssetType.values)
     ..bomFormNames.addAll(const [
-      'RMS_ACC_OFF_GRID_SINGLE_PHASE_BOM_system',
-      'RMS_COMMON_BOM_solar',
-      'RMS_COMMON_BOM_rms',
-      'RMS_COMMON_BOM_wiring',
-      'RMS_COMMON_BOM_luminaries',
+      'LIVELIHOOD_202526PASF0000141_BOM_solar',
+      'LIVELIHOOD_202526PASF0000141_BOM_machines',
+      'LIVELIHOOD_COMMON_BOM_system',
     ])
     ..installationRequirements = const [
       InstallationImageRequirement(
@@ -275,8 +277,12 @@ SolarInstallationDraft _filledSolarDraft(SolarWorkflowMode mode) {
     draft.maximumCounts[type] = 10;
     draft.setCount(type, 1);
     final asset = draft.assets[type]!;
-    asset.warrantyDuration = '5 Years';
+    asset
+      ..warrantyDuration = '5 Years'
+      ..selectedBrandCode = '${type.name.toUpperCase()} MAKE'
+      ..totalCapacity = '1';
     asset.assets.first
+      ..itemCode = '${type.name.toUpperCase()}-ITEM'
       ..serialNumber = '${type.name.toUpperCase()}-1'
       ..capacity = '1'
       ..supportingPhoto = SolarFileRef(
@@ -1175,6 +1181,13 @@ void main() {
   ) async {
     setMobileViewport(tester, const Size(390, 844));
 
+    void expectComponentTypes() {
+      expect(find.byKey(const ValueKey('facility-component-type')),
+          findsNWidgets(2));
+      expect(find.text('Solar'), findsOneWidget);
+      expect(find.text('Machine'), findsOneWidget);
+    }
+
     Future<void> pumpPage(Widget page) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -1195,22 +1208,69 @@ void main() {
         findsNWidgets(2));
     expect(
         find.byKey(const ValueKey('submit-approval-button')), findsNWidgets(2));
+    expectComponentTypes();
+    expect(
+      tester
+          .getTopLeft(
+              find.byKey(const ValueKey('facility-component-type')).first)
+          .dy,
+      greaterThan(tester.getTopLeft(find.text('Block').first).dy),
+    );
 
     await pumpPage(const PendingApprovalPage());
     expect(find.byType(FacilitySearchSortCard), findsNothing);
     expect(find.byType(LinearProgressIndicator), findsNothing);
     expect(find.byKey(const ValueKey('view-summary-button')), findsNWidgets(2));
+    expectComponentTypes();
 
     await pumpPage(const ResubmissionNeededPage());
     expect(find.byType(FacilitySearchSortCard), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsNothing);
     expect(find.byKey(const ValueKey('view-details-button')), findsNWidgets(2));
     expect(find.byKey(const ValueKey('resubmit-button')), findsNWidgets(2));
+    expectComponentTypes();
 
     await pumpPage(const ApprovedReportsPage());
     expect(find.byType(FacilitySearchSortCard), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsNothing);
     expect(find.byKey(const ValueKey('view-summary-button')), findsNWidgets(2));
+    expectComponentTypes();
+  });
+
+  testWidgets('facility card displays a dash for a missing component type', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'activity-facility-without-type',
+        facility: Facility(
+          facilityName: 'Facility without type',
+          boundaryCode: 'INDIA_MEGHALAYA_WESTKHASIHILLS_MAWTHADRAISHAN',
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: Scaffold(
+          body: FacilityReportCard(
+            workflow: workflow,
+            mode: FacilityReportMode.approved,
+            onAction: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('facility-component-type')),
+        matching: find.text('—'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('search pages expose the E4H sort popup without filtering', (
@@ -1296,7 +1356,7 @@ void main() {
     await tester.pump(const Duration(seconds: 3));
   });
 
-  testWidgets('overall summary shows all E4H BOM buttons in order', (
+  testWidgets('overall summary shows solution BOM buttons in mapped order', (
     tester,
   ) async {
     setMobileViewport(tester, const Size(390, 3000));
@@ -1309,21 +1369,20 @@ void main() {
     );
 
     const formKeys = [
-      'solar-dynamic-rms_acc_off_grid_single_phase_bom_system',
-      'solar-dynamic-rms_common_bom_solar',
-      'solar-dynamic-rms_common_bom_rms',
-      'solar-dynamic-rms_common_bom_wiring',
-      'solar-dynamic-rms_common_bom_luminaries',
+      'solar-dynamic-livelihood_202526pasf0000141_bom_solar',
+      'solar-dynamic-livelihood_202526pasf0000141_bom_machines',
+      'solar-dynamic-livelihood_common_bom_system',
     ];
     for (final key in formKeys) {
       expect(find.byKey(ValueKey(key)), findsOneWidget);
     }
     final firstButton = tester.getRect(
       find.byKey(const ValueKey(
-          'solar-dynamic-rms_acc_off_grid_single_phase_bom_system')),
+          'solar-dynamic-livelihood_202526pasf0000141_bom_solar')),
     );
     final secondButton = tester.getRect(
-      find.byKey(const ValueKey('solar-dynamic-rms_common_bom_solar')),
+      find.byKey(const ValueKey(
+          'solar-dynamic-livelihood_202526pasf0000141_bom_machines')),
     );
     expect(secondButton.top - firstButton.bottom, spacer4);
   });
@@ -1384,7 +1443,7 @@ void main() {
     await pumpMode(SolarWorkflowMode.pending);
     expect(
       find.byKey(const ValueKey(
-          'solar-dynamic-rms_acc_off_grid_single_phase_bom_system')),
+          'solar-dynamic-livelihood_202526pasf0000141_bom_solar')),
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('solar-fixed-footer')), findsNothing);
@@ -1395,7 +1454,8 @@ void main() {
 
     await pumpMode(SolarWorkflowMode.approved);
     expect(
-      find.byKey(const ValueKey('solar-dynamic-rms_common_bom_luminaries')),
+      find.byKey(const ValueKey(
+          'solar-dynamic-livelihood_202526pasf0000141_bom_machines')),
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('solar-fixed-footer')), findsNothing);
@@ -1406,8 +1466,7 @@ void main() {
 
     await pumpMode(SolarWorkflowMode.resubmission);
     expect(
-      find.byKey(const ValueKey(
-          'solar-dynamic-rms_acc_off_grid_single_phase_bom_system')),
+      find.byKey(const ValueKey('solar-dynamic-livelihood_common_bom_system')),
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('solar-rejection-card')), findsNothing);
@@ -1473,10 +1532,9 @@ void main() {
     expect(incomplete.countFor(SolarAssetType.battery), 1);
     expect(incomplete.countFor(SolarAssetType.inverter), 1);
     expect(incomplete.countFor(SolarAssetType.panel), 1);
-    // otpVerificationBypassed is temporarily true (backend OTP endpoints
-    // are down) so submit is already enabled once counts are entered, even
-    // before OTP is touched.
-    expect(submit.isDisabled, isFalse);
+    // Counts and asset details alone are insufficient until the configured
+    // installation images are also complete.
+    expect(submit.isDisabled, isTrue);
     expect(find.byKey(const ValueKey('solar-installation-completion-card')),
         findsOneWidget);
     expect(find.byType(FileUploadWidget), findsOneWidget);
@@ -1486,6 +1544,14 @@ void main() {
     expect(find.byKey(const ValueKey('solar-installation-images')),
         findsOneWidget);
     expect(find.byKey(const ValueKey('solar-otp-widget')), findsOneWidget);
+
+    incomplete.installationMedia['SOLAR_ARRAY'] = [
+      const SolarFileRef(
+        name: 'array.jpg',
+        path: '/tmp/array.jpg',
+        kind: SolarFileKind.image,
+      ),
+    ];
 
     final requestButton =
         find.byKey(const ValueKey('solar-otp-request-resend-button'));
@@ -1720,6 +1786,72 @@ void main() {
     expect(await resultFuture, 'GALLERY-OR-CAMERA-001');
   });
 
+  testWidgets('asset details omits capacity while retaining make and warranty',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 844));
+    final draft = _filledSolarDraft(SolarWorkflowMode.newReport);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: AssetTypeDetailPage(
+          draft: draft,
+          assetType: SolarAssetType.battery,
+        ),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('solar-details-make')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('solar-warranty-dropdown')), findsOneWidget);
+    expect(find.text(tr(i18.assetFlow.capacity)), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('add new asset displays BOM capacity for every solar asset type',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 1600));
+    final draft = _filledSolarDraft(SolarWorkflowMode.newReport);
+    const cases = <SolarAssetType, (String, String)>{
+      SolarAssetType.battery: ('solar-add-capacity-battery', '125 Ah'),
+      SolarAssetType.inverter: ('solar-add-capacity-inverter', '5 kVA'),
+      SolarAssetType.panel: ('solar-add-capacity-panel', '330 Wp'),
+    };
+
+    for (final entry in cases.entries) {
+      final asset = draft.assets[entry.key]!;
+      asset.totalCapacity = entry.value.$2;
+      for (final item in asset.assets) {
+        item.capacity = entry.value.$2;
+      }
+
+      await tester.pumpWidget(
+        MaterialApp(
+          key: UniqueKey(),
+          theme: DigitTheme.instance.mobileTheme,
+          home: AddNewAssetPage(
+            draft: draft,
+            assetType: entry.key,
+            scanSerial: (_) async => null,
+          ),
+        ),
+      );
+
+      final capacityField = find.byKey(ValueKey<String>(entry.value.$1));
+      expect(capacityField, findsOneWidget);
+      expect(
+        find.descendant(
+          of: capacityField,
+          matching: find.text(entry.value.$2),
+        ),
+        findsOneWidget,
+      );
+    }
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
   testWidgets('add new asset assigns injected scanner result directly', (
     tester,
   ) async {
@@ -1829,6 +1961,7 @@ void main() {
       kind: SolarFileKind.image,
     );
     draft.assets[SolarAssetType.panel]!.assets.single.capacity = '550';
+    draft.assets[SolarAssetType.panel]!.assets.single.itemCode = 'PANEL-550';
     await tester.pumpWidget(
       MaterialApp(
         theme: DigitTheme.instance.mobileTheme,

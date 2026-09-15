@@ -3,9 +3,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'item_code.freezed.dart';
 part 'item_code.g.dart';
 
-/// Flat leaf model — like `SolutionDesignType`, the live MDMS v1 response
-/// for `livelihood.ItemCode` is a plain array of these objects directly,
-/// with no id/module/tenantId wrapper.
+/// Flat leaf model for the `livelihood.ItemCode` MDMS master.
 @freezed
 class ItemCode with _$ItemCode {
   const factory ItemCode({

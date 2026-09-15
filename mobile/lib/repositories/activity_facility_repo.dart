@@ -12,7 +12,6 @@ import '../utils/api_paths.dart';
 import '../utils/constants.dart';
 import '../utils/envConfig.dart';
 import '../utils/workflow_status.dart';
-import 'activity_facility_mock_overlay.dart';
 
 /// One page of activity-facility search results, tagged with whether it
 /// came from the network or from the persisted offline cache.
@@ -62,10 +61,9 @@ class ActivityFacilityRemoteRepository {
     final rawList = response.data['facility'] as List<dynamic>? ?? [];
     final items = await Future.wait(
       rawList.whereType<Map>().map((value) async {
-        final enriched = await activityFacilityMockOverlay.apply(
+        return ActivityFacilityWorkflow.fromJson(
           Map<String, dynamic>.from(value),
         );
-        return ActivityFacilityWorkflow.fromJson(enriched);
       }),
     );
     final totalCount = response.data['totalCount'] as int? ?? items.length;
@@ -290,10 +288,9 @@ class ActivityFacilityRepository {
     return Future.wait(uniqueRows.map((row) async {
       final raw = jsonDecode(row.rawJson);
       if (raw is! Map) return null;
-      final enriched = await activityFacilityMockOverlay.apply(
+      return ActivityFacilityWorkflow.fromJson(
         Map<String, dynamic>.from(raw),
       );
-      return ActivityFacilityWorkflow.fromJson(enriched);
     })).then((items) => items.whereType<ActivityFacilityWorkflow>().toList());
   }
 

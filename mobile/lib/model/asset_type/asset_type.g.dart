@@ -11,9 +11,6 @@ _$AssetTypeImpl _$$AssetTypeImplFromJson(Map<String, dynamic> json) =>
       code: json['code'] as String,
       name: json['name'] as String,
       active: json['active'] as bool,
-      formFields: (json['form_fields'] as List<dynamic>)
-          .map((e) => AssetTypeFormField.fromJson(e as Map<String, dynamic>))
-          .toList(),
     );
 
 Map<String, dynamic> _$$AssetTypeImplToJson(_$AssetTypeImpl instance) =>
@@ -21,29 +18,6 @@ Map<String, dynamic> _$$AssetTypeImplToJson(_$AssetTypeImpl instance) =>
       'code': instance.code,
       'name': instance.name,
       'active': instance.active,
-      'form_fields': instance.formFields,
-    };
-
-_$AssetTypeFormFieldImpl _$$AssetTypeFormFieldImplFromJson(
-        Map<String, dynamic> json) =>
-    _$AssetTypeFormFieldImpl(
-      key: json['key'] as String?,
-      name: json['name'] as String?,
-      system: json['system'] as String?,
-      options:
-          (json['options'] as List<dynamic>?)?.map((e) => e as String).toList(),
-      types:
-          (json['types'] as List<dynamic>?)?.map((e) => e as String).toList(),
-    );
-
-Map<String, dynamic> _$$AssetTypeFormFieldImplToJson(
-        _$AssetTypeFormFieldImpl instance) =>
-    <String, dynamic>{
-      'key': instance.key,
-      'name': instance.name,
-      'system': instance.system,
-      'options': instance.options,
-      'types': instance.types,
     };
 
 _$AssetTypeDataImpl _$$AssetTypeDataImplFromJson(Map<String, dynamic> json) =>

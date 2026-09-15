@@ -13,7 +13,6 @@ class Routes {
   static const machineReportSuccess = 'machine-report-success';
   static const assetCount = 'asset-count';
   static const selectAssetType = 'select-asset-type';
-  static const specification = 'specification';
   static const assetTypeDetail = 'asset-type-detail';
   static const addNewAsset = 'add-new-asset';
   static const mediaUpload = 'media-upload';

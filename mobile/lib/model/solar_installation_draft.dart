@@ -110,6 +110,7 @@ class SolarAssetEntry {
 
   bool get isComplete =>
       serialNumber.trim().isNotEmpty &&
+      itemCode?.trim().isNotEmpty == true &&
       capacity.trim().isNotEmpty &&
       supportingPhoto != null;
 }
@@ -129,7 +130,10 @@ class SolarAssetDraft {
   final Map<String, List<String>> formOptions = {};
   final List<String> typeOptions = [];
 
-  bool get detailsComplete => warrantyDuration.isNotEmpty;
+  bool get detailsComplete =>
+      warrantyDuration.isNotEmpty &&
+      selectedBrandCode?.trim().isNotEmpty == true &&
+      totalCapacity.trim().isNotEmpty;
   bool get isComplete =>
       detailsComplete &&
       assets.isNotEmpty &&
@@ -156,7 +160,11 @@ class SolarInstallationDraft {
   List<InstallationImageRequirement> installationRequirements = const [];
   final Map<String, List<SolarFileRef>> installationMedia = {};
   String? systemCode;
-  List<SolarAssetType> applicableTypes = const [];
+  String? solutionId;
+  String? remoteBomId;
+  String? remoteBomName;
+  Map<String, dynamic> remoteBomAdditionalDetails = const {};
+  List<SolarAssetType> applicableTypes = SolarAssetType.values;
   final Map<SolarAssetType, int> minimumCounts = {};
   final Map<SolarAssetType, int> maximumCounts = {};
   final Map<SolarAssetType, String> assetTypeCodes = {};
@@ -184,6 +192,12 @@ class SolarInstallationDraft {
   int countFor(SolarAssetType type) => counts[type] ?? 0;
 
   void setCount(SolarAssetType type, int count) {
+    final maximum = maximumFor(type);
+    if (maximum <= 0) {
+      counts[type] = 0;
+      assets[type]!.assets.clear();
+      return;
+    }
     if (count <= 0) {
       if (countFor(type) == 0) {
         counts[type] = 0;
@@ -192,7 +206,7 @@ class SolarInstallationDraft {
       return;
     }
     final lowerBound = activationCountFor(type);
-    final normalized = count.clamp(lowerBound, maximumFor(type));
+    final normalized = count.clamp(lowerBound, maximum);
     counts[type] = normalized;
     reconcileEntries(type);
   }
@@ -224,6 +238,7 @@ class SolarInstallationDraft {
   }
 
   bool get allCountsEntered => applicableTypes.every((type) =>
+      maximumFor(type) > 0 &&
       countFor(type) >= activationCountFor(type) &&
       countFor(type) <= maximumFor(type));
   bool get allAssetTypesComplete => applicableTypes.every(completeFor);

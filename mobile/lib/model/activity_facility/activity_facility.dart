@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import '../bom/bom.dart';
+
 part 'activity_facility.freezed.dart';
 part 'activity_facility.g.dart';
 
@@ -17,6 +19,10 @@ class ActivityFacility with _$ActivityFacility {
     int? scheduledAt,
     int? activatedAt,
     int? completedAt,
+    String? componentType,
+    int? componentSequence,
+    String? solutionId,
+    BillOfMaterial? billOfMaterial,
     Facility? facility,
     ActivityFacilityAdditionalDetails? additionalDetails,
   }) = _ActivityFacility;

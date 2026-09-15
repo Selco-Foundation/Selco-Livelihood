@@ -4,6 +4,7 @@ class BillOfMaterial {
     this.tenantId,
     this.facilityId,
     this.activityFacilityId,
+    this.solutionId,
     this.name,
     this.assignUser,
     this.isActive,
@@ -16,6 +17,7 @@ class BillOfMaterial {
   final String? tenantId;
   final String? facilityId;
   final String? activityFacilityId;
+  final String? solutionId;
   final String? name;
   final String? assignUser;
   final bool? isActive;
@@ -28,6 +30,7 @@ class BillOfMaterial {
         tenantId: json['tenantId']?.toString(),
         facilityId: json['facilityId']?.toString(),
         activityFacilityId: json['activityFacilityId']?.toString(),
+        solutionId: json['solutionId']?.toString(),
         name: json['name']?.toString(),
         assignUser: json['assignUser']?.toString(),
         isActive: json['isActive'] is bool ? json['isActive'] as bool : null,
@@ -43,7 +46,9 @@ class BillOfMaterial {
         if (id != null) 'id': id,
         if (tenantId != null) 'tenantId': tenantId,
         if (facilityId != null) 'facilityId': facilityId,
-        if (activityFacilityId != null) 'activityFacilityId': activityFacilityId,
+        if (activityFacilityId != null)
+          'activityFacilityId': activityFacilityId,
+        if (solutionId != null) 'solutionId': solutionId,
         if (name != null) 'name': name,
         if (assignUser != null) 'assignUser': assignUser,
         if (isActive != null) 'isActive': isActive,
@@ -62,6 +67,7 @@ class BillOfMaterial {
         tenantId: tenantId,
         facilityId: facilityId,
         activityFacilityId: activityFacilityId,
+        solutionId: solutionId,
         name: name,
         assignUser: assignUser,
         isActive: isActive ?? this.isActive,

@@ -67,7 +67,6 @@ flutter:
     - .env
     - assets/animated_json/
     - assets/images/
-    - assets/mocks/
 
   fonts:
     - family: Roboto

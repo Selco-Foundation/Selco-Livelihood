@@ -27,7 +27,7 @@ class InstallationDraftRepository {
         // Continue with the MDMS/template draft when local storage is absent.
       }
     }
-    _configureMdms(draft, workflow);
+    _configureFromBom(draft, initializeCounts: false);
     return draft;
   }
 
@@ -36,9 +36,18 @@ class InstallationDraftRepository {
     SolarWorkflowMode mode,
   ) {
     final draft = SolarInstallationDraft(workflow: workflow, mode: mode);
-    _configureMdms(draft, workflow);
     final details = workflow.activityFacility.additionalDetails;
     draft.mergedBom.addAll(details?.bom ?? const {});
+    final embedded = workflow.activityFacility.billOfMaterial;
+    if (embedded != null) {
+      draft.mergedBom.addAll(embedded.data);
+      draft.remoteBomId = embedded.id;
+      draft.remoteBomName = embedded.name;
+      draft.remoteBomAdditionalDetails = embedded.additionalDetails;
+      draft.backendDocuments.addAll(embedded.documents);
+      _hydrateDocuments(draft, embedded.documents);
+    }
+    _configureFromBom(draft, initializeCounts: true);
     _hydrateComponent(draft, SolarAssetType.battery, details?.battery);
     _hydrateComponent(draft, SolarAssetType.inverter, details?.inverter);
     _hydrateComponent(draft, SolarAssetType.panel, details?.panel);
@@ -54,7 +63,7 @@ class InstallationDraftRepository {
 
   Future<void> hydrateSolar(SolarInstallationDraft draft) async {
     await assetMdmsRepository.load();
-    _configureMdms(draft, draft.workflow);
+    _configureFromBom(draft, initializeCounts: false);
     final id = draft.workflow.activityFacility.id;
     if (id != null && id.isNotEmpty) {
       // Start independent sources together, then apply them in deterministic
@@ -71,7 +80,7 @@ class InstallationDraftRepository {
         _hydrateLocal(draft, Map<String, dynamic>.from(local));
       }
     }
-    _configureMdms(draft, draft.workflow);
+    _configureFromBom(draft, initializeCounts: false);
   }
 
   Future<List<BillOfMaterial>> _safeBomSearch(String id) async {
@@ -202,102 +211,92 @@ class InstallationDraftRepository {
     if (!draft.isReadOnly) unawaited(saveSolar(draft));
   }
 
-  void _configureMdms(
-    SolarInstallationDraft draft,
-    ActivityFacilityWorkflow workflow,
-  ) {
-    final details = workflow.activityFacility.additionalDetails;
-    final facility = workflow.activityFacility.facility;
-    final bom = details?.bom ?? const <String, dynamic>{};
-    final rawSystem = details?.systemCode ??
-        facility?.facilityDetails?.solutionDesignType ??
-        facility?.facilityDetails?.systemCode ??
-        facility?.facilityDetails?.systemType ??
-        facility?.systemCode ??
-        facility?.systemType ??
-        facility?.additionalDetails?['systemCode']?.toString() ??
-        facility?.additionalDetails?['systemType']?.toString() ??
-        bom['systemCode']?.toString() ??
-        bom['system_type']?.toString();
-    final normalizedSystem = rawSystem?.trim().toUpperCase();
-    final design = assetMdmsRepository.solutionDesigns
-        .where((item) =>
-            item.code.trim().toUpperCase() == normalizedSystem ||
-            item.systemCode.trim().toUpperCase() == normalizedSystem)
-        .firstOrNull;
-    draft.systemCode = design?.systemCode ??
-        rawSystem?.trim() ??
-        (assetMdmsRepository.solutionBomMappings
-                .any((item) => item.systemCode == 'DC')
-            ? 'DC'
-            : null);
+  void applyBomDerivedValues(SolarInstallationDraft draft) =>
+      _configureFromBom(draft, initializeCounts: false);
 
-    final mdmsTypes =
-        assetMdmsRepository.assetTypes(systemCode: draft.systemCode);
-    final applicable = <SolarAssetType>[];
-    for (final type in mdmsTypes) {
-      final local = _solarType(type.code, type.name);
-      if (local == null) continue;
-      applicable.add(local);
-      draft.assetTypeCodes[local] = type.code;
-      draft.assetTypeLabels[local] = type.name;
-      final constraint = assetMdmsRepository.countFor(type.code);
-      if (constraint != null) {
-        draft.minimumCounts[local] = constraint.min;
-        draft.maximumCounts[local] = constraint.max;
-      }
-      draft.brandOptions[local] = assetMdmsRepository
-          .brandsFor(type.code)
-          .map((brand) => brand.name)
-          .toList();
-      draft.warrantyOptions[local] = assetMdmsRepository
-          .warrantiesFor(type.code)
+  void _configureFromBom(
+    SolarInstallationDraft draft, {
+    required bool initializeCounts,
+  }) {
+    draft.solutionId = draft.workflow.activityFacility.solutionId ??
+        draft.workflow.activityFacility.billOfMaterial?.solutionId;
+    draft.systemCode = 'SOLAR';
+    draft.applicableTypes = SolarAssetType.values;
+
+    for (final type in SolarAssetType.values) {
+      final mdmsType = assetMdmsRepository.assetTypes
+          .where((item) => _solarType(item.code, item.name) == type)
+          .firstOrNull;
+      draft.assetTypeCodes[type] = mdmsType?.code ?? type.name.toUpperCase();
+      draft.assetTypeLabels[type] = mdmsType?.name ?? type.label;
+      draft.minimumCounts[type] = 1;
+      draft.warrantyOptions[type] = assetMdmsRepository
+          .warrantiesFor(draft.assetTypeCodes[type]!)
           .map((warranty) => '${warranty.duration} ${warranty.format}')
           .toList();
-      final assetDraft = draft.assets[local]!;
-      assetDraft.formOptions.clear();
-      assetDraft.typeOptions.clear();
-      final systemName = assetMdmsRepository.systems
-          .where((system) => system.code == draft.systemCode)
-          .map((system) => system.name)
-          .firstOrNull;
-      if (systemName != null) assetDraft.system = systemName;
-      for (final field in type.formFields.where((field) =>
-          field.system == null || field.system == draft.systemCode)) {
-        final key = field.key;
-        if (key != null && field.options?.isNotEmpty == true) {
-          assetDraft.formOptions[key] = List.of(field.options!);
-        }
-        if (field.types?.isNotEmpty == true) {
-          assetDraft.typeOptions.addAll(field.types!);
-        }
+
+      final keys = _bomKeys(type);
+      final quantity = _positiveInteger(draft.mergedBom[keys.quantity]);
+      draft.maximumCounts[type] = quantity;
+      final asset = draft.assets[type]!;
+      asset.system = draft.assetTypeLabels[type]!;
+      asset.selectedBrandCode =
+          (draft.mergedBom[keys.make] ?? '').toString().trim();
+      asset.totalCapacity =
+          (draft.mergedBom[keys.capacity] ?? '').toString().trim();
+      asset.capacityUnit = '';
+
+      if (quantity == 0) {
+        draft.resetCount(type);
+        continue;
       }
-      final total = assetDraft.formOptions['total_capacity'];
-      final totalUnit = assetDraft.formOptions['total_capacity_uom'];
-      if (total?.isNotEmpty == true) {
-        assetDraft.totalCapacity = total!.first;
+      if (initializeCounts) {
+        draft.setCount(type, quantity);
+      } else if (draft.countFor(type) > quantity) {
+        draft.setCount(type, quantity);
       }
-      if (totalUnit?.isNotEmpty == true) {
-        assetDraft.capacityUnit = totalUnit!.first;
-      }
-      final capacity = assetDraft.formOptions['capacity'];
-      final capacityUnit = assetDraft.formOptions['capacity_uom'];
-      if (capacity?.isNotEmpty == true) {
-        for (final entry in assetDraft.assets) {
-          entry.capacity =
-              '${capacity!.first}${capacityUnit?.isNotEmpty == true ? ' ${capacityUnit!.first}' : ''}';
-        }
+      final product = (draft.mergedBom[keys.product] ?? '').toString().trim();
+      for (final entry in asset.assets) {
+        entry.itemCode = product;
+        entry.capacity = asset.totalCapacity;
       }
     }
-    if (applicable.isNotEmpty) {
-      draft.applicableTypes = applicable.toSet().toList();
-    }
+
     draft.bomFormNames
       ..clear()
-      ..addAll(assetMdmsRepository.formsFor(draft.systemCode));
-    draft.installationRequirements =
-        assetMdmsRepository.installationImagesFor(draft.systemCode);
+      ..addAll(assetMdmsRepository.formsFor(draft.solutionId));
+    draft.installationRequirements = assetMdmsRepository.installationImages;
   }
+
+  int _positiveInteger(dynamic value) {
+    final parsed = value is num ? value : num.tryParse('$value');
+    if (parsed == null || parsed <= 0 || parsed != parsed.truncate()) return 0;
+    return parsed.toInt();
+  }
+
+  ({String product, String make, String capacity, String quantity}) _bomKeys(
+    SolarAssetType type,
+  ) =>
+      switch (type) {
+        SolarAssetType.panel => (
+            product: 'bom_solar_panel_product',
+            make: 'bom_solar_panel_make',
+            capacity: 'bom_solar_panel_capacity',
+            quantity: 'bom_solar_panel_quantity',
+          ),
+        SolarAssetType.battery => (
+            product: 'bom_battery_product',
+            make: 'bom_battery_make',
+            capacity: 'bom_battery_capacity',
+            quantity: 'bom_battery_quantity',
+          ),
+        SolarAssetType.inverter => (
+            product: 'bom_inverter_pcu_product',
+            make: 'bom_inverter_pcu_make',
+            capacity: 'bom_inverter_pcu_capacity',
+            quantity: 'bom_inverter_pcu_quantity',
+          ),
+      };
 
   void _hydrateComponent(
     SolarInstallationDraft draft,
@@ -341,6 +340,9 @@ class InstallationDraftRepository {
           name.toUpperCase().contains('_BOM_');
       if (!isSplitPage) {
         draft.mergedBom.addAll(bom.data);
+        draft.remoteBomId = bom.id;
+        draft.remoteBomName = bom.name;
+        draft.remoteBomAdditionalDetails = bom.additionalDetails;
         if (bom.name != null) {
           draft.dynamicFormAnswers
               .putIfAbsent(bom.name!, () => Map.of(bom.data));
@@ -386,7 +388,8 @@ class InstallationDraftRepository {
       final assetMediaMatch =
           RegExp(r'^(battery|inverter|panel)-(image|video)$').firstMatch(type);
       if (assetMediaMatch != null) {
-        final assetType = SolarAssetType.values.byName(assetMediaMatch.group(1)!);
+        final assetType =
+            SolarAssetType.values.byName(assetMediaMatch.group(1)!);
         final bucket = assetMediaMatch.group(2) == 'video'
             ? draft.assets[assetType]!.videos
             : draft.assets[assetType]!.images;

@@ -17,6 +17,13 @@ _$ActivityFacilityImpl _$$ActivityFacilityImplFromJson(
       scheduledAt: (json['scheduledAt'] as num?)?.toInt(),
       activatedAt: (json['activatedAt'] as num?)?.toInt(),
       completedAt: (json['completedAt'] as num?)?.toInt(),
+      componentType: json['componentType'] as String?,
+      componentSequence: (json['componentSequence'] as num?)?.toInt(),
+      solutionId: json['solutionId'] as String?,
+      billOfMaterial: json['billOfMaterial'] == null
+          ? null
+          : BillOfMaterial.fromJson(
+              json['billOfMaterial'] as Map<String, dynamic>),
       facility: json['facility'] == null
           ? null
           : Facility.fromJson(json['facility'] as Map<String, dynamic>),
@@ -37,6 +44,10 @@ Map<String, dynamic> _$$ActivityFacilityImplToJson(
       'scheduledAt': instance.scheduledAt,
       'activatedAt': instance.activatedAt,
       'completedAt': instance.completedAt,
+      'componentType': instance.componentType,
+      'componentSequence': instance.componentSequence,
+      'solutionId': instance.solutionId,
+      'billOfMaterial': instance.billOfMaterial,
       'facility': instance.facility,
       'additionalDetails': instance.additionalDetails,
     };

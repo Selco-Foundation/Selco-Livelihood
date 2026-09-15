@@ -11,7 +11,7 @@ import '../utils/constants.dart';
 /// fraction across all three types — genuinely computed from local fill
 /// state, not a backend flag.
 class AssetProgressRepository {
-  static const maxStepsPerType = 5;
+  static const maxStepsPerType = 4;
   static const types = ['battery', 'inverter', 'panel'];
 
   /// Capped like other repositories' Isar access so an unavailable/slow
@@ -53,17 +53,24 @@ class AssetProgressRepository {
   /// Average, across the 3 solar asset types, of
   /// `min(progress, maxStepsPerType) / maxStepsPerType`, clamped 0–1. An
   /// activity facility with no rows yet is 0.0 — never defaults to "done".
-  Future<double> fractionFor(String activityFacilityId) async {
+  Future<double> fractionFor(
+    String activityFacilityId, {
+    Set<String> disabledTypes = const {},
+  }) async {
     try {
       final isar = await _isar;
       final rows = await isar.cacheAssetCounts
           .filter()
           .activityFacilityIdEqualTo(activityFacilityId)
           .findAll();
-      final byType = {for (final row in rows) row.assetType: row.progress};
+      final byType = {
+        for (final row in rows) row.assetType: row.progress,
+      };
       var sum = 0.0;
       for (final type in types) {
-        final steps = (byType[type] ?? 0).clamp(0, maxStepsPerType);
+        final steps = disabledTypes.contains(type)
+            ? 0
+            : (byType[type] ?? 0).clamp(0, maxStepsPerType);
         sum += steps / maxStepsPerType;
       }
       return (sum / types.length).clamp(0.0, 1.0);

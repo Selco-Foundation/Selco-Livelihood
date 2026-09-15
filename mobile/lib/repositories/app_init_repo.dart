@@ -62,32 +62,28 @@ class AppInitRepo {
           const MdmsModuleDetailModel(
             moduleName: 'asset-registry',
             masterDetails: [
-              MdmsMasterDetailModel(name: 'AssetCountSchema'),
               MdmsMasterDetailModel(name: 'AssetTypeSchema'),
-              MdmsMasterDetailModel(name: 'SystemSchema'),
               MdmsMasterDetailModel(name: 'WarrantyDurationSchema'),
-              MdmsMasterDetailModel(name: 'BrandSchema'),
             ],
           ),
           const MdmsModuleDetailModel(
             moduleName: 'common-masters',
             masterDetails: [
-              MdmsMasterDetailModel(name: 'BOMFormSchema'),
-              MdmsMasterDetailModel(name: 'SolutionDesignTypeBOMForms'),
               MdmsMasterDetailModel(name: 'InstallationImages'),
-              MdmsMasterDetailModel(name: 'RequiredBomFormKeys'),
-            ],
-          ),
-          const MdmsModuleDetailModel(
-            moduleName: 'facility',
-            masterDetails: [
-              MdmsMasterDetailModel(name: 'SolarSolutionDesignType'),
             ],
           ),
           const MdmsModuleDetailModel(
             moduleName: 'livelihood',
             masterDetails: [
               MdmsMasterDetailModel(name: 'ItemCode'),
+              MdmsMasterDetailModel(name: 'BOMFormSchema'),
+              MdmsMasterDetailModel(name: 'SolutionBOMForms'),
+            ],
+          ),
+          const MdmsModuleDetailModel(
+            moduleName: 'Installation',
+            masterDetails: [
+              MdmsMasterDetailModel(name: 'Solution'),
             ],
           ),
         ],

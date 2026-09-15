@@ -95,8 +95,11 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
     if (normalized.contains('wiring')) {
       return context.translate(i18.installationReport.bomLoadWiring);
     }
+    if (normalized.endsWith('_machines')) {
+      return 'Associated Machines';
+    }
     if (normalized.endsWith('_system')) {
-      return context.translate(i18.installationReport.systemParameters);
+      return 'System Functionality Parameters';
     }
     if (normalized.contains('rms')) {
       return context.translate(i18.installationReport.bomRms);
@@ -117,12 +120,21 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
       pageName: pageName ?? '',
       readOnly: widget.draft.isReadOnly,
     ));
+    installationDraftRepository.applyBomDerivedValues(widget.draft);
     if (mounted) setState(() {});
   }
 
   void _openAssetDetails(SolarAssetType type) {
+    final activityFacilityId = widget.draft.workflow.activityFacility.id;
+    if (activityFacilityId != null) {
+      unawaited(assetProgressRepository.recordStep(
+        activityFacilityId: activityFacilityId,
+        assetType: type.name,
+        step: 1,
+      ));
+    }
     context.router.push(
-      SpecificationRoute(
+      AssetTypeDetailRoute(
         draft: widget.draft,
         assetType: type,
         pickMedia: widget.pickMedia,
@@ -238,7 +250,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
               label: draft.mode == SolarWorkflowMode.resubmission
                   ? context.translate(i18.installationReport.resubmit)
                   : context.translate(i18.common.submit),
-              isDisabled: !draft.allCountsEntered ||
+              isDisabled: !draft.canSubmit ||
                   (!otpVerificationBypassed && !_otpVerified),
               onPressed: _submit,
             ),
@@ -848,7 +860,7 @@ class _InstallationImagesPageState extends State<InstallationImagesPage> {
                         children: [
                           const SizedBox(width: double.infinity),
                           Text(
-                            '${requirement.orderLabel(widget.draft.systemCode ?? '') ?? requirement.code}. '
+                            '${requirement.code}. '
                             '${requirement.description}',
                             style: textTheme.bodyL.copyWith(
                               color: theme.colorTheme.primary.primary2,

@@ -19,7 +19,6 @@ import '../repositories/operation_progress_repo.dart';
 import '../repositories/vendor_org_repository.dart';
 import 'envConfig.dart';
 import 'operation_progress.dart';
-import 'submission_payload.dart';
 
 const String kMethodSubmit = 'submit';
 const String kEvtDone = 'submission_done';
@@ -290,14 +289,6 @@ Future<void> _performSubmission({
       throw Exception(
           'The bill of materials has no saved form values. Reopen the BOM forms and try again.');
     }
-    final missingRequired = missingRequiredBomFields(
-      data,
-      bomEntry['requiredKeys'] as List<dynamic>? ?? const [],
-    );
-    if (missingRequired.isNotEmpty) {
-      throw Exception(
-          'Complete these required BOM fields before submitting: ${missingRequired.join(', ')}.');
-    }
     final currentUserId =
         (await SecureStore().getAccessInfo())?.userRequest?.uuid;
     final name = bomEntry['name']?.toString().trim();
@@ -314,7 +305,6 @@ Future<void> _performSubmission({
       final existingBoms = await bomRepository.search(activityFacilityId);
       existing = bomRepository.matchingForSubmission(
         records: existingBoms,
-        componentType: componentType,
         name: name,
       );
     }
@@ -328,6 +318,7 @@ Future<void> _performSubmission({
         tenantId: envConfig.variables.tenantId,
         facilityId: facilityId,
         activityFacilityId: activityFacilityId,
+        solutionId: bomEntry['solutionId']?.toString(),
         name: name,
         assignUser: currentUserId,
         isActive: true,

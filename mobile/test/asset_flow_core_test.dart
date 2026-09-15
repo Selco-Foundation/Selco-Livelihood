@@ -6,10 +6,8 @@ import 'package:livelihood/blocs/activity_facility/activity_facility.dart';
 import 'package:livelihood/blocs/asset_submission/asset_submission.dart';
 import 'package:livelihood/model/activity_facility/activity_facility.dart';
 import 'package:livelihood/model/activity_facility_workflow/activity_facility_workflow.dart';
-import 'package:livelihood/model/asset_count/asset_count.dart';
 import 'package:livelihood/model/asset_type/asset_type.dart';
 import 'package:livelihood/model/asset/asset_submission.dart';
-import 'package:livelihood/model/brand/brand.dart';
 import 'package:livelihood/model/bom/bom.dart';
 import 'package:livelihood/model/document/submission_document.dart';
 import 'package:livelihood/model/facility_report.dart';
@@ -19,7 +17,6 @@ import 'package:livelihood/model/mdms/common_masters.dart';
 import 'package:livelihood/model/warranty/warranty.dart';
 import 'package:livelihood/model/solar_installation_draft.dart';
 import 'package:livelihood/repositories/activity_facility_repo.dart';
-import 'package:livelihood/repositories/activity_facility_mock_overlay.dart';
 import 'package:livelihood/repositories/asset_mdms_repository.dart';
 import 'package:livelihood/repositories/bom_repository.dart';
 import 'package:livelihood/repositories/installation_draft_repository.dart';
@@ -33,59 +30,73 @@ import 'package:livelihood/utils/warranty.dart';
 void main() {
   setUpAll(() async => envConfig.initialize());
 
-  test('temporary Solar component payload is merged before deserialization',
-      () async {
-    final overlay = ActivityFacilityMockOverlay(
-      readAsset: (_) async => '''
-        {
-          "battery": {"brandName": "NED", "capacity": "125"},
-          "inverter": {"brandName": "Eternity", "capacity": "1"},
-          "panel": {"brandName": "ReNew", "capacity": "330"}
-        }
-      ''',
-    );
-    final enriched = await overlay.apply({
+  test('activity facility reads top-level component, solution and BOM', () {
+    final workflow = ActivityFacilityWorkflow.fromJson({
       'activityFacility': {
         'id': 'solar-1',
-        'additionalDetails': {
-          'componentType': 'SOLAR',
-          'battery': {'capacity': '150'},
+        'componentType': 'SOLAR',
+        'componentSequence': 1,
+        'solutionId': '202526PASF0000141',
+        'additionalDetails': {'componentType': 'MACHINE'},
+        'billOfMaterial': {
+          'id': 'bom-1',
+          'name': 'Solar',
+          'solutionId': '202526PASF0000141',
+          'data': {'bom_battery_quantity': 2},
         },
       },
     });
-    final workflow = ActivityFacilityWorkflow.fromJson(enriched);
-
-    expect(workflow.activityFacility.additionalDetails?.battery,
-        {'brandName': 'NED', 'capacity': '150'});
-    expect(workflow.activityFacility.additionalDetails?.inverter?['capacity'],
-        '1');
-    expect(
-        workflow.activityFacility.additionalDetails?.panel?['capacity'], '330');
+    expect(workflow.activityFacility.componentType, 'SOLAR');
+    expect(workflow.activityFacility.solutionId, '202526PASF0000141');
+    expect(workflow.activityFacility.billOfMaterial?.id, 'bom-1');
+    expect(workflow.resolvedAssetCategory, FacilityAssetCategory.solar);
   });
 
-  test('temporary Solar component payload is a no-op for Machine or no file',
-      () async {
-    final machine = {
-      'activityFacility': {
-        'id': 'machine-1',
-        'additionalDetails': {'componentType': ' MACHINE '},
-      },
-    };
-    final overlay = ActivityFacilityMockOverlay(
-      readAsset: (_) async => '{"battery":{"capacity":"125"}}',
+  test('Solar draft derives make, capacity and count limits from BOM', () {
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'solar-1',
+        componentType: 'SOLAR',
+        solutionId: '202526PASF0000141',
+        billOfMaterial: BillOfMaterial(
+          id: 'bom-1',
+          name: 'Solar',
+          solutionId: '202526PASF0000141',
+          data: {
+            'bom_battery_product': 'BATTERY-ITEM',
+            'bom_battery_make': 'Battery Make',
+            'bom_battery_capacity': '20 Ah',
+            'bom_battery_quantity': 2,
+            'bom_solar_panel_product': 'PANEL-ITEM',
+            'bom_solar_panel_make': 'Panel Make',
+            'bom_solar_panel_capacity': '330 Wp',
+            'bom_solar_panel_quantity': '3',
+          },
+        ),
+      ),
     );
-    expect(await overlay.apply(machine), same(machine));
 
-    final missing = ActivityFacilityMockOverlay(
-      readAsset: (_) => Future<String>.error(Exception('missing')),
-    );
-    final solar = {
-      'activityFacility': {
-        'id': 'solar-1',
-        'additionalDetails': {'componentType': 'SOLAR'},
-      },
-    };
-    expect(await missing.apply(solar), same(solar));
+    final repository = InstallationDraftRepository();
+    final draft = repository.createSolar(workflow, SolarWorkflowMode.newReport);
+
+    expect(draft.maximumFor(SolarAssetType.battery), 2);
+    expect(draft.countFor(SolarAssetType.battery), 2);
+    expect(draft.assets[SolarAssetType.battery]!.selectedBrandCode,
+        'Battery Make');
+    expect(draft.assets[SolarAssetType.battery]!.assets.first.itemCode,
+        'BATTERY-ITEM');
+    expect(
+        draft.assets[SolarAssetType.battery]!.assets.first.capacity, '20 Ah');
+    expect(draft.maximumFor(SolarAssetType.panel), 3);
+    expect(draft.countFor(SolarAssetType.panel), 3);
+    expect(draft.maximumFor(SolarAssetType.inverter), 0);
+    expect(draft.countFor(SolarAssetType.inverter), 0);
+    expect(draft.allCountsEntered, isFalse);
+
+    draft.mergedBom['bom_battery_quantity'] = 1;
+    repository.applyBomDerivedValues(draft);
+    expect(draft.maximumFor(SolarAssetType.battery), 1);
+    expect(draft.countFor(SolarAssetType.battery), 1);
   });
 
   test('asset counts stay zero until activated and never fall below minimum',
@@ -191,7 +202,7 @@ void main() {
         ]
       }
     });
-    expect(mapping.systemCode, 'DC');
+    expect(mapping.solutionCode, 'DC');
     expect(mapping.forms, ['DC_BOM_Solar', 'DC_BOM_system']);
 
     final image = InstallationImageRequirement.fromJson({
@@ -245,19 +256,6 @@ void main() {
     expect((json['documents'] as List).single, isNot(contains('fileStoreId')));
   });
 
-  test('required BOM keys reject blank and missing merged values', () {
-    final missing = missingRequiredBomFields(
-      {'panelCount': 4, 'serial': '  '},
-      [
-        {'fieldName': 'panelCount', 'label': 'Panel count'},
-        {'fieldName': 'serial', 'label': 'Serial number'},
-        {'fieldName': 'rating', 'label': 'System rating'},
-      ],
-    );
-
-    expect(missing, ['Serial number', 'System rating']);
-  });
-
   test('solar submission merges pages into one document-free BOM', () {
     const workflow = ActivityFacilityWorkflow(
       activityFacility: ActivityFacility(
@@ -275,6 +273,7 @@ void main() {
       mode: SolarWorkflowMode.newReport,
     )
       ..systemCode = 'DC'
+      ..remoteBomName = 'RMS_ACC_OFF_GRID_SINGLE_PHASE'
       ..applicableTypes = const [SolarAssetType.panel]
       ..bomFormNames.addAll(['DC_BOM_Solar', 'DC_BOM_system'])
       ..mergedBom.addAll({'panelCount': 4, 'weather': 'CLEAR'});
@@ -357,8 +356,7 @@ void main() {
     expect(details, isNot(contains('battery_type')));
   });
 
-  test('machine assetTypeID resolves from the ItemCode MDMS catalog',
-      () async {
+  test('machine assetTypeID resolves from the ItemCode MDMS catalog', () async {
     await assetMdmsRepository.store(const AssetRegistryMdmsResponse(
       livelihood: LivelihoodModule(
         itemCode: [
@@ -511,10 +509,12 @@ void main() {
 
     final payload = buildSolarSubmissionPayload(draft);
     final workflowDocuments = payload['workflowDocuments'] as List;
-    final batteryDoc = workflowDocuments.cast<Map>().firstWhere(
-        (document) => document['fileStore'] == 'battery-filestore');
-    final panelDoc = workflowDocuments.cast<Map>().firstWhere(
-        (document) => document['fileStore'] == 'panel-filestore');
+    final batteryDoc = workflowDocuments
+        .cast<Map>()
+        .firstWhere((document) => document['fileStore'] == 'battery-filestore');
+    final panelDoc = workflowDocuments
+        .cast<Map>()
+        .firstWhere((document) => document['fileStore'] == 'panel-filestore');
     expect(batteryDoc['documentType'], 'battery-image');
     expect(panelDoc['documentType'], 'panel-video');
 
@@ -594,16 +594,15 @@ void main() {
           additionalDetails: {'componentType': 'SOLAR'},
         ),
       ],
-      componentType: 'SOLAR',
       name: 'RMS_ACC_OFF_GRID_SINGLE_PHASE',
     );
 
     expect(result?.id, 'solar');
   });
 
-  test('asset MDMS selectors join records by stable asset type code', () {
+  test('asset MDMS selectors use livelihood BOM records and asset codes', () {
     const response = AssetRegistryMdmsResponse(
-      commonMasters: CommonMastersModule(
+      livelihood: LivelihoodModule(
         bomFormSchema: [
           {
             'isActive': true,
@@ -614,16 +613,19 @@ void main() {
             'data': {'name': 'AssetForm.Inactive', 'pages': []},
           },
         ],
+        solutionBomForms: [
+          {
+            'active': true,
+            'solutionCode': '202526PASF0000141',
+            'bomForms': [
+              {'name': 'LIVELIHOOD_BOM_solar'},
+              {'name': 'LIVELIHOOD_BOM_machines'},
+              {'name': 'LIVELIHOOD_COMMON_BOM_system'},
+            ],
+          },
+        ],
       ),
       assetRegistry: AssetRegistryModule(
-        assetCountSchema: [
-          AssetCountData(
-            id: 1,
-            assetCount: [
-              AssetCount(max: 8, min: 2, active: true, assetTypeCode: 'PANEL')
-            ],
-          )
-        ],
         assetTypeSchema: [
           AssetTypeData(
             id: 1,
@@ -632,26 +634,6 @@ void main() {
                 code: 'PANEL',
                 name: 'Panel',
                 active: true,
-                formFields: [
-                  AssetTypeFormField(
-                    key: 'capacity',
-                    system: 'DC',
-                    options: ['550'],
-                  )
-                ],
-              )
-            ],
-          )
-        ],
-        brandSchema: [
-          BrandData(
-            id: 1,
-            brand: [
-              Brand(
-                active: true,
-                code: 'W',
-                name: 'Waaree',
-                assetTypeCode: 'PANEL',
               )
             ],
           )
@@ -672,15 +654,18 @@ void main() {
       ),
     );
     final repository = AssetMdmsRepository(initial: response);
-    expect(repository.assetTypes(systemCode: 'DC').single.code, 'PANEL');
-    expect(repository.countFor('PANEL')?.min, 2);
-    expect(repository.brandsFor('PANEL').single.code, 'W');
+    expect(repository.assetTypes.single.code, 'PANEL');
     expect(repository.warrantiesFor('PANEL').single.duration, '5');
     expect(repository.rawBomSchemaFor('System'), isNotNull);
     expect(repository.rawBomSchemaFor('Inactive'), isNull);
+    expect(repository.formsFor('202526PASF0000141'), [
+      'LIVELIHOOD_BOM_solar',
+      'LIVELIHOOD_BOM_machines',
+      'LIVELIHOOD_COMMON_BOM_system',
+    ]);
   });
 
-  test('installation images follow E4H system filtering and ordering', () {
+  test('installation images include every active item in response order', () {
     const response = AssetRegistryMdmsResponse(
       commonMasters: CommonMastersModule(
         installationImages: [
@@ -750,46 +735,10 @@ void main() {
     );
     final repository = AssetMdmsRepository(initial: response);
 
-    final dc = repository.installationImagesFor(' DC ');
-    expect(dc.map((item) => item.code), ['FIRST', 'LATER']);
-    expect(dc.last.allowMultiples, isTrue);
-    expect(dc.last.requiredLabel, 'Required: 2 images');
-    expect(dc.first.orderLabel('dc'), '1');
-
-    final ac = repository.installationImagesFor('ac');
-    expect(ac.map((item) => item.code), ['LATER', 'DIRECT_AC']);
-  });
-
-  test('required BOM form keys are selected independently by system code', () {
-    const response = AssetRegistryMdmsResponse(
-      commonMasters: CommonMastersModule(
-        requiredBomFormKeys: [
-          {
-            'isActive': true,
-            'data': {
-              'systemCode': 'DC',
-              'active': true,
-              'dialogTitle': 'Required details',
-              'rules': [
-                {
-                  'schemaName': 'AssetForm.System',
-                  'fieldName': 'capacity',
-                  'label': 'Capacity',
-                  'message': 'Enter capacity',
-                  'active': true,
-                },
-              ],
-            },
-          },
-        ],
-      ),
-    );
-    final repository = AssetMdmsRepository(initial: response);
-
-    final config = repository.requiredBomFormKeysFor(' dc ');
-    expect(config?.dialogTitle, 'Required details');
-    expect(config?.rules.single.fieldName, 'capacity');
-    expect(repository.installationImagesFor('DC'), isEmpty);
+    final images = repository.installationImages;
+    expect(images.map((item) => item.code), ['LATER', 'FIRST', 'DIRECT_AC']);
+    expect(images.first.allowMultiples, isTrue);
+    expect(images.first.requiredLabel, 'Required: 2 images');
   });
 
   test('activity component type alone selects machine or solar', () {

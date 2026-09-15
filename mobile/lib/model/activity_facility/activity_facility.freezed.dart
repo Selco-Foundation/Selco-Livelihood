@@ -28,6 +28,10 @@ mixin _$ActivityFacility {
   int? get scheduledAt => throw _privateConstructorUsedError;
   int? get activatedAt => throw _privateConstructorUsedError;
   int? get completedAt => throw _privateConstructorUsedError;
+  String? get componentType => throw _privateConstructorUsedError;
+  int? get componentSequence => throw _privateConstructorUsedError;
+  String? get solutionId => throw _privateConstructorUsedError;
+  BillOfMaterial? get billOfMaterial => throw _privateConstructorUsedError;
   Facility? get facility => throw _privateConstructorUsedError;
   ActivityFacilityAdditionalDetails? get additionalDetails =>
       throw _privateConstructorUsedError;
@@ -53,6 +57,10 @@ abstract class $ActivityFacilityCopyWith<$Res> {
       int? scheduledAt,
       int? activatedAt,
       int? completedAt,
+      String? componentType,
+      int? componentSequence,
+      String? solutionId,
+      BillOfMaterial? billOfMaterial,
       Facility? facility,
       ActivityFacilityAdditionalDetails? additionalDetails});
 
@@ -81,6 +89,10 @@ class _$ActivityFacilityCopyWithImpl<$Res, $Val extends ActivityFacility>
     Object? scheduledAt = freezed,
     Object? activatedAt = freezed,
     Object? completedAt = freezed,
+    Object? componentType = freezed,
+    Object? componentSequence = freezed,
+    Object? solutionId = freezed,
+    Object? billOfMaterial = freezed,
     Object? facility = freezed,
     Object? additionalDetails = freezed,
   }) {
@@ -117,6 +129,22 @@ class _$ActivityFacilityCopyWithImpl<$Res, $Val extends ActivityFacility>
           ? _value.completedAt
           : completedAt // ignore: cast_nullable_to_non_nullable
               as int?,
+      componentType: freezed == componentType
+          ? _value.componentType
+          : componentType // ignore: cast_nullable_to_non_nullable
+              as String?,
+      componentSequence: freezed == componentSequence
+          ? _value.componentSequence
+          : componentSequence // ignore: cast_nullable_to_non_nullable
+              as int?,
+      solutionId: freezed == solutionId
+          ? _value.solutionId
+          : solutionId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      billOfMaterial: freezed == billOfMaterial
+          ? _value.billOfMaterial
+          : billOfMaterial // ignore: cast_nullable_to_non_nullable
+              as BillOfMaterial?,
       facility: freezed == facility
           ? _value.facility
           : facility // ignore: cast_nullable_to_non_nullable
@@ -171,6 +199,10 @@ abstract class _$$ActivityFacilityImplCopyWith<$Res>
       int? scheduledAt,
       int? activatedAt,
       int? completedAt,
+      String? componentType,
+      int? componentSequence,
+      String? solutionId,
+      BillOfMaterial? billOfMaterial,
       Facility? facility,
       ActivityFacilityAdditionalDetails? additionalDetails});
 
@@ -199,6 +231,10 @@ class __$$ActivityFacilityImplCopyWithImpl<$Res>
     Object? scheduledAt = freezed,
     Object? activatedAt = freezed,
     Object? completedAt = freezed,
+    Object? componentType = freezed,
+    Object? componentSequence = freezed,
+    Object? solutionId = freezed,
+    Object? billOfMaterial = freezed,
     Object? facility = freezed,
     Object? additionalDetails = freezed,
   }) {
@@ -235,6 +271,22 @@ class __$$ActivityFacilityImplCopyWithImpl<$Res>
           ? _value.completedAt
           : completedAt // ignore: cast_nullable_to_non_nullable
               as int?,
+      componentType: freezed == componentType
+          ? _value.componentType
+          : componentType // ignore: cast_nullable_to_non_nullable
+              as String?,
+      componentSequence: freezed == componentSequence
+          ? _value.componentSequence
+          : componentSequence // ignore: cast_nullable_to_non_nullable
+              as int?,
+      solutionId: freezed == solutionId
+          ? _value.solutionId
+          : solutionId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      billOfMaterial: freezed == billOfMaterial
+          ? _value.billOfMaterial
+          : billOfMaterial // ignore: cast_nullable_to_non_nullable
+              as BillOfMaterial?,
       facility: freezed == facility
           ? _value.facility
           : facility // ignore: cast_nullable_to_non_nullable
@@ -259,6 +311,10 @@ class _$ActivityFacilityImpl implements _ActivityFacility {
       this.scheduledAt,
       this.activatedAt,
       this.completedAt,
+      this.componentType,
+      this.componentSequence,
+      this.solutionId,
+      this.billOfMaterial,
       this.facility,
       this.additionalDetails});
 
@@ -282,13 +338,21 @@ class _$ActivityFacilityImpl implements _ActivityFacility {
   @override
   final int? completedAt;
   @override
+  final String? componentType;
+  @override
+  final int? componentSequence;
+  @override
+  final String? solutionId;
+  @override
+  final BillOfMaterial? billOfMaterial;
+  @override
   final Facility? facility;
   @override
   final ActivityFacilityAdditionalDetails? additionalDetails;
 
   @override
   String toString() {
-    return 'ActivityFacility(id: $id, tenantId: $tenantId, activityId: $activityId, facilityId: $facilityId, status: $status, scheduledAt: $scheduledAt, activatedAt: $activatedAt, completedAt: $completedAt, facility: $facility, additionalDetails: $additionalDetails)';
+    return 'ActivityFacility(id: $id, tenantId: $tenantId, activityId: $activityId, facilityId: $facilityId, status: $status, scheduledAt: $scheduledAt, activatedAt: $activatedAt, completedAt: $completedAt, componentType: $componentType, componentSequence: $componentSequence, solutionId: $solutionId, billOfMaterial: $billOfMaterial, facility: $facility, additionalDetails: $additionalDetails)';
   }
 
   @override
@@ -310,6 +374,14 @@ class _$ActivityFacilityImpl implements _ActivityFacility {
                 other.activatedAt == activatedAt) &&
             (identical(other.completedAt, completedAt) ||
                 other.completedAt == completedAt) &&
+            (identical(other.componentType, componentType) ||
+                other.componentType == componentType) &&
+            (identical(other.componentSequence, componentSequence) ||
+                other.componentSequence == componentSequence) &&
+            (identical(other.solutionId, solutionId) ||
+                other.solutionId == solutionId) &&
+            (identical(other.billOfMaterial, billOfMaterial) ||
+                other.billOfMaterial == billOfMaterial) &&
             (identical(other.facility, facility) ||
                 other.facility == facility) &&
             (identical(other.additionalDetails, additionalDetails) ||
@@ -328,6 +400,10 @@ class _$ActivityFacilityImpl implements _ActivityFacility {
       scheduledAt,
       activatedAt,
       completedAt,
+      componentType,
+      componentSequence,
+      solutionId,
+      billOfMaterial,
       facility,
       additionalDetails);
 
@@ -356,6 +432,10 @@ abstract class _ActivityFacility implements ActivityFacility {
           final int? scheduledAt,
           final int? activatedAt,
           final int? completedAt,
+          final String? componentType,
+          final int? componentSequence,
+          final String? solutionId,
+          final BillOfMaterial? billOfMaterial,
           final Facility? facility,
           final ActivityFacilityAdditionalDetails? additionalDetails}) =
       _$ActivityFacilityImpl;
@@ -379,6 +459,14 @@ abstract class _ActivityFacility implements ActivityFacility {
   int? get activatedAt;
   @override
   int? get completedAt;
+  @override
+  String? get componentType;
+  @override
+  int? get componentSequence;
+  @override
+  String? get solutionId;
+  @override
+  BillOfMaterial? get billOfMaterial;
   @override
   Facility? get facility;
   @override

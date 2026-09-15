@@ -10,11 +10,6 @@ import 'warranty.dart';
 /// workflow when the actual request is sent.
 Map<String, dynamic> buildSolarSubmissionPayload(SolarInstallationDraft draft) {
   final activityFacility = draft.workflow.activityFacility;
-  final facility = activityFacility.facility;
-  final solutionDesignName =
-      facility?.facilityDetails?.solutionDesignType?.trim();
-  final requiredBomConfig =
-      assetMdmsRepository.requiredBomFormKeysFor(draft.systemCode);
 
   final workflowDocuments = <SubmissionDocument>[
     for (final file in draft.completionReportFiles)
@@ -85,22 +80,18 @@ Map<String, dynamic> buildSolarSubmissionPayload(SolarInstallationDraft draft) {
     'workflowAction': 'SUBMIT_REPORT',
     'facilityId': activityFacility.facilityId,
     'bom': {
-      'name': solutionDesignName?.isNotEmpty == true
-          ? solutionDesignName
-          : 'BOM.SolarSystem',
+      if (draft.remoteBomId?.trim().isNotEmpty == true)
+        'remoteId': draft.remoteBomId,
+      'name': draft.remoteBomName?.trim().isNotEmpty == true
+          ? draft.remoteBomName
+          : 'Solar',
+      'solutionId': draft.solutionId,
       'data': Map<String, dynamic>.from(draft.mergedBom),
       'required': draft.bomFormNames.isNotEmpty,
-      'requiredKeys': [
-        for (final rule in requiredBomConfig?.rules ?? const [])
-          if (rule.active && rule.fieldName.trim().isNotEmpty)
-            {
-              'schemaName': rule.schemaName,
-              'fieldName': rule.fieldName,
-              'label': rule.label,
-              'message': rule.message,
-            },
-      ],
-      'additionalDetails': const {'componentType': 'SOLAR'},
+      'additionalDetails': {
+        ...draft.remoteBomAdditionalDetails,
+        'componentType': 'SOLAR',
+      },
     },
     'assets': assets,
     'workflowDocuments':
@@ -122,17 +113,22 @@ Map<String, dynamic> buildMachineSubmissionPayload({
 }) {
   final activityFacility = workflow.activityFacility;
   final templateBom = Map<String, dynamic>.from(
-      activityFacility.additionalDetails?.bom ?? const {});
+      activityFacility.billOfMaterial?.data ??
+          activityFacility.additionalDetails?.bom ??
+          const {});
   final components = templateBom['components'];
   final firstComponent =
       components is List && components.isNotEmpty && components.first is Map
           ? Map<String, dynamic>.from(components.first as Map)
           : const <String, dynamic>{};
-  final componentType =
-      activityFacility.additionalDetails?.componentType?.trim().toUpperCase();
+  final componentType = (activityFacility.componentType ??
+          activityFacility.additionalDetails?.componentType)
+      ?.trim()
+      .toUpperCase();
   final itemCode = _firstNonBlank([
     firstComponent['itemCode'],
     firstComponent['item_code'],
+    templateBom['machine_1_product'],
     templateBom['itemCode'],
   ]);
   final resolvedItem =
@@ -149,6 +145,7 @@ Map<String, dynamic> buildMachineSubmissionPayload({
     firstComponent['brandID'],
     firstComponent['brandCode'],
     firstComponent['make'],
+    templateBom['machine_1_make'],
     templateBom['brandID'],
   ]);
   final system = _firstNonBlank([
@@ -159,7 +156,9 @@ Map<String, dynamic> buildMachineSubmissionPayload({
       ]) ??
       'LIVELIHOOD';
   final machineName = _firstNonBlank([
+        activityFacility.billOfMaterial?.name,
         templateBom['name'],
+        templateBom['machine_1_product'],
         firstComponent['product'],
         firstComponent['name'],
       ]) ??
@@ -189,9 +188,15 @@ Map<String, dynamic> buildMachineSubmissionPayload({
     'facilityId': activityFacility.facilityId,
     'bom': {
       'name': machineName,
+      if (activityFacility.billOfMaterial?.id?.trim().isNotEmpty == true)
+        'remoteId': activityFacility.billOfMaterial!.id,
+      'solutionId': activityFacility.solutionId,
       'data': formData,
       'required': true,
-      'additionalDetails': const {'componentType': 'MACHINE'},
+      'additionalDetails': {
+        ...?activityFacility.billOfMaterial?.additionalDetails,
+        'componentType': 'MACHINE',
+      },
     },
     'assets': [
       {
@@ -235,24 +240,4 @@ String? _firstNonBlank(List<dynamic> values) {
     if (text != null && text.isNotEmpty) return text;
   }
   return null;
-}
-
-List<String> missingRequiredBomFields(
-  Map<String, dynamic> values,
-  List<dynamic> requiredKeys,
-) {
-  bool isMissing(dynamic value) =>
-      value == null ||
-      (value is String && value.trim().isEmpty) ||
-      (value is Iterable && value.isEmpty);
-
-  return requiredKeys.whereType<Map>().where((rule) {
-    final fieldName = rule['fieldName']?.toString().trim() ?? '';
-    return fieldName.isNotEmpty && isMissing(values[fieldName]);
-  }).map((rule) {
-    final label = rule['label']?.toString().trim();
-    return label?.isNotEmpty == true
-        ? label!
-        : rule['fieldName'].toString().trim();
-  }).toList();
 }

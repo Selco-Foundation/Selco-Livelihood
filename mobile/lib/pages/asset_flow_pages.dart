@@ -64,6 +64,11 @@ class _AssetCountPageState extends State<AssetCountPage> {
   SolarInstallationDraft get draft => widget.draft;
 
   void _next() {
+    for (final type in draft.applicableTypes) {
+      if (draft.maximumFor(type) > 0) {
+        _recordAssetProgress(draft, type, 1);
+      }
+    }
     context.router.push(
       SelectAssetTypeRoute(
         draft: draft,
@@ -147,8 +152,9 @@ class _SelectAssetTypePageState extends State<SelectAssetTypePage> {
 
   void _next() {
     if (selected == null) return;
+    _recordAssetProgress(widget.draft, selected!, 1);
     context.router.push(
-      SpecificationRoute(
+      AssetTypeDetailRoute(
         draft: widget.draft,
         assetType: selected!,
         pickMedia: widget.pickMedia,
@@ -206,86 +212,6 @@ class _SelectAssetTypePageState extends State<SelectAssetTypePage> {
 }
 
 @RoutePage()
-class SpecificationPage extends StatefulWidget {
-  const SpecificationPage({
-    super.key,
-    required this.draft,
-    required this.assetType,
-    this.pickMedia,
-    this.scanSerial,
-  });
-
-  final SolarInstallationDraft draft;
-  final SolarAssetType assetType;
-  final SolarPickMedia? pickMedia;
-  final SolarScanSerial? scanSerial;
-
-  @override
-  State<SpecificationPage> createState() => _SpecificationPageState();
-}
-
-class _SpecificationPageState extends State<SpecificationPage> {
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final textTheme = theme.digitTextTheme(context);
-    final draft = widget.draft;
-    final assetType = widget.assetType;
-    final asset = draft.assets[assetType]!;
-    return SolarWorkflowScaffold(
-      pageKey: 'solar-specification-${assetType.name}',
-      stepIndex: 2,
-      footer: SolarFooterButton(
-        label: context.translate(i18.common.next),
-        onPressed: () {
-          _recordAssetProgress(draft, assetType, 2);
-          context.router.push(
-            AssetTypeDetailRoute(
-              draft: draft,
-              assetType: assetType,
-              pickMedia: widget.pickMedia,
-              scanSerial: widget.scanSerial,
-            ),
-          );
-        },
-      ),
-      child: DigitCard(
-        key: const ValueKey('solar-specification-card'),
-        children: [
-          Text(
-            '${draft.labelFor(assetType)} ${context.translate(i18.assetFlow.specifications)}',
-            style: textTheme.headingXl.copyWith(
-              color: theme.colorTheme.primary.primary2,
-            ),
-          ),
-          _ReadOnlyField(
-              label: context.translate(i18.assetFlow.system),
-              value: asset.system),
-          Row(
-            children: [
-              Expanded(
-                flex: 3,
-                child: _ReadOnlyField(
-                  label: context.translate(i18.assetFlow.totalCapacity),
-                  value: asset.totalCapacity,
-                ),
-              ),
-              const SizedBox(width: spacer6),
-              Expanded(
-                child: _ReadOnlyField(
-                  label: context.translate(i18.assetFlow.unit),
-                  value: asset.capacityUnit,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-@RoutePage()
 class AssetTypeDetailPage extends StatefulWidget {
   const AssetTypeDetailPage({
     super.key,
@@ -312,12 +238,12 @@ class _AssetTypeDetailPageState extends State<AssetTypeDetailPage> {
     final asset = widget.draft.assets[widget.assetType]!;
     return SolarWorkflowScaffold(
       pageKey: 'solar-details-${widget.assetType.name}',
-      stepIndex: 3,
+      stepIndex: 2,
       footer: SolarFooterButton(
         label: context.translate(i18.common.next),
         isDisabled: !asset.detailsComplete,
         onPressed: () {
-          _recordAssetProgress(widget.draft, widget.assetType, 3);
+          _recordAssetProgress(widget.draft, widget.assetType, 2);
           context.router.push(
             AddNewAssetRoute(
               draft: widget.draft,
@@ -375,7 +301,8 @@ class _AssetTypeDetailPageState extends State<AssetTypeDetailPage> {
             ),
           ),
           _ReadOnlyField(
-            label: context.translate(i18.assetFlow.brand),
+            key: const ValueKey('solar-details-make'),
+            label: 'Make',
             value: asset.selectedBrandCode ?? '',
           ),
         ],
@@ -425,13 +352,7 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
   }
 
   String _prefilledCapacityFor(SolarAssetType type) {
-    final details = widget.draft.workflow.activityFacility.additionalDetails;
-    final map = switch (type) {
-      SolarAssetType.battery => details?.battery,
-      SolarAssetType.inverter => details?.inverter,
-      SolarAssetType.panel => details?.panel,
-    };
-    return (map?['capacity'] ?? '').toString();
+    return widget.draft.assets[type]!.totalCapacity;
   }
 
   Future<void> _scan(int index) async {
@@ -459,12 +380,12 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
 
     return SolarWorkflowScaffold(
       pageKey: 'solar-add-assets-${widget.assetType.name}',
-      stepIndex: 4,
+      stepIndex: 3,
       footer: SolarFooterButton(
         label: context.translate(i18.common.next),
         isDisabled: !complete,
         onPressed: () {
-          _recordAssetProgress(widget.draft, widget.assetType, 4);
+          _recordAssetProgress(widget.draft, widget.assetType, 3);
           context.router.push(
             MediaUploadRoute(
               draft: widget.draft,
@@ -600,6 +521,7 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
                     ),
                     if (widget.assetType == SolarAssetType.inverter)
                       _ReadOnlyField(
+                        key: const ValueKey('solar-add-capacity-inverter'),
                         label: context.translate(i18.assetFlow.capacity),
                         value: _prefilledCapacityFor(SolarAssetType.inverter),
                       ),
@@ -654,6 +576,7 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
             ),
           ),
           _ReadOnlyField(
+            key: const ValueKey('solar-add-capacity-battery'),
             label: context.translate(i18.assetFlow.capacity),
             value: _prefilledCapacityFor(SolarAssetType.battery),
           ),
@@ -679,6 +602,7 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
                 .copyWith(color: theme.colorTheme.primary.primary2),
           ),
           _ReadOnlyField(
+            key: const ValueKey('solar-add-capacity-panel'),
             label: context.translate(i18.assetFlow.capacity),
             value: _prefilledCapacityFor(SolarAssetType.panel),
           ),
@@ -713,12 +637,12 @@ class _MediaUploadPageState extends State<MediaUploadPage> {
     final asset = widget.draft.assets[widget.assetType]!;
     return SolarWorkflowScaffold(
       pageKey: 'solar-media-${widget.assetType.name}',
-      stepIndex: 5,
+      stepIndex: 4,
       footer: SolarFooterButton(
         label: context.translate(i18.common.next),
         isDisabled: asset.images.isEmpty,
         onPressed: () {
-          _recordAssetProgress(widget.draft, widget.assetType, 5);
+          _recordAssetProgress(widget.draft, widget.assetType, 4);
           context.router.push(
             AssetSummaryRoute(
               draft: widget.draft,
@@ -881,31 +805,14 @@ class AssetSummaryPage extends StatelessWidget {
                     ),
           ),
           _SummaryCard(
-            title: context.translate(i18.assetFlow.specifications),
-            values: {
-              context.translate(i18.assetFlow.system): asset.system,
-              context.translate(i18.assetFlow.capacity):
-                  '${asset.totalCapacity} ${asset.capacityUnit}',
-            },
-            onEdit: readOnly
-                ? null
-                : () => context.router.push(
-                      SpecificationRoute(
-                        draft: draft,
-                        assetType: assetType,
-                        pickMedia: pickMedia,
-                      ),
-                    ),
-          ),
-          _SummaryCard(
             title: context.translate(i18.assetFlow.details),
             values: {
               context.translate(i18.assetFlow.warrantyStartDate):
                   warrantyStartDateDisplay(),
               context.translate(i18.assetFlow.warrantyDuration):
                   asset.warrantyDuration,
-              context.translate(i18.assetFlow.brand):
-                  asset.selectedBrandCode ?? '',
+              'Make': asset.selectedBrandCode ?? '',
+              context.translate(i18.assetFlow.capacity): asset.totalCapacity,
             },
             onEdit: readOnly
                 ? null
@@ -980,7 +887,7 @@ class AssetSummaryPage extends StatelessWidget {
 }
 
 class _ReadOnlyField extends StatelessWidget {
-  const _ReadOnlyField({required this.label, required this.value});
+  const _ReadOnlyField({super.key, required this.label, required this.value});
 
   final String label;
   final String value;

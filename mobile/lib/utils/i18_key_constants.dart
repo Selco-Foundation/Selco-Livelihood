@@ -30,6 +30,7 @@ class Common {
   String get submit => 'COMMON_SUBMIT';
   String get optional => 'COMMON_OPTIONAL';
   String get name => 'COMMON_NAME';
+  String get type => 'COMMON_TYPE';
   String get count => 'COMMON_COUNT';
   String get edit => 'COMMON_EDIT';
   String get add => 'COMMON_ADD';

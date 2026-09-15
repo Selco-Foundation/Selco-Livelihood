@@ -7,24 +7,16 @@ import 'installation_cache_repo.dart';
 class BomRepository {
   BillOfMaterial? matchingForSubmission({
     required List<BillOfMaterial> records,
-    required String componentType,
     required String name,
   }) {
-    final normalizedType = componentType.trim().toUpperCase();
-    for (final record in records) {
-      final recordType = record.additionalDetails['componentType']
-          ?.toString()
-          .trim()
-          .toUpperCase();
-      if (recordType == normalizedType && !_isPageSchemaName(record.name)) {
-        return record;
-      }
-    }
     for (final record in records) {
       final recordName = record.name?.trim();
       if (recordName == name.trim() && !_isPageSchemaName(recordName)) {
         return record;
       }
+    }
+    for (final record in records) {
+      if (!_isPageSchemaName(record.name)) return record;
     }
     return null;
   }

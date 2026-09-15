@@ -243,19 +243,6 @@ abstract class _$AppRouter extends RootStackRouter {
         ),
       );
     },
-    SpecificationRoute.name: (routeData) {
-      final args = routeData.argsAs<SpecificationRouteArgs>();
-      return AutoRoutePage<dynamic>(
-        routeData: routeData,
-        child: SpecificationPage(
-          key: args.key,
-          draft: args.draft,
-          assetType: args.assetType,
-          pickMedia: args.pickMedia,
-          scanSerial: args.scanSerial,
-        ),
-      );
-    },
     SubmittedSaveSuccessRoute.name: (routeData) {
       return AutoRoutePage<dynamic>(
         routeData: routeData,
@@ -1186,65 +1173,6 @@ class SelectAssetTypeRouteArgs {
   @override
   String toString() {
     return 'SelectAssetTypeRouteArgs{key: $key, draft: $draft, pickMedia: $pickMedia, scanSerial: $scanSerial}';
-  }
-}
-
-/// generated route for
-/// [SpecificationPage]
-class SpecificationRoute extends PageRouteInfo<SpecificationRouteArgs> {
-  SpecificationRoute({
-    Key? key,
-    required SolarInstallationDraft draft,
-    required SolarAssetType assetType,
-    Future<XFile?> Function(
-      SolarFileKind,
-      ImageSource,
-    )? pickMedia,
-    Future<String?> Function(BuildContext)? scanSerial,
-    List<PageRouteInfo>? children,
-  }) : super(
-          SpecificationRoute.name,
-          args: SpecificationRouteArgs(
-            key: key,
-            draft: draft,
-            assetType: assetType,
-            pickMedia: pickMedia,
-            scanSerial: scanSerial,
-          ),
-          initialChildren: children,
-        );
-
-  static const String name = 'SpecificationRoute';
-
-  static const PageInfo<SpecificationRouteArgs> page =
-      PageInfo<SpecificationRouteArgs>(name);
-}
-
-class SpecificationRouteArgs {
-  const SpecificationRouteArgs({
-    this.key,
-    required this.draft,
-    required this.assetType,
-    this.pickMedia,
-    this.scanSerial,
-  });
-
-  final Key? key;
-
-  final SolarInstallationDraft draft;
-
-  final SolarAssetType assetType;
-
-  final Future<XFile?> Function(
-    SolarFileKind,
-    ImageSource,
-  )? pickMedia;
-
-  final Future<String?> Function(BuildContext)? scanSerial;
-
-  @override
-  String toString() {
-    return 'SpecificationRouteArgs{key: $key, draft: $draft, assetType: $assetType, pickMedia: $pickMedia, scanSerial: $scanSerial}';
   }
 }
 

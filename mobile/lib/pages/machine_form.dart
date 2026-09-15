@@ -66,7 +66,9 @@ class _MachineFormPageState extends State<MachineFormPage> {
   @override
   void initState() {
     super.initState();
-    _seed(widget.workflow.activityFacility.additionalDetails?.bom ?? const {});
+    _seed(widget.workflow.activityFacility.billOfMaterial?.data ??
+        widget.workflow.activityFacility.additionalDetails?.bom ??
+        const {});
     unawaited(_loadDraft());
   }
 
@@ -107,9 +109,11 @@ class _MachineFormPageState extends State<MachineFormPage> {
   }
 
   void _seed(Map<String, dynamic> values) {
-    _poController.text =
-        (values['poNumber'] ?? values['po_number'] ?? _poController.text)
-            .toString();
+    _poController.text = (values['poNumber'] ??
+            values['po_number'] ??
+            values['purchase_order_number'] ??
+            _poController.text)
+        .toString();
     _serialController.text = (values['serialNumber'] ??
             values['serial_number'] ??
             _serialController.text)
@@ -120,6 +124,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
         .toString();
     _capacityController.text = (values['capacity'] ??
             values['machineCapacity'] ??
+            values['machine_1_capacity'] ??
             _capacityController.text)
         .toString();
     _warrantyController.text = (values['warrantyYears'] ??
@@ -313,8 +318,8 @@ class _MachineFormPageState extends State<MachineFormPage> {
       listener: (context, state) {
         if (state is AssetSubmissionSuccess) {
           context.read<AssetSubmissionBloc>().add(const DismissSubmission());
-          context.router.push(
-              MachineReportSuccessRoute(mode: MachineReportSuccessMode.submitted));
+          context.router.push(MachineReportSuccessRoute(
+              mode: MachineReportSuccessMode.submitted));
         }
       },
       builder: (context, state) => Stack(

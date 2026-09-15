@@ -107,15 +107,16 @@ class MdmsOption {
 }
 
 class SolutionDesignBomForms {
-  const SolutionDesignBomForms({required this.systemCode, required this.forms});
-  final String systemCode;
+  const SolutionDesignBomForms(
+      {required this.solutionCode, required this.forms});
+  final String solutionCode;
   final List<String> forms;
 
   factory SolutionDesignBomForms.fromJson(Map<String, dynamic> json) {
     final data = _data(json);
     return SolutionDesignBomForms(
-      systemCode:
-          (data['systemCode'] ?? json['uniqueIdentifier'] ?? '').toString(),
+      solutionCode:
+          (data['solutionCode'] ?? json['uniqueIdentifier'] ?? '').toString(),
       forms: _maps(data['bomForms'])
           .map((item) => (item['name'] ?? '').toString())
           .where((name) => name.isNotEmpty)
@@ -192,60 +193,6 @@ class InstallationImageRequirement {
     return order == order.truncateToDouble()
         ? order.truncate().toString()
         : order.toString();
-  }
-}
-
-class RequiredBomFormKeyRule {
-  const RequiredBomFormKeyRule({
-    required this.schemaName,
-    required this.fieldName,
-    required this.label,
-    required this.message,
-    required this.active,
-  });
-
-  final String schemaName;
-  final String fieldName;
-  final String label;
-  final String message;
-  final bool active;
-
-  factory RequiredBomFormKeyRule.fromJson(Map<String, dynamic> json) =>
-      RequiredBomFormKeyRule(
-        schemaName: (json['schemaName'] ?? '').toString(),
-        fieldName: (json['fieldName'] ?? '').toString(),
-        label: (json['label'] ?? '').toString(),
-        message: (json['message'] ?? '').toString(),
-        active: json['active'] != false,
-      );
-}
-
-class RequiredBomFormKeysData {
-  const RequiredBomFormKeysData({
-    required this.systemCode,
-    required this.active,
-    required this.dialogTitle,
-    required this.dialogMessage,
-    required this.rules,
-  });
-
-  final String systemCode;
-  final bool active;
-  final String dialogTitle;
-  final String dialogMessage;
-  final List<RequiredBomFormKeyRule> rules;
-
-  factory RequiredBomFormKeysData.fromJson(Map<String, dynamic> json) {
-    final data = _data(json);
-    return RequiredBomFormKeysData(
-      systemCode: (data['systemCode'] ?? '').toString().trim(),
-      active: data['active'] != false && data['isActive'] != false,
-      dialogTitle: (data['dialogTitle'] ?? 'Required BOM Details').toString(),
-      dialogMessage: (data['dialogMessage'] ??
-              'Please fill the required BOM details before submitting.')
-          .toString(),
-      rules: _maps(data['rules']).map(RequiredBomFormKeyRule.fromJson).toList(),
-    );
   }
 }
 

@@ -21,6 +21,13 @@ class FacilityReportCard extends StatelessWidget {
   final FacilityReportMode mode;
   final VoidCallback onAction;
 
+  String get _componentType =>
+      switch (workflow.activityFacility.componentType?.trim().toUpperCase()) {
+        'MACHINE' => 'Machine',
+        'SOLAR' => 'Solar',
+        _ => '—',
+      };
+
   String _status(BuildContext context) => switch (mode) {
         FacilityReportMode.newReport =>
           context.translate(i18.installationReportHome.pendingInstallation),
@@ -79,6 +86,11 @@ class FacilityReportCard extends StatelessWidget {
             _DetailRow(
                 label: context.translate(i18.installationReportHome.block),
                 value: workflow.facilityLocality.block),
+            _DetailRow(
+              key: const ValueKey('facility-component-type'),
+              label: context.translate(i18.common.type),
+              value: _componentType,
+            ),
             if (isNew)
               _NewReportActions(workflow: workflow, onAction: onAction),
             if (mode == FacilityReportMode.pendingApproval ||
@@ -216,7 +228,7 @@ class _NewReportProgress extends StatelessWidget {
 }
 
 class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value});
+  const _DetailRow({super.key, required this.label, required this.value});
 
   final String label;
   final String value;
