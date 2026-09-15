@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.egov.activity.config.ActivityConfiguration;
 import org.egov.activity.repository.ActivityAssignmentRepository;
 import org.egov.activity.util.BoundaryLocalizationUtil;
+import org.egov.activity.util.MDMSUtils;
 import org.egov.activity.web.models.*;
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.tracer.model.CustomException;
@@ -74,17 +75,19 @@ public class BomPdfService {
     private final ActivityConfiguration activityConfiguration;
     private final FacilityWorkflowService facilityWorkflowService;
     private final ActivityAssignmentRepository activityAssignmentRepository;
+    private final MDMSUtils mdmsUtils;
 
     public BomPdfService(BomService bomService, BoundaryLocalizationUtil boundaryLocalizationUtil,
                          ServiceRequestRepository serviceRequest, ActivityConfiguration activityConfiguration,
                          FacilityWorkflowService facilityWorkflowService,
-                         ActivityAssignmentRepository activityAssignmentRepository) {
+                         ActivityAssignmentRepository activityAssignmentRepository, MDMSUtils mdmsUtils) {
         this.bomService = bomService;
         this.boundaryLocalizationUtil = boundaryLocalizationUtil;
         this.serviceRequest = serviceRequest;
         this.activityConfiguration = activityConfiguration;
         this.facilityWorkflowService = facilityWorkflowService;
         this.activityAssignmentRepository = activityAssignmentRepository;
+        this.mdmsUtils = mdmsUtils;
     }
 
     /**
@@ -157,6 +160,7 @@ public class BomPdfService {
             data.put("report_tender_no", bom.getData().get("tender_number"));
             data.put("report_no", bom.getData().get("report_number"));
             data.put("report_po_wo_number", bom.getData().get("purchase_order_number"));
+            data.put("report_invoice_number", bom.getData().get("invoice_number"));
         }
 
         Facility facility = activityFacility.getFacility();
@@ -166,14 +170,18 @@ public class BomPdfService {
         Boundary boundary = (facility != null) ? facility.getBoundary() : null;
         Map<String, String> boundaryNames = localizeBoundary(boundary, requestInfo);
 
+        Map<String, Object> solution = mdmsUtils.fetchInstallationSolutionByCode(
+                requestInfo, activityFacility.getTenantId(), activityFacility.getSolutionId());
+        data.put("solution_sector", solution != null ? solution.get("sectorName") : null);
+        data.put("solution_sunshine_hours", solution != null ? solution.get("sunshineHrsMin")+" Hours" : null);
+
         data.put("site_name", facility != null ? facility.getFacilityName() : null);
         data.put("site_pincode", facility != null && facility.getAddress() != null
                 ? facility.getAddress().getPincode() : null);
         data.put("site_latitude", facility != null && facility.getAddress() != null
                 ? facility.getAddress().getLatitude() : null);
         data.put("site_longitude", facility != null && facility.getAddress() != null
-                ? facility.getAddress().getLocalityCode() : null);
-        data.put("report_invoice_number", "");
+                ? facility.getAddress().getLongitude() : null);
 //        data.put("vendor_name", resolveVendorName(bom));
 //        data.put("project_number", activityFacility.getFieldPlan() != null && activityFacility.getFieldPlan().getProject() != null
 //                ? activityFacility.getFieldPlan().getProject().getProjectNumber() : null);

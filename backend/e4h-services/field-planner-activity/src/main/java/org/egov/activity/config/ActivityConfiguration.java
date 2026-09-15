@@ -166,6 +166,11 @@ public class ActivityConfiguration {
     @Value("${egov.mdms.search.endpoint}")
     private String mdmsEndPoint;
 
+    // MDMS v2 schema search (e.g. Installation.Solution), distinct from the v1 common-masters
+    // endpoint above (egov.mdms.search.endpoint).
+    @Value("${egov.mdms.v2.search.endpoint:/egov-mdms-service/v2/_search}")
+    private String mdmsSchemaSearchEndpoint;
+
     @Value("${project.document.id.verification.required}")
     private String documentIdVerificationRequired;
 
