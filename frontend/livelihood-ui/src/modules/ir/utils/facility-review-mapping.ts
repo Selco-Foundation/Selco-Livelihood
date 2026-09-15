@@ -228,7 +228,10 @@ export function buildFacilityReviewDetail(
         (REPORT_DOCUMENT_TYPES as readonly string[]).includes(document.documentType?.toUpperCase() ?? ""),
       );
     } else {
-      const code = section.id.slice(`${INSTALLATION_IMAGE_PREFIX}_`.length);
+      // classifyDocument uppercases documentType before deriving `suffix`, so
+      // the code extracted here must be uppercased too or a mixed-case MDMS
+      // criterion.code would never match any document.
+      const code = section.id.slice(`${INSTALLATION_IMAGE_PREFIX}_`.length).toUpperCase();
       sectionDocuments[section.id] = latestDocuments.filter((document) => {
         const classified = classifyDocument(document);
         return classified.key === INSTALLATION_IMAGE_PREFIX && classified.suffix === code;
