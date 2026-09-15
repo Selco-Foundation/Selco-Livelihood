@@ -32,6 +32,7 @@ public class MDMSUtils {
     public static final String FILTER_CODE = "$.*.code";
     public static final String FILTER_NAME = "$.*.name";
     public static final String FILTER_ACTIVE_TRUE = "$.[?(@.active==true)]";
+    private static final String INSTALLATION_SOLUTION_SCHEMA_CODE = "Installation.Solution";
     private final ServiceRequestClient serviceRequestRepository;
     private final ActivityConfiguration config;
 
@@ -205,6 +206,47 @@ public class MDMSUtils {
                 .moduleName(MDMS_TENANT_MODULE_NAME).build();
 
         return tenantModuleDetail;
+    }
+
+    /**
+     * Fetches the Installation.Solution MDMS v2 schema entry whose uniqueIdentifier matches
+     * solutionCode, and returns its "data" object (code, name, sectorName, sunshineHrsMin).
+     * Returns null when solutionCode is blank or no active entry matches.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> fetchInstallationSolutionByCode(RequestInfo requestInfo, String tenantId, String solutionCode) {
+        if (solutionCode == null || solutionCode.isBlank()) {
+            return null;
+        }
+        log.info("Fetching Installation.Solution MDMS schema for code: {}, tenantId: {}", solutionCode, tenantId);
+
+        Map<String, Object> mdmsCriteria = new LinkedHashMap<>();
+        mdmsCriteria.put("tenantId", tenantId);
+        mdmsCriteria.put("schemaCode", INSTALLATION_SOLUTION_SCHEMA_CODE);
+        mdmsCriteria.put("uniqueIdentifiers", Collections.singletonList(solutionCode));
+
+        Map<String, Object> mdmsCriteriaReq = new LinkedHashMap<>();
+        mdmsCriteriaReq.put("RequestInfo", requestInfo);
+        mdmsCriteriaReq.put("MdmsCriteria", mdmsCriteria);
+
+        try {
+            StringBuilder url = new StringBuilder(config.getMdmsHost()).append(config.getMdmsSchemaSearchEndpoint());
+            Map<String, Object> response = serviceRequestRepository.fetchResult(url, mdmsCriteriaReq, Map.class);
+            List<Map<String, Object>> mdmsRecords = response != null ? (List<Map<String, Object>>) response.get("mdms") : null;
+            if (mdmsRecords == null) {
+                log.warn("No Installation.Solution MDMS records returned for code: {}", solutionCode);
+                return null;
+            }
+            for (Map<String, Object> record : mdmsRecords) {
+                if (solutionCode.equals(record.get("uniqueIdentifier")) && Boolean.TRUE.equals(record.get("isActive"))) {
+                    return (Map<String, Object>) record.get("data");
+                }
+            }
+            log.warn("No active Installation.Solution MDMS record found for code: {}", solutionCode);
+        } catch (Exception e) {
+            log.error("Error while fetching Installation.Solution MDMS master for code: {}", solutionCode, e);
+        }
+        return null;
     }
 
     private ModuleDetail getBOMModuleRequestData() {
