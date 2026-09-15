@@ -31,9 +31,6 @@ export async function fetchFileUrls(
   accessToken: string,
   user?: AuthUser | null,
 ): Promise<FileStoreUrlResponse> {
-  void accessToken;
-  void user;
-
   if (!fileStoreIds.length) {
     return { fileStoreIds: [] };
   }
