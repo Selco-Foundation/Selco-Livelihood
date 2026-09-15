@@ -264,6 +264,10 @@ public class ActivityConfiguration {
     @Value("${egov.vendor.user.update.url}")
     private String orgUserUpdateUrl;
 
+    // Organisation (not org-user) search on vendor-registry, same host as orgUserHost above.
+    @Value("${egov.vendor.organisation.search.url:/vendor/organisation/v1/_search}")
+    private String vendorOrganisationSearchUrl;
+
     @Value("${facility.management.transaction.kafka.create.topic}")
     private String transactionPersistTopic;
 
@@ -323,6 +327,10 @@ public class ActivityConfiguration {
 
     @Value("${egov.amc.scheduler.visit.generate.url}")
     private String amcVisitGenerateUrl;
+
+    // pdf-service template key for MACHINE-component installation reports (fixed, not solution-dependent).
+    @Value("${machine.installation.report.pdf.key:machine_installation_report}")
+    private String machineInstallationReportKey;
 
     @Value("${egov.otp.host}")
     private String otpServiceHost;
