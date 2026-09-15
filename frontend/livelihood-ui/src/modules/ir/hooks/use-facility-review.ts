@@ -149,7 +149,7 @@ export function useLoadSectionMedia(entryId: string, facilityName: string) {
         documents
           .map((document) => document.fileStoreId)
           .filter((id): id is string => Boolean(id))
-          .sort(),
+          .sort((a, b) => a.localeCompare(b)),
       ],
       queryFn: async (): Promise<SectionMediaPatch> => {
         const fileStoreIds = documents
