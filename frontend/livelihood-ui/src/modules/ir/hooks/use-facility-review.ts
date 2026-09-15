@@ -136,7 +136,21 @@ export function useLoadSectionMedia(entryId: string, facilityName: string) {
 
   return (section: ReviewSectionContent, documents: ActivityDocument[]) =>
     queryClient.fetchQuery({
-      queryKey: ["ir-section-media", employeeTenantId, entryId, section.id],
+      // `staleTime: Infinity` below means this cache entry is never
+      // considered stale on its own — the sorted fileStoreIds are part of
+      // the key so a resubmission with different attachments (same
+      // entryId/section.id) lands on a fresh entry instead of reusing stale
+      // resolved media.
+      queryKey: [
+        "ir-section-media",
+        employeeTenantId,
+        entryId,
+        section.id,
+        documents
+          .map((document) => document.fileStoreId)
+          .filter((id): id is string => Boolean(id))
+          .sort(),
+      ],
       queryFn: async (): Promise<SectionMediaPatch> => {
         const fileStoreIds = documents
           .map((document) => document.fileStoreId)
