@@ -70,10 +70,11 @@ export function ImOverviewActions() {
 
 export function ImDetails() {
   const user = useAuthStore((state) => state.user);
+  const hasAccess = hasImAccess(user?.roles);
   const endUser = isEndUser(user?.roles);
-  const { assets, isLoading: isAssetsLoading } = useEndUserAssets({ enabled: endUser });
+  const { assets, isLoading: isAssetsLoading } = useEndUserAssets({ enabled: hasAccess && endUser });
 
-  if (!hasImAccess(user?.roles) || !endUser) {
+  if (!hasAccess || !endUser) {
     return null;
   }
 
