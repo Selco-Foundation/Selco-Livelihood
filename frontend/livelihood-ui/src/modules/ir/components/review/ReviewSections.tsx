@@ -88,6 +88,7 @@ export function ReviewSections({
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<ReviewSectionId>>(new Set());
   const [loadingIds, setLoadingIds] = useState<Set<ReviewSectionId>>(new Set());
+  const [failedIds, setFailedIds] = useState<Set<ReviewSectionId>>(new Set());
   const [resolvedMedia, setResolvedMedia] = useState<Partial<Record<ReviewSectionId, SectionMediaPatch>>>({});
 
   // A reason already used elsewhere in this section can't be picked again —
@@ -107,10 +108,22 @@ export function ReviewSections({
       return;
     }
 
+    setFailedIds((prev) => {
+      if (!prev.has(section.id)) {
+        return prev;
+      }
+      const next = new Set(prev);
+      next.delete(section.id);
+      return next;
+    });
     setLoadingIds((prev) => new Set(prev).add(section.id));
     loadSectionMedia(section, sectionDocuments[section.id] ?? [])
       .then((media) => {
         setResolvedMedia((prev) => ({ ...prev, [section.id]: media }));
+      })
+      .catch((error) => {
+        console.error(`Failed to load media for section ${section.id}:`, error);
+        setFailedIds((prev) => new Set(prev).add(section.id));
       })
       .finally(() => {
         setLoadingIds((prev) => {
@@ -127,6 +140,7 @@ export function ReviewSections({
         {sections.map((section) => {
           const reasons = rejectionReasons[section.id] ?? [];
           const isLoading = loadingIds.has(section.id);
+          const hasFailed = failedIds.has(section.id);
           const mergedSection = mergeSectionMedia(section, resolvedMedia[section.id]);
 
           return (
@@ -180,6 +194,24 @@ export function ReviewSections({
                 <AccordionContent className="space-y-4 pb-4">
                   {isLoading ? (
                     <Skeleton className="h-24 w-full" />
+                  ) : hasFailed ? (
+                    <div className="flex items-center justify-between gap-3 rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+                      <span>
+                        {translateOr(
+                          t,
+                          "ES_IR_SECTION_MEDIA_LOAD_ERROR",
+                          "Couldn't load media for this section.",
+                        )}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleExpand(section)}
+                      >
+                        {translateOr(t, "ES_IR_RETRY", "Retry")}
+                      </Button>
+                    </div>
                   ) : mergedSection.kind === "ASSET" ? (
                     <AssetSectionBody section={mergedSection} />
                   ) : mergedSection.kind === "REPORT" ? (
