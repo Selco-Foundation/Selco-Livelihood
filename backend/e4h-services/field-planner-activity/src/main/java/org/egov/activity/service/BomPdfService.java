@@ -6,6 +6,7 @@ import org.egov.activity.config.ActivityConfiguration;
 import org.egov.activity.repository.ActivityAssignmentRepository;
 import org.egov.activity.util.BoundaryLocalizationUtil;
 import org.egov.activity.util.MDMSUtils;
+import org.egov.activity.util.VendorDirectory;
 import org.egov.activity.web.models.*;
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.tracer.model.CustomException;
@@ -41,6 +42,10 @@ public class BomPdfService {
 
     private static final String SYSTEM_TYPE_KEY = "systemType";
     private static final DateTimeFormatter PROJECT_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final DateTimeFormatter REPORT_TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm");
+
+    private static final String COMPONENT_TYPE_MACHINE = "MACHINE";
+    private static final String VERIFICATION_STATUS_DEFAULT = "Success";
 
     private static final String DOCUMENTS_KEY = "documents";
     private static final String DOCUMENT_TYPE_KEY = "documentType";
@@ -76,11 +81,13 @@ public class BomPdfService {
     private final FacilityWorkflowService facilityWorkflowService;
     private final ActivityAssignmentRepository activityAssignmentRepository;
     private final MDMSUtils mdmsUtils;
+    private final VendorDirectory vendorDirectory;
 
     public BomPdfService(BomService bomService, BoundaryLocalizationUtil boundaryLocalizationUtil,
                          ServiceRequestRepository serviceRequest, ActivityConfiguration activityConfiguration,
                          FacilityWorkflowService facilityWorkflowService,
-                         ActivityAssignmentRepository activityAssignmentRepository, MDMSUtils mdmsUtils) {
+                         ActivityAssignmentRepository activityAssignmentRepository, MDMSUtils mdmsUtils,
+                         VendorDirectory vendorDirectory) {
         this.bomService = bomService;
         this.boundaryLocalizationUtil = boundaryLocalizationUtil;
         this.serviceRequest = serviceRequest;
@@ -88,6 +95,7 @@ public class BomPdfService {
         this.facilityWorkflowService = facilityWorkflowService;
         this.activityAssignmentRepository = activityAssignmentRepository;
         this.mdmsUtils = mdmsUtils;
+        this.vendorDirectory = vendorDirectory;
     }
 
     /**
@@ -102,6 +110,11 @@ public class BomPdfService {
     public String generateInstallationReportPdf(RequestInfo requestInfo, ActivityFacility activityFacility,
                                                 List<Document> workflowDocuments) {
         log.trace("Entering generateInstallationReportPdf method for activityFacilityId: {}", activityFacility.getId());
+
+        if (isMachineComponent(activityFacility)) {
+            return generateMachineInstallationReportPdf(requestInfo, activityFacility);
+        }
+
         String tenantId = activityFacility.getTenantId();
 
 //        String systemType = resolveSystemType(activityFacility);
@@ -121,6 +134,127 @@ public class BomPdfService {
         log.info("BOM installation report PDF generated for activityFacilityId: {}, filestoreId: {}",
                 activityFacility.getId(), fileStoreId);
         return fileStoreId;
+    }
+
+    private boolean isMachineComponent(ActivityFacility activityFacility) {
+        return COMPONENT_TYPE_MACHINE.equalsIgnoreCase(activityFacility.getComponentType());
+    }
+
+    /**
+     * MACHINE-component installation report: unlike SOLAR (built from the BOM row), this is built
+     * from asset-registry data for the single machine asset linked to this activity facility - one
+     * MACHINE-type ActivityFacility row always corresponds to exactly one asset (see
+     * ActivityFacility.componentType javadoc). No BOM lookup, no MDMS image-grouping pass: asset
+     * documents are grouped by their own documentType and attached as-is.
+     */
+    private String generateMachineInstallationReportPdf(RequestInfo requestInfo, ActivityFacility activityFacility) {
+        String tenantId = activityFacility.getTenantId();
+        Asset asset = findAssetForActivityFacility(requestInfo, activityFacility.getId(), tenantId);
+
+        Map<String, Object> bomData = buildMachineReportData(requestInfo, activityFacility, asset);
+        bomData.put(DOCUMENTS_KEY, toMachinePdfDocuments(asset.getDocuments()));
+
+        GenerateBOMPdfRequest pdfRequest = GenerateBOMPdfRequest.builder()
+                .requestInfo(requestInfo)
+                .solution(BomService.MACHINE_REPORT_SOLUTION_KEY)
+                .bomData(bomData)
+                .build();
+
+        String fileStoreId = bomService.generateAndSaveBOMPdfToFilestore(pdfRequest, tenantId);
+        log.info("Machine installation report PDF generated for activityFacilityId: {}, filestoreId: {}",
+                activityFacility.getId(), fileStoreId);
+        return fileStoreId;
+    }
+
+    private Asset findAssetForActivityFacility(RequestInfo requestInfo, String activityFacilityId, String tenantId) {
+        List<Asset> assets = searchAssets(requestInfo, activityFacilityId, tenantId);
+        if (assets.isEmpty()) {
+            log.error("No asset found for activityFacilityId: {}", activityFacilityId);
+            throw new CustomException("BOM_PDF_GENERATION_FAILED",
+                    "No asset found for activityFacilityId: " + activityFacilityId);
+        }
+        return assets.get(0);
+    }
+
+    private Map<String, Object> buildMachineReportData(RequestInfo requestInfo, ActivityFacility activityFacility, Asset asset) {
+        Map<String, Object> data = new HashMap<>();
+        Facility facility = activityFacility.getFacility();
+        Map<String, Object> assetDetails = asset.getAssetDetails() != null ? asset.getAssetDetails() : Map.of();
+        String nowFormatted = REPORT_TIMESTAMP_FORMATTER.format(java.time.ZonedDateTime.now(ZoneId.systemDefault()));
+
+        data.put("report_location", facility != null ? facility.getFacilityName() : null);
+        data.put("report_date", LocalDate.now().format(PROJECT_DATE_FORMATTER));
+
+        data.put("machine_po_number", assetDetails.get("poNumber"));
+        data.put("machine_serial_number", asset.getSerialNumber());
+        data.put("machine_solution_name", resolveSolutionName(requestInfo, activityFacility));
+        data.put("machine_manufacturer_invoice_number", assetDetails.get("invoiceNumber"));
+        data.put("machine_specifications_capacity", assetDetails.get("capacity"));
+        data.put("machine_warranty_years", asset.getWarrantyDuration());
+
+        data.put("end_user_name", facility != null ? facility.getFacilityPocName() : null);
+        data.put("end_user_contact_no", facility != null ? facility.getFacilityPocPhone() : null);
+        data.put("end_user_registered_mobile", facility != null ? facility.getFacilityPocPhone() : null);
+        data.put("end_user_verified_at", nowFormatted);
+        data.put("end_user_verification_status", VERIFICATION_STATUS_DEFAULT);
+        data.put("end_user_verification_id", "");
+
+        String technicianName = requestInfo.getUserInfo() != null ? requestInfo.getUserInfo().getName() : null;
+        String technicianMobile = requestInfo.getUserInfo() != null ? requestInfo.getUserInfo().getMobileNumber() : null;
+        data.put("technician_name", technicianName);
+        data.put("technician_contact_no", technicianMobile);
+        data.put("technician_registered_mobile", technicianMobile);
+        data.put("technician_vendor_organisation",
+                vendorDirectory.organisationName(requestInfo, activityFacility.getTenantId(), asset.getVendorId()));
+        data.put("technician_submitted_at", nowFormatted);
+
+        data.put("handover_trained_end_user", yesNo(assetDetails.get("trainedEndUser")));
+
+        return data;
+    }
+
+    private String resolveSolutionName(RequestInfo requestInfo, ActivityFacility activityFacility) {
+        Map<String, Object> solution = mdmsUtils.fetchInstallationSolutionByCode(
+                requestInfo, activityFacility.getTenantId(), activityFacility.getSolutionId());
+        return solution != null && solution.get("name") != null ? String.valueOf(solution.get("name")) : null;
+    }
+
+    private String yesNo(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Boolean) {
+            return ((Boolean) value) ? "Yes" : "No";
+        }
+        return "true".equalsIgnoreCase(String.valueOf(value)) ? "Yes" : "No";
+    }
+
+    /**
+     * Groups the machine asset's own documents by their existing documentType (e.g.
+     * MACHINE_CIVIL_WORK, ASSET_PHOTO-MACHINE) into BomPdfDocument{documentType, fileStoreIds} -
+     * the shape machine_installation_report's pdf-service data-config reads photos from. No MDMS
+     * InstallationImages lookup or repositioning (that is SOLAR-only, see BomService.enrichBomData) -
+     * the field app's own documentType tags are used as-is.
+     */
+    private List<BomPdfDocument> toMachinePdfDocuments(List<org.egov.common.contract.models.Document> assetDocuments) {
+        if (assetDocuments == null || assetDocuments.isEmpty()) {
+            return new ArrayList<>();
+        }
+        Map<String, List<String>> fileStoreIdsByType = new LinkedHashMap<>();
+        for (org.egov.common.contract.models.Document document : assetDocuments) {
+            if (document == null || document.getDocumentType() == null || document.getFileStore() == null) {
+                continue;
+            }
+            fileStoreIdsByType.computeIfAbsent(document.getDocumentType(), k -> new ArrayList<>()).add(document.getFileStore());
+        }
+        List<BomPdfDocument> pdfDocuments = new ArrayList<>();
+        for (Map.Entry<String, List<String>> entry : fileStoreIdsByType.entrySet()) {
+            pdfDocuments.add(BomPdfDocument.builder()
+                    .documentType(entry.getKey())
+                    .fileStoreIds(entry.getValue())
+                    .build());
+        }
+        return pdfDocuments;
     }
 
     private String resolveSystemType(ActivityFacility activityFacility) {

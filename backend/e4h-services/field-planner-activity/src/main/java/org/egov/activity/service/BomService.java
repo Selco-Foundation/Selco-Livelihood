@@ -42,6 +42,14 @@ public class BomService {
     private static final String DOCUMENTS_KEY = "documents";
     private static final String FILE_STORE_ID_KEY = "fileStoreId";
 
+    /**
+     * Sentinel {@link GenerateBOMPdfRequest#getSolution()} value for MACHINE-component installation
+     * reports (see BomPdfService). Unlike SOLAR reports, these are not solution-specific and their
+     * documents are already grouped by BomPdfService itself from asset-registry data, so
+     * {@link #enrichBomData} must not re-run the MDMS InstallationImages grouping over them.
+     */
+    static final String MACHINE_REPORT_SOLUTION_KEY = "MACHINE";
+
     private final BomRepository bomRepository;
 
     private final Producer producer;
@@ -250,6 +258,12 @@ public class BomService {
             return;
         }
         bomData.put("tenantId", TENANTID);
+
+        // MACHINE reports: BomPdfService already grouped asset documents by their own documentType
+        // (BomPdfDocument{documentType, fileStoreIds}) - no MDMS InstallationImages lookup applies.
+        if (MACHINE_REPORT_SOLUTION_KEY.equals(request.getSolution())) {
+            return;
+        }
 
         Object rawDocuments = bomData.get(DOCUMENTS_KEY);
         List<Map<String, Object>> documents = rawDocuments instanceof List
