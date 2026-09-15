@@ -70,8 +70,25 @@ public class VendorAssignmentService {
 
     private static final String SOLAR_ASSET_NAME = "Solar";
     private static final String KEY_MACHINE_SECTION = "machineSection";
-    private static final String KEY_SOLAR_SECTION = "solarSection";
-    private static final String KEY_COMPONENTS = "components";
+
+    /** template_data keys written by the IC Report template upload. */
+    private static final String KEY_FIELDS = "fields";
+    private static final String KEY_FIELD_NAMES = "fieldNames";
+    private static final String KEY_FORM_META = "formMeta";
+    private static final String KEY_SYSTEM_FIELDS = "systemFields";
+    private static final String KEY_SCHEMA_VERSION = "schemaVersion";
+
+    /**
+     * template_data written before MDMS field names existed. Such a row carries only the two
+     * section arrays, so it cannot produce a bom.data the mobile app or the PDF generator can
+     * read -- check() refuses it rather than seeding an empty report.
+     */
+    private static final int TEMPLATE_SCHEMA_VERSION = 2;
+
+    /** Backend-owned keys in bom.data. MDMS never declares these; the template upload asserts it. */
+    private static final String FIELD_REPORT_NUMBER = "report_number";
+    private static final String FIELD_TENDER_NUMBER = "tender_number";
+    private static final String FIELD_PURCHASE_ORDER_NUMBER = "purchase_order_number";
 
     /** How long create() will wait for the published rows to appear before saying so. ~3s. */
     private static final int PERSIST_WAIT_ATTEMPTS = 20;
@@ -268,6 +285,23 @@ public class VendorAssignmentService {
             errors.add(planError("TEMPLATE_MISSING",
                     "Solution " + solutionId + " has no IC Report template yet. "
                             + "Complete the Template step for it before assigning vendors."));
+        }
+
+        // A template saved before MDMS field names existed carries no `fields` map, so every BOM
+        // it seeded would be empty and neither the technician's app nor the PDF could render it.
+        // Caught here, in check(), because this runs before any workflow transition -- the only
+        // point at which refusing is still free.
+        for (Map.Entry<String, Map<String, Object>> entry : templates.entrySet()) {
+            Object version = entry.getValue() == null ? null : entry.getValue().get(KEY_SCHEMA_VERSION);
+            boolean named = version instanceof Number number
+                    && number.intValue() >= TEMPLATE_SCHEMA_VERSION;
+            if (!named) {
+                errors.add(planError("TEMPLATE_NOT_NAMED",
+                        "Solution " + entry.getKey() + "'s IC Report template was saved before "
+                                + "field names existed, so its Bill Of Material cannot be sent to "
+                                + "the installation staff. Re-upload it in the IC Report Template "
+                                + "step before assigning vendors."));
+            }
         }
         if (!errors.isEmpty()) {
             return ValidationOutcome.failed(errors);
@@ -498,7 +532,8 @@ public class VendorAssignmentService {
             assetRows.add(assetRow(criteria, submission, activityFacilityId, activityId,
                     solutionId, scheduledAt, assetStatusById.get(activityFacilityId), now));
             bomRows.add(bomRow(criteria, submission, activityFacilityId, solutionId, assetName,
-                    reportNumbers.get(index), seedBomData(submission, templateData),
+                    reportNumbers.get(index),
+                    seedBomData(submission, templateData, reportNumbers.get(index)),
                     displayNameCache(submission, assetName), now));
 
             // How the task becomes visible: one link row per person per asset, for the assigned
@@ -867,25 +902,78 @@ public class VendorAssignmentService {
     }
 
     /**
-     * Seeds the technician's report from the Project Manager's template, in bom.data's own shape
-     * so it is a copy rather than a transformation. The solar asset gets the whole solar section;
-     * each machine asset gets just its own line item.
+     * Seeds the technician's report from the Project Manager's template as a flat
+     * {fieldName: value} map -- the contract the mobile app posts back to bom/_update and the PDF
+     * generator reads. Names come from MDMS and were assigned at template upload; nothing here
+     * derives one.
+     *
+     * <p>That last point is load-bearing. Of the thirteen published machines forms, nine name
+     * their single machine {@code machine_product} and four name theirs {@code machine_1_*}, so a
+     * rule of "slot N takes machine_N_*" would silently produce an empty BOM for nine Solutions.
+     * Each line item carries its own {@code fieldNames}, and slicing by that is immune to any
+     * naming convention MDMS happens to use.
+     *
+     * <p>A SOLAR asset takes every field except the ones a machine slot owns, plus the technician's
+     * system parameters seeded empty; a MACHINE asset takes only its own slot's four.
      */
     private Map<String, Object> seedBomData(VendorAssignmentSubmission submission,
-                                            Map<String, Object> templateData) {
-        if (COMPONENT_SOLAR.equals(submission.getComponentType())) {
-            return Map.of(KEY_COMPONENTS, repository.readSection(templateData, KEY_SOLAR_SECTION));
-        }
+                                            Map<String, Object> templateData,
+                                            String reportNumber) {
+        Map<String, Object> fields = repository.readMap(templateData, KEY_FIELDS);
         List<Map<String, Object>> machines = repository.readSection(templateData, KEY_MACHINE_SECTION);
-        int position = submission.getComponentSequence() == null ? 0 : submission.getComponentSequence() - 1;
-        if (position < 0 || position >= machines.size()) {
-            // validate() already rejects an asset set that disagrees with the template, so this
-            // is unreachable in practice; an empty component list is a safer fallback than a throw.
-            log.warn("machine sequence {} out of range for facility {}",
-                    submission.getComponentSequence(), submission.getFacilityId());
-            return Map.of(KEY_COMPONENTS, List.of());
+        Map<String, Object> data = new LinkedHashMap<>();
+
+        if (COMPONENT_SOLAR.equals(submission.getComponentType())) {
+            Set<String> machineKeys = new LinkedHashSet<>();
+            machines.forEach(machine -> machineKeys.addAll(slotFieldNames(machine)));
+            fields.forEach((name, value) -> {
+                if (!machineKeys.contains(name)) {
+                    data.put(name, value);
+                }
+            });
+
+            // Present and empty rather than absent, so the row's key set is complete from the
+            // moment it is created: the app's form and the PDF template both see every reading
+            // they will ever need, before anyone has visited the site.
+            for (String name : repository.readStringList(templateData, KEY_FORM_META, KEY_SYSTEM_FIELDS)) {
+                data.putIfAbsent(name, "");
+            }
+        } else {
+            int position = submission.getComponentSequence() == null
+                    ? -1 : submission.getComponentSequence() - 1;
+            if (position < 0 || position >= machines.size()) {
+                // check() rejects an asset set that disagrees with the template, and runs before
+                // any workflow transition, so this is unreachable in practice. Logged rather than
+                // thrown because throwing here would be after transitionPlan(), leaving the plan
+                // PUBLISHED with no rows at all.
+                log.error("machine sequence {} out of range ({} slots) for facility {} - "
+                                + "bom seeded with header fields only",
+                        submission.getComponentSequence(), machines.size(), submission.getFacilityId());
+            } else {
+                for (String name : slotFieldNames(machines.get(position))) {
+                    data.put(name, fields.getOrDefault(name, ""));
+                }
+            }
         }
-        return Map.of(KEY_COMPONENTS, List.of(machines.get(position)));
+
+        // Backend-owned, written last so they win over anything MDMS could declare. The template
+        // upload already refuses a form that names one of these, so this is belt and braces.
+        data.put(FIELD_TENDER_NUMBER, fields.getOrDefault(FIELD_TENDER_NUMBER, ""));
+        data.put(FIELD_PURCHASE_ORDER_NUMBER, fields.getOrDefault(FIELD_PURCHASE_ORDER_NUMBER, ""));
+        data.put(FIELD_REPORT_NUMBER, reportNumber == null ? "" : reportNumber);
+        return data;
+    }
+
+    /** The four field names one line item owns, as recorded on it at template upload. */
+    private List<String> slotFieldNames(Map<String, Object> lineItem) {
+        Map<String, Object> names = repository.readMap(lineItem, KEY_FIELD_NAMES);
+        List<String> out = new ArrayList<>(names.size());
+        names.values().forEach(name -> {
+            if (name != null) {
+                out.add(String.valueOf(name));
+            }
+        });
+        return out;
     }
 
     /**

@@ -28,6 +28,13 @@ public class FieldPlanTemplateService {
     private static final String INVALID_TEMPLATE = "INVALID_FIELD_PLAN_TEMPLATE";
     private static final String INVALID_SEARCH = "INVALID_SEARCH";
 
+    /**
+     * Stamped into template_data so a consumer can tell a named template from a pre-field-name
+     * one. Version 1 is any row written before MDMS field names existed; it carries only the two
+     * section arrays and cannot produce a usable bom.data. Vendor Assignment refuses those.
+     */
+    private static final int TEMPLATE_SCHEMA_VERSION = 2;
+
     private final FieldPlanTemplateRepository repository;
     private final Producer producer;
     private final FieldPlannerConfiguration configuration;
@@ -76,10 +83,17 @@ public class FieldPlanTemplateService {
      */
     private Map<String, Object> buildPersistPayload(FieldPlanTemplate template) {
         Map<String, Object> templateData = new LinkedHashMap<>();
+        // Stamped so Vendor Assignment can refuse a template saved before field names existed,
+        // rather than silently seeding an empty bom.data the mobile app cannot render.
+        templateData.put("schemaVersion", TEMPLATE_SCHEMA_VERSION);
+        templateData.put("fields", template.getFields() == null
+                ? Map.of() : template.getFields());
         templateData.put("machineSection", template.getMachineSection() == null
                 ? List.of() : template.getMachineSection());
         templateData.put("solarSection", template.getSolarSection() == null
                 ? List.of() : template.getSolarSection());
+        templateData.put("formMeta", template.getFormMeta() == null
+                ? Map.of() : template.getFormMeta());
 
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("id", template.getId());
@@ -129,6 +143,13 @@ public class FieldPlanTemplateService {
         if (CollectionUtils.isEmpty(template.getSolarSection())) {
             throw new CustomException(INVALID_TEMPLATE,
                     "solarSection must contain at least one line item");
+        }
+        // Without field names the stored template cannot be turned into a bom.data the mobile
+        // app or the PDF generator can read, and the failure would otherwise surface two stages
+        // later as an empty IC Report. Reject it at the only point that can still say why.
+        if (CollectionUtils.isEmpty(template.getFields())) {
+            throw new CustomException(INVALID_TEMPLATE,
+                    "fields must be present - the template must be saved with its MDMS field names");
         }
     }
 

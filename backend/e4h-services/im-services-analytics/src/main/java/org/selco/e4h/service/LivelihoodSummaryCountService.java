@@ -36,6 +36,13 @@ public class LivelihoodSummaryCountService {
                     tenantId, fromMs, toMs, boundaryPrefixes, LIVELIHOOD_CLOSED_AFTER_DECLINE, "declinereason");
             case VENDOR_DECLINED -> elasticsearchService.countVendorDeclined(tenantId, fromMs, toMs, boundaryPrefixes);
             case SLA_NEARING -> elasticsearchService.countSlaNearing(tenantId, boundaryPrefixes);
+            case RESOLVED -> elasticsearchService.countLastModifiedWithStatus(
+                    tenantId, fromMs, toMs, boundaryPrefixes, RESOLVED, null);
+            // Best-effort proxy: the SLA-snapshot index has no workflow action history, so this counts
+            // tickets currently sitting in OUT_OF_SCOPE_PENDING_VENDOR with a recent lastModifiedTime,
+            // not a precise "reassigned this week" count.
+            case REASSIGNED_AFTER_ESCALATION -> elasticsearchService.countLastModifiedWithStatus(
+                    tenantId, fromMs, toMs, boundaryPrefixes, LIVELIHOOD_OUT_OF_SCOPE_PENDING_VENDOR, null);
             default -> 0;
         };
     }

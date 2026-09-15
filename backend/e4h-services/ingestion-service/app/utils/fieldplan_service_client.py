@@ -234,12 +234,18 @@ class FieldPlanServiceClient:
     def create_field_plan_template(self, request_info: RequestInfo, fieldplan_id: str,
                                    solution_code: str, machine_section: list,
                                    solar_section: list, tender_number: str = None,
-                                   purchase_order_number: str = None):
+                                   purchase_order_number: str = None,
+                                   fields: dict = None, form_meta: dict = None):
         """Save the Project Manager's filled template for one (plan, Solution). Upsert on the
         far side, so a corrected re-upload replaces rather than duplicates.
 
         machine_section order is load-bearing: Vendor Assignment turns entry N into the MACHINE
         asset with component_sequence N, so it must be sent in the order it was parsed.
+
+        `fields` is the same data as a flat {fieldName: value} map, keyed by the names MDMS
+        declares. It is what Vendor Assignment slices into each asset's bom.data, and field-planner
+        rejects a template without it -- an unnamed template cannot produce a BOM the mobile app
+        or the PDF generator can read.
         """
         url = f"{self.fieldPlan_service_url}/field-planner/v1/field-plan-templates/_create"
         payload = {
@@ -252,11 +258,14 @@ class FieldPlanServiceClient:
                 "solarSection": solar_section,
                 "tenderNumber": tender_number,
                 "purchaseOrderNumber": purchase_order_number,
+                "fields": fields or {},
+                "formMeta": form_meta or {},
             },
         }
         logger.info(
             f"Saving field plan template: fieldplan={fieldplan_id} solution={solution_code} "
-            f"({len(machine_section)} machine, {len(solar_section)} solar line items)")
+            f"({len(machine_section)} machine, {len(solar_section)} solar line items, "
+            f"{len(fields or {})} named fields)")
         response = requests.post(url, headers={"Content-Type": "application/json"}, json=payload)
         if response.status_code >= 400:
             # field-planner puts the reason in the body; raise_for_status alone would report
