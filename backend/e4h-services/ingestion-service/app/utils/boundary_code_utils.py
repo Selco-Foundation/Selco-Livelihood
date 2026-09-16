@@ -8,10 +8,13 @@ def normalize_boundary_segment(text: str) -> str:
     Normalize a single hierarchy cell into a boundary code segment.
 
     User input is accepted in any casing. Output is ALL CAPS with multi-word values
-    joined without separator (e.g. ``New Delhi`` → ``NEWDELHI``).
+    joined by ``/`` (e.g. ``New Delhi`` → ``NEW/DELHI``), so the original words can be
+    recovered later by splitting on ``/``.
 
-    Spaces, underscores, and slashes are removed during normalization.
-    Hierarchy levels are joined with ``_``.
+    Spaces, underscores, and hyphens are treated as word separators and are replaced
+    by ``/`` during normalization. Hierarchy levels are joined with ``_``, which never
+    appears within a segment, so a full code can be unambiguously split on ``_`` first
+    and then on ``/``.
     """
     if not text or not str(text).strip():
         return ""
@@ -19,7 +22,7 @@ def normalize_boundary_segment(text: str) -> str:
     cleaned = re.sub(r"[_\-/]+", " ", str(text).strip())
     cleaned = re.sub(r"\s+", " ", cleaned)
     parts = [part.upper() for part in cleaned.split(" ") if part]
-    return "".join(parts)
+    return "/".join(parts)
 
 
 def preserve_boundary_label(cell: Any) -> str:
