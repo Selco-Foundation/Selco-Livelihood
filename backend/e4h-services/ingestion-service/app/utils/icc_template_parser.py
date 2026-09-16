@@ -29,6 +29,18 @@ SECTION_SOLAR = "bill of material"
 SECTION_MACHINE = "associated machines"
 SECTION_TECHNICIAN = "system functionality parameters"
 
+# Quantity is blank-allowed by design (see _validate_quantity) because most line items' counts
+# depend on the site. These do not. A system without a panel, a battery or a power-conversion
+# unit is not an installation, so their counts are known when the template is filled, not on
+# site. "Charge Controller" is the same slot as "Inverter / PCU" -- 13 Solutions name it the
+# latter, 202526PASF0000141 names it the former, and no Solution carries both.
+QUANTITY_REQUIRED_CATEGORIES = frozenset({
+    "Solar Panel",
+    "Battery",
+    "Inverter / PCU",
+    "Charge Controller",
+})
+
 # Column positions within the BOM sections, 1-based.
 COL_SL_NO = 1
 COL_PRODUCT = 2
@@ -198,6 +210,12 @@ def validate_line_items(parsed: ParsedTemplate) -> Tuple[Dict[int, List[str]], L
         quantity_error = _validate_quantity(item.quantity)
         if quantity_error:
             add(item.row, quantity_error)
+        # The blank-allowed default does not extend to the components that define the system.
+        # Zero and negatives are already rejected above, so only blank is left to catch.
+        if (item.section == "solar"
+                and item.category in QUANTITY_REQUIRED_CATEGORIES
+                and _text(item.quantity) == ""):
+            add(item.row, f"Quantity is required for {item.category} and must be at least 1")
         # A line item with no category above it means rows were inserted before the first
         # category header, which would silently lose the item's grouping.
         if item.section == "solar" and not item.category:
