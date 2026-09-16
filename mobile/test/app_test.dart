@@ -1160,6 +1160,28 @@ void main() {
         findsOneWidget);
   });
 
+  testWidgets('Home My Reports cards are silent no-ops', (tester) async {
+    setMobileViewport(tester, const Size(390, 844));
+    await pumpAuthenticatedRoute(tester, const HomeRoute());
+
+    for (final key in <String>[
+      'assigned-report-card',
+      'pending-approval-report-card',
+      'approved-report-card',
+      'resubmission-report-card',
+    ]) {
+      final card = find.byKey(ValueKey(key));
+      await tester.ensureVisible(card);
+      await tester.tap(card);
+      await tester.pump();
+
+      expect(find.byType(HomePage), findsOneWidget);
+      expect(find.byType(PendingApprovalPage), findsNothing);
+      expect(find.byType(SnackBar), findsNothing);
+      expect(find.text(tr(i18.home.homeActionNotConnected)), findsNothing);
+    }
+  });
+
   testWidgets('drawer is shared by nested routes and Home resets navigation', (
     tester,
   ) async {

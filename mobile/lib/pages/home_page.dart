@@ -97,7 +97,7 @@ class HomePage extends StatelessWidget {
                           ),
                           label: context.translate(i18.home.assigned),
                           contentColor: const DigitColors().light.primary1,
-                          onPressed: () => _showPlaceholder(context),
+                          onPressed: () {},
                         ),
                         HomeItemCard(
                           key: const ValueKey('pending-approval-report-card'),
@@ -108,8 +108,7 @@ class HomePage extends StatelessWidget {
                           ),
                           label: context.translate(i18.home.pendingApproval),
                           contentColor: const DigitColors().light.primary2,
-                          onPressed: () =>
-                              context.router.push(const PendingApprovalRoute()),
+                          onPressed: () {},
                         ),
                         HomeItemCard(
                           key: const ValueKey('approved-report-card'),
@@ -120,7 +119,7 @@ class HomePage extends StatelessWidget {
                           label: context.translate(i18.home.approved),
                           contentColor: const DigitColors().light.alertSuccess,
                           accentColor: const DigitColors().light.alertSuccess,
-                          onPressed: () => _showPlaceholder(context),
+                          onPressed: () {},
                         ),
                         HomeItemCard(
                           key: const ValueKey('resubmission-report-card'),
@@ -136,7 +135,7 @@ class HomePage extends StatelessWidget {
                             horizontal: spacer2,
                           ),
                           scaleLabelToFit: true,
-                          onPressed: () => _showPlaceholder(context),
+                          onPressed: () {},
                         ),
                       ],
                     ),
