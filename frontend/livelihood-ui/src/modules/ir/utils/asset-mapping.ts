@@ -12,17 +12,18 @@ import type {
 
 const BLANK = "-";
 const SOLAR_ASSET_TYPE_IDS: SolarSectionId[] = ["PANEL", "BATTERY", "INVERTER"];
-// Per-item asset photos are tagged `ASSET_PHOTO-<lowercase assetTypeId>` (e.g.
-// `ASSET_PHOTO-panel`) — verified against a real asset-registry response;
-// matched by prefix since the exact suffix is redundant with the asset's own
-// assetTypeID. Exported so hooks/use-facility-review.ts's fileStoreId
-// collection uses the same check as this file's own item-image filter.
-export const ASSET_PHOTO_DOCUMENT_TYPE_PREFIX = "ASSET_PHOTO";
+// Every per-item asset photo (Solar's Panel/Battery/Inverter and Machine's
+// own item photos) is tagged with the exact documentType `ASSET` — verified
+// against a real asset-registry response; the asset's own assetTypeID (not
+// documentType) is what distinguishes which physical unit a photo belongs
+// to. Exported so hooks/use-facility-review.ts's fileStoreId collection uses
+// the same check as this file's own item-image filter.
+export const ASSET_PHOTO_DOCUMENT_TYPE = "ASSET";
 
 const MACHINE_MEDIA_DOCUMENT_TYPE_IDS = new Set<string>(MACHINE_MEDIA_GROUPS.map((group) => group.id));
 
 /** Every asset-registry document type this module resolves to a filestore
- * URL — Solar's per-item photos (`ASSET_PHOTO-*`) and Machine's four media
+ * URL — Solar's/Machine's per-item photos (`ASSET`) and Machine's four media
  * groups (`MACHINE_ELECTRIC_BOARD` etc). Exported so
  * hooks/use-facility-review.ts's fileStoreId collection requests exactly
  * what buildSolarAssetSections/buildMachineAssetData actually consume —
@@ -32,7 +33,7 @@ export function isResolvableAssetDocument(documentType: string | undefined): boo
   if (!type) {
     return false;
   }
-  return type.startsWith(ASSET_PHOTO_DOCUMENT_TYPE_PREFIX) || MACHINE_MEDIA_DOCUMENT_TYPE_IDS.has(type);
+  return type === ASSET_PHOTO_DOCUMENT_TYPE || MACHINE_MEDIA_DOCUMENT_TYPE_IDS.has(type);
 }
 
 /** `assetDetails` uses one generic shape across every asset type — verified
@@ -82,7 +83,7 @@ function assetPhotoImages(
   imageUrlByFileStoreId: Map<string, string>,
 ): SectionImage[] {
   return (documents ?? [])
-    .filter((document) => document.documentType?.toUpperCase().startsWith(ASSET_PHOTO_DOCUMENT_TYPE_PREFIX))
+    .filter((document) => document.documentType?.toUpperCase() === ASSET_PHOTO_DOCUMENT_TYPE)
     .map((document) => (document.fileStore ? imageUrlByFileStoreId.get(document.fileStore) : undefined))
     .filter((url): url is string => Boolean(url))
     .map((url) => ({ url }));
