@@ -12,6 +12,9 @@ _$ActivityFacilityWorkflowImpl _$$ActivityFacilityWorkflowImplFromJson(
       activityFacility: ActivityFacility.fromJson(
           json['activityFacility'] as Map<String, dynamic>),
       status: json['status'] as String?,
+      transactions: (json['transactions'] as List<dynamic>?)
+          ?.map((e) => WorkflowTransaction.fromJson(e as Map<String, dynamic>))
+          .toList(),
       workflow: const WorkflowFlexConverter().fromJson(json['workflow']),
     );
 
@@ -20,6 +23,7 @@ Map<String, dynamic> _$$ActivityFacilityWorkflowImplToJson(
     <String, dynamic>{
       'activityFacility': instance.activityFacility,
       'status': instance.status,
+      'transactions': instance.transactions,
       'workflow': const WorkflowFlexConverter().toJson(instance.workflow),
     };
 

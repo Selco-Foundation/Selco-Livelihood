@@ -3,16 +3,28 @@ import 'dart:async';
 import '../model/activity_facility_workflow/activity_facility_workflow.dart';
 import '../model/bom/bom.dart';
 import '../model/solar_installation_draft.dart';
+import '../utils/warranty.dart';
 import 'asset_mdms_repository.dart';
 import 'asset_repository.dart';
 import 'bom_repository.dart';
 import 'installation_cache_repo.dart';
 
 class InstallationDraftRepository {
-  InstallationDraftRepository({AssetMdmsRepository? mdmsRepository})
-      : _mdmsRepository = mdmsRepository ?? assetMdmsRepository;
+  InstallationDraftRepository({
+    AssetMdmsRepository? mdmsRepository,
+    Future<List<BillOfMaterial>> Function(String id)? bomSearch,
+    Future<List<Map<String, dynamic>>> Function(String id)? assetSearch,
+    Future<dynamic> Function(String id)? localDraft,
+  })  : _mdmsRepository = mdmsRepository ?? assetMdmsRepository,
+        _bomSearch = bomSearch ?? bomRepository.search,
+        _assetSearch = assetSearch ?? assetRepository.search,
+        _localDraft = localDraft ??
+            ((id) => installationCacheRepository.getJson('solar-draft', id));
 
   final AssetMdmsRepository _mdmsRepository;
+  final Future<List<BillOfMaterial>> Function(String id) _bomSearch;
+  final Future<List<Map<String, dynamic>>> Function(String id) _assetSearch;
+  final Future<dynamic> Function(String id) _localDraft;
 
   Future<SolarInstallationDraft> loadSolar(
     ActivityFacilityWorkflow workflow,
@@ -50,7 +62,6 @@ class InstallationDraftRepository {
       draft.remoteBomName = embedded.name;
       draft.remoteBomAdditionalDetails = embedded.additionalDetails;
       draft.backendDocuments.addAll(embedded.documents);
-      _hydrateDocuments(draft, embedded.documents);
     }
     _configureFromBom(draft);
     _hydrateComponent(draft, SolarAssetType.battery, details?.battery);
@@ -58,11 +69,8 @@ class InstallationDraftRepository {
     _hydrateComponent(draft, SolarAssetType.panel, details?.panel);
     draft.backendDocuments.addAll(details?.documents ?? const []);
     draft.backendDocuments.addAll(workflow.workflow?.documents ?? const []);
-    _hydrateDocuments(draft, details?.documents ?? const []);
     _hydrateDocuments(draft, workflow.workflow?.documents ?? const []);
-    if (workflow.workflow?.comment?.trim().isNotEmpty == true) {
-      draft.rejectionReasons.add(workflow.workflow!.comment!.trim());
-    }
+    draft.rejectionComments.addAll(workflow.latestTransactionComments);
     return draft;
   }
 
@@ -95,7 +103,7 @@ class InstallationDraftRepository {
 
   Future<List<BillOfMaterial>> _safeBomSearch(String id) async {
     try {
-      return await bomRepository.search(id);
+      return await _bomSearch(id);
     } catch (_) {
       return const [];
     }
@@ -103,7 +111,7 @@ class InstallationDraftRepository {
 
   Future<List<Map<String, dynamic>>> _safeAssetSearch(String id) async {
     try {
-      return await assetRepository.search(id);
+      return await _assetSearch(id);
     } catch (_) {
       return const [];
     }
@@ -111,7 +119,7 @@ class InstallationDraftRepository {
 
   Future<dynamic> _safeLocalDraft(String id) async {
     try {
-      return await installationCacheRepository.getJson('solar-draft', id);
+      return await _localDraft(id);
     } catch (_) {
       return null;
     }
@@ -127,6 +135,7 @@ class InstallationDraftRepository {
       }
     }
     final grouped = <SolarAssetType, List<SolarAssetEntry>>{};
+    final warranties = <SolarAssetType, String>{};
     for (final value in values) {
       final rawType = (value['assetTypeID'] ??
               value['assetTypeCode'] ??
@@ -135,6 +144,14 @@ class InstallationDraftRepository {
           .toString();
       final type = _solarType(rawType, rawType);
       if (type == null) continue;
+      final firstForType = grouped[type]?.isNotEmpty != true;
+      if (firstForType) {
+        final warranty = _normalizeWarranty(
+          draft.warrantiesFor(type),
+          value['warrantyDuration'] ?? value['warrantyDurationYears'],
+        );
+        if (warranty != null) warranties[type] = warranty;
+      }
       final details = value['assetDetails'] is Map
           ? Map<String, dynamic>.from(value['assetDetails'] as Map)
           : const <String, dynamic>{};
@@ -168,10 +185,27 @@ class InstallationDraftRepository {
     }
     for (final entry in grouped.entries) {
       draft.setCount(entry.key, entry.value.length);
-      draft.assets[entry.key]!.assets
+      final target = draft.assets[entry.key]!;
+      target.assets
         ..clear()
         ..addAll(entry.value);
+      final warranty = warranties[entry.key];
+      if (warranty != null) target.warrantyDuration = warranty;
     }
+  }
+
+  String? _normalizeWarranty(List<String> options, Object? rawValue) {
+    final value = rawValue?.toString().trim() ?? '';
+    if (value.isEmpty) return null;
+    final exact = options
+        .where((option) => option.trim().toLowerCase() == value.toLowerCase())
+        .firstOrNull;
+    if (exact != null) return exact;
+    final years = parseWarrantyYears(value);
+    if (years <= 0) return null;
+    return options
+        .where((option) => parseWarrantyYears(option) == years)
+        .firstOrNull;
   }
 
   Future<void> saveSolar(SolarInstallationDraft draft) async {
@@ -338,7 +372,6 @@ class InstallationDraftRepository {
         }
       }
       draft.backendDocuments.addAll(bom.documents);
-      _hydrateDocuments(draft, bom.documents);
     }
   }
 
@@ -411,16 +444,47 @@ class InstallationDraftRepository {
         final bucket = assetMediaMatch.group(2) == 'video'
             ? draft.assets[assetType]!.videos
             : draft.assets[assetType]!.images;
-        if (!bucket.any((item) => item.remoteId == remoteId)) bucket.add(media);
+        _mergeFiles(bucket, [media]);
       } else if (type.startsWith('INSTALLATION_IMAGE-')) {
         final code = type.substring('INSTALLATION_IMAGE-'.length);
         final target = draft.installationMedia.putIfAbsent(code, () => []);
-        if (!target.any((item) => item.remoteId == remoteId)) target.add(media);
-      } else if (!draft.completionReportFiles
-          .any((item) => item.remoteId == remoteId)) {
-        draft.completionReportFiles.add(media);
+        _mergeFiles(target, [media]);
+      } else {
+        _mergeFiles(draft.completionReportFiles, [media]);
       }
     }
+  }
+
+  void _mergeFiles(List<SolarFileRef> target, Iterable<SolarFileRef> incoming) {
+    for (final file in incoming) {
+      if (!target.any((existing) => _sameFile(existing, file))) {
+        target.add(file);
+      }
+    }
+  }
+
+  bool _sameFile(SolarFileRef left, SolarFileRef right) {
+    final leftKeys = <String>{
+      if (left.id?.trim().isNotEmpty == true) 'id:${left.id!.trim()}',
+      if (left.documentUid?.trim().isNotEmpty == true)
+        'uid:${left.documentUid!.trim()}',
+      if (left.remoteId?.trim().isNotEmpty == true)
+        'remote:${left.remoteId!.trim()}',
+      if (left.localPath?.trim().isNotEmpty == true)
+        'local:${left.localPath!.trim()}',
+      if (left.path.trim().isNotEmpty) 'path:${left.path.trim()}',
+    };
+    final rightKeys = <String>{
+      if (right.id?.trim().isNotEmpty == true) 'id:${right.id!.trim()}',
+      if (right.documentUid?.trim().isNotEmpty == true)
+        'uid:${right.documentUid!.trim()}',
+      if (right.remoteId?.trim().isNotEmpty == true)
+        'remote:${right.remoteId!.trim()}',
+      if (right.localPath?.trim().isNotEmpty == true)
+        'local:${right.localPath!.trim()}',
+      if (right.path.trim().isNotEmpty) 'path:${right.path.trim()}',
+    };
+    return leftKeys.intersection(rightKeys).isNotEmpty;
   }
 
   void _hydrateLocal(SolarInstallationDraft draft, Map<String, dynamic> json) {
@@ -443,8 +507,13 @@ class InstallationDraftRepository {
             value['totalCapacity']?.toString() ?? target.totalCapacity;
         target.capacityUnit =
             value['capacityUnit']?.toString() ?? target.capacityUnit;
-        target.warrantyDuration =
-            value['warrantyDuration']?.toString() ?? target.warrantyDuration;
+        final cachedWarranty = _normalizeWarranty(
+          draft.warrantiesFor(type),
+          value['warrantyDuration'],
+        );
+        if (cachedWarranty != null) {
+          target.warrantyDuration = cachedWarranty;
+        }
         target.selectedBrandCode =
             value['selectedBrandCode']?.toString() ?? target.selectedBrandCode;
         final entries = value['entries'];
@@ -490,12 +559,8 @@ class InstallationDraftRepository {
         } else {
           draft.reconcileEntries(type);
         }
-        target.images
-          ..clear()
-          ..addAll(_files(value['images']));
-        target.videos
-          ..clear()
-          ..addAll(_files(value['videos']));
+        _mergeFiles(target.images, _files(value['images']));
+        _mergeFiles(target.videos, _files(value['videos']));
       }
     }
     if (json['dynamicFormAnswers'] is Map) {
@@ -510,12 +575,15 @@ class InstallationDraftRepository {
       draft.mergedBom
           .addAll(Map<String, dynamic>.from(json['mergedBom'] as Map));
     }
-    draft.completionReportFiles
-      ..clear()
-      ..addAll(_files(json['completionReportFiles']));
+    _mergeFiles(
+      draft.completionReportFiles,
+      _files(json['completionReportFiles']),
+    );
     if (json['installationMedia'] is Map) {
       for (final entry in (json['installationMedia'] as Map).entries) {
-        draft.installationMedia[entry.key.toString()] = _files(entry.value);
+        final target = draft.installationMedia
+            .putIfAbsent(entry.key.toString(), () => <SolarFileRef>[]);
+        _mergeFiles(target, _files(entry.value));
       }
     }
     draft.syncCountsToBom();

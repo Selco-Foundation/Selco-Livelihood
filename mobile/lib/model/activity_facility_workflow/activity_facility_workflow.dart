@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../activity_facility/activity_facility.dart';
@@ -13,11 +15,101 @@ class ActivityFacilityWorkflow with _$ActivityFacilityWorkflow {
   const factory ActivityFacilityWorkflow({
     required ActivityFacility activityFacility,
     String? status,
+    List<WorkflowTransaction>? transactions,
     @WorkflowFlexConverter() Workflow? workflow,
   }) = _ActivityFacilityWorkflow;
 
   factory ActivityFacilityWorkflow.fromJson(Map<String, dynamic> json) =>
       _$ActivityFacilityWorkflowFromJson(json);
+}
+
+class WorkflowTransaction {
+  const WorkflowTransaction({
+    this.transactionId,
+    this.processInstanceId,
+    this.activityFacilityId,
+    this.comments = const [],
+  });
+
+  final String? transactionId;
+  final String? processInstanceId;
+  final String? activityFacilityId;
+  final List<WorkflowComment> comments;
+
+  factory WorkflowTransaction.fromJson(Map<String, dynamic> json) =>
+      WorkflowTransaction(
+        transactionId: json['transactionId']?.toString(),
+        processInstanceId: json['processInstanceId']?.toString(),
+        activityFacilityId: json['activityFacilityId']?.toString(),
+        comments: (json['comments'] as List<dynamic>? ?? const [])
+            .whereType<Map>()
+            .map((item) =>
+                WorkflowComment.fromJson(Map<String, dynamic>.from(item)))
+            .toList(),
+      );
+
+  Map<String, dynamic> toJson() => {
+        if (transactionId != null) 'transactionId': transactionId,
+        if (processInstanceId != null) 'processInstanceId': processInstanceId,
+        if (activityFacilityId != null)
+          'activityFacilityId': activityFacilityId,
+        'comments': comments.map((comment) => comment.toJson()).toList(),
+      };
+}
+
+class WorkflowComment {
+  const WorkflowComment({
+    this.commentId,
+    this.commentMessage,
+    this.assetType,
+    this.transactionId,
+  });
+
+  final String? commentId;
+  final String? commentMessage;
+  final String? assetType;
+  final String? transactionId;
+
+  Map<String, dynamic>? get parsedMessage {
+    final raw = commentMessage?.trim();
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      return decoded is Map ? Map<String, dynamic>.from(decoded) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? get reason => parsedMessage?['reason']?.toString().trim();
+  String? get reasonCode => parsedMessage?['reasonCode']?.toString().trim();
+  String? get sectionLabel => parsedMessage?['sectionLabel']?.toString().trim();
+  String get details => parsedMessage?['comment']?.toString().trim() ?? '';
+
+  factory WorkflowComment.fromJson(Map<String, dynamic> json) =>
+      WorkflowComment(
+        commentId: json['commentId']?.toString(),
+        commentMessage: json['commentMessage']?.toString(),
+        assetType: json['assetType']?.toString(),
+        transactionId: json['transactionId']?.toString(),
+      );
+
+  Map<String, dynamic> toJson() => {
+        if (commentId != null) 'commentId': commentId,
+        if (commentMessage != null) 'commentMessage': commentMessage,
+        if (assetType != null) 'assetType': assetType,
+        if (transactionId != null) 'transactionId': transactionId,
+      };
+}
+
+extension ActivityFacilityWorkflowTransactions on ActivityFacilityWorkflow {
+  List<WorkflowComment> get latestTransactionComments {
+    for (final transaction
+        in (transactions ?? const <WorkflowTransaction>[]).reversed) {
+      if (transaction.comments.isNotEmpty) return transaction.comments;
+    }
+    return const [];
+  }
 }
 
 @freezed

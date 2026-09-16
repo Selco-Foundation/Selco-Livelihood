@@ -103,7 +103,10 @@ class AssetMdmsRepository {
   List<Warranty> warrantiesFor(String assetTypeCode) =>
       _memory?.assetRegistry?.warrantyDurationSchema
           .expand((wrapper) => wrapper.warrantyDuration)
-          .where((item) => item.active && item.assetTypeCode == assetTypeCode)
+          .where((item) =>
+              item.active &&
+              item.assetTypeCode.trim().toUpperCase() ==
+                  assetTypeCode.trim().toUpperCase())
           .toList() ??
       const [];
 

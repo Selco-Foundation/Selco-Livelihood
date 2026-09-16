@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:digit_forms_engine/models/schema_object/schema_object.dart';
@@ -1453,6 +1454,242 @@ void main() {
             ?.map((file) => file.remoteId),
         contains('roof-filestore'));
     expect(reopenedDraft.installationMedia['roof'], isNull);
+  });
+
+  test('workflow transactions retain and route structured rejection comments',
+      () {
+    final workflow = ActivityFacilityWorkflow.fromJson({
+      'activityFacility': {
+        'id': 'activity-facility-1',
+        'facilityId': 'facility-1',
+      },
+      'transactions': [
+        {
+          'transactionId': 'older',
+          'comments': [
+            {
+              'commentMessage': '{"reasonCode":"OLD_REASON","comment":"Old"}',
+              'assetType': 'PANEL',
+            },
+          ],
+        },
+        {
+          'transactionId': 'latest',
+          'comments': [
+            {
+              'commentMessage':
+                  '{"reasonCode":"IMAGE_NOT_CLEAR","comment":"Testing","sectionLabel":"PANEL"}',
+              'assetType': 'PANEL',
+            },
+            {
+              'commentMessage':
+                  '{"reason":"Wrong angle","comment":"Retake","sectionLabel":"Roof"}',
+              'assetType': 'INSTALLATION_IMAGE_ROOF',
+            },
+            {
+              'commentMessage':
+                  '{"reason":"Incorrect report","comment":"Replace it","sectionLabel":"Completion Report"}',
+              'assetType': 'INSTALLATION_COMPLETION_REPORT',
+            },
+          ],
+        },
+      ],
+    });
+
+    final draft = InstallationDraftRepository().createSolar(
+      workflow,
+      SolarWorkflowMode.resubmission,
+    );
+    expect(workflow.latestTransactionComments, hasLength(3));
+    expect(draft.rejectionCommentsFor(SolarAssetType.panel).single.reasonCode,
+        'IMAGE_NOT_CLEAR');
+    expect(draft.rejectionCommentsFor(SolarAssetType.panel).single.details,
+        'Testing');
+    expect(draft.installationRejectionComments('roof').single.reason,
+        'Wrong angle');
+    expect(
+        draft.otherRejectionComments.single.sectionLabel, 'Completion Report');
+
+    final restored = ActivityFacilityWorkflow.fromJson(
+      jsonDecode(jsonEncode(workflow)) as Map<String, dynamic>,
+    );
+    expect(restored.latestTransactionComments, hasLength(3));
+  });
+
+  test(
+      'Solar hydration maps numeric server warranty to the MDMS option and '
+      'does not let an empty cache erase it', () async {
+    const mdms = AssetRegistryMdmsResponse(
+      assetRegistry: AssetRegistryModule(
+        warrantyDurationSchema: [
+          WarrantyData(
+            id: 1,
+            warrantyDuration: [
+              Warranty(
+                active: true,
+                duration: '5',
+                format: 'Years',
+                assetTypeCode: 'panel',
+              ),
+              Warranty(
+                active: true,
+                duration: '10',
+                format: 'Years',
+                assetTypeCode: 'panel',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'activity-facility-1',
+        facilityId: 'facility-1',
+      ),
+    );
+    final repository = InstallationDraftRepository(
+      mdmsRepository: AssetMdmsRepository(initial: mdms),
+      bomSearch: (_) async => const [],
+      assetSearch: (_) async => [
+        {
+          'assetId': 'panel-1',
+          'assetTypeID': 'PANEL',
+          'warrantyDuration': 10,
+          'serialNumber': 'SERIAL-1',
+          'itemCode': 'PANEL-ITEM',
+          'assetDetails': {'capacity': '20'},
+          'documents': const [],
+        },
+      ],
+      localDraft: (_) async => {
+        'assets': {
+          'panel': {'warrantyDuration': ''},
+        },
+      },
+    );
+    final draft = repository.createSolar(
+      workflow,
+      SolarWorkflowMode.resubmission,
+    );
+
+    await repository.hydrateSolar(draft);
+
+    expect(draft.warrantiesFor(SolarAssetType.panel), ['5 Years', '10 Years']);
+    expect(draft.assets[SolarAssetType.panel]!.warrantyDuration, '10 Years');
+
+    final cachedRepository = InstallationDraftRepository(
+      mdmsRepository: AssetMdmsRepository(initial: mdms),
+      bomSearch: (_) async => const [],
+      assetSearch: (_) async => [
+        {
+          'assetTypeID': 'PANEL',
+          'warrantyDuration': 10,
+          'assetDetails': {'capacity': '20'},
+        },
+      ],
+      localDraft: (_) async => {
+        'assets': {
+          'panel': {'warrantyDuration': '5 Years'},
+        },
+      },
+    );
+    final cachedDraft = cachedRepository.createSolar(
+      workflow,
+      SolarWorkflowMode.resubmission,
+    );
+    await cachedRepository.hydrateSolar(cachedDraft);
+    expect(
+        cachedDraft.assets[SolarAssetType.panel]!.warrantyDuration, '5 Years');
+  });
+
+  test(
+      'Solar cache media merges with current workflow documents and '
+      'workflow history is not used as a fallback', () async {
+    final workflow = ActivityFacilityWorkflow.fromJson({
+      'activityFacility': {
+        'id': 'activity-facility-1',
+        'facilityId': 'facility-1',
+      },
+      'workflow': [
+        {
+          'documents': [
+            {
+              'id': 'panel-image-id',
+              'documentType': 'panel-image',
+              'fileStoreId': 'panel-image-store',
+              'documentUid': 'PANEL-IMAGE-1',
+            },
+            {
+              'documentType': 'panel-video',
+              'fileStoreId': 'panel-video-store',
+            },
+            {
+              'documentType': 'INSTALLATION_IMAGE-roof',
+              'fileStoreId': 'roof-store',
+            },
+            {
+              'documentType': 'INSTALLATION_COMPLETION_REPORT',
+              'fileStoreId': 'report-store',
+            },
+          ],
+        },
+        {
+          'documents': [
+            {
+              'documentType': 'battery-image',
+              'fileStoreId': 'old-history-store',
+            },
+          ],
+        },
+      ],
+    });
+    final repository = InstallationDraftRepository(
+      mdmsRepository:
+          AssetMdmsRepository(initial: const AssetRegistryMdmsResponse()),
+      bomSearch: (_) async => const [],
+      assetSearch: (_) async => const [],
+      localDraft: (_) async => {
+        'assets': {
+          'panel': {
+            'images': [
+              {
+                'name': 'same-image.jpg',
+                'path': 'different-path',
+                'kind': 'image',
+                'documentUid': 'PANEL-IMAGE-1',
+              },
+              {
+                'name': 'local-image.jpg',
+                'path': '/local/image.jpg',
+                'localPath': '/local/image.jpg',
+                'kind': 'image',
+              },
+            ],
+            'videos': const [],
+          },
+        },
+        'completionReportFiles': const [],
+        'installationMedia': {'roof': const []},
+      },
+    );
+    final draft = repository.createSolar(
+      workflow,
+      SolarWorkflowMode.resubmission,
+    );
+
+    await repository.hydrateSolar(draft);
+
+    expect(draft.assets[SolarAssetType.panel]!.images, hasLength(2));
+    expect(
+      draft.assets[SolarAssetType.panel]!.images.map((file) => file.remoteId),
+      contains('panel-image-store'),
+    );
+    expect(draft.assets[SolarAssetType.panel]!.videos.single.remoteId,
+        'panel-video-store');
+    expect(draft.installationMedia['roof']!.single.remoteId, 'roof-store');
+    expect(draft.completionReportFiles.single.remoteId, 'report-store');
+    expect(draft.assets[SolarAssetType.battery]!.images, isEmpty);
   });
 
   test('BOM matching never selects Machine or split-page rows for Solar', () {

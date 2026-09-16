@@ -23,6 +23,8 @@ ActivityFacilityWorkflow _$ActivityFacilityWorkflowFromJson(
 mixin _$ActivityFacilityWorkflow {
   ActivityFacility get activityFacility => throw _privateConstructorUsedError;
   String? get status => throw _privateConstructorUsedError;
+  List<WorkflowTransaction>? get transactions =>
+      throw _privateConstructorUsedError;
   @WorkflowFlexConverter()
   Workflow? get workflow => throw _privateConstructorUsedError;
 
@@ -41,6 +43,7 @@ abstract class $ActivityFacilityWorkflowCopyWith<$Res> {
   $Res call(
       {ActivityFacility activityFacility,
       String? status,
+      List<WorkflowTransaction>? transactions,
       @WorkflowFlexConverter() Workflow? workflow});
 
   $ActivityFacilityCopyWith<$Res> get activityFacility;
@@ -63,6 +66,7 @@ class _$ActivityFacilityWorkflowCopyWithImpl<$Res,
   $Res call({
     Object? activityFacility = null,
     Object? status = freezed,
+    Object? transactions = freezed,
     Object? workflow = freezed,
   }) {
     return _then(_value.copyWith(
@@ -74,6 +78,10 @@ class _$ActivityFacilityWorkflowCopyWithImpl<$Res,
           ? _value.status
           : status // ignore: cast_nullable_to_non_nullable
               as String?,
+      transactions: freezed == transactions
+          ? _value.transactions
+          : transactions // ignore: cast_nullable_to_non_nullable
+              as List<WorkflowTransaction>?,
       workflow: freezed == workflow
           ? _value.workflow
           : workflow // ignore: cast_nullable_to_non_nullable
@@ -114,6 +122,7 @@ abstract class _$$ActivityFacilityWorkflowImplCopyWith<$Res>
   $Res call(
       {ActivityFacility activityFacility,
       String? status,
+      List<WorkflowTransaction>? transactions,
       @WorkflowFlexConverter() Workflow? workflow});
 
   @override
@@ -137,6 +146,7 @@ class __$$ActivityFacilityWorkflowImplCopyWithImpl<$Res>
   $Res call({
     Object? activityFacility = null,
     Object? status = freezed,
+    Object? transactions = freezed,
     Object? workflow = freezed,
   }) {
     return _then(_$ActivityFacilityWorkflowImpl(
@@ -148,6 +158,10 @@ class __$$ActivityFacilityWorkflowImplCopyWithImpl<$Res>
           ? _value.status
           : status // ignore: cast_nullable_to_non_nullable
               as String?,
+      transactions: freezed == transactions
+          ? _value._transactions
+          : transactions // ignore: cast_nullable_to_non_nullable
+              as List<WorkflowTransaction>?,
       workflow: freezed == workflow
           ? _value.workflow
           : workflow // ignore: cast_nullable_to_non_nullable
@@ -162,7 +176,9 @@ class _$ActivityFacilityWorkflowImpl implements _ActivityFacilityWorkflow {
   const _$ActivityFacilityWorkflowImpl(
       {required this.activityFacility,
       this.status,
-      @WorkflowFlexConverter() this.workflow});
+      final List<WorkflowTransaction>? transactions,
+      @WorkflowFlexConverter() this.workflow})
+      : _transactions = transactions;
 
   factory _$ActivityFacilityWorkflowImpl.fromJson(Map<String, dynamic> json) =>
       _$$ActivityFacilityWorkflowImplFromJson(json);
@@ -171,13 +187,23 @@ class _$ActivityFacilityWorkflowImpl implements _ActivityFacilityWorkflow {
   final ActivityFacility activityFacility;
   @override
   final String? status;
+  final List<WorkflowTransaction>? _transactions;
+  @override
+  List<WorkflowTransaction>? get transactions {
+    final value = _transactions;
+    if (value == null) return null;
+    if (_transactions is EqualUnmodifiableListView) return _transactions;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
   @override
   @WorkflowFlexConverter()
   final Workflow? workflow;
 
   @override
   String toString() {
-    return 'ActivityFacilityWorkflow(activityFacility: $activityFacility, status: $status, workflow: $workflow)';
+    return 'ActivityFacilityWorkflow(activityFacility: $activityFacility, status: $status, transactions: $transactions, workflow: $workflow)';
   }
 
   @override
@@ -188,14 +214,16 @@ class _$ActivityFacilityWorkflowImpl implements _ActivityFacilityWorkflow {
             (identical(other.activityFacility, activityFacility) ||
                 other.activityFacility == activityFacility) &&
             (identical(other.status, status) || other.status == status) &&
+            const DeepCollectionEquality()
+                .equals(other._transactions, _transactions) &&
             (identical(other.workflow, workflow) ||
                 other.workflow == workflow));
   }
 
   @JsonKey(ignore: true)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, activityFacility, status, workflow);
+  int get hashCode => Object.hash(runtimeType, activityFacility, status,
+      const DeepCollectionEquality().hash(_transactions), workflow);
 
   @JsonKey(ignore: true)
   @override
@@ -216,6 +244,7 @@ abstract class _ActivityFacilityWorkflow implements ActivityFacilityWorkflow {
   const factory _ActivityFacilityWorkflow(
           {required final ActivityFacility activityFacility,
           final String? status,
+          final List<WorkflowTransaction>? transactions,
           @WorkflowFlexConverter() final Workflow? workflow}) =
       _$ActivityFacilityWorkflowImpl;
 
@@ -226,6 +255,8 @@ abstract class _ActivityFacilityWorkflow implements ActivityFacilityWorkflow {
   ActivityFacility get activityFacility;
   @override
   String? get status;
+  @override
+  List<WorkflowTransaction>? get transactions;
   @override
   @WorkflowFlexConverter()
   Workflow? get workflow;

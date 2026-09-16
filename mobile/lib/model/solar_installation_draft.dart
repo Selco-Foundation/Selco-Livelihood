@@ -283,7 +283,35 @@ class SolarInstallationDraft {
   final Map<String, Map<String, dynamic>> dynamicFormAnswers = {};
   final Map<String, dynamic> mergedBom = {};
   final List<Map<String, dynamic>> backendDocuments = [];
-  final List<String> rejectionReasons = [];
+  final List<WorkflowComment> rejectionComments = [];
+
+  List<WorkflowComment> rejectionCommentsFor(SolarAssetType type) {
+    final code = (assetTypeCodes[type] ?? type.name).trim().toUpperCase();
+    return rejectionComments
+        .where((comment) =>
+            comment.assetType?.trim().toUpperCase() == code ||
+            comment.assetType?.trim().toUpperCase() == type.name.toUpperCase())
+        .toList();
+  }
+
+  List<WorkflowComment> installationRejectionComments(String code) {
+    final expected = 'INSTALLATION_IMAGE_${code.trim().toUpperCase()}';
+    return rejectionComments
+        .where((comment) => comment.assetType?.trim().toUpperCase() == expected)
+        .toList();
+  }
+
+  List<WorkflowComment> get otherRejectionComments => rejectionComments.where(
+        (comment) {
+          final type = comment.assetType?.trim().toUpperCase() ?? '';
+          final isAsset = SolarAssetType.values.any((assetType) {
+            final code =
+                (assetTypeCodes[assetType] ?? assetType.name).toUpperCase();
+            return type == code || type == assetType.name.toUpperCase();
+          });
+          return !isAsset && !type.startsWith('INSTALLATION_IMAGE_');
+        },
+      ).toList();
 
   String get cacheKey => workflow.activityFacilityCacheKey;
   String get facilityName => workflow.facilityTitle;

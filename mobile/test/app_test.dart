@@ -1764,17 +1764,15 @@ void main() {
     expect(find.byKey(const ValueKey('solar-rejection-card')), findsNothing);
     expect(
       find.byKey(const ValueKey('solar-rejection-reasons-panel')),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.byIcon(Icons.error_outline), findsNothing);
     expect(
-        find.text(tr(i18.installationReport.rejectionReasons)), findsOneWidget);
-    expect(
       find.text(tr(i18.installationReport.incorrectInstallationDetails)),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.text(tr(i18.installationReport.rejectedSerialReason)),
-        findsOneWidget);
+        findsNothing);
     expect(find.text(tr(i18.installationReport.resubmit)), findsOneWidget);
     expect(
         find.byKey(const ValueKey('solar-footer-save-draft')), findsOneWidget);
@@ -1786,30 +1784,49 @@ void main() {
           .isDisabled,
       isTrue,
     );
+  });
 
-    final uploader = find.byKey(
-      const ValueKey('solar-overall-file-uploader'),
-    );
-    final rejectionPanel = find.byKey(
-      const ValueKey('solar-rejection-reasons-panel'),
-    );
-    expect(
-      tester.getTopLeft(rejectionPanel).dy,
-      greaterThan(tester.getTopLeft(uploader).dy),
-    );
+  testWidgets('Solar rejection comments render in their E4H sections', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 3000));
+    final draft = _filledSolarDraft(SolarWorkflowMode.resubmission);
+    draft.rejectionComments.addAll(const [
+      WorkflowComment(
+        assetType: 'PANEL',
+        commentMessage:
+            '{"reasonCode":"IMAGE_NOT_CLEAR","comment":"Testing","sectionLabel":"PANEL"}',
+      ),
+      WorkflowComment(
+        assetType: 'INSTALLATION_COMPLETION_REPORT',
+        commentMessage:
+            '{"reason":"Incorrect report","comment":"Replace it","sectionLabel":"Completion Report"}',
+      ),
+    ]);
 
-    final rejectionSurface = tester.widget<Container>(
-      find.byKey(const ValueKey('solar-rejection-reasons-surface')),
-    );
-    expect(
-      rejectionSurface.padding,
-      const EdgeInsets.symmetric(
-        horizontal: spacer3,
-        vertical: spacer4,
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: withAssetSubmissionBloc(OverallAssetSummaryPage(draft: draft)),
       ),
     );
-    final decoration = rejectionSurface.decoration! as BoxDecoration;
-    expect(decoration.borderRadius, BorderRadius.circular(spacer1));
+
+    expect(find.byKey(const ValueKey('solar-rejection-panel')), findsOneWidget);
+    expect(find.text('Image Not Clear'), findsOneWidget);
+    expect(find.text('Testing'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('solar-rejection-reasons-panel')),
+      findsOneWidget,
+    );
+    expect(find.text('Completion Report'), findsOneWidget);
+    expect(find.text('Incorrect report'), findsOneWidget);
+    expect(find.text('Replace it'), findsOneWidget);
+    expect(
+      find.text(tr(i18.installationReport.incorrectInstallationDetails)),
+      findsNothing,
+    );
+    expect(find.text(tr(i18.installationReport.rejectedSerialReason)),
+        findsNothing);
   });
 
   testWidgets('solar completion controls and submit gate reflect draft data', (
@@ -2958,7 +2975,7 @@ void main() {
     setMobileViewport(tester, const Size(390, 844));
     final draft = SolarInstallationDraft(
       workflow: _StubActivityFacilityRemoteRepository._defaultItems.first,
-      mode: SolarWorkflowMode.newReport,
+      mode: SolarWorkflowMode.resubmission,
     )..installationRequirements = const [
         InstallationImageRequirement(
           code: 'ARRAY',
@@ -2976,6 +2993,11 @@ void main() {
           requiredCount: 1,
         ),
       ];
+    draft.rejectionComments.add(const WorkflowComment(
+      assetType: 'INSTALLATION_IMAGE_ARRAY',
+      commentMessage:
+          '{"reasonCode":"IMAGE_NOT_CLEAR","comment":"Retake this image"}',
+    ));
     await tester.pumpWidget(
       MaterialApp(
         theme: DigitTheme.instance.mobileTheme,
@@ -2999,6 +3021,12 @@ void main() {
     );
     expect(shortCard.width, longCard.width);
     expect(shortCard.width, greaterThan(300));
+    expect(
+      find.byKey(const ValueKey('solar-installation-rejection-ARRAY')),
+      findsOneWidget,
+    );
+    expect(find.text('Image Not Clear'), findsOneWidget);
+    expect(find.text('Retake this image'), findsOneWidget);
     for (final requirement in draft.installationRequirements) {
       draft.installationMedia[requirement.code] = [
         SolarFileRef(

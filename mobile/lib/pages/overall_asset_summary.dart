@@ -18,6 +18,7 @@ import '../blocs/installation_images/installation_images.dart';
 import '../blocs/activity_facility_counts/activity_facility_counts.dart';
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
+import '../model/activity_facility_workflow/activity_facility_workflow.dart';
 import '../model/solar_installation_draft.dart';
 import '../model/mdms/common_masters.dart';
 import '../repositories/installation_cache_repo.dart';
@@ -404,6 +405,12 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                         type: draft.applicableTypes[index],
                         label: draft.labelFor(draft.applicableTypes[index]),
                         count: draft.countFor(draft.applicableTypes[index]),
+                        rejectionComments:
+                            draft.mode == SolarWorkflowMode.resubmission
+                                ? draft.rejectionCommentsFor(
+                                    draft.applicableTypes[index],
+                                  )
+                                : const [],
                         lastCard: index == draft.applicableTypes.length - 1,
                         onPress: () => _openAssetSummary(
                           draft.applicableTypes[index],
@@ -413,6 +420,12 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                         type: draft.applicableTypes[index],
                         label: draft.labelFor(draft.applicableTypes[index]),
                         count: draft.countFor(draft.applicableTypes[index]),
+                        rejectionComments:
+                            draft.mode == SolarWorkflowMode.resubmission
+                                ? draft.rejectionCommentsFor(
+                                    draft.applicableTypes[index],
+                                  )
+                                : const [],
                         hasSummary:
                             draft.completeFor(draft.applicableTypes[index]),
                         lastCard: index == draft.applicableTypes.length - 1,
@@ -542,7 +555,12 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                 ),
               ],
               if (draft.mode == SolarWorkflowMode.resubmission)
-                _RejectionReasonsPanel(reasons: draft.rejectionReasons),
+                _RejectionReasonsPanel(
+                  panelKey: const ValueKey('solar-rejection-reasons-panel'),
+                  surfaceKey: const ValueKey('solar-rejection-reasons-surface'),
+                  comments: draft.otherRejectionComments,
+                  showSectionLabel: true,
+                ),
             ],
           ),
         ],
@@ -604,21 +622,48 @@ class _SolarSummaryFooter extends StatelessWidget {
 }
 
 class _RejectionReasonsPanel extends StatelessWidget {
-  const _RejectionReasonsPanel({required this.reasons});
+  const _RejectionReasonsPanel({
+    required this.comments,
+    this.panelKey,
+    this.surfaceKey,
+    this.showSectionLabel = false,
+  });
 
-  final List<String> reasons;
+  final List<WorkflowComment> comments;
+  final Key? panelKey;
+  final Key? surfaceKey;
+  final bool showSectionLabel;
+
+  String _humanize(String value) => value
+      .split('_')
+      .where((part) => part.isNotEmpty)
+      .map((part) =>
+          '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}')
+      .join(' ');
+
+  String _reason(BuildContext context, WorkflowComment comment, int index) {
+    final reason = comment.reason;
+    if (reason?.isNotEmpty == true) return reason!;
+    final code = comment.reasonCode;
+    if (code?.isNotEmpty == true) {
+      final translated = context.translate(code!);
+      return translated == code ? _humanize(code) : translated;
+    }
+    return 'Reason ${index + 1}';
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (comments.isEmpty) return const SizedBox.shrink();
     final theme = Theme.of(context);
     final textTheme = theme.digitTextTheme(context);
 
     return Column(
-      key: const ValueKey('solar-rejection-reasons-panel'),
+      key: panelKey,
       children: [
         const SizedBox(height: spacer2),
         Container(
-          key: const ValueKey('solar-rejection-reasons-surface'),
+          key: surfaceKey,
           width: double.infinity,
           decoration: BoxDecoration(
             color: theme.colorTheme.paper.secondary,
@@ -639,16 +684,17 @@ class _RejectionReasonsPanel extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: spacer5),
-              for (final indexed in (reasons.isEmpty
-                      ? [
-                          context.translate(i18
-                              .installationReport.incorrectInstallationDetails),
-                          context.translate(
-                              i18.installationReport.rejectedSerialReason),
-                        ]
-                      : reasons)
-                  .asMap()
-                  .entries) ...[
+              for (final indexed in comments.asMap().entries) ...[
+                if (showSectionLabel &&
+                    indexed.value.sectionLabel?.isNotEmpty == true) ...[
+                  Text(
+                    indexed.value.sectionLabel!,
+                    style: textTheme.label.copyWith(
+                      color: theme.colorTheme.text.primary,
+                    ),
+                  ),
+                  const SizedBox(height: spacer2),
+                ],
                 Container(
                   key: indexed.key == 0
                       ? const ValueKey('solar-rejection-reason-chip')
@@ -665,14 +711,23 @@ class _RejectionReasonsPanel extends StatelessWidget {
                     horizontal: spacer3,
                   ),
                   child: Text(
-                    indexed.value,
+                    _reason(context, indexed.value, indexed.key),
                     style: textTheme.label.copyWith(
                       color: theme.colorTheme.primary.primary2,
                     ),
                   ),
                 ),
-                if (indexed.key < (reasons.isEmpty ? 2 : reasons.length) - 1)
+                if (indexed.value.details.isNotEmpty) ...[
                   const SizedBox(height: spacer2),
+                  Text(
+                    indexed.value.details,
+                    style: textTheme.label.copyWith(
+                      color: theme.colorTheme.text.primary,
+                    ),
+                  ),
+                ],
+                if (indexed.key < comments.length - 1)
+                  const SizedBox(height: spacer4),
               ],
             ],
           ),
@@ -712,6 +767,7 @@ class _InitialElementAssetSummary extends StatelessWidget {
     required this.type,
     required this.label,
     required this.count,
+    required this.rejectionComments,
     required this.hasSummary,
     required this.lastCard,
     required this.onCountChanged,
@@ -722,6 +778,7 @@ class _InitialElementAssetSummary extends StatelessWidget {
   final SolarAssetType type;
   final String label;
   final int count;
+  final List<WorkflowComment> rejectionComments;
   final bool hasSummary;
   final bool lastCard;
   final ValueChanged<int> onCountChanged;
@@ -782,6 +839,10 @@ class _InitialElementAssetSummary extends StatelessWidget {
               ),
           ],
         ),
+        _RejectionReasonsPanel(
+          panelKey: ValueKey('solar-rejection-${type.name}'),
+          comments: rejectionComments,
+        ),
         const SizedBox(height: spacer2),
         DigitButton(
           key: ValueKey('solar-add-details-${type.name}'),
@@ -807,6 +868,7 @@ class _ElementAssetSummary extends StatelessWidget {
     required this.type,
     required this.label,
     required this.count,
+    required this.rejectionComments,
     required this.lastCard,
     required this.onPress,
   });
@@ -814,6 +876,7 @@ class _ElementAssetSummary extends StatelessWidget {
   final SolarAssetType type;
   final String label;
   final int count;
+  final List<WorkflowComment> rejectionComments;
   final bool lastCard;
   final VoidCallback onPress;
 
@@ -832,6 +895,10 @@ class _ElementAssetSummary extends StatelessWidget {
             ),
             Center(child: Text('$count', style: textTheme.bodyL)),
           ],
+        ),
+        _RejectionReasonsPanel(
+          panelKey: ValueKey('solar-rejection-${type.name}'),
+          comments: rejectionComments,
         ),
         const SizedBox(height: spacer2),
         if (count > 0) ...[
@@ -1086,6 +1153,17 @@ class _InstallationImagesPageState extends State<InstallationImagesPage> {
                             onImagesSelected: (files) =>
                                 _selectMany(requirement, files),
                           ),
+                          if (widget.draft.mode ==
+                              SolarWorkflowMode.resubmission)
+                            _RejectionReasonsPanel(
+                              panelKey: ValueKey(
+                                'solar-installation-rejection-${requirement.code}',
+                              ),
+                              comments:
+                                  widget.draft.installationRejectionComments(
+                                requirement.code,
+                              ),
+                            ),
                         ],
                       ),
                     ),
