@@ -38,6 +38,8 @@ class AssetMdmsRepository {
           livelihood.itemCode.map((item) => item.toJson()).toList());
       await installationCacheRepository.putJson('mdms-master',
           'livelihood.SolutionBOMForms', livelihood.solutionBomForms);
+      await installationCacheRepository.putJson('mdms-master',
+          'livelihood.MachineFormSchema', livelihood.machineFormSchema);
       for (final record in livelihood.bomFormSchema) {
         final schema = BomFormSchema.fromJson(record);
         await installationCacheRepository.putJson(
@@ -125,6 +127,15 @@ class AssetMdmsRepository {
           .map(SolutionDesignBomForms.fromJson)
           .where((item) => item.solutionCode.isNotEmpty)
           .toList();
+
+  MachineFormSchema? get machineFormSchema {
+    for (final record in (_memory?.livelihood?.machineFormSchema ?? const [])
+        .where(_active)) {
+      final schema = MachineFormSchema.fromJson(record);
+      if (schema.name.trim().toUpperCase() == 'MACHINE_FORM') return schema;
+    }
+    return null;
+  }
 
   List<InstallationImageRequirement> get installationImages {
     final records = _memory?.commonMasters?.installationImages ?? const [];

@@ -1,9 +1,12 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:digit_forms_engine/models/schema_object/schema_object.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
 import 'package:livelihood/blocs/activity_facility/activity_facility.dart';
 import 'package:livelihood/blocs/asset_submission/asset_submission.dart';
+import 'package:livelihood/data/api_interceptors.dart';
 import 'package:livelihood/model/activity_facility/activity_facility.dart';
 import 'package:livelihood/model/activity_facility_workflow/activity_facility_workflow.dart';
 import 'package:livelihood/model/asset_type/asset_type.dart';
@@ -23,15 +26,191 @@ import 'package:livelihood/repositories/installation_draft_repository.dart';
 import 'package:livelihood/repositories/operation_progress_repo.dart';
 import 'package:livelihood/repositories/pending_submission_repository.dart';
 import 'package:livelihood/utils/envConfig.dart';
+import 'package:livelihood/utils/api_paths.dart';
 import 'package:livelihood/utils/dynamic_form_schema.dart';
 import 'package:livelihood/utils/operation_progress.dart';
 import 'package:livelihood/utils/submission_payload.dart';
+import 'package:livelihood/utils/document_metadata.dart';
 import 'package:livelihood/utils/warranty.dart';
+
+class _TestErrorInterceptorHandler extends ErrorInterceptorHandler {
+  Future<void> consumeForwardedError() async {
+    try {
+      await future;
+    } catch (_) {
+      // `next` forwards Dio's error as designed; logging tests only need to
+      // consume it so it does not become an unhandled asynchronous error.
+    }
+  }
+}
 
 void main() {
   setUpAll(() async => envConfig.initialize());
 
   setUp(() => pendingSubmissionRepository.clearForTests());
+
+  test('successful OTP generate and resend responses expose the DEV OTP log',
+      () {
+    final lines = <String>[];
+    final interceptor = LoggingInterceptor(
+      otpResponseLoggingEnabled: () => true,
+      logSink: lines.add,
+    );
+
+    for (final path in [ApiPaths.otpGenerate, ApiPaths.otpResend]) {
+      lines.clear();
+      final request = RequestOptions(
+        baseUrl: 'https://dev.example.org/',
+        path: path,
+        method: 'POST',
+      );
+      interceptor.onResponse(
+        Response(
+          requestOptions: request,
+          statusCode: 200,
+          data: const {
+            'otp': {'otp': '123456'}
+          },
+        ),
+        ResponseInterceptorHandler(),
+      );
+
+      final log = lines.join('\n');
+      expect(log, contains('HTTP OTP RESPONSE'));
+      expect(log, contains('POST ${request.uri}'));
+      expect(log, contains('Status: 200'));
+      expect(log, contains('123456'));
+    }
+  });
+
+  test('successful response logging excludes validation and unrelated calls',
+      () {
+    final lines = <String>[];
+    final interceptor = LoggingInterceptor(
+      otpResponseLoggingEnabled: () => true,
+      logSink: lines.add,
+    );
+
+    for (final path in [
+      ApiPaths.otpValidate,
+      ApiPaths.activitySearch,
+      '${ApiPaths.otpGenerate}/unexpected',
+    ]) {
+      interceptor.onResponse(
+        Response(
+          requestOptions: RequestOptions(path: path, method: 'POST'),
+          statusCode: 200,
+          data: const {
+            'otp': {'otp': 'must-not-be-logged'}
+          },
+        ),
+        ResponseInterceptorHandler(),
+      );
+    }
+
+    expect(lines, isEmpty);
+  });
+
+  test('OTP response logging requires both a debug build and DEV environment',
+      () {
+    expect(
+      LoggingInterceptor.allowsOtpResponseLogging(
+        isDebugBuild: true,
+        environment: EnvType.dev,
+      ),
+      isTrue,
+    );
+    expect(
+      LoggingInterceptor.allowsOtpResponseLogging(
+        isDebugBuild: false,
+        environment: EnvType.dev,
+      ),
+      isFalse,
+    );
+    for (final environment in [EnvType.qa, EnvType.uat, EnvType.prod]) {
+      expect(
+        LoggingInterceptor.allowsOtpResponseLogging(
+          isDebugBuild: true,
+          environment: environment,
+        ),
+        isFalse,
+      );
+    }
+  });
+
+  test('submission failure stages map to safe user-facing localization keys',
+      () {
+    expect(
+      failureMessageKeyForStage('preparing_submission'),
+      'SYNC_LOADING_FAILURE_PREPARATION',
+    );
+    expect(
+      failureMessageKeyForStage('resolving_vendor_org'),
+      'SYNC_LOADING_FAILURE_PREPARATION',
+    );
+    expect(
+      failureMessageKeyForStage('uploading_media'),
+      'SYNC_LOADING_FAILURE_MEDIA',
+    );
+    expect(
+      failureMessageKeyForStage('submitting_bom'),
+      'SYNC_LOADING_FAILURE_BOM',
+    );
+    expect(
+      failureMessageKeyForStage('submitting_assets'),
+      'SYNC_LOADING_FAILURE_ASSETS',
+    );
+    expect(
+      failureMessageKeyForStage('verifying_assets'),
+      'SYNC_LOADING_FAILURE_ASSET_VERIFICATION',
+    );
+    expect(
+      failureMessageKeyForStage('finalizing_workflow_submission'),
+      'SYNC_LOADING_FAILURE_WORKFLOW',
+    );
+    expect(
+      failureMessageKeyForStage('cleaning_up_local_cache'),
+      'SYNC_LOADING_FAILURE_CLEANUP',
+    );
+    expect(
+      failureMessageKeyForStage('unexpected_stage'),
+      'SYNC_LOADING_FAILURE_GENERIC',
+    );
+  });
+
+  test('HTTP error diagnostics redact response auth tokens', () async {
+    final lines = <String>[];
+    final interceptor = LoggingInterceptor(logSink: lines.add);
+    final request = RequestOptions(
+      baseUrl: 'https://dev.example.org/',
+      path: ApiPaths.workflowUpdate,
+      method: 'POST',
+    );
+    final response = Response(
+      requestOptions: request,
+      statusCode: 400,
+      data: const {
+        'ResponseInfo': {'authToken': 'secret-response-token'},
+        'message': 'error while publishing to kafka',
+      },
+    );
+
+    final handler = _TestErrorInterceptorHandler();
+    interceptor.onError(
+      DioException(
+        requestOptions: request,
+        response: response,
+        type: DioExceptionType.badResponse,
+      ),
+      handler,
+    );
+    await handler.consumeForwardedError();
+
+    final log = lines.join('\n');
+    expect(log, contains('error while publishing to kafka'));
+    expect(log, contains('"authToken": "***"'));
+    expect(log, isNot(contains('secret-response-token')));
+  });
 
   test('pending submission lifecycle persists OTP approval without OTP data',
       () async {
@@ -349,6 +528,123 @@ void main() {
     expect(document.toWorkflowJson().containsKey('fileStore'), isFalse);
   });
 
+  test('Machine form MDMS parses active required fields in order', () {
+    final schema = MachineFormSchema.fromJson({
+      'uniqueIdentifier': 'MACHINE_FORM',
+      'data': {
+        'title': 'Machine Report',
+        'fields': [
+          {
+            'title': 'Hidden',
+            'fieldName': 'hidden',
+            'type': 'text',
+            'order': 1,
+            'active': false
+          },
+          {
+            'title': 'Photo',
+            'fieldName': 'PHOTO',
+            'type': 'image',
+            'order': 3,
+            'required': true,
+            'requiredCount': 2
+          },
+          {
+            'title': 'Serial',
+            'fieldName': 'serialNumber',
+            'type': 'text',
+            'order': 2,
+            'required': true
+          },
+        ],
+      },
+    });
+
+    expect(schema.name, 'MACHINE_FORM');
+    expect(schema.fields.map((field) => field.fieldName),
+        ['serialNumber', 'PHOTO']);
+    expect(schema.fields.last.isMedia, isTrue);
+    expect(schema.fields.every((field) => field.requiredField), isTrue);
+    expect(schema.fields.last.requiredCount, 2);
+    expect(schema.fields.last.allowMultiples, isTrue);
+    expect(schema.fields.last.requiredLabel, 'Required: 2 images');
+    expect(schema.fields.last.mediaCountComplete(1), isFalse);
+    expect(schema.fields.last.mediaCountComplete(2), isTrue);
+
+    final optionalMedia = MachineFormField.fromJson(const {
+      'title': 'Civil Work (If any)',
+      'fieldName': 'MACHINE_CIVIL_WORK',
+      'type': 'image',
+      'order': 4,
+      'required': false,
+      'requiredCount': 2,
+    });
+    expect(optionalMedia.mediaCountComplete(0), isTrue);
+    expect(optionalMedia.mediaCountComplete(1), isFalse);
+    expect(optionalMedia.mediaCountComplete(2), isTrue);
+
+    final text = MachineFormField.fromJson(const {
+      'title': 'Text',
+      'fieldName': 'text',
+      'type': 'text',
+      'order': 5,
+      'required': true,
+      'requiredCount': 20,
+    });
+    expect(text.requiredCount, 1);
+  });
+
+  testWidgets('new document identity and location stay stable', (tester) async {
+    documentLocationOverride = () => const {
+          'latitude': '6.5108074',
+          'longitude': '3.606173',
+          'additionalDetails': null,
+        };
+    late SolarFileRef committed;
+    late SolarFileRef second;
+    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) {
+      committed = commitDocumentMetadata(
+        context,
+        const SolarFileRef(
+          name: 'board.jpg',
+          path: '/tmp/board.jpg',
+          kind: SolarFileKind.image,
+        ),
+        documentType: 'MACHINE_ELECTRIC_BOARD',
+        uidPrefix: 'DOC-MACHINE-MACHINE_ELECTRIC_BOARD',
+      );
+      second = commitDocumentMetadata(
+        context,
+        const SolarFileRef(
+          name: 'board-2.jpg',
+          path: '/tmp/board-2.jpg',
+          kind: SolarFileKind.image,
+        ),
+        documentType: 'MACHINE_ELECTRIC_BOARD',
+        uidPrefix: 'DOC-MACHINE-MACHINE_ELECTRIC_BOARD',
+      );
+      return const SizedBox.shrink();
+    })));
+    final retry = SubmissionDocument.fromJson(
+      SubmissionDocument(
+        id: 'backend-document-id',
+        documentType: committed.documentType!,
+        documentUid: committed.documentUid,
+        localPath: committed.path,
+        geoLocation: committed.geoLocation,
+      ).toCacheJson(),
+    );
+
+    expect(committed.documentUid,
+        startsWith('DOC-MACHINE-MACHINE_ELECTRIC_BOARD-'));
+    expect(committed.hasValidLocation, isTrue);
+    expect(second.documentUid, isNot(committed.documentUid));
+    expect(retry.id, 'backend-document-id');
+    expect(retry.documentUid, committed.documentUid);
+    expect(retry.geoLocation, committed.geoLocation);
+    documentLocationOverride = null;
+  });
+
   test('typed asset writes backend identifiers and asset-owned documents', () {
     final asset = AssetSubmission.fromCheckpoint({
       'system': 'DC',
@@ -411,6 +707,8 @@ void main() {
           path: 'asset-filestore',
           remoteId: 'asset-filestore',
           kind: SolarFileKind.image,
+          documentUid: 'DOC-BATTERY-IMAGE-1',
+          geoLocation: {'latitude': '6.5', 'longitude': '3.6'},
         ),
       ))
       ..images.add(const SolarFileRef(
@@ -466,6 +764,8 @@ void main() {
           path: 'asset-filestore',
           remoteId: 'asset-filestore',
           kind: SolarFileKind.image,
+          documentUid: 'DOC-BATTERY-IMAGE-2',
+          geoLocation: {'latitude': '6.5', 'longitude': '3.6'},
         ),
       ));
 
@@ -518,16 +818,44 @@ void main() {
 
     final payload = buildMachineSubmissionPayload(
       workflow: workflow,
-      poNumber: 'PO-1',
-      serialNumber: 'SER-1',
-      invoiceNumber: 'INV-1',
-      capacity: '3',
-      warrantyYears: '5',
-      trainedEndUser: true,
+      values: const {
+        'poNumber': 'PO-1',
+        'serialNumber': 'SER-1',
+        'invoiceNumber': 'INV-1',
+        'capacity': '3',
+        'warrantyDuration': '5',
+        'trainedEndUser': true,
+      },
+      media: const {
+        'MACHINE_CIVIL_WORK': [
+          SolarFileRef(
+            name: 'civil-1.jpg',
+            path: 'filestore-civil-1',
+            remoteId: 'filestore-civil-1',
+            kind: SolarFileKind.image,
+            documentType: 'MACHINE_CIVIL_WORK',
+            documentUid: 'DOC-MACHINE-MACHINE_CIVIL_WORK-1',
+          ),
+          SolarFileRef(
+            name: 'civil-2.jpg',
+            path: 'filestore-civil-2',
+            remoteId: 'filestore-civil-2',
+            kind: SolarFileKind.image,
+            documentType: 'MACHINE_CIVIL_WORK',
+            documentUid: 'DOC-MACHINE-MACHINE_CIVIL_WORK-2',
+          ),
+        ],
+      },
     );
     final asset = (payload['assets'] as List).single as Map;
     expect(asset['assetTypeID'], 'RICE HULLER');
     expect(asset['itemCode'], 'HULLER-RICE-3HP');
+    final documents = payload['workflowDocuments'] as List;
+    expect(documents, hasLength(2));
+    expect(documents.map((item) => (item as Map)['documentUid']), [
+      'DOC-MACHINE-MACHINE_CIVIL_WORK-1',
+      'DOC-MACHINE-MACHINE_CIVIL_WORK-2',
+    ]);
   });
 
   test(
@@ -742,6 +1070,25 @@ void main() {
 
     const response = AssetRegistryMdmsResponse(
       livelihood: LivelihoodModule(
+        machineFormSchema: [
+          {
+            'isActive': true,
+            'data': {
+              'name': 'MACHINE_FORM',
+              'title': 'Machine Report',
+              'fields': [
+                {
+                  'title': 'Serial',
+                  'fieldName': 'serialNumber',
+                  'type': 'text',
+                  'order': 1,
+                  'required': true,
+                  'active': true,
+                },
+              ],
+            },
+          },
+        ],
         bomFormSchema: [
           {
             'isActive': true,
@@ -810,6 +1157,7 @@ void main() {
     expect(repository.warrantiesFor('PANEL').single.duration, '5');
     expect(repository.rawBomSchemaFor('System'), isNotNull);
     expect(repository.rawBomSchemaFor('Inactive'), isNull);
+    expect(repository.machineFormSchema?.name, 'MACHINE_FORM');
     expect(repository.formsFor('202526PASF0000141'), [
       'LIVELIHOOD_BOM_solar',
       'LIVELIHOOD_BOM_machines',
@@ -867,6 +1215,8 @@ void main() {
         name: 'battery.jpg',
         path: '/tmp/battery.jpg',
         kind: SolarFileKind.image,
+        documentUid: 'DOC-BATTERY-IMAGE-3',
+        geoLocation: {'latitude': '6.5', 'longitude': '3.6'},
       );
 
     expect(battery.typeOptions, ['Lithium', 'Lead Acid', 'VRLA']);

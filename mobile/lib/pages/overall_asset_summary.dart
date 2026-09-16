@@ -27,6 +27,7 @@ import '../repositories/asset_progress_repo.dart';
 import '../repositories/pending_submission_repository.dart';
 import '../router/app_router.dart';
 import '../utils/submission_payload.dart';
+import '../utils/document_metadata.dart';
 import '../widgets/file_upload_widget.dart';
 import '../widgets/image_uploader.dart';
 import '../widgets/operation_progress_overlay.dart';
@@ -225,6 +226,8 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
   /// separate route) rather than navigating to a sync-loading screen.
   Future<void> _submit() async {
     final draft = widget.draft;
+    _refreshDocumentLocations();
+    if (!draft.canSubmit || !draft.allDocumentsMetadataComplete) return;
     final activityFacilityId = draft.workflow.activityFacility.id;
     final facilityId = draft.workflow.activityFacility.facilityId;
     if (activityFacilityId == null || facilityId == null) return;
@@ -242,6 +245,8 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
   }
 
   Future<void> _saveDraft() async {
+    _refreshDocumentLocations();
+    if (!widget.draft.allDocumentsMetadataComplete) return;
     await installationDraftRepository.saveSolar(widget.draft);
     await pendingSubmissionRepository.saveDraft(
       widget.draft.workflow,
@@ -255,6 +260,31 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
         pickMedia: widget.pickMedia,
       ),
     );
+  }
+
+  void _refreshDocumentLocations() {
+    final draft = widget.draft;
+    void refreshList(List<SolarFileRef> files) {
+      for (var index = 0; index < files.length; index++) {
+        files[index] = refreshDocumentLocation(context, files[index]);
+      }
+    }
+
+    refreshList(draft.completionReportFiles);
+    for (final files in draft.installationMedia.values) {
+      refreshList(files);
+    }
+    for (final asset in draft.assets.values) {
+      refreshList(asset.images);
+      refreshList(asset.videos);
+      for (final entry in asset.assets) {
+        final photo = entry.supportingPhoto;
+        if (photo != null) {
+          entry.supportingPhoto = refreshDocumentLocation(context, photo);
+        }
+      }
+    }
+    if (mounted) setState(() {});
   }
 
   Future<void> _openInstallationImages() async {
@@ -280,6 +310,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
 
   @override
   Widget build(BuildContext context) {
+    observeDocumentLocation(context);
     final theme = Theme.of(context);
     final textTheme = theme.digitTextTheme(context);
     final draft = widget.draft;
@@ -441,9 +472,15 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                 onFilesSelected: (files) async {
                   final persisted = <SolarFileRef>[];
                   for (var index = 0; index < files.length; index++) {
-                    persisted.add(
-                        await installationCacheRepository.persistMediaRef(
-                            files[index],
+                    persisted
+                        .add(await installationCacheRepository.persistMediaRef(
+                            commitDocumentMetadata(
+                              context,
+                              files[index],
+                              documentType: 'INSTALLATION_COMPLETION_REPORT',
+                              uidPrefix:
+                                  'INSTALLATION-REPORT-${files[index].kind.name.toUpperCase()}',
+                            ),
                             '${draft.cacheKey}-completion-$index'));
                   }
                   if (!mounted) return;
@@ -892,7 +929,13 @@ class _InstallationImagesPageState extends State<InstallationImagesPage> {
     final persisted = <SolarFileRef>[];
     for (var index = 0; index < files.length; index++) {
       persisted.add(await installationCacheRepository.persistMediaRef(
-        files[index],
+        commitDocumentMetadata(
+          context,
+          files[index],
+          documentType: 'INSTALLATION_IMAGE-${requirement.code}',
+          uidPrefix: 'INSTALLATION-IMAGE-${requirement.code}',
+          index: index,
+        ),
         '${widget.draft.cacheKey}-installation-${requirement.code}-$index',
       ));
     }
@@ -905,6 +948,12 @@ class _InstallationImagesPageState extends State<InstallationImagesPage> {
 
   @override
   Widget build(BuildContext context) {
+    observeDocumentLocation(context);
+    for (final files in widget.draft.installationMedia.values) {
+      for (var index = 0; index < files.length; index++) {
+        files[index] = refreshDocumentLocation(context, files[index]);
+      }
+    }
     final theme = Theme.of(context);
     final textTheme = theme.digitTextTheme(context);
     return SolarWorkflowScaffold(

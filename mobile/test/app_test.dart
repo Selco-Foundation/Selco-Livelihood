@@ -21,6 +21,7 @@ import 'package:livelihood/blocs/activity_facility_counts/activity_facility_coun
 import 'package:livelihood/blocs/app_init/app_init.dart';
 import 'package:livelihood/blocs/localization/app_localization.dart';
 import 'package:livelihood/data/api_interceptors.dart';
+import 'package:livelihood/data/nosql/localization.dart' show Localization;
 import 'package:livelihood/data/network_manager.dart';
 import 'package:livelihood/model/activity_facility/activity_facility.dart';
 import 'package:livelihood/model/activity_facility_workflow/activity_facility_workflow.dart';
@@ -32,6 +33,7 @@ import 'package:livelihood/repositories/activity_facility_repo.dart';
 import 'package:livelihood/repositories/app_init_repo.dart';
 import 'package:livelihood/utils/workflow_status.dart';
 import 'package:livelihood/utils/i18_key_constants.dart' as i18;
+import 'package:livelihood/utils/operation_progress.dart';
 import 'package:livelihood/main.dart';
 import 'package:livelihood/model/solar_installation_draft.dart';
 import 'package:livelihood/pages/installation_report_home_page.dart';
@@ -65,7 +67,10 @@ import 'package:livelihood/widgets/machine_media_picker.dart';
 import 'package:livelihood/widgets/navigation/drawer.dart';
 import 'package:livelihood/repositories/otp_repository.dart';
 import 'package:livelihood/repositories/pending_submission_repository.dart';
+import 'package:livelihood/repositories/asset_mdms_repository.dart';
+import 'package:livelihood/utils/document_metadata.dart';
 import 'package:livelihood/widgets/otp_verification_widget.dart';
+import 'package:livelihood/widgets/operation_progress_overlay.dart';
 import 'package:livelihood/blocs/asset_submission/asset_submission.dart';
 import 'package:livelihood/widgets/privacy_policy/policy_webview_dialog.dart';
 
@@ -290,6 +295,8 @@ SolarInstallationDraft _filledSolarDraft(SolarWorkflowMode mode) {
         name: '${type.name}.jpg',
         path: '/tmp/${type.name}.jpg',
         kind: SolarFileKind.image,
+        documentUid: 'DOC-${type.name}-IMAGE-1',
+        geoLocation: const {'latitude': '6.5', 'longitude': '3.6'},
       );
     if (type == SolarAssetType.battery) {
       asset.typeOptions.add('LITHIUM_ION');
@@ -299,6 +306,8 @@ SolarInstallationDraft _filledSolarDraft(SolarWorkflowMode mode) {
       name: '${type.name}-installation.jpg',
       path: '/tmp/${type.name}-installation.jpg',
       kind: SolarFileKind.image,
+      documentUid: 'DOC-${type.name}-IMAGE-2',
+      geoLocation: const {'latitude': '6.5', 'longitude': '3.6'},
     ));
   }
   return draft;
@@ -314,6 +323,104 @@ String? _secureStorageWriteFailureKey;
 // app. Translated messages are backend-owned; no bundled JSON fixture exists.
 String tr(String code) => AppLocalizations.fallbackLabel(code);
 
+const _machineMdms = AssetRegistryMdmsResponse(
+  livelihood: LivelihoodModule(machineFormSchema: [
+    {
+      'data': {
+        'name': 'MACHINE_FORM',
+        'title': 'Machine Report',
+        'fields': [
+          {
+            'title': 'PO Number',
+            'fieldName': 'poNumber',
+            'type': 'text',
+            'order': 1,
+            'required': true,
+            'active': true
+          },
+          {
+            'title': 'Machine Serial Number',
+            'fieldName': 'serialNumber',
+            'type': 'text',
+            'order': 2,
+            'required': true,
+            'active': true
+          },
+          {
+            'title': 'Manufacturer Invoice Number',
+            'fieldName': 'invoiceNumber',
+            'type': 'text',
+            'order': 3,
+            'required': true,
+            'active': true
+          },
+          {
+            'title': 'Machine Capacity',
+            'fieldName': 'capacity',
+            'type': 'text',
+            'order': 4,
+            'required': true,
+            'active': true
+          },
+          {
+            'title': 'Warranty Years',
+            'fieldName': 'warrantyDuration',
+            'type': 'number',
+            'order': 5,
+            'required': true,
+            'active': true
+          },
+          {
+            'title': 'Electric Board',
+            'fieldName': 'MACHINE_ELECTRIC_BOARD',
+            'type': 'image',
+            'order': 6,
+            'required': true,
+            'requiredCount': 1,
+            'active': true
+          },
+          {
+            'title': 'Raw Material Demo',
+            'fieldName': 'MACHINE_DEMO_VIDEO',
+            'type': 'video',
+            'order': 7,
+            'required': true,
+            'requiredCount': 1,
+            'active': true
+          },
+          {
+            'title': 'Photo with End User',
+            'fieldName': 'MACHINE_END_USER_PHOTO',
+            'type': 'image',
+            'order': 8,
+            'required': true,
+            'requiredCount': 1,
+            'active': true
+          },
+          {
+            'title': 'Civil Work (If any)',
+            'fieldName': 'MACHINE_CIVIL_WORK',
+            'type': 'image',
+            'order': 9,
+            'required': false,
+            'requiredCount': 2,
+            'active': true
+          },
+          {
+            'title': 'Trained End User',
+            'fieldName': 'trainedEndUser',
+            'type': 'boolean',
+            'order': 10,
+            'required': true,
+            'active': true,
+            'defaultValue': true
+          },
+        ],
+      },
+    },
+  ]),
+);
+
 void main() {
   setUp(() {
     _secureStorageValues.clear();
@@ -323,7 +430,15 @@ void main() {
       remote: _StubActivityFacilityRemoteRepository(),
     );
     pendingSubmissionRepository.clearForTests();
+    documentLocationOverride = () => const {
+          'latitude': '6.5108074',
+          'longitude': '3.606173',
+          'additionalDetails': null,
+        };
+    unawaited(assetMdmsRepository.store(_machineMdms));
   });
+
+  tearDown(() => documentLocationOverride = null);
 
   setUpAll(() async {
     await envConfig.initialize();
@@ -1415,7 +1530,7 @@ void main() {
     await tester.tap(machineAction);
     await tester.pumpAndSettle();
     expect(find.byType(MachineFormPage), findsOneWidget);
-    expect(find.text(tr(i18.machineForm.machineReportTitle)), findsOneWidget);
+    expect(find.text('Machine Report'), findsOneWidget);
 
     // Each `pumpNewReports()` call above renders facility cards whose
     // progress bar starts a real Isar `.timeout()` guard (now genuinely
@@ -2103,6 +2218,8 @@ void main() {
       name: 'panel.jpg',
       path: '/tmp/panel.jpg',
       kind: SolarFileKind.image,
+      documentUid: 'DOC-PANEL-IMAGE-1',
+      geoLocation: {'latitude': '6.5', 'longitude': '3.6'},
     );
     draft.assets[SolarAssetType.panel]!.assets.single.capacity = '550';
     draft.assets[SolarAssetType.panel]!.assets.single.itemCode = 'PANEL-550';
@@ -2201,6 +2318,93 @@ void main() {
     expect(find.byKey(const ValueKey('image-uploader-empty')), findsOneWidget);
   });
 
+  testWidgets(
+      'multiple image uploader bulk-selects and clamps to remaining slots', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    var selected = <SolarFileRef>[];
+    var bulkPickCalls = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: Scaffold(
+          body: ImageUploader(
+            initialImages: selected,
+            allowMultiples: true,
+            maxImages: 2,
+            pickMedia: (_, __) async => XFile('/tmp/camera.jpg'),
+            pickMultiple: () async {
+              bulkPickCalls++;
+              return [
+                XFile('/tmp/civil-1.jpg'),
+                XFile('/tmp/civil-2.jpg'),
+              ];
+            },
+            onImagesSelected: (files) => selected = files,
+          ),
+        ),
+      ),
+    );
+
+    // Camera remains a single capture even though the field supports two.
+    await tester.tap(find.byKey(const ValueKey('image-uploader-empty')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('image-uploader-camera')));
+    await tester.pumpAndSettle();
+    expect(selected, hasLength(1));
+
+    // The gallery returns two files, but only the one remaining slot is used.
+    await tester.tap(find.byKey(const ValueKey('image-uploader-empty')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('image-uploader-files')));
+    await tester.pumpAndSettle();
+    expect(bulkPickCalls, 1);
+    expect(selected.map((file) => file.path), [
+      '/tmp/camera.jpg',
+      '/tmp/civil-1.jpg',
+    ]);
+    expect(find.byKey(const ValueKey('image-uploader-empty')), findsNothing);
+    expect(
+        find.byKey(const ValueKey('image-uploader-preview-0')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('image-uploader-preview-1')), findsOneWidget);
+  });
+
+  testWidgets('multiple image uploader selects the full count at once', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    var selected = <SolarFileRef>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: Scaffold(
+          body: ImageUploader(
+            initialImages: selected,
+            allowMultiples: true,
+            maxImages: 2,
+            pickMultiple: () async => [
+              XFile('/tmp/civil-1.jpg'),
+              XFile('/tmp/civil-2.jpg'),
+            ],
+            onImagesSelected: (files) => selected = files,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('image-uploader-empty')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('image-uploader-files')));
+    await tester.pumpAndSettle();
+    expect(selected.map((file) => file.path), [
+      '/tmp/civil-1.jpg',
+      '/tmp/civil-2.jpg',
+    ]);
+    expect(find.byKey(const ValueKey('image-uploader-empty')), findsNothing);
+  });
+
   testWidgets('solar media page uses E4H multiple image and video uploaders', (
     tester,
   ) async {
@@ -2224,6 +2428,45 @@ void main() {
     expect(find.byKey(const ValueKey('image-uploader-empty')), findsOneWidget);
     expect(find.byKey(const ValueKey('video-uploader-empty')), findsOneWidget);
     expect(find.text('Cancel'), findsNothing);
+  });
+
+  testWidgets('shared video uploader enforces its configured count', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    var selected = <SolarFileRef>[];
+    var picks = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: Scaffold(
+          body: VideoUploader(
+            initialVideos: selected,
+            allowMultiples: true,
+            maxVideos: 2,
+            pickMedia: (_, __) async {
+              picks++;
+              return XFile('/tmp/video-$picks.mp4');
+            },
+            onVideosSelected: (files) => selected = files,
+          ),
+        ),
+      ),
+    );
+
+    for (var index = 0; index < 2; index++) {
+      await tester.tap(find.byKey(const ValueKey('video-uploader-empty')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('video-uploader-files')));
+      await tester.pumpAndSettle();
+    }
+
+    expect(selected, hasLength(2));
+    expect(find.byKey(const ValueKey('video-uploader-empty')), findsNothing);
+    expect(
+        find.byKey(const ValueKey('video-uploader-preview-0')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('video-uploader-preview-1')), findsOneWidget);
   });
 
   testWidgets('E4H file uploader shows selection count and preview tile', (
@@ -2303,6 +2546,15 @@ void main() {
       matching: find.byType(EditableText),
     );
     await tester.enterText(input, '1234');
+    await tester.pump();
+    expect(
+      tester
+          .widget<DigitButton>(
+            find.byKey(const ValueKey('test-verify-otp-button')),
+          )
+          .isDisabled,
+      isFalse,
+    );
     await tester.tap(find.byKey(const ValueKey('test-verify-otp-button')));
     await tester.pump();
     expect(verificationChanges, [isTrue]);
@@ -2345,6 +2597,87 @@ void main() {
     expect(find.text(tr(i18.machineForm.otpRequestFailed)), findsOneWidget);
     // A failed generate keeps the toggle reading "Request OTP".
     expect(find.text(tr(i18.machineForm.requestOtp)), findsOneWidget);
+  });
+
+  testWidgets(
+      'submission overlay replaces raw workflow errors with retry guidance', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    Localization localized(String code, String message) => Localization()
+      ..code = code
+      ..message = message
+      ..module = 'rainmaker-common'
+      ..locale = 'en_IN';
+
+    AppLocalizations.debugSeedLocalizations([
+      localized(i18.syncLoading.failed, 'Submission failed'),
+      localized(
+        i18.syncLoading.failureWorkflow,
+        'Unable to complete the report submission.',
+      ),
+      localized(
+        i18.syncLoading.progressSavedRetry,
+        'Your progress has been saved. Please try again.',
+      ),
+      localized(i18.common.back, 'Back'),
+      localized(i18.common.retry, 'Retry'),
+    ]);
+    addTearDown(() => AppLocalizations.debugSeedLocalizations(const []));
+
+    var backCalls = 0;
+    var retryCalls = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: Scaffold(
+          body: Stack(
+            children: [
+              const SizedBox.expand(),
+              OperationProgressOverlay(
+                progress: const OperationProgressModel(
+                  activityFacilityId: 'workflow-failure',
+                  operationType: OperationTypes.submit,
+                  status: OperationStatuses.failed,
+                  stageKey: 'finalizing_workflow_submission',
+                  stageLabel: 'Finalizing workflow submission',
+                  completedSteps: 6,
+                  totalSteps: 9,
+                  progressPercent: 67,
+                  retryCount: 1,
+                  errorMessage:
+                      'DioException [bad response]: error while publishing to kafka',
+                ),
+                onClose: () => backCalls++,
+                onRetry: () => retryCalls++,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Submission failed'), findsOneWidget);
+    expect(
+      find.text('Unable to complete the report submission.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Your progress has been saved. Please try again.'),
+      findsOneWidget,
+    );
+    expect(find.text('67%'), findsOneWidget);
+    expect(find.textContaining('DioException'), findsNothing);
+    expect(find.textContaining('kafka'), findsNothing);
+
+    await tester.tap(find.byKey(
+      const ValueKey('operation-progress-retry-button'),
+    ));
+    await tester.tap(find.byKey(
+      const ValueKey('operation-progress-close-button'),
+    ));
+    expect(retryCalls, 1);
+    expect(backCalls, 1);
   });
 
   testWidgets('solar asset summary has edit controls only when editable', (
@@ -2471,6 +2804,8 @@ void main() {
           name: '${requirement.code}.jpg',
           path: '/tmp/${requirement.code}.jpg',
           kind: SolarFileKind.image,
+          documentUid: 'INSTALLATION-IMAGE-${requirement.code}-1-0',
+          geoLocation: const {'latitude': '6.5', 'longitude': '3.6'},
         ),
       ];
     }
@@ -2514,6 +2849,19 @@ void main() {
     expect(find.byKey(const ValueKey('electric-board-picker')), findsOneWidget);
     expect(find.byKey(const ValueKey('demo-video-picker')), findsOneWidget);
     expect(find.byKey(const ValueKey('end-user-photo-picker')), findsOneWidget);
+    expect(find.byKey(const ValueKey('machine-media-MACHINE_CIVIL_WORK')),
+        findsOneWidget);
+    expect(find.byType(ImageUploader), findsNWidgets(3));
+    expect(find.byType(VideoUploader), findsOneWidget);
+    final civilWorkUploader = tester.widget<ImageUploader>(
+      find.byKey(const ValueKey('machine-media-MACHINE_CIVIL_WORK')),
+    );
+    expect(civilWorkUploader.allowMultiples, isTrue);
+    expect(civilWorkUploader.maxImages, 2);
+    expect(civilWorkUploader.pickMedia, isNull);
+    expect(find.text('Required: 1 image'), findsNWidgets(2));
+    expect(find.text('Required: 1 video'), findsOneWidget);
+    expect(find.text('Required: 2 images'), findsOneWidget);
     expect(find.byKey(const ValueKey('trained-yes')), findsOneWidget);
     expect(find.byKey(const ValueKey('trained-no')), findsOneWidget);
     expect(find.byKey(const ValueKey('machine-otp-request-resend-button')),
@@ -2521,6 +2869,38 @@ void main() {
     expect(find.byKey(const ValueKey('machine-otp-field')), findsOneWidget);
 
     expect(find.byKey(const ValueKey('save-draft-button')), findsOneWidget);
+    expect(
+      tester
+          .widget<DigitButton>(
+            find.byKey(const ValueKey('save-draft-button')),
+          )
+          .isDisabled,
+      isTrue,
+    );
+    expect(
+      tester
+          .widget<DigitButton>(
+            find.byKey(const ValueKey('machine-otp-request-resend-button')),
+          )
+          .isDisabled,
+      isTrue,
+    );
+    expect(
+      tester
+          .widget<DigitButton>(
+            find.byKey(const ValueKey('machine-verify-otp-button')),
+          )
+          .isDisabled,
+      isTrue,
+    );
+    expect(
+      tester
+          .widget<DigitTextFormInput>(
+            find.byKey(const ValueKey('machine-otp-field')),
+          )
+          .isDisabled,
+      isTrue,
+    );
     final submit = tester.widget<DigitButton>(
       find.byKey(const ValueKey('submit-machine-report-button')),
     );
@@ -2698,27 +3078,119 @@ void main() {
     final originalOtpRepository = otpRepository;
     otpRepository = _FakeOtpRepository();
     addTearDown(() => otpRepository = originalOtpRepository);
+    var mediaPickCount = 0;
 
     Future<void> pumpForm() async {
       await pumpAuthenticatedRoute(
         tester,
         MachineFormRoute(
           workflow: _StubActivityFacilityRemoteRepository._defaultItems[1],
-          pickMedia: (kind, source) async => XFile(
-            kind == MachineMediaKind.image
-                ? '/tmp/photo.jpg'
-                : '/tmp/video.mp4',
-            name: kind == MachineMediaKind.image ? 'photo.jpg' : 'video.mp4',
-          ),
+          pickMedia: (kind, source) async {
+            mediaPickCount++;
+            final extension = kind == MachineMediaKind.image ? 'jpg' : 'mp4';
+            return XFile(
+              '/tmp/machine-media-$mediaPickCount.$extension',
+              name: 'machine-media-$mediaPickCount.$extension',
+            );
+          },
         ),
       );
     }
 
+    Future<void> enter(String key, String value) async {
+      await tester.enterText(
+        find.descendant(
+          of: find.byKey(ValueKey(key)),
+          matching: find.byType(EditableText),
+        ),
+        value,
+      );
+      await tester.pump();
+    }
+
+    Future<void> scrollIntoView(Finder target) async {
+      final center = tester.getCenter(target);
+      if (center.dy > 650) {
+        await tester.drag(
+          find.byType(CustomScrollView),
+          Offset(0, 600 - center.dy),
+        );
+        await tester.pumpAndSettle();
+      }
+    }
+
+    Future<void> selectMedia(String key, {required bool video}) async {
+      final target = find.byKey(ValueKey(key));
+      await scrollIntoView(target);
+      await tester.tap(target);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(
+          ValueKey(video ? 'video-uploader-files' : 'image-uploader-files')));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> fillRequiredFields() async {
+      await enter('po-number-field', 'PO-100');
+      await enter('machine-serial-field', 'SERIAL-100');
+      await enter('invoice-number-field', 'INVOICE-100');
+      await enter('machine-capacity-field', '500 W');
+      await enter('warranty-years-field', '2');
+      await selectMedia('electric-board-picker', video: false);
+      await selectMedia('demo-video-picker', video: true);
+      await selectMedia('end-user-photo-picker', video: false);
+    }
+
     await pumpForm();
-    await tester.ensureVisible(
-      find.byKey(const ValueKey('save-draft-button')),
+    final saveDraft = find.byKey(const ValueKey('save-draft-button'));
+    final requestOtp =
+        find.byKey(const ValueKey('machine-otp-request-resend-button'));
+    final verifyOtp = find.byKey(const ValueKey('machine-verify-otp-button'));
+    final submitReport =
+        find.byKey(const ValueKey('submit-machine-report-button'));
+    expect(tester.widget<DigitButton>(saveDraft).isDisabled, isTrue);
+    expect(tester.widget<DigitButton>(requestOtp).isDisabled, isTrue);
+    expect(tester.widget<DigitButton>(verifyOtp).isDisabled, isTrue);
+    expect(tester.widget<DigitButton>(submitReport).isDisabled, isTrue);
+    expect(
+      tester
+          .widget<DigitTextFormInput>(
+            find.byKey(const ValueKey('machine-otp-field')),
+          )
+          .isDisabled,
+      isTrue,
     );
-    await tester.tap(find.byKey(const ValueKey('save-draft-button')));
+
+    await fillRequiredFields();
+    expect(tester.widget<DigitButton>(saveDraft).isDisabled, isFalse);
+    expect(tester.widget<DigitButton>(requestOtp).isDisabled, isFalse);
+    expect(tester.widget<DigitButton>(verifyOtp).isDisabled, isTrue);
+
+    // Optional Civil Work is valid when empty, but incomplete once started
+    // until its MDMS requiredCount of two is reached.
+    await selectMedia('machine-media-MACHINE_CIVIL_WORK', video: false);
+    expect(tester.widget<DigitButton>(saveDraft).isDisabled, isTrue);
+    expect(tester.widget<DigitButton>(requestOtp).isDisabled, isTrue);
+    await selectMedia('machine-media-MACHINE_CIVIL_WORK', video: false);
+    expect(tester.widget<DigitButton>(saveDraft).isDisabled, isFalse);
+    expect(tester.widget<DigitButton>(requestOtp).isDisabled, isFalse);
+    var civilRemove = find.descendant(
+      of: find.byKey(const ValueKey('machine-media-MACHINE_CIVIL_WORK')),
+      matching: find.byKey(const ValueKey('image-uploader-remove')),
+    );
+    await tester.tap(civilRemove.first);
+    await tester.pump();
+    expect(tester.widget<DigitButton>(saveDraft).isDisabled, isTrue);
+    civilRemove = find.descendant(
+      of: find.byKey(const ValueKey('machine-media-MACHINE_CIVIL_WORK')),
+      matching: find.byKey(const ValueKey('image-uploader-remove')),
+    );
+    await tester.tap(civilRemove.first);
+    await tester.pump();
+    expect(tester.widget<DigitButton>(saveDraft).isDisabled, isFalse);
+    expect(tester.widget<DigitButton>(requestOtp).isDisabled, isFalse);
+
+    await tester.ensureVisible(saveDraft);
+    await tester.tap(saveDraft);
     await tester.pump();
     await tester.pump(const Duration(seconds: 6));
     expect(find.byType(MachineReportSuccessPage), findsOneWidget);
@@ -2739,45 +3211,11 @@ void main() {
     expect(find.byType(HomePage), findsOneWidget);
     expect(find.byType(MachineFormPage), findsNothing);
 
+    // A fresh editable form uses the same completion gate before OTP.
     await pumpForm();
-    Future<void> enter(String key, String value) async {
-      await tester.enterText(
-        find.descendant(
-          of: find.byKey(ValueKey(key)),
-          matching: find.byType(EditableText),
-        ),
-        value,
-      );
-      await tester.pump();
-    }
-
-    await enter('po-number-field', 'PO-100');
-    await enter('machine-capacity-field', '500 W');
-    await enter('warranty-years-field', '2');
-
-    Future<void> scrollIntoView(Finder target) async {
-      final center = tester.getCenter(target);
-      if (center.dy > 650) {
-        await tester.drag(
-          find.byType(CustomScrollView),
-          Offset(0, 600 - center.dy),
-        );
-        await tester.pumpAndSettle();
-      }
-    }
-
-    Future<void> selectMedia(String key) async {
-      final target = find.byKey(ValueKey(key));
-      await scrollIntoView(target);
-      await tester.tap(target);
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('machine-picker-files')));
-      await tester.pumpAndSettle();
-    }
-
-    await selectMedia('electric-board-picker');
-    await selectMedia('demo-video-picker');
-    await selectMedia('end-user-photo-picker');
+    await fillRequiredFields();
+    expect(tester.widget<DigitButton>(saveDraft).isDisabled, isFalse);
+    expect(tester.widget<DigitButton>(requestOtp).isDisabled, isFalse);
 
     await scrollIntoView(find.byKey(const ValueKey('trained-no')));
     await tester.tap(find.byKey(const ValueKey('trained-no')));
@@ -2799,8 +3237,10 @@ void main() {
       find.byKey(const ValueKey('machine-otp-request-resend-button')),
     );
     await tester.pump();
+    expect(tester.widget<DigitButton>(verifyOtp).isDisabled, isTrue);
 
     await enter('machine-otp-field', '1234');
+    expect(tester.widget<DigitButton>(verifyOtp).isDisabled, isFalse);
     await scrollIntoView(
       find.byKey(const ValueKey('machine-verify-otp-button')),
     );
@@ -2819,6 +3259,14 @@ void main() {
           )
           .isDisabled,
       isFalse,
+    );
+
+    await enter('po-number-field', '');
+    expect(tester.widget<DigitButton>(saveDraft).isDisabled, isTrue);
+    expect(tester.widget<DigitButton>(submitReport).isDisabled, isTrue);
+    expect(
+      find.byKey(const ValueKey('machine-otp-verified-message')),
+      findsOneWidget,
     );
 
     // Dismiss the "OTP verified" SnackBar the tap above raised — it sits at

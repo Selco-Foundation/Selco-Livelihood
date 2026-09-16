@@ -28,6 +28,8 @@
 	<string>Livelihood uses the camera to capture installation report photos and videos.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Livelihood uses the microphone while recording installation report videos.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Livelihood records the location of installation report documents.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Livelihood uses the photo library to select installation report photos and videos.</string>
 	<key>UILaunchStoryboardName</key>

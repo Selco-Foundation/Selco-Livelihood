@@ -7,6 +7,7 @@ environment:
   sdk: '>=3.4.3 <4.0.0'
 
 dependencies:
+  location: ^6.0.2
   auto_route: ^8.3.0
   badges: 3.1.2
   camera: 0.11.0+2

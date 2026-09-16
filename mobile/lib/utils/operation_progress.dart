@@ -1,3 +1,5 @@
+import 'i18_key_constants.dart' as i18;
+
 /// Trimmed, submit-only port of e4h's `operation_progress.dart` — this app
 /// has no reject/send-back/AMC operations yet, so only the submit pipeline
 /// is modeled.
@@ -73,6 +75,22 @@ OperationStage stageForKey(String stageKey) => submitStages.firstWhere(
       (stage) => stage.key == stageKey,
       orElse: () => OperationStage(stageKey, stageKey),
     );
+
+/// Returns a safe, localized user-facing failure category for a submission
+/// checkpoint. The raw exception remains available in the cached job for
+/// diagnostics, but must never be rendered directly in the submission UI.
+String failureMessageKeyForStage(String stageKey) => switch (stageKey) {
+      'preparing_submission' ||
+      'resolving_vendor_org' =>
+        i18.syncLoading.failurePreparation,
+      'uploading_media' => i18.syncLoading.failureMedia,
+      'submitting_bom' => i18.syncLoading.failureBom,
+      'submitting_assets' => i18.syncLoading.failureAssets,
+      'verifying_assets' => i18.syncLoading.failureAssetVerification,
+      'finalizing_workflow_submission' => i18.syncLoading.failureWorkflow,
+      'cleaning_up_local_cache' => i18.syncLoading.failureCleanup,
+      _ => i18.syncLoading.failureGeneric,
+    };
 
 int progressPercent({
   required int completedSteps,

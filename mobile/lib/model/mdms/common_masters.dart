@@ -14,6 +14,83 @@ class BomFormSchema {
   }
 }
 
+class MachineFormSchema {
+  const MachineFormSchema({
+    required this.name,
+    required this.title,
+    required this.fields,
+  });
+
+  final String name;
+  final String title;
+  final List<MachineFormField> fields;
+
+  factory MachineFormSchema.fromJson(Map<String, dynamic> json) {
+    final data = _data(json);
+    return MachineFormSchema(
+      name: (data['name'] ?? json['uniqueIdentifier'] ?? '').toString(),
+      title: (data['title'] ?? 'Machine Report').toString(),
+      fields: _maps(data['fields'])
+          .map(MachineFormField.fromJson)
+          .where((field) => field.active && field.fieldName.isNotEmpty)
+          .toList()
+        ..sort((a, b) => a.order.compareTo(b.order)),
+    );
+  }
+}
+
+class MachineFormField {
+  const MachineFormField({
+    required this.title,
+    required this.fieldName,
+    required this.type,
+    required this.order,
+    required this.requiredField,
+    required this.active,
+    this.requiredCount = 1,
+    this.defaultValue,
+  });
+
+  final String title;
+  final String fieldName;
+  final String type;
+  final int order;
+  final bool requiredField;
+  final bool active;
+  final int requiredCount;
+  final dynamic defaultValue;
+
+  bool get isMedia => type == 'image' || type == 'video';
+  bool get allowMultiples => isMedia && requiredCount > 1;
+
+  bool mediaCountComplete(int count) => requiredField
+      ? count >= requiredCount
+      : count == 0 || count >= requiredCount;
+
+  String get requiredLabel {
+    final noun = type == 'video' ? 'video' : 'image';
+    return requiredCount == 1
+        ? 'Required: 1 $noun'
+        : 'Required: $requiredCount ${noun}s';
+  }
+
+  factory MachineFormField.fromJson(Map<String, dynamic> json) {
+    final type = (json['type'] ?? 'text').toString().trim().toLowerCase();
+    return MachineFormField(
+      title: (json['title'] ?? json['fieldName'] ?? '').toString(),
+      fieldName: (json['fieldName'] ?? '').toString(),
+      type: type,
+      order: _integer(json['order']),
+      requiredField: json['required'] == true,
+      active: json['active'] != false && json['isActive'] != false,
+      requiredCount: type == 'image' || type == 'video'
+          ? _integer(json['requiredCount']).clamp(1, 100)
+          : 1,
+      defaultValue: json['defaultValue'],
+    );
+  }
+}
+
 class BomFormPage {
   const BomFormPage({
     required this.code,

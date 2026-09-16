@@ -1,10 +1,14 @@
+import 'dart:io';
+
 import 'package:digit_forms_engine/blocs/app_localization.dart'
     as forms_localization;
 import 'package:digit_ui_components/digit_components.dart';
+import 'package:digit_ui_components/services/location_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:isar/isar.dart';
+import 'package:location/location.dart';
 
 import 'blocs/activity_facility_counts/activity_facility_counts.dart';
 import 'blocs/app_init/app_init.dart';
@@ -59,11 +63,16 @@ class LivelihoodApp extends StatefulWidget {
 class _LivelihoodAppState extends State<LivelihoodApp> {
   late final AppRouter _router = widget.router ?? AppRouter();
   late final AuthBloc _authBloc;
+  late final LocationBloc _locationBloc;
 
   @override
   void initState() {
     super.initState();
     _authBloc = AuthBloc(loginAuthRepository);
+    _locationBloc = LocationBloc(location: Location());
+    if (!Platform.environment.containsKey('FLUTTER_TEST')) {
+      _locationBloc.add(const LocationEvent.load());
+    }
     _authBloc.add(const AuthEvent.attemptLoad());
 
     AuthTokenInterceptor.onSessionExpired = () async {
@@ -80,6 +89,7 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
   @override
   void dispose() {
     _authBloc.close();
+    _locationBloc.close();
     super.dispose();
   }
 
@@ -94,8 +104,11 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
     // gate — and plenty of existing widget tests intentionally exercise
     // `LivelihoodApp(router: ...)` with no `isar` at all to skip that gate.
     if (isar == null) {
-      return BlocProvider<AuthBloc>.value(
-        value: _authBloc,
+      return MultiBlocProvider(
+        providers: [
+          BlocProvider<AuthBloc>.value(value: _authBloc),
+          BlocProvider<LocationBloc>.value(value: _locationBloc),
+        ],
         child: BlocProvider<ActivityFacilityCountsBloc>(
           create: (_) => ActivityFacilityCountsBloc(),
           child: BlocProvider<AssetSubmissionBloc>(
@@ -106,8 +119,11 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
       );
     }
 
-    return BlocProvider<AuthBloc>.value(
-      value: _authBloc,
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<AuthBloc>.value(value: _authBloc),
+        BlocProvider<LocationBloc>.value(value: _locationBloc),
+      ],
       child: BlocProvider<ActivityFacilityCountsBloc>(
         create: (_) => ActivityFacilityCountsBloc(),
         child: BlocProvider<AssetSubmissionBloc>(

@@ -34,9 +34,11 @@ class OperationProgressOverlay extends StatelessWidget {
     final textTheme = theme.digitTextTheme(context);
     final isFailure = progress.isFailure;
     final progressValue =
-        (progress.progressPercent.clamp(0, 100).toDouble() / 100).clamp(0.0, 1.0);
+        (progress.progressPercent.clamp(0, 100).toDouble() / 100)
+            .clamp(0.0, 1.0);
 
-    final showIndeterminate = progress.isActive && progress.progressPercent <= 0;
+    final showIndeterminate =
+        progress.isActive && progress.progressPercent <= 0;
 
     return Positioned.fill(
       child: ColoredBox(
@@ -62,7 +64,9 @@ class OperationProgressOverlay extends StatelessWidget {
                 const SizedBox(height: spacer2),
                 Text(
                   isFailure
-                      ? (progress.errorMessage ?? progress.stageLabel)
+                      ? context.translate(
+                          failureMessageKeyForStage(progress.stageKey),
+                        )
                       : progress.stageLabel,
                   key: const ValueKey('operation-progress-stage-label'),
                   textAlign: TextAlign.center,
@@ -90,8 +94,7 @@ class OperationProgressOverlay extends StatelessWidget {
                 const SizedBox(height: spacer2),
                 Text(
                   isFailure
-                      ? (progress.errorMessage ??
-                          context.translate(i18.syncLoading.somethingWentWrong))
+                      ? context.translate(i18.syncLoading.progressSavedRetry)
                       : context.translate(i18.syncLoading.pleaseWait),
                   key: const ValueKey('operation-progress-footnote'),
                   textAlign: TextAlign.center,
@@ -107,7 +110,8 @@ class OperationProgressOverlay extends StatelessWidget {
                     children: [
                       Expanded(
                         child: DigitButton(
-                          key: const ValueKey('operation-progress-close-button'),
+                          key:
+                              const ValueKey('operation-progress-close-button'),
                           label: context.translate(i18.common.back),
                           mainAxisSize: MainAxisSize.max,
                           type: DigitButtonType.secondary,
@@ -118,7 +122,8 @@ class OperationProgressOverlay extends StatelessWidget {
                       const SizedBox(width: spacer4),
                       Expanded(
                         child: DigitButton(
-                          key: const ValueKey('operation-progress-retry-button'),
+                          key:
+                              const ValueKey('operation-progress-retry-button'),
                           label: context.translate(i18.common.retry),
                           mainAxisSize: MainAxisSize.max,
                           type: DigitButtonType.primary,

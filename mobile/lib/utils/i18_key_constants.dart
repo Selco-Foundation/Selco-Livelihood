@@ -277,6 +277,16 @@ class SyncLoading {
   String get failed => 'SYNC_LOADING_FAILED';
   String get pleaseWait => 'SYNC_LOADING_PLEASE_WAIT';
   String get somethingWentWrong => 'SYNC_LOADING_SOMETHING_WENT_WRONG';
+  String get failurePreparation => 'SYNC_LOADING_FAILURE_PREPARATION';
+  String get failureMedia => 'SYNC_LOADING_FAILURE_MEDIA';
+  String get failureBom => 'SYNC_LOADING_FAILURE_BOM';
+  String get failureAssets => 'SYNC_LOADING_FAILURE_ASSETS';
+  String get failureAssetVerification =>
+      'SYNC_LOADING_FAILURE_ASSET_VERIFICATION';
+  String get failureWorkflow => 'SYNC_LOADING_FAILURE_WORKFLOW';
+  String get failureCleanup => 'SYNC_LOADING_FAILURE_CLEANUP';
+  String get failureGeneric => 'SYNC_LOADING_FAILURE_GENERIC';
+  String get progressSavedRetry => 'SYNC_LOADING_PROGRESS_SAVED_RETRY';
   String get of => 'SYNC_LOADING_OF';
   String get completedSuffix => 'SYNC_LOADING_COMPLETED_SUFFIX';
 }

@@ -19,6 +19,7 @@ import '../repositories/installation_cache_repo.dart';
 import '../repositories/installation_draft_repository.dart';
 import '../utils/app_permission_gateway.dart';
 import '../utils/warranty.dart';
+import '../utils/document_metadata.dart';
 import '../widgets/image_uploader.dart';
 import '../widgets/solar_workflow_widgets.dart';
 import '../widgets/video_uploader.dart';
@@ -80,6 +81,7 @@ class _AssetCountPageState extends State<AssetCountPage> {
 
   @override
   Widget build(BuildContext context) {
+    observeDocumentLocation(context);
     final theme = Theme.of(context);
     final textTheme = theme.digitTextTheme(context);
     return SolarWorkflowScaffold(
@@ -369,10 +371,17 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
 
   @override
   Widget build(BuildContext context) {
+    observeDocumentLocation(context);
     final theme = Theme.of(context);
     final textTheme = theme.digitTextTheme(context);
     final assetDraft = widget.draft.assets[widget.assetType]!;
     final entries = assetDraft.assets;
+    for (final entry in entries) {
+      final photo = entry.supportingPhoto;
+      if (photo != null && !photo.hasValidLocation && !photo.isRemote) {
+        entry.supportingPhoto = refreshDocumentLocation(context, photo);
+      }
+    }
     final count = widget.draft.countFor(widget.assetType);
     final complete = count > 0 &&
         entries.length == widget.draft.countFor(widget.assetType) &&
@@ -508,7 +517,13 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
                               ? null
                               : await installationCacheRepository
                                   .persistMediaRef(
-                                  file,
+                                  commitDocumentMetadata(
+                                    context,
+                                    file,
+                                    documentType: 'ASSET',
+                                    uidPrefix:
+                                        'DOC-${widget.assetType.name.toUpperCase()}-IMAGE',
+                                  ),
                                   '${widget.draft.cacheKey}-${widget.assetType.name}-${indexed.key}-support',
                                 );
                           if (!mounted) return;
@@ -632,15 +647,27 @@ class MediaUploadPage extends StatefulWidget {
 class _MediaUploadPageState extends State<MediaUploadPage> {
   @override
   Widget build(BuildContext context) {
+    observeDocumentLocation(context);
     final theme = Theme.of(context);
     final textTheme = theme.digitTextTheme(context);
     final asset = widget.draft.assets[widget.assetType]!;
+    for (var index = 0; index < asset.images.length; index++) {
+      asset.images[index] =
+          refreshDocumentLocation(context, asset.images[index]);
+    }
+    for (var index = 0; index < asset.videos.length; index++) {
+      asset.videos[index] =
+          refreshDocumentLocation(context, asset.videos[index]);
+    }
     return SolarWorkflowScaffold(
       pageKey: 'solar-media-${widget.assetType.name}',
       stepIndex: 4,
       footer: SolarFooterButton(
         label: context.translate(i18.common.next),
-        isDisabled: asset.images.isEmpty,
+        isDisabled: asset.images.isEmpty ||
+            !asset.images
+                .every((file) => file.hasCompleteNewDocumentMetadata) ||
+            !asset.videos.every((file) => file.hasCompleteNewDocumentMetadata),
         onPressed: () {
           _recordAssetProgress(widget.draft, widget.assetType, 4);
           context.router.push(
@@ -677,7 +704,13 @@ class _MediaUploadPageState extends State<MediaUploadPage> {
                   final persisted = <SolarFileRef>[];
                   for (var index = 0; index < files.length; index++) {
                     persisted.add(await installationCacheRepository.persistMediaRef(
-                        files[index],
+                        commitDocumentMetadata(
+                          context,
+                          files[index],
+                          documentType: '${widget.assetType.name}-image',
+                          uidPrefix:
+                              'DOC-${widget.assetType.name.toUpperCase()}-IMAGE',
+                        ),
                         '${widget.draft.cacheKey}-${widget.assetType.name}-image-$index'));
                   }
                   if (!mounted) return;
@@ -721,7 +754,13 @@ class _MediaUploadPageState extends State<MediaUploadPage> {
                   final persisted = <SolarFileRef>[];
                   for (var index = 0; index < files.length; index++) {
                     persisted.add(await installationCacheRepository.persistMediaRef(
-                        files[index],
+                        commitDocumentMetadata(
+                          context,
+                          files[index],
+                          documentType: '${widget.assetType.name}-video',
+                          uidPrefix:
+                              'DOC-${widget.assetType.name.toUpperCase()}-VIDEO',
+                        ),
                         '${widget.draft.cacheKey}-${widget.assetType.name}-video-$index'));
                   }
                   if (!mounted) return;

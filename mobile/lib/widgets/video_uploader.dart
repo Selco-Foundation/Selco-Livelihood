@@ -20,6 +20,7 @@ class VideoUploader extends StatefulWidget {
     this.label,
     this.errorMessage,
     this.allowMultiples = false,
+    this.maxVideos,
     this.isDisabled = false,
     this.permissionGateway,
   });
@@ -30,6 +31,7 @@ class VideoUploader extends StatefulWidget {
   final String? label;
   final String? errorMessage;
   final bool allowMultiples;
+  final int? maxVideos;
   final bool isDisabled;
   final AppPermissionGateway? permissionGateway;
 
@@ -42,6 +44,9 @@ class _VideoUploaderState extends State<VideoUploader> {
   bool opening = false;
   String? localError;
 
+  bool get _atLimit =>
+      widget.maxVideos != null && videos.length >= widget.maxVideos!;
+
   @override
   void didUpdateWidget(covariant VideoUploader oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -51,7 +56,7 @@ class _VideoUploaderState extends State<VideoUploader> {
   }
 
   Future<void> _choose(ImageSource source) async {
-    if (opening || widget.isDisabled) return;
+    if (opening || widget.isDisabled || _atLimit) return;
     Navigator.of(context).pop();
     setState(() {
       opening = true;
@@ -72,11 +77,13 @@ class _VideoUploaderState extends State<VideoUploader> {
       if (!mounted || selected == null) return;
       setState(() {
         if (!widget.allowMultiples) videos.clear();
-        videos.add(SolarFileRef(
-          name: selected.name,
-          path: selected.path,
-          kind: SolarFileKind.video,
-        ));
+        if (!_atLimit) {
+          videos.add(SolarFileRef(
+            name: selected.name,
+            path: selected.path,
+            kind: SolarFileKind.video,
+          ));
+        }
       });
       widget.onVideosSelected(List.of(videos));
     } catch (_) {
@@ -90,7 +97,7 @@ class _VideoUploaderState extends State<VideoUploader> {
   }
 
   void _openPicker() {
-    if (opening || widget.isDisabled) return;
+    if (opening || widget.isDisabled || _atLimit) return;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -131,8 +138,9 @@ class _VideoUploaderState extends State<VideoUploader> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).digitTextTheme(context);
     final error = localError ?? widget.errorMessage;
-    final showUpload =
-        !widget.isDisabled && (widget.allowMultiples || videos.isEmpty);
+    final showUpload = !widget.isDisabled &&
+        !_atLimit &&
+        (widget.allowMultiples || videos.isEmpty);
     return InkWell(
       hoverColor: const DigitColors().transparent,
       highlightColor: const DigitColors().transparent,

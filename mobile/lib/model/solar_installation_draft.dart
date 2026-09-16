@@ -31,6 +31,11 @@ class SolarFileRef {
     this.mimeType,
     this.documentType,
     this.localPath,
+    this.id,
+    this.documentUid,
+    this.status = 'ACTIVE',
+    this.additionalDetails,
+    this.geoLocation,
   });
 
   final String name;
@@ -40,17 +45,46 @@ class SolarFileRef {
   final String? mimeType;
   final String? documentType;
   final String? localPath;
+  final String? id;
+  final String? documentUid;
+  final String status;
+  final Map<String, dynamic>? additionalDetails;
+  final Map<String, dynamic>? geoLocation;
 
   bool get isRemote => remoteId?.isNotEmpty == true || path.startsWith('http');
 
-  SolarFileRef copyWith({String? localPath}) => SolarFileRef(
+  bool get hasValidLocation {
+    final latitude = geoLocation?['latitude']?.toString().trim();
+    final longitude = geoLocation?['longitude']?.toString().trim();
+    return latitude?.isNotEmpty == true &&
+        longitude?.isNotEmpty == true &&
+        double.tryParse(latitude!) != null &&
+        double.tryParse(longitude!) != null;
+  }
+
+  bool get isValidForSubmission => isRemote || hasValidLocation;
+  bool get hasCompleteNewDocumentMetadata =>
+      isRemote || (hasValidLocation && documentUid?.trim().isNotEmpty == true);
+
+  SolarFileRef copyWith({
+    String? localPath,
+    String? documentType,
+    String? documentUid,
+    Map<String, dynamic>? geoLocation,
+  }) =>
+      SolarFileRef(
         name: name,
         path: path,
         kind: kind,
         remoteId: remoteId,
         mimeType: mimeType,
-        documentType: documentType,
+        documentType: documentType ?? this.documentType,
         localPath: localPath ?? this.localPath,
+        id: id,
+        documentUid: documentUid ?? this.documentUid,
+        status: status,
+        additionalDetails: additionalDetails,
+        geoLocation: geoLocation ?? this.geoLocation,
       );
 
   Map<String, dynamic> toJson() => {
@@ -61,20 +95,36 @@ class SolarFileRef {
         if (mimeType != null) 'mimeType': mimeType,
         if (documentType != null) 'documentType': documentType,
         if (localPath != null) 'localPath': localPath,
+        if (id != null) 'id': id,
+        if (documentUid != null) 'documentUid': documentUid,
+        'status': status,
+        if (additionalDetails != null) 'additionalDetails': additionalDetails,
+        if (geoLocation != null) 'geoLocation': geoLocation,
       };
 
   factory SolarFileRef.fromJson(Map<String, dynamic> json) => SolarFileRef(
         name: (json['name'] ?? '').toString(),
-        path: (json['path'] ?? json['fileStoreId'] ?? '').toString(),
+        path: (json['path'] ?? json['fileStoreId'] ?? json['fileStore'] ?? '')
+            .toString(),
         kind: SolarFileKind.values.firstWhere(
           (value) => value.name == json['kind'],
           orElse: () => _kindFromName((json['name'] ?? '').toString()),
         ),
-        remoteId:
-            json['remoteId']?.toString() ?? json['fileStoreId']?.toString(),
+        remoteId: json['remoteId']?.toString() ??
+            json['fileStoreId']?.toString() ??
+            json['fileStore']?.toString(),
         mimeType: json['mimeType']?.toString(),
         documentType: json['documentType']?.toString(),
         localPath: json['localPath']?.toString(),
+        id: json['id']?.toString(),
+        documentUid: json['documentUid']?.toString(),
+        status: json['status']?.toString() ?? 'ACTIVE',
+        additionalDetails: json['additionalDetails'] is Map
+            ? Map<String, dynamic>.from(json['additionalDetails'] as Map)
+            : null,
+        geoLocation: json['geoLocation'] is Map
+            ? Map<String, dynamic>.from(json['geoLocation'] as Map)
+            : null,
       );
 
   static SolarFileKind _kindFromName(String name) {
@@ -112,7 +162,7 @@ class SolarAssetEntry {
       serialNumber.trim().isNotEmpty &&
       itemCode?.trim().isNotEmpty == true &&
       capacity.trim().isNotEmpty &&
-      supportingPhoto != null;
+      supportingPhoto?.hasCompleteNewDocumentMetadata == true;
 }
 
 class SolarAssetDraft {
@@ -144,7 +194,9 @@ class SolarAssetDraft {
       detailsComplete &&
       assets.isNotEmpty &&
       assets.every(entryComplete) &&
-      images.isNotEmpty;
+      images.isNotEmpty &&
+      images.every((file) => file.hasCompleteNewDocumentMetadata) &&
+      videos.every((file) => file.hasCompleteNewDocumentMetadata);
 }
 
 class SolarInstallationDraft {
@@ -252,8 +304,24 @@ class SolarInstallationDraft {
       installationRequirements.isNotEmpty &&
       installationRequirements.every((requirement) =>
           (installationMedia[requirement.code]?.length ?? 0) >=
-          requirement.requiredCount);
-  bool get canSubmit => allAssetTypesComplete && installationImagesComplete;
+              requirement.requiredCount &&
+          (installationMedia[requirement.code] ?? const <SolarFileRef>[])
+              .every((file) => file.hasCompleteNewDocumentMetadata));
+  bool get canSubmit =>
+      allAssetTypesComplete &&
+      installationImagesComplete &&
+      completionReportFiles
+          .every((file) => file.hasCompleteNewDocumentMetadata);
+  bool get allDocumentsMetadataComplete => [
+        ...completionReportFiles,
+        for (final files in installationMedia.values) ...files,
+        for (final asset in assets.values) ...[
+          ...asset.images,
+          ...asset.videos,
+          for (final entry in asset.assets)
+            if (entry.supportingPhoto != null) entry.supportingPhoto!,
+        ],
+      ].every((file) => file.hasCompleteNewDocumentMetadata);
   bool get isReadOnly =>
       mode == SolarWorkflowMode.pending || mode == SolarWorkflowMode.approved;
 }

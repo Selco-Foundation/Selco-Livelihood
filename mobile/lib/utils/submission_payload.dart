@@ -67,8 +67,7 @@ Map<String, dynamic> buildSolarSubmissionPayload(SolarInstallationDraft draft) {
         'documents': entry.supportingPhoto == null
             ? const <Map<String, dynamic>>[]
             : [
-                _document(entry.supportingPhoto!, 'ASSET_PHOTO-${type.name}')
-                    .toCacheJson(),
+                _document(entry.supportingPhoto!, 'ASSET').toCacheJson(),
               ],
       });
     }
@@ -101,15 +100,8 @@ Map<String, dynamic> buildSolarSubmissionPayload(SolarInstallationDraft draft) {
 
 Map<String, dynamic> buildMachineSubmissionPayload({
   required ActivityFacilityWorkflow workflow,
-  required String poNumber,
-  required String serialNumber,
-  required String invoiceNumber,
-  required String capacity,
-  required String warrantyYears,
-  required bool trainedEndUser,
-  SolarFileRef? electricBoardMedia,
-  SolarFileRef? demoMedia,
-  SolarFileRef? endUserMedia,
+  required Map<String, dynamic> values,
+  required Map<String, List<SolarFileRef>> media,
 }) {
   final activityFacility = workflow.activityFacility;
   final templateBom = Map<String, dynamic>.from(
@@ -163,23 +155,27 @@ Map<String, dynamic> buildMachineSubmissionPayload({
         firstComponent['name'],
       ]) ??
       'MACHINE';
-  final years = parseWarrantyYears(warrantyYears);
+  final serialNumber = (values['serialNumber'] ?? '').toString();
+  final years =
+      parseWarrantyYears((values['warrantyDuration'] ?? '').toString());
 
   final formData = <String, dynamic>{
     ...templateBom,
-    'purchaseOrderNumber': poNumber,
-    'serialNumber': serialNumber,
-    'invoiceNumber': invoiceNumber,
-    'capacity': capacity,
+    ...values,
     'warrantyDuration': years,
-    'trainedEndUser': trainedEndUser,
   };
   final workflowDocuments = <SubmissionDocument>[
-    if (electricBoardMedia != null)
-      _document(electricBoardMedia, 'MACHINE_ELECTRIC_BOARD'),
-    if (demoMedia != null) _document(demoMedia, 'MACHINE_DEMO_VIDEO'),
-    if (endUserMedia != null) _document(endUserMedia, 'MACHINE_END_USER_PHOTO'),
+    for (final entry in media.entries)
+      for (final file in entry.value) _document(file, entry.key),
   ];
+  final configuredRootValues = <String, dynamic>{
+    for (final entry in values.entries)
+      if (_machineRootFields.contains(entry.key) &&
+          entry.key != 'warrantyDuration' &&
+          entry.key != 'warrantyDurationYears' &&
+          entry.key != 'warrantyStartDate')
+        entry.key: entry.value,
+  };
 
   return {
     'kind': 'machine',
@@ -202,19 +198,18 @@ Map<String, dynamic> buildMachineSubmissionPayload({
       {
         'system': system,
         'assetTypeID': assetTypeCode,
-        'serialNumber': serialNumber,
         'modelNumber': _firstNonBlank([firstComponent['modelNumber']]) ?? '',
         if (brandCode != null) 'brandID': brandCode,
         if (itemCode != null) 'itemCode': itemCode,
         'name': machineName,
+        ...configuredRootValues,
+        'serialNumber': serialNumber,
         'warrantyStartDate':
             years > 0 ? DateTime.now().toUtc().toIso8601String() : null,
         'warrantyDurationYears': years,
         'assetDetails': {
-          'poNumber': poNumber,
-          'invoiceNumber': invoiceNumber,
-          'capacity': capacity,
-          'trainedEndUser': trainedEndUser,
+          for (final entry in values.entries)
+            if (!_machineRootFields.contains(entry.key)) entry.key: entry.value,
         },
         'documents': const <Map<String, dynamic>>[],
       },
@@ -227,12 +222,28 @@ Map<String, dynamic> buildMachineSubmissionPayload({
 SubmissionDocument _document(SolarFileRef file, String fallbackType) {
   final remoteId = file.remoteId?.trim();
   return SubmissionDocument(
+    id: file.id,
     documentType: file.documentType ?? fallbackType,
     fileStore: remoteId?.isNotEmpty == true ? remoteId : null,
     localPath:
         remoteId?.isNotEmpty == true ? null : (file.localPath ?? file.path),
+    documentUid: file.documentUid,
+    status: file.status,
+    additionalDetails: file.additionalDetails,
+    geoLocation: file.geoLocation,
   );
 }
+
+const _machineRootFields = {
+  'serialNumber',
+  'modelNumber',
+  'brandID',
+  'itemCode',
+  'name',
+  'warrantyStartDate',
+  'warrantyDuration',
+  'warrantyDurationYears',
+};
 
 String? _firstNonBlank(List<dynamic> values) {
   for (final value in values) {

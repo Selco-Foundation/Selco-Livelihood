@@ -86,6 +86,10 @@ _$LivelihoodModuleImpl _$$LivelihoodModuleImplFromJson(
               ?.map((e) => e as Map<String, dynamic>)
               .toList() ??
           const [],
+      machineFormSchema: (json['MachineFormSchema'] as List<dynamic>?)
+              ?.map((e) => e as Map<String, dynamic>)
+              .toList() ??
+          const [],
     );
 
 Map<String, dynamic> _$$LivelihoodModuleImplToJson(
@@ -94,6 +98,7 @@ Map<String, dynamic> _$$LivelihoodModuleImplToJson(
       'ItemCode': instance.itemCode,
       'BOMFormSchema': instance.bomFormSchema,
       'SolutionBOMForms': instance.solutionBomForms,
+      'MachineFormSchema': instance.machineFormSchema,
     };
 
 _$InstallationModuleImpl _$$InstallationModuleImplFromJson(

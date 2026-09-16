@@ -97,6 +97,11 @@ class InstallationCacheRepository {
       mimeType: media.mimeType,
       documentType: media.documentType,
       localPath: path,
+      id: media.id,
+      documentUid: media.documentUid,
+      status: media.status,
+      additionalDetails: media.additionalDetails,
+      geoLocation: media.geoLocation,
     );
   }
 

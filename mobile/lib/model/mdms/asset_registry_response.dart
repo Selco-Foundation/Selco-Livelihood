@@ -63,6 +63,9 @@ class LivelihoodModule with _$LivelihoodModule {
     @JsonKey(name: 'SolutionBOMForms')
     @Default([])
     List<Map<String, dynamic>> solutionBomForms,
+    @JsonKey(name: 'MachineFormSchema')
+    @Default([])
+    List<Map<String, dynamic>> machineFormSchema,
   }) = _LivelihoodModule;
 
   factory LivelihoodModule.fromJson(Map<String, dynamic> json) =>

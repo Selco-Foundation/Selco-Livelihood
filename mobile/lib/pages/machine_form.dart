@@ -16,16 +16,21 @@ import '../utils/i18_key_constants.dart' as i18;
 import '../model/facility_report.dart';
 import '../model/activity_facility_workflow/activity_facility_workflow.dart';
 import '../model/solar_installation_draft.dart';
+import '../model/mdms/common_masters.dart';
+import '../repositories/asset_mdms_repository.dart';
 import '../repositories/asset_repository.dart';
 import '../repositories/installation_cache_repo.dart';
 import '../repositories/pending_submission_repository.dart';
 import '../router/app_router.dart';
 import '../utils/app_permission_gateway.dart';
 import '../utils/submission_payload.dart';
+import '../utils/document_metadata.dart';
+import '../widgets/image_uploader.dart';
 import '../widgets/machine_media_picker.dart';
 import '../widgets/operation_progress_overlay.dart';
 import '../widgets/otp_verification_widget.dart';
 import '../widgets/report_navigation_header.dart';
+import '../widgets/video_uploader.dart';
 import 'machine_report_success_page.dart';
 import 'media_viewer.dart';
 
@@ -52,37 +57,55 @@ class _MachineFormPageState extends State<MachineFormPage> {
   final _invoiceController = TextEditingController();
   final _capacityController = TextEditingController();
   final _warrantyController = TextEditingController();
+  final Map<String, TextEditingController> _extraControllers = {};
 
-  XFile? _electricBoardPhoto;
-  XFile? _demoVideo;
-  XFile? _endUserPhoto;
-  SolarFileRef? _electricBoardMedia;
-  SolarFileRef? _demoMedia;
-  SolarFileRef? _endUserMedia;
+  final Map<String, List<SolarFileRef>> _mediaByField = {};
   bool _trainedEndUser = true;
   bool _otpVerified = false;
   bool _otpRequested = false;
   bool _autoSubmitting = false;
+  MachineFormSchema? _schema;
+  bool _schemaLoaded = false;
 
   String get _cacheKey => widget.workflow.activityFacilityCacheKey;
 
   @override
   void initState() {
     super.initState();
-    _seed(widget.workflow.activityFacility.billOfMaterial?.data ??
-        widget.workflow.activityFacility.additionalDetails?.bom ??
-        const {});
-    unawaited(_loadDraft());
+    _schema = assetMdmsRepository.machineFormSchema;
+    _schemaLoaded = _schema != null;
+    unawaited(_initialize());
     unawaited(_restorePendingState());
   }
 
-  bool get _formComplete =>
-      _poController.text.trim().isNotEmpty &&
-      _capacityController.text.trim().isNotEmpty &&
-      _warrantyController.text.trim().isNotEmpty &&
-      (_electricBoardPhoto != null || _electricBoardMedia != null) &&
-      (_demoVideo != null || _demoMedia != null) &&
-      (_endUserPhoto != null || _endUserMedia != null);
+  Future<void> _initialize() async {
+    await assetMdmsRepository.load();
+    _schema = assetMdmsRepository.machineFormSchema;
+    for (final field in _schema?.fields ?? const <MachineFormField>[]) {
+      if (field.type == 'boolean' && field.fieldName == 'trainedEndUser') {
+        _trainedEndUser = field.defaultValue == true;
+      }
+    }
+    _seed(widget.workflow.activityFacility.billOfMaterial?.data ??
+        widget.workflow.activityFacility.additionalDetails?.bom ??
+        const {});
+    await _loadDraft();
+    if (mounted) setState(() => _schemaLoaded = true);
+  }
+
+  bool get _formComplete {
+    final schema = _schema;
+    if (schema == null) return false;
+    return schema.fields.every((field) {
+      if (field.isMedia) {
+        final media = _mediaFor(field.fieldName);
+        return field.mediaCountComplete(media.length) && documentsReady(media);
+      }
+      if (!field.requiredField) return true;
+      if (field.type == 'boolean') return true;
+      return _textValue(field.fieldName).trim().isNotEmpty;
+    });
+  }
 
   Future<void> _restorePendingState() async {
     final id = widget.workflow.activityFacility.id;
@@ -135,6 +158,9 @@ class _MachineFormPageState extends State<MachineFormPage> {
     _invoiceController.dispose();
     _capacityController.dispose();
     _warrantyController.dispose();
+    for (final controller in _extraControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -149,6 +175,17 @@ class _MachineFormPageState extends State<MachineFormPage> {
         ? picker.pickImage(source: source)
         : picker.pickVideo(source: source);
   }
+
+  Future<XFile?> _pickSolarMedia(
+    SolarFileKind kind,
+    ImageSource source,
+  ) =>
+      _pickMedia(
+        kind == SolarFileKind.video
+            ? MachineMediaKind.video
+            : MachineMediaKind.image,
+        source,
+      );
 
   void _refresh([String? _]) {
     setState(() {});
@@ -174,24 +211,78 @@ class _MachineFormPageState extends State<MachineFormPage> {
             values['machine_1_capacity'] ??
             _capacityController.text)
         .toString();
-    _warrantyController.text = (values['warrantyYears'] ??
+    _warrantyController.text = (values['warrantyDuration'] ??
+            values['warrantyYears'] ??
             values['warranty'] ??
             _warrantyController.text)
         .toString();
     if (values['trainedEndUser'] is bool) {
       _trainedEndUser = values['trainedEndUser'] as bool;
     }
+    for (final field in _schema?.fields ?? const <MachineFormField>[]) {
+      if (field.isMedia || field.type == 'boolean') continue;
+      final value = values[field.fieldName];
+      if (value != null) {
+        _controllerFor(field.fieldName).text = value.toString();
+      }
+    }
   }
 
+  String _textValue(String fieldName) => switch (fieldName) {
+        'poNumber' => _poController.text,
+        'serialNumber' => _serialController.text,
+        'invoiceNumber' => _invoiceController.text,
+        'capacity' => _capacityController.text,
+        'warrantyDuration' => _warrantyController.text,
+        _ => _extraControllers[fieldName]?.text ?? '',
+      };
+
+  TextEditingController _controllerFor(String fieldName) => switch (fieldName) {
+        'poNumber' => _poController,
+        'serialNumber' => _serialController,
+        'invoiceNumber' => _invoiceController,
+        'capacity' => _capacityController,
+        'warrantyDuration' => _warrantyController,
+        _ =>
+          _extraControllers.putIfAbsent(fieldName, TextEditingController.new),
+      };
+
+  List<SolarFileRef> _mediaFor(String fieldName) =>
+      List<SolarFileRef>.of(_mediaByField[fieldName] ?? const []);
+
+  Map<String, dynamic> get _formValues => {
+        for (final field in _schema?.fields ?? const <MachineFormField>[])
+          if (!field.isMedia)
+            field.fieldName: field.type == 'boolean'
+                ? _trainedEndUser
+                : _textValue(field.fieldName).trim(),
+      };
+
+  Map<String, List<SolarFileRef>> get _formMedia => {
+        for (final field in _schema?.fields ?? const <MachineFormField>[])
+          if (field.isMedia && _mediaFor(field.fieldName).isNotEmpty)
+            field.fieldName: _mediaFor(field.fieldName),
+      };
+
   Future<void> _loadDraft() async {
+    _loadDocuments(
+        widget.workflow.activityFacility.additionalDetails?.documents);
+    _loadDocuments(widget.workflow.workflow?.documents);
     if (widget.readOnly && _cacheKey.isNotEmpty) {
       final assets = await assetRepository.search(_cacheKey);
       if (assets.isNotEmpty) {
         final asset = assets.first;
-        final details = asset['additionalDetails'] is Map
-            ? Map<String, dynamic>.from(asset['additionalDetails'] as Map)
-            : <String, dynamic>{};
+        final details = <String, dynamic>{
+          if (asset['additionalDetails'] is Map)
+            ...Map<String, dynamic>.from(asset['additionalDetails'] as Map),
+          if (asset['assetDetails'] is Map)
+            ...Map<String, dynamic>.from(asset['assetDetails'] as Map),
+          for (final field in _schema?.fields ?? const <MachineFormField>[])
+            if (asset[field.fieldName] != null)
+              field.fieldName: asset[field.fieldName],
+        };
         details['serialNumber'] ??= asset['serialNumber'];
+        details['warrantyDuration'] ??= asset['warrantyDurationYears'];
         _seed(details);
         _loadDocuments(asset['documents']);
       }
@@ -202,12 +293,17 @@ class _MachineFormPageState extends State<MachineFormPage> {
       final values = Map<String, dynamic>.from(cached);
       _seed(values);
       _trainedEndUser = values['trainedEndUser'] != false;
-      _electricBoardMedia = _media(values['electricBoardPhoto']);
-      _demoMedia = _media(values['demoVideo']);
-      _endUserMedia = _media(values['endUserPhoto']);
-      _electricBoardPhoto = _xfile(_electricBoardMedia);
-      _demoVideo = _xfile(_demoMedia);
-      _endUserPhoto = _xfile(_endUserMedia);
+      final media = values['media'] is Map
+          ? Map<String, dynamic>.from(values['media'] as Map)
+          : const <String, dynamic>{};
+      for (final field in _schema?.fields ?? const <MachineFormField>[]) {
+        if (!field.isMedia || media[field.fieldName] is! List) continue;
+        _mediaByField[field.fieldName] = (media[field.fieldName] as List)
+            .whereType<Map>()
+            .map((value) =>
+                SolarFileRef.fromJson(Map<String, dynamic>.from(value)))
+            .toList();
+      }
     }
     if (mounted) setState(() {});
   }
@@ -216,52 +312,55 @@ class _MachineFormPageState extends State<MachineFormPage> {
     final documents = (value as List<dynamic>? ?? const []).whereType<Map>();
     for (final raw in documents) {
       final document = Map<String, dynamic>.from(raw);
-      final type = (document['documentType'] ?? document['type'] ?? '')
-          .toString()
-          .toLowerCase();
+      final documentType =
+          (document['documentType'] ?? document['type'] ?? '').toString();
+      final field = _schema?.fields.cast<MachineFormField?>().firstWhere(
+            (candidate) =>
+                candidate?.isMedia == true &&
+                candidate!.fieldName == documentType,
+            orElse: () => null,
+          );
+      if (field == null) continue;
       final id =
           (document['fileStoreId'] ?? document['fileStore'] ?? '').toString();
       if (id.isEmpty) continue;
       final kind =
-          type.contains('video') ? SolarFileKind.video : SolarFileKind.image;
+          field.type == 'video' ? SolarFileKind.video : SolarFileKind.image;
       final media = SolarFileRef(
-        name: (document['fileName'] ?? document['name'] ?? type).toString(),
+        name: (document['fileName'] ?? document['name'] ?? documentType)
+            .toString(),
         path: id,
         remoteId: id,
-        documentType: type,
+        documentType: documentType,
         kind: kind,
+        id: document['id']?.toString(),
+        documentUid: document['documentUid']?.toString(),
+        status: document['status']?.toString() ?? 'ACTIVE',
+        additionalDetails: document['additionalDetails'] is Map
+            ? Map<String, dynamic>.from(document['additionalDetails'] as Map)
+            : null,
+        geoLocation: document['geoLocation'] is Map
+            ? Map<String, dynamic>.from(document['geoLocation'] as Map)
+            : null,
       );
-      if (type.contains('electric')) {
-        _electricBoardMedia = media;
-      } else if (kind == SolarFileKind.video) {
-        _demoMedia = media;
-      } else {
-        _endUserMedia = media;
-      }
+      final existing = _mediaByField[field.fieldName] ??= [];
+      final duplicate = existing.any((item) =>
+          (media.documentUid?.isNotEmpty == true &&
+              item.documentUid == media.documentUid) ||
+          (media.id?.isNotEmpty == true && item.id == media.id) ||
+          item.path == media.path);
+      if (!duplicate) existing.add(media);
     }
   }
-
-  SolarFileRef? _media(dynamic value) => value is Map
-      ? SolarFileRef.fromJson(Map<String, dynamic>.from(value))
-      : null;
-
-  XFile? _xfile(SolarFileRef? value) => value == null || value.isRemote
-      ? null
-      : XFile(value.localPath ?? value.path, name: value.name);
 
   Future<void> _save() {
     if (_cacheKey.isEmpty) return Future.value();
     return installationCacheRepository.putJson('machine-draft', _cacheKey, {
-      'poNumber': _poController.text,
-      'serialNumber': _serialController.text,
-      'invoiceNumber': _invoiceController.text,
-      'capacity': _capacityController.text,
-      'warrantyYears': _warrantyController.text,
-      'trainedEndUser': _trainedEndUser,
-      if (_electricBoardMedia != null)
-        'electricBoardPhoto': _electricBoardMedia!.toJson(),
-      if (_demoMedia != null) 'demoVideo': _demoMedia!.toJson(),
-      if (_endUserMedia != null) 'endUserPhoto': _endUserMedia!.toJson(),
+      ..._formValues,
+      'media': {
+        for (final entry in _formMedia.entries)
+          entry.key: entry.value.map((media) => media.toJson()).toList(),
+      },
     });
   }
 
@@ -269,40 +368,172 @@ class _MachineFormPageState extends State<MachineFormPage> {
     if (!widget.readOnly) unawaited(_save());
   }
 
-  Future<void> _setMedia(MachineMediaKind kind, XFile? file) async {
-    SolarFileRef? persisted;
-    if (file != null) {
-      final ref = SolarFileRef(
-        name: file.name,
-        path: file.path,
-        kind: kind == MachineMediaKind.video
-            ? SolarFileKind.video
-            : SolarFileKind.image,
+  Future<void> _setSchemaMedia(
+    MachineFormField field,
+    List<SolarFileRef> selected,
+  ) async {
+    final existing = _mediaFor(field.fieldName);
+    final prepared = <SolarFileRef>[];
+    final newFiles = <SolarFileRef>[];
+    for (final selectedFile in selected.take(field.requiredCount)) {
+      final retained = existing.cast<SolarFileRef?>().firstWhere(
+            (item) => item?.path == selectedFile.path,
+            orElse: () => null,
+          );
+      if (retained != null) {
+        prepared.add(retained);
+        continue;
+      }
+      final committed = commitDocumentMetadata(
+        context,
+        selectedFile,
+        documentType: field.fieldName,
+        uidPrefix: 'DOC-MACHINE-${field.fieldName}',
       );
-      setState(() {
-        if (kind == MachineMediaKind.video) {
-          _demoVideo = file;
-          _demoMedia = ref;
-        }
-      });
-      persisted = await installationCacheRepository.persistMediaRef(
-        ref,
-        '$_cacheKey-${kind.name}-${DateTime.now().millisecondsSinceEpoch}',
-      );
+      prepared.add(committed);
+      newFiles.add(committed);
+    }
+    if (mounted) setState(() => _mediaByField[field.fieldName] = prepared);
+
+    final persisted = <SolarFileRef>[];
+    for (final media in prepared) {
+      if (!newFiles.contains(media)) {
+        persisted.add(media);
+        continue;
+      }
+      persisted.add(await installationCacheRepository.persistMediaRef(
+        media,
+        '$_cacheKey-${field.fieldName}-${media.documentUid}',
+      ));
     }
     if (!mounted) return;
-    setState(() {
-      if (kind == MachineMediaKind.video) {
-        _demoVideo =
-            file == null ? null : XFile(persisted!.path, name: persisted.name);
-        _demoMedia = persisted;
-      }
-    });
+    setState(() => _mediaByField[field.fieldName] = persisted);
     _saveSoon();
+  }
+
+  Widget _buildSchemaField(MachineFormField field) {
+    if (field.type == 'boolean') {
+      return LabeledField(
+        key: ValueKey('machine-${field.fieldName}'),
+        label: field.title,
+        isRequired: field.requiredField,
+        capitalizedFirstLetter: false,
+        child: Row(children: [
+          Expanded(
+            child: _TrainingChoice(
+              key: ValueKey(field.fieldName == 'trainedEndUser'
+                  ? 'trained-yes'
+                  : '${field.fieldName}-yes'),
+              label: context.translate(i18.common.yes),
+              selected: _trainedEndUser,
+              onPressed: widget.readOnly
+                  ? () {}
+                  : () {
+                      setState(() => _trainedEndUser = true);
+                      _saveSoon();
+                    },
+            ),
+          ),
+          const SizedBox(width: spacer4),
+          Expanded(
+            child: _TrainingChoice(
+              key: ValueKey(field.fieldName == 'trainedEndUser'
+                  ? 'trained-no'
+                  : '${field.fieldName}-no'),
+              label: context.translate(i18.common.no),
+              selected: !_trainedEndUser,
+              onPressed: widget.readOnly
+                  ? () {}
+                  : () {
+                      setState(() => _trainedEndUser = false);
+                      _saveSoon();
+                    },
+            ),
+          ),
+        ]),
+      );
+    }
+    if (field.isMedia) {
+      return LabeledField(
+        key: ValueKey('machine-${field.fieldName}'),
+        label: field.title,
+        isRequired: field.requiredField,
+        capitalizedFirstLetter: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              field.requiredLabel,
+              style: Theme.of(context).digitTextTheme(context).bodyS.copyWith(
+                    color: Theme.of(context).colorTheme.text.secondary,
+                  ),
+            ),
+            const SizedBox(height: spacer2),
+            if (widget.readOnly)
+              _ReadOnlyMachineMedia(media: _mediaFor(field.fieldName))
+            else if (field.type == 'video')
+              VideoUploader(
+                key: ValueKey(switch (field.fieldName) {
+                  'MACHINE_DEMO_VIDEO' => 'demo-video-picker',
+                  _ => 'machine-media-${field.fieldName}',
+                }),
+                initialVideos: _mediaFor(field.fieldName),
+                allowMultiples: field.allowMultiples,
+                maxVideos: field.requiredCount,
+                pickMedia: _pickSolarMedia,
+                permissionGateway:
+                    widget.pickMedia == null ? defaultPermissionGateway : null,
+                onVideosSelected: (files) =>
+                    unawaited(_setSchemaMedia(field, files)),
+              )
+            else
+              ImageUploader(
+                key: ValueKey(switch (field.fieldName) {
+                  'MACHINE_ELECTRIC_BOARD' => 'electric-board-picker',
+                  'MACHINE_END_USER_PHOTO' => 'end-user-photo-picker',
+                  _ => 'machine-media-${field.fieldName}',
+                }),
+                initialImages: _mediaFor(field.fieldName),
+                allowMultiples: field.allowMultiples,
+                maxImages: field.requiredCount,
+                pickMedia: widget.pickMedia == null ? null : _pickSolarMedia,
+                permissionGateway:
+                    widget.pickMedia == null ? defaultPermissionGateway : null,
+                onImagesSelected: (files) =>
+                    unawaited(_setSchemaMedia(field, files)),
+              ),
+          ],
+        ),
+      );
+    }
+    return _TextField(
+      key: ValueKey(switch (field.fieldName) {
+        'poNumber' => 'po-number-field',
+        'serialNumber' => 'machine-serial-field',
+        'invoiceNumber' => 'invoice-number-field',
+        'capacity' => 'machine-capacity-field',
+        'warrantyDuration' => 'warranty-years-field',
+        _ => 'machine-${field.fieldName}',
+      }),
+      label: field.title,
+      hint: field.title,
+      controller: _controllerFor(field.fieldName),
+      isRequired: field.requiredField,
+      keyboardType:
+          field.type == 'number' ? TextInputType.number : TextInputType.text,
+      inputFormatters: field.type == 'number'
+          ? [FilteringTextInputFormatter.digitsOnly]
+          : null,
+      onChanged: _refresh,
+      disabled: widget.readOnly,
+    );
   }
 
   Future<void> _openSuccess(MachineReportSuccessMode mode) async {
     FocusManager.instance.primaryFocus?.unfocus();
+    if (_schema == null || !_formComplete) return;
+    _refreshMediaLocations();
+    if (!documentsReady(_formMedia.values.expand((files) => files))) return;
     await _save();
     if (mode == MachineReportSuccessMode.draft) {
       await pendingSubmissionRepository.saveDraft(widget.workflow);
@@ -325,6 +556,8 @@ class _MachineFormPageState extends State<MachineFormPage> {
   /// separate route) rather than navigating to a sync-loading screen.
   Future<void> _submit() async {
     FocusManager.instance.primaryFocus?.unfocus();
+    _refreshMediaLocations();
+    if (!_formComplete) return;
     final activityFacilityId = widget.workflow.activityFacility.id;
     final facilityId = widget.workflow.activityFacility.facilityId;
     if (activityFacilityId == null || facilityId == null) return;
@@ -334,15 +567,8 @@ class _MachineFormPageState extends State<MachineFormPage> {
       activityFacilityId,
       buildMachineSubmissionPayload(
         workflow: widget.workflow,
-        poNumber: _poController.text.trim(),
-        serialNumber: _serialController.text.trim(),
-        invoiceNumber: _invoiceController.text.trim(),
-        capacity: _capacityController.text.trim(),
-        warrantyYears: _warrantyController.text.trim(),
-        trainedEndUser: _trainedEndUser,
-        electricBoardMedia: _electricBoardMedia,
-        demoMedia: _demoMedia,
-        endUserMedia: _endUserMedia,
+        values: _formValues,
+        media: _formMedia,
       ),
     );
     if (!mounted) return;
@@ -350,6 +576,16 @@ class _MachineFormPageState extends State<MachineFormPage> {
           activityFacilityId: activityFacilityId,
           facilityId: facilityId,
         ));
+  }
+
+  void _refreshMediaLocations() {
+    for (final field in _schema?.fields ?? const <MachineFormField>[]) {
+      if (!field.isMedia) continue;
+      _mediaByField[field.fieldName] = _mediaFor(field.fieldName)
+          .map((media) =>
+              media.isRemote ? media : refreshDocumentLocation(context, media))
+          .toList();
+    }
   }
 
   void _onRetrySubmit() {
@@ -364,6 +600,8 @@ class _MachineFormPageState extends State<MachineFormPage> {
 
   @override
   Widget build(BuildContext context) {
+    observeDocumentLocation(context);
+    _refreshMediaLocationsSilently();
     final theme = Theme.of(context);
     final textTheme = theme.digitTextTheme(context);
 
@@ -392,6 +630,15 @@ class _MachineFormPageState extends State<MachineFormPage> {
         ],
       ),
     );
+  }
+
+  void _refreshMediaLocationsSilently() {
+    for (final entry in _mediaByField.entries.toList()) {
+      _mediaByField[entry.key] = entry.value
+          .map((file) =>
+              file.isRemote ? file : refreshDocumentLocation(context, file))
+          .toList();
+    }
   }
 
   Widget _buildScaffold(
@@ -428,241 +675,45 @@ class _MachineFormPageState extends State<MachineFormPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    context.translate(i18.machineForm.machineReportTitle),
+                    _schema?.title ??
+                        context.translate(i18.machineForm.machineReportTitle),
                     style: textTheme.headingXl.copyWith(
                       color: theme.colorTheme.primary.primary2,
                     ),
                   ),
                   const SizedBox(height: spacer8),
-                  DigitCard(
-                    key: const ValueKey('machine-form-card'),
-                    children: [
-                      _TextField(
-                        key: const ValueKey('po-number-field'),
-                        label: context.translate(i18.machineForm.poNumber),
-                        hint: context.translate(i18.machineForm.enterPoNumber),
-                        controller: _poController,
-                        isRequired: true,
-                        onChanged: _refresh,
-                        disabled: widget.readOnly,
-                      ),
-                      const SizedBox(height: spacer5),
-                      _TextField(
-                        key: const ValueKey('machine-serial-field'),
-                        label: context
-                            .translate(i18.machineForm.machineSerialNumber),
-                        hint: context
-                            .translate(i18.machineForm.enterSerialNumber),
-                        controller: _serialController,
-                        onChanged: _refresh,
-                        disabled: widget.readOnly,
-                      ),
-                      const SizedBox(height: spacer5),
-                      _TextField(
-                        key: const ValueKey('invoice-number-field'),
-                        label: context.translate(
-                            i18.machineForm.manufacturerInvoiceNumber),
-                        hint: context
-                            .translate(i18.machineForm.enterInvoiceNumber),
-                        controller: _invoiceController,
-                        onChanged: _refresh,
-                        disabled: widget.readOnly,
-                      ),
-                      const SizedBox(height: spacer5),
-                      _TextField(
-                        key: const ValueKey('machine-capacity-field'),
-                        label:
-                            context.translate(i18.machineForm.machineCapacity),
-                        hint: context.translate(i18.machineForm.enterCapacity),
-                        controller: _capacityController,
-                        isRequired: true,
-                        onChanged: _refresh,
-                        disabled: widget.readOnly,
-                      ),
-                      const SizedBox(height: spacer5),
-                      _TextField(
-                        key: const ValueKey('warranty-years-field'),
-                        label: context.translate(i18.machineForm.warrantyYears),
-                        hint: context.translate(i18.machineForm.enterYears),
-                        controller: _warrantyController,
-                        isRequired: true,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly
+                  if (!_schemaLoaded)
+                    const Center(child: CircularProgressIndicator())
+                  else if (_schema == null)
+                    const DigitCard(children: [
+                      Text('Machine form configuration is unavailable.'),
+                    ])
+                  else
+                    DigitCard(
+                      key: const ValueKey('machine-form-card'),
+                      children: [
+                        for (final field in _schema!.fields) ...[
+                          _buildSchemaField(field),
+                          const SizedBox(height: spacer5),
                         ],
-                        onChanged: _refresh,
-                        disabled: widget.readOnly,
-                      ),
-                      const SizedBox(height: spacer5),
-                      LabeledField(
-                        label: context.translate(i18.machineForm.electricBoard),
-                        isRequired: true,
-                        capitalizedFirstLetter: false,
-                        child: widget.readOnly
-                            ? _ReadOnlyMachineMedia(media: _electricBoardMedia)
-                            : MachineMediaPicker(
-                                key: const ValueKey('electric-board-picker'),
-                                kind: MachineMediaKind.image,
-                                selectedFile: _electricBoardPhoto,
-                                pickMedia: _pickMedia,
-                                permissionGateway: widget.pickMedia == null
-                                    ? defaultPermissionGateway
-                                    : null,
-                                onChanged: (file) async {
-                                  setState(() {
-                                    _electricBoardPhoto = file;
-                                    _electricBoardMedia = file == null
-                                        ? null
-                                        : SolarFileRef(
-                                            name: file.name,
-                                            path: file.path,
-                                            kind: SolarFileKind.image,
-                                          );
-                                  });
-                                  SolarFileRef? value;
-                                  if (file != null) {
-                                    value = await installationCacheRepository
-                                        .persistMediaRef(
-                                            SolarFileRef(
-                                                name: file.name,
-                                                path: file.path,
-                                                kind: SolarFileKind.image),
-                                            '$_cacheKey-electric-board');
-                                  }
-                                  if (!mounted) return;
-                                  setState(() {
-                                    _electricBoardMedia = value;
-                                    _electricBoardPhoto = value == null
-                                        ? null
-                                        : XFile(value.path, name: value.name);
-                                  });
-                                  _saveSoon();
-                                },
-                              ),
-                      ),
-                      const SizedBox(height: spacer5),
-                      LabeledField(
-                        label:
-                            context.translate(i18.machineForm.rawMaterialDemo),
-                        isRequired: true,
-                        capitalizedFirstLetter: false,
-                        child: widget.readOnly
-                            ? _ReadOnlyMachineMedia(media: _demoMedia)
-                            : MachineMediaPicker(
-                                key: const ValueKey('demo-video-picker'),
-                                kind: MachineMediaKind.video,
-                                selectedFile: _demoVideo,
-                                pickMedia: _pickMedia,
-                                permissionGateway: widget.pickMedia == null
-                                    ? defaultPermissionGateway
-                                    : null,
-                                onChanged: (file) =>
-                                    _setMedia(MachineMediaKind.video, file),
-                              ),
-                      ),
-                      const SizedBox(height: spacer5),
-                      LabeledField(
-                        label:
-                            context.translate(i18.machineForm.photoWithEndUser),
-                        isRequired: true,
-                        capitalizedFirstLetter: false,
-                        child: widget.readOnly
-                            ? _ReadOnlyMachineMedia(media: _endUserMedia)
-                            : MachineMediaPicker(
-                                key: const ValueKey('end-user-photo-picker'),
-                                kind: MachineMediaKind.image,
-                                selectedFile: _endUserPhoto,
-                                pickMedia: _pickMedia,
-                                permissionGateway: widget.pickMedia == null
-                                    ? defaultPermissionGateway
-                                    : null,
-                                onChanged: (file) async {
-                                  setState(() {
-                                    _endUserPhoto = file;
-                                    _endUserMedia = file == null
-                                        ? null
-                                        : SolarFileRef(
-                                            name: file.name,
-                                            path: file.path,
-                                            kind: SolarFileKind.image,
-                                          );
-                                  });
-                                  SolarFileRef? value;
-                                  if (file != null) {
-                                    value = await installationCacheRepository
-                                        .persistMediaRef(
-                                            SolarFileRef(
-                                                name: file.name,
-                                                path: file.path,
-                                                kind: SolarFileKind.image),
-                                            '$_cacheKey-end-user');
-                                  }
-                                  if (!mounted) return;
-                                  setState(() {
-                                    _endUserMedia = value;
-                                    _endUserPhoto = value == null
-                                        ? null
-                                        : XFile(value.path, name: value.name);
-                                  });
-                                  _saveSoon();
-                                },
-                              ),
-                      ),
-                      const SizedBox(height: spacer5),
-                      LabeledField(
-                        label:
-                            context.translate(i18.machineForm.trainedEndUser),
-                        capitalizedFirstLetter: false,
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: _TrainingChoice(
-                                key: const ValueKey('trained-yes'),
-                                label: context.translate(i18.common.yes),
-                                selected: _trainedEndUser,
-                                onPressed: widget.readOnly
-                                    ? () {}
-                                    : () {
-                                        setState(() => _trainedEndUser = true);
-                                        _saveSoon();
-                                      },
-                              ),
-                            ),
-                            const SizedBox(width: spacer4),
-                            Expanded(
-                              child: _TrainingChoice(
-                                key: const ValueKey('trained-no'),
-                                label: context.translate(i18.common.no),
-                                selected: !_trainedEndUser,
-                                onPressed: widget.readOnly
-                                    ? () {}
-                                    : () {
-                                        setState(() => _trainedEndUser = false);
-                                        _saveSoon();
-                                      },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: spacer5),
-                      if (!widget.readOnly)
-                        OtpVerificationWidget(
-                          key: const ValueKey('machine-otp-widget'),
-                          keyPrefix: 'machine',
-                          activityFacilityId:
-                              widget.workflow.activityFacility.id ?? '',
-                          label: context
-                              .translate(i18.machineForm.validateTrainingOtp),
-                          initiallyRequested: _otpRequested,
-                          initiallyVerified: _otpVerified,
-                          onRequestSucceeded: _onOtpRequested,
-                          onVerificationSucceeded: _onOtpVerified,
-                          onVerificationChanged: (verified) =>
-                              setState(() => _otpVerified = verified),
-                        ),
-                    ],
-                  ),
+                        if (!widget.readOnly)
+                          OtpVerificationWidget(
+                            key: const ValueKey('machine-otp-widget'),
+                            keyPrefix: 'machine',
+                            activityFacilityId:
+                                widget.workflow.activityFacility.id ?? '',
+                            label: context
+                                .translate(i18.machineForm.validateTrainingOtp),
+                            initiallyRequested: _otpRequested,
+                            initiallyVerified: _otpVerified,
+                            isEnabled: _formComplete,
+                            onRequestSucceeded: _onOtpRequested,
+                            onVerificationSucceeded: _onOtpVerified,
+                            onVerificationChanged: (verified) =>
+                                setState(() => _otpVerified = verified),
+                          ),
+                      ],
+                    ),
                 ],
               ),
             ),
@@ -675,10 +726,10 @@ class _MachineFormPageState extends State<MachineFormPage> {
 
 class _ReadOnlyMachineMedia extends StatelessWidget {
   const _ReadOnlyMachineMedia({required this.media});
-  final SolarFileRef? media;
+  final List<SolarFileRef> media;
 
   @override
-  Widget build(BuildContext context) => media == null
+  Widget build(BuildContext context) => media.isEmpty
       ? Container(
           height: 120,
           alignment: Alignment.center,
@@ -687,7 +738,18 @@ class _ReadOnlyMachineMedia extends StatelessWidget {
           ),
           child: const Text('No media available'),
         )
-      : MediaThumbnail(media: media!, width: double.infinity, height: 180);
+      : Wrap(
+          spacing: spacer2,
+          runSpacing: spacer2,
+          children: [
+            for (final file in media)
+              MediaThumbnail(
+                media: file,
+                width: media.length == 1 ? double.infinity : Base.imageSize,
+                height: media.length == 1 ? 180 : Base.imageSize,
+              ),
+          ],
+        );
 }
 
 class _TextField extends StatelessWidget {
@@ -799,6 +861,7 @@ class _MachineFormFooter extends StatelessWidget {
                 mainAxisSize: MainAxisSize.max,
                 label: context.translate(i18.machineForm.saveAsDraft),
                 onPressed: onSaveDraft,
+                isDisabled: !canSubmit,
                 type: DigitButtonType.secondary,
                 size: DigitButtonSize.large,
               ),

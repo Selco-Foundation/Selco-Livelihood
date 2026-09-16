@@ -411,8 +411,7 @@ class InstallationDraftRepository {
   ) {
     for (final document in documents) {
       final remoteId =
-          (document['fileStoreId'] ?? document['fileStore'] ?? document['id'])
-              ?.toString();
+          (document['fileStoreId'] ?? document['fileStore'])?.toString();
       if (remoteId == null || remoteId.isEmpty) continue;
       final type =
           (document['documentType'] ?? document['type'] ?? '').toString();
@@ -436,6 +435,15 @@ class InstallationDraftRepository {
         kind: kind,
         mimeType: document['mimeType']?.toString(),
         documentType: type,
+        id: document['id']?.toString(),
+        documentUid: document['documentUid']?.toString(),
+        status: document['status']?.toString() ?? 'ACTIVE',
+        additionalDetails: document['additionalDetails'] is Map
+            ? Map<String, dynamic>.from(document['additionalDetails'] as Map)
+            : null,
+        geoLocation: document['geoLocation'] is Map
+            ? Map<String, dynamic>.from(document['geoLocation'] as Map)
+            : null,
       );
       final assetMediaMatch =
           RegExp(r'^(battery|inverter|panel)-(image|video)$').firstMatch(type);

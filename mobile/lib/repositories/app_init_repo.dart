@@ -78,6 +78,7 @@ class AppInitRepo {
               MdmsMasterDetailModel(name: 'ItemCode'),
               MdmsMasterDetailModel(name: 'BOMFormSchema'),
               MdmsMasterDetailModel(name: 'SolutionBOMForms'),
+              MdmsMasterDetailModel(name: 'MachineFormSchema'),
             ],
           ),
           const MdmsModuleDetailModel(

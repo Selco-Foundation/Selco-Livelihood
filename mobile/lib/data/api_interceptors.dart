@@ -7,7 +7,9 @@ import 'package:synchronized/synchronized.dart';
 import '../model/request/requestInfo.dart';
 import '../model/response/responsemodel.dart';
 import '../repositories/auth_repo.dart';
+import '../utils/api_paths.dart';
 import '../utils/constants.dart';
+import '../utils/envConfig.dart';
 import 'network_manager.dart';
 import 'remote_client.dart';
 import 'secure_storage/secureStore.dart';
@@ -269,12 +271,33 @@ class NetworkErrorNormalizerInterceptor extends Interceptor {
 /// `NetworkErrorNormalizerInterceptor` gets a chance to transform it (Dio
 /// runs `onRequest` in list order, `onError` in reverse list order).
 ///
-/// Successful *responses* are never logged — some endpoints (MDMS bulk
-/// fetches in particular) return payloads large enough to bury the console
-/// for minutes, making the log effectively unusable. Requests still log in
-/// full regardless of outcome (so you can see what was sent), and a failed
-/// call logs everything, including the response body, via [onError].
+/// Successful responses remain suppressed except for OTP generate/resend in
+/// debug DEV builds. The DEV backend echoes the OTP for end-to-end testing;
+/// limiting that exception by build mode, environment, and exact endpoint
+/// keeps it out of QA/UAT/production logs. Requests still log in full, and a
+/// failed call logs everything, including the response body, via [onError].
 class LoggingInterceptor extends Interceptor {
+  LoggingInterceptor({
+    bool Function()? otpResponseLoggingEnabled,
+    void Function(String)? logSink,
+  })  : _otpResponseLoggingEnabled =
+            otpResponseLoggingEnabled ?? _defaultOtpResponseLoggingEnabled,
+        _logSink = logSink ?? debugPrint;
+
+  final bool Function() _otpResponseLoggingEnabled;
+  final void Function(String) _logSink;
+
+  static bool _defaultOtpResponseLoggingEnabled() => allowsOtpResponseLogging(
+        isDebugBuild: kDebugMode,
+        environment: envConfig.variables.envType,
+      );
+
+  static bool allowsOtpResponseLogging({
+    required bool isDebugBuild,
+    required EnvType environment,
+  }) =>
+      isDebugBuild && environment == EnvType.dev;
+
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     if (kDebugMode) {
@@ -288,6 +311,23 @@ class LoggingInterceptor extends Interceptor {
   }
 
   @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    final statusCode = response.statusCode;
+    final isSuccessful =
+        statusCode != null && statusCode >= 200 && statusCode < 300;
+    if (isSuccessful &&
+        _otpResponseLoggingEnabled() &&
+        _isOtpGenerateOrResend(response.requestOptions)) {
+      _log('OTP RESPONSE', [
+        '${response.requestOptions.method} ${response.requestOptions.uri}',
+        'Status: ${response.statusCode}',
+        'Response body: ${_pretty(_redactBody(response.data))}',
+      ]);
+    }
+    handler.next(response);
+  }
+
+  @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
     if (kDebugMode) {
       _log('ERROR', [
@@ -295,7 +335,7 @@ class LoggingInterceptor extends Interceptor {
         'Headers: ${_redactHeaders(err.requestOptions.headers)}',
         'Request body: ${_pretty(_redactBody(err.requestOptions.data))}',
         'Status: ${err.response?.statusCode}',
-        'Response body: ${_pretty(err.response?.data)}',
+        'Response body: ${_pretty(_redactBody(err.response?.data))}',
         'Message: ${err.message}',
       ]);
     }
@@ -303,11 +343,16 @@ class LoggingInterceptor extends Interceptor {
   }
 
   void _log(String label, List<String> lines) {
-    debugPrint('┌── HTTP $label ──');
+    _logSink('┌── HTTP $label ──');
     for (final line in lines) {
-      debugPrint(line);
+      _logSink(line);
     }
-    debugPrint('└──────────────────');
+    _logSink('└──────────────────');
+  }
+
+  bool _isOtpGenerateOrResend(RequestOptions options) {
+    final path = options.uri.path.replaceFirst(RegExp(r'^/+'), '');
+    return path == ApiPaths.otpGenerate || path == ApiPaths.otpResend;
   }
 
   Map<String, dynamic> _redactHeaders(Map<String, dynamic> headers) {
@@ -318,15 +363,17 @@ class LoggingInterceptor extends Interceptor {
     return copy;
   }
 
-  /// DIGIT/eGov puts the auth token in the request body's `RequestInfo.
-  /// authToken` field (see `AuthTokenInterceptor.onRequest` above), not an
-  /// `Authorization` header — that's the one thing worth masking here.
+  /// DIGIT/eGov puts auth tokens in request `RequestInfo` and response
+  /// `ResponseInfo` envelopes rather than relying only on an Authorization
+  /// header. Mask both without disturbing other fields such as DEV OTP data.
   dynamic _redactBody(dynamic data) {
     if (data is Map) {
       final copy = Map<String, dynamic>.from(data);
-      final requestInfo = copy['RequestInfo'];
-      if (requestInfo is Map && requestInfo['authToken'] != null) {
-        copy['RequestInfo'] = {...requestInfo, 'authToken': '***'};
+      for (final envelopeKey in const ['RequestInfo', 'ResponseInfo']) {
+        final envelope = copy[envelopeKey];
+        if (envelope is Map && envelope['authToken'] != null) {
+          copy[envelopeKey] = {...envelope, 'authToken': '***'};
+        }
       }
       return copy;
     }

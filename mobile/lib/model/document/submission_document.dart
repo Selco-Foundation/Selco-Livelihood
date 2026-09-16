@@ -5,6 +5,7 @@
 /// canonical field prevents submission code from mixing the two contracts.
 class SubmissionDocument {
   const SubmissionDocument({
+    this.id,
     required this.documentType,
     this.fileStore,
     this.localPath,
@@ -14,6 +15,7 @@ class SubmissionDocument {
     this.geoLocation,
   });
 
+  final String? id;
   final String documentType;
   final String? fileStore;
   final String? localPath;
@@ -26,6 +28,7 @@ class SubmissionDocument {
 
   SubmissionDocument copyWith({String? fileStore, String? localPath}) =>
       SubmissionDocument(
+        id: id,
         documentType: documentType,
         fileStore: fileStore ?? this.fileStore,
         localPath: localPath ?? this.localPath,
@@ -37,6 +40,7 @@ class SubmissionDocument {
 
   factory SubmissionDocument.fromJson(Map<String, dynamic> json) =>
       SubmissionDocument(
+        id: json['id']?.toString(),
         documentType: (json['documentType'] ?? '').toString(),
         fileStore:
             (json['fileStore'] ?? json['fileStoreId'] ?? json['remoteId'])
@@ -54,6 +58,7 @@ class SubmissionDocument {
 
   /// Persistent draft/checkpoint representation.
   Map<String, dynamic> toCacheJson() => {
+        if (id != null) 'id': id,
         'documentType': documentType,
         if (fileStore != null) 'fileStore': fileStore,
         if (localPath != null) 'localPath': localPath,
@@ -64,6 +69,7 @@ class SubmissionDocument {
       };
 
   Map<String, dynamic> toAssetJson() => {
+        if (id != null) 'id': id,
         'documentType': documentType,
         'fileStore': fileStore,
         if (documentUid != null) 'documentUid': documentUid,
@@ -72,6 +78,7 @@ class SubmissionDocument {
       };
 
   Map<String, dynamic> toWorkflowJson() => {
+        if (id != null) 'id': id,
         'documentType': documentType,
         'fileStoreId': fileStore,
         if (documentUid != null) 'documentUid': documentUid,
