@@ -1566,6 +1566,41 @@ void main() {
           'solar-dynamic-livelihood_202526pasf0000141_bom_machines')),
     );
     expect(secondButton.top - firstButton.bottom, spacer4);
+    expect(find.text('View Associated Machines'), findsOneWidget);
+  });
+
+  testWidgets('Associated Machines is always labelled as view-only',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 3000));
+
+    for (final mode in SolarWorkflowMode.values) {
+      final draft = _filledSolarDraft(mode);
+      await tester.pumpWidget(
+        MaterialApp(
+          key: UniqueKey(),
+          theme: DigitTheme.instance.mobileTheme,
+          home: withAssetSubmissionBloc(
+            OverallAssetSummaryPage(draft: draft),
+          ),
+        ),
+      );
+
+      expect(find.text('View Associated Machines'), findsOneWidget);
+    }
+
+    final prefixed = _filledSolarDraft(SolarWorkflowMode.newReport);
+    prefixed.bomFormNames
+      ..clear()
+      ..add('AssetForm.LIVELIHOOD_202526PASF0000141_BOM_machines');
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: withAssetSubmissionBloc(
+          OverallAssetSummaryPage(draft: prefixed),
+        ),
+      ),
+    );
+    expect(find.text('View Associated Machines'), findsOneWidget);
   });
 
   testWidgets('overall asset counts activate from zero and stop at one',

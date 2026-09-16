@@ -145,6 +145,9 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
 
   List<String> get _formNames => widget.draft.bomFormNames;
 
+  bool _isAssociatedMachinesForm(String name) =>
+      name.trim().toLowerCase().endsWith('_machines');
+
   String _formLabel(String name) {
     final normalized = name.toLowerCase();
     if (normalized.contains('luminar')) {
@@ -176,7 +179,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
       draft: widget.draft,
       schemaName: name,
       pageName: pageName ?? '',
-      readOnly: widget.draft.isReadOnly,
+      readOnly: widget.draft.isReadOnly || _isAssociatedMachinesForm(name),
     ));
     installationDraftRepository.applyBomDerivedValues(widget.draft);
     if (mounted) setState(() {});
@@ -444,7 +447,9 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                   for (final formName in _formNames) ...[
                     _CompletionButton(
                       key: ValueKey('solar-dynamic-${formName.toLowerCase()}'),
-                      label: '$_actionPrefix ${_formLabel(formName)}',
+                      label: _isAssociatedMachinesForm(formName)
+                          ? 'View Associated Machines'
+                          : '$_actionPrefix ${_formLabel(formName)}',
                       onPressed: () => _openDynamicForm(formName),
                     ),
                     const SizedBox(height: spacer4),
