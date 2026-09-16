@@ -39,6 +39,7 @@ class SolarFileRef {
     required this.name,
     required this.path,
     required this.kind,
+    this.displayTitle,
     this.remoteId,
     this.mimeType,
     this.documentType,
@@ -53,6 +54,7 @@ class SolarFileRef {
   final String name;
   final String path;
   final SolarFileKind kind;
+  final String? displayTitle;
   final String? remoteId;
   final String? mimeType;
   final String? documentType;
@@ -64,6 +66,8 @@ class SolarFileRef {
   final Map<String, dynamic>? geoLocation;
 
   bool get isRemote => remoteId?.isNotEmpty == true || path.startsWith('http');
+  String get viewerTitle =>
+      displayTitle?.trim().isNotEmpty == true ? displayTitle!.trim() : name;
 
   bool get hasValidLocation {
     final latitude = geoLocation?['latitude']?.toString().trim();
@@ -79,6 +83,7 @@ class SolarFileRef {
       isRemote || (hasValidLocation && documentUid?.trim().isNotEmpty == true);
 
   SolarFileRef copyWith({
+    String? displayTitle,
     String? localPath,
     String? documentType,
     String? documentUid,
@@ -88,6 +93,7 @@ class SolarFileRef {
         name: name,
         path: path,
         kind: kind,
+        displayTitle: displayTitle ?? this.displayTitle,
         remoteId: remoteId,
         mimeType: mimeType,
         documentType: documentType ?? this.documentType,
@@ -103,6 +109,7 @@ class SolarFileRef {
         'name': name,
         'path': path,
         'kind': kind.name,
+        if (displayTitle != null) 'displayTitle': displayTitle,
         if (remoteId != null) 'remoteId': remoteId,
         if (mimeType != null) 'mimeType': mimeType,
         if (documentType != null) 'documentType': documentType,
@@ -122,6 +129,7 @@ class SolarFileRef {
           (value) => value.name == json['kind'],
           orElse: () => _kindFromName((json['name'] ?? '').toString()),
         ),
+        displayTitle: json['displayTitle']?.toString(),
         remoteId: json['remoteId']?.toString() ??
             json['fileStoreId']?.toString() ??
             json['fileStore']?.toString(),

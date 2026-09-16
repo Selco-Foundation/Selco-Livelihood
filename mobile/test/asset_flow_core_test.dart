@@ -737,6 +737,34 @@ void main() {
     documentLocationOverride = null;
   });
 
+  test('media display titles round-trip without replacing file names', () {
+    const media = SolarFileRef(
+      name: 'raw-material-demo.mp4',
+      path: '/tmp/raw-material-demo.mp4',
+      kind: SolarFileKind.video,
+      displayTitle: 'Raw Material Demo',
+      documentType: 'MACHINE_DEMO_VIDEO',
+    );
+
+    final restored = SolarFileRef.fromJson(media.toJson());
+
+    expect(restored.name, 'raw-material-demo.mp4');
+    expect(restored.displayTitle, 'Raw Material Demo');
+    expect(restored.viewerTitle, 'Raw Material Demo');
+    expect(
+      restored.copyWith(displayTitle: 'Updated MDMS Title').name,
+      'raw-material-demo.mp4',
+    );
+    expect(
+      const SolarFileRef(
+        name: 'solar-panel.jpg',
+        path: '/tmp/solar-panel.jpg',
+        kind: SolarFileKind.image,
+      ).viewerTitle,
+      'solar-panel.jpg',
+    );
+  });
+
   test('typed asset writes backend identifiers and asset-owned documents', () {
     final asset = AssetSubmission.fromCheckpoint({
       'system': 'DC',

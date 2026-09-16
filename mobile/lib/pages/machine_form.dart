@@ -301,8 +301,9 @@ class _MachineFormPageState extends State<MachineFormPage> {
         if (!field.isMedia || media[field.fieldName] is! List) continue;
         _mediaByField[field.fieldName] = (media[field.fieldName] as List)
             .whereType<Map>()
-            .map((value) =>
-                SolarFileRef.fromJson(Map<String, dynamic>.from(value)))
+            .map((value) => SolarFileRef.fromJson(
+                  Map<String, dynamic>.from(value),
+                ).copyWith(displayTitle: field.title))
             .toList();
       }
     }
@@ -332,6 +333,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
             .toString(),
         path: id,
         remoteId: id,
+        displayTitle: field.title,
         documentType: documentType,
         kind: kind,
         id: document['id']?.toString(),
@@ -382,12 +384,12 @@ class _MachineFormPageState extends State<MachineFormPage> {
             orElse: () => null,
           );
       if (retained != null) {
-        prepared.add(retained);
+        prepared.add(retained.copyWith(displayTitle: field.title));
         continue;
       }
       final committed = commitDocumentMetadata(
         context,
-        selectedFile,
+        selectedFile.copyWith(displayTitle: field.title),
         documentType: field.fieldName,
         uidPrefix: 'DOC-MACHINE-${field.fieldName}',
       );

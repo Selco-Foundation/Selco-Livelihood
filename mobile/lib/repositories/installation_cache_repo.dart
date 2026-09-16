@@ -94,6 +94,7 @@ class InstallationCacheRepository {
       name: media.name,
       path: path,
       kind: media.kind,
+      displayTitle: media.displayTitle,
       mimeType: media.mimeType,
       documentType: media.documentType,
       localPath: path,

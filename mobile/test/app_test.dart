@@ -42,6 +42,7 @@ import 'package:livelihood/pages/home_page.dart';
 import 'package:livelihood/pages/login_page.dart';
 import 'package:livelihood/pages/machine_form.dart';
 import 'package:livelihood/pages/machine_report_success_page.dart';
+import 'package:livelihood/pages/media_viewer.dart';
 import 'package:livelihood/pages/add_new_asset.dart';
 import 'package:livelihood/pages/asset_type_detail.dart';
 import 'package:livelihood/pages/asset_summary.dart';
@@ -3002,6 +3003,78 @@ void main() {
       find.byKey(const ValueKey('submit-machine-report-button')),
     );
     expect(submit.isDisabled, isTrue);
+  });
+
+  testWidgets(
+      'media viewers prefer MDMS titles and preserve file-name fallback',
+      (tester) async {
+    for (final title in const [
+      'Electric Board',
+      'Raw Material Demo',
+      'Photo with End User',
+      'Civil Work (If any)',
+    ]) {
+      await tester.pumpWidget(MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: ImageViewerPage(
+          media: SolarFileRef(
+            name: 'machine-image-$title.jpg',
+            path: '/missing/machine-image.jpg',
+            kind: SolarFileKind.image,
+            displayTitle: title,
+          ),
+        ),
+      ));
+      expect(find.text(title), findsOneWidget);
+      expect(find.byType(AppBar), findsNothing);
+      expect(find.byType(ScrollableContent), findsOneWidget);
+      expect(find.byKey(const ValueKey('report-back-button')), findsOneWidget);
+    }
+
+    await tester.pumpWidget(MaterialApp(
+      theme: DigitTheme.instance.mobileTheme,
+      home: const ImageViewerPage(
+        media: SolarFileRef(
+          name: 'solar-panel.jpg',
+          path: '/missing/solar-panel.jpg',
+          kind: SolarFileKind.image,
+        ),
+      ),
+    ));
+    expect(find.text('solar-panel.jpg'), findsOneWidget);
+  });
+
+  testWidgets('image viewer uses E4H compact natural-height layout',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 844));
+    final imagePath = File('assets/images/digit_logo.png').absolute.path;
+    expect(File(imagePath).existsSync(), isTrue);
+    await tester.pumpWidget(MaterialApp(
+      theme: DigitTheme.instance.mobileTheme,
+      home: ImageViewerPage(
+        media: SolarFileRef(
+          name: 'digit_logo.png',
+          path: imagePath,
+          localPath: imagePath,
+          kind: SolarFileKind.image,
+          displayTitle: 'Electric Board',
+        ),
+      ),
+    ));
+    await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pump();
+
+    final interactive = find.byKey(
+      const ValueKey('image-viewer-interactive'),
+    );
+    expect(interactive, findsOneWidget);
+    expect(
+      tester.getSize(interactive).height,
+      lessThan(tester.getSize(find.byType(ScrollableContent)).height),
+    );
   });
 
   testWidgets('read-only machine form does not enable a missing fixed footer',
