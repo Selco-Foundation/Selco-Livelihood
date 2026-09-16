@@ -165,7 +165,7 @@ Map<String, dynamic> buildMachineSubmissionPayload({
     ...values,
     'warrantyDuration': years,
   };
-  final workflowDocuments = <SubmissionDocument>[
+  final assetDocuments = <SubmissionDocument>[
     for (final entry in media.entries)
       for (final file in entry.value) _document(file, entry.key),
   ];
@@ -212,11 +212,11 @@ Map<String, dynamic> buildMachineSubmissionPayload({
           for (final entry in values.entries)
             if (!_machineRootFields.contains(entry.key)) entry.key: entry.value,
         },
-        'documents': const <Map<String, dynamic>>[],
+        'documents':
+            assetDocuments.map((document) => document.toCacheJson()).toList(),
       },
     ],
-    'workflowDocuments':
-        workflowDocuments.map((document) => document.toCacheJson()).toList(),
+    'workflowDocuments': const <Map<String, dynamic>>[],
   };
 }
 

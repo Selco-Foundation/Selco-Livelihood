@@ -25,6 +25,7 @@ import '../router/app_router.dart';
 import '../utils/app_permission_gateway.dart';
 import '../utils/submission_payload.dart';
 import '../utils/document_metadata.dart';
+import '../utils/workflow_status.dart';
 import '../widgets/image_uploader.dart';
 import '../widgets/machine_media_picker.dart';
 import '../widgets/operation_progress_overlay.dart';
@@ -265,10 +266,10 @@ class _MachineFormPageState extends State<MachineFormPage> {
       };
 
   Future<void> _loadDraft() async {
-    _loadDocuments(
-        widget.workflow.activityFacility.additionalDetails?.documents);
-    _loadDocuments(widget.workflow.workflow?.documents);
-    if (widget.readOnly && _cacheKey.isNotEmpty) {
+    final shouldHydrateAsset = widget.readOnly ||
+        widget.workflow.status?.trim().toUpperCase() ==
+            FacilityInstallationStatus.rejectedByQcSpoc;
+    if (shouldHydrateAsset && _cacheKey.isNotEmpty) {
       final assets = await assetRepository.search(_cacheKey);
       if (assets.isNotEmpty) {
         final asset = assets.first;

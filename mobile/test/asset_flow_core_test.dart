@@ -931,6 +931,7 @@ void main() {
             kind: SolarFileKind.image,
             documentType: 'MACHINE_CIVIL_WORK',
             documentUid: 'DOC-MACHINE-MACHINE_CIVIL_WORK-1',
+            geoLocation: {'latitude': '6.5', 'longitude': '3.6'},
           ),
           SolarFileRef(
             name: 'civil-2.jpg',
@@ -939,6 +940,7 @@ void main() {
             kind: SolarFileKind.image,
             documentType: 'MACHINE_CIVIL_WORK',
             documentUid: 'DOC-MACHINE-MACHINE_CIVIL_WORK-2',
+            geoLocation: {'latitude': '6.6', 'longitude': '3.7'},
           ),
         ],
       },
@@ -946,12 +948,18 @@ void main() {
     final asset = (payload['assets'] as List).single as Map;
     expect(asset['assetTypeID'], 'RICE HULLER');
     expect(asset['itemCode'], 'HULLER-RICE-3HP');
-    final documents = payload['workflowDocuments'] as List;
+    final documents = asset['documents'] as List;
     expect(documents, hasLength(2));
     expect(documents.map((item) => (item as Map)['documentUid']), [
       'DOC-MACHINE-MACHINE_CIVIL_WORK-1',
       'DOC-MACHINE-MACHINE_CIVIL_WORK-2',
     ]);
+    expect((documents.first as Map)['documentType'], 'MACHINE_CIVIL_WORK');
+    expect((documents.first as Map)['geoLocation'], {
+      'latitude': '6.5',
+      'longitude': '3.6',
+    });
+    expect(payload['workflowDocuments'], isEmpty);
   });
 
   test(
