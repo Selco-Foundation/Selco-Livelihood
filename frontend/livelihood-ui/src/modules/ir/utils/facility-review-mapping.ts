@@ -129,8 +129,7 @@ function buildReportSection(bom: ActivityBillOfMaterial | undefined): ReportSect
     labelKey,
     label,
     specifications,
-    installationCompletionCertificate: null,
-    assetHandoverDocument: null,
+    report: null,
     supportingDocuments: [],
   };
 }

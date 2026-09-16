@@ -79,8 +79,7 @@ export function buildReportSectionMedia(
     .map((url) => ({ name: `${facilityName}.pdf`, url }));
 
   return {
-    installationCompletionCertificate: findDocument(REPORT_DOCUMENT_TYPES[2]),
-    assetHandoverDocument: findDocument(REPORT_DOCUMENT_TYPES[3]),
+    report: findDocument(REPORT_DOCUMENT_TYPES[1]),
     supportingDocuments,
   };
 }

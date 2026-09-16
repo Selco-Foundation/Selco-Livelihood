@@ -1,11 +1,10 @@
 import type { ActivityDocument } from "../types/facility-review";
 
-export const REPORT_DOCUMENT_TYPES = [
-  "INSTALLATION_REPORT",
-  "INSTALLATION_REPORT_BOM",
-  "INSTALLATION_COMPLETION_CERTIFICATE",
-  "ASSET_HANDOVER_DOCUMENT",
-] as const;
+// Installation Completion Certificate / Asset Handover Document were
+// dropped — verified against real workflow documents across every
+// submitted facility that INSTALLATION_REPORT_BOM is the only report-type
+// document actually used.
+export const REPORT_DOCUMENT_TYPES = ["INSTALLATION_REPORT", "INSTALLATION_REPORT_BOM"] as const;
 
 export const INSTALLATION_IMAGE_PREFIX = "INSTALLATION_IMAGE";
 

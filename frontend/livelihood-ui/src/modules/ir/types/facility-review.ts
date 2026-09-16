@@ -189,8 +189,11 @@ export interface ReportSectionContent {
   labelKey: string;
   label: string;
   specifications?: LabeledValue[];
-  installationCompletionCertificate: ReportDocument | null;
-  assetHandoverDocument: ReportDocument | null;
+  /** The completion report document itself (workflow documentType
+   * `INSTALLATION_REPORT_BOM`) — verified as the only report-type document
+   * real submissions actually carry, for both Solar and Machine. Matches
+   * qc's `bomCompletionReport`/`report`. */
+  report: ReportDocument | null;
   supportingDocuments: ReportDocument[];
 }
 
@@ -220,8 +223,7 @@ export interface AssetSectionMediaPatch {
 }
 
 export interface ReportSectionMediaPatch {
-  installationCompletionCertificate: ReportDocument | null;
-  assetHandoverDocument: ReportDocument | null;
+  report: ReportDocument | null;
   supportingDocuments: ReportDocument[];
 }
 
