@@ -1,6 +1,5 @@
 import { fetchFileUrls, useAuthStore } from "@/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MACHINE_MEDIA_GROUPS } from "../constants/review";
 import {
   fetchInstallationImageCriteriaQuery,
   installationImageCriteriaQueryKey,
@@ -13,9 +12,9 @@ import { searchAssetsForActivityFacility } from "../services/asset";
 import { ACTIVITY_CODE_INSTALLATION, searchActivityFacilities } from "../services/facility";
 import { submitFacilityReview } from "../services/review";
 import {
-  ASSET_PHOTO_DOCUMENT_TYPE_PREFIX,
   buildMachineAssetData,
   buildSolarAssetSections,
+  isResolvableAssetDocument,
   type MachineAssetData,
 } from "../utils/asset-mapping";
 import {
@@ -87,14 +86,12 @@ export function useFacilityReview(entryId: string) {
       // nothing.
       const isSolar = row.activityFacility.componentType !== "MACHINE";
       let solarAssetSections: AssetSectionContent[] = [];
-      let machineAssetData: MachineAssetData = { details: undefined, items: [] };
+      let machineAssetData: MachineAssetData = { details: undefined, items: [], mediaGroups: [] };
       try {
         const assets = await searchAssetsForActivityFacility(entryId, employeeTenantId!, accessToken!, user);
         const assetImageFileStoreIds = assets
           .flatMap((asset) => asset.documents ?? [])
-          .filter((document) =>
-            document.documentType?.toUpperCase().startsWith(ASSET_PHOTO_DOCUMENT_TYPE_PREFIX),
-          )
+          .filter((document) => isResolvableAssetDocument(document.documentType))
           .map((document) => document.fileStore)
           .filter((id): id is string => Boolean(id));
         const assetImageUrls = await fetchFileUrls(assetImageFileStoreIds, employeeTenantId!, accessToken!, user);
@@ -164,11 +161,11 @@ export function useLoadSectionMedia(entryId: string, facilityName: string) {
         if (section.kind === "IMAGE_CHECKLIST") {
           return buildImageChecklistMedia(documents, response);
         }
-        return buildAssetSectionMedia(
-          documents,
-          response,
-          section.id === "MACHINE" ? MACHINE_MEDIA_GROUPS.map((group) => group.id) : undefined,
-        );
+        // Machine's media groups are resolved eagerly from the asset search
+        // (see buildMachineAssetData) — its own documents live on the
+        // asset's `documents` array, not workflow documents, so there's
+        // nothing for this lazy per-section load to add for it.
+        return buildAssetSectionMedia(documents, response);
       },
       staleTime: Infinity,
     });

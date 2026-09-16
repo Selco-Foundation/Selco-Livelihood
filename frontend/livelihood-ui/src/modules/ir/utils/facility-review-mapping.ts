@@ -1,4 +1,4 @@
-import { MACHINE_MEDIA_GROUPS, REVIEW_SECTION_LABELS } from "../constants/review";
+import { REVIEW_SECTION_LABELS } from "../constants/review";
 import type { MachineAssetData } from "./asset-mapping";
 import { formatEpochDate } from "./date-format";
 import { toFacilityEntry } from "./facility-entry-mapping";
@@ -101,13 +101,7 @@ function buildMachineSection(
     items,
     images: [],
     videos: [],
-    mediaGroups: MACHINE_MEDIA_GROUPS.map((group) => ({
-      id: group.id,
-      labelKey: group.labelKey,
-      label: group.label,
-      images: [],
-      videos: [],
-    })),
+    mediaGroups: machineAssetData.mediaGroups,
   };
 }
 

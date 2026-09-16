@@ -1,10 +1,12 @@
-import { REVIEW_SECTION_LABELS } from "../constants/review";
+import { MACHINE_MEDIA_GROUPS, REVIEW_SECTION_LABELS } from "../constants/review";
 import type { AssetSearchDocument, AssetSearchResponseItem } from "../services/asset";
 import type {
   AssetItem,
   AssetSectionContent,
   LabeledValue,
+  MediaGroup,
   SectionImage,
+  SectionVideo,
   SolarSectionId,
 } from "../types/facility-review";
 
@@ -16,6 +18,22 @@ const SOLAR_ASSET_TYPE_IDS: SolarSectionId[] = ["PANEL", "BATTERY", "INVERTER"];
 // assetTypeID. Exported so hooks/use-facility-review.ts's fileStoreId
 // collection uses the same check as this file's own item-image filter.
 export const ASSET_PHOTO_DOCUMENT_TYPE_PREFIX = "ASSET_PHOTO";
+
+const MACHINE_MEDIA_DOCUMENT_TYPE_IDS = new Set<string>(MACHINE_MEDIA_GROUPS.map((group) => group.id));
+
+/** Every asset-registry document type this module resolves to a filestore
+ * URL — Solar's per-item photos (`ASSET_PHOTO-*`) and Machine's four media
+ * groups (`MACHINE_ELECTRIC_BOARD` etc). Exported so
+ * hooks/use-facility-review.ts's fileStoreId collection requests exactly
+ * what buildSolarAssetSections/buildMachineAssetData actually consume —
+ * otherwise a resolvable document's URL never gets fetched at all. */
+export function isResolvableAssetDocument(documentType: string | undefined): boolean {
+  const type = documentType?.toUpperCase();
+  if (!type) {
+    return false;
+  }
+  return type.startsWith(ASSET_PHOTO_DOCUMENT_TYPE_PREFIX) || MACHINE_MEDIA_DOCUMENT_TYPE_IDS.has(type);
+}
 
 /** `assetDetails` uses one generic shape across every asset type — verified
  * against a real response: `{ name, capacity: "550 Wp", capacityUnit,
@@ -157,14 +175,44 @@ export interface MachineAssetData {
   /** Undefined (not rendered) when no assets exist yet. */
   details: LabeledValue[] | undefined;
   items: AssetItem[];
+  mediaGroups: MediaGroup[];
+}
+
+/** Electric Board / Demo Test / Photo with End User / Civil Work — each
+ * group's documents live directly on the asset's own `documents` array
+ * (not workflow documents), tagged with that exact documentType. Always
+ * returns all four groups (even with empty images/videos) so the accordion
+ * shows every expected sub-section before anything's been uploaded. */
+function buildMachineMediaGroups(
+  assets: AssetSearchResponseItem[],
+  imageUrlByFileStoreId: Map<string, string>,
+): MediaGroup[] {
+  const allDocuments = assets.flatMap((asset) => asset.documents ?? []);
+
+  return MACHINE_MEDIA_GROUPS.map((group) => {
+    const images: SectionImage[] = [];
+    const videos: SectionVideo[] = [];
+
+    for (const document of allDocuments) {
+      const url = document.fileStore ? imageUrlByFileStoreId.get(document.fileStore) : undefined;
+      if (!url || document.documentType?.toUpperCase() !== group.id) {
+        continue;
+      }
+      (group.kind === "VIDEO" ? videos : images).push({ url });
+    }
+
+    return { id: group.id, labelKey: group.labelKey, label: group.label, images, videos };
+  });
 }
 
 export function buildMachineAssetData(
   assets: AssetSearchResponseItem[],
   imageUrlByFileStoreId: Map<string, string>,
 ): MachineAssetData {
+  const mediaGroups = buildMachineMediaGroups(assets, imageUrlByFileStoreId);
+
   if (assets.length === 0) {
-    return { details: undefined, items: [] };
+    return { details: undefined, items: [], mediaGroups };
   }
 
   const first = assets[0];
@@ -212,5 +260,5 @@ export function buildMachineAssetData(
     images: assetPhotoImages(asset.documents, imageUrlByFileStoreId),
   }));
 
-  return { details, items };
+  return { details, items, mediaGroups };
 }
