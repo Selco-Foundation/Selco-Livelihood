@@ -122,7 +122,7 @@ public class URLConverterService {
         if(!serverContextPath.endsWith("/")) {
         	shortenedUrl.append("/");
         }
-    	shortenedUrl.append(uniqueID);
+    	shortenedUrl.append("?").append(uniqueID);
     	
         return shortenedUrl.toString();
     }

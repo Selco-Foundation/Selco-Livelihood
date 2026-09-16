@@ -13,6 +13,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.RestTemplate;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 import java.util.ArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -34,8 +36,9 @@ class ShortenControllerTest {
     @Test
     @DisplayName("Should throws an exception when the id is invalid")
     public void testRedirectUrlWhenIdIsInvalidThenThrowsException() {
+        HttpServletRequest request = mock(HttpServletRequest.class);
         assertThrows(Exception.class, () -> {
-            shortenController.redirectUrl("invalidId", null);
+            shortenController.redirectUrl(request);
         });
     }
 

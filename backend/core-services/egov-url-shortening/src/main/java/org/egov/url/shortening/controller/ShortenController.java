@@ -64,8 +64,12 @@ public class ShortenController {
         throw new CustomException("URL_SHORTENING_INVALID_URL","Please enter a valid URL");
     }
 
-    @RequestMapping(value = "/{id}", method=RequestMethod.GET)
-    public RedirectView redirectUrl(@PathVariable String id, HttpServletRequest request) throws IOException, URISyntaxException, Exception {
+    @RequestMapping(value = "/", method=RequestMethod.GET)
+    public RedirectView redirectUrl(HttpServletRequest request) throws IOException, URISyntaxException, Exception {
+        String id = request.getQueryString();
+        if (id == null || id.isEmpty()) {
+            throw new CustomException("URL_SHORTENING_INVALID_ID", "Please provide a valid shortened url id");
+        }
         String redirectUrlString = urlConverterService.getLongURLFromID(id);
         RedirectView redirectView = new RedirectView();
         redirectView.setUrl(redirectUrlString);
