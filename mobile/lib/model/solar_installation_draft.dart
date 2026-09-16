@@ -22,6 +22,12 @@ extension SolarAssetTypeLabel on SolarAssetType {
         SolarAssetType.inverter => 'bom_inverter_pcu_quantity',
         SolarAssetType.panel => 'bom_solar_panel_quantity',
       };
+
+  String get bomProductField => switch (this) {
+        SolarAssetType.battery => 'bom_battery_product',
+        SolarAssetType.inverter => 'bom_inverter_pcu_product',
+        SolarAssetType.panel => 'bom_solar_panel_product',
+      };
 }
 
 enum SolarWorkflowMode { newReport, pending, resubmission, approved }
@@ -296,9 +302,16 @@ class SolarInstallationDraft {
   /// empty Add New Asset page while preserving every entry that does exist.
   void reconcileEntries(SolarAssetType type) {
     final selectedCount = countFor(type);
-    final entries = assets[type]!.assets;
+    final asset = assets[type]!;
+    final entries = asset.assets;
+    final batteryType = entries.isEmpty ? '' : entries.first.batteryType;
+    final product = (mergedBom[type.bomProductField] ?? '').toString().trim();
     while (entries.length < selectedCount) {
-      entries.add(SolarAssetEntry());
+      entries.add(SolarAssetEntry(
+        itemCode: product.isEmpty ? null : product,
+        capacity: asset.totalCapacity,
+        batteryType: type == SolarAssetType.battery ? batteryType : '',
+      ));
     }
     if (entries.length > selectedCount) {
       entries.removeRange(selectedCount, entries.length);

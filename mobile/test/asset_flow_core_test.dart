@@ -523,6 +523,36 @@ void main() {
         draft.assets[SolarAssetType.inverter]!.assets.first.assetId, 'asset-1');
   });
 
+  test('new asset entries inherit BOM defaults and shared Battery Type', () {
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(id: 'reconcile-defaults'),
+    );
+    final draft = SolarInstallationDraft(
+      workflow: workflow,
+      mode: SolarWorkflowMode.newReport,
+    )..mergedBom.addAll({
+        'bom_battery_product': 'BATTERY-ITEM',
+        'bom_battery_capacity': '125 Ah',
+      });
+    final battery = draft.assets[SolarAssetType.battery]!
+      ..totalCapacity = '125 Ah';
+
+    draft.setCount(SolarAssetType.battery, 1);
+    expect(battery.assets.single.itemCode, 'BATTERY-ITEM');
+    expect(battery.assets.single.capacity, '125 Ah');
+
+    battery.assets.single
+      ..batteryType = 'Lead Acid'
+      ..serialNumber = 'BATTERY-1';
+    draft.setCount(SolarAssetType.battery, 2);
+
+    expect(battery.assets, hasLength(2));
+    expect(battery.assets.last.itemCode, 'BATTERY-ITEM');
+    expect(battery.assets.last.capacity, '125 Ah');
+    expect(battery.assets.last.batteryType, 'Lead Acid');
+    expect(battery.assets.first.serialNumber, 'BATTERY-1');
+  });
+
   test('BOM masters parse v1 data and wrapped records', () {
     final schema = BomFormSchema.fromJson({
       'data': {

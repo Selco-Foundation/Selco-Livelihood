@@ -2111,6 +2111,46 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   });
 
+  testWidgets('Battery Next enables after completing an increased count',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 1600));
+    final draft = _filledSolarDraft(SolarWorkflowMode.newReport)
+      ..mergedBom['bom_battery_product'] = 'BATTERY-ITEM';
+    final battery = draft.assets[SolarAssetType.battery]!;
+    draft.setCount(SolarAssetType.battery, 2);
+    final second = battery.assets.last
+      ..serialNumber = 'BATTERY-2'
+      ..supportingPhoto = const SolarFileRef(
+        name: 'battery-2.jpg',
+        path: '/tmp/battery-2.jpg',
+        kind: SolarFileKind.image,
+        documentUid: 'DOC-BATTERY-IMAGE-2',
+        geoLocation: {'latitude': '6.5', 'longitude': '3.6'},
+      );
+
+    expect(second.itemCode, 'BATTERY-ITEM');
+    expect(second.capacity, '1');
+    expect(second.batteryType, 'LITHIUM_ION');
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: AddNewAssetPage(
+          draft: draft,
+          assetType: SolarAssetType.battery,
+          scanSerial: (_) async => null,
+        ),
+      ),
+    );
+
+    final next = tester.widget<DigitButton>(
+      find.byKey(const ValueKey('solar-footer-next')),
+    );
+    expect(next.isDisabled, isFalse);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
   testWidgets('add new asset assigns injected scanner result directly', (
     tester,
   ) async {
