@@ -12,13 +12,25 @@ export interface AssetSearchDocument {
 export interface AssetSearchResponseItem {
   assetId?: string;
   assetTypeID?: string;
+  /** The asset's product name (e.g. "Huller-Rice-3-HP-AC-150-kgs/hr") — a
+   * Machine's assetTypeID isn't a fixed enum like Solar's PANEL/BATTERY/
+   * INVERTER (it's sometimes the generic "MACHINE", sometimes a specific
+   * product name), so `name` is what identifies the item. */
+  name?: string;
   serialNumber?: string;
+  /** For Machine assets, a human-readable spec string (e.g.
+   * "3-HP-AC-150-kgs/hr") — verified against a real response; not
+   * consistently populated (can be ""). */
+  modelNumber?: string;
   brandID?: string;
   system?: string;
   /** ISO 8601 date-time string (e.g. "2026-09-11T06:31:11.917+00:00"), not
    * epoch millis — verified against a real asset-registry response. */
   warrantyStartDate?: string;
   warrantyDuration?: number;
+  /** Freeform per-asset-type map. Verified real keys include `capacity`/
+   * `capacityUnit`/`totalCapacity` (Solar) and `poNumber`/`invoiceNumber`/
+   * `trainedEndUser` (Machine). */
   assetDetails?: Record<string, unknown>;
   documents?: AssetSearchDocument[] | null;
 }

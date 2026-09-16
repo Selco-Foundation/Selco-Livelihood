@@ -162,6 +162,11 @@ export interface AssetSectionContent {
   label: string;
   count?: number;
   specifications: LabeledValue[];
+  /** Overrides the default "Specifications" heading — Machine's
+   * specifications block covers the installation (vendor/installed-by/
+   * report number), not the machine itself, so it reads "Installation
+   * Details" instead. */
+  specificationsHeading?: { labelKey: string; label: string };
   /** Battery-only, matching qc's one hardcoded special case: an extra titled
    * sub-block (Capacity/Voltage) alongside the regular specifications. */
   extraSpecifications?: { labelKey: string; label: string; fields: LabeledValue[] };

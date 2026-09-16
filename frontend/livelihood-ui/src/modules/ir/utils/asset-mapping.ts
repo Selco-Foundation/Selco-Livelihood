@@ -1,6 +1,12 @@
 import { REVIEW_SECTION_LABELS } from "../constants/review";
-import type { AssetSearchResponseItem } from "../services/asset";
-import type { AssetItem, AssetSectionContent, LabeledValue, SolarSectionId } from "../types/facility-review";
+import type { AssetSearchDocument, AssetSearchResponseItem } from "../services/asset";
+import type {
+  AssetItem,
+  AssetSectionContent,
+  LabeledValue,
+  SectionImage,
+  SolarSectionId,
+} from "../types/facility-review";
 
 const BLANK = "-";
 const SOLAR_ASSET_TYPE_IDS: SolarSectionId[] = ["PANEL", "BATTERY", "INVERTER"];
@@ -41,6 +47,27 @@ function warrantyStartDateValue(value: string | undefined): string {
 
 function warrantyDurationValue(years: number | undefined): string {
   return typeof years === "number" ? `${years} Years` : BLANK;
+}
+
+function stringFromDetails(
+  details: Record<string, unknown> | undefined,
+  key: string,
+): string | undefined {
+  const value = details?.[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+/** Every physical unit's own asset-registry photos — shared by Solar's
+ * per-panel/battery/inverter items and Machine's per-component items. */
+function assetPhotoImages(
+  documents: AssetSearchDocument[] | null | undefined,
+  imageUrlByFileStoreId: Map<string, string>,
+): SectionImage[] {
+  return (documents ?? [])
+    .filter((document) => document.documentType?.toUpperCase().startsWith(ASSET_PHOTO_DOCUMENT_TYPE_PREFIX))
+    .map((document) => (document.fileStore ? imageUrlByFileStoreId.get(document.fileStore) : undefined))
+    .filter((url): url is string => Boolean(url))
+    .map((url) => ({ url }));
 }
 
 /**
@@ -99,13 +126,7 @@ export function buildSolarAssetSections(
       itemNumber: index + 1,
       serialNumber: asset.serialNumber || BLANK,
       capacity: assetCapacity(asset.assetDetails) ?? BLANK,
-      images: (asset.documents ?? [])
-        .filter((document) =>
-          document.documentType?.toUpperCase().startsWith(ASSET_PHOTO_DOCUMENT_TYPE_PREFIX),
-        )
-        .map((document) => (document.fileStore ? imageUrlByFileStoreId.get(document.fileStore) : undefined))
-        .filter((url): url is string => Boolean(url))
-        .map((url) => ({ url })),
+      images: assetPhotoImages(asset.documents, imageUrlByFileStoreId),
     }));
 
     return {
@@ -121,4 +142,75 @@ export function buildSolarAssetSections(
       videos: [],
     } satisfies AssetSectionContent;
   });
+}
+
+/** Machine's asset-sourced content — merged into buildMachineSection's BOM-
+ * derived specifications (vendor/installed-by/report-number aren't part of
+ * asset data, so those stay separate). Unlike Solar, a Machine's
+ * assetTypeID isn't a fixed enum to group by (verified real values include
+ * both the generic "MACHINE" and specific product names like "RICE HULLER")
+ * — every asset returned for the facility is treated as one of its
+ * components, one item each. Every real sample observed had exactly one
+ * asset per facility, but the shape supports more.
+ */
+export interface MachineAssetData {
+  /** Undefined (not rendered) when no assets exist yet. */
+  details: LabeledValue[] | undefined;
+  items: AssetItem[];
+}
+
+export function buildMachineAssetData(
+  assets: AssetSearchResponseItem[],
+  imageUrlByFileStoreId: Map<string, string>,
+): MachineAssetData {
+  if (assets.length === 0) {
+    return { details: undefined, items: [] };
+  }
+
+  const first = assets[0];
+
+  // Facts about the machine itself (serial number, spec) plus procurement/
+  // warranty — grouped under "Details", separate from buildMachineSection's
+  // "Installation Details" (vendor/installed-by/report-number), which is
+  // about the install, not the machine.
+  const details: LabeledValue[] = [
+    {
+      labelKey: "ES_IR_MACHINE_SERIAL_NUMBER",
+      label: "Machine Serial Number",
+      value: rawValue(first.serialNumber),
+    },
+    {
+      labelKey: "ES_IR_MACHINE_MOTOR_CAPACITY",
+      label: "Machine Specifications/Motor Capacity",
+      value: rawValue(first.modelNumber),
+    },
+    {
+      labelKey: "ES_IR_MACHINE_PO_NUMBER",
+      label: "PO Number",
+      value: rawValue(stringFromDetails(first.assetDetails, "poNumber")),
+    },
+    {
+      labelKey: "ES_IR_MACHINE_INVOICE_NUMBER",
+      label: "Manufacturer Invoice Number",
+      value: rawValue(stringFromDetails(first.assetDetails, "invoiceNumber")),
+    },
+    {
+      labelKey: "ES_IR_WARRANTY_START_DATE",
+      label: "Warranty Start Date",
+      value: warrantyStartDateValue(first.warrantyStartDate),
+    },
+    {
+      labelKey: "ES_IR_WARRANTY_DURATION",
+      label: "Warranty Duration",
+      value: warrantyDurationValue(first.warrantyDuration),
+    },
+  ];
+
+  const items: AssetItem[] = assets.map((asset, index) => ({
+    itemNumber: index + 1,
+    label: asset.name || asset.assetTypeID,
+    images: assetPhotoImages(asset.documents, imageUrlByFileStoreId),
+  }));
+
+  return { details, items };
 }
