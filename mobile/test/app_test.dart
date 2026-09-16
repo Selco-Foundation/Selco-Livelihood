@@ -3004,6 +3004,46 @@ void main() {
     expect(submit.isDisabled, isTrue);
   });
 
+  testWidgets('read-only machine form does not enable a missing fixed footer',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 844));
+    final workflow = _StubActivityFacilityRemoteRepository._defaultItems[1];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: withAssetSubmissionBloc(MachineFormPage(
+          workflow: workflow,
+          readOnly: true,
+        )),
+      ),
+    );
+    await tester.pump();
+
+    // Let the read-only Asset Registry hydration complete through its
+    // existing network/cache timeout path, then verify the rebuilt page too.
+    await tester.pump(const Duration(seconds: 21));
+    await tester.pump(const Duration(seconds: 3));
+
+    expect(tester.takeException(), isNull);
+    final content = tester.widget<ScrollableContent>(
+      find.byKey(ValueKey('machine-form-${workflow.facilityTitle}')),
+    );
+    expect(content.enableFixedDigitButton, isFalse);
+    expect(content.footer, isNull);
+    expect(find.byKey(const ValueKey('machine-form-footer')), findsNothing);
+    expect(find.byKey(const ValueKey('machine-otp-widget')), findsNothing);
+
+    final poField = tester.widget<DigitTextFormInput>(
+      find.descendant(
+        of: find.byKey(const ValueKey('po-number-field')),
+        matching: find.byType(DigitTextFormInput),
+      ),
+    );
+    expect(poField.isDisabled, isTrue);
+    expect(poField.readOnly, isTrue);
+  });
+
   testWidgets('machine image picker matches E4H states and handles errors', (
     tester,
   ) async {

@@ -651,7 +651,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
         padding: const EdgeInsets.symmetric(horizontal: spacer2),
         child: ScrollableContent(
           key: ValueKey('machine-form-${widget.workflow.facilityTitle}'),
-          enableFixedDigitButton: true,
+          enableFixedDigitButton: !widget.readOnly,
           backgroundColor: theme.colorTheme.generic.background,
           header: ReportNavigationHeader(
             onBackPressed: () => context.router.maybePop(),
