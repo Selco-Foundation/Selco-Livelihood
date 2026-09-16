@@ -291,6 +291,98 @@ void main() {
     expect(workflow.resolvedAssetCategory, FacilityAssetCategory.solar);
   });
 
+  test('activity facility parses object and list workflow responses', () {
+    Map<String, dynamic> response(Object workflow) => {
+          'activityFacility': {'id': 'facility-1'},
+          'workflow': workflow,
+        };
+
+    final objectWorkflow = ActivityFacilityWorkflow.fromJson(response({
+      'state': 'APPROVED_BY_QC_SPOC',
+      'auditDetails': {'lastModifiedTime': 1789516800000},
+    }));
+    expect(objectWorkflow.workflow?.state, 'APPROVED_BY_QC_SPOC');
+    expect(
+        objectWorkflow.workflow?.auditDetails?.lastModifiedTime, 1789516800000);
+
+    final listWorkflow = ActivityFacilityWorkflow.fromJson(response([
+      {
+        'state': {
+          'state': 'SUBMITTED_BY_FIELD_STAFF',
+          'applicationStatus': 'SUBMITTED_BY_FIELD_STAFF',
+        },
+        'auditDetails': {'lastModifiedTime': 1789430400000},
+      },
+      {
+        'state': {'state': 'ASSIGNED_TO_FIELD_STAFF'},
+        'auditDetails': {'lastModifiedTime': 1789344000000},
+      },
+    ]));
+    expect(listWorkflow.workflow?.state, 'SUBMITTED_BY_FIELD_STAFF');
+    expect(
+        listWorkflow.workflow?.auditDetails?.lastModifiedTime, 1789430400000);
+
+    expect(
+      ActivityFacilityWorkflow.fromJson(response(const [])).workflow,
+      isNull,
+    );
+    expect(
+      ActivityFacilityWorkflow.fromJson(response(const {})).workflow,
+      isNull,
+    );
+  });
+
+  test('facility report dates follow E4H sources and reject epoch values', () {
+    final scheduledAt = DateTime(2026, 9, 14).millisecondsSinceEpoch;
+    final submittedAt = DateTime(2026, 9, 15).millisecondsSinceEpoch;
+    final fallback = DateTime(2026, 9, 16);
+    final workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'dated-facility',
+        scheduledAt: scheduledAt,
+        completedAt: 0,
+      ),
+      workflow: Workflow(
+        auditDetails: WorkflowAuditDetails(lastModifiedTime: submittedAt),
+      ),
+    );
+
+    expect(
+      workflow.reportDateFor(
+        FacilityReportMode.newReport,
+        fallback: fallback,
+      ),
+      '14/09/26',
+    );
+    for (final mode in const [
+      FacilityReportMode.pendingApproval,
+      FacilityReportMode.resubmissionNeeded,
+      FacilityReportMode.approved,
+    ]) {
+      expect(workflow.reportDateFor(mode, fallback: fallback), '15/09/26');
+    }
+
+    const missingDates = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'missing-dates',
+        scheduledAt: 0,
+      ),
+      workflow: Workflow(
+        auditDetails: WorkflowAuditDetails(lastModifiedTime: -1),
+      ),
+    );
+    for (final mode in FacilityReportMode.values) {
+      expect(
+        missingDates.reportDateFor(mode, fallback: fallback),
+        '16/09/26',
+      );
+      expect(
+        missingDates.reportDateFor(mode, fallback: fallback),
+        isNot('01/01/70'),
+      );
+    }
+  });
+
   test('Solar draft uses BOM quantities only as initial asset counts', () {
     const workflow = ActivityFacilityWorkflow(
       activityFacility: ActivityFacility(

@@ -47,6 +47,7 @@ class FacilityReportCard extends StatelessWidget {
     final theme = Theme.of(context);
     final textTheme = theme.digitTextTheme(context);
     final isNew = mode == FacilityReportMode.newReport;
+    final reportDate = workflow.reportDateFor(mode);
 
     return DigitCard(
       key: ValueKey('facility-card-${mode.name}-${workflow.facilityTitle}'),
@@ -70,16 +71,13 @@ class FacilityReportCard extends StatelessWidget {
             if (isNew) ...[
               _DetailRow(
                 label: context.translate(i18.installationReportHome.startDate),
-                value: workflow.reportDate,
+                value: reportDate,
               ),
-              _DetailRow(
-                  label: context.translate(i18.installationReportHome.endDate),
-                  value: workflow.reportDate),
             ] else
               _DetailRow(
                 label: context
                     .translate(i18.installationReportHome.submissionDate),
-                value: workflow.reportDate,
+                value: reportDate,
               ),
             _DetailRow(
                 label: context.translate(i18.installationReportHome.state),

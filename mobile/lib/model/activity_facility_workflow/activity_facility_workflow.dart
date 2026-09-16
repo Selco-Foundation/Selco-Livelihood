@@ -45,18 +45,28 @@ class WorkflowAuditDetails with _$WorkflowAuditDetails {
       _$WorkflowAuditDetailsFromJson(json);
 }
 
-/// Tolerates the backend returning `workflow` as `{}`, `[]`, or `null` —
-/// only a genuinely populated object is parsed, everything else normalizes
-/// to `null` instead of throwing a type-cast error mid-deserialization.
+/// Tolerates the backend returning `workflow` as an object, a history list,
+/// an empty value, or `null`. The activity API returns the current workflow
+/// first and nests its state details inside a separate object.
 class WorkflowFlexConverter implements JsonConverter<Workflow?, Object?> {
   const WorkflowFlexConverter();
 
   @override
   Workflow? fromJson(Object? json) {
-    if (json is Map<String, dynamic> && json.isNotEmpty) {
-      return Workflow.fromJson(json);
+    final raw = switch (json) {
+      final Map value when value.isNotEmpty => Map<String, dynamic>.from(value),
+      final List value when value.isNotEmpty && value.first is Map =>
+        Map<String, dynamic>.from(value.first as Map),
+      _ => null,
+    };
+    if (raw == null || raw.isEmpty) return null;
+
+    final state = raw['state'];
+    if (state is Map) {
+      raw['state'] =
+          state['state']?.toString() ?? state['applicationStatus']?.toString();
     }
-    return null;
+    return Workflow.fromJson(raw);
   }
 
   @override

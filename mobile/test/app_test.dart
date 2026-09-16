@@ -1420,6 +1420,56 @@ void main() {
     );
   });
 
+  testWidgets('facility cards use E4H date sources for every report mode', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    final workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'dated-facility',
+        scheduledAt: DateTime(2026, 9, 14).millisecondsSinceEpoch,
+        completedAt: 0,
+        componentType: 'MACHINE',
+        facility: const Facility(
+          facilityName: 'Dated facility',
+          boundaryCode: 'INDIA_ASSAM_BAKSA_DHAMDHAMA',
+        ),
+      ),
+      workflow: Workflow(
+        auditDetails: WorkflowAuditDetails(
+          lastModifiedTime: DateTime(2026, 9, 15).millisecondsSinceEpoch,
+        ),
+      ),
+    );
+
+    for (final mode in FacilityReportMode.values) {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: DigitTheme.instance.mobileTheme,
+          home: Scaffold(
+            body: FacilityReportCard(
+              workflow: workflow,
+              mode: mode,
+              onAction: () {},
+            ),
+          ),
+        ),
+      );
+
+      if (mode == FacilityReportMode.newReport) {
+        expect(find.text('Start Date'), findsOneWidget);
+        expect(find.text('End Date'), findsNothing);
+        expect(find.text('14/09/26'), findsOneWidget);
+        expect(find.text('15/09/26'), findsNothing);
+      } else {
+        expect(find.text('Submission Date'), findsOneWidget);
+        expect(find.text('15/09/26'), findsOneWidget);
+        expect(find.text('14/09/26'), findsNothing);
+      }
+      expect(find.text('01/01/70'), findsNothing);
+    }
+  });
+
   testWidgets('search pages expose the E4H sort popup without filtering', (
     tester,
   ) async {

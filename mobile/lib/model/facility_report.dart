@@ -23,13 +23,16 @@ extension FacilityReportPresentation on ActivityFacilityWorkflow {
       activityFacility.activityId ??
       '';
 
-  String get reportDate {
-    final epochMillis = workflow?.auditDetails?.lastModifiedTime ??
-        activityFacility.completedAt ??
-        activityFacility.activatedAt ??
-        activityFacility.scheduledAt;
-    if (epochMillis == null) return '';
-    final date = DateTime.fromMillisecondsSinceEpoch(epochMillis);
+  String reportDateFor(
+    FacilityReportMode mode, {
+    DateTime? fallback,
+  }) {
+    final epochMillis = mode == FacilityReportMode.newReport
+        ? activityFacility.scheduledAt
+        : workflow?.auditDetails?.lastModifiedTime;
+    final date = epochMillis != null && epochMillis > 0
+        ? DateTime.fromMillisecondsSinceEpoch(epochMillis)
+        : fallback ?? DateTime.now();
     final day = date.day.toString().padLeft(2, '0');
     final month = date.month.toString().padLeft(2, '0');
     final year = (date.year % 100).toString().padLeft(2, '0');
