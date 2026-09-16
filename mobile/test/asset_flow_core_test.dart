@@ -23,6 +23,7 @@ import 'package:livelihood/repositories/activity_facility_repo.dart';
 import 'package:livelihood/repositories/asset_mdms_repository.dart';
 import 'package:livelihood/repositories/bom_repository.dart';
 import 'package:livelihood/repositories/installation_draft_repository.dart';
+import 'package:livelihood/repositories/installation_cache_repo.dart';
 import 'package:livelihood/repositories/operation_progress_repo.dart';
 import 'package:livelihood/repositories/pending_submission_repository.dart';
 import 'package:livelihood/utils/envConfig.dart';
@@ -47,7 +48,10 @@ class _TestErrorInterceptorHandler extends ErrorInterceptorHandler {
 void main() {
   setUpAll(() async => envConfig.initialize());
 
-  setUp(() => pendingSubmissionRepository.clearForTests());
+  setUp(() {
+    pendingSubmissionRepository.clearForTests();
+    installationCacheRepository.clearSubmissionPayloadsForTests();
+  });
 
   test('successful OTP generate and resend responses expose the DEV OTP log',
       () {
@@ -1908,6 +1912,81 @@ void main() {
 
     await sub.cancel();
     await bloc.close();
+  });
+
+  test('preparation failures are persisted and surfaced at preparation',
+      () async {
+    final progressRepo = _StubOperationProgressRepository();
+    final bloc = AssetSubmissionBloc(progressRepository: progressRepo);
+    const activityFacilityId = 'activity-facility-preparation-failure';
+
+    final failureFuture = bloc.stream
+        .where((state) => state is AssetSubmissionFailure)
+        .cast<AssetSubmissionFailure>()
+        .first;
+    bloc.add(const SubmissionPreparationFailed(
+      activityFacilityId: activityFacilityId,
+      error: 'payload write failed',
+    ));
+
+    final failure = await failureFuture;
+    expect(failure.progress.activityFacilityId, activityFacilityId);
+    expect(failure.progress.stageKey, 'preparing_submission');
+    expect(failure.progress.errorMessage, 'payload write failed');
+    await bloc.close();
+  });
+
+  test('submission payload recovery preserves resumable checkpoints', () async {
+    const activityFacilityId = 'activity-facility-payload-recovery';
+    var builds = 0;
+    Map<String, dynamic> payload(
+            {required bool uploaded, int? completedStep}) =>
+        {
+          'kind': 'solar',
+          'bom': <String, dynamic>{},
+          'assets': <dynamic>[],
+          'workflowDocuments': <dynamic>[],
+          'uploaded': uploaded,
+          if (completedStep != null) 'completedStep': completedStep,
+        };
+
+    final recovered = await installationCacheRepository.ensureSubmissionPayload(
+      activityFacilityId,
+      () {
+        builds++;
+        return payload(uploaded: false);
+      },
+      preserveExisting: true,
+    );
+    expect(recovered['uploaded'], isFalse);
+    expect(builds, 1);
+
+    await installationCacheRepository.putSubmissionPayload(
+      activityFacilityId,
+      payload(uploaded: true, completedStep: 2),
+    );
+    final preserved = await installationCacheRepository.ensureSubmissionPayload(
+      activityFacilityId,
+      () {
+        builds++;
+        return payload(uploaded: false);
+      },
+      preserveExisting: true,
+    );
+    expect(preserved['uploaded'], isTrue);
+    expect(preserved['completedStep'], 2);
+    expect(builds, 1);
+
+    final refreshed = await installationCacheRepository.ensureSubmissionPayload(
+      activityFacilityId,
+      () {
+        builds++;
+        return payload(uploaded: false);
+      },
+      preserveExisting: false,
+    );
+    expect(refreshed['uploaded'], isFalse);
+    expect(builds, 2);
   });
 
   test('bulk submission aggregates only OTP-approved local jobs', () async {

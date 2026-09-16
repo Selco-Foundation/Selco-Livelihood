@@ -64,7 +64,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
   bool _trainedEndUser = true;
   bool _otpVerified = false;
   bool _otpRequested = false;
-  bool _autoSubmitting = false;
+  bool _submissionStartInFlight = false;
   MachineFormSchema? _schema;
   bool _schemaLoaded = false;
 
@@ -127,21 +127,16 @@ class _MachineFormPageState extends State<MachineFormPage> {
   }
 
   Future<void> _onOtpVerified() async {
-    await pendingSubmissionRepository.markOtpVerified(widget.workflow);
     if (!mounted) return;
     setState(() {
       _otpRequested = true;
       _otpVerified = true;
     });
     _refreshCounts();
-    if (_formComplete && !_autoSubmitting) {
-      _autoSubmitting = true;
-      try {
-        await _submit();
-      } finally {
-        _autoSubmitting = false;
-      }
-    }
+    await _startSubmission(
+      persistOtpApproval: true,
+      preserveExistingPayload: false,
+    );
   }
 
   void _refreshCounts() {
@@ -557,28 +552,56 @@ class _MachineFormPageState extends State<MachineFormPage> {
   /// Dispatches straight into `AssetSubmissionBloc` and stays on this page
   /// (matching E4H: submit progress is an in-place overlay, never a
   /// separate route) rather than navigating to a sync-loading screen.
-  Future<void> _submit() async {
+  Future<void> _submit() => _startSubmission(
+        persistOtpApproval: false,
+        preserveExistingPayload: true,
+      );
+
+  Future<void> _startSubmission({
+    required bool persistOtpApproval,
+    required bool preserveExistingPayload,
+  }) async {
+    if (_submissionStartInFlight) return;
     FocusManager.instance.primaryFocus?.unfocus();
     _refreshMediaLocations();
-    if (!_formComplete) return;
+    if (!_otpVerified || !_formComplete) return;
     final activityFacilityId = widget.workflow.activityFacility.id;
     final facilityId = widget.workflow.activityFacility.facilityId;
     if (activityFacilityId == null || facilityId == null) return;
-    await _save();
-    await installationCacheRepository.putJson(
-      'submission-payload',
-      activityFacilityId,
-      buildMachineSubmissionPayload(
-        workflow: widget.workflow,
-        values: _formValues,
-        media: _formMedia,
-      ),
-    );
-    if (!mounted) return;
-    context.read<AssetSubmissionBloc>().add(SubmitAll(
-          activityFacilityId: activityFacilityId,
-          facilityId: facilityId,
-        ));
+    _submissionStartInFlight = true;
+    try {
+      if (persistOtpApproval) {
+        await pendingSubmissionRepository.markOtpVerified(widget.workflow);
+      }
+      await _save();
+      await installationCacheRepository.ensureSubmissionPayload(
+        activityFacilityId,
+        () => buildMachineSubmissionPayload(
+          workflow: widget.workflow,
+          values: _formValues,
+          media: _formMedia,
+        ),
+        preserveExisting: preserveExistingPayload,
+      );
+      if (!mounted) return;
+      context.read<AssetSubmissionBloc>().add(SubmitAll(
+            activityFacilityId: activityFacilityId,
+            facilityId: facilityId,
+          ));
+    } catch (error, stackTrace) {
+      debugPrint(
+        'Submission preparation failed for $activityFacilityId: $error\n'
+        '$stackTrace',
+      );
+      if (mounted) {
+        context.read<AssetSubmissionBloc>().add(SubmissionPreparationFailed(
+              activityFacilityId: activityFacilityId,
+              error: error,
+            ));
+      }
+    } finally {
+      _submissionStartInFlight = false;
+    }
   }
 
   void _refreshMediaLocations() {
@@ -591,15 +614,10 @@ class _MachineFormPageState extends State<MachineFormPage> {
     }
   }
 
-  void _onRetrySubmit() {
-    final activityFacilityId = widget.workflow.activityFacility.id;
-    final facilityId = widget.workflow.activityFacility.facilityId;
-    if (activityFacilityId == null || facilityId == null) return;
-    context.read<AssetSubmissionBloc>().add(RetrySubmission(
-          activityFacilityId: activityFacilityId,
-          facilityId: facilityId,
-        ));
-  }
+  void _onRetrySubmit() => unawaited(_startSubmission(
+        persistOtpApproval: false,
+        preserveExistingPayload: true,
+      ));
 
   @override
   Widget build(BuildContext context) {

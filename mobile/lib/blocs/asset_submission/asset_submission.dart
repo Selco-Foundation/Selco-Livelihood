@@ -28,6 +28,16 @@ class RetrySubmission extends AssetSubmissionEvent {
   final String facilityId;
 }
 
+class SubmissionPreparationFailed extends AssetSubmissionEvent {
+  const SubmissionPreparationFailed({
+    required this.activityFacilityId,
+    required this.error,
+  });
+
+  final String activityFacilityId;
+  final Object error;
+}
+
 class WatchSubmission extends AssetSubmissionEvent {
   const WatchSubmission(this.activityFacilityId);
 
@@ -114,6 +124,7 @@ class AssetSubmissionBloc
         super(const AssetSubmissionInitial()) {
     on<SubmitAll>(_onSubmitAll);
     on<RetrySubmission>(_onRetry);
+    on<SubmissionPreparationFailed>(_onPreparationFailed);
     on<WatchSubmission>(_onWatch);
     on<_JobChanged>(_onJobChanged);
     on<DismissSubmission>(_onDismiss);
@@ -128,6 +139,7 @@ class AssetSubmissionBloc
   Set<String> _bulkIds = const {};
   final List<StreamSubscription<OperationProgressModel?>> _bulkSubs = [];
   final Map<String, OperationProgressModel> _bulkJobs = {};
+  final Set<String> _enqueuingIds = {};
 
   @override
   Future<void> close() async {
@@ -266,6 +278,7 @@ class AssetSubmissionBloc
     SubmitAll event,
     Emitter<AssetSubmissionState> emit,
   ) async {
+    if (!_enqueuingIds.add(event.activityFacilityId)) return;
     add(WatchSubmission(event.activityFacilityId));
     try {
       await BackgroundServiceController.I.enqueueSubmission(
@@ -284,7 +297,28 @@ class AssetSubmissionBloc
         totalSteps: submitStages.length,
         lastError: e.toString(),
       );
+    } finally {
+      _enqueuingIds.remove(event.activityFacilityId);
     }
+  }
+
+  Future<void> _onPreparationFailed(
+    SubmissionPreparationFailed event,
+    Emitter<AssetSubmissionState> emit,
+  ) async {
+    _activeWatchId = event.activityFacilityId;
+    await _jobSub?.cancel();
+    _jobSub = _progressRepo.watchJob(event.activityFacilityId).listen((job) {
+      add(_JobChanged(job));
+    });
+    await _progressRepo.upsertJob(
+      activityFacilityId: event.activityFacilityId,
+      status: OperationStatuses.failed,
+      stageKey: submitStages.first.key,
+      completedSteps: 0,
+      totalSteps: submitStages.length,
+      lastError: event.error.toString(),
+    );
   }
 
   Future<void> _onRetry(

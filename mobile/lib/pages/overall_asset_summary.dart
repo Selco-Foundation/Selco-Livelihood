@@ -57,7 +57,7 @@ class OverallAssetSummaryPage extends StatefulWidget {
 class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
   bool _otpVerified = false;
   bool _otpRequested = false;
-  bool _autoSubmitting = false;
+  bool _submissionStartInFlight = false;
 
   @override
   void initState() {
@@ -90,24 +90,16 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
   }
 
   Future<void> _onOtpVerified() async {
-    await pendingSubmissionRepository.markOtpVerified(
-      widget.draft.workflow,
-      workflowMode: widget.draft.mode.name,
-    );
     if (!mounted) return;
     setState(() {
       _otpRequested = true;
       _otpVerified = true;
     });
     _refreshCounts();
-    if (widget.draft.canSubmit && !_autoSubmitting) {
-      _autoSubmitting = true;
-      try {
-        await _submit();
-      } finally {
-        _autoSubmitting = false;
-      }
-    }
+    await _startSubmission(
+      persistOtpApproval: true,
+      preserveExistingPayload: false,
+    );
   }
 
   void _refreshCounts() {
@@ -227,24 +219,59 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
   /// Dispatches straight into `AssetSubmissionBloc` and stays on this page
   /// (matching E4H: submit progress is an in-place overlay, never a
   /// separate route) rather than navigating to a sync-loading screen.
-  Future<void> _submit() async {
+  Future<void> _submit() => _startSubmission(
+        persistOtpApproval: false,
+        preserveExistingPayload: true,
+      );
+
+  Future<void> _startSubmission({
+    required bool persistOtpApproval,
+    required bool preserveExistingPayload,
+  }) async {
+    if (_submissionStartInFlight) return;
     final draft = widget.draft;
     _refreshDocumentLocations();
-    if (!draft.canSubmit || !draft.allDocumentsMetadataComplete) return;
+    if (!_otpVerified ||
+        !draft.canSubmit ||
+        !draft.allDocumentsMetadataComplete) {
+      return;
+    }
     final activityFacilityId = draft.workflow.activityFacility.id;
     final facilityId = draft.workflow.activityFacility.facilityId;
     if (activityFacilityId == null || facilityId == null) return;
-    await installationDraftRepository.saveSolar(draft);
-    await installationCacheRepository.putJson(
-      'submission-payload',
-      activityFacilityId,
-      buildSolarSubmissionPayload(draft),
-    );
-    if (!mounted) return;
-    context.read<AssetSubmissionBloc>().add(SubmitAll(
-          activityFacilityId: activityFacilityId,
-          facilityId: facilityId,
-        ));
+    _submissionStartInFlight = true;
+    try {
+      if (persistOtpApproval) {
+        await pendingSubmissionRepository.markOtpVerified(
+          draft.workflow,
+          workflowMode: draft.mode.name,
+        );
+      }
+      await installationDraftRepository.saveSolar(draft);
+      await installationCacheRepository.ensureSubmissionPayload(
+        activityFacilityId,
+        () => buildSolarSubmissionPayload(draft),
+        preserveExisting: preserveExistingPayload,
+      );
+      if (!mounted) return;
+      context.read<AssetSubmissionBloc>().add(SubmitAll(
+            activityFacilityId: activityFacilityId,
+            facilityId: facilityId,
+          ));
+    } catch (error, stackTrace) {
+      debugPrint(
+        'Submission preparation failed for $activityFacilityId: $error\n'
+        '$stackTrace',
+      );
+      if (mounted) {
+        context.read<AssetSubmissionBloc>().add(SubmissionPreparationFailed(
+              activityFacilityId: activityFacilityId,
+              error: error,
+            ));
+      }
+    } finally {
+      _submissionStartInFlight = false;
+    }
   }
 
   Future<void> _saveDraft() async {
@@ -301,15 +328,10 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
     if (mounted) setState(() {});
   }
 
-  void _onRetrySubmit() {
-    final activityFacilityId = widget.draft.workflow.activityFacility.id;
-    final facilityId = widget.draft.workflow.activityFacility.facilityId;
-    if (activityFacilityId == null || facilityId == null) return;
-    context.read<AssetSubmissionBloc>().add(RetrySubmission(
-          activityFacilityId: activityFacilityId,
-          facilityId: facilityId,
-        ));
-  }
+  void _onRetrySubmit() => unawaited(_startSubmission(
+        persistOtpApproval: false,
+        preserveExistingPayload: true,
+      ));
 
   @override
   Widget build(BuildContext context) {

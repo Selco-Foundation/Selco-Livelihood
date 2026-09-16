@@ -14,6 +14,8 @@ import '../utils/constants.dart';
 import '../utils/envConfig.dart';
 
 class InstallationCacheRepository {
+  final Map<String, Map<String, dynamic>> _testSubmissionPayloads = {};
+
   Future<Isar> get _isar => Constants().isar;
 
   bool get _hasTestIsar =>
@@ -30,31 +32,94 @@ class InstallationCacheRepository {
   ) async {
     if (!_hasTestIsar) return;
     try {
-      final isar = await _isar;
-      await isar.writeTxn(() async {
-        final rows = await isar.cacheInstallationDatas
-            .filter()
-            .namespaceEqualTo(namespace)
-            .and()
-            .cacheKeyEqualTo(key)
-            .findAll();
-        final row = rows.isEmpty ? CacheInstallationData() : rows.first;
-        row
-          ..namespace = namespace
-          ..cacheKey = key
-          ..rawJson = jsonEncode(payload)
-          ..updatedAt = DateTime.now();
-        await isar.cacheInstallationDatas.put(row);
-        if (rows.length > 1) {
-          await isar.cacheInstallationDatas
-              .deleteAll(rows.skip(1).map((item) => item.id).toList());
-        }
-      }).timeout(const Duration(seconds: 5));
+      await _writeJson(namespace, key, payload)
+          .timeout(const Duration(seconds: 5));
     } catch (_) {
       // Best-effort — see doc comment above. The timeout guards against
       // Isar's per-instance write-transaction lock stalling indefinitely
       // when many writes (e.g. rapid `saveSolarSoon` calls) overlap.
     }
+  }
+
+  /// Submission cannot safely start unless this snapshot is durable. Unlike
+  /// ordinary draft autosaves, this write propagates failures and verifies
+  /// the stored value before the background isolate is allowed to consume it.
+  Future<Map<String, dynamic>> putSubmissionPayload(
+    String activityFacilityId,
+    Map<String, dynamic> payload,
+  ) async {
+    if (!_hasTestIsar) {
+      return _testSubmissionPayloads[activityFacilityId] =
+          Map<String, dynamic>.from(payload);
+    }
+    await _writeJson('submission-payload', activityFacilityId, payload);
+    final saved = await getSubmissionPayload(activityFacilityId);
+    if (saved == null || !_isCurrentSubmissionPayload(saved)) {
+      throw StateError('Submission payload could not be verified after save.');
+    }
+    return saved;
+  }
+
+  Future<Map<String, dynamic>?> getSubmissionPayload(
+    String activityFacilityId,
+  ) async {
+    if (!_hasTestIsar) {
+      final payload = _testSubmissionPayloads[activityFacilityId];
+      return payload == null ? null : Map<String, dynamic>.from(payload);
+    }
+    final raw = await getJson('submission-payload', activityFacilityId);
+    return raw is Map ? Map<String, dynamic>.from(raw) : null;
+  }
+
+  void clearSubmissionPayloadsForTests() => _testSubmissionPayloads.clear();
+
+  /// Keeps an uploaded/checkpointed payload intact on retry. A fresh payload
+  /// is written only when no valid resumable snapshot exists.
+  Future<Map<String, dynamic>> ensureSubmissionPayload(
+    String activityFacilityId,
+    Map<String, dynamic> Function() buildPayload, {
+    required bool preserveExisting,
+  }) async {
+    if (preserveExisting) {
+      final existing = await getSubmissionPayload(activityFacilityId);
+      if (existing != null && _isCurrentSubmissionPayload(existing)) {
+        return existing;
+      }
+    }
+    return putSubmissionPayload(activityFacilityId, buildPayload());
+  }
+
+  bool _isCurrentSubmissionPayload(Map<String, dynamic> payload) =>
+      (payload['kind'] == 'solar' || payload['kind'] == 'machine') &&
+      payload['bom'] is Map &&
+      payload['assets'] is List &&
+      payload['workflowDocuments'] is List;
+
+  Future<void> _writeJson(
+    String namespace,
+    String key,
+    Object? payload,
+  ) async {
+    final isar = await _isar;
+    await isar.writeTxn(() async {
+      final rows = await isar.cacheInstallationDatas
+          .filter()
+          .namespaceEqualTo(namespace)
+          .and()
+          .cacheKeyEqualTo(key)
+          .findAll();
+      final row = rows.isEmpty ? CacheInstallationData() : rows.first;
+      row
+        ..namespace = namespace
+        ..cacheKey = key
+        ..rawJson = jsonEncode(payload)
+        ..updatedAt = DateTime.now();
+      await isar.cacheInstallationDatas.put(row);
+      if (rows.length > 1) {
+        await isar.cacheInstallationDatas
+            .deleteAll(rows.skip(1).map((item) => item.id).toList());
+      }
+    });
   }
 
   Future<dynamic> getJson(String namespace, String key) async {
