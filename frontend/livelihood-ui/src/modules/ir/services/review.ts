@@ -53,6 +53,7 @@ export async function submitFacilityReview(
           input.action === "APPROVE"
             ? "Approved by Installation Reviewer"
             : "Rejected by Installation Reviewer",
+        documents: input.documents,
       },
       ...(comments.length > 0 ? { transactions: [{ comments }] } : {}),
     },

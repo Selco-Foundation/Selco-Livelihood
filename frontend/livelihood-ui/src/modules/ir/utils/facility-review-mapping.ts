@@ -261,5 +261,6 @@ export function buildFacilityReviewDetail(
     sections,
     auditTrail: buildAuditTrail(row.workflow, row.transactions, reasonOptions),
     sectionDocuments,
+    workflowDocuments: latestDocuments,
   };
 }

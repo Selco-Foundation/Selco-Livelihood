@@ -89,7 +89,7 @@ export function FacilityReviewPage() {
 
   function handleConfirmedSubmit() {
     const action = pendingAction;
-    if (!action) {
+    if (!action || !detail) {
       return;
     }
     submitReview.mutate(
@@ -97,6 +97,7 @@ export function FacilityReviewPage() {
         entryId,
         action,
         rejectionReasons: action === "REJECT" ? rejectionReasons : undefined,
+        documents: detail.workflowDocuments,
       },
       {
         onSuccess: () => {
