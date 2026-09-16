@@ -4,10 +4,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.egov.common.contract.request.RequestInfo;
 import org.selco.e4h.config.ConsumerConfiguration;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -23,9 +26,50 @@ public class LivelihoodSummaryEmailTemplateService {
     private static final Map<String, String> DEFAULT_SUBJECTS = buildDefaultSubjects();
     private static final Map<String, String> DEFAULT_BODIES = buildDefaultBodies();
 
+    private static final String COMBINED_WEEKLY_TEMPLATE_PATH = "templates/livelihood_poc_weekly_summary.html";
+    private static final String COMBINED_WEEKLY_SUBJECT_TEMPLATE =
+            "[{APP_NAME}] Weekly Summary – {TOTAL_EVENT_COUNT} Ticket Update(s) – Week of {WEEK_START_DATE}";
+
     private final LivelihoodLocalizationClient localizationClient;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final ConsumerConfiguration consumerConfiguration;
+
+    private volatile String combinedWeeklyTemplateCache;
+
+    /**
+     * Sends the single combined weekly ticket-lifecycle digest to one POC. Unlike the per-metric
+     * daily/legacy path, this is not localization-backed — the HTML body is loaded straight from
+     * classpath, matching how im-services' own HTML notification templates are handled.
+     */
+    public void sendCombinedWeeklySummaryEmail(String tenantId, String emailId, Map<String, String> placeholders) {
+        if (!StringUtils.hasText(emailId)) {
+            return;
+        }
+        String subject = applyPlaceholders(COMBINED_WEEKLY_SUBJECT_TEMPLATE, placeholders);
+        String body = applyPlaceholders(loadCombinedWeeklyTemplate(), placeholders);
+        if (!StringUtils.hasText(subject) || !StringUtils.hasText(body)) {
+            log.warn("Empty combined weekly summary email for {}", emailId);
+            return;
+        }
+        publishEmail(emailId, subject, body, tenantId, true);
+        log.info("Livelihood combined weekly summary email sent to={}", emailId);
+    }
+
+    private String loadCombinedWeeklyTemplate() {
+        String cached = combinedWeeklyTemplateCache;
+        if (cached != null) {
+            return cached;
+        }
+        try {
+            ClassPathResource resource = new ClassPathResource(COMBINED_WEEKLY_TEMPLATE_PATH);
+            String loaded = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            combinedWeeklyTemplateCache = loaded;
+            return loaded;
+        } catch (IOException e) {
+            log.error("Failed to load combined weekly summary template from {}", COMBINED_WEEKLY_TEMPLATE_PATH, e);
+            return null;
+        }
+    }
 
     public void sendSummaryEmail(String tenantId,
                                  RequestInfo requestInfo,
@@ -41,7 +85,7 @@ public class LivelihoodSummaryEmailTemplateService {
             log.warn("Empty summary email for template {}", templateCode);
             return;
         }
-        publishEmail(emailId, subject, body, tenantId);
+        publishEmail(emailId, subject, body, tenantId, false);
         log.info("Livelihood summary email sent template={} to={}", templateCode, emailId);
     }
 
@@ -80,12 +124,13 @@ public class LivelihoodSummaryEmailTemplateService {
         return templateCode + LIVELIHOOD_EMAIL_SUBJECT_SUFFIX;
     }
 
-    private void publishEmail(String emailId, String subject, String body, String tenantId) {
+    private void publishEmail(String emailId, String subject, String body, String tenantId, boolean isHTML) {
         Map<String, Object> email = new HashMap<>();
         email.put("emailTo", new HashSet<>(Collections.singletonList(emailId)));
         email.put("subject", subject);
         email.put("body", body);
         email.put("tenantId", tenantId);
+        email.put("isHTML", isHTML);
 
         Map<String, Object> emailRequest = new HashMap<>();
         emailRequest.put("requestInfo", new HashMap<>());
