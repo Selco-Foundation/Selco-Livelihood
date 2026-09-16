@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
 import '../model/solar_installation_draft.dart';
-import '../pages/media_viewer.dart';
+import 'workflow_report_documents.dart';
 
 typedef FileUploadPick = Future<List<PlatformFile>> Function();
 
@@ -184,96 +184,14 @@ class _FileUploadWidgetState extends State<FileUploadWidget> {
         ],
         const SizedBox(height: spacer3),
         if (widget.showPreview)
-          Wrap(
-            spacing: spacer3,
-            runSpacing: spacer3,
-            children: [
-              for (var index = 0; index < files.length; index++)
-                _FilePreview(
-                  key: ValueKey('file-uploader-preview-$index'),
-                  file: files[index],
-                  removable: !widget.isDisabled,
-                  onRemove: () => _remove(index),
-                ),
-            ],
+          ReportDocumentGallery(
+            files: files,
+            keyPrefix: 'file-uploader',
+            onRemove: widget.isDisabled
+                ? null
+                : (file) => _remove(files.indexOf(file)),
           ),
       ],
-    );
-  }
-}
-
-class _FilePreview extends StatelessWidget {
-  const _FilePreview({
-    super.key,
-    required this.file,
-    required this.removable,
-    required this.onRemove,
-  });
-
-  final SolarFileRef file;
-  final bool removable;
-  final VoidCallback onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: Base.imageSize,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Stack(
-            children: [
-              Container(
-                width: Base.imageSize,
-                height: Base.imageSize,
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: const DigitColors().light.genericDivider,
-                  ),
-                ),
-                child: ClipRRect(
-                  borderRadius: Base.radius,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      MediaThumbnail(
-                        media: file,
-                        width: Base.imageSize,
-                        height: Base.imageSize,
-                      ),
-                      Container(
-                        color: const DigitColors().background.withOpacity(.7),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (removable)
-                Positioned(
-                  top: 0,
-                  right: 0,
-                  child: InkWell(
-                    key: const ValueKey('file-uploader-remove'),
-                    onTap: onRemove,
-                    child: Container(
-                      width: spacer6,
-                      height: spacer6,
-                      color: const DigitColors().light.primary2,
-                      child: Icon(Icons.close,
-                          size: spacer4,
-                          color: const DigitColors().light.paperPrimary),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: spacer1),
-          Text(file.name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).digitTextTheme(context).bodyXS),
-        ],
-      ),
     );
   }
 }

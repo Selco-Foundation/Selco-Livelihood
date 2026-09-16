@@ -74,6 +74,7 @@ import 'package:livelihood/widgets/otp_verification_widget.dart';
 import 'package:livelihood/widgets/operation_progress_overlay.dart';
 import 'package:livelihood/blocs/asset_submission/asset_submission.dart';
 import 'package:livelihood/widgets/privacy_policy/policy_webview_dialog.dart';
+import 'package:livelihood/widgets/workflow_report_documents.dart';
 
 class _StubAuthRepository implements AuthRepository {
   _StubAuthRepository(this._respond, {this.onLogout});
@@ -2653,6 +2654,58 @@ void main() {
     expect(selected.single.kind, SolarFileKind.pdf);
   });
 
+  testWidgets('workflow reports render images before full-width PDF cards', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 844));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: const Scaffold(
+          body: WorkflowReportDocuments(
+            documents: [
+              {
+                'documentType': 'INSTALLATION_REPORT_BOM',
+                'fileStoreId': 'bom-store',
+                'documentUid': 'INSTALLATION-REPORT-PDF-2',
+              },
+              {
+                'documentType': 'INSTALLATION_COMPLETION_REPORT',
+                'fileStore': 'image-store',
+                'documentUid': 'INSTALLATION-REPORT-IMAGE-1',
+              },
+              {
+                'documentType': 'UNRELATED_DOCUMENT',
+                'fileStoreId': 'ignored-store',
+              },
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final image = find.byKey(
+      const ValueKey('workflow-report-preview-1'),
+    );
+    final pdf = find.byKey(
+      const ValueKey('workflow-report-preview-0'),
+    );
+    expect(image, findsOneWidget);
+    expect(pdf, findsOneWidget);
+    expect(find.text('Installation Report BOM.pdf'), findsOneWidget);
+    expect(tester.getTopLeft(image).dy, lessThan(tester.getTopLeft(pdf).dy));
+    expect(tester.getSize(pdf).width, greaterThan(300));
+    expect(
+      find.descendant(of: image, matching: find.byType(InkWell)),
+      findsWidgets,
+    );
+    expect(
+      find.descendant(of: pdf, matching: find.byType(InkWell)),
+      findsWidgets,
+    );
+  });
+
   testWidgets('shared OTP widget requests, resends, verifies and then locks', (
     tester,
   ) async {
@@ -2988,6 +3041,10 @@ void main() {
 
     expect(find.byKey(const ValueKey('machine-form-card')), findsOneWidget);
     expect(find.byKey(const ValueKey('machine-form-footer')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('machine-workflow-report-documents')),
+      findsNothing,
+    );
     expect(find.byKey(const ValueKey('po-number-field')), findsOneWidget);
     expect(find.byKey(const ValueKey('machine-serial-field')), findsOneWidget);
     expect(find.byKey(const ValueKey('invoice-number-field')), findsOneWidget);
@@ -3156,6 +3213,24 @@ void main() {
     expect(content.footer, isNull);
     expect(find.byKey(const ValueKey('machine-form-footer')), findsNothing);
     expect(find.byKey(const ValueKey('machine-otp-widget')), findsNothing);
+
+    final cardFinder = find.byKey(const ValueKey('machine-form-card'));
+    final documentsFinder =
+        find.byKey(const ValueKey('machine-workflow-report-documents'));
+    expect(
+      find.descendant(of: cardFinder, matching: documentsFinder),
+      findsOneWidget,
+    );
+    final card = tester.widget<DigitCard>(cardFinder);
+    final trainedEndUserIndex = card.children.indexWhere(
+      (child) => child.key == const ValueKey('machine-trainedEndUser'),
+    );
+    final workflowDocumentsIndex = card.children.indexWhere(
+      (child) =>
+          child.key == const ValueKey('machine-workflow-report-documents'),
+    );
+    expect(trainedEndUserIndex, greaterThanOrEqualTo(0));
+    expect(workflowDocumentsIndex, greaterThan(trainedEndUserIndex));
 
     final poField = tester.widget<DigitTextFormInput>(
       find.descendant(

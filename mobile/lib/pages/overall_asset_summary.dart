@@ -33,6 +33,7 @@ import '../widgets/image_uploader.dart';
 import '../widgets/operation_progress_overlay.dart';
 import '../widgets/otp_verification_widget.dart';
 import '../widgets/solar_workflow_widgets.dart';
+import '../widgets/workflow_report_documents.dart';
 
 typedef SolarPickFiles = Future<List<PlatformFile>> Function();
 
@@ -485,36 +486,45 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                   const SizedBox(height: spacer4),
                 ],
               ),
-              FileUploadWidget(
-                key: const ValueKey('solar-overall-file-uploader'),
-                label: context.translate(i18.installationReport.uploadPrompt),
-                allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
-                allowMultiples: true,
-                showPreview: true,
-                isDisabled: draft.isReadOnly,
-                initialFiles: draft.completionReportFiles,
-                pickFiles: widget.pickFiles,
-                onFilesSelected: (files) async {
-                  final persisted = <SolarFileRef>[];
-                  for (var index = 0; index < files.length; index++) {
-                    persisted
-                        .add(await installationCacheRepository.persistMediaRef(
-                            commitDocumentMetadata(
-                              context,
-                              files[index],
-                              documentType: 'INSTALLATION_COMPLETION_REPORT',
-                              uidPrefix:
-                                  'INSTALLATION-REPORT-${files[index].kind.name.toUpperCase()}',
-                            ),
-                            '${draft.cacheKey}-completion-$index'));
-                  }
-                  if (!mounted) return;
-                  setState(() => draft.completionReportFiles
-                    ..clear()
-                    ..addAll(persisted));
-                  installationDraftRepository.saveSolarSoon(draft);
-                },
-              ),
+              if (draft.isReadOnly)
+                WorkflowReportDocuments(
+                  key: const ValueKey('solar-workflow-report-documents'),
+                  documents: draft.workflow.workflow?.documents ?? const [],
+                )
+              else
+                FileUploadWidget(
+                  key: const ValueKey('solar-overall-file-uploader'),
+                  label: context.translate(i18.installationReport.uploadPrompt),
+                  allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+                  allowMultiples: true,
+                  showPreview: true,
+                  initialFiles: draft.completionReportFiles
+                      .where((file) =>
+                          file.documentType == null ||
+                          isWorkflowReportType(file.documentType))
+                      .toList(),
+                  pickFiles: widget.pickFiles,
+                  onFilesSelected: (files) async {
+                    final persisted = <SolarFileRef>[];
+                    for (var index = 0; index < files.length; index++) {
+                      persisted.add(
+                          await installationCacheRepository.persistMediaRef(
+                              commitDocumentMetadata(
+                                context,
+                                files[index],
+                                documentType: 'INSTALLATION_COMPLETION_REPORT',
+                                uidPrefix:
+                                    'INSTALLATION-REPORT-${files[index].kind.name.toUpperCase()}',
+                              ),
+                              '${draft.cacheKey}-completion-$index'));
+                    }
+                    if (!mounted) return;
+                    setState(() => draft.completionReportFiles
+                      ..clear()
+                      ..addAll(persisted));
+                    installationDraftRepository.saveSolarSoon(draft);
+                  },
+                ),
               if (!draft.isReadOnly) ...[
                 const SizedBox(height: spacer4),
                 OtpVerificationWidget(

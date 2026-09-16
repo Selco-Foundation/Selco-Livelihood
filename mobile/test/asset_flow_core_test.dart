@@ -33,6 +33,7 @@ import 'package:livelihood/utils/operation_progress.dart';
 import 'package:livelihood/utils/submission_payload.dart';
 import 'package:livelihood/utils/document_metadata.dart';
 import 'package:livelihood/utils/warranty.dart';
+import 'package:livelihood/widgets/workflow_report_documents.dart';
 
 class _TestErrorInterceptorHandler extends ErrorInterceptorHandler {
   Future<void> consumeForwardedError() async {
@@ -51,6 +52,55 @@ void main() {
   setUp(() {
     pendingSubmissionRepository.clearForTests();
     installationCacheRepository.clearSubmissionPayloadsForTests();
+  });
+
+  test('workflow report documents map supported filestore shapes and media',
+      () {
+    final files = workflowReportMedia(const [
+      {
+        'id': 'completion-image-id',
+        'documentType': 'INSTALLATION_COMPLETION_REPORT',
+        'fileStoreId': 'completion-image-store',
+        'documentUid': 'INSTALLATION-REPORT-IMAGE-1789561207428',
+        'status': 'ACTIVE',
+        'additionalDetails': {'source': 'workflow'},
+        'geoLocation': {'latitude': '6.5', 'longitude': '3.6'},
+      },
+      {
+        'documentType': 'INSTALLATION_COMPLETION_REPORT',
+        'fileStore': 'completion-pdf-store',
+        'documentUid': 'INSTALLATION-REPORT-PDF-1789561207429',
+      },
+      {
+        'documentType': 'INSTALLATION_REPORT_BOM',
+        'fileStoreId': 'bom-store',
+        'documentUid': 'BOM-WITHOUT-AN-EXTENSION',
+      },
+      {
+        'documentType': 'UNRELATED_DOCUMENT',
+        'fileStoreId': 'ignored-store',
+      },
+      {
+        'documentType': 'INSTALLATION_COMPLETION_REPORT',
+      },
+    ]);
+
+    expect(files, hasLength(3));
+    expect(files.map((file) => file.kind), [
+      SolarFileKind.image,
+      SolarFileKind.pdf,
+      SolarFileKind.pdf,
+    ]);
+    expect(files.map((file) => file.remoteId), [
+      'completion-image-store',
+      'completion-pdf-store',
+      'bom-store',
+    ]);
+    expect(files.first.id, 'completion-image-id');
+    expect(files.first.documentUid, 'INSTALLATION-REPORT-IMAGE-1789561207428');
+    expect(files.first.additionalDetails, {'source': 'workflow'});
+    expect(files.first.geoLocation, {'latitude': '6.5', 'longitude': '3.6'});
+    expect(files.last.viewerTitle, 'Installation Report BOM');
   });
 
   test('successful OTP generate and resend responses expose the DEV OTP log',

@@ -32,6 +32,7 @@ import '../widgets/operation_progress_overlay.dart';
 import '../widgets/otp_verification_widget.dart';
 import '../widgets/report_navigation_header.dart';
 import '../widgets/video_uploader.dart';
+import '../widgets/workflow_report_documents.dart';
 import 'machine_report_success_page.dart';
 import 'media_viewer.dart';
 
@@ -717,6 +718,13 @@ class _MachineFormPageState extends State<MachineFormPage> {
                           _buildSchemaField(field),
                           const SizedBox(height: spacer5),
                         ],
+                        if (widget.readOnly)
+                          WorkflowReportDocuments(
+                            key: const ValueKey(
+                                'machine-workflow-report-documents'),
+                            documents:
+                                widget.workflow.workflow?.documents ?? const [],
+                          ),
                         if (!widget.readOnly)
                           OtpVerificationWidget(
                             key: const ValueKey('machine-otp-widget'),
