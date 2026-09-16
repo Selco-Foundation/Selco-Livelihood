@@ -60,10 +60,7 @@ class AssetProgressRepository {
   /// Average, across the 3 solar asset types, of
   /// `min(progress, maxStepsPerType) / maxStepsPerType`, clamped 0–1. An
   /// activity facility with no rows yet is 0.0 — never defaults to "done".
-  Future<double> fractionFor(
-    String activityFacilityId, {
-    Set<String> disabledTypes = const {},
-  }) async {
+  Future<double> fractionFor(String activityFacilityId) async {
     if (!_hasTestIsar) return 0.0;
     try {
       final isar = await _isar;
@@ -76,9 +73,7 @@ class AssetProgressRepository {
       };
       var sum = 0.0;
       for (final type in types) {
-        final steps = disabledTypes.contains(type)
-            ? 0
-            : (byType[type] ?? 0).clamp(0, maxStepsPerType);
+        final steps = (byType[type] ?? 0).clamp(0, maxStepsPerType);
         sum += steps / maxStepsPerType;
       }
       return (sum / types.length).clamp(0.0, 1.0);

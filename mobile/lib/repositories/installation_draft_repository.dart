@@ -32,7 +32,7 @@ class InstallationDraftRepository {
         // Continue with the MDMS/template draft when local storage is absent.
       }
     }
-    _configureFromBom(draft, initializeCounts: false);
+    _configureFromBom(draft);
     return draft;
   }
 
@@ -52,7 +52,7 @@ class InstallationDraftRepository {
       draft.backendDocuments.addAll(embedded.documents);
       _hydrateDocuments(draft, embedded.documents);
     }
-    _configureFromBom(draft, initializeCounts: true);
+    _configureFromBom(draft);
     _hydrateComponent(draft, SolarAssetType.battery, details?.battery);
     _hydrateComponent(draft, SolarAssetType.inverter, details?.inverter);
     _hydrateComponent(draft, SolarAssetType.panel, details?.panel);
@@ -68,7 +68,7 @@ class InstallationDraftRepository {
 
   Future<void> hydrateSolar(SolarInstallationDraft draft) async {
     await _mdmsRepository.load();
-    _configureFromBom(draft, initializeCounts: false);
+    _configureFromBom(draft);
     final id = draft.workflow.activityFacility.id;
     if (id != null && id.isNotEmpty) {
       // Start independent sources together, then apply them in deterministic
@@ -84,13 +84,13 @@ class InstallationDraftRepository {
       if (!draft.isReadOnly && local is Map) {
         _hydrateLocal(draft, Map<String, dynamic>.from(local));
       }
-      // Local drafts own user-entered form/asset data, but these fields are
-      // contractual BOM metadata. Reapply the fresh server values after the
-      // local overlay so a stale blank make/capacity/quantity cannot disable
-      // Asset Details or undo a refreshed maximum count.
+      // Local drafts own user-entered form/asset data. Reapply fresh product,
+      // make, and capacity metadata after the local overlay; a positive local
+      // count remains authoritative and is synchronized back into the BOM by
+      // `_configureFromBom`.
       applyFreshBomDerivedValues(draft, backend);
     }
-    _configureFromBom(draft, initializeCounts: false);
+    _configureFromBom(draft);
   }
 
   Future<List<BillOfMaterial>> _safeBomSearch(String id) async {
@@ -175,6 +175,7 @@ class InstallationDraftRepository {
   }
 
   Future<void> saveSolar(SolarInstallationDraft draft) async {
+    draft.syncCountsToBom();
     final key = draft.cacheKey;
     await installationCacheRepository.putJson('solar-draft', key, {
       'systemCode': draft.systemCode,
@@ -222,7 +223,7 @@ class InstallationDraftRepository {
   }
 
   void applyBomDerivedValues(SolarInstallationDraft draft) =>
-      _configureFromBom(draft, initializeCounts: false);
+      _configureFromBom(draft);
 
   void applyFreshBomDerivedValues(
     SolarInstallationDraft draft,
@@ -248,10 +249,7 @@ class InstallationDraftRepository {
     }
   }
 
-  void _configureFromBom(
-    SolarInstallationDraft draft, {
-    required bool initializeCounts,
-  }) {
+  void _configureFromBom(SolarInstallationDraft draft) {
     draft.solutionId = draft.workflow.activityFacility.solutionId ??
         draft.workflow.activityFacility.billOfMaterial?.solutionId;
     draft.systemCode = 'SOLAR';
@@ -263,7 +261,6 @@ class InstallationDraftRepository {
           .firstOrNull;
       draft.assetTypeCodes[type] = mdmsType?.code ?? type.name.toUpperCase();
       draft.assetTypeLabels[type] = mdmsType?.name ?? type.label;
-      draft.minimumCounts[type] = 1;
       draft.warrantyOptions[type] = _mdmsRepository
           .warrantiesFor(draft.assetTypeCodes[type]!)
           .map((warranty) => '${warranty.duration} ${warranty.format}')
@@ -277,7 +274,6 @@ class InstallationDraftRepository {
 
       final keys = _bomKeys(type);
       final quantity = _positiveInteger(draft.mergedBom[keys.quantity]);
-      draft.maximumCounts[type] = quantity;
       asset.system = draft.assetTypeLabels[type]!;
       asset.selectedBrandCode =
           (draft.mergedBom[keys.make] ?? '').toString().trim();
@@ -285,17 +281,7 @@ class InstallationDraftRepository {
           (draft.mergedBom[keys.capacity] ?? '').toString().trim();
       asset.capacityUnit = '';
 
-      if (quantity == 0) {
-        draft.resetCount(type);
-        continue;
-      }
-      if (initializeCounts) {
-        draft.setCount(type, quantity);
-      } else if (draft.countFor(type) == 0) {
-        draft.setCount(type, quantity);
-      } else if (draft.countFor(type) > quantity) {
-        draft.setCount(type, quantity);
-      }
+      draft.seedCountFromBom(type, quantity);
       final product = (draft.mergedBom[keys.product] ?? '').toString().trim();
       for (final entry in asset.assets) {
         entry.itemCode = product;
@@ -560,6 +546,7 @@ class InstallationDraftRepository {
         draft.installationMedia[entry.key.toString()] = _files(entry.value);
       }
     }
+    draft.syncCountsToBom();
   }
 
   List<SolarFileRef> _files(dynamic value) =>

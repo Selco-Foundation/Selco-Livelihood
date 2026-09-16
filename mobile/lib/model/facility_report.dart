@@ -46,22 +46,7 @@ extension FacilityReportPresentation on ActivityFacilityWorkflow {
   Future<double> installationProgress() {
     final id = activityFacility.id;
     if (id == null) return Future.value(0.0);
-    final bomData = <String, dynamic>{
-      ...?activityFacility.additionalDetails?.bom,
-      ...?activityFacility.billOfMaterial?.data,
-    };
-    final disabledTypes = <String>{
-      if (!_hasPositiveWholeQuantity(bomData['bom_battery_quantity']))
-        'battery',
-      if (!_hasPositiveWholeQuantity(bomData['bom_inverter_pcu_quantity']))
-        'inverter',
-      if (!_hasPositiveWholeQuantity(bomData['bom_solar_panel_quantity']))
-        'panel',
-    };
-    return assetProgressRepository.fractionFor(
-      id,
-      disabledTypes: disabledTypes,
-    );
+    return assetProgressRepository.fractionFor(id);
   }
 
   FacilityAssetCategory get resolvedAssetCategory =>
@@ -72,11 +57,4 @@ extension FacilityReportPresentation on ActivityFacilityWorkflow {
               'MACHINE'
           ? FacilityAssetCategory.machine
           : FacilityAssetCategory.solar;
-}
-
-bool _hasPositiveWholeQuantity(dynamic value) {
-  final parsed = value is num
-      ? value.toDouble()
-      : double.tryParse(value?.toString().trim() ?? '');
-  return parsed != null && parsed > 0 && parsed == parsed.truncateToDouble();
 }

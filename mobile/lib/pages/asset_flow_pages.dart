@@ -66,7 +66,7 @@ class _AssetCountPageState extends State<AssetCountPage> {
 
   void _next() {
     for (final type in draft.applicableTypes) {
-      if (draft.maximumFor(type) > 0) {
+      if (draft.countFor(type) > 0) {
         _recordAssetProgress(draft, type, 1);
       }
     }
@@ -112,10 +112,10 @@ class _AssetCountPageState extends State<AssetCountPage> {
               child: InputField(
                 key: ValueKey(
                     'solar-count-${type.name}-${draft.countFor(type)}'),
-                minValue: draft.countFor(type) == 0
-                    ? 0
-                    : draft.activationCountFor(type),
-                maxValue: draft.maximumFor(type),
+                minValue: draft.countFor(type) == 0 ? 0 : 1,
+                // DigitNumericFormInput requires a finite technical ceiling;
+                // this is not a BOM or business limit.
+                maxValue: 0x7fffffff,
                 type: InputType.numeric,
                 editable: false,
                 initialValue: draft.countFor(type).toString(),

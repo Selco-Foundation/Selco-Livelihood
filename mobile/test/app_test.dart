@@ -279,8 +279,6 @@ SolarInstallationDraft _filledSolarDraft(SolarWorkflowMode mode) {
       ),
     ];
   for (final type in SolarAssetType.values) {
-    draft.minimumCounts[type] = 1;
-    draft.maximumCounts[type] = 10;
     draft.setCount(type, 1);
     final asset = draft.assets[type]!;
     asset
@@ -1570,16 +1568,13 @@ void main() {
     expect(secondButton.top - firstButton.bottom, spacer4);
   });
 
-  testWidgets('overall asset counts activate from zero at the MDMS minimum',
+  testWidgets('overall asset counts activate from zero and stop at one',
       (tester) async {
     setMobileViewport(tester, const Size(390, 1200));
     final draft = SolarInstallationDraft(
       workflow: _StubActivityFacilityRemoteRepository._defaultItems.first,
       mode: SolarWorkflowMode.newReport,
-    )
-      ..applicableTypes = const [SolarAssetType.battery]
-      ..minimumCounts[SolarAssetType.battery] = 2
-      ..maximumCounts[SolarAssetType.battery] = 4;
+    )..applicableTypes = const [SolarAssetType.battery];
 
     await tester.pumpWidget(
       MaterialApp(
@@ -1596,7 +1591,7 @@ void main() {
 
     await tester.tap(find.text('+').first);
     await tester.pump();
-    expect(draft.countFor(SolarAssetType.battery), 2);
+    expect(draft.countFor(SolarAssetType.battery), 1);
     addDetails = tester.widget<DigitButton>(
       find.byKey(const ValueKey('solar-add-details-battery')),
     );
@@ -1604,7 +1599,12 @@ void main() {
 
     await tester.tap(find.text('-').first);
     await tester.pump();
+    expect(draft.countFor(SolarAssetType.battery), 1);
+
+    await tester.tap(find.text('+').first);
+    await tester.pump();
     expect(draft.countFor(SolarAssetType.battery), 2);
+    expect(draft.mergedBom['bom_battery_quantity'], 2);
     await tester.pump(const Duration(seconds: 3));
   });
 

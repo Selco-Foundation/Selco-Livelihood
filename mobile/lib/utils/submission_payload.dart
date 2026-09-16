@@ -9,6 +9,7 @@ import 'warranty.dart';
 /// owning repositories serialize [SubmissionDocument] for Asset Registry or
 /// workflow when the actual request is sent.
 Map<String, dynamic> buildSolarSubmissionPayload(SolarInstallationDraft draft) {
+  draft.syncCountsToBom();
   final activityFacility = draft.workflow.activityFacility;
 
   final workflowDocuments = <SubmissionDocument>[

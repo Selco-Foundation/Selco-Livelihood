@@ -16,6 +16,12 @@ extension SolarAssetTypeLabel on SolarAssetType {
         SolarAssetType.inverter => 'Inverters',
         SolarAssetType.panel => 'Panels',
       };
+
+  String get bomQuantityField => switch (this) {
+        SolarAssetType.battery => 'bom_battery_quantity',
+        SolarAssetType.inverter => 'bom_inverter_pcu_quantity',
+        SolarAssetType.panel => 'bom_solar_panel_quantity',
+      };
 }
 
 enum SolarWorkflowMode { newReport, pending, resubmission, approved }
@@ -223,8 +229,7 @@ class SolarInstallationDraft {
   String? remoteBomName;
   Map<String, dynamic> remoteBomAdditionalDetails = const {};
   List<SolarAssetType> applicableTypes = SolarAssetType.values;
-  final Map<SolarAssetType, int> minimumCounts = {};
-  final Map<SolarAssetType, int> maximumCounts = {};
+  final Set<SolarAssetType> _userSelectedCounts = {};
   final Map<SolarAssetType, String> assetTypeCodes = {};
   final Map<SolarAssetType, String> assetTypeLabels = {};
   final Map<SolarAssetType, List<String>> brandOptions = {};
@@ -239,23 +244,15 @@ class SolarInstallationDraft {
   String get facilityName => workflow.facilityTitle;
 
   String labelFor(SolarAssetType type) => assetTypeLabels[type] ?? type.label;
-  int minimumFor(SolarAssetType type) => minimumCounts[type] ?? 1;
-  int maximumFor(SolarAssetType type) => maximumCounts[type] ?? 10;
-  int activationCountFor(SolarAssetType type) =>
-      minimumFor(type) > 0 ? minimumFor(type) : 1;
   List<String> warrantiesFor(SolarAssetType type) =>
       warrantyOptions[type] ?? const [];
   List<String> brandsFor(SolarAssetType type) => brandOptions[type] ?? const [];
 
   int countFor(SolarAssetType type) => counts[type] ?? 0;
+  bool hasUserSelectedCount(SolarAssetType type) =>
+      _userSelectedCounts.contains(type);
 
   void setCount(SolarAssetType type, int count) {
-    final maximum = maximumFor(type);
-    if (maximum <= 0) {
-      counts[type] = 0;
-      assets[type]!.assets.clear();
-      return;
-    }
     if (count <= 0) {
       if (countFor(type) == 0) {
         counts[type] = 0;
@@ -263,10 +260,34 @@ class SolarInstallationDraft {
       }
       return;
     }
-    final lowerBound = activationCountFor(type);
-    final normalized = count.clamp(lowerBound, maximum);
-    counts[type] = normalized;
+    counts[type] = count;
+    _userSelectedCounts.add(type);
     reconcileEntries(type);
+    syncCountToBom(type);
+  }
+
+  void seedCountFromBom(SolarAssetType type, int count) {
+    if (hasUserSelectedCount(type)) {
+      syncCountToBom(type);
+      return;
+    }
+    counts[type] = count > 0 ? count : 0;
+    reconcileEntries(type);
+  }
+
+  void syncCountToBom(SolarAssetType type) {
+    final fieldName = type.bomQuantityField;
+    final count = countFor(type);
+    mergedBom[fieldName] = count;
+    for (final answers in dynamicFormAnswers.values) {
+      if (answers.containsKey(fieldName)) answers[fieldName] = count;
+    }
+  }
+
+  void syncCountsToBom() {
+    for (final type in applicableTypes) {
+      syncCountToBom(type);
+    }
   }
 
   /// Keeps the selected count and its editable unit slots in lockstep.
@@ -286,6 +307,7 @@ class SolarInstallationDraft {
 
   void resetCount(SolarAssetType type) {
     counts[type] = 0;
+    _userSelectedCounts.remove(type);
     assets[type]!.assets.clear();
   }
 
@@ -295,10 +317,8 @@ class SolarInstallationDraft {
     return assets[type]!.assets.length == count && assets[type]!.isComplete;
   }
 
-  bool get allCountsEntered => applicableTypes.every((type) =>
-      maximumFor(type) > 0 &&
-      countFor(type) >= activationCountFor(type) &&
-      countFor(type) <= maximumFor(type));
+  bool get allCountsEntered =>
+      applicableTypes.every((type) => countFor(type) > 0);
   bool get allAssetTypesComplete => applicableTypes.every(completeFor);
   bool get installationImagesComplete =>
       installationRequirements.isNotEmpty &&

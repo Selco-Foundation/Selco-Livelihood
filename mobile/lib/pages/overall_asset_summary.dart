@@ -387,8 +387,6 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                         type: draft.applicableTypes[index],
                         label: draft.labelFor(draft.applicableTypes[index]),
                         count: draft.countFor(draft.applicableTypes[index]),
-                        minimum: draft.minimumFor(draft.applicableTypes[index]),
-                        maximum: draft.maximumFor(draft.applicableTypes[index]),
                         hasSummary:
                             draft.completeFor(draft.applicableTypes[index]),
                         lastCard: index == draft.applicableTypes.length - 1,
@@ -676,8 +674,6 @@ class _InitialElementAssetSummary extends StatelessWidget {
   const _InitialElementAssetSummary({
     required this.type,
     required this.label,
-    required this.minimum,
-    required this.maximum,
     required this.count,
     required this.hasSummary,
     required this.lastCard,
@@ -688,8 +684,6 @@ class _InitialElementAssetSummary extends StatelessWidget {
 
   final SolarAssetType type;
   final String label;
-  final int minimum;
-  final int maximum;
   final int count;
   final bool hasSummary;
   final bool lastCard;
@@ -715,9 +709,7 @@ class _InitialElementAssetSummary extends StatelessWidget {
               children: [
                 _AssetCounter(
                   symbol: '-',
-                  onTap: count > (minimum > 0 ? minimum : 1)
-                      ? () => onCountChanged(count - 1)
-                      : null,
+                  onTap: count > 1 ? () => onCountChanged(count - 1) : null,
                 ),
                 Container(
                   height: spacer9,
@@ -734,13 +726,7 @@ class _InitialElementAssetSummary extends StatelessWidget {
                 ),
                 _AssetCounter(
                   symbol: '+',
-                  onTap: count < maximum
-                      ? () => onCountChanged(
-                            count == 0
-                                ? (minimum > 0 ? minimum : 1)
-                                : count + 1,
-                          )
-                      : null,
+                  onTap: () => onCountChanged(count == 0 ? 1 : count + 1),
                 ),
               ],
             ),

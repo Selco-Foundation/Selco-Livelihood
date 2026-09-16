@@ -291,7 +291,7 @@ void main() {
     expect(workflow.resolvedAssetCategory, FacilityAssetCategory.solar);
   });
 
-  test('Solar draft derives make, capacity and count limits from BOM', () {
+  test('Solar draft uses BOM quantities only as initial asset counts', () {
     const workflow = ActivityFacilityWorkflow(
       activityFacility: ActivityFacility(
         id: 'solar-1',
@@ -318,7 +318,6 @@ void main() {
     final repository = InstallationDraftRepository();
     final draft = repository.createSolar(workflow, SolarWorkflowMode.newReport);
 
-    expect(draft.maximumFor(SolarAssetType.battery), 2);
     expect(draft.countFor(SolarAssetType.battery), 2);
     expect(draft.assets[SolarAssetType.battery]!.selectedBrandCode,
         'Battery Make');
@@ -326,16 +325,19 @@ void main() {
         'BATTERY-ITEM');
     expect(
         draft.assets[SolarAssetType.battery]!.assets.first.capacity, '20 Ah');
-    expect(draft.maximumFor(SolarAssetType.panel), 3);
     expect(draft.countFor(SolarAssetType.panel), 3);
-    expect(draft.maximumFor(SolarAssetType.inverter), 0);
     expect(draft.countFor(SolarAssetType.inverter), 0);
     expect(draft.allCountsEntered, isFalse);
 
+    draft.setCount(SolarAssetType.battery, 5);
     draft.mergedBom['bom_battery_quantity'] = 1;
     repository.applyBomDerivedValues(draft);
-    expect(draft.maximumFor(SolarAssetType.battery), 1);
-    expect(draft.countFor(SolarAssetType.battery), 1);
+    expect(draft.countFor(SolarAssetType.battery), 5);
+    expect(draft.mergedBom['bom_battery_quantity'], 5);
+
+    draft.setCount(SolarAssetType.inverter, 1);
+    expect(draft.countFor(SolarAssetType.inverter), 1);
+    expect(draft.allCountsEntered, isTrue);
   });
 
   test('fresh BOM metadata overrides stale blank Solar draft values', () {
@@ -399,29 +401,89 @@ void main() {
     }
   });
 
-  test('asset counts stay zero until activated and never fall below minimum',
-      () {
+  test('asset counts activate from zero, have no BOM cap, and stop at one', () {
     const workflow = ActivityFacilityWorkflow(
       activityFacility: ActivityFacility(id: 'count-1'),
     );
     final draft = SolarInstallationDraft(
       workflow: workflow,
       mode: SolarWorkflowMode.newReport,
-    )
-      ..applicableTypes = const [SolarAssetType.battery]
-      ..minimumCounts[SolarAssetType.battery] = 2
-      ..maximumCounts[SolarAssetType.battery] = 4;
+    )..applicableTypes = const [SolarAssetType.battery];
 
     expect(draft.countFor(SolarAssetType.battery), 0);
     expect(draft.allCountsEntered, isFalse);
     draft.setCount(SolarAssetType.battery, 1);
-    expect(draft.countFor(SolarAssetType.battery), 2);
-    expect(draft.assets[SolarAssetType.battery]!.assets, hasLength(2));
+    expect(draft.countFor(SolarAssetType.battery), 1);
+    expect(draft.assets[SolarAssetType.battery]!.assets, hasLength(1));
     draft.setCount(SolarAssetType.battery, 0);
-    expect(draft.countFor(SolarAssetType.battery), 2);
-    expect(draft.assets[SolarAssetType.battery]!.assets, hasLength(2));
+    expect(draft.countFor(SolarAssetType.battery), 1);
+    expect(draft.assets[SolarAssetType.battery]!.assets, hasLength(1));
     draft.setCount(SolarAssetType.battery, 10);
-    expect(draft.countFor(SolarAssetType.battery), 4);
+    expect(draft.countFor(SolarAssetType.battery), 10);
+    expect(draft.assets[SolarAssetType.battery]!.assets, hasLength(10));
+    expect(draft.mergedBom['bom_battery_quantity'], 10);
+    draft.setCount(SolarAssetType.battery, 1);
+    expect(draft.assets[SolarAssetType.battery]!.assets, hasLength(1));
+  });
+
+  test('invalid BOM quantities stay at an editable zero', () {
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'invalid-counts',
+        componentType: 'SOLAR',
+        billOfMaterial: BillOfMaterial(
+          name: 'Solar',
+          data: {
+            'bom_battery_quantity': 0,
+            'bom_inverter_pcu_quantity': -2,
+            'bom_solar_panel_quantity': 'not-a-number',
+          },
+        ),
+      ),
+    );
+    final draft = InstallationDraftRepository()
+        .createSolar(workflow, SolarWorkflowMode.newReport);
+
+    for (final type in SolarAssetType.values) {
+      expect(draft.countFor(type), 0);
+      draft.setCount(type, 1);
+      expect(draft.countFor(type), 1);
+      expect(draft.mergedBom[type.bomQuantityField], 1);
+    }
+    expect(draft.allCountsEntered, isTrue);
+  });
+
+  test('selected counts synchronize into dynamic answers and submission BOM',
+      () {
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'selected-counts',
+        facilityId: 'facility-1',
+        componentType: 'SOLAR',
+      ),
+    );
+    final draft = SolarInstallationDraft(
+      workflow: workflow,
+      mode: SolarWorkflowMode.newReport,
+    )..dynamicFormAnswers['SOLAR_FORM'] = {
+        'bom_battery_quantity': 1,
+        'bom_inverter_pcu_quantity': 1,
+        'bom_solar_panel_quantity': 1,
+      };
+
+    draft.setCount(SolarAssetType.battery, 2);
+    draft.setCount(SolarAssetType.inverter, 3);
+    draft.setCount(SolarAssetType.panel, 4);
+    final payload = buildSolarSubmissionPayload(draft);
+    final bomData = (payload['bom'] as Map)['data'] as Map;
+
+    expect(bomData['bom_battery_quantity'], 2);
+    expect(bomData['bom_inverter_pcu_quantity'], 3);
+    expect(bomData['bom_solar_panel_quantity'], 4);
+    expect(
+      draft.dynamicFormAnswers['SOLAR_FORM'],
+      containsPair('bom_solar_panel_quantity', 4),
+    );
   });
 
   test('asset entry reconciliation pads, trims, and preserves cached values',
@@ -694,29 +756,29 @@ void main() {
       ..applicableTypes = const [SolarAssetType.panel]
       ..bomFormNames.addAll(['DC_BOM_Solar', 'DC_BOM_system'])
       ..mergedBom.addAll({'panelCount': 4, 'weather': 'CLEAR'});
+    draft.setCount(SolarAssetType.panel, 1);
     draft.assetTypeCodes[SolarAssetType.panel] = 'PANEL';
     draft.assets[SolarAssetType.panel]!
       ..selectedBrandCode = 'RENEW'
       ..warrantyDuration = '5 Years'
-      ..assets.add(SolarAssetEntry(
-        itemCode: 'SP-330WP',
-        serialNumber: 'SERIAL-1',
-        capacity: '330',
-        supportingPhoto: const SolarFileRef(
-          name: 'asset.jpg',
-          path: 'asset-filestore',
-          remoteId: 'asset-filestore',
-          kind: SolarFileKind.image,
-          documentUid: 'DOC-BATTERY-IMAGE-1',
-          geoLocation: {'latitude': '6.5', 'longitude': '3.6'},
-        ),
-      ))
       ..images.add(const SolarFileRef(
         name: 'overview.jpg',
         path: 'workflow-filestore',
         remoteId: 'workflow-filestore',
         kind: SolarFileKind.image,
       ));
+    draft.assets[SolarAssetType.panel]!.assets.single
+      ..itemCode = 'SP-330WP'
+      ..serialNumber = 'SERIAL-1'
+      ..capacity = '330'
+      ..supportingPhoto = const SolarFileRef(
+        name: 'asset.jpg',
+        path: 'asset-filestore',
+        remoteId: 'asset-filestore',
+        kind: SolarFileKind.image,
+        documentUid: 'DOC-BATTERY-IMAGE-1',
+        geoLocation: {'latitude': '6.5', 'longitude': '3.6'},
+      );
 
     final payload = buildSolarSubmissionPayload(draft);
     final bom = payload['bom'] as Map;
@@ -726,7 +788,11 @@ void main() {
 
     expect(payload.containsKey('boms'), isFalse);
     expect(bom['name'], 'RMS_ACC_OFF_GRID_SINGLE_PHASE');
-    expect(bom['data'], {'panelCount': 4, 'weather': 'CLEAR'});
+    expect(bom['data'], {
+      'panelCount': 4,
+      'weather': 'CLEAR',
+      'bom_solar_panel_quantity': 1,
+    });
     expect(bom.containsKey('documents'), isFalse);
     expect((asset['documents'] as List).single['fileStore'], 'asset-filestore');
     expect(asset['itemCode'], 'SP-330WP');
