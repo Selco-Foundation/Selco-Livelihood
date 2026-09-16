@@ -432,6 +432,160 @@ void main() {
     expect(draft.allCountsEntered, isTrue);
   });
 
+  test('charge controller BOM fields drive the Inverter asset flow', () {
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'charge-controller-solar',
+        facilityId: 'facility-1',
+        componentType: 'SOLAR',
+        billOfMaterial: BillOfMaterial(
+          name: 'Solar',
+          data: {
+            'bom_charge_controller_product': 'CHARGE-CONTROLLER-ITEM',
+            'bom_charge_controller_make': 'Charge Make',
+            'bom_charge_controller_capacity': '60 A',
+            'bom_charge_controller_quantity': 2,
+          },
+        ),
+      ),
+    );
+    final draft = InstallationDraftRepository()
+        .createSolar(workflow, SolarWorkflowMode.newReport)
+      ..dynamicFormAnswers['SOLAR_FORM'] = {
+        'bom_charge_controller_quantity': 2,
+      };
+    final inverter = draft.assets[SolarAssetType.inverter]!;
+
+    expect(draft.countFor(SolarAssetType.inverter), 2);
+    expect(inverter.selectedBrandCode, 'Charge Make');
+    expect(inverter.totalCapacity, '60 A');
+    expect(
+      inverter.assets.map((entry) => entry.itemCode),
+      everyElement('CHARGE-CONTROLLER-ITEM'),
+    );
+    expect(
+      inverter.assets.map((entry) => entry.capacity),
+      everyElement('60 A'),
+    );
+
+    draft.setCount(SolarAssetType.inverter, 3);
+    final payload = buildSolarSubmissionPayload(draft);
+    final bomData = (payload['bom'] as Map)['data'] as Map;
+    expect(inverter.assets, hasLength(3));
+    expect(inverter.assets.last.itemCode, 'CHARGE-CONTROLLER-ITEM');
+    expect(inverter.assets.last.capacity, '60 A');
+    expect(bomData['bom_charge_controller_quantity'], 3);
+    expect(bomData.containsKey('bom_inverter_pcu_quantity'), isFalse);
+    expect(
+      draft.dynamicFormAnswers['SOLAR_FORM'],
+      containsPair('bom_charge_controller_quantity', 3),
+    );
+  });
+
+  test('Inverter BOM values use per-field charge controller fallbacks', () {
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'mixed-inverter-fields',
+        componentType: 'SOLAR',
+        billOfMaterial: BillOfMaterial(
+          name: 'Solar',
+          data: {
+            'bom_inverter_pcu_product': 'INVERTER-ITEM',
+            'bom_inverter_pcu_make': ' ',
+            'bom_inverter_pcu_capacity': '5 kVA',
+            'bom_inverter_pcu_quantity': 0,
+            'bom_charge_controller_product': 'CHARGE-ITEM',
+            'bom_charge_controller_make': 'Fallback Make',
+            'bom_charge_controller_capacity': '80 A',
+            'bom_charge_controller_quantity': 2,
+          },
+        ),
+      ),
+    );
+    final draft = InstallationDraftRepository()
+        .createSolar(workflow, SolarWorkflowMode.newReport);
+    final inverter = draft.assets[SolarAssetType.inverter]!;
+
+    expect(draft.countFor(SolarAssetType.inverter), 2);
+    expect(inverter.selectedBrandCode, 'Fallback Make');
+    expect(inverter.totalCapacity, '5 kVA');
+    expect(inverter.assets.first.itemCode, 'INVERTER-ITEM');
+
+    draft.setCount(SolarAssetType.inverter, 4);
+    expect(draft.mergedBom['bom_charge_controller_quantity'], 4);
+    expect(draft.mergedBom['bom_inverter_pcu_quantity'], 0);
+  });
+
+  test('invalid charge controller quantity starts at editable zero', () {
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'invalid-charge-controller-count',
+        componentType: 'SOLAR',
+        billOfMaterial: BillOfMaterial(
+          name: 'Solar',
+          data: {
+            'bom_charge_controller_product': 'CHARGE-ITEM',
+            'bom_charge_controller_quantity': 'invalid',
+          },
+        ),
+      ),
+    );
+    final draft = InstallationDraftRepository()
+        .createSolar(workflow, SolarWorkflowMode.newReport);
+
+    expect(draft.countFor(SolarAssetType.inverter), 0);
+    draft.setCount(SolarAssetType.inverter, 1);
+    expect(draft.countFor(SolarAssetType.inverter), 1);
+    expect(draft.mergedBom['bom_charge_controller_quantity'], 1);
+    expect(
+      draft.mergedBom.containsKey('bom_inverter_pcu_quantity'),
+      isFalse,
+    );
+  });
+
+  test('fresh charge controller BOM replaces stale cached Inverter fields', () {
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'fresh-charge-controller',
+        componentType: 'SOLAR',
+      ),
+    );
+    final repository = InstallationDraftRepository();
+    final draft = repository.createSolar(workflow, SolarWorkflowMode.newReport)
+      ..mergedBom.addAll({
+        'bom_inverter_pcu_product': 'STALE-ITEM',
+        'bom_inverter_pcu_make': 'Stale Make',
+        'bom_inverter_pcu_capacity': '1 kVA',
+      });
+    draft.setCount(SolarAssetType.inverter, 4);
+
+    repository.applyFreshBomDerivedValues(draft, const [
+      BillOfMaterial(
+        id: 'fresh-solar-bom',
+        name: 'Solar',
+        additionalDetails: {'componentType': 'SOLAR'},
+        data: {
+          'bom_charge_controller_product': 'FRESH-CHARGE-ITEM',
+          'bom_charge_controller_make': 'Fresh Make',
+          'bom_charge_controller_capacity': '100 A',
+          'bom_charge_controller_quantity': 1,
+        },
+      ),
+    ]);
+    repository.applyBomDerivedValues(draft);
+
+    final inverter = draft.assets[SolarAssetType.inverter]!;
+    expect(draft.countFor(SolarAssetType.inverter), 4);
+    expect(draft.mergedBom['bom_charge_controller_quantity'], 4);
+    expect(draft.mergedBom.containsKey('bom_inverter_pcu_quantity'), isFalse);
+    expect(inverter.selectedBrandCode, 'Fresh Make');
+    expect(inverter.totalCapacity, '100 A');
+    expect(
+      inverter.assets.map((entry) => entry.itemCode),
+      everyElement('FRESH-CHARGE-ITEM'),
+    );
+  });
+
   test('fresh BOM metadata overrides stale blank Solar draft values', () {
     const workflow = ActivityFacilityWorkflow(
       activityFacility: ActivityFacility(

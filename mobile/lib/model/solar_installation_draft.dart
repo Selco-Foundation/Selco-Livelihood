@@ -4,6 +4,13 @@ import 'mdms/common_masters.dart';
 
 enum SolarAssetType { battery, inverter, panel }
 
+typedef SolarBomFields = ({
+  List<String> product,
+  List<String> make,
+  List<String> capacity,
+  List<String> quantity,
+});
+
 extension SolarAssetTypeLabel on SolarAssetType {
   String get label => switch (this) {
         SolarAssetType.battery => 'Battery',
@@ -17,17 +24,41 @@ extension SolarAssetTypeLabel on SolarAssetType {
         SolarAssetType.panel => 'Panels',
       };
 
-  String get bomQuantityField => switch (this) {
-        SolarAssetType.battery => 'bom_battery_quantity',
-        SolarAssetType.inverter => 'bom_inverter_pcu_quantity',
-        SolarAssetType.panel => 'bom_solar_panel_quantity',
+  SolarBomFields get bomFields => switch (this) {
+        SolarAssetType.battery => (
+            product: const ['bom_battery_product'],
+            make: const ['bom_battery_make'],
+            capacity: const ['bom_battery_capacity'],
+            quantity: const ['bom_battery_quantity'],
+          ),
+        SolarAssetType.inverter => (
+            product: const [
+              'bom_inverter_pcu_product',
+              'bom_charge_controller_product',
+            ],
+            make: const [
+              'bom_inverter_pcu_make',
+              'bom_charge_controller_make',
+            ],
+            capacity: const [
+              'bom_inverter_pcu_capacity',
+              'bom_charge_controller_capacity',
+            ],
+            quantity: const [
+              'bom_inverter_pcu_quantity',
+              'bom_charge_controller_quantity',
+            ],
+          ),
+        SolarAssetType.panel => (
+            product: const ['bom_solar_panel_product'],
+            make: const ['bom_solar_panel_make'],
+            capacity: const ['bom_solar_panel_capacity'],
+            quantity: const ['bom_solar_panel_quantity'],
+          ),
       };
 
-  String get bomProductField => switch (this) {
-        SolarAssetType.battery => 'bom_battery_product',
-        SolarAssetType.inverter => 'bom_inverter_pcu_product',
-        SolarAssetType.panel => 'bom_solar_panel_product',
-      };
+  String get bomQuantityField => bomFields.quantity.first;
+  String get bomProductField => bomFields.product.first;
 }
 
 enum SolarWorkflowMode { newReport, pending, resubmission, approved }
@@ -290,7 +321,7 @@ class SolarInstallationDraft {
   }
 
   void syncCountToBom(SolarAssetType type) {
-    final fieldName = type.bomQuantityField;
+    final fieldName = _quantityFieldForWrite(type);
     final count = countFor(type);
     mergedBom[fieldName] = count;
     for (final answers in dynamicFormAnswers.values) {
@@ -313,7 +344,7 @@ class SolarInstallationDraft {
     final asset = assets[type]!;
     final entries = asset.assets;
     final batteryType = entries.isEmpty ? '' : entries.first.batteryType;
-    final product = (mergedBom[type.bomProductField] ?? '').toString().trim();
+    final product = resolvedBomText(type.bomFields.product);
     while (entries.length < selectedCount) {
       entries.add(SolarAssetEntry(
         itemCode: product.isEmpty ? null : product,
@@ -365,4 +396,56 @@ class SolarInstallationDraft {
       ].every((file) => file.hasCompleteNewDocumentMetadata);
   bool get isReadOnly =>
       mode == SolarWorkflowMode.pending || mode == SolarWorkflowMode.approved;
+
+  String resolvedBomText(Iterable<String> fields) {
+    for (final field in fields) {
+      final value = (mergedBom[field] ?? '').toString().trim();
+      if (value.isNotEmpty) return value;
+    }
+    return '';
+  }
+
+  int resolvedBomQuantity(Iterable<String> fields) {
+    for (final field in fields) {
+      final value = _positiveWholeNumber(mergedBom[field]);
+      if (value != null) return value;
+    }
+    return 0;
+  }
+
+  String _quantityFieldForWrite(SolarAssetType type) {
+    final fields = type.bomFields;
+    final primary = fields.quantity.first;
+    final fallback = fields.quantity.length > 1 ? fields.quantity[1] : null;
+    if (_positiveWholeNumber(mergedBom[primary]) != null) return primary;
+    if (fallback != null && _positiveWholeNumber(mergedBom[fallback]) != null) {
+      return fallback;
+    }
+    if (mergedBom.containsKey(primary)) return primary;
+    if (fallback != null && mergedBom.containsKey(fallback)) return fallback;
+
+    final primaryFamily = [
+      fields.product.first,
+      fields.make.first,
+      fields.capacity.first,
+    ];
+    if (primaryFamily.any(mergedBom.containsKey)) return primary;
+    if (fallback != null) {
+      final fallbackFamily = [
+        fields.product[1],
+        fields.make[1],
+        fields.capacity[1],
+      ];
+      if (fallbackFamily.any(mergedBom.containsKey)) return fallback;
+    }
+    return primary;
+  }
+
+  int? _positiveWholeNumber(dynamic value) {
+    final parsed = value is num ? value : num.tryParse('$value');
+    if (parsed == null || parsed <= 0 || parsed != parsed.truncate()) {
+      return null;
+    }
+    return parsed.toInt();
+  }
 }

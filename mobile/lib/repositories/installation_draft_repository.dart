@@ -235,16 +235,20 @@ class InstallationDraftRepository {
     }
     if (canonical == null) return;
     for (final type in SolarAssetType.values) {
-      final keys = _bomKeys(type);
-      for (final key in [
-        keys.product,
-        keys.make,
-        keys.capacity,
-        keys.quantity,
-      ]) {
+      final fields = type.bomFields;
+      for (final key in {
+        ...fields.product,
+        ...fields.make,
+        ...fields.capacity,
+        ...fields.quantity,
+      }) {
         // A missing fresh value must also replace stale cached data: it is
         // intentionally interpreted as an invalid/zero BOM configuration.
-        draft.mergedBom[key] = canonical.data[key];
+        if (canonical.data.containsKey(key)) {
+          draft.mergedBom[key] = canonical.data[key];
+        } else {
+          draft.mergedBom.remove(key);
+        }
       }
     }
   }
@@ -272,17 +276,15 @@ class InstallationDraftRepository {
             ? _mdmsRepository.typesFor(draft.assetTypeCodes[type]!)
             : const <String>[]);
 
-      final keys = _bomKeys(type);
-      final quantity = _positiveInteger(draft.mergedBom[keys.quantity]);
+      final fields = type.bomFields;
+      final quantity = draft.resolvedBomQuantity(fields.quantity);
       asset.system = draft.assetTypeLabels[type]!;
-      asset.selectedBrandCode =
-          (draft.mergedBom[keys.make] ?? '').toString().trim();
-      asset.totalCapacity =
-          (draft.mergedBom[keys.capacity] ?? '').toString().trim();
+      asset.selectedBrandCode = draft.resolvedBomText(fields.make);
+      asset.totalCapacity = draft.resolvedBomText(fields.capacity);
       asset.capacityUnit = '';
 
       draft.seedCountFromBom(type, quantity);
-      final product = (draft.mergedBom[keys.product] ?? '').toString().trim();
+      final product = draft.resolvedBomText(fields.product);
       for (final entry in asset.assets) {
         entry.itemCode = product;
         entry.capacity = asset.totalCapacity;
@@ -298,36 +300,6 @@ class InstallationDraftRepository {
       ..addAll(_mdmsRepository.formsFor(draft.solutionId));
     draft.installationRequirements = _mdmsRepository.installationImages;
   }
-
-  int _positiveInteger(dynamic value) {
-    final parsed = value is num ? value : num.tryParse('$value');
-    if (parsed == null || parsed <= 0 || parsed != parsed.truncate()) return 0;
-    return parsed.toInt();
-  }
-
-  ({String product, String make, String capacity, String quantity}) _bomKeys(
-    SolarAssetType type,
-  ) =>
-      switch (type) {
-        SolarAssetType.panel => (
-            product: 'bom_solar_panel_product',
-            make: 'bom_solar_panel_make',
-            capacity: 'bom_solar_panel_capacity',
-            quantity: 'bom_solar_panel_quantity',
-          ),
-        SolarAssetType.battery => (
-            product: 'bom_battery_product',
-            make: 'bom_battery_make',
-            capacity: 'bom_battery_capacity',
-            quantity: 'bom_battery_quantity',
-          ),
-        SolarAssetType.inverter => (
-            product: 'bom_inverter_pcu_product',
-            make: 'bom_inverter_pcu_make',
-            capacity: 'bom_inverter_pcu_capacity',
-            quantity: 'bom_inverter_pcu_quantity',
-          ),
-      };
 
   void _hydrateComponent(
     SolarInstallationDraft draft,
