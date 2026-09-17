@@ -406,25 +406,31 @@ class InstallationDraftRepository {
       if (remoteId == null || remoteId.isEmpty) continue;
       final type =
           (document['documentType'] ?? document['type'] ?? '').toString();
+      final normalizedType = type.trim().toUpperCase();
       final name = (document['fileName'] ??
               document['name'] ??
               document['documentUid'] ??
               type)
           .toString();
       final lower = '${document['mimeType'] ?? ''} $name'.toLowerCase();
-      final kind = type.trim().toUpperCase() == 'INSTALLATION_REPORT_BOM' ||
-              lower.contains('pdf')
-          ? SolarFileKind.pdf
-          : lower.contains('video') ||
-                  lower.endsWith('.mp4') ||
-                  lower.endsWith('.mov')
-              ? SolarFileKind.video
-              : SolarFileKind.image;
+      final kind =
+          normalizedType == 'INSTALLATION_REPORT_BOM' || lower.contains('pdf')
+              ? SolarFileKind.pdf
+              : lower.contains('video') ||
+                      lower.endsWith('.mp4') ||
+                      lower.endsWith('.mov')
+                  ? SolarFileKind.video
+                  : SolarFileKind.image;
       final media = SolarFileRef(
         name: name.isEmpty ? remoteId : name,
         path: remoteId,
         remoteId: remoteId,
         kind: kind,
+        displayTitle: switch (normalizedType) {
+          'INSTALLATION_REPORT_BOM' => 'Installation Report BOM',
+          'INSTALLATION_COMPLETION_REPORT' => 'Installation Completion Report',
+          _ => null,
+        },
         mimeType: document['mimeType']?.toString(),
         documentType: type,
         id: document['id']?.toString(),

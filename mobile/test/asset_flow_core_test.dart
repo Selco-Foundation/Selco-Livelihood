@@ -114,13 +114,27 @@ void main() {
           'fileStoreId': 'bom-store',
           'documentUid': 'BOM-solar-pdf-1-123',
         },
+        {
+          'documentType': 'INSTALLATION_COMPLETION_REPORT',
+          'fileStoreId': 'completion-store',
+          'documentUid': 'INSTALLATION-REPORT-IMAGE-123',
+        },
       ]),
     );
 
     final draft = InstallationDraftRepository()
         .createSolar(workflow, SolarWorkflowMode.resubmission);
+    final bom = draft.completionReportFiles.firstWhere(
+      (file) => file.documentType == 'INSTALLATION_REPORT_BOM',
+    );
+    final completion = draft.completionReportFiles.firstWhere(
+      (file) => file.documentType == 'INSTALLATION_COMPLETION_REPORT',
+    );
 
-    expect(draft.completionReportFiles.single.kind, SolarFileKind.pdf);
+    expect(bom.kind, SolarFileKind.pdf);
+    expect(bom.viewerTitle, 'Installation Report BOM');
+    expect(bom.name, 'BOM-solar-pdf-1-123');
+    expect(completion.viewerTitle, 'Installation Completion Report');
   });
 
   test('successful OTP generate and resend responses expose the DEV OTP log',
