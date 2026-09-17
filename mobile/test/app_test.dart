@@ -25,6 +25,7 @@ import 'package:livelihood/data/nosql/localization.dart' show Localization;
 import 'package:livelihood/data/network_manager.dart';
 import 'package:livelihood/model/activity_facility/activity_facility.dart';
 import 'package:livelihood/model/activity_facility_workflow/activity_facility_workflow.dart';
+import 'package:livelihood/model/bom/bom.dart';
 import 'package:livelihood/model/appconfig/mdmsResponse.dart';
 import 'package:livelihood/model/facility_report.dart';
 import 'package:livelihood/model/mdms/asset_registry_response.dart';
@@ -3138,6 +3139,49 @@ void main() {
       find.byKey(const ValueKey('submit-machine-report-button')),
     );
     expect(submit.isDisabled, isTrue);
+  });
+
+  testWidgets('machine capacity ignores BOM values', (tester) async {
+    setMobileViewport(tester, const Size(390, 844));
+
+    ActivityFacilityWorkflow workflow(
+      String id,
+      Map<String, dynamic> data,
+    ) =>
+        ActivityFacilityWorkflow(
+          activityFacility: ActivityFacility(
+            id: id,
+            facilityId: 'facility-$id',
+            componentType: 'MACHINE',
+            billOfMaterial: BillOfMaterial(data: data),
+          ),
+        );
+
+    Future<String> capacityFor(ActivityFacilityWorkflow value) async {
+      await tester.pumpWidget(MaterialApp(
+        key: UniqueKey(),
+        theme: DigitTheme.instance.mobileTheme,
+        home: withAssetSubmissionBloc(MachineFormPage(workflow: value)),
+      ));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      return tester
+          .widget<EditableText>(find.descendant(
+            of: find.byKey(const ValueKey('machine-capacity-field')),
+            matching: find.byType(EditableText),
+          ))
+          .controller
+          .text;
+    }
+
+    expect(
+      await capacityFor(workflow('capacity-from-bom', {
+        'capacity': '300 W',
+        'machineCapacity': '400 W',
+        'machine_1_capacity': '500 W',
+      })),
+      isEmpty,
+    );
   });
 
   testWidgets(

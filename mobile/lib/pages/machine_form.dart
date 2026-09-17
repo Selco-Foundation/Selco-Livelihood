@@ -88,9 +88,12 @@ class _MachineFormPageState extends State<MachineFormPage> {
         _trainedEndUser = field.defaultValue == true;
       }
     }
-    _seed(widget.workflow.activityFacility.billOfMaterial?.data ??
-        widget.workflow.activityFacility.additionalDetails?.bom ??
-        const {});
+    _seed(
+      widget.workflow.activityFacility.billOfMaterial?.data ??
+          widget.workflow.activityFacility.additionalDetails?.bom ??
+          const {},
+      includeCapacity: false,
+    );
     await _loadDraft();
     if (mounted) setState(() => _schemaLoaded = true);
   }
@@ -189,7 +192,10 @@ class _MachineFormPageState extends State<MachineFormPage> {
     _saveSoon();
   }
 
-  void _seed(Map<String, dynamic> values) {
+  void _seed(
+    Map<String, dynamic> values, {
+    bool includeCapacity = true,
+  }) {
     _poController.text = (values['poNumber'] ??
             values['po_number'] ??
             values['purchase_order_number'] ??
@@ -203,11 +209,10 @@ class _MachineFormPageState extends State<MachineFormPage> {
             values['manufacturerInvoiceNumber'] ??
             _invoiceController.text)
         .toString();
-    _capacityController.text = (values['capacity'] ??
-            values['machineCapacity'] ??
-            values['machine_1_capacity'] ??
-            _capacityController.text)
-        .toString();
+    final capacity = values['capacity']?.toString().trim();
+    if (includeCapacity && capacity?.isNotEmpty == true) {
+      _capacityController.text = capacity!;
+    }
     _warrantyController.text = (values['warrantyDuration'] ??
             values['warrantyYears'] ??
             values['warranty'] ??
@@ -218,6 +223,9 @@ class _MachineFormPageState extends State<MachineFormPage> {
     }
     for (final field in _schema?.fields ?? const <MachineFormField>[]) {
       if (field.isMedia || field.type == 'boolean') continue;
+      // Capacity is hydrated explicitly from Asset Registry or a local
+      // draft. BOM values must never prefill the Machine form field.
+      if (field.fieldName == 'capacity') continue;
       final value = values[field.fieldName];
       if (value != null) {
         _controllerFor(field.fieldName).text = value.toString();

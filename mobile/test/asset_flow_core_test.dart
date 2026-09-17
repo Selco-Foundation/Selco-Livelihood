@@ -1277,6 +1277,7 @@ void main() {
     final asset = (payload['assets'] as List).single as Map;
     expect(asset['assetTypeID'], 'RICE HULLER');
     expect(asset['itemCode'], 'HULLER-RICE-3HP');
+    expect((asset['assetDetails'] as Map)['capacity'], '3');
     final documents = asset['documents'] as List;
     expect(documents, hasLength(2));
     expect(documents.map((item) => (item as Map)['documentUid']), [
