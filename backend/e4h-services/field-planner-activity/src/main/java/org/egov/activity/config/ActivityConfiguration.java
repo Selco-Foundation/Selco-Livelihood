@@ -343,4 +343,14 @@ public class ActivityConfiguration {
 
     @Value("${activity.facility.otp.sms.message.template:Your OTP for facility verification is {otp}.}")
     private String otpSmsTemplate;
+
+    /**
+     * When true, validateActivityFacilityOtp accepts {@link #defaultOtp} instead of calling
+     * egov_otp - lets QA/testers validate without reading the SMS the real OTP was sent in.
+     */
+    @Value("${egov.otp.bypass.validation:false}")
+    private boolean byPassValidation;
+
+    @Value("${egov.otp.default:1234}")
+    private String defaultOtp;
 }

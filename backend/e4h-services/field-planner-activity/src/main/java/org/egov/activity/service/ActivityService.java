@@ -1284,9 +1284,28 @@ public class ActivityService {
         ActivityFacility existingActivityFacility = fetchActivityFacilityById(request.getActivityFacilityId(), tenantId, request.getRequestInfo());
         String mobileNumber = resolveFacilityPocPhone(existingActivityFacility);
 
-        OtpResponse otpResponse = validateOTP(mobileNumber, tenantId, request.getOtp());
-        if (otpResponse.getOtp() == null) {
-            throw new CustomException("ERROR_OTP_VALIDATION", "OTP validation unsuccessful");
+        OtpResponse otpResponse;
+        if (activityConfiguration.isByPassValidation()) {
+            // Bypass the real egov_otp round trip so QA/testers can validate with a well-known code
+            // instead of reading the SMS that was actually sent when the OTP was generated.
+            String defaultOtp = activityConfiguration.getDefaultOtp();
+            if (defaultOtp == null || !defaultOtp.trim().equals(request.getOtp().trim())) {
+                throw new CustomException("ERROR_OTP_VALIDATION", "OTP validation unsuccessful");
+            }
+            log.info("OTP validation bypassed via default OTP for activityFacilityId={}", request.getActivityFacilityId());
+            otpResponse = OtpResponse.builder()
+                    .otp(Otp.builder()
+                            .tenantId(tenantId)
+                            .identity(mobileNumber)
+                            .otp(defaultOtp)
+                            .validationSuccessful(true)
+                            .build())
+                    .build();
+        } else {
+            otpResponse = validateOTP(mobileNumber, tenantId, request.getOtp());
+            if (otpResponse.getOtp() == null) {
+                throw new CustomException("ERROR_OTP_VALIDATION", "OTP validation unsuccessful");
+            }
         }
 
         Map<String, Object> otpDetails = new HashMap<>();
