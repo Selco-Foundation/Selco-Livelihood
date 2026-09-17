@@ -81,6 +81,22 @@ interface ActionDocumentsFieldProps {
   t: (key: string) => string;
 }
 
+function getMaxFilesHintText(
+  t: (key: string) => string,
+  requiresQuotation: boolean,
+  maxFilesReached: boolean,
+  maxFiles: number,
+): string {
+  if (requiresQuotation) {
+    return translateOr(t, "WF_QUOTATION_MAX_FILES_REACHED", "You can upload 1 file");
+  }
+  const key = maxFilesReached ? "WF_MAX_FILES_REACHED" : "WF_MAX_FILES_HINT";
+  return translateOr(t, key, "You can upload up to {MAX_COUNT} files").replace(
+    "{MAX_COUNT}",
+    String(maxFiles),
+  );
+}
+
 function ActionDocumentsField({
   requiresQuotation,
   documentsRequired,
@@ -121,18 +137,7 @@ function ActionDocumentsField({
         </span>
       </button>
       <p className="text-xs text-ink-400">
-        {maxFilesReached
-          ? requiresQuotation
-            ? translateOr(t, "WF_QUOTATION_MAX_FILES_REACHED", "You can upload 1 file")
-            : translateOr(
-                t,
-                "WF_MAX_FILES_REACHED",
-                "You can upload up to {MAX_COUNT} files",
-              ).replace("{MAX_COUNT}", String(maxFiles))
-          : translateOr(t, "WF_MAX_FILES_HINT", "You can upload up to {MAX_COUNT} files").replace(
-              "{MAX_COUNT}",
-              String(maxFiles),
-            )}
+        {getMaxFilesHintText(t, requiresQuotation, maxFilesReached, maxFiles)}
       </p>
       <input
         ref={inputRef}
