@@ -4,6 +4,7 @@ export const MAX_VIDEO_COUNT = 2;
 export const MAX_VIDEO_SIZE_MB = 50;
 export const MAX_COMMENT_LENGTH = 1000;
 export const MAX_QUOTATION_SIZE_MB = 10;
+export const MAX_QUOTATION_COUNT = 1;
 
 const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png"];
 const VIDEO_EXTENSIONS = ["mp4", "mov", "avi", "wmv"];
