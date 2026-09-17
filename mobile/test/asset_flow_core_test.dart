@@ -29,6 +29,7 @@ import 'package:livelihood/repositories/operation_progress_repo.dart';
 import 'package:livelihood/repositories/pending_submission_repository.dart';
 import 'package:livelihood/utils/envConfig.dart';
 import 'package:livelihood/utils/api_paths.dart';
+import 'package:livelihood/utils/background_service.dart';
 import 'package:livelihood/utils/dynamic_form_schema.dart';
 import 'package:livelihood/utils/operation_progress.dart';
 import 'package:livelihood/utils/submission_payload.dart';
@@ -1234,7 +1235,11 @@ void main() {
           componentType: 'MACHINE',
           bom: {
             'components': [
-              {'itemCode': 'HULLER-RICE-3HP'},
+              {
+                'itemCode': 'HULLER-RICE-3HP',
+                'make': 'SELCO',
+                'product': 'Huller Rice 3HP AC 150 kgs/hr',
+              },
             ],
           },
         ),
@@ -1277,6 +1282,8 @@ void main() {
     final asset = (payload['assets'] as List).single as Map;
     expect(asset['assetTypeID'], 'RICE HULLER');
     expect(asset['itemCode'], 'HULLER-RICE-3HP');
+    expect(asset['brandID'], 'SELCO');
+    expect(asset['name'], 'Huller Rice 3HP AC 150 kgs/hr');
     expect((asset['assetDetails'] as Map)['capacity'], '3');
     final documents = asset['documents'] as List;
     expect(documents, hasLength(2));
@@ -1290,6 +1297,117 @@ void main() {
       'longitude': '3.6',
     });
     expect(payload['workflowDocuments'], isEmpty);
+    expect(payload, isNot(contains('bom')));
+    expect(submissionRequiresBom(payload), isFalse);
+    expect(
+      submissionRequiresBom({...payload, 'bom': const {}}),
+      isFalse,
+      reason: 'cached legacy Machine payloads must also skip BOM writes',
+    );
+  });
+
+  test('machine submission defaults a blank BOM make to SELCO', () async {
+    await assetMdmsRepository.store(const AssetRegistryMdmsResponse());
+    addTearDown(
+        () => assetMdmsRepository.store(const AssetRegistryMdmsResponse()));
+
+    const product = 'Silk Spinning-7-W-DC-0.25-kgs/hr';
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'machine-with-blank-make',
+        facilityId: 'facility-1',
+        componentType: 'MACHINE',
+        billOfMaterial: BillOfMaterial(
+          name: product,
+          data: {
+            'machine_1_make': '   ',
+            'machine_1_product': product,
+          },
+        ),
+      ),
+    );
+
+    final payload = buildMachineSubmissionPayload(
+      workflow: workflow,
+      values: const {
+        'serialNumber': 'SER-1',
+        'warrantyDuration': '5',
+      },
+      media: const {},
+    );
+    final asset = (payload['assets'] as List).single as Map;
+
+    expect(asset['brandID'], machineDefaultBrandId);
+    expect(asset['itemCode'], product);
+  });
+
+  test('machine submission keeps an explicit BOM make', () async {
+    await assetMdmsRepository.store(const AssetRegistryMdmsResponse());
+    addTearDown(
+        () => assetMdmsRepository.store(const AssetRegistryMdmsResponse()));
+
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'machine-with-make',
+        facilityId: 'facility-1',
+        componentType: 'MACHINE',
+        billOfMaterial: BillOfMaterial(
+          data: {
+            'machine_1_make': 'ACME',
+            'machine_1_product': 'MACHINE-1',
+          },
+        ),
+      ),
+    );
+
+    final payload = buildMachineSubmissionPayload(
+      workflow: workflow,
+      values: const {'serialNumber': 'SER-1'},
+      media: const {},
+    );
+
+    expect(((payload['assets'] as List).single as Map)['brandID'], 'ACME');
+  });
+
+  test('cached Machine payload gets its missing brand repaired only', () {
+    final payload = <String, dynamic>{
+      'kind': 'machine',
+      'assets': [
+        {
+          'brandID': ' ',
+          'serialNumber': 'SER-1',
+          'documents': [
+            {'fileStore': 'uploaded-file', 'documentUid': 'DOC-1'},
+          ],
+          'submitted': false,
+        },
+      ],
+      'workflowDocuments': <dynamic>[],
+      'workflowSubmitted': false,
+    };
+
+    expect(applyMachineSubmissionDefaults(payload), isTrue);
+    final repaired = (payload['assets'] as List).single as Map;
+    expect(repaired['brandID'], machineDefaultBrandId);
+    expect(repaired['serialNumber'], 'SER-1');
+    expect((repaired['documents'] as List).single, {
+      'fileStore': 'uploaded-file',
+      'documentUid': 'DOC-1',
+    });
+    expect(repaired['submitted'], isFalse);
+    expect(applyMachineSubmissionDefaults(payload), isFalse);
+  });
+
+  test('Machine defaults do not modify Solar payloads', () {
+    final payload = <String, dynamic>{
+      'kind': 'solar',
+      'assets': [
+        {'brandID': '', 'serialNumber': 'BAT-1'},
+      ],
+    };
+
+    expect(applyMachineSubmissionDefaults(payload), isFalse);
+    expect(((payload['assets'] as List).single as Map)['brandID'], isEmpty);
   });
 
   test(
@@ -2275,6 +2393,31 @@ void main() {
     );
     expect(refreshed['uploaded'], isFalse);
     expect(builds, 2);
+  });
+
+  test('strict payload validation requires BOM only for Solar', () async {
+    final machine = <String, dynamic>{
+      'kind': 'machine',
+      'assets': <dynamic>[],
+      'workflowDocuments': <dynamic>[],
+    };
+    final saved = await installationCacheRepository.putSubmissionPayload(
+      'machine-without-bom',
+      machine,
+    );
+    expect(saved, machine);
+
+    await expectLater(
+      installationCacheRepository.putSubmissionPayload(
+        'solar-without-bom',
+        {
+          'kind': 'solar',
+          'assets': <dynamic>[],
+          'workflowDocuments': <dynamic>[],
+        },
+      ),
+      throwsA(isA<StateError>()),
+    );
   });
 
   test('bulk submission aggregates only OTP-approved local jobs', () async {

@@ -48,6 +48,9 @@ class InstallationCacheRepository {
     String activityFacilityId,
     Map<String, dynamic> payload,
   ) async {
+    if (!_isCurrentSubmissionPayload(payload)) {
+      throw StateError('Submission payload is incomplete.');
+    }
     if (!_hasTestIsar) {
       return _testSubmissionPayloads[activityFacilityId] =
           Map<String, dynamic>.from(payload);
@@ -89,11 +92,13 @@ class InstallationCacheRepository {
     return putSubmissionPayload(activityFacilityId, buildPayload());
   }
 
-  bool _isCurrentSubmissionPayload(Map<String, dynamic> payload) =>
-      (payload['kind'] == 'solar' || payload['kind'] == 'machine') &&
-      payload['bom'] is Map &&
-      payload['assets'] is List &&
-      payload['workflowDocuments'] is List;
+  bool _isCurrentSubmissionPayload(Map<String, dynamic> payload) {
+    final kind = payload['kind'];
+    return (kind == 'solar' || kind == 'machine') &&
+        (kind == 'machine' || payload['bom'] is Map) &&
+        payload['assets'] is List &&
+        payload['workflowDocuments'] is List;
+  }
 
   Future<void> _writeJson(
     String namespace,

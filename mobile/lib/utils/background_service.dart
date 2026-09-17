@@ -20,6 +20,7 @@ import '../repositories/pending_submission_repository.dart';
 import '../repositories/vendor_org_repository.dart';
 import 'envConfig.dart';
 import 'operation_progress.dart';
+import 'submission_payload.dart';
 
 const String kMethodSubmit = 'submit';
 const String kEvtDone = 'submission_done';
@@ -248,7 +249,8 @@ Future<void> _performSubmission({
         'No submission data found for this report. Please reopen and submit again.');
   }
   var payload = Map<String, dynamic>.from(raw);
-  if (payload['bom'] == null && payload['boms'] is List) {
+  final submitBom = submissionRequiresBom(payload);
+  if (submitBom && payload['bom'] == null && payload['boms'] is List) {
     throw Exception(
         'This saved submission uses the old page-level BOM format. Reopen the report and submit again to create one merged BOM.');
   }
@@ -274,14 +276,17 @@ Future<void> _performSubmission({
   );
   payload = await _uploadPendingMedia(activityFacilityId, payload);
 
-  await _reportStage(
-    activityFacilityId: activityFacilityId,
-    stageKey: 'submitting_bom',
-    completedSteps: 3,
-    service: service,
-  );
-  final rawBom = payload['bom'];
-  if (rawBom is Map) {
+  if (submitBom) {
+    await _reportStage(
+      activityFacilityId: activityFacilityId,
+      stageKey: 'submitting_bom',
+      completedSteps: 3,
+      service: service,
+    );
+    final rawBom = payload['bom'];
+    if (rawBom is! Map) {
+      throw Exception('The submission payload is missing bill of materials.');
+    }
     final bomEntry = Map<String, dynamic>.from(rawBom);
     final data = bomEntry['data'] is Map
         ? Map<String, dynamic>.from(bomEntry['data'] as Map)
@@ -360,6 +365,9 @@ Future<void> _performSubmission({
     completedSteps: 4,
     service: service,
   );
+  if (applyMachineSubmissionDefaults(payload)) {
+    await _saveSubmissionPayload(activityFacilityId, payload);
+  }
   final assets = (payload['assets'] as List<dynamic>? ?? const [])
       .whereType<Map>()
       .map((item) => Map<String, dynamic>.from(item))
@@ -505,6 +513,11 @@ Future<void> _performSubmission({
     totalSteps: submitStages.length,
   );
 }
+
+/// Machine BOMs are server-provided configuration. They may be read while
+/// building the asset payload, but only Solar submissions can write a BOM.
+bool submissionRequiresBom(Map<String, dynamic> payload) =>
+    payload['kind'] != 'machine';
 
 /// Walks every `documents` array in the payload and uploads any entry that
 /// still has a `localPath` (no `remoteId` yet), persisting the updated

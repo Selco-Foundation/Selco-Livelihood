@@ -4,6 +4,8 @@ import '../model/solar_installation_draft.dart';
 import '../repositories/asset_mdms_repository.dart';
 import 'warranty.dart';
 
+const machineDefaultBrandId = 'SELCO';
+
 /// Builds the JSON-safe snapshot consumed by the background isolate.
 /// Endpoint-specific document keys are deliberately not created here: the
 /// owning repositories serialize [SubmissionDocument] for Asset Registry or
@@ -135,12 +137,13 @@ Map<String, dynamic> buildMachineSubmissionPayload({
       ]) ??
       'MACHINE';
   final brandCode = _firstNonBlank([
-    firstComponent['brandID'],
-    firstComponent['brandCode'],
-    firstComponent['make'],
-    templateBom['machine_1_make'],
-    templateBom['brandID'],
-  ]);
+        firstComponent['brandID'],
+        firstComponent['brandCode'],
+        firstComponent['make'],
+        templateBom['machine_1_make'],
+        templateBom['brandID'],
+      ]) ??
+      machineDefaultBrandId;
   final system = _firstNonBlank([
         activityFacility.additionalDetails?.systemCode,
         activityFacility.facility?.facilityDetails?.systemCode,
@@ -160,11 +163,6 @@ Map<String, dynamic> buildMachineSubmissionPayload({
   final years =
       parseWarrantyYears((values['warrantyDuration'] ?? '').toString());
 
-  final formData = <String, dynamic>{
-    ...templateBom,
-    ...values,
-    'warrantyDuration': years,
-  };
   final assetDocuments = <SubmissionDocument>[
     for (final entry in media.entries)
       for (final file in entry.value) _document(file, entry.key),
@@ -183,24 +181,12 @@ Map<String, dynamic> buildMachineSubmissionPayload({
     'componentType': 'MACHINE',
     'workflowAction': 'SUBMIT_REPORT',
     'facilityId': activityFacility.facilityId,
-    'bom': {
-      'name': machineName,
-      if (activityFacility.billOfMaterial?.id?.trim().isNotEmpty == true)
-        'remoteId': activityFacility.billOfMaterial!.id,
-      'solutionId': activityFacility.solutionId,
-      'data': formData,
-      'required': true,
-      'additionalDetails': {
-        ...?activityFacility.billOfMaterial?.additionalDetails,
-        'componentType': 'MACHINE',
-      },
-    },
     'assets': [
       {
         'system': system,
         'assetTypeID': assetTypeCode,
         'modelNumber': _firstNonBlank([firstComponent['modelNumber']]) ?? '',
-        if (brandCode != null) 'brandID': brandCode,
+        'brandID': brandCode,
         if (itemCode != null) 'itemCode': itemCode,
         'name': machineName,
         ...configuredRootValues,
@@ -218,6 +204,29 @@ Map<String, dynamic> buildMachineSubmissionPayload({
     ],
     'workflowDocuments': const <Map<String, dynamic>>[],
   };
+}
+
+/// Repairs Machine payloads created before the default brand was applied.
+/// Returns whether the payload changed so callers can checkpoint it once.
+bool applyMachineSubmissionDefaults(Map<String, dynamic> payload) {
+  if (payload['kind'] != 'machine') return false;
+
+  final rawAssets = payload['assets'];
+  if (rawAssets is! List) return false;
+
+  var changed = false;
+  final assets = rawAssets.map((value) {
+    if (value is! Map) return value;
+    final asset = Map<String, dynamic>.from(value);
+    if (_firstNonBlank([asset['brandID']]) == null) {
+      asset['brandID'] = machineDefaultBrandId;
+      changed = true;
+    }
+    return asset;
+  }).toList();
+
+  if (changed) payload['assets'] = assets;
+  return changed;
 }
 
 SubmissionDocument _document(SolarFileRef file, String fallbackType) {
