@@ -29,9 +29,10 @@ import static org.egov.activity.util.ActivityConstants.LOCALIZATION_LOCALE;
 import static org.egov.activity.util.ActivityConstants.LOCALIZATION_TENANT_ID;
 
 /**
- * Resolves boundary codes (e.g. {@code India_Assam_Darrang}) to their human-readable localized
- * names via the localization service, where they are stored under the {@code Boundary_<code>} key
- * in the {@code rainmaker-in} module at the national tenant.
+ * Resolves boundary codes (e.g. {@code INDIA_ASSAM_DARRANG}) to their human-readable localized
+ * names via the localization service, where they are stored under the {@code BOUNDARY_<code>} key
+ * (case-sensitive) in the {@code rainmaker-livelihood} module (see
+ * ActivityConstants.BOUNDARY_LOCALIZATION_MODULE).
  * <p>
  * Generalizes the single-code lookup already used by {@code ActivityAnalyticsService.localizeStateName}
  * into a batch call so several boundary levels (state, block, ...) can be resolved in one request.
@@ -43,7 +44,7 @@ import static org.egov.activity.util.ActivityConstants.LOCALIZATION_TENANT_ID;
 @Slf4j
 public class BoundaryLocalizationUtil {
 
-    private static final String BOUNDARY_CODE_PREFIX = "Boundary_";
+    private static final String BOUNDARY_CODE_PREFIX = "BOUNDARY_";
 
     private final RestTemplate restTemplate;
     private final ActivityConfiguration configs;

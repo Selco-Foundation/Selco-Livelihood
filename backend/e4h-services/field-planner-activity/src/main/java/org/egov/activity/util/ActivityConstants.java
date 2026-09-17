@@ -61,7 +61,7 @@ public class ActivityConstants {
     public static final String ACTION_SUBMIT_REPORT_B = "SUBMIT_REPORT_B";
 
     // Boundary code -> human readable name, resolved through the localization service.
-    public static final String BOUNDARY_LOCALIZATION_MODULE = "rainmaker-in";
+    public static final String BOUNDARY_LOCALIZATION_MODULE = "rainmaker-livelihood";
     public static final String LOCALIZATION_LOCALE = "en_IN";
     public static final String LOCALIZATION_TENANT_ID = TENANTID;
 
