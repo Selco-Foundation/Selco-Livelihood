@@ -412,7 +412,8 @@ class InstallationDraftRepository {
               type)
           .toString();
       final lower = '${document['mimeType'] ?? ''} $name'.toLowerCase();
-      final kind = lower.contains('pdf')
+      final kind = type.trim().toUpperCase() == 'INSTALLATION_REPORT_BOM' ||
+              lower.contains('pdf')
           ? SolarFileKind.pdf
           : lower.contains('video') ||
                   lower.endsWith('.mp4') ||

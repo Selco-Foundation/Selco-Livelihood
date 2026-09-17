@@ -1830,6 +1830,45 @@ void main() {
         findsNothing);
   });
 
+  testWidgets('Solar resubmission shows its missing Inverter fields', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 1600));
+    final draft = _filledSolarDraft(SolarWorkflowMode.resubmission);
+    draft.installationMedia['SOLAR_ARRAY'] = [
+      const SolarFileRef(
+        name: 'array.jpg',
+        path: 'array-store',
+        remoteId: 'array-store',
+        kind: SolarFileKind.image,
+      ),
+    ];
+    final inverter = draft.assets[SolarAssetType.inverter]!
+      ..warrantyDuration = '';
+    inverter.assets.single
+      ..serialNumber = ''
+      ..supportingPhoto = null;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: withAssetSubmissionBloc(OverallAssetSummaryPage(draft: draft)),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.text(tr(i18.installationReport.completeBeforeResubmitting)),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'Inverter / PCU: Warranty Duration, Serial Number, Supporting Photo',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('solar completion controls and submit gate reflect draft data', (
     tester,
   ) async {

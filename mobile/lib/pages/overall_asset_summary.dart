@@ -23,6 +23,7 @@ import '../model/solar_installation_draft.dart';
 import '../model/mdms/common_masters.dart';
 import '../repositories/installation_cache_repo.dart';
 import '../repositories/installation_draft_repository.dart';
+import '../repositories/operation_progress_repo.dart';
 import '../repositories/asset_mdms_repository.dart';
 import '../repositories/asset_progress_repo.dart';
 import '../repositories/pending_submission_repository.dart';
@@ -74,6 +75,14 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
     final id = widget.draft.workflow.activityFacility.id;
     if (id == null) return;
     final record = await pendingSubmissionRepository.read(id);
+    if (widget.draft.mode == SolarWorkflowMode.resubmission &&
+        record != null &&
+        !record.matchesAttempt(widget.draft.workflow, widget.draft.mode.name)) {
+      await pendingSubmissionRepository.remove(id);
+      await installationCacheRepository.putJson('submission-payload', id, null);
+      await operationProgressRepository.clearJob(id);
+      return;
+    }
     if (!mounted || record == null) return;
     setState(() {
       _otpRequested = record.otpRequested;
@@ -163,6 +172,91 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
       return context.translate(i18.installationReport.bomSolarSystem);
     }
     return name.replaceFirst('AssetForm.', '').replaceAll('_', ' ');
+  }
+
+  Map<String, List<String>> _missingRequirements(
+    SolarInstallationDraft draft,
+  ) {
+    final missing = <String, List<String>>{};
+    void add(String section, String field) {
+      final fields = missing.putIfAbsent(section, () => []);
+      if (!fields.contains(field)) fields.add(field);
+    }
+
+    for (final type in draft.applicableTypes) {
+      final asset = draft.assets[type]!;
+      final count = draft.countFor(type);
+      final label = draft.labelFor(type);
+      if (count == 0) {
+        add(label, context.translate(i18.common.count));
+        continue;
+      }
+      if (asset.warrantyDuration.trim().isEmpty) {
+        add(label, context.translate(i18.assetFlow.warrantyDuration));
+      }
+      if (asset.selectedBrandCode?.trim().isNotEmpty != true) {
+        add(label, 'Make');
+      }
+      if (asset.totalCapacity.trim().isEmpty) {
+        add(label, context.translate(i18.assetFlow.capacity));
+      }
+      if (asset.assets.length != count) {
+        add(label, context.translate(i18.common.count));
+      }
+      for (var index = 0; index < count; index++) {
+        final entry = index < asset.assets.length ? asset.assets[index] : null;
+        final entryLabel = count == 1 ? label : '$label ${index + 1}';
+        if (entry?.itemCode?.trim().isNotEmpty != true) {
+          add(entryLabel, 'Item Code');
+        }
+        if (entry?.serialNumber.trim().isNotEmpty != true) {
+          add(entryLabel, context.translate(i18.assetFlow.serialNumber));
+        }
+        if (entry?.capacity.trim().isNotEmpty != true) {
+          add(entryLabel, context.translate(i18.assetFlow.capacity));
+        }
+        if (type == SolarAssetType.battery &&
+            !asset.typeOptions.contains(entry?.batteryType)) {
+          add(entryLabel, 'Battery Type');
+        }
+        if (entry?.supportingPhoto?.hasCompleteNewDocumentMetadata != true) {
+          add(entryLabel, context.translate(i18.assetFlow.supportingPhoto));
+        }
+      }
+      if (asset.images.isEmpty ||
+          asset.images.any((file) => !file.hasCompleteNewDocumentMetadata)) {
+        add(label, context.translate(i18.assetFlow.images));
+      }
+      if (asset.videos.any((file) => !file.hasCompleteNewDocumentMetadata)) {
+        add(label, context.translate(i18.assetFlow.videos));
+      }
+    }
+
+    final installationLabel =
+        context.translate(i18.installationReport.installationImages);
+    if (draft.installationRequirements.isEmpty) {
+      add(installationLabel, context.translate(i18.common.required));
+    }
+    for (final requirement in draft.installationRequirements) {
+      final files = draft.installationMedia[requirement.code] ?? const [];
+      if (files.length < requirement.requiredCount ||
+          files.any((file) => !file.hasCompleteNewDocumentMetadata)) {
+        add(
+          installationLabel,
+          requirement.shortTitle?.trim().isNotEmpty == true
+              ? requirement.shortTitle!.trim()
+              : requirement.description,
+        );
+      }
+    }
+    if (draft.completionReportFiles
+        .any((file) => !file.hasCompleteNewDocumentMetadata)) {
+      add(
+        context.translate(i18.installationReport.installationCompletionReport),
+        context.translate(i18.common.required),
+      );
+    }
+    return missing;
   }
 
   Future<void> _openDynamicForm(String name) async {
@@ -373,6 +467,9 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
     DigitTextTheme textTheme,
     SolarInstallationDraft draft,
   ) {
+    final missing = draft.mode == SolarWorkflowMode.resubmission
+        ? _missingRequirements(draft)
+        : const <String, List<String>>{};
     return SolarWorkflowScaffold(
       pageKey: 'solar-overall-summary-${draft.mode.name}',
       footer: draft.isReadOnly
@@ -563,6 +660,29 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                 ),
             ],
           ),
+          if (missing.isNotEmpty) ...[
+            const SizedBox(height: spacer4),
+            DigitCard(
+              key: const ValueKey('solar-missing-requirements'),
+              children: [
+                Text(
+                  context.translate(
+                    i18.installationReport.completeBeforeResubmitting,
+                  ),
+                  style: textTheme.headingS,
+                ),
+                const SizedBox(height: spacer2),
+                for (final entry in missing.entries)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: spacer1),
+                    child: Text(
+                      '${entry.key}: ${entry.value.join(', ')}',
+                      style: textTheme.bodyS,
+                    ),
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
     );

@@ -105,6 +105,24 @@ void main() {
     expect(files.last.viewerTitle, 'Installation Report BOM');
   });
 
+  test('Solar hydration always treats the workflow BOM report as PDF', () {
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(id: 'solar-pdf-1'),
+      workflow: Workflow(documents: [
+        {
+          'documentType': 'INSTALLATION_REPORT_BOM',
+          'fileStoreId': 'bom-store',
+          'documentUid': 'BOM-solar-pdf-1-123',
+        },
+      ]),
+    );
+
+    final draft = InstallationDraftRepository()
+        .createSolar(workflow, SolarWorkflowMode.resubmission);
+
+    expect(draft.completionReportFiles.single.kind, SolarFileKind.pdf);
+  });
+
   test('successful OTP generate and resend responses expose the DEV OTP log',
       () {
     final lines = <String>[];
@@ -323,6 +341,67 @@ void main() {
     expect(record?.otpRequested, isFalse);
     expect(record?.otpVerified, isFalse);
     expect(record?.workflowMode, 'newReport');
+  });
+
+  test('pending OTP approval matches only the same unfinished workflow cycle',
+      () {
+    const firstCycle = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'cycle-1',
+        facilityId: 'facility-1',
+        status: 'REJECTED_BY_QC_SPOC',
+      ),
+      workflow: Workflow(
+        state: 'REJECTED_BY_QC_SPOC',
+        action: 'REJECT_AND_ASSIGN_FOR_FIELD_QC',
+        auditDetails: WorkflowAuditDetails(lastModifiedTime: 100),
+      ),
+    );
+    const secondCycle = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'cycle-1',
+        facilityId: 'facility-1',
+        status: 'REJECTED_BY_QC_SPOC',
+      ),
+      workflow: Workflow(
+        state: 'REJECTED_BY_QC_SPOC',
+        action: 'REJECT_AND_ASSIGN_FOR_FIELD_QC',
+        auditDetails: WorkflowAuditDetails(lastModifiedTime: 200),
+      ),
+    );
+    final active = PendingSubmissionRecord(
+      activityFacilityId: 'cycle-1',
+      facilityId: 'facility-1',
+      componentType: 'SOLAR',
+      state: PendingSubmissionState.pendingApproval,
+      workflowMode: 'resubmission',
+      workflow: firstCycle,
+      otpRequested: true,
+      otpVerified: true,
+      submissionCompleted: false,
+      createdAt: DateTime(2026),
+      updatedAt: DateTime(2026),
+    );
+
+    expect(active.matchesAttempt(firstCycle, 'resubmission'), isTrue);
+    expect(active.matchesAttempt(firstCycle, 'newReport'), isFalse);
+    expect(active.matchesAttempt(secondCycle, 'resubmission'), isFalse);
+    expect(
+      PendingSubmissionRecord(
+        activityFacilityId: active.activityFacilityId,
+        facilityId: active.facilityId,
+        componentType: active.componentType,
+        state: active.state,
+        workflowMode: active.workflowMode,
+        workflow: active.workflow,
+        otpRequested: active.otpRequested,
+        otpVerified: active.otpVerified,
+        submissionCompleted: true,
+        createdAt: active.createdAt,
+        updatedAt: active.updatedAt,
+      ).matchesAttempt(firstCycle, 'resubmission'),
+      isFalse,
+    );
   });
 
   test('activity facility reads top-level component, solution and BOM', () {

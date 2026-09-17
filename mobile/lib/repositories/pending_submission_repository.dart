@@ -41,6 +41,27 @@ class PendingSubmissionRecord {
       state == PendingSubmissionState.pendingApproval &&
       otpVerified &&
       !submissionCompleted;
+
+  bool matchesAttempt(
+    ActivityFacilityWorkflow current,
+    String currentMode,
+  ) {
+    if (submissionCompleted || workflowMode != currentMode) return false;
+    String cycle(ActivityFacilityWorkflow value) {
+      final workflow = value.workflow;
+      final status = (workflow?.state ??
+              value.status ??
+              value.activityFacility.status ??
+              '')
+          .trim()
+          .toUpperCase();
+      final action = workflow?.action?.trim().toUpperCase() ?? '';
+      final modifiedAt = workflow?.auditDetails?.lastModifiedTime ?? 0;
+      return '$status|$action|$modifiedAt';
+    }
+
+    return cycle(workflow) == cycle(current);
+  }
 }
 
 class PendingSubmissionRepository {

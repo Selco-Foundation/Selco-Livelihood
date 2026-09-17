@@ -20,6 +20,7 @@ import '../model/mdms/common_masters.dart';
 import '../repositories/asset_mdms_repository.dart';
 import '../repositories/asset_repository.dart';
 import '../repositories/installation_cache_repo.dart';
+import '../repositories/operation_progress_repo.dart';
 import '../repositories/pending_submission_repository.dart';
 import '../router/app_router.dart';
 import '../utils/app_permission_gateway.dart';
@@ -70,6 +71,17 @@ class _MachineFormPageState extends State<MachineFormPage> {
   bool _schemaLoaded = false;
 
   String get _cacheKey => widget.workflow.activityFacilityCacheKey;
+  String get _workflowMode {
+    final status = (widget.workflow.workflow?.state ??
+            widget.workflow.status ??
+            widget.workflow.activityFacility.status ??
+            '')
+        .trim()
+        .toUpperCase();
+    return status == FacilityInstallationStatus.rejectedByQcSpoc
+        ? 'resubmission'
+        : 'newReport';
+  }
 
   @override
   void initState() {
@@ -116,6 +128,14 @@ class _MachineFormPageState extends State<MachineFormPage> {
     final id = widget.workflow.activityFacility.id;
     if (id == null) return;
     final record = await pendingSubmissionRepository.read(id);
+    if (_workflowMode == 'resubmission' &&
+        record != null &&
+        !record.matchesAttempt(widget.workflow, _workflowMode)) {
+      await pendingSubmissionRepository.remove(id);
+      await installationCacheRepository.putJson('submission-payload', id, null);
+      await operationProgressRepository.clearJob(id);
+      return;
+    }
     if (!mounted || record == null) return;
     setState(() {
       _otpRequested = record.otpRequested;
@@ -124,7 +144,10 @@ class _MachineFormPageState extends State<MachineFormPage> {
   }
 
   Future<void> _onOtpRequested() async {
-    await pendingSubmissionRepository.markOtpRequested(widget.workflow);
+    await pendingSubmissionRepository.markOtpRequested(
+      widget.workflow,
+      workflowMode: _workflowMode,
+    );
     if (!mounted) return;
     setState(() => _otpRequested = true);
     _refreshCounts();
@@ -543,7 +566,10 @@ class _MachineFormPageState extends State<MachineFormPage> {
     if (!documentsReady(_formMedia.values.expand((files) => files))) return;
     await _save();
     if (mode == MachineReportSuccessMode.draft) {
-      await pendingSubmissionRepository.saveDraft(widget.workflow);
+      await pendingSubmissionRepository.saveDraft(
+        widget.workflow,
+        workflowMode: _workflowMode,
+      );
       if (!mounted) return;
       _refreshCounts();
     }
@@ -580,7 +606,10 @@ class _MachineFormPageState extends State<MachineFormPage> {
     _submissionStartInFlight = true;
     try {
       if (persistOtpApproval) {
-        await pendingSubmissionRepository.markOtpVerified(widget.workflow);
+        await pendingSubmissionRepository.markOtpVerified(
+          widget.workflow,
+          workflowMode: _workflowMode,
+        );
       }
       await _save();
       await installationCacheRepository.ensureSubmissionPayload(

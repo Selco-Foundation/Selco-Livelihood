@@ -266,6 +266,8 @@ class InstallationReport {
   String get rejectedSerialReason =>
       'INSTALLATION_REPORT_REJECTED_SERIAL_REASON';
   String get resubmit => 'INSTALLATION_REPORT_RESUBMIT';
+  String get completeBeforeResubmitting =>
+      'INSTALLATION_REPORT_COMPLETE_BEFORE_RESUBMITTING';
 }
 
 class SyncLoading {
