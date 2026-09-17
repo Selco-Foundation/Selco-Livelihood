@@ -1,9 +1,9 @@
-import re
 from typing import Set, Dict, Tuple
 import pandas as pd
 
 from app.core.logging import AppLogger
 from app.ingest.service.data_loader import DataLoader
+from app.utils.boundary_code_utils import normalize_boundary_segment
 
 logger = AppLogger().get_logger()
 class BoundaryExcelDataLoader(DataLoader):
@@ -53,20 +53,20 @@ class BoundaryExcelDataLoader(DataLoader):
 
         # Only process rows with complete data
         self.boundary_df.loc[has_all_values, "BoundaryCode"] = (
-                self.boundary_df.loc[has_all_values, "Country"].str.strip().apply(self.to_camel_case) + "_" +
-                self.boundary_df.loc[has_all_values, "State"].str.strip().apply(self.to_camel_case) + "_" +
-                self.boundary_df.loc[has_all_values, "District"].str.strip().apply(self.to_camel_case) + "_" +
-                self.boundary_df.loc[has_all_values, "Block"].str.strip().apply(self.to_camel_case)
+                self.boundary_df.loc[has_all_values, "Country"].str.strip().apply(normalize_boundary_segment) + "_" +
+                self.boundary_df.loc[has_all_values, "State"].str.strip().apply(normalize_boundary_segment) + "_" +
+                self.boundary_df.loc[has_all_values, "District"].str.strip().apply(normalize_boundary_segment) + "_" +
+                self.boundary_df.loc[has_all_values, "Block"].str.strip().apply(normalize_boundary_segment)
         )
 
         # Create normalized hierarchy combinations for uniqueness checking
         self.unique_boundary_codes = set()
         for _, row in self.boundary_df[has_all_values].iterrows():
             combo = (
-                self.to_camel_case(str(row['Country']).strip()),
-                self.to_camel_case(str(row['State']).strip()),
-                self.to_camel_case(str(row['District']).strip()),
-                self.to_camel_case(str(row['Block']).strip())
+                normalize_boundary_segment(str(row['Country']).strip()),
+                normalize_boundary_segment(str(row['State']).strip()),
+                normalize_boundary_segment(str(row['District']).strip()),
+                normalize_boundary_segment(str(row['Block']).strip())
             )
             self.unique_boundary_codes.add(combo)
 
@@ -75,14 +75,3 @@ class BoundaryExcelDataLoader(DataLoader):
 
     def get_unique_boundary_codes(self) -> Set[Tuple[str, str, str, str]]:
         return self.unique_boundary_codes
-
-    def to_camel_case(self, text: str) -> str:
-        if not text or not text.strip():
-            return ""
-
-        cleaned = re.sub(r"[_\-]+", " ", text.strip())
-
-        parts = cleaned.split()
-
-        # First letter of each token uppercased; concatenated for boundary codes (no spaces)
-        return "".join(word[:1].upper() + word[1:] for word in parts)

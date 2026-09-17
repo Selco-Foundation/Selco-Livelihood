@@ -15,6 +15,13 @@ class MDMSDataSource(BaseModel):
     master: Optional[str] = None
     module: Optional[str] = None
     filterType: Optional[str] = None
+    mode: Optional[str] = None  # "resolve" (default) | "direct" | "nested"
+    displayField: Optional[str] = None  # used by "resolve"; defaults to "name"
+    nestedField: Optional[str] = None  # used by "nested"; the array field to unwrap
+    # When a schema definition's JSON-schema locks mdmsSource to {path, master, module,
+    # filterType} only, mode/nestedField can't be stored directly -- mdms_client.py falls
+    # back to inferring them from filterType ("DIRECT_ONE_OF"/"NESTED_ONE_OF") and master
+    # (strip trailing "Schema" for the nested array field).
 
 
 class MDMSColumn(BaseModel):

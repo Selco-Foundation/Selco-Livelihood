@@ -5,7 +5,6 @@ import com.jayway.jsonpath.JsonPath;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.egov.common.contract.request.RequestInfo;
-import org.egov.common.contract.user.UserDetailResponse;
 import org.egov.common.models.core.URLParams;
 import org.egov.config.Configuration;
 import org.egov.repository.OrganisationRepository;
@@ -61,7 +60,6 @@ public class OrganisationUserServiceValidator {
 
     private static final String EMPLOYEE_ROLE_CODE = "EMPLOYEE";
     private static final String EMPLOYEE_ROLE_NAME = "Employee";
-    private static final String DEFAULT_ROLE_TENANT = "in";
     @Autowired
     public OrganisationUserServiceValidator(MDMSUtil mdmsUtil, Configuration configuration, OrganisationRepository organisationRepository,
                                             OrganisationUtil organisationUtil, HRMSUtils hrmsUtils, UserUtil userUtil,
@@ -136,7 +134,7 @@ public class OrganisationUserServiceValidator {
         if (employee == null || employee.isEmpty()) { //If user doesn't exist
             Organisation organisation = organisations.get(0);
             String orgType = organisation.getOrgType();
-            Map<String, List<Role>> rolesMap =  getOrgRoles(request.getRequestInfo());
+            Map<String, List<Role>> rolesMap =  getOrgRoles(request.getRequestInfo(), orgUser.getTenantId());
             if (rolesMap !=null && !rolesMap.isEmpty() && orgType !=null && !orgType.isBlank()){
                 List<Role> roles = rolesMap.get(orgType);
                 List<String> roleCodesMDMS = roles.stream().map(Role::getCode).filter(Objects::nonNull).toList();
@@ -178,15 +176,19 @@ public class OrganisationUserServiceValidator {
                     Employee employeeResp = employees.get(0);
                     request.setUser(employeeResp.getUser());
                     request.setUserId(employeeResp.getUser().getUuid());
-                    employeeResp.getUser().setPassword(configuration.getDefaultUserPassword());
-                    String url = configuration.getUserHost() + configuration.getUserUpdateEndpoint();
-                    UserRequest userRequest = userUtil.mapToUserRequest(employeeResp.getUser());
-                    CreateUserRequest createUserRequest = CreateUserRequest.builder()
-                            .requestInfo(request.getRequestInfo())
-                            .user(userRequest)
-                            .build();
-                    UserDetailResponse response = userUtil.updateUserPassword(createUserRequest, new StringBuilder(url));
-                    log.info("New user created and updated");
+                    String hrmsUserUuid = employeeResp.getUser().getUuid();
+                    try {
+                        User hrmsUser = hrmsUtils.resolveUserForPasswordUpdate(request.getRequestInfo(), employeeResp);
+                        userUtil.updatePasswordWithHrmsUser(
+                                request.getRequestInfo(),
+                                hrmsUser,
+                                configuration.getDefaultUserPassword());
+                        log.info("New user created and default password set for uuid {}", hrmsUserUuid);
+                    } catch (Exception passwordUpdateEx) {
+                        // HRMS/egov-user create already succeeded; do not block org-user link on password reset.
+                        log.warn("HRMS user {} created but default password update failed: {}",
+                                hrmsUserUuid, passwordUpdateEx.getMessage());
+                    }
                 }
                 else{
                     log.error("Error occured while creating the new user");
@@ -221,7 +223,7 @@ public class OrganisationUserServiceValidator {
                     Organisation organisation = organisations.get(0);
                     String orgType = organisation.getOrgType();
 
-                    Map<String, List<Role>> rolesMap = getOrgRoles(request.getRequestInfo());
+                    Map<String, List<Role>> rolesMap = getOrgRoles(request.getRequestInfo(), orgUser.getTenantId());
                     if (rolesMap != null && !rolesMap.isEmpty() && orgType != null && !orgType.isBlank()) {
                         List<Role> roles = rolesMap.get(orgType);
                         if (roles != null) {
@@ -463,7 +465,7 @@ public class OrganisationUserServiceValidator {
                 }
                 Organisation organisation = organisations.get(0);
                 String orgType = organisation.getOrgType();
-                Map<String, List<Role>> rolesMap =  getOrgRoles(request.getRequestInfo());
+                Map<String, List<Role>> rolesMap =  getOrgRoles(request.getRequestInfo(), orgUser.getTenantId());
                 if (rolesMap !=null && !rolesMap.isEmpty() && orgType !=null && !orgType.isBlank()){
                     List<Role> roles = rolesMap.get(orgType);
                     List<String> roleCodesMDMS = roles.stream().map(Role::getCode).filter(Objects::nonNull).toList();
@@ -637,21 +639,23 @@ public class OrganisationUserServiceValidator {
         }
     }
 
-    public Map<String, List<Role>> getOrgRoles(RequestInfo requestInfo){
-        Object mdmsData = mdmsUtil.mDMSCall(requestInfo, configuration.getGlobalTenantId());
+    public Map<String, List<Role>> getOrgRoles(RequestInfo requestInfo, String tenantId){
+        Object mdmsData = mdmsUtil.mDMSCall(requestInfo, tenantId);
         final String jsonPathForOrgRoles = MDMS_RES + MDMS_ORGANIZATION_MODULE_NAME + "." + MASTER_ORG_ROLES + "[*]";
-        List<Map<String, Object>> orgRolesRes = null;
         try {
-            orgRolesRes = JsonPath.read(mdmsData, jsonPathForOrgRoles);
+            List<Map<String, Object>> orgRolesRes = JsonPath.read(mdmsData, jsonPathForOrgRoles);
+            if (CollectionUtils.isEmpty(orgRolesRes)) {
+                throw new CustomException("INVALID_ROLES", "Org Roles is not configured in MDMS for tenant " + tenantId);
+            }
             List<Role> orgRolesList = orgRolesRes.stream()
                     .map(item -> mapper.convertValue(item, Role.class))
                     .toList();
-            Map<String, List<Role>> rolesByOrgType = orgRolesList.stream().collect(Collectors.groupingBy(Role::getOrgType));
-            return rolesByOrgType;
+            return orgRolesList.stream().collect(Collectors.groupingBy(Role::getOrgType));
+        } catch (CustomException e) {
+            throw e;
         } catch (Exception e) {
-            e.printStackTrace();
-            log.error(e.getMessage());
-            throw new CustomException("JSONPATH_ERROR", "Failed to parse mdms response");
+            log.error("Failed to parse MDMS OrgRoles for tenant {}", tenantId, e);
+            throw new CustomException("JSONPATH_ERROR", "Failed to parse mdms response for Organisation.OrgRoles (tenant: " + tenantId + ")");
         }
     }
 
@@ -797,7 +801,7 @@ public class OrganisationUserServiceValidator {
         if (!hasEmployeeRole) {
             String roleTenantId = StringUtils.isNotBlank(user.getTenantId())
                     ? userUtil.getStateLevelTenant(user.getTenantId())
-                    : DEFAULT_ROLE_TENANT;
+                    : configuration.getStateLevelTenantId();
             user.getRoles().add(Role.builder()
                     .code(EMPLOYEE_ROLE_CODE)
                     .name(EMPLOYEE_ROLE_NAME)

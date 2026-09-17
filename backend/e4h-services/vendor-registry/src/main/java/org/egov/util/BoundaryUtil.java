@@ -81,8 +81,8 @@ public class BoundaryUtil {
     }
 
     private StringBuilder getUri(String tenantId, String hierarchyTypeCode, String boundaryType, List<String> boundaries) {
-        StringBuilder uri = new StringBuilder(config.getLocationHost());
-        uri.append(config.getLocationContextPath()).append(config.getLocationEndpoint());
+        StringBuilder uri = new StringBuilder(config.getBoundaryHost());
+        uri.append(config.getBoundaryContextPath()).append(config.getBoundaryEndpoint());
         uri.append("?").append("tenantId=").append(tenantId);
 
         uri.append("&").append("codes=").append(StringUtils.join(boundaries, ','));

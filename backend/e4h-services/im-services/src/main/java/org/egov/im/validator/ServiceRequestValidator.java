@@ -7,6 +7,11 @@ import org.egov.common.contract.request.RequestInfo;
 import org.egov.im.config.IMConfiguration;
 import org.egov.im.repository.IMRepository;
 import org.egov.im.util.HRMSUtil;
+import org.egov.im.util.LivelihoodPocScopeService;
+import org.egov.im.util.LivelihoodTenantUtil;
+import org.egov.im.util.LivelihoodVendorScopeService;
+import org.egov.im.service.LivelihoodUpdateService;
+import org.egov.im.service.WorkflowService;
 import org.egov.im.web.models.*;
 import org.egov.tracer.model.CustomException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,11 +33,31 @@ public class ServiceRequestValidator {
 
     private HRMSUtil hrmsUtil;
 
+    private LivelihoodTenantUtil livelihoodTenantUtil;
+
+    private LivelihoodPocScopeService livelihoodPocScopeService;
+
+    private LivelihoodVendorScopeService livelihoodVendorScopeService;
+
+    private LivelihoodUpdateService livelihoodUpdateService;
+
+    private WorkflowService workflowService;
+
     @Autowired
-    public ServiceRequestValidator(IMConfiguration config, IMRepository repository, HRMSUtil hrmsUtil) {
+    public ServiceRequestValidator(IMConfiguration config, IMRepository repository, HRMSUtil hrmsUtil,
+                                   LivelihoodTenantUtil livelihoodTenantUtil,
+                                   LivelihoodPocScopeService livelihoodPocScopeService,
+                                   LivelihoodVendorScopeService livelihoodVendorScopeService,
+                                   LivelihoodUpdateService livelihoodUpdateService,
+                                   WorkflowService workflowService) {
         this.config = config;
         this.repository = repository;
         this.hrmsUtil = hrmsUtil;
+        this.livelihoodTenantUtil = livelihoodTenantUtil;
+        this.livelihoodPocScopeService = livelihoodPocScopeService;
+        this.livelihoodVendorScopeService = livelihoodVendorScopeService;
+        this.livelihoodUpdateService = livelihoodUpdateService;
+        this.workflowService = workflowService;
     }
 
 
@@ -45,14 +70,35 @@ public class ServiceRequestValidator {
         log.info("serviceRequestValidator::Validating incident create request");
         Map<String,String> errorMap = new HashMap<>();
         validateUserData(request,errorMap);
-        //validateSource(request.getService().getSource());
-        validateMDMS(request, mdmsData);
-        //validateDepartment(request, mdmsData);
-        validateBoundary(request, errorMap);
+        if (livelihoodTenantUtil.isLivelihood(request.getIncident().getTenantId())) {
+            validateLivelihoodCreate(request, mdmsData, errorMap);
+        } else {
+            validateMDMS(request, mdmsData);
+            validateBoundary(request, errorMap);
+        }
         if(!errorMap.isEmpty())
             throw new CustomException(errorMap);
     }
 
+    private void validateLivelihoodCreate(IncidentRequest request, Object mdmsData, Map<String, String> errorMap) {
+        Incident incident = request.getIncident();
+        if (StringUtils.isEmpty(incident.getFacilityId())) {
+            errorMap.put("FACILITY_ID_MISSING", "facilityId is mandatory for Livelihood ticket creation");
+        }
+        if (StringUtils.isEmpty(incident.getAssetId())) {
+            errorMap.put("ASSET_ID_MISSING", "assetId is mandatory for Livelihood ticket creation");
+        }
+        if (StringUtils.isEmpty(incident.getIncidentType())) {
+            errorMap.put("ISSUE_TYPE_MISSING", "incidentType (issue type) is mandatory for Livelihood ticket creation");
+        }
+        if (request.getWorkflow() == null || StringUtils.isEmpty(request.getWorkflow().getAction())) {
+            if (request.getWorkflow() == null) {
+                request.setWorkflow(Workflow.builder().action(LIVELIHOOD_WF_CREATE).build());
+            } else {
+                request.getWorkflow().setAction(LIVELIHOOD_WF_CREATE);
+            }
+        }
+    }
 
     /**
      * Validates if the update request is valid
@@ -82,6 +128,20 @@ public class ServiceRequestValidator {
         Incident existingIncident = incidentWrappers.get(0).getIncident();
         if (request.getIncident().getWarrantyStatus() == null && existingIncident != null) {
             request.getIncident().setWarrantyStatus(existingIncident.getWarrantyStatus());
+        }
+
+        if (livelihoodTenantUtil.isLivelihood(tenantId)) {
+            livelihoodPocScopeService.assertBoundaryInScope(
+                    request.getRequestInfo(),
+                    tenantId,
+                    existingIncident != null ? existingIncident.getBoundaryCode() : null
+            );
+            List<String> currentAssignees = workflowService.getCurrentAssigneeUuids(
+                    tenantId,
+                    existingIncident.getIncidentId(),
+                    request.getRequestInfo()
+            );
+            livelihoodUpdateService.validateUpdate(request, existingIncident, currentAssignees);
         }
 
     }
@@ -125,6 +185,9 @@ public class ServiceRequestValidator {
     private void validateMDMS(IncidentRequest request, Object mdmsData){
         log.info("serviceRequestValidator::Validating mdms data");
         String serviceCode = request.getIncident().getIncidentSubType();
+        if (StringUtils.isEmpty(serviceCode)) {
+            throw new CustomException("INVALID_SERVICECODE", "incidentSubType is mandatory for incident creation");
+        }
         String jsonPath = MDMS_SERVICEDEF_SEARCH.replace("{SERVICEDEF}",serviceCode);
 
         List<Object> res = null;
@@ -197,9 +260,14 @@ public class ServiceRequestValidator {
      */
     private void validateReOpen(IncidentRequest request){
         log.info("serviceRequestValidator::Validating incident reopen request");
-        if(!request.getWorkflow().getAction().equalsIgnoreCase(IM_WF_REOPEN))
+        if (request.getWorkflow() == null
+                || !request.getWorkflow().getAction().equalsIgnoreCase(IM_WF_REOPEN)) {
             return;
+        }
 
+        if (livelihoodTenantUtil.isLivelihood(request.getIncident().getTenantId())) {
+            return;
+        }
 
         Incident incident = request.getIncident();
         RequestInfo requestInfo = request.getRequestInfo();
@@ -243,8 +311,11 @@ public class ServiceRequestValidator {
      */
     private void validateSearchParam(RequestInfo requestInfo, RequestSearchCriteria criteria){
         log.info("serviceRequestValidator::Validating incident search param");
-        if(requestInfo.getUserInfo().getType().equalsIgnoreCase("EMPLOYEE" ) && criteria.isEmpty())
-            throw new CustomException("INVALID_SEARCH","Search without params is not allowed");
+        if(requestInfo.getUserInfo().getType().equalsIgnoreCase("EMPLOYEE" ) && criteria.isEmpty()) {
+            if (!livelihoodVendorScopeService.allowsVendorSearchWithoutExtraParams(requestInfo, criteria)) {
+                throw new CustomException("INVALID_SEARCH", "Search without params is not allowed");
+            }
+        }
 
 //        if(requestInfo.getUserInfo().getType().equalsIgnoreCase("EMPLOYEE") && criteria.getTenantId().split("\\.").length == config.getStateLevelTenantIdLength()){
 //            throw new CustomException("INVALID_SEARCH", "Employees cannot perform state level searches.");
@@ -273,8 +344,14 @@ public class ServiceRequestValidator {
         if(criteria.getPhcType()!=null && !allowedParams.contains("phcType"))
             throw new CustomException("INVALID SEARCH","Search on PHCType is not allowed");
 
+        if(criteria.getFacilityState()!=null && !allowedParams.contains("facilityState"))
+            throw new CustomException("INVALID SEARCH","Search on facilityState is not allowed");
+
         if(criteria.getIds()!=null && !allowedParams.contains("ids"))
             throw new CustomException("INVALID SEARCH","Search on ids is not allowed");
+
+        if(criteria.getDistrict()!=null && !allowedParams.contains("district"))
+            throw new CustomException("INVALID SEARCH","Search on district is not allowed");
 
     }
 

@@ -5,11 +5,10 @@ import pandas as pd
 import requests
 
 from app.core.logging import AppLogger
+from app.core.tenant import LIVELIHOOD_TENANT_ID
 from app.schemas.request_info import RequestInfo
 
 logger = AppLogger().get_logger()
-
-DEFAULT_TENANT_ID = "in"
 
 class OrganizationServiceClient:
     def __init__(self, org_service_url: str):
@@ -59,7 +58,7 @@ class OrganizationServiceClient:
         try:
             payload = {
                 "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
-                "SearchCriteria": {"tenantId": "in", "createdFrom": 0},
+                "SearchCriteria": {"tenantId": LIVELIHOOD_TENANT_ID, "createdFrom": 0},
                 "Pagination": {"limit": 10000, "offset": 0},
             }
             response = requests.post(
@@ -84,7 +83,7 @@ class OrganizationServiceClient:
             self,
             vendor_code: str,
             request_info: RequestInfo,
-            tenant_id: str = DEFAULT_TENANT_ID,
+            tenant_id: str = LIVELIHOOD_TENANT_ID,
     ) -> Dict[str, Optional[str]]:
         """
         Resolve mappedVendorName (organisation name) and mappedVendorUserName (first org user's userName)

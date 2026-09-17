@@ -4,6 +4,7 @@ from typing import Dict, Any
 import requests
 
 from app.core.logging import AppLogger
+from app.core.tenant import LIVELIHOOD_TENANT_ID
 from app.schemas.request_info import RequestInfo
 from app.schemas.vendor_ingestion_shema_response import ResponseInfo
 
@@ -26,7 +27,7 @@ class FieldPlanServiceClient:
                 'facilityId': facility_id,
                 'fieldPlanId': fieldPlan_id,
                 'isdeleted': False,
-                'tenantId': 'in'
+                'tenantId': LIVELIHOOD_TENANT_ID
             }
         }
         try:
@@ -59,7 +60,7 @@ class FieldPlanServiceClient:
                     "facilityId": facility_id,
                     "fieldPlanId": fieldPlan_id,
                     "isdeleted": False,
-                    "tenantId": "in"
+                    "tenantId": LIVELIHOOD_TENANT_ID
                 }
                 for facility_id in facility_ids
             ]
@@ -84,7 +85,7 @@ class FieldPlanServiceClient:
             raise req_err
 
     def search_fieldPlan(self, request_info: RequestInfo, fieldplan_id: str) -> Dict[str, Any]:
-        tenant_id = "in"
+        tenant_id = LIVELIHOOD_TENANT_ID
         limit = 1000
         offset = 0
         all_facilities = []
@@ -144,7 +145,7 @@ class FieldPlanServiceClient:
             raise req_err
 
     def search_fieldplan_facility(self, request_info: RequestInfo, fieldplan_id: str) -> Dict[str, Any]:
-        tenant_id = "in"
+        tenant_id = LIVELIHOOD_TENANT_ID
         limit = 1000
         offset = 0
         all_facilities = []
@@ -250,7 +251,7 @@ class FieldPlanServiceClient:
                 'facilityId': facility_id,
                 'fieldPlanId': fieldplan_id,
                 'isdeleted': True,
-                'tenantId': 'in'
+                'tenantId': LIVELIHOOD_TENANT_ID
             }
 
             update_payload = {

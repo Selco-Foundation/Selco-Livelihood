@@ -31,12 +31,15 @@ public class BoundaryValidator {
     @Value("${egov.boundary.path:/boundary-service/boundary/_search}")
     private String boundaryPath;
 
+    @Value("${egov.boundary.tenant.id:livelihood}")
+    private String boundaryTenantId;
+
     /**
      * Validates that each boundaryCode in the given set exists for the specified tenant.
      * Makes a call to the boundary service using the provided tenantId and RequestInfo.
      *
      * @param boundaryCodes Set of boundary codes to validate
-     * @param tenantId Tenant identifier (e.g., "pg.city")
+     * @param tenantId Tenant identifier on the facility row (unused when boundary tenant is configured)
      * @param requestInfo Metadata about the user and request context
      */
     public void validateBoundaries(Set<String> boundaryCodes, String tenantId, RequestInfo requestInfo) {
@@ -54,7 +57,7 @@ public class BoundaryValidator {
         // Construct the complete URI for boundary search
         String uri = UriComponentsBuilder.fromUriString(boundaryHost)
                 .path(boundaryPath)
-                .queryParam("tenantId", tenantId)
+                .queryParam("tenantId", boundaryTenantId)
                 .queryParam("codes", codes)
                 .queryParam("offset", 0)
                 .queryParam("limit", boundaryCodes.size())

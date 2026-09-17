@@ -1,22 +1,35 @@
 import requests
 import sys
 import json
+import os
 import shlex
 from urllib.parse import urlencode
 
 # Hosts
-USER_HOST = "http://egov-user.core-dev:8080"
-WORKFLOW_HOST = "http://egov-workflow-v2.core-dev:8080"
+USER_HOST = "http://egov-user.core:8080"
+WORKFLOW_HOST = "http://egov-workflow-v2.core:8080"
 
 # Business services to loop through
-business_services = ["Incident","Incident_Low", "Incident_High", "Incident_Medium"]
+business_services = ["LivelihoodIncident"]
 
-# Ensure at least one tenant ID is provided
-if len(sys.argv) < 2:
-    print("Usage: python script.py <tenant_id_1> <tenant_id_2> ...")
+DEFAULT_TENANT_IDS = ("livelihood",)
+
+
+def resolve_tenant_ids() -> list[str]:
+    if len(sys.argv) > 1:
+        return sys.argv[1:]
+    env_tenants = os.environ.get("SLA_TENANT_IDS") or os.environ.get("TENANT_ID")
+    if env_tenants:
+        return [t.strip() for t in env_tenants.replace(",", " ").split() if t.strip()]
+    return list(DEFAULT_TENANT_IDS)
+
+
+tenant_ids = resolve_tenant_ids()
+
+if not tenant_ids:
+    print("Usage: python cronJobAPIConfig.py [tenant_id ...]")
+    print(f"Defaults to {', '.join(DEFAULT_TENANT_IDS)} when no tenant is provided.")
     sys.exit(1)
-
-tenant_ids = sys.argv[1:]
 
 for tenant_id in tenant_ids:
     print(f"\n Processing tenant ID: {tenant_id}")
@@ -38,7 +51,6 @@ for tenant_id in tenant_ids:
             "authToken": "5eb3655f-31b1-4cd5-b8c2-4f9c033510d4"
         },
         "tenantId": tenant_id,
-        "userType": "SYSTEM",
         "userName": "CRONJOB",
         "pageSize": "1",
         "roleCodes": ["SYSTEM"]

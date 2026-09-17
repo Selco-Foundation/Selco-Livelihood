@@ -1,11 +1,14 @@
 package org.egov.wf.service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.StringUtils;
 import org.egov.common.contract.request.RequestInfo;
+import org.egov.tracer.model.CustomException;
 import org.egov.wf.config.WorkflowConfig;
 import org.egov.wf.producer.Producer;
 import org.egov.wf.repository.EscalationRepository;
@@ -60,7 +63,7 @@ public class EscalationService {
 
         Object mdmsData = mdmsService.mDMSCall(requestInfo);
         List<Escalation> escalations = escalationUtil.getEscalationsFromConfig(businessService, mdmsData);
-        List<String> tenantIds = escalationUtil.getTenantIds(mdmsData);
+        List<String> tenantIds = resolveEscalationTenantIds(requestInfo, mdmsData);
 
         for(Escalation escalation : escalations){
 
@@ -68,6 +71,32 @@ public class EscalationService {
 
         }
 
+    }
+
+    /**
+     * MDMS tenant master may list state-level codes (e.g. {@code in}) while Livelihood
+     * publishes its business service at {@code livelihood}. Always include the caller's tenant.
+     */
+    private List<String> resolveEscalationTenantIds(RequestInfo requestInfo, Object mdmsData) {
+        LinkedHashSet<String> tenantIds = new LinkedHashSet<>(escalationUtil.getTenantIds(mdmsData));
+        if (requestInfo != null && requestInfo.getUserInfo() != null
+                && StringUtils.isNotBlank(requestInfo.getUserInfo().getTenantId())) {
+            tenantIds.add(requestInfo.getUserInfo().getTenantId());
+        }
+        return new ArrayList<>(tenantIds);
+    }
+
+    private String resolveStatusUuidOrSkip(String statusCode, String tenantId, String businessService) {
+        try {
+            return escalationUtil.getStatusUUID(statusCode, tenantId, businessService);
+        } catch (CustomException ex) {
+            if ("BUSINESSSERVICE_NOT_FOUND".equals(ex.getCode()) || "STATUS_NOT_FOUND".equals(ex.getCode())) {
+                log.debug("Skipping escalation for tenantId={} businessService={}: {}",
+                        tenantId, businessService, ex.getMessage());
+                return null;
+            }
+            throw ex;
+        }
     }
 
 
@@ -80,8 +109,11 @@ public class EscalationService {
 
         for(String tenantId: tenantIds){
 
-
-            String stateUUID = escalationUtil.getStatusUUID(escalation.getStatus(), tenantId, escalation.getBusinessService());
+            String stateUUID = resolveStatusUuidOrSkip(
+                    escalation.getStatus(), tenantId, escalation.getBusinessService());
+            if (stateUUID == null) {
+                continue;
+            }
 
             EscalationSearchCriteria criteria = EscalationSearchCriteria.builder().tenantId(tenantId)
                                                 .status(stateUUID)
@@ -128,7 +160,7 @@ public class EscalationService {
 
         Object mdmsData = mdmsService.mDMSCall(requestInfo);
         List<Escalation> escalations = escalationUtil.getEscalationsFromConfig(businessService, mdmsData);
-        List<String> tenantIds = escalationUtil.getTenantIds(mdmsData);
+        List<String> tenantIds = resolveEscalationTenantIds(requestInfo, mdmsData);
 
         List<String> ids = new LinkedList<>();
 
@@ -152,8 +184,11 @@ public class EscalationService {
 
         for(String tenantId: tenantIds){
 
-
-            String stateUUID = escalationUtil.getStatusUUID(escalation.getStatus(), tenantId, escalation.getBusinessService());
+            String stateUUID = resolveStatusUuidOrSkip(
+                    escalation.getStatus(), tenantId, escalation.getBusinessService());
+            if (stateUUID == null) {
+                continue;
+            }
 
             EscalationSearchCriteria criteria = EscalationSearchCriteria.builder().tenantId(tenantId)
                     .status(stateUUID)

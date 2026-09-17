@@ -267,6 +267,18 @@ public class CommonUtility {
             case "PENDING_RESOLUTION_OUT_OF_WARRANTY":
                 return "Out of Warranty - pending for resolution with Vendor";
 
+            case "PENDING_FOR_RESOLUTION":
+                return "Pending for Resolution - with Vendor";
+
+            case "OUT_OF_SCOPE_PENDING_POC":
+                return "Out of Scope - pending with Program POC";
+
+            case "OUT_OF_SCOPE_PENDING_VENDOR":
+                return "Out of Scope - pending with Vendor";
+
+            case "OUT_OF_WARRANTY_PENDING_VENDOR":
+                return "Out of Warranty - pending with Vendor";
+
             default:
                 // Don't show workflow states that are not configured in MDMS
                 return null;

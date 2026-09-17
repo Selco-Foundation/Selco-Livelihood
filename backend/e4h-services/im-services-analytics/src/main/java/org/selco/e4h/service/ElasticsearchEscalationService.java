@@ -24,7 +24,7 @@ public class ElasticsearchEscalationService {
     private final ConsumerConfiguration consumerConfiguration;
     
     private static final String BULK_ENDPOINT = "_bulk";
-    private static final String INDEX_NAME = "computed-sla-im-services-write";
+    private static final String INDEX_NAME = "computed-sla-livelihood-incident-index-v1";
 
     @Autowired
     private UpdateUtils indexerUtils;

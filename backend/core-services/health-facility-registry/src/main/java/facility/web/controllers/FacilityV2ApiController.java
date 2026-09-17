@@ -268,7 +268,7 @@ public class FacilityV2ApiController {
     @PostMapping("/_backfill-boundary-relationships")
     public ResponseEntity<FacilityBoundaryBackfillResponse> backfillFacilityBoundaryRelationships(
             @io.swagger.v3.oas.annotations.parameters.RequestBody(
-                    description = "Backfill request (boundary tenantId=in for all facilities)",
+                    description = "Backfill request (boundary tenant from egov.boundary.tenant.id)",
                     required = true
             )
             @Valid @RequestBody FacilityBoundaryBackfillRequest request) {

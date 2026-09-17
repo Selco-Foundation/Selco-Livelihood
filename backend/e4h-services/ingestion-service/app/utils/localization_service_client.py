@@ -40,12 +40,28 @@ class LocalizationServiceClient:
             "tenantId": tenant_id,
             "messages": messages,
         }
+        headers = {"Content-Type": "application/json"}
+        auth_token = getattr(request_info, "auth_token", None)
+        if auth_token:
+            headers["auth-token"] = auth_token
+
         try:
-            response = requests.post(url, json=payload, timeout=time_out)
+            response = requests.post(url, json=payload, headers=headers, timeout=time_out)
             response.raise_for_status()
             return response.json() if response.content else {}
         except HTTPError as e:
-            logger.error(f"HTTP error during localization upsert: {e}")
+            response_body = ""
+            if e.response is not None:
+                try:
+                    response_body = e.response.text
+                except Exception:
+                    response_body = ""
+            logger.error(
+                "HTTP error during localization upsert: %s; response=%s; sampleCode=%s",
+                e,
+                response_body,
+                messages[0].get("code") if messages else None,
+            )
             raise
         except ConnectionError as e:
             logger.error(f"Connection error during localization upsert: {e}")

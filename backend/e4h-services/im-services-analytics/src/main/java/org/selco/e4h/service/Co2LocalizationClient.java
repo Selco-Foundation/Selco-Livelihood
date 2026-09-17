@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Resolves boundary display names via egov-localization ({@code rainmaker-in} module).
+ * Resolves boundary display names via egov-localization ({@code rainmaker-livelihood} module).
  */
 @Slf4j
 @Component
@@ -104,10 +104,13 @@ public class Co2LocalizationClient {
     }
 
     static String toLocalizationCode(String rawCode) {
-        if (rawCode.startsWith("Boundary_")) {
+        if (rawCode.startsWith("BOUNDARY_")) {
             return rawCode;
         }
-        return "Boundary_" + rawCode;
+        if (rawCode.startsWith("Boundary_")) {
+            return "BOUNDARY_" + rawCode.substring("Boundary_".length());
+        }
+        return "BOUNDARY_" + rawCode;
     }
 
     private Map<String, String> fetchLabels(RequestInfo requestInfo,

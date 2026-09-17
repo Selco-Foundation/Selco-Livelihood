@@ -95,6 +95,12 @@ public class IMConfiguration {
     @Value("${is.workflow.enabled}")
     private Boolean isWorkflowEnabled;
 
+    @Value("${egov.workflow.processinstance.search.retry.maxattempts:3}")
+    private Integer wfProcessInstanceSearchRetryMaxAttempts;
+
+    @Value("${egov.workflow.processinstance.search.retry.delayms:150}")
+    private Long wfProcessInstanceSearchRetryDelayMs;
+
 
     // im Variables
 
@@ -323,12 +329,46 @@ public class IMConfiguration {
     @Value("${egov.facility.search.path}")
     private String facilitySearchPath;
 
+    // Asset Registry Config
+    @Value("${egov.asset.host}")
+    private String assetRegistryHost;
+
+    @Value("${egov.asset.search.path}")
+    private String assetRegistrySearchPath;
+
+    @Value("${egov.asset.update.path:/asset-registry/v1/asset/_update}")
+    private String assetRegistryUpdatePath;
+
+    @Value("${egov.vendor.host:}")
+    private String vendorHost;
+
+    @Value("${egov.vendor.organisation.search.path:/vendor/organisation/v1/_search}")
+    private String vendorOrganisationSearchPath;
+
+    @Value("${egov.vendor.organisation.user.search.path:/vendor/organisation/v1/user/_search}")
+    private String vendorOrganisationUserSearchPath;
+
+    @Value("${im.livelihood.tenant.id:livelihood}")
+    private String livelihoodTenantId;
+
+    @Value("${livelihood.mobile.app.link}")
+    private String livelihoodMobileAppLink;
+
+    @Value("${livelihood.localization.module:rainmaker-livelihood}")
+    private String livelihoodLocalizationModule;
+
+    @Value("${egov.kafka.notification.email.topic:egov.core.notification.email}")
+    private String notificationEmailTopic;
+
     //Boundary Service Config
     @Value("${egov.boundary.host}")
     private String boundaryHost;
 
     @Value("${egov.boundary.search.path}")
     private String boundarySearchPath;
+
+    @Value("${egov.boundary.hierarchy.type:SELCO}")
+    private String boundaryHierarchyType;
 
     // Theft notification (cron + endpoint)
     @Value("${im.theft.notification.cron:0 0 9 * * ?}")

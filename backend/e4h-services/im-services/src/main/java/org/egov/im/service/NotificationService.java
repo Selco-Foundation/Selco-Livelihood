@@ -11,6 +11,7 @@ import org.egov.common.utils.MultiStateInstanceUtil;
 import org.egov.im.config.IMConfiguration;
 import org.egov.im.repository.ServiceRequestRepository;
 import org.egov.im.util.HRMSUtil;
+import org.egov.im.util.LivelihoodTenantUtil;
 import org.egov.im.util.MDMSUtils;
 import org.egov.im.util.NotificationUtil;
 import org.egov.im.web.models.Notification.*;
@@ -51,6 +52,8 @@ public class NotificationService {
 
     private WorkflowSmsNotificationService workflowSmsNotificationService;
 
+    private LivelihoodTenantUtil livelihoodTenantUtil;
+
     @Autowired
     public NotificationService(IMConfiguration config,
                                NotificationUtil notificationUtil,
@@ -60,7 +63,8 @@ public class NotificationService {
                                ObjectMapper mapper,
                                MultiStateInstanceUtil centralInstanceUtil,
                                @Lazy WorkflowService workflowService,
-                               @Lazy WorkflowSmsNotificationService workflowSmsNotificationService) {
+                               @Lazy WorkflowSmsNotificationService workflowSmsNotificationService,
+                               LivelihoodTenantUtil livelihoodTenantUtil) {
         this.config = config;
         this.notificationUtil = notificationUtil;
         this.serviceRequestRepository = serviceRequestRepository;
@@ -70,10 +74,16 @@ public class NotificationService {
         this.centralInstanceUtil = centralInstanceUtil;
         this.workflowService = workflowService;
         this.workflowSmsNotificationService = workflowSmsNotificationService;
+        this.livelihoodTenantUtil = livelihoodTenantUtil;
     }
 
     public void process(IncidentRequest request, String topic) {
         try {
+            if (request != null && request.getIncident() != null
+                    && livelihoodTenantUtil.isLivelihood(request.getIncident().getTenantId())) {
+                log.debug("Skipping E4H notification pipeline for livelihood tenant");
+                return;
+            }
             log.info("request for notification :" + request);
             workflowSmsNotificationService.process(request);
             String tenantId = request.getIncident().getTenantId();
@@ -805,14 +815,15 @@ public class NotificationService {
         employeeName = JsonPath.read(response, HRMS_EMP_NAME_JSONPATH);
         employeeMobile = JsonPath.read(response, HRMS_EMP_MOBILE_JSONPATH);
         employeeUUID = JsonPath.read(response, HRMS_EMP_UUID_JSONPATH);
-        //}
-//        catch (Exception e){
-//            throw new CustomException("JSONPATH_ERROR","Failed to parse mdms response for department");
-//        }
-//
-//        String localisedDesignation = notificationUtil.getCustomizedMsgForPlaceholder(localisationMessageForPlaceholder,"COMMON_MASTERS_DESIGNATION_"+designation.get(0));
-//
-//        reassigneeDetails.put("designation",localisedDesignation);
+
+        if (CollectionUtils.isEmpty(employeeUUID) || StringUtils.isEmpty(employeeUUID.get(0))) {
+            if (ROLE_LIVELIHOOD_POC.equals(role)) {
+                throw new CustomException(POC_JURISDICTION_MISSING_CODE, POC_JURISDICTION_MISSING_MSG);
+            }
+            throw new CustomException("HRMS_EMPLOYEE_NOT_FOUND",
+                    "No active HRMS employee found for role: " + role);
+        }
+
         reassigneeDetails.put("employeeName", employeeName.get(0));
         reassigneeDetails.put("employeeMobile", employeeMobile.get(0));
 
@@ -963,7 +974,10 @@ public class NotificationService {
                 || (PENDINGFORASSIGNMENT_RMS_DEVICE.equalsIgnoreCase(applicationStatus)
                 && APPLY_RMS_DEVICE.equalsIgnoreCase(action))
                 || (PENDINGFORASSIGNMENT_THEFT.equalsIgnoreCase(applicationStatus)
-                && APPLY_THEFT.equalsIgnoreCase(action));
+                && APPLY_THEFT.equalsIgnoreCase(action))
+                || (LIVELIHOOD_PENDING_FOR_RESOLUTION.equalsIgnoreCase(applicationStatus)
+                && (LIVELIHOOD_WF_AUTO_ASSIGN.equalsIgnoreCase(action)
+                || LIVELIHOOD_WF_CREATE.equalsIgnoreCase(action)));
     }
 
 }

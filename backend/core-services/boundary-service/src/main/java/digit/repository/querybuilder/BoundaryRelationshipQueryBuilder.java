@@ -9,7 +9,9 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.util.ObjectUtils;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Component
 @Slf4j
@@ -79,8 +81,15 @@ public class BoundaryRelationshipQueryBuilder {
 
             if (!CollectionUtils.isEmpty(boundaryRelationshipSearchCriteria.getCodes())) {
                 QueryUtil.addClauseIfRequired(builder, preparedStmtList);
-                builder.append(" code IN ( ").append(QueryUtil.createQuery(boundaryRelationshipSearchCriteria.getCodes().size())).append(" )");
-                QueryUtil.addToPreparedStatement(preparedStmtList, new HashSet<>(boundaryRelationshipSearchCriteria.getCodes()));
+                Set<String> codesSet = boundaryRelationshipSearchCriteria.getCodes().stream()
+                        .filter(Objects::nonNull)
+                        .map(String::trim)
+                        .filter(code -> !code.isEmpty())
+                        .collect(Collectors.toCollection(HashSet::new));
+                if (!codesSet.isEmpty()) {
+                    builder.append(" code IN ( ").append(QueryUtil.createQuery(codesSet.size())).append(" )");
+                    QueryUtil.addToPreparedStatement(preparedStmtList, codesSet);
+                }
             }
         }
 

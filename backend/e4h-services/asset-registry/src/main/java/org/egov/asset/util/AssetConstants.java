@@ -17,6 +17,9 @@ public class AssetConstants {
     public static final String SYSTEM_CODE = "SystemSchema";
     public static final String WARRANTY_DURATION = "WarrantyDurationSchema";
 
+    public static final String LIVELIHOOD_MODULE = "livelihood";
+    public static final String ITEM_CODE_MASTER = "ItemCode";
+
     public static final String SYSTEM_DC = "DC";
     public static final String SYSTEM_AC_OFF_GRID = "AC_OFF_GRID";
     public static final Set<Double> VALID_DC_BATTERY_CAPACITIES = new HashSet<>(

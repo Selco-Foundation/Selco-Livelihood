@@ -4,6 +4,7 @@ from typing import Dict, Any
 import requests
 
 from app.core.logging import AppLogger
+from app.core.tenant import LIVELIHOOD_TENANT_ID
 from app.schemas.request_info import RequestInfo
 from app.schemas.vendor_ingestion_shema_response import ResponseInfo
 
@@ -135,7 +136,7 @@ class ProjectServiceClient:
             "Content-Type": "application/json"
         }
         params = {
-            "tenantId": "in",
+            "tenantId": LIVELIHOOD_TENANT_ID,
             "limit": "2",
             "offset": "0",
             "includeDeleted": "true"
@@ -163,7 +164,7 @@ class ProjectServiceClient:
             raise req_err
 
     def search_project_facility(self, request_info: RequestInfo, project_id: str) -> Dict[str, Any]:
-        tenant_id = "in"
+        tenant_id = LIVELIHOOD_TENANT_ID
         limit = 1000
         offset = 0
         all_facilities = []
@@ -233,7 +234,7 @@ class ProjectServiceClient:
                 'facilityId': facility_id,
                 'projectId': project_id,
                 'isDeleted': False,
-                'tenantId': 'in'
+                'tenantId': LIVELIHOOD_TENANT_ID
             }
         }
         logger.trace(f"Creating project facility: project_id={project_id}, facility_id={facility_id}")
@@ -269,7 +270,7 @@ class ProjectServiceClient:
                     "facilityId": facility_id,
                     "projectId": project_id,
                     "isDeleted": False,
-                    "tenantId": "in"
+                    "tenantId": LIVELIHOOD_TENANT_ID
                 }
                 for facility_id in facility_ids
             ]
@@ -300,7 +301,7 @@ class ProjectServiceClient:
             "Content-Type": "application/json"
         }
         params = {
-            "tenantId": "in",
+            "tenantId": LIVELIHOOD_TENANT_ID,
             "limit": 1,
             "offset": 0,
             "includeAncestors": "false",
@@ -412,7 +413,7 @@ class ProjectServiceClient:
                 'facilityId': facility_id,
                 'projectId': project_id,
                 'isDeleted': True,
-                'tenantId': 'in'
+                'tenantId': LIVELIHOOD_TENANT_ID
             }
 
             # Only add rowVersion if it exists in the source record

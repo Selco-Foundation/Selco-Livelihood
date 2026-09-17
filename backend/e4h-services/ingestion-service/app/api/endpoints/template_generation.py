@@ -12,8 +12,10 @@ from openpyxl.styles import Protection, PatternFill
 from openpyxl.utils import get_column_letter
 
 from app.core.logging import AppLogger
+from app.core.tenant import LIVELIHOOD_TENANT_ID
 from app.decorators.rbac_validator import get_authorized_request_info
 from app.ingest.facility_template_service import FacilityTemplateService
+from app.ingest.asset_template_service import AssetTemplateService
 from app.ingest.project_service import ProjectService
 from app.schemas.boundary import Boundary, flatten_boundaries
 from app.utils.amc_scheduler_service_client import AMCSchedulerServiceClient
@@ -26,6 +28,7 @@ from app.utils.fieldplan_service_client import FieldPlanServiceClient
 from app.utils.file_utils import create_temp_file, cleanup_temp_file
 from app.utils.mdms_client import MDMSClient
 from app.utils.project_service_client import ProjectServiceClient
+from app.utils.vendor_registry_client import VendorRegistryClient
 import os, tempfile, zipfile, qrcode, shutil
 
 router = APIRouter()
@@ -40,6 +43,7 @@ facility_service_url = os.getenv("FACILITY_SERVICE_URL")
 fieldPlan_service_url = os.getenv("FIELDPLAN_SERVICE_URL")
 fieldPlan_activity_service_url = os.getenv("FIELDPLAN_ACTIVITY_SERVICE_URL")
 amc_scheduler_service_url = os.getenv("AMC_SCHEDULER_SERVICE_URL")
+vendor_service_url = os.getenv("VENDOR_SERVICE_URL")
 DEFAULT_AMC_ASSET_TYPES = ["INVERTER", "PANEL", "BATTERY"]
 DB_CONFIG = {
     "host": os.getenv("DB_HOST"),
@@ -103,7 +107,7 @@ async def get_facility_ingestion_template_with_data(
                 if boundary_codes:
                     bulk_result = facility_client.bulk_search_facility_with_boundary(
                         request_info=request_info,
-                        tenant_ids=["in"],
+                        tenant_ids=[LIVELIHOOD_TENANT_ID],
                         boundary_codes=boundary_codes,
                         limit=max(len(boundary_codes) * 50, 50),
                         send_non_paginated_response=True,
@@ -158,7 +162,7 @@ async def get_facility_ingestion_template_with_data(
                         if facility_ids_to_fetch:
                             bulk_result = facility_client.bulk_search_facility(
                                 request_info=request_info,
-                                tenant_ids=["in"],
+                                tenant_ids=[LIVELIHOOD_TENANT_ID],
                                 facility_ids=facility_ids_to_fetch,
                                 limit=max(len(facility_ids_to_fetch), 50),
                                 send_non_paginated_response=True,
@@ -327,7 +331,7 @@ async def get_facility_ingestion_template_with_data(
             try:
                 boundary_bulk_result = facility_client.bulk_search_facility_with_boundary(
                     request_info=request_info,
-                    tenant_ids=["in"],
+                    tenant_ids=[LIVELIHOOD_TENANT_ID],
                     boundary_codes=boundary_codes,
                     limit=max(len(boundary_codes) * 50, 50),
                     send_non_paginated_response=True,
@@ -359,7 +363,7 @@ async def get_facility_ingestion_template_with_data(
                     try:
                         facilities_bulk_result = facility_client.bulk_search_facility(
                             request_info=request_info,
-                            tenant_ids=["in"],
+                            tenant_ids=[LIVELIHOOD_TENANT_ID],
                             facility_ids=facility_ids,
                             limit=max(len(facility_ids), 50),
                             send_non_paginated_response=True,
@@ -466,12 +470,11 @@ async def get_facility_ingestion_template(
     mdms_client = MDMSClient(mdms_url)
     try:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_filename = f"facility_ingestion_template_{timestamp}.xlsx"
+        output_filename = f"end_user_ingestion_template_{timestamp}.xlsx"
         output_file_path = create_temp_file(suffix=".xlsx")
         try:
             facility_schema = mdms_client.get_column_definitions_with_metadata(request_info, 'data-ingestion.FacilityIngestionSchemaWithoutBoundaryCode')
             boundary_data = facility_service.get_all_boundaries(request_info)
-            vendor_data = facility_service.get_all_vendor_codes(request_info)
         except Exception as e:
             logger.error(f"Error fetching data from external services: {e}")
             cleanup_temp_file(output_file_path)
@@ -481,8 +484,7 @@ async def get_facility_ingestion_template(
             facility_service.generate_template_file(
                 output_path=output_file_path,
                 facility_schema=facility_schema,
-                boundary_data=boundary_data,
-                vendor_data=vendor_data
+                boundary_data=boundary_data
             )
             logger.info(f"Successfully created facility ingestion template at {output_file_path}")
         except Exception as e:
@@ -498,6 +500,71 @@ async def get_facility_ingestion_template(
 
     except Exception as e:
         logger.error(f"Unhandled error in get_facility_ingestion_template: {e}")
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+
+@router.post('/assetIngestion',
+            summary='Generate asset ingestion template Excel file from the asset schema',
+            response_description="Returns Excel template with asset schema columns")
+async def get_asset_ingestion_template(request_info: str = Form(default="")):
+    request_info = request_info_from_json(request_info)
+    mdms_client = MDMSClient(mdms_url)
+    asset_service = AssetTemplateService()
+    try:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_filename = f"asset_ingestion_template_{timestamp}.xlsx"
+        output_file_path = create_temp_file(suffix=".xlsx")
+        try:
+            asset_schema = mdms_client.get_column_definitions_with_metadata(
+                request_info, 'data-ingestion.AssetIngestionSchema')
+        except Exception as e:
+            logger.error(f"Error fetching asset schema from MDMS: {e}")
+            cleanup_temp_file(output_file_path)
+            raise HTTPException(status_code=502, detail=f"External service error: {str(e)}")
+
+        facility_data = []
+        if facility_service_url:
+            try:
+                facility_client = FacilityServiceClient(facility_service_url)
+                bulk_result = facility_client.bulk_search_facility_with_boundary(
+                    request_info=request_info,
+                    tenant_ids=[LIVELIHOOD_TENANT_ID],
+                    limit=10000,
+                    send_non_paginated_response=True,
+                )
+                facility_data = bulk_result.get("facilities", []) or []
+            except Exception as e:
+                logger.error(f"Error fetching facility data for asset template: {e}")
+
+        vendor_records = []
+        if vendor_service_url:
+            try:
+                vendor_client = VendorRegistryClient(vendor_service_url)
+                vendor_records = vendor_client.get_all_vendor_codes(request_info)
+            except Exception as e:
+                logger.error(f"Error fetching vendor codes for asset template: {e}")
+
+        try:
+            asset_service.generate_asset_template_file(
+                output_path=output_file_path,
+                asset_schema=asset_schema,
+                facility_data=facility_data,
+                vendor_records=vendor_records,
+            )
+            logger.info(f"Successfully created asset ingestion template at {output_file_path}")
+        except Exception as e:
+            logger.error(f"Error generating asset template file: {e}")
+            cleanup_temp_file(output_file_path)
+            raise HTTPException(status_code=500, detail=f"Template generation error: {str(e)}")
+
+        return FileResponse(
+            path=output_file_path,
+            filename=output_filename,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unhandled error in get_asset_ingestion_template: {e}")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
 @router.post('/facilityWithStaff',
@@ -643,7 +710,7 @@ async def get_facility_selection_template(
         facility_client = FacilityServiceClient(facility_service_url)
         for boundary_code in boundary_code_list:
             try:
-                results = facility_client.search_facility(tenant_id='in', boundary_code=boundary_code)
+                results = facility_client.search_facility(tenant_id=LIVELIHOOD_TENANT_ID, boundary_code=boundary_code)
                 boundary_facilities.extend(results.get('facilities', []))
             except Exception as e:
                 logger.error(f"Error fetching boundary facilities for boundary code {boundary_code}: {e}", exc_info=True)
@@ -661,7 +728,7 @@ async def get_facility_selection_template(
                     facility_id = pf.get("facilityId")
                     if facility_id and any(f.get('facility_id') == facility_id for f in boundary_facilities):
                         try:
-                            facility_data = facility_client.search_facility(tenant_id='in', facility_id=facility_id)
+                            facility_data = facility_client.search_facility(tenant_id=LIVELIHOOD_TENANT_ID, facility_id=facility_id)
                             if facility_data:
                                 project_facilities.extend(facility_data.get('facilities', []))
                         except Exception as e:
@@ -794,6 +861,169 @@ async def get_facility_QR_for_autologin(
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+
+@router.post(
+    '/livelihoodFacilityQRGeneration',
+    summary='Generate Livelihood facility QR codes for OTP login',
+    response_description='ZIP of PNG QR codes (one per facility)',
+)
+async def get_livelihood_facility_qr_for_otp_login(
+        payload: dict = Body(
+            ...,
+            description=(
+                "RequestInfo + optional filters. "
+                "QR encodes facilityId for OTP login "
+                "(end user is facility-level; assets are linked to the facility)."
+            ),
+        ),
+):
+    """
+    Generate printable QR codes for Livelihood facility end-user OTP login.
+
+    Each QR encodes:
+      {baseUrl}/employee/user/login?tenantId=livelihood&facilityId={facilityId}
+    """
+    request_info = request_info_from_json(payload.get("RequestInfo", {}))
+    tenant_id = payload.get("tenantId") or LIVELIHOOD_TENANT_ID
+    base_url = (payload.get("baseUrl") or os.getenv(
+        "LIVELIHOOD_UI_BASE_URL",
+        "https://setu4livelihood-uat.selcofoundation.org/livelihood-ui",
+    )).rstrip("/")
+    boundary_code = payload.get("boundaryCode")
+    facility_ids = payload.get("facilityIds") or []
+    if isinstance(facility_ids, str):
+        facility_ids = [facility_ids]
+
+    if not facility_service_url:
+        raise HTTPException(status_code=500, detail="FACILITY_SERVICE_URL is not configured")
+
+    facility_client = FacilityServiceClient(facility_service_url)
+    temp_dir = tempfile.mkdtemp()
+    generated = 0
+    skipped = 0
+
+    try:
+        facilities = []
+        if facility_ids:
+            for fid in facility_ids:
+                if not fid:
+                    continue
+                result = facility_client.search_facility(tenant_id=tenant_id, facility_id=str(fid).strip())
+                facilities.extend(result.get("facilities") or [])
+        else:
+            result = facility_client.search_facility(tenant_id=tenant_id, boundary_code=boundary_code)
+            facilities = result.get("facilities") or []
+
+        if not facilities:
+            raise HTTPException(status_code=404, detail="No facilities found for the given filters")
+
+        # Deduplicate by facility_id
+        seen = set()
+        unique_facilities = []
+        for facility in facilities:
+            fid = facility.get("facility_id") or facility.get("facilityId")
+            if not fid or fid in seen:
+                continue
+            seen.add(fid)
+            unique_facilities.append(facility)
+
+        for facility in unique_facilities:
+            facility_id = facility.get("facility_id") or facility.get("facilityId")
+            facility_name = (
+                facility.get("facility_name")
+                or facility.get("facilityName")
+                or facility_id
+            )
+            phone = facility.get("facility_poc_phone") or facility.get("facilityPocPhone") or ""
+            boundary = facility.get("boundaryCode") or facility.get("boundary_code") or "unknown"
+
+            # Folder: boundary / facility name (sanitized)
+            safe_boundary = _sanitize_path_segment(boundary)
+            safe_name = _sanitize_path_segment(facility_name)
+            qr_folder = os.path.join(temp_dir, safe_boundary, safe_name)
+            os.makedirs(qr_folder, exist_ok=True)
+
+            login_url = (
+                f"{base_url}/employee/user/login"
+                f"?tenantId={tenant_id}&facilityId={facility_id}"
+            )
+
+            qr = qrcode.make(login_url).convert("RGB")
+            width, height = qr.size
+            font_size = 28
+            padding = 10
+            try:
+                font = ImageFont.truetype("DejaVuSans-Bold.ttf", font_size)
+            except Exception:
+                font = ImageFont.load_default()
+
+            label = facility_name
+            if phone:
+                label = f"{facility_name} | {phone}"
+
+            bbox = ImageDraw.Draw(Image.new("RGB", (1, 1))).textbbox((0, 0), label, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            canvas_width = max(width, text_width + 2 * padding)
+            new_height = height + text_height + 2 * padding
+            combined = Image.new("RGB", (canvas_width, new_height), "white")
+            combined.paste(qr, ((canvas_width - width) // 2, 0))
+            draw = ImageDraw.Draw(combined)
+            draw.text(
+                ((canvas_width - text_width) // 2, height + padding),
+                label,
+                font=font,
+                fill="black",
+            )
+
+            qr_filename = f"{_sanitize_path_segment(facility_id)}.png"
+            combined.save(os.path.join(qr_folder, qr_filename))
+            generated += 1
+
+            # Also write a small sidecar with the encoded URL for ops/debug
+            with open(os.path.join(qr_folder, f"{_sanitize_path_segment(facility_id)}.url.txt"), "w", encoding="utf-8") as f:
+                f.write(login_url)
+
+        if generated == 0:
+            raise HTTPException(status_code=404, detail="No QR codes generated")
+
+        zip_path = os.path.join(tempfile.gettempdir(), f"livelihood_facility_qr_codes_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip")
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+            for root, _, files in os.walk(temp_dir):
+                for file in files:
+                    abs_file = os.path.join(root, file)
+                    rel_path = os.path.relpath(abs_file, temp_dir)
+                    zipf.write(abs_file, arcname=rel_path)
+
+        logger.info(
+            "Livelihood facility QR generation done | tenantId=%s generated=%s skipped=%s requestMsgId=%s",
+            tenant_id,
+            generated,
+            skipped,
+            getattr(request_info, "msg_id", None) if request_info else None,
+        )
+
+        return FileResponse(
+            path=zip_path,
+            filename="livelihood_facility_qr_codes.zip",
+            media_type="application/zip",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Livelihood facility QR generation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def _sanitize_path_segment(value: str) -> str:
+    if not value:
+        return "unknown"
+    cleaned = "".join(c if c.isalnum() or c in ("-", "_", ".") else "_" for c in str(value).strip())
+    return cleaned[:120] or "unknown"
+
+
 @router.post('/amcConfigurationTemplate',
             summary='Generate AMC configuration ingestion template',
             response_description="Returns Excel template with facility asset metadata for AMC configurations")
@@ -873,7 +1103,7 @@ async def get_amc_configuration_template(
             try:
                 bulk_result = facility_client.bulk_search_facility_with_boundary(
                     request_info=request_info,
-                    tenant_ids=["in"],
+                    tenant_ids=[LIVELIHOOD_TENANT_ID],
                     boundary_codes=boundary_codes,
                     limit=max(len(boundary_codes) * 50, 50),
                     send_non_paginated_response=True,

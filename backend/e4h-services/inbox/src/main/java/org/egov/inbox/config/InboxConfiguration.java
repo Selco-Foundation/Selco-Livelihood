@@ -139,4 +139,22 @@ public class InboxConfiguration {
 
 	@Value("${es.search.default.sort.order}")
 	private String defaultSortOrder;
+
+	@Value("${egov.asset.host:http://localhost:8087}")
+	private String assetHost;
+
+	@Value("${egov.asset.search.path:/asset-registry/v1/asset/_search}")
+	private String assetSearchPath;
+
+	@Value("${egov.vendor.host:http://localhost:8086}")
+	private String vendorHost;
+
+	@Value("${egov.vendor.organisation.search.path:/vendor/organisation/v1/_search}")
+	private String vendorOrganisationSearchPath;
+
+	@Value("${egov.vendor.organisation.user.search.path:/vendor/organisation/v1/user/_search}")
+	private String vendorOrganisationUserSearchPath;
+
+	@Value("${im.livelihood.tenant.id:livelihood}")
+	private String livelihoodTenantId;
 }

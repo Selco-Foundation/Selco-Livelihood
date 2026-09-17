@@ -17,12 +17,13 @@ import java.util.*;
 
 import static org.apache.commons.lang3.StringUtils.firstNonBlank;
 
+import static facility.service.FacilityService.usesManagerPocUsername;
+
 @Component
 @Slf4j
 @RequiredArgsConstructor
 public class HRMSService {
 
-    private static final String CATEGORY_ANGANWADI = "ANGANWADI";
     private static final String MDMS_COMMON_MASTERS_MODULE = "common-masters";
     private static final String MDMS_DESIGNATION_MASTER = "Designation";
 
@@ -146,21 +147,21 @@ public class HRMSService {
         String normalizedCategory = facility.getFacilityCategory() == null
                 ? ""
                 : facility.getFacilityCategory().trim().toUpperCase(Locale.ROOT);
-        boolean isAnganwadi = CATEGORY_ANGANWADI.equals(normalizedCategory);
+        boolean usesPocUsername = usesManagerPocUsername(normalizedCategory);
 
         String employeeCode;
-        if (isAnganwadi) {
+        if (usesPocUsername) {
             if (facilityDetails == null || facilityDetails.getPocContact() == null
                     || facilityDetails.getPocContact().isBlank()
                     || facilityDetails.getPocName() == null || facilityDetails.getPocName().isBlank()) {
-                log.warn("Cannot create POC employee for ANGANWADI facility {}: missing POC contact or name",
-                        sanitizeForLog(facility.getFacilityId()));
+                log.warn("Cannot create POC employee for {} facility {}: missing POC contact or name",
+                        normalizedCategory, sanitizeForLog(facility.getFacilityId()));
                 return false;
             }
             String pocUsername = facility.getFacilityPocUsername();
             if (pocUsername == null || pocUsername.isBlank()) {
-                log.warn("Cannot create POC employee for ANGANWADI facility {}: missing facility POC username",
-                        sanitizeForLog(facility.getFacilityId()));
+                log.warn("Cannot create POC employee for {} facility {}: missing facility POC username",
+                        normalizedCategory, sanitizeForLog(facility.getFacilityId()));
                 return false;
             }
             employeeCode = pocUsername.trim();
@@ -344,9 +345,9 @@ public class HRMSService {
                 return;
             }
 
-            // Set default password
-            user.put("password", configs.getDefaultUserPassword());
-            
+            // Set password derived from the POC's name and mobile number
+            user.put("password", generateDefaultPassword((String) user.get("name"), (String) user.get("mobileNumber")));
+
             // Build user update request
             Map<String, Object> userUpdateRequest = new HashMap<>();
             userUpdateRequest.put("RequestInfo", requestInfo);
@@ -365,6 +366,24 @@ public class HRMSService {
         } catch (Exception e) {
             log.error("Error updating user password: {}", e.getMessage(), e);
         }
+    }
+
+    /**
+     * Builds a password from the first 4 letters of the name (first letter capitalized,
+     * rest lowercase) followed by '@' and the first 4 digits of the mobile number.
+     * e.g. name "Bharat", mobile "6732564901" -> "Bhar@6732"
+     */
+    private String generateDefaultPassword(String name, String mobileNumber) {
+        String letters = name == null ? "" : name.replaceAll("[^A-Za-z]", "");
+        String namePart = letters.substring(0, Math.min(4, letters.length()));
+        if (!namePart.isEmpty()) {
+            namePart = Character.toUpperCase(namePart.charAt(0)) + namePart.substring(1).toLowerCase();
+        }
+
+        String digits = mobileNumber == null ? "" : mobileNumber.replaceAll("[^0-9]", "");
+        String phonePart = digits.substring(0, Math.min(4, digits.length()));
+
+        return namePart + "@" + phonePart;
     }
 
     /**

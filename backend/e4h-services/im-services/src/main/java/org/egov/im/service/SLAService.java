@@ -1,6 +1,7 @@
 package org.egov.im.service;
 
 import org.egov.im.repository.IMPriorityRepository;
+import org.egov.im.util.LivelihoodIssueTypeUtil;
 import org.egov.im.web.models.IMPrioritySearchCriteria;
 import org.egov.im.web.models.Incident;
 import org.egov.im.util.BusinessHoursUtil;
@@ -12,6 +13,7 @@ import org.egov.tracer.model.CustomException;
 import com.jayway.jsonpath.JsonPath;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.StringUtils;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -20,6 +22,7 @@ import org.springframework.util.CollectionUtils;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,11 +34,13 @@ import static org.egov.im.util.IMConstants.*;
 @Service
 public class SLAService {
 
-    private  final IMPriorityRepository imPriorityRepository;
+    private final IMPriorityRepository imPriorityRepository;
+    private final LivelihoodIssueTypeUtil livelihoodIssueTypeUtil;
 
     @Autowired
-    public SLAService(IMPriorityRepository imPriorityRepository){
+    public SLAService(IMPriorityRepository imPriorityRepository, LivelihoodIssueTypeUtil livelihoodIssueTypeUtil){
         this.imPriorityRepository = imPriorityRepository;
+        this.livelihoodIssueTypeUtil = livelihoodIssueTypeUtil;
     }
 
 
@@ -59,6 +64,10 @@ public class SLAService {
             String state = current.getState().getApplicationStatus();
 
             if (PENDINGFORASSIGNMENT.equals(state) || PENDINGATVENDOR.equals(state)
+                    || LIVELIHOOD_PENDING_FOR_RESOLUTION.equals(state)
+                    || LIVELIHOOD_OUT_OF_SCOPE_PENDING_POC.equals(state)
+                    || LIVELIHOOD_OUT_OF_SCOPE_PENDING_VENDOR.equals(state)
+                    || LIVELIHOOD_OUT_OF_WARRANTY_PENDING_VENDOR.equals(state)
                     || state.startsWith(PENDING_ASSIGNMENT_PREFIX) || state.startsWith(PENDINGFORASSIGNMENT_PREFIX)
                     || state.startsWith(PENDING_RESOLUTION_PREFIX)
                     || RMS_DEVICE_PENDING_TECH_POC.equals(state) || RMS_DEVICE_PENDINGRESOLUTION.equals(state)
@@ -131,6 +140,10 @@ public class SLAService {
         }
         for (String state : previousStates) {
             if (PENDINGFORASSIGNMENT.equals(state) || PENDINGATVENDOR.equals(state)
+                    || LIVELIHOOD_PENDING_FOR_RESOLUTION.equals(state)
+                    || LIVELIHOOD_OUT_OF_SCOPE_PENDING_POC.equals(state)
+                    || LIVELIHOOD_OUT_OF_SCOPE_PENDING_VENDOR.equals(state)
+                    || LIVELIHOOD_OUT_OF_WARRANTY_PENDING_VENDOR.equals(state)
                     || state.startsWith(PENDING_ASSIGNMENT_PREFIX) || state.startsWith(PENDINGFORASSIGNMENT_PREFIX)
                     || state.startsWith(PENDING_RESOLUTION_PREFIX)
                     || RMS_DEVICE_PENDING_TECH_POC.equals(state) || RMS_DEVICE_PENDINGRESOLUTION.equals(state)
@@ -213,6 +226,58 @@ public class SLAService {
         log.warn("No priority found in MDMS for assetType: {} and serviceCode: {}, using default priority: MEDIUM",
                  assetType, serviceCode);
         return Priority.MEDIUM;
+    }
+
+    /**
+     * Livelihood: incidentType is the issue serviceCode; asset category is stored on additionalDetail during create.
+     */
+    public Priority getLivelihoodPriorityFromMDMS(IncidentRequest request, Object mdmsData) {
+        String serviceCode = request.getIncident().getIncidentType();
+        String assetCategory = livelihoodIssueTypeUtil.extractAssetCategory(request.getIncident());
+        log.info("SLAService::getLivelihoodPriorityFromMDMS | assetCategory={} serviceCode={}", assetCategory, serviceCode);
+
+        if (StringUtils.isBlank(serviceCode)) {
+            throw new CustomException("ISSUE_TYPE_MISSING", "incidentType (issue type) is mandatory for Livelihood tickets");
+        }
+
+        List<String> menuPaths = new ArrayList<>();
+        if (StringUtils.isNotBlank(assetCategory)) {
+            menuPaths.add(assetCategory);
+        }
+        menuPaths.add(LIVELIHOOD_CATCH_ALL_MENU_PATH);
+
+        for (String menuPath : menuPaths) {
+            Priority priority = readPriority(serviceCode, menuPath, mdmsData);
+            if (priority != null) {
+                return priority;
+            }
+        }
+
+        log.warn("No priority found in MDMS for Livelihood issue type={}, using default MEDIUM", serviceCode);
+        return Priority.MEDIUM;
+    }
+
+    private Priority readPriority(String serviceCode, String menuPath, Object mdmsData) {
+        String jsonPath = MDMS_SERVICEDEF_LIVELIHOOD_SEARCH
+                .replace("{SERVICEDEF}", serviceCode)
+                .replace("{MENUPATH}", menuPath);
+        try {
+            List<Object> res = JsonPath.read(mdmsData, jsonPath);
+            if (CollectionUtils.isEmpty(res)) {
+                return null;
+            }
+            Object first = res.get(0);
+            if (first instanceof Map<?, ?> map) {
+                String priorityStr = getStringValue((Map<String, Object>) map, "priority");
+                return priorityStr != null ? Priority.fromString(priorityStr) : null;
+            }
+        } catch (Exception e) {
+            throw new CustomException(
+                    "JSONPATH_ERROR",
+                    "Failed to parse MDMS response for Livelihood issue type: " + serviceCode
+            );
+        }
+        return null;
     }
 
     private String getStringValue(Map<String, Object> map, String key) {

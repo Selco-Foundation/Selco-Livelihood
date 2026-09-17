@@ -139,6 +139,20 @@ public class IMQueryBuilder {
             preparedStmtList.add(criteria.getBoundaryCode().toLowerCase());
         }
 
+        List<String> boundaryCodePrefixes = criteria.getBoundaryCodePrefixes();
+        if (!CollectionUtils.isEmpty(boundaryCodePrefixes)) {
+            addClauseIfRequired(preparedStmtList, builder);
+            builder.append(" (");
+            for (int i = 0; i < boundaryCodePrefixes.size(); i++) {
+                if (i > 0) {
+                    builder.append(" OR ");
+                }
+                builder.append(" LOWER(ser.boundarycode) LIKE ? ");
+                preparedStmtList.add(boundaryCodePrefixes.get(i).toLowerCase());
+            }
+            builder.append(") ");
+        }
+
         if (criteria.getBlock() != null) {
             addClauseIfRequired(preparedStmtList, builder);
             builder.append(" LOWER(ser.block) = ? ");
@@ -156,6 +170,18 @@ public class IMQueryBuilder {
             addClauseIfRequired(preparedStmtList, builder);
             builder.append(" ser.id IN (").append(createQuery(ids)).append(")");
             addToPreparedStatement(preparedStmtList, ids);
+        }
+
+        Set<String> assetIds = criteria.getAssetIds();
+        if (assetIds != null) {
+            if (assetIds.isEmpty()) {
+                addClauseIfRequired(preparedStmtList, builder);
+                builder.append(" 1=0 ");
+            } else {
+                addClauseIfRequired(preparedStmtList, builder);
+                builder.append(" ser.asset_id IN (").append(createQuery(assetIds)).append(")");
+                addToPreparedStatement(preparedStmtList, assetIds);
+            }
         }
 
         //When UI tries to fetch "escalated" complaints count.

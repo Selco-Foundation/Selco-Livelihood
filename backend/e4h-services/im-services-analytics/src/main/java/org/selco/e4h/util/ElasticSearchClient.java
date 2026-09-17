@@ -193,6 +193,27 @@ public class ElasticSearchClient {
     }
 
     /**
+     * Count documents matching a bool query (size=0, track_total_hits).
+     * Used by Livelihood summary digest metrics.
+     */
+    public int countDocuments(Map<String, Object> boolQuery) {
+        String uri = getBaseUrl() + "/" + INDEX_NAME + "/" + SEARCH_PATH;
+        Map<String, Object> body = new HashMap<>();
+        body.put("query", boolQuery);
+        body.put("size", 0);
+        body.put("track_total_hits", true);
+
+        HttpEntity<Object> entity = new HttpEntity<>(body, updateService.buildHeaders());
+        try {
+            Map<String, Object> response = restTemplate.postForObject(uri, entity, Map.class);
+            return parseESTotalHits(response);
+        } catch (Exception e) {
+            log.error("Failed to count documents on index '{}'", INDEX_NAME, e);
+            return 0;
+        }
+    }
+
+    /**
      * Generic search method for custom queries
      * Used by SLABreachDetectionService for escalation queries
      */
@@ -432,29 +453,33 @@ public class ElasticSearchClient {
     }
 
     /**
-     * Extract priority from business service name
-     * Business service format: "Incident_High", "Incident_Low", "Incident_Medium"
-     * Priority is the part after the underscore
+     * E4H encodes priority in the business service name ({@code Incident_Medium}).
+     * Livelihood uses a single {@code LivelihoodIncident} service with no priority tier.
      */
     private String extractPriorityFromBusinessService(Map<String, Object> data) {
         try {
             Map<String, Object> currentProcessInstance = (Map<String, Object>) data.get("currentProcessInstance");
             if (currentProcessInstance == null) {
-                return "Medium"; // Default fallback
+                return "Medium";
             }
 
             Object businessServiceObj = currentProcessInstance.get("businessService");
-            if (businessServiceObj instanceof String businessService && businessService.contains("_")) {
-                String[] parts = businessService.split("_", 2);
-                if (parts.length > 1) {
-                    return parts[1]; // Return part after underscore (High, Low, Medium)
+            if (businessServiceObj instanceof String businessService) {
+                if (LIVELIHOOD_INCIDENT.equalsIgnoreCase(businessService)) {
+                    return null;
+                }
+                if (businessService.contains("_")) {
+                    String[] parts = businessService.split("_", 2);
+                    if (parts.length > 1) {
+                        return parts[1];
+                    }
                 }
             }
 
-            return "Medium"; // Default fallback
+            return "Medium";
         } catch (Exception e) {
             log.warn("Error extracting priority from business service: {}", e.getMessage());
-            return "Medium"; // Default fallback
+            return "Medium";
         }
     }
 

@@ -7,6 +7,7 @@ import com.google.gson.Gson;
 import com.jayway.jsonpath.JsonPath;
 import lombok.extern.slf4j.Slf4j;
 
+import org.apache.commons.lang3.StringUtils;
 import org.egov.common.contract.request.Role;
 import org.egov.hash.HashService;
 import org.egov.inbox.config.InboxConfiguration;
@@ -63,6 +64,9 @@ public class InboxServiceV2 {
     @Autowired
     private HashService hashService;
 
+    @Autowired
+    private VendorMappedAssetResolver vendorMappedAssetResolver;
+
 
     /**
      *
@@ -82,12 +86,23 @@ public class InboxServiceV2 {
 
         // Vérification des rôles
         List<Role> roles = inboxRequest.getRequestInfo().getUserInfo().getRoles();
+        boolean isVendor = roles.stream()
+                .map(Role::getCode)
+                .filter(Objects::nonNull)
+                .anyMatch(code -> "COMPLAINT_RESOLVER".equalsIgnoreCase(code)
+                        || "LIVELIHOOD_VENDOR".equalsIgnoreCase(code));
         List<String> tenantIds = roles.stream()
-                .filter(role -> role.getCode().equals("COMPLAINT_RESOLVER"))
+                .filter(role -> "COMPLAINT_RESOLVER".equalsIgnoreCase(role.getCode())
+                        || "LIVELIHOOD_VENDOR".equalsIgnoreCase(role.getCode()))
                 .map(Role::getTenantId)
                 .collect(Collectors.toList());
-        boolean isVendor = !tenantIds.isEmpty();
         log.debug("👤 User roles found: {} | isVendor={}", roles, isVendor);
+
+        if (isVendor) {
+            applyVendorMappedAssetScope(inboxRequest);
+        }
+
+        applyAssetTypeScope(inboxRequest);
 
         // Gestion du tenantId pour les vendors
         Object tenantIdFromRequest = inboxRequest.getInbox().getModuleSearchCriteria().get("tenantId");
@@ -285,7 +300,8 @@ public class InboxServiceV2 {
         List<BusinessService> businessServices = workflowService.getBusinessServices(inboxRequest);
         log.debug("🔧 Retrieved {} business services", businessServices.size());
 
-        Map<String, Object> finalQueryBody = queryBuilder.getESQuery(inboxRequest, Boolean.TRUE, Boolean.TRUE);
+        boolean applyNearingSlaFilter = isNearingSlaSearch(inboxRequest);
+        Map<String, Object> finalQueryBody = queryBuilder.getESQuery(inboxRequest, Boolean.TRUE, applyNearingSlaFilter);
 
         try {
             String q = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(finalQueryBody);
@@ -295,7 +311,7 @@ public class InboxServiceV2 {
         }
 
         StringBuilder uri = getURI(indexName, SEARCH_PATH);
-        log.info("🌐 Calling ES at URI={} for Inbox", uri);
+        log.info("🌐 Calling ES at URI={} for Inbox | nearingSlaFilter={}", uri, applyNearingSlaFilter);
 
         Object result = serviceRequestRepository.fetchESResult(uri, finalQueryBody);
 
@@ -368,7 +384,8 @@ public class InboxServiceV2 {
     public Integer getTotalApplicationCount(InboxRequest inboxRequest, String indexName) {
         log.debug("➡️ Fetching total Application count for index: {}", indexName);
 
-        Map<String, Object> finalQueryBody = queryBuilder.getESQuery(inboxRequest, Boolean.FALSE, Boolean.FALSE);
+        boolean applyNearingSlaFilter = isNearingSlaSearch(inboxRequest);
+        Map<String, Object> finalQueryBody = queryBuilder.getESQuery(inboxRequest, Boolean.FALSE, applyNearingSlaFilter);
         try {
             log.debug("ES Query (Application Count): {}", mapper.writeValueAsString(finalQueryBody));
         } catch (JsonProcessingException e) {
@@ -440,12 +457,19 @@ public class InboxServiceV2 {
     }
 
     private Long getApplicationServiceSla(Map<String, Long> businessServiceSlaMap, Map<String, Long> stateUuidSlaMap, Object data) {
-        Long currentDate = System.currentTimeMillis(); // current time
-        Map<String, Object> auditDetails = (Map<String, Object>) ((Map<String, Object>) data).get(AUDIT_DETAILS_KEY);
+        Long currentDate = System.currentTimeMillis();
+        Map<String, Object> dataMap = (Map<String, Object>) data;
+        Map<String, Object> auditDetails = (Map<String, Object>) dataMap.get(AUDIT_DETAILS_KEY);
+
+        if (auditDetails == null) {
+            log.warn("⚠️ SLA could not be calculated: auditDetails missing");
+            return null;
+        }
 
         String stateUuid = null;
-        if (JsonPath.read(data, "$.currentProcessInstance") != null)
+        if (JsonPath.read(data, "$.currentProcessInstance") != null) {
             stateUuid = JsonPath.read(data, STATE_UUID_PATH);
+        }
 
         if (stateUuid != null) {
             if (stateUuidSlaMap.containsKey(stateUuid)) {
@@ -455,15 +479,17 @@ public class InboxServiceV2 {
                     log.debug("📌 Calculated SLA (by state) for stateUuid {} = {} days", stateUuid, remaining);
                     return remaining;
                 }
-            } else {
-                if (!ObjectUtils.isEmpty(auditDetails.get(CREATED_TIME_KEY))) {
-                    Long createdTime = ((Number) auditDetails.get(CREATED_TIME_KEY)).longValue();
-                    String businessService = JsonPath.read(data, BUSINESS_SERVICE_PATH);
-                    Long businessServiceSLA = businessServiceSlaMap.get(businessService);
-                    Long remaining = Math.round((businessServiceSLA - (currentDate - createdTime)) / ((double) (24 * 60 * 60 * 1000)));
-                    log.debug("📌 Calculated SLA (by businessService) for {} = {} days", businessService, remaining);
-                    return remaining;
+            } else if (!ObjectUtils.isEmpty(auditDetails.get(CREATED_TIME_KEY))) {
+                Long createdTime = ((Number) auditDetails.get(CREATED_TIME_KEY)).longValue();
+                String businessService = JsonPath.read(data, BUSINESS_SERVICE_PATH);
+                Long businessServiceSLA = businessServiceSlaMap.get(businessService);
+                if (businessServiceSLA == null) {
+                    log.warn("⚠️ SLA could not be calculated: no SLA config for businessService={}", businessService);
+                    return null;
                 }
+                Long remaining = Math.round((businessServiceSLA - (currentDate - createdTime)) / ((double) (24 * 60 * 60 * 1000)));
+                log.debug("📌 Calculated SLA (by businessService) for {} = {} days", businessService, remaining);
+                return remaining;
             }
         }
         log.warn("⚠️ SLA could not be calculated for data: {}", data);
@@ -561,12 +587,12 @@ public class InboxServiceV2 {
             Long serviceSla = getApplicationServiceSla(businessServiceSlaMap, stateUuidVsSlaMap, inbox.getBusinessObject());
             inbox.getBusinessObject().put(SERVICESLA_KEY, serviceSla);
             inbox.getBusinessObject().put(SLA_REMAINING, dataBusinessObject.get(SLA_REMAINING));
-            inbox.getBusinessObject().put(STATE_SLA, dataBusinessObject.get(STATE_SLA));
+            inbox.getBusinessObject().put(STATE_SLA, resolveStateSlaFromIndex(dataBusinessObject));
             inbox.getBusinessObject().put(TOTAL_SLA_REMAINING, dataBusinessObject.get(TOTAL_SLA_REMAINING));
 
             log.debug("📌 Parsed inbox item with serviceSla={} | stateSla={} | slaRemaining={}",
                     serviceSla,
-                    dataBusinessObject.get(STATE_SLA),
+                    resolveStateSlaFromIndex(dataBusinessObject),
                     dataBusinessObject.get(SLA_REMAINING));
 
             inboxItemList.add(inbox);
@@ -761,5 +787,101 @@ public class InboxServiceV2 {
             throw new CustomException("EG_INBOX_GET_FIELDS_ERR", "Error while processing JSON.");
         }
         return listOfFields;
+    }
+
+    private boolean isNearingSlaSearch(InboxRequest inboxRequest) {
+        Map<String, Object> moduleSearchCriteria = inboxRequest.getInbox().getModuleSearchCriteria();
+        return moduleSearchCriteria != null && moduleSearchCriteria.containsKey(NEARING_SLA_PARAM);
+    }
+
+    /**
+     * Vendor inbox shows all tickets for assets mapped to the vendor organisation,
+     * including RESOLVED / OUT_OF_SCOPE. When the UI sends an assignee filter,
+     * keep only the current vendor's own UUID so "My Tickets" works without
+     * allowing cross-user assignee searches. Jurisdiction filters are kept.
+     */
+    private void applyVendorMappedAssetScope(InboxRequest inboxRequest) {
+        ProcessInstanceSearchCriteria processCriteria = inboxRequest.getInbox().getProcessSearchCriteria();
+        String userUuid = inboxRequest.getRequestInfo().getUserInfo().getUuid();
+        if (processCriteria != null) {
+            String assignee = StringUtils.trimToNull(processCriteria.getAssignee());
+            if (assignee == null) {
+                processCriteria.setAssignee(null);
+            } else if (!StringUtils.equals(assignee, userUuid)) {
+                processCriteria.setAssignee(userUuid);
+            }
+        }
+
+        HashMap<String, Object> moduleSearchCriteria = inboxRequest.getInbox().getModuleSearchCriteria();
+        if (moduleSearchCriteria == null) {
+            moduleSearchCriteria = new HashMap<>();
+            inboxRequest.getInbox().setModuleSearchCriteria(moduleSearchCriteria);
+        }
+
+        String tenantId = inboxRequest.getInbox().getTenantId();
+        List<String> mappedAssetIds = vendorMappedAssetResolver.resolveMappedAssetIds(
+                inboxRequest.getRequestInfo(), tenantId, userUuid);
+
+        if (CollectionUtils.isEmpty(mappedAssetIds)) {
+            moduleSearchCriteria.put(ASSET_ID_PARAM, Collections.singletonList(NO_MAPPED_ASSETS_SENTINEL));
+            log.info("Vendor {} has no mapped assets — inbox returns empty scope", userUuid);
+        } else {
+            moduleSearchCriteria.put(ASSET_ID_PARAM, mappedAssetIds);
+            log.info("Vendor inbox scoped to {} mapped asset(s)", mappedAssetIds.size());
+        }
+    }
+
+    /**
+     * Filters by asset type via the incident's indexed assetId, resolving the matching assets from
+     * asset-registry (the source of truth for the type). Gated to Livelihood — E4H shares this inbox.
+     */
+    private void applyAssetTypeScope(InboxRequest inboxRequest) {
+        HashMap<String, Object> moduleSearchCriteria = inboxRequest.getInbox().getModuleSearchCriteria();
+        if (!StringUtils.equalsIgnoreCase(inboxRequest.getInbox().getTenantId(), config.getLivelihoodTenantId())
+                || CollectionUtils.isEmpty(moduleSearchCriteria)
+                || !moduleSearchCriteria.containsKey(ASSET_TYPE_PARAM)) {
+            return;
+        }
+
+        List<String> assetTypes = asStringList(moduleSearchCriteria.remove(ASSET_TYPE_PARAM));
+        if (CollectionUtils.isEmpty(assetTypes)) {
+            return;
+        }
+
+        List<String> assetIds = vendorMappedAssetResolver.resolveAssetIdsByTypes(
+                inboxRequest.getRequestInfo(), inboxRequest.getInbox().getTenantId(), assetTypes);
+
+        // A vendor's mapped-asset scope is already narrower, so intersect rather than replace it.
+        List<String> vendorScopedAssetIds = asStringList(moduleSearchCriteria.get(ASSET_ID_PARAM));
+        if (!CollectionUtils.isEmpty(vendorScopedAssetIds)) {
+            assetIds = new ArrayList<>(assetIds);
+            assetIds.retainAll(new HashSet<>(vendorScopedAssetIds));
+        }
+
+        moduleSearchCriteria.put(ASSET_ID_PARAM, CollectionUtils.isEmpty(assetIds)
+                ? Collections.singletonList(NO_MAPPED_ASSETS_SENTINEL)
+                : assetIds);
+        log.info("Inbox scoped to {} asset(s) for assetTypes={}", assetIds.size(), assetTypes);
+    }
+
+    private List<String> asStringList(Object value) {
+        if (value instanceof Collection) {
+            return ((Collection<?>) value).stream()
+                    .filter(Objects::nonNull)
+                    .map(Object::toString)
+                    .collect(Collectors.toList());
+        }
+        return value == null ? Collections.emptyList() : Collections.singletonList(value.toString());
+    }
+
+    /**
+     * Cron/indexer write {@code Data.stateSla}; legacy configs may use {@code Data.stateSLA}.
+     */
+    private Object resolveStateSlaFromIndex(Map<String, Object> dataBusinessObject) {
+        Object stateSla = dataBusinessObject.get("stateSla");
+        if (stateSla == null) {
+            stateSla = dataBusinessObject.get(STATE_SLA);
+        }
+        return stateSla;
     }
 }

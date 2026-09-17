@@ -48,13 +48,16 @@ public class BoundaryUtil {
     @Value("${egov.boundary.hierarchy.type}")
     private String boundaryHierarchyType;
 
+    @Value("${egov.boundary.tenant.id:livelihood}")
+    private String boundaryTenantId;
+
     @Autowired
     private ObjectMapper objectMapper;
 
 //    @Cacheable(value="boundaryConfiguration")
     public String getBoundaryData() {
         String jsonString = null;
-        String params = "?boundaryType="+boundaryType+"&includeChildren=true&tenantId=in&hierarchyType="+boundaryHierarchyType;
+        String params = "?boundaryType="+boundaryType+"&includeChildren=true&tenantId="+boundaryTenantId+"&hierarchyType="+boundaryHierarchyType;
         StringBuilder uri = new StringBuilder();
         uri.append(boundaryHost).append(boundaryUrl).append(params);
         RequestInfo requestInfo = new RequestInfo();
@@ -75,15 +78,24 @@ public class BoundaryUtil {
 
     public String getBoundaryData(List<String> codes) {
         String jsonString = null;
-//        String params = "?codes="+codes+"&includeChildren=true&tenantId=in&hierarchyType="+boundaryHierarchyType;
+        List<String> distinctCodes = codes == null ? List.of() : codes.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(code -> !code.isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
+        if (distinctCodes.isEmpty()) {
+            throw new CustomException("CONFIG_ERROR", "Boundary search requires at least one code");
+        }
         StringBuilder uri = new StringBuilder();
         uri.append(boundaryHost).append(boundaryV2Url);
         RequestInfo requestInfo = new RequestInfo();
+        boolean facilityLevelCodes = distinctCodes.stream().allMatch(this::isFacilityLevelBoundaryCode);
         BoundaryRelationshipSearchCriteria searchCriteria = BoundaryRelationshipSearchCriteria.builder()
-                .tenantId("in")
-                .includeChildren(true)
+                .tenantId(boundaryTenantId)
+                .includeChildren(!facilityLevelCodes)
                 .hierarchyType(boundaryHierarchyType)
-                .codes(codes)
+                .codes(distinctCodes)
                 .build();
         Map<String, Object> searchCriteriaRequest = new HashMap<>();
         searchCriteriaRequest.put("RequestInfo", requestInfo);
@@ -323,10 +335,15 @@ public class BoundaryUtil {
                 List<String> boundaryCodes = criteria.getBoundaryCodes().stream()
                         .filter(Objects::nonNull)
                         .map(String::trim)
+                        .filter(code -> !code.isEmpty())
+                        .distinct()
                         .collect(Collectors.toList());
+                if (boundaryCodes.stream().allMatch(this::isFacilityLevelBoundaryCode)) {
+                    return boundaryCodes;
+                }
                 String jsonString = getBoundaryData(boundaryCodes);
                 JsonNode rootNode = objectMapper.readTree(jsonString);
-                return extractFacilityCodesByLevel(rootNode, criteria.getBoundaryCodes());
+                return extractFacilityCodesByLevel(rootNode, boundaryCodes);
 
             case BLOCK_CODE:
                 List<String> blockBoundaryCodes = criteria.getBlock().stream()
@@ -423,6 +440,13 @@ public class BoundaryUtil {
 
     private boolean isNotNullOrEmpty(Collection<?> c) {
         return c != null && !c.isEmpty();
+    }
+
+    /**
+     * Facility boundary codes embed the facility id (e.g. fac/2026/0013) after the block prefix.
+     */
+    private boolean isFacilityLevelBoundaryCode(String code) {
+        return code != null && code.contains("/");
     }
 
 }

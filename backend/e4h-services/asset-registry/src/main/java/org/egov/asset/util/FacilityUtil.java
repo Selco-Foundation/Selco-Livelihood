@@ -77,4 +77,61 @@ public class FacilityUtil {
 
         return Collections.singletonList(response.get("facility"));
     }
+
+    /**
+     * Resolves facility-level boundary code from facility-registry search (same source as facility.boundaryCode).
+     */
+    public String resolveFacilityBoundaryCode(String tenantId, String facilityId) {
+        Map<String, String> details = resolveFacilityDetails(tenantId, facilityId);
+        return details != null ? details.get("boundaryCode") : null;
+    }
+
+    /**
+     * Loads facility registry fields needed for QR login: boundary, POC phone, facility id.
+     *
+     * @return map with keys boundaryCode, facilityPocPhone, facilityId, endUserUuid — or null if not found
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, String> resolveFacilityDetails(String tenantId, String facilityId) {
+        List<Object> searchResult = searchFacility(tenantId, facilityId);
+        if (searchResult.isEmpty() || searchResult.get(0) == null) {
+            return null;
+        }
+        Object facilitiesObj = searchResult.get(0);
+        if (!(facilitiesObj instanceof List<?> facilities) || facilities.isEmpty()) {
+            return null;
+        }
+        Object facility = facilities.get(0);
+        if (!(facility instanceof Map<?, ?> facilityMap)) {
+            return null;
+        }
+
+        Map<String, String> details = new java.util.HashMap<>();
+        details.put("facilityId", firstString(facilityMap, "facility_id", "facilityId"));
+        details.put("boundaryCode", firstString(facilityMap, "boundaryCode", "boundary_code"));
+        details.put("facilityPocPhone", firstString(facilityMap, "facility_poc_phone", "facilityPocPhone"));
+        details.put("endUserUuid", firstString(facilityMap, "end_user_uuid", "endUserUuid", "user_id", "userId"));
+        return details;
+    }
+
+    private String firstString(Map<?, ?> map, String... keys) {
+        for (String key : keys) {
+            Object value = map.get(key);
+            if (value != null && !String.valueOf(value).isBlank()) {
+                return String.valueOf(value).trim();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Asset boundary follows the same pattern as facility: {@code {facilityBoundaryCode}_{assetId}}.
+     */
+    public String buildAssetBoundaryCode(String facilityBoundaryCode, String assetId) {
+        if (facilityBoundaryCode == null || facilityBoundaryCode.isBlank()
+                || assetId == null || assetId.isBlank()) {
+            return null;
+        }
+        return facilityBoundaryCode.trim() + "_" + assetId.trim();
+    }
 }

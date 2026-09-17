@@ -3,6 +3,8 @@ from typing import Dict, Any
 
 import requests
 
+from app.core.tenant import LIVELIHOOD_TENANT_ID
+
 
 class HRMSServiceClient:
     def __init__(self,hrms_service_url):
@@ -14,7 +16,7 @@ class HRMSServiceClient:
             "Content-Type": "application/json"
         }
         params = {
-            "tenantId": "in"
+            "tenantId": LIVELIHOOD_TENANT_ID
         }
         try:
             requests.post(url, headers=headers, params=params, json=user_payload)
@@ -41,7 +43,7 @@ class HRMSServiceClient:
             "Content-Type": "application/json"
         }
         params = {
-            "tenantId":"in",
+            "tenantId": LIVELIHOOD_TENANT_ID,
             "phone": user_payload["Employees"][0]["user"]["mobileNumber"]
         }
         try:

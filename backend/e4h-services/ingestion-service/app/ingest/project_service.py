@@ -1,5 +1,6 @@
 import os
 
+from app.core.tenant import LIVELIHOOD_TENANT_ID
 from app.schemas.request_info import RequestInfo
 from app.utils.convertor import convert_response_to_facility
 from app.utils.facility_service_client import FacilityServiceClient
@@ -27,14 +28,14 @@ class ProjectService:
         }
 
         # Call the search_project_facilities method
-        response = self.project_client.search_project_facilities(search_payload, tenant_id="in")
+        response = self.project_client.search_project_facilities(search_payload, tenant_id=LIVELIHOOD_TENANT_ID)
         facility_data = response["ProjectFacilities"]
 
         facilities = []
         for facility_item in facility_data:
             facility_id = facility_item.get("facilityId")
             if facility_id:
-                response = self.facility_client.search_facility(tenant_id="in", facility_id=facility_id)
+                response = self.facility_client.search_facility(tenant_id=LIVELIHOOD_TENANT_ID, facility_id=facility_id)
                 if response:
                     for facility_data in response.get("facilities", []):
                         facilities.append(convert_response_to_facility(facility_data, role_type))

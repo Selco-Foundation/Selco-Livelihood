@@ -22,11 +22,14 @@ public class AssetRowMapper {
         asset.setTenantId(rs.getString("tenant_id"));
         asset.setSystem(rs.getString("system"));
         asset.setFacilityID(rs.getString("facility_id"));
+        asset.setBoundaryCode(rs.getString("boundary_code"));
         asset.setActivityFacilityID(rs.getString("activity_facility_id"));
         asset.setAssetTypeID(rs.getString("asset_type_id"));
         asset.setSerialNumber(rs.getString("serial_number"));
         asset.setModelNumber(rs.getString("model_number"));
         asset.setBrandID(rs.getString("brand_id"));
+        asset.setVendorId(rs.getString("vendor_id"));
+        asset.setItemCode(rs.getString("item_code"));
         Long startDate = rs.getLong("warranty_start_date");
         Long endDate = rs.getLong("warranty_end_date");
         asset.setWarrantyStartDate(startDate!=null && startDate>0 ? new Date(rs.getLong("warranty_start_date")) : null);
@@ -53,6 +56,14 @@ public class AssetRowMapper {
             if(addDetails!=null){
                 asset.setAdditionalDetails(mapper.readValue(addDetails, new TypeReference<Map<String, Object>>() {
                 }));
+            }
+
+            if (asset.getName() == null || asset.getName().isBlank()) {
+                if (asset.getAssetDetails() != null && asset.getAssetDetails().get("name") != null) {
+                    asset.setName(String.valueOf(asset.getAssetDetails().get("name")));
+                } else if (asset.getAssetTypeID() != null) {
+                    asset.setName(asset.getAssetTypeID());
+                }
             }
 
         }catch (JsonProcessingException e) {

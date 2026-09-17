@@ -5,7 +5,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.egov.common.contract.request.RequestInfo;
 import org.selco.e4h.config.ConsumerConfiguration;
+import org.selco.e4h.config.LivelihoodSummaryProperties;
 import org.selco.e4h.repository.ServiceRequestRepository;
+import org.selco.e4h.util.LivelihoodBoundaryScopeUtil;
 import org.selco.e4h.web.models.Employee;
 import org.selco.e4h.web.models.EmployeeResponse;
 import org.selco.e4h.web.models.SLARequest;
@@ -26,6 +28,7 @@ public class UserService {
     private final ServiceRequestRepository serviceRequestRepository;
     private final ObjectMapper objectMapper;
     private final ConsumerConfiguration consumerConfiguration;
+    private final LivelihoodSummaryProperties livelihoodProperties;
 
     public List<User> searchUsersByRoleAndBoundaryCode(RequestInfo requestInfo, String boundaryCode, List<String> roleCodes) {
         try {
@@ -33,11 +36,15 @@ public class UserService {
                     .requestInfo(requestInfo)
                     .build();
             String roles = String.join(",", roleCodes);
-            
+            String hrmsTenantId = livelihoodProperties.isLivelihoodDeployment()
+                    ? livelihoodProperties.getLivelihoodTenantId()
+                    : "in";
+            String resolvedBoundary = resolveBoundaryForSearch(boundaryCode, roleCodes);
+
             // For country-level searches (boundary "India"), add searchOnlyInBoundary=true for exact boundary matching
             StringBuilder urlBuilder = new StringBuilder(consumerConfiguration.getHrmsHost() + consumerConfiguration.getHrmsSearchUrl());
-            urlBuilder.append("?tenantId=in&limit=1000&roles=").append(roles);
-            urlBuilder.append("&offset=0&boundaryCodes=").append(boundaryCode);
+            urlBuilder.append("?tenantId=").append(hrmsTenantId).append("&limit=1000&roles=").append(roles);
+            urlBuilder.append("&offset=0&boundaryCodes=").append(resolvedBoundary);
             
             // Add searchOnlyInBoundary=true for country-level boundary to ensure exact match
             if ("India".equals(boundaryCode)) {
@@ -68,6 +75,16 @@ public class UserService {
             log.error("Error searching employees for boundary code: {} with roles: {}", boundaryCode, roleCodes, e);
             return new ArrayList<>();
         }
+    }
+
+    private String resolveBoundaryForSearch(String boundaryCode, List<String> roleCodes) {
+        if (!livelihoodProperties.isLivelihoodDeployment() || boundaryCode == null || "India".equals(boundaryCode)) {
+            return boundaryCode;
+        }
+        if (roleCodes != null && roleCodes.size() == 1) {
+            return LivelihoodBoundaryScopeUtil.resolveBoundaryForHrmsRole(roleCodes.get(0), boundaryCode);
+        }
+        return LivelihoodBoundaryScopeUtil.toStateBoundaryCode(boundaryCode);
     }
 
 }

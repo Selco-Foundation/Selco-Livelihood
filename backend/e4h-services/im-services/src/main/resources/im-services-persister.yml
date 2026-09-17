@@ -1,103 +1,158 @@
 serviceMaps:
   serviceName: im-services
   mappings:
-  - version: 1.0
-    description: Persists im service request in tables
-    fromTopic: save-im-request
-    isTransaction: true
-    queryMaps:
+    - version: 1
+      description: Persists im service request in tables
+      fromTopic: save-im-request
+      isTransaction: true
+      isAuditEnabled: true
+      module: Incident
+      objecIdJsonPath: $.id
+      tenantIdJsonPath: $.tenantId
+      transactionCodeJsonPath: $.incidentId
+      auditAttributeBasePath: $.incident
+      queryMaps:
+        - query: >-
+            INSERT INTO eg_incident_v2(id, tenantid, incidenttype,
+            incidentsubtype, incidentid, additionaldetails, applicationstatus,
+            district, block, phctype, phcsubtype, facilityid, boundarycode, createdby, createdtime,
+            lastmodifiedby, lastmodifiedtime, comments,accountid, reportertenant,reportertype,systemfunctional, fileddate, legacyid, migrationid, ispotentialduplicate, warranty_status, asset_id, created_on_behalf, entry_channel) VALUES (?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? , ? , ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+          basePath: $.incident
+          jsonMaps:
+            - jsonPath: $.incident.id
+            - jsonPath: $.incident.tenantId
+            - jsonPath: $.incident.incidentType
+            - jsonPath: $.incident.incidentSubType
+            - jsonPath: $.incident.incidentId
+            - jsonPath: $.incident.additionalDetail
+              type: JSON
+              dbType: JSONB
+            - jsonPath: $.incident.applicationStatus
+            - jsonPath: $.incident.district
+            - jsonPath: $.incident.block
+            - jsonPath: $.incident.phcType
+            - jsonPath: $.incident.phcSubType
+            - jsonPath: $.incident.facilityId
+            - jsonPath: $.incident.boundaryCode
+            - jsonPath: $.incident.auditDetails.createdBy
+            - jsonPath: $.incident.auditDetails.createdTime
+            - jsonPath: $.incident.auditDetails.lastModifiedBy
+            - jsonPath: $.incident.auditDetails.lastModifiedTime
+            - jsonPath: $.incident.comments
+            - jsonPath: $.incident.accountId
+            - jsonPath: $.incident.reporterTenant
+            - jsonPath: $.incident.reporterType
+            - jsonPath: $.incident.systemFunctional
+            - jsonPath: $.incident.filedDate
+            - jsonPath: $.incident.legacyId
+            - jsonPath: $.incident.migrationId
+            - jsonPath: $.incident.isPotentialDuplicate
+            - jsonPath: $.incident.warrantyStatus
+            - jsonPath: $.incident.assetId
+            - jsonPath: $.incident.createdOnBehalf
+            - jsonPath: $.incident.entryChannel
 
-    - query: INSERT INTO eg_incident_v2(id, tenantid, incidenttype, incidentsubtype, incidentid, additionaldetails, applicationstatus, district, block, phctype, phcsubtype, createdby, createdtime, lastmodifiedby, lastmodifiedtime, comments, filed_date, legacy_id, migration_id, facilityid, boundarycode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-      basePath: incident
-      jsonMaps:
-      - jsonPath: $.incident.id
+    - version: 1
+      description: Updates im service request in tables
+      fromTopic: update-im-request
+      isTransaction: true
+      isAuditEnabled: true
+      module: Incident
+      objecIdJsonPath: $.id
+      tenantIdJsonPath: $.tenantId
+      transactionCodeJsonPath: $.incidentId
+      auditAttributeBasePath: $.incident
+      queryMaps:
+        - query: >-
+            UPDATE eg_incident_v2 SET incidenttype=?, incidentid=?,
+            incidentsubtype=?, additionaldetails=?, applicationstatus=?,
+            district=? , block=? , phctype=? , phcsubtype=?, facilityid=?, boundarycode=?, lastmodifiedby=?,
+            lastmodifiedtime=?, comments=?, systemfunctional=?, fileddate=? , legacyid=? , migrationid=?, ispotentialduplicate=?, warranty_status=?, asset_id=?, created_on_behalf=?, entry_channel=? WHERE id=?;
+          basePath: $.incident
+          jsonMaps:
+            - jsonPath: $.incident.incidentType
+            - jsonPath: $.incident.incidentId
+            - jsonPath: $.incident.incidentSubType
+            - jsonPath: $.incident.additionalDetail
+              type: JSON
+              dbType: JSONB
+            - jsonPath: $.incident.applicationStatus
+            - jsonPath: $.incident.district
+            - jsonPath: $.incident.block
+            - jsonPath: $.incident.phcType
+            - jsonPath: $.incident.phcSubType
+            - jsonPath: $.incident.facilityId
+            - jsonPath: $.incident.boundaryCode
+            - jsonPath: $.incident.auditDetails.lastModifiedBy
+            - jsonPath: $.incident.auditDetails.lastModifiedTime
+            - jsonPath: $.incident.comments
+            - jsonPath: $.incident.systemFunctional
+            - jsonPath: $.incident.filedDate
+            - jsonPath: $.incident.legacyId
+            - jsonPath: $.incident.migrationId
+            - jsonPath: $.incident.isPotentialDuplicate
+            - jsonPath: $.incident.warrantyStatus
+            - jsonPath: $.incident.assetId
+            - jsonPath: $.incident.createdOnBehalf
+            - jsonPath: $.incident.entryChannel
+            - jsonPath: $.incident.id
 
-      - jsonPath: $.incident.tenantId
+    - version: 1
+      description: Updates im service request in tables
+      fromTopic: update-im-request-migration
+      isTransaction: true
+      isAuditEnabled: true
+      module: Incident
+      objecIdJsonPath: $.id
+      tenantIdJsonPath: $.tenantId
+      transactionCodeJsonPath: $.incidentId
+      auditAttributeBasePath: $.incident
+      queryMaps:
+        - query: >-
+            UPDATE eg_incident_v2 SET applicationstatus=? WHERE id=?;
+          basePath: $.incident
+          jsonMaps:
+            - jsonPath: $.incident.applicationStatus
+            - jsonPath: $.incident.id
 
-      - jsonPath: $.incident.incidentType
+    - version: 1
+      description: Persists rms-inactive-incident in table
+      fromTopic: save-rms-inactive-incident
+      isTransaction: true
+      isAuditEnabled: true
+      module: Incident
+      objecIdJsonPath: $.id
+      tenantIdJsonPath: $.tenantId
+      transactionCodeJsonPath: $.incidentId
+      auditAttributeBasePath: $.incident
+      queryMaps:
+        - query: >-
+            INSERT INTO public.facility_rms_inactive_incident (id, tenantid, facilityid, incidentid, createdby, createdtime, lastmodifiedby, lastmodifiedtime) VALUES(?, ?, ?, ?, ?, ?, ?, ?);
+          basePath: $.incident
+          jsonMaps:
+            - jsonPath: $.incident.id
+            - jsonPath: $.incident.tenantId
+            - jsonPath: $.incident.facilityId
+            - jsonPath: $.incident.incidentId
+            - jsonPath: $.incident.auditDetails.createdBy
+            - jsonPath: $.incident.auditDetails.createdTime
+            - jsonPath: $.incident.auditDetails.lastModifiedBy
+            - jsonPath: $.incident.auditDetails.lastModifiedTime
 
-      - jsonPath: $.incident.incidentSubType
-
-      - jsonPath: $.incident.incidentId
-
-      - jsonPath: $.incident.additionalDetail
-        type: JSON
-        dbType: JSONB
-
-      - jsonPath: $.incident.applicationStatus
-
-      - jsonPath: $.incident.district
-
-      - jsonPath: $.incident.block
-
-      - jsonPath: $.incident.phcType
-
-      - jsonPath: $.incident.phcSubType
-
-      - jsonPath: $.incident.auditDetails.createdBy
-
-      - jsonPath: $.incident.auditDetails.createdTime
-
-      - jsonPath: $.incident.auditDetails.lastModifiedBy
-
-      - jsonPath: $.incident.auditDetails.lastModifiedTime
-
-      - jsonPath: $.incident.comments
-
-      - jsonPath: $.incident.filedDate
-
-      - jsonPath: $.incident.legacyId
-
-      - jsonPath: $.incident.migrationId
-
-      - jsonPath: $.incident.facilityId
-
-      - jsonPath: $.incident.boundaryCode
-
-
-  - version: 1.0
-    description: Updates im service request in tables
-    fromTopic: update-im-request
-    isTransaction: true
-    queryMaps:
-
-    - query: UPDATE eg_incident_v2 SET incidenttype=?, incidentid=?, incidentsubtype=?, additionaldetails=?, applicationstatus=?, district=? , block=? , phctype=? , phcsubtype=?, lastmodifiedby=?, lastmodifiedtime=?, comments=?, filed_date=?, legacy_id=?, migration_id=?, facilityid=?, boundarycode=? WHERE id=?;
-      basePath: incident
-      jsonMaps:
-      - jsonPath: $.incident.incidentType
-
-      - jsonPath: $.incident.incidentId
-
-      - jsonPath: $.incident.incidentSubType
-
-      - jsonPath: $.incident.additionalDetail
-        type: JSON
-        dbType: JSONB
-
-      - jsonPath: $.incident.applicationStatus
-
-      - jsonPath: $.incident.district
-
-      - jsonPath: $.incident.block
-
-      - jsonPath: $.incident.phcType
-
-      - jsonPath: $.incident.phcSubType
-
-      - jsonPath: $.incident.auditDetails.lastModifiedBy
-
-      - jsonPath: $.incident.auditDetails.lastModifiedTime
-
-      - jsonPath: $.incident.comments
-
-      - jsonPath: $.incident.filedDate
-
-      - jsonPath: $.incident.legacyId
-
-      - jsonPath: $.incident.migrationId
-
-      - jsonPath: $.incident.facilityId
-
-      - jsonPath: $.incident.boundaryCode
-
-      - jsonPath: $.incident.id
+    - version: 1
+      description: Delete rms-inactive-incident in table
+      fromTopic: delete-rms-inactive-incident
+      isTransaction: true
+      isAuditEnabled: true
+      module: Incident
+      objecIdJsonPath: $.id
+      tenantIdJsonPath: $.tenantId
+      transactionCodeJsonPath: $.incidentId
+      auditAttributeBasePath: $.incident
+      queryMaps:
+        - query: >-
+            DELETE FROM public.facility_rms_inactive_incident WHERE id = ?;
+          basePath: $.incident
+          jsonMaps:
+            - jsonPath: $.incident.id

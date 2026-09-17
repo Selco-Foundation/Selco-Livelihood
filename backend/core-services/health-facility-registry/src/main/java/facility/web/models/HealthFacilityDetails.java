@@ -3,7 +3,6 @@ package facility.web.models;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.annotation.Generated;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -35,7 +34,6 @@ public class HealthFacilityDetails {
     private String ninId;
 
     @JsonProperty("solar_solution_design_type")
-    @NotNull(message = "solar_solution_design_type is required")
     private SolarSolutionDesignType solarSolutionDesignType;
 
     @JsonProperty("pocContact")

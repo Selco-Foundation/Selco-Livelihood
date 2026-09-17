@@ -3,7 +3,7 @@ import json
 import sys
 
 # Endpoint and headers
-url = 'http://im-services-analytics.core-dev:8080/im-services-analytics/v1/escalation-emails/daily'
+url = 'http://im-services-analytics.core:8080/im-services-analytics/v1/escalation-emails/daily'
 headers = {
     'Content-Type': 'application/json'
 }

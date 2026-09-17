@@ -11,3 +11,4 @@ RUN pip install requests
 
 # Default entrypoint, tenant IDs will be passed as CMD
 ENTRYPOINT ["python", "run_sla.py"]
+CMD ["livelihood"]

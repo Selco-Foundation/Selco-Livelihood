@@ -102,4 +102,17 @@ public class Configuration {
 
     @Value("${asset.update.topic}")
     private String updateAssetTopic;
+
+    //Localization
+    @Value("${egov.localization.host}")
+    private String localizationHost;
+
+    @Value("${egov.localization.context.path}")
+    private String localizationContextPath;
+
+    @Value("${egov.localization.upsert.path}")
+    private String localizationUpsertPath;
+
+    @Value("${egov.localization.tenant.id:livelihood}")
+    private String localizationTenantId;
 }

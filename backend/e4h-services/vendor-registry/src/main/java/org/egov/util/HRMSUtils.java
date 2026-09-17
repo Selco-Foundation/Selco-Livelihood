@@ -12,6 +12,7 @@ import org.egov.tracer.model.CustomException;
 import org.egov.web.models.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.util.*;
 
@@ -73,7 +74,7 @@ public class HRMSUtils {
     }
 
     public Employee getUserById(Object request, String userId) {
-        String url = config.getHrmsHost() + config.getHrmsSearchEndPoint()+ "?tenantId=in&uuids="+userId;
+        String url = config.getHrmsHost() + config.getHrmsSearchEndPoint()+ "?tenantId=" + getHrmsTenantId() + "&uuids="+userId;
         Object response = serviceRequestRepository.fetchResult(new StringBuilder(url), request);
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         EmployeeResponse employeeResponse = mapper.convertValue(response, EmployeeResponse.class);
@@ -85,7 +86,7 @@ public class HRMSUtils {
     }
 
     public List<Employee> getUserByPhoneNumber(Object request, String phoneNumber) {
-        String url = config.getHrmsHost() + config.getHrmsSearchEndPoint()+ "?tenantId=in&phone="+phoneNumber;
+        String url = config.getHrmsHost() + config.getHrmsSearchEndPoint()+ "?tenantId=" + getHrmsTenantId() + "&phone="+phoneNumber;
         Object response = serviceRequestRepository.fetchResult(new StringBuilder(url), request);
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         EmployeeResponse employeeResponse = mapper.convertValue(response, EmployeeResponse.class);
@@ -96,7 +97,7 @@ public class HRMSUtils {
     }
 
     public List<Employee> getUserByUsername(Object request, String username) {
-        String url = config.getHrmsHost() + config.getHrmsSearchEndPoint()+ "?tenantId=in&codes="+username;
+        String url = config.getHrmsHost() + config.getHrmsSearchEndPoint()+ "?tenantId=" + getHrmsTenantId() + "&codes="+username;
         Object response = serviceRequestRepository.fetchResult(new StringBuilder(url), request);
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         EmployeeResponse employeeResponse = mapper.convertValue(response, EmployeeResponse.class);
@@ -107,7 +108,7 @@ public class HRMSUtils {
     }
 
     public List<Employee> createHRMSUser(Object request) {
-        String url = config.getHrmsHost() + config.getHrmsCreateEndPoint()+ "?tenantId=in";
+        String url = config.getHrmsHost() + config.getHrmsCreateEndPoint()+ "?tenantId=" + getHrmsTenantId();
         Object response = serviceRequestRepository.fetchResult(new StringBuilder(url), request);
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         EmployeeResponse employeeResponse = mapper.convertValue(response, EmployeeResponse.class);
@@ -118,7 +119,7 @@ public class HRMSUtils {
     }
 
     public List<Employee> updateHRMSUser(Object request) {
-        String url = config.getHrmsHost() + config.getHrmsUpdateEndPoint()+ "?tenantId=in";
+        String url = config.getHrmsHost() + config.getHrmsUpdateEndPoint()+ "?tenantId=" + getHrmsTenantId();
         Object response = serviceRequestRepository.fetchResult(new StringBuilder(url), request);
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         EmployeeResponse employeeResponse = mapper.convertValue(response, EmployeeResponse.class);
@@ -128,7 +129,28 @@ public class HRMSUtils {
         return employeeResponse.getEmployees();
     }
 
+    /**
+     * Returns the HRMS user record to send to egov-user {@code _updatenovalidate} (re-fetch for full id/dates/roles).
+     */
+    public User resolveUserForPasswordUpdate(RequestInfo requestInfo, Employee employeeFromCreate) {
+        if (employeeFromCreate == null || employeeFromCreate.getUser() == null) {
+            throw new CustomException("HRMS_CREATION", "HRMS user missing after employee create");
+        }
+        String lookupUuid = StringUtils.hasText(employeeFromCreate.getUuid())
+                ? employeeFromCreate.getUuid()
+                : employeeFromCreate.getUser().getUuid();
+        if (StringUtils.hasText(lookupUuid)) {
+            RequestInfoWrapper wrapper = RequestInfoWrapper.builder().requestInfo(requestInfo).build();
+            Employee existing = getUserById(wrapper, lookupUuid);
+            if (existing != null && existing.getUser() != null) {
+                return existing.getUser();
+            }
+        }
+        return employeeFromCreate.getUser();
+    }
+
     public Employee buildEmployee(User user, String orgType) {
+        String tenantId = resolveTenantId(user != null ? user.getTenantId() : null);
         Employee employee = Employee.builder()
 //                .id(source.getId())
 //                .uuid(source.getUuid())
@@ -136,7 +158,7 @@ public class HRMSUtils {
                 .employeeStatus("EMPLOYED")
                 .employeeType("PERMANENT")
                 .dateOfAppointment(1617215400000L)
-                .tenantId("in")
+                .tenantId(tenantId)
                 .IsActive(true)
                 .reActivateEmployee(false)
                 .assignments(buildAssignments())
@@ -181,7 +203,7 @@ public class HRMSUtils {
                     .hierarchy("ADMIN")
                     .boundary("India")
                     .boundaryType("Country")
-                    .tenantId("in")
+                    .tenantId(getHrmsTenantId())
                     .isActive(true)
                     .build();
             return Collections.singletonList(jurisdiction1);
@@ -196,7 +218,7 @@ public class HRMSUtils {
                 .designation("DESIG_01")
                 .department("DEPT_1")
                 .fromDate(1617215400000L)
-                .tenantid("in")
+                .tenantid(getHrmsTenantId())
                 .isHOD(false)
                 .isCurrentAssignment(true)
                 .build();
@@ -223,6 +245,14 @@ public class HRMSUtils {
                 .tenantId(source.getTenantId())
                 .roles(source.getRoles())
                 .build();
+    }
+
+    private String getHrmsTenantId() {
+        return config.getStateLevelTenantId();
+    }
+
+    private String resolveTenantId(String tenantId) {
+        return StringUtils.hasText(tenantId) ? tenantId : getHrmsTenantId();
     }
 
 
