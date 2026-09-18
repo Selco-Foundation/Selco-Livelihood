@@ -294,10 +294,11 @@ public class BomPdfService {
             data.put("report_tender_no", bom.getData().get("tender_number"));
             data.put("report_no", bom.getData().get("report_number"));
             data.put("report_po_wo_number", bom.getData().get("purchase_order_number"));
-            data.put("report_invoice_number", bom.getData().get("invoice_number"));
         }
 
         Asset asset = findAssetForActivityFacility(requestInfo, activityFacility.getId(), activityFacility.getTenantId());
+        Map<String, Object> assetDetails = asset.getAssetDetails() != null ? asset.getAssetDetails() : Map.of();
+        data.put("report_invoice_number", assetDetails.get("invoiceNumber"));
 
         Facility facility = activityFacility.getFacility();
         String nowFormatted = REPORT_TIMESTAMP_FORMATTER.format(java.time.ZonedDateTime.now(ZoneId.systemDefault()));
