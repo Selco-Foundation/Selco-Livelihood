@@ -307,7 +307,7 @@ public class ProjectFacilityService {
         ProjectSearchURLParams urlParams = ProjectSearchURLParams.builder()
                 .limit(1)
                 .offset(0)
-                .tenantId("in")
+                .tenantId(request.getRequestInfo().getUserInfo().getTenantId())
                 .includeAncestors(false)
                 .includeDescendants(false)
                 .build();
