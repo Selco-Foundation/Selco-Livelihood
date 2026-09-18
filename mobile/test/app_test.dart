@@ -2832,6 +2832,10 @@ void main() {
 
     final toggleButton =
         find.byKey(const ValueKey('test-otp-request-resend-button'));
+    expect(
+      tester.widget<DigitButton>(toggleButton).size,
+      DigitButtonSize.large,
+    );
     await tester.tap(toggleButton);
     await tester.pump();
     expect(fakeRepo.generateCalls, 1);

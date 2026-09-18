@@ -200,7 +200,7 @@ class _OtpVerificationWidgetState extends State<OtpVerificationWidget> {
           onPressed: () => _otpRequested ? _resendOtp() : _requestOtp(),
           isDisabled: !widget.isEnabled || _isBusy || _isVerified,
           type: DigitButtonType.tertiary,
-          size: DigitButtonSize.medium,
+          size: DigitButtonSize.large,
           textColor: theme.colorTheme.primary.primary1,
         ),
       ],
