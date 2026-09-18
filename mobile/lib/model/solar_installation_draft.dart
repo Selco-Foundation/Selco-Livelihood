@@ -20,7 +20,7 @@ extension SolarAssetTypeLabel on SolarAssetType {
 
   String get pluralLabel => switch (this) {
         SolarAssetType.battery => 'Batteries',
-        SolarAssetType.inverter => 'Inverters',
+        SolarAssetType.inverter => 'Inverters / PCUs',
         SolarAssetType.panel => 'Panels',
       };
 
@@ -316,7 +316,9 @@ class SolarInstallationDraft {
   String get cacheKey => workflow.activityFacilityCacheKey;
   String get facilityName => workflow.facilityTitle;
 
-  String labelFor(SolarAssetType type) => assetTypeLabels[type] ?? type.label;
+  String labelFor(SolarAssetType type) => type == SolarAssetType.inverter
+      ? type.label
+      : (assetTypeLabels[type] ?? type.label);
   List<String> warrantiesFor(SolarAssetType type) =>
       warrantyOptions[type] ?? const [];
   List<String> brandsFor(SolarAssetType type) => brandOptions[type] ?? const [];
