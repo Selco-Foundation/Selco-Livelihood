@@ -21,7 +21,9 @@ export function LabeledValueRows({ items }: LabeledValueRowsProps) {
           <span className="w-40 shrink-0 font-semibold text-ink-950">
             {translateOr(t, item.labelKey, item.label)}
           </span>
-          <span className="text-ink-950">{item.value}</span>
+          <span className="text-ink-950">
+            {item.valueKey ? translateOr(t, item.valueKey, item.value) : item.value}
+          </span>
         </div>
       ))}
     </div>

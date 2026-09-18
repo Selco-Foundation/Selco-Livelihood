@@ -224,14 +224,15 @@ export function buildMachineAssetData(
   // about the install, not the machine.
   const details: LabeledValue[] = [
     {
+      labelKey: "ES_IR_MACHINE",
+      label: "Machine",
+      value: rawValue(first.boundaryCode),
+      valueKey: first.boundaryCode ? `BOUNDARY_${first.boundaryCode}` : undefined,
+    },
+    {
       labelKey: "ES_IR_MACHINE_SERIAL_NUMBER",
       label: "Machine Serial Number",
       value: rawValue(first.serialNumber),
-    },
-    {
-      labelKey: "ES_IR_MACHINE_MOTOR_CAPACITY",
-      label: "Machine Specifications/Motor Capacity",
-      value: rawValue(first.modelNumber),
     },
     {
       labelKey: "ES_IR_MACHINE_PO_NUMBER",

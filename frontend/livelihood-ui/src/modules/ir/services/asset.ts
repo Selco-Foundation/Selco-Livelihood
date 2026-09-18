@@ -12,6 +12,10 @@ export interface AssetSearchDocument {
 export interface AssetSearchResponseItem {
   assetId?: string;
   assetTypeID?: string;
+  /** The asset's own leaf boundary code — a `BOUNDARY_<boundaryCode>` lookup
+   * gives its human-readable name, same localization convention as
+   * district/block codes (see utils/boundary.ts's boundaryDisplayName). */
+  boundaryCode?: string;
   /** The asset's product name (e.g. "Huller-Rice-3-HP-AC-150-kgs/hr") — a
    * Machine's assetTypeID isn't a fixed enum like Solar's PANEL/BATTERY/
    * INVERTER (it's sometimes the generic "MACHINE", sometimes a specific

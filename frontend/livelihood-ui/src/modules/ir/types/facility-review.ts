@@ -120,6 +120,10 @@ export interface LabeledValue {
   labelKey: string;
   label: string;
   value: string;
+  /** When set, the value itself is a localization key (falling back to
+   * `value` untranslated) — e.g. a boundary code's `BOUNDARY_<code>` name,
+   * same convention as `labelKey`/`label`. */
+  valueKey?: string;
 }
 
 export interface SectionImage {
