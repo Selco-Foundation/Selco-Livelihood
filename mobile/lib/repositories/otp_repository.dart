@@ -1,7 +1,10 @@
 import 'package:dio/dio.dart';
 
+import '../blocs/localization/app_localization.dart';
+import '../data/network_manager.dart';
 import '../data/remote_client.dart';
 import '../utils/api_paths.dart';
+import '../utils/error_i18n.dart';
 
 class OtpResult {
   const OtpResult({required this.success, this.message});
@@ -78,6 +81,12 @@ class OtpRepository {
   }
 
   String _errorMessageFromException(DioException e) {
+    final networkError = e.error;
+    if (networkError is AppNetworkException) {
+      return AppLocalizations.translateCached(
+        i18KeyForNetworkError(networkError),
+      );
+    }
     final fromBody = _errorMessageFromBody(e.response?.data);
     if (fromBody != null) return fromBody;
     final data = e.response?.data;
