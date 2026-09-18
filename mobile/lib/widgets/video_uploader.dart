@@ -233,7 +233,7 @@ class _VideoUploaderState extends State<VideoUploader> {
                             const Icon(Icons.video_file,
                                 color: Color(0xFFD4351C), size: spacer8),
                             const SizedBox(height: spacer2),
-                            Text(videos[index].name,
+                            Text(videos[index].viewerTitle,
                                 maxLines: 3,
                                 overflow: TextOverflow.ellipsis,
                                 style: textTheme.bodyS),

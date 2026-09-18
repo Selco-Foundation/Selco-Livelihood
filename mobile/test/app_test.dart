@@ -2717,6 +2717,40 @@ void main() {
         find.byKey(const ValueKey('video-uploader-preview-1')), findsOneWidget);
   });
 
+  testWidgets('video uploader prefers MDMS titles and keeps filename fallback',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 844));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: Scaffold(
+          body: VideoUploader(
+            initialVideos: const [
+              SolarFileRef(
+                name: 'MACHINE_DEMO_VIDEO',
+                path: 'machine-demo-filestore-id',
+                kind: SolarFileKind.video,
+                displayTitle: 'Raw Material Demo',
+              ),
+              SolarFileRef(
+                name: 'solar-video.mp4',
+                path: '/tmp/solar-video.mp4',
+                kind: SolarFileKind.video,
+              ),
+            ],
+            allowMultiples: true,
+            maxVideos: 2,
+            onVideosSelected: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Raw Material Demo'), findsOneWidget);
+    expect(find.text('MACHINE_DEMO_VIDEO'), findsNothing);
+    expect(find.text('solar-video.mp4'), findsOneWidget);
+  });
+
   testWidgets('E4H file uploader shows selection count and preview tile', (
     tester,
   ) async {
