@@ -258,6 +258,7 @@ class InstallationReport {
   String get dynamicFormNotConnected =>
       'INSTALLATION_REPORT_DYNAMIC_FORM_NOT_CONNECTED';
   String get uploadPrompt => 'INSTALLATION_REPORT_UPLOAD_PROMPT';
+  String get invoiceNumber => 'INSTALLATION_REPORT_INVOICE_NUMBER';
   String get uploadPdf => 'INSTALLATION_REPORT_UPLOAD_PDF';
   String get filePickerError => 'INSTALLATION_REPORT_FILE_PICKER_ERROR';
   String get rejectionReasons => 'INSTALLATION_REPORT_REJECTION_REASONS';

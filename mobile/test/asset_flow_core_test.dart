@@ -1554,6 +1554,82 @@ void main() {
     expect(asset['itemCode'], isNull);
   });
 
+  test('solar invoiceNumber applies identically to every submitted asset',
+      () {
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'activity-facility-1',
+        facilityId: 'facility-1',
+      ),
+    );
+    final draft = SolarInstallationDraft(
+      workflow: workflow,
+      mode: SolarWorkflowMode.newReport,
+    )
+      ..systemCode = 'DC'
+      ..invoiceNumber = 'INV-100'
+      ..applicableTypes = const [SolarAssetType.battery, SolarAssetType.panel];
+    draft.assetTypeCodes[SolarAssetType.battery] = 'BATTERY';
+    draft.assetTypeCodes[SolarAssetType.panel] = 'PANEL';
+    draft.assets[SolarAssetType.battery]!
+      ..selectedBrandCode = 'NED'
+      ..warrantyDuration = '5 Years'
+      ..assets.add(SolarAssetEntry(
+        serialNumber: 'BATTERY-1',
+        capacity: '125',
+        batteryType: 'LITHIUM_ION',
+      ));
+    draft.assets[SolarAssetType.panel]!
+      ..selectedBrandCode = 'RENEW'
+      ..warrantyDuration = '10 Years'
+      ..assets.add(SolarAssetEntry(
+        serialNumber: 'PANEL-1',
+        capacity: '330',
+        fields: const {'invoiceNumber': 'STALE-FROM-A-PRIOR-RECORD'},
+      ));
+
+    final payload = buildSolarSubmissionPayload(draft);
+    final assets = payload['assets'] as List;
+    expect(assets, hasLength(2));
+    for (final asset in assets) {
+      expect((asset as Map)['assetDetails']['invoiceNumber'], 'INV-100');
+    }
+  });
+
+  test(
+      'hydrateSolar repopulates invoiceNumber from the first asset found',
+      () async {
+    const mdms = AssetRegistryMdmsResponse();
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'activity-facility-1',
+        facilityId: 'facility-1',
+      ),
+    );
+    final repository = InstallationDraftRepository(
+      mdmsRepository: AssetMdmsRepository(initial: mdms),
+      bomSearch: (_) async => const [],
+      assetSearch: (_) async => [
+        {
+          'assetTypeID': 'BATTERY',
+          'serialNumber': 'BATTERY-1',
+          'assetDetails': {'capacity': '125', 'invoiceNumber': 'INV-200'},
+        },
+        {
+          'assetTypeID': 'PANEL',
+          'serialNumber': 'PANEL-1',
+          'assetDetails': {'capacity': '330', 'invoiceNumber': 'INV-999'},
+        },
+      ],
+      localDraft: (_) async => null,
+    );
+    final draft = repository.createSolar(workflow, SolarWorkflowMode.pending);
+
+    await repository.hydrateSolar(draft);
+
+    expect(draft.invoiceNumber, 'INV-200');
+  });
+
   test(
       'battery image and panel video round-trip through submit and reopen '
       'using the E4H-matching lowercase documentType', () {

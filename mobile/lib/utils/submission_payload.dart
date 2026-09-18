@@ -35,7 +35,8 @@ Map<String, dynamic> buildSolarSubmissionPayload(SolarInstallationDraft draft) {
       final additionalFields = Map<String, dynamic>.from(entry.fields)
         ..remove('type')
         ..remove('battery_type')
-        ..remove('batteryType');
+        ..remove('batteryType')
+        ..remove('invoiceNumber');
       final warrantyYears = parseWarrantyYears(assetDraft.warrantyDuration);
       assets.add({
         if (entry.assetId?.trim().isNotEmpty == true) 'assetId': entry.assetId,
@@ -59,6 +60,7 @@ Map<String, dynamic> buildSolarSubmissionPayload(SolarInstallationDraft draft) {
           'totalCapacity': assetDraft.totalCapacity,
           'capacityUnit': assetDraft.capacityUnit,
           ...additionalFields,
+          'invoiceNumber': draft.invoiceNumber,
           if (type == SolarAssetType.battery) 'batteryType': entry.batteryType,
         },
         'documents': entry.supportingPhoto == null

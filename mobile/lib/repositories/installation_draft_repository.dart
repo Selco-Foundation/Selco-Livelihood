@@ -155,6 +155,12 @@ class InstallationDraftRepository {
       final details = value['assetDetails'] is Map
           ? Map<String, dynamic>.from(value['assetDetails'] as Map)
           : const <String, dynamic>{};
+      if ((draft.invoiceNumber ?? '').trim().isEmpty) {
+        final invoiceNumber = details['invoiceNumber']?.toString().trim();
+        if (invoiceNumber?.isNotEmpty == true) {
+          draft.invoiceNumber = invoiceNumber;
+        }
+      }
       final extraFields = Map<String, dynamic>.from(details)
         ..remove('batteryType');
       final documents = (value['documents'] as List<dynamic>? ?? const [])
@@ -213,6 +219,7 @@ class InstallationDraftRepository {
     final key = draft.cacheKey;
     await installationCacheRepository.putJson('solar-draft', key, {
       'systemCode': draft.systemCode,
+      'invoiceNumber': draft.invoiceNumber,
       'counts': {
         for (final entry in draft.counts.entries) entry.key.name: entry.value,
       },
@@ -495,6 +502,10 @@ class InstallationDraftRepository {
   }
 
   void _hydrateLocal(SolarInstallationDraft draft, Map<String, dynamic> json) {
+    final invoiceNumber = json['invoiceNumber']?.toString();
+    if (invoiceNumber != null && invoiceNumber.isNotEmpty) {
+      draft.invoiceNumber = invoiceNumber;
+    }
     final counts = json['counts'];
     if (counts is Map) {
       for (final type in SolarAssetType.values) {

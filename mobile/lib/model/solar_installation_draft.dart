@@ -272,6 +272,7 @@ class SolarInstallationDraft {
   String? solutionId;
   String? remoteBomId;
   String? remoteBomName;
+  String? invoiceNumber;
   Map<String, dynamic> remoteBomAdditionalDetails = const {};
   List<SolarAssetType> applicableTypes = SolarAssetType.values;
   final Set<SolarAssetType> _userSelectedCounts = {};

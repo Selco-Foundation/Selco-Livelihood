@@ -62,14 +62,22 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
   bool _otpVerified = false;
   bool _otpRequested = false;
   bool _submissionStartInFlight = false;
+  final _invoiceNumberController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    _invoiceNumberController.text = widget.draft.invoiceNumber ?? '';
     if (!Platform.environment.containsKey('FLUTTER_TEST')) {
       unawaited(_resync());
     }
     unawaited(_restorePendingState());
+  }
+
+  @override
+  void dispose() {
+    _invoiceNumberController.dispose();
+    super.dispose();
   }
 
   Future<void> _restorePendingState() async {
@@ -135,6 +143,9 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
       await installationDraftRepository.hydrateSolar(widget.draft);
     } catch (_) {
       // Keep showing whatever's already in the draft if the resync fails.
+    }
+    if (_invoiceNumberController.text.isEmpty) {
+      _invoiceNumberController.text = widget.draft.invoiceNumber ?? '';
     }
     if (mounted) setState(() {});
   }
@@ -636,6 +647,18 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                     installationDraftRepository.saveSolarSoon(draft);
                   },
                 ),
+              const SizedBox(height: spacer4),
+              DigitTextFormInput(
+                key: const ValueKey('solar-invoice-number-field'),
+                controller: _invoiceNumberController,
+                innerLabel: context.translate(i18.installationReport.invoiceNumber),
+                isDisabled: draft.isReadOnly,
+                readOnly: draft.isReadOnly,
+                onChange: (value) {
+                  draft.invoiceNumber = value;
+                  installationDraftRepository.saveSolarSoon(draft);
+                },
+              ),
               if (draft.mode == SolarWorkflowMode.resubmission)
                 WorkflowRejectionReasons(
                   panelKey: const ValueKey('solar-rejection-reasons-panel'),
