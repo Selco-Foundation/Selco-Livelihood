@@ -127,7 +127,7 @@ export function buildSolarAssetSections(
     ];
 
     const details: LabeledValue[] = [
-      { labelKey: "ES_IR_ASSET_COUNT", label: "Count", value: String(rows.length) },
+      { labelKey: "ES_IR_DETAIL_COUNT", label: "Count", value: String(rows.length) },
       {
         labelKey: "ES_IR_WARRANTY_START_DATE",
         label: "Warranty Start Date",

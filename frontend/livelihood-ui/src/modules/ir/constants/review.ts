@@ -34,7 +34,7 @@ export const MACHINE_MEDIA_GROUPS = [
   {
     id: "MACHINE_DEMO_VIDEO",
     labelKey: "ES_IR_MACHINE_DEMO_TEST_RAW_MATERIAL",
-    label: "Demo Test with Raw Material",
+    label: "Raw material Demo",
     kind: "VIDEO",
   },
   {
