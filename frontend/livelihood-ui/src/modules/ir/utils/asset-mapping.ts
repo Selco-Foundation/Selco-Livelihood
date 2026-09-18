@@ -235,6 +235,11 @@ export function buildMachineAssetData(
       value: rawValue(first.serialNumber),
     },
     {
+      labelKey: "ES_IR_MACHINE_SPEC_CAPACITY",
+      label: "Specifications / Capacity",
+      value: assetCapacity(first.assetDetails) ?? BLANK,
+    },
+    {
       labelKey: "ES_IR_MACHINE_PO_NUMBER",
       label: "PO Number",
       value: rawValue(stringFromDetails(first.assetDetails, "poNumber")),
