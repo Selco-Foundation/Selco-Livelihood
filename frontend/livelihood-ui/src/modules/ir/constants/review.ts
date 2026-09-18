@@ -6,7 +6,7 @@ export const REVIEW_SECTION_LABELS: Record<
 > = {
   PANEL: { labelKey: "ES_IR_SECTION_PANEL", label: "Panel" },
   BATTERY: { labelKey: "ES_IR_SECTION_BATTERY", label: "Battery" },
-  INVERTER: { labelKey: "ES_IR_SECTION_INVERTER", label: "Inverter" },
+  INVERTER: { labelKey: "ES_IR_SECTION_INVERTER", label: "Inverter / PCU" },
   INSTALLATION_COMPLETION_REPORT: {
     labelKey: "ES_IR_SECTION_INSTALLATION_COMPLETION_REPORT",
     label: "Installation Completion Report",
