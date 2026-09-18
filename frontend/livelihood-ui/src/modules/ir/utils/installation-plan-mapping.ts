@@ -31,6 +31,6 @@ export function toInstallationPlan(row: ActivityAssignment): InstallationPlan {
     completionRate,
     stateCode: geographyDetails?.state,
     districtCodes: geographyDetails?.districts ?? [],
-    facilityBoundaryCodes: geographyDetails?.blocks ?? [],
+    blockCodes: geographyDetails?.blocks ?? [],
   };
 }

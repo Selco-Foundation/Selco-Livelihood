@@ -63,16 +63,7 @@ export function FacilityEntryListPage() {
   // whole state's boundaries.
   const { data: boundaryData } = useBoundary(plan?.stateCode ? [plan.stateCode] : []);
 
-  // The assignment's own "blocks" field is actually facility-level leaf
-  // codes (not block codes) — map each to its parent block via the state
-  // boundary tree's `facilities` list to get the real set of block codes
-  // this plan uses.
-  const planFacilityCodes = new Set(plan?.facilityBoundaryCodes ?? []);
-  const planBlockCodes = new Set(
-    (boundaryData?.facilities ?? [])
-      .filter((facility) => planFacilityCodes.has(facility.code))
-      .map((facility) => facility.parentCode),
-  );
+  const planBlockCodes = new Set(plan?.blockCodes ?? []);
   const planBlocks = (boundaryData?.blocks ?? []).filter((block) => planBlockCodes.has(block.code));
 
   useEffect(() => {
