@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import '../model/asset_type/asset_type.dart';
-import '../model/item_code/item_code.dart';
 import '../model/mdms/asset_registry_response.dart';
 import '../model/mdms/common_masters.dart';
 import '../model/warranty/warranty.dart';
@@ -32,10 +31,6 @@ class AssetMdmsRepository {
     }
     final livelihood = value.livelihood;
     if (livelihood != null) {
-      await installationCacheRepository.putJson(
-          'mdms-master',
-          'livelihood.ItemCode',
-          livelihood.itemCode.map((item) => item.toJson()).toList());
       await installationCacheRepository.putJson('mdms-master',
           'livelihood.SolutionBOMForms', livelihood.solutionBomForms);
       await installationCacheRepository.putJson('mdms-master',
@@ -109,13 +104,6 @@ class AssetMdmsRepository {
                   assetTypeCode.trim().toUpperCase())
           .toList() ??
       const [];
-
-  List<ItemCode> get itemCodes => (_memory?.livelihood?.itemCode ?? const [])
-      .where((item) => item.active)
-      .toList();
-
-  ItemCode? itemCodeFor(String code) =>
-      itemCodes.where((item) => item.code == code).firstOrNull;
 
   List<BomFormSchema> get bomSchemas =>
       (_memory?.livelihood?.bomFormSchema ?? const [])
@@ -212,7 +200,3 @@ class AssetMdmsRepository {
 }
 
 final assetMdmsRepository = AssetMdmsRepository();
-
-extension _FirstOrNull<T> on Iterable<T> {
-  T? get firstOrNull => isEmpty ? null : first;
-}

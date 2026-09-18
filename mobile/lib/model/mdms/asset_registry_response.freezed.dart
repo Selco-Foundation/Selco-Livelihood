@@ -661,8 +661,6 @@ LivelihoodModule _$LivelihoodModuleFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$LivelihoodModule {
-  @JsonKey(name: 'ItemCode')
-  List<ItemCode> get itemCode => throw _privateConstructorUsedError;
   @JsonKey(name: 'BOMFormSchema')
   List<Map<String, dynamic>> get bomFormSchema =>
       throw _privateConstructorUsedError;
@@ -686,8 +684,7 @@ abstract class $LivelihoodModuleCopyWith<$Res> {
       _$LivelihoodModuleCopyWithImpl<$Res, LivelihoodModule>;
   @useResult
   $Res call(
-      {@JsonKey(name: 'ItemCode') List<ItemCode> itemCode,
-      @JsonKey(name: 'BOMFormSchema') List<Map<String, dynamic>> bomFormSchema,
+      {@JsonKey(name: 'BOMFormSchema') List<Map<String, dynamic>> bomFormSchema,
       @JsonKey(name: 'SolutionBOMForms')
       List<Map<String, dynamic>> solutionBomForms,
       @JsonKey(name: 'MachineFormSchema')
@@ -707,16 +704,11 @@ class _$LivelihoodModuleCopyWithImpl<$Res, $Val extends LivelihoodModule>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
-    Object? itemCode = null,
     Object? bomFormSchema = null,
     Object? solutionBomForms = null,
     Object? machineFormSchema = null,
   }) {
     return _then(_value.copyWith(
-      itemCode: null == itemCode
-          ? _value.itemCode
-          : itemCode // ignore: cast_nullable_to_non_nullable
-              as List<ItemCode>,
       bomFormSchema: null == bomFormSchema
           ? _value.bomFormSchema
           : bomFormSchema // ignore: cast_nullable_to_non_nullable
@@ -742,8 +734,7 @@ abstract class _$$LivelihoodModuleImplCopyWith<$Res>
   @override
   @useResult
   $Res call(
-      {@JsonKey(name: 'ItemCode') List<ItemCode> itemCode,
-      @JsonKey(name: 'BOMFormSchema') List<Map<String, dynamic>> bomFormSchema,
+      {@JsonKey(name: 'BOMFormSchema') List<Map<String, dynamic>> bomFormSchema,
       @JsonKey(name: 'SolutionBOMForms')
       List<Map<String, dynamic>> solutionBomForms,
       @JsonKey(name: 'MachineFormSchema')
@@ -761,16 +752,11 @@ class __$$LivelihoodModuleImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
-    Object? itemCode = null,
     Object? bomFormSchema = null,
     Object? solutionBomForms = null,
     Object? machineFormSchema = null,
   }) {
     return _then(_$LivelihoodModuleImpl(
-      itemCode: null == itemCode
-          ? _value._itemCode
-          : itemCode // ignore: cast_nullable_to_non_nullable
-              as List<ItemCode>,
       bomFormSchema: null == bomFormSchema
           ? _value._bomFormSchema
           : bomFormSchema // ignore: cast_nullable_to_non_nullable
@@ -791,29 +777,18 @@ class __$$LivelihoodModuleImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$LivelihoodModuleImpl implements _LivelihoodModule {
   const _$LivelihoodModuleImpl(
-      {@JsonKey(name: 'ItemCode') final List<ItemCode> itemCode = const [],
-      @JsonKey(name: 'BOMFormSchema')
+      {@JsonKey(name: 'BOMFormSchema')
       final List<Map<String, dynamic>> bomFormSchema = const [],
       @JsonKey(name: 'SolutionBOMForms')
       final List<Map<String, dynamic>> solutionBomForms = const [],
       @JsonKey(name: 'MachineFormSchema')
       final List<Map<String, dynamic>> machineFormSchema = const []})
-      : _itemCode = itemCode,
-        _bomFormSchema = bomFormSchema,
+      : _bomFormSchema = bomFormSchema,
         _solutionBomForms = solutionBomForms,
         _machineFormSchema = machineFormSchema;
 
   factory _$LivelihoodModuleImpl.fromJson(Map<String, dynamic> json) =>
       _$$LivelihoodModuleImplFromJson(json);
-
-  final List<ItemCode> _itemCode;
-  @override
-  @JsonKey(name: 'ItemCode')
-  List<ItemCode> get itemCode {
-    if (_itemCode is EqualUnmodifiableListView) return _itemCode;
-    // ignore: implicit_dynamic_type
-    return EqualUnmodifiableListView(_itemCode);
-  }
 
   final List<Map<String, dynamic>> _bomFormSchema;
   @override
@@ -846,7 +821,7 @@ class _$LivelihoodModuleImpl implements _LivelihoodModule {
 
   @override
   String toString() {
-    return 'LivelihoodModule(itemCode: $itemCode, bomFormSchema: $bomFormSchema, solutionBomForms: $solutionBomForms, machineFormSchema: $machineFormSchema)';
+    return 'LivelihoodModule(bomFormSchema: $bomFormSchema, solutionBomForms: $solutionBomForms, machineFormSchema: $machineFormSchema)';
   }
 
   @override
@@ -854,7 +829,6 @@ class _$LivelihoodModuleImpl implements _LivelihoodModule {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$LivelihoodModuleImpl &&
-            const DeepCollectionEquality().equals(other._itemCode, _itemCode) &&
             const DeepCollectionEquality()
                 .equals(other._bomFormSchema, _bomFormSchema) &&
             const DeepCollectionEquality()
@@ -867,7 +841,6 @@ class _$LivelihoodModuleImpl implements _LivelihoodModule {
   @override
   int get hashCode => Object.hash(
       runtimeType,
-      const DeepCollectionEquality().hash(_itemCode),
       const DeepCollectionEquality().hash(_bomFormSchema),
       const DeepCollectionEquality().hash(_solutionBomForms),
       const DeepCollectionEquality().hash(_machineFormSchema));
@@ -889,8 +862,7 @@ class _$LivelihoodModuleImpl implements _LivelihoodModule {
 
 abstract class _LivelihoodModule implements LivelihoodModule {
   const factory _LivelihoodModule(
-          {@JsonKey(name: 'ItemCode') final List<ItemCode> itemCode,
-          @JsonKey(name: 'BOMFormSchema')
+          {@JsonKey(name: 'BOMFormSchema')
           final List<Map<String, dynamic>> bomFormSchema,
           @JsonKey(name: 'SolutionBOMForms')
           final List<Map<String, dynamic>> solutionBomForms,
@@ -901,9 +873,6 @@ abstract class _LivelihoodModule implements LivelihoodModule {
   factory _LivelihoodModule.fromJson(Map<String, dynamic> json) =
       _$LivelihoodModuleImpl.fromJson;
 
-  @override
-  @JsonKey(name: 'ItemCode')
-  List<ItemCode> get itemCode;
   @override
   @JsonKey(name: 'BOMFormSchema')
   List<Map<String, dynamic>> get bomFormSchema;
@@ -926,7 +895,9 @@ InstallationModule _$InstallationModuleFromJson(Map<String, dynamic> json) {
 /// @nodoc
 mixin _$InstallationModule {
   @JsonKey(name: 'Solution')
-  List<InstallationSolution> get solution => throw _privateConstructorUsedError;
+  List<InstallationSolution> get solution =>
+      throw _privateConstructorUsedError; // Freezed applies this constructor annotation to the generated field.
+// ignore: invalid_annotation_target
   @JsonKey(name: 'RejectionReasons')
   List<RejectionReason> get rejectionReasons =>
       throw _privateConstructorUsedError;
@@ -1042,7 +1013,11 @@ class _$InstallationModuleImpl implements _InstallationModule {
     return EqualUnmodifiableListView(_solution);
   }
 
+// Freezed applies this constructor annotation to the generated field.
+// ignore: invalid_annotation_target
   final List<RejectionReason> _rejectionReasons;
+// Freezed applies this constructor annotation to the generated field.
+// ignore: invalid_annotation_target
   @override
   @JsonKey(name: 'RejectionReasons')
   List<RejectionReason> get rejectionReasons {
@@ -1101,7 +1076,8 @@ abstract class _InstallationModule implements InstallationModule {
   @override
   @JsonKey(name: 'Solution')
   List<InstallationSolution> get solution;
-  @override
+  @override // Freezed applies this constructor annotation to the generated field.
+// ignore: invalid_annotation_target
   @JsonKey(name: 'RejectionReasons')
   List<RejectionReason> get rejectionReasons;
   @override

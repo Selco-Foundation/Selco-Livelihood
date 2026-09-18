@@ -78,7 +78,6 @@ class AssetSubmission {
 
   List<String> get missingRequiredFields => {
         'serial number': serialNumber,
-        'item code': itemCode,
         'brand': brandId,
         'system': system,
       }
@@ -103,7 +102,7 @@ class AssetSubmission {
         'serialNumber': serialNumber,
         'modelNumber': modelNumber,
         'brandID': brandId,
-        'itemCode': itemCode,
+        'itemCode': itemCode.trim().isEmpty ? null : itemCode,
         'name': name,
         'vendorId': vendorId,
         'isOperational': false,

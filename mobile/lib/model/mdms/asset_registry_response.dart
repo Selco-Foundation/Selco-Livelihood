@@ -1,7 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../asset_type/asset_type.dart';
-import '../item_code/item_code.dart';
 import '../warranty/warranty.dart';
 
 part 'asset_registry_response.freezed.dart';
@@ -56,7 +55,6 @@ class AssetRegistryModule with _$AssetRegistryModule {
 @freezed
 class LivelihoodModule with _$LivelihoodModule {
   const factory LivelihoodModule({
-    @JsonKey(name: 'ItemCode') @Default([]) List<ItemCode> itemCode,
     @JsonKey(name: 'BOMFormSchema')
     @Default([])
     List<Map<String, dynamic>> bomFormSchema,

@@ -1,7 +1,6 @@
 import '../model/activity_facility_workflow/activity_facility_workflow.dart';
 import '../model/document/submission_document.dart';
 import '../model/solar_installation_draft.dart';
-import '../repositories/asset_mdms_repository.dart';
 import 'warranty.dart';
 
 const machineDefaultBrandId = 'SELCO';
@@ -38,11 +37,6 @@ Map<String, dynamic> buildSolarSubmissionPayload(SolarInstallationDraft draft) {
         ..remove('battery_type')
         ..remove('batteryType');
       final warrantyYears = parseWarrantyYears(assetDraft.warrantyDuration);
-      final itemCode = _firstNonBlank([
-        entry.itemCode,
-        entry.fields['itemCode'],
-        entry.fields['item_code'],
-      ]);
       assets.add({
         if (entry.assetId?.trim().isNotEmpty == true) 'assetId': entry.assetId,
         'system': draft.systemCode,
@@ -52,7 +46,7 @@ Map<String, dynamic> buildSolarSubmissionPayload(SolarInstallationDraft draft) {
             (entry.fields['modelNumber'] ?? entry.fields['model_number'] ?? '')
                 .toString(),
         'brandID': assetDraft.selectedBrandCode,
-        if (itemCode != null) 'itemCode': itemCode,
+        'itemCode': null,
         'name': assetDraft.system.isNotEmpty
             ? assetDraft.system
             : draft.labelFor(type),
@@ -120,16 +114,7 @@ Map<String, dynamic> buildMachineSubmissionPayload({
           activityFacility.additionalDetails?.componentType)
       ?.trim()
       .toUpperCase();
-  final itemCode = _firstNonBlank([
-    firstComponent['itemCode'],
-    firstComponent['item_code'],
-    templateBom['machine_1_product'],
-    templateBom['itemCode'],
-  ]);
-  final resolvedItem =
-      itemCode == null ? null : assetMdmsRepository.itemCodeFor(itemCode);
   final assetTypeCode = _firstNonBlank([
-        resolvedItem?.category,
         firstComponent['assetTypeID'],
         firstComponent['assetTypeCode'],
         firstComponent['category'],
@@ -157,6 +142,9 @@ Map<String, dynamic> buildMachineSubmissionPayload({
         templateBom['machine_1_product'],
         firstComponent['product'],
         firstComponent['name'],
+        firstComponent['itemCode'],
+        firstComponent['item_code'],
+        templateBom['itemCode'],
       ]) ??
       'MACHINE';
   final serialNumber = (values['serialNumber'] ?? '').toString();
@@ -187,7 +175,7 @@ Map<String, dynamic> buildMachineSubmissionPayload({
         'assetTypeID': assetTypeCode,
         'modelNumber': _firstNonBlank([firstComponent['modelNumber']]) ?? '',
         'brandID': brandCode,
-        if (itemCode != null) 'itemCode': itemCode,
+        'itemCode': null,
         'name': machineName,
         ...configuredRootValues,
         'serialNumber': serialNumber,

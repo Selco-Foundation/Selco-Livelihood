@@ -15,7 +15,6 @@ import 'package:livelihood/model/asset/asset_submission.dart';
 import 'package:livelihood/model/bom/bom.dart';
 import 'package:livelihood/model/document/submission_document.dart';
 import 'package:livelihood/model/facility_report.dart';
-import 'package:livelihood/model/item_code/item_code.dart';
 import 'package:livelihood/model/mdms/asset_registry_response.dart';
 import 'package:livelihood/model/mdms/common_masters.dart';
 import 'package:livelihood/model/warranty/warranty.dart';
@@ -1183,6 +1182,28 @@ void main() {
     expect((json['documents'] as List).single, isNot(contains('fileStoreId')));
   });
 
+  test('a blank itemCode is not required and is sent as null', () {
+    final asset = AssetSubmission.fromCheckpoint({
+      'system': 'DC',
+      'assetTypeID': 'PANEL',
+      'serialNumber': 'P-001',
+      'modelNumber': 'SP330',
+      'brandID': 'RENEW',
+      'itemCode': null,
+      'name': 'Solar panel',
+    });
+
+    expect(asset.missingRequiredFields, isNot(contains('item code')));
+
+    final json = asset.toRegistryJson(
+      tenantId: 'livelihood',
+      facilityId: 'facility-1',
+      activityFacilityId: 'activity-facility-1',
+      vendorId: 'vendor-1',
+    );
+    expect(json['itemCode'], isNull);
+  });
+
   test('solar submission merges pages into one document-free BOM', () {
     const workflow = ActivityFacilityWorkflow(
       activityFacility: ActivityFacility(
@@ -1243,7 +1264,7 @@ void main() {
     });
     expect(bom.containsKey('documents'), isFalse);
     expect((asset['documents'] as List).single['fileStore'], 'asset-filestore');
-    expect(asset['itemCode'], 'SP-330WP');
+    expect(asset['itemCode'], isNull);
     expect(workflowDocument['fileStore'], 'workflow-filestore');
   });
 
@@ -1291,30 +1312,8 @@ void main() {
     expect(details, isNot(contains('battery_type')));
   });
 
-  test('machine assetTypeID resolves from the ItemCode MDMS catalog', () async {
-    await assetMdmsRepository.store(const AssetRegistryMdmsResponse(
-      livelihood: LivelihoodModule(
-        itemCode: [
-          ItemCode(
-            code: 'HULLER-RICE-3HP',
-            name: 'Huller Rice 3HP AC 150 kgs/hr',
-            active: true,
-            category: 'RICE HULLER',
-            solarAsset: false,
-          ),
-          ItemCode(
-            code: 'SP-300WP',
-            name: 'Solar Panel 300Wp',
-            active: true,
-            category: 'SOLAR PANEL',
-            solarAsset: true,
-          ),
-        ],
-      ),
-    ));
-    addTearDown(
-        () => assetMdmsRepository.store(const AssetRegistryMdmsResponse()));
-
+  test('machine itemCode is always blank and assetTypeID falls back to componentType',
+      () async {
     const workflow = ActivityFacilityWorkflow(
       activityFacility: ActivityFacility(
         id: 'activity-facility-1',
@@ -1368,8 +1367,8 @@ void main() {
       },
     );
     final asset = (payload['assets'] as List).single as Map;
-    expect(asset['assetTypeID'], 'RICE HULLER');
-    expect(asset['itemCode'], 'HULLER-RICE-3HP');
+    expect(asset['assetTypeID'], 'MACHINE');
+    expect(asset['itemCode'], isNull);
     expect(asset['brandID'], 'SELCO');
     expect(asset['name'], 'Huller Rice 3HP AC 150 kgs/hr');
     expect((asset['assetDetails'] as Map)['capacity'], '3');
@@ -1426,7 +1425,8 @@ void main() {
     final asset = (payload['assets'] as List).single as Map;
 
     expect(asset['brandID'], machineDefaultBrandId);
-    expect(asset['itemCode'], product);
+    expect(asset['itemCode'], isNull);
+    expect(asset['name'], product);
   });
 
   test('machine submission keeps an explicit BOM make', () async {
@@ -1498,32 +1498,7 @@ void main() {
     expect(((payload['assets'] as List).single as Map)['brandID'], isEmpty);
   });
 
-  test(
-      'solar itemCode stays unset when the catalog has no entry for the '
-      'asset type', () async {
-    await assetMdmsRepository.store(const AssetRegistryMdmsResponse(
-      livelihood: LivelihoodModule(
-        itemCode: [
-          ItemCode(
-            code: 'SP-300WP',
-            name: 'Solar Panel 300Wp',
-            active: true,
-            category: 'SOLAR PANEL',
-            solarAsset: true,
-          ),
-          ItemCode(
-            code: 'SP-330WP',
-            name: 'Solar Panel 330Wp',
-            active: true,
-            category: 'SOLAR PANEL',
-            solarAsset: true,
-          ),
-        ],
-      ),
-    ));
-    addTearDown(
-        () => assetMdmsRepository.store(const AssetRegistryMdmsResponse()));
-
+  test('solar itemCode is always sent null', () async {
     const workflow = ActivityFacilityWorkflow(
       activityFacility: ActivityFacility(
         id: 'activity-facility-1',
@@ -1548,7 +1523,7 @@ void main() {
 
     final payload = buildSolarSubmissionPayload(draft);
     final asset = (payload['assets'] as List).single as Map;
-    expect(asset.containsKey('itemCode'), isFalse);
+    expect(asset['itemCode'], isNull);
   });
 
   test(

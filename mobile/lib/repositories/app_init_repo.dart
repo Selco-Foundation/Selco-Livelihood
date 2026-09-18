@@ -75,7 +75,6 @@ class AppInitRepo {
           const MdmsModuleDetailModel(
             moduleName: 'livelihood',
             masterDetails: [
-              MdmsMasterDetailModel(name: 'ItemCode'),
               MdmsMasterDetailModel(name: 'BOMFormSchema'),
               MdmsMasterDetailModel(name: 'SolutionBOMForms'),
               MdmsMasterDetailModel(name: 'MachineFormSchema'),

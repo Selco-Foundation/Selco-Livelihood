@@ -74,10 +74,6 @@ Map<String, dynamic> _$$AssetRegistryModuleImplToJson(
 _$LivelihoodModuleImpl _$$LivelihoodModuleImplFromJson(
         Map<String, dynamic> json) =>
     _$LivelihoodModuleImpl(
-      itemCode: (json['ItemCode'] as List<dynamic>?)
-              ?.map((e) => ItemCode.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const [],
       bomFormSchema: (json['BOMFormSchema'] as List<dynamic>?)
               ?.map((e) => e as Map<String, dynamic>)
               .toList() ??
@@ -95,7 +91,6 @@ _$LivelihoodModuleImpl _$$LivelihoodModuleImplFromJson(
 Map<String, dynamic> _$$LivelihoodModuleImplToJson(
         _$LivelihoodModuleImpl instance) =>
     <String, dynamic>{
-      'ItemCode': instance.itemCode,
       'BOMFormSchema': instance.bomFormSchema,
       'SolutionBOMForms': instance.solutionBomForms,
       'MachineFormSchema': instance.machineFormSchema,
