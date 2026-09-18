@@ -297,7 +297,10 @@ public class BomPdfService {
             data.put("report_invoice_number", bom.getData().get("invoice_number"));
         }
 
+        Asset asset = findAssetForActivityFacility(requestInfo, activityFacility.getId(), activityFacility.getTenantId());
+
         Facility facility = activityFacility.getFacility();
+        String nowFormatted = REPORT_TIMESTAMP_FORMATTER.format(java.time.ZonedDateTime.now(ZoneId.systemDefault()));
         // facility.getBoundary() is already populated by facility-service on every facility fetch,
         // but with boundary codes (e.g. India_Assam_Darrang), not human-readable names - localize
         // both levels in one call.
@@ -328,6 +331,22 @@ public class BomPdfService {
                 ? boundaryLocalizationUtil.localizedNameOrCode(boundaryNames, boundary.getBlock()) : null);
         data.put("report_date", resolveProjectDate(requestInfo, activityFacility).format(PROJECT_DATE_FORMATTER));
         data.put("po_wo_number", resolvePoWoNumber(activityFacility));
+
+        data.put("end_user_name", facility != null ? facility.getFacilityPocName() : null);
+        data.put("end_user_contact_no", facility != null ? facility.getFacilityPocPhone() : null);
+        data.put("end_user_registered_mobile", facility != null ? facility.getFacilityPocPhone() : null);
+        data.put("end_user_verified_at", nowFormatted);
+        data.put("end_user_verification_status", VERIFICATION_STATUS_DEFAULT);
+        data.put("end_user_verification_id", "");
+
+        String technicianName = requestInfo.getUserInfo() != null ? requestInfo.getUserInfo().getName() : null;
+        String technicianMobile = requestInfo.getUserInfo() != null ? requestInfo.getUserInfo().getMobileNumber() : null;
+        data.put("technician_name", technicianName);
+        data.put("technician_contact_no", technicianMobile);
+        data.put("technician_registered_mobile", technicianMobile);
+        data.put("technician_vendor_organisation",
+                vendorDirectory.organisationName(requestInfo, activityFacility.getTenantId(), asset.getVendorId()));
+        data.put("technician_submitted_at", nowFormatted);
 
         return data;
     }
@@ -523,7 +542,7 @@ public class BomPdfService {
         if (boundary == null) {
             return Map.of();
         }
-        List<String> boundaryCodes = Stream.of(boundary.getState(), boundary.getBlock())
+        List<String> boundaryCodes = Stream.of(boundary.getState(), boundary.getDistrict(), boundary.getBlock())
                 .filter(Objects::nonNull)
                 .toList();
         return boundaryLocalizationUtil.localizeBoundaryCodes(boundaryCodes, requestInfo);
