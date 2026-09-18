@@ -33,6 +33,7 @@ import '../widgets/operation_progress_overlay.dart';
 import '../widgets/otp_verification_widget.dart';
 import '../widgets/report_navigation_header.dart';
 import '../widgets/video_uploader.dart';
+import '../widgets/workflow_rejection_reasons.dart';
 import '../widgets/workflow_report_documents.dart';
 import 'machine_report_success_page.dart';
 import 'media_viewer.dart';
@@ -762,14 +763,19 @@ class _MachineFormPageState extends State<MachineFormPage> {
                             documents:
                                 widget.workflow.workflow?.documents ?? const [],
                           ),
+                        if (_workflowMode == 'resubmission')
+                          WorkflowRejectionReasons(
+                            panelKey: const ValueKey(
+                                'machine-rejection-reasons-panel'),
+                            comments: widget.workflow.latestTransactionComments,
+                            showSectionLabel: true,
+                          ),
                         if (!widget.readOnly)
                           OtpVerificationWidget(
                             key: const ValueKey('machine-otp-widget'),
                             keyPrefix: 'machine',
                             activityFacilityId:
                                 widget.workflow.activityFacility.id ?? '',
-                            label: context
-                                .translate(i18.machineForm.validateTrainingOtp),
                             initiallyRequested: _otpRequested,
                             initiallyVerified: _otpVerified,
                             isEnabled: _formComplete,

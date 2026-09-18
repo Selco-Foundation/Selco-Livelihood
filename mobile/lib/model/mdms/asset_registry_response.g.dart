@@ -109,12 +109,17 @@ _$InstallationModuleImpl _$$InstallationModuleImplFromJson(
                   InstallationSolution.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const [],
+      rejectionReasons: (json['RejectionReasons'] as List<dynamic>?)
+              ?.map((e) => RejectionReason.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
 
 Map<String, dynamic> _$$InstallationModuleImplToJson(
         _$InstallationModuleImpl instance) =>
     <String, dynamic>{
       'Solution': instance.solution,
+      'RejectionReasons': instance.rejectionReasons,
     };
 
 _$InstallationSolutionImpl _$$InstallationSolutionImplFromJson(

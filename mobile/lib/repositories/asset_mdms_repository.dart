@@ -161,6 +161,18 @@ class AssetMdmsRepository {
     return result;
   }
 
+  String? rejectionReasonName(String code) {
+    final normalizedCode = code.trim().toUpperCase();
+    for (final reason in _memory?.installation?.rejectionReasons ??
+        const <RejectionReason>[]) {
+      if (reason.code.trim().toUpperCase() == normalizedCode) {
+        final name = reason.name.trim();
+        return name.isEmpty ? null : name;
+      }
+    }
+    return null;
+  }
+
   List<String> formsFor(String? solutionId) {
     if (solutionId == null) return const [];
     for (final mapping in solutionBomMappings) {

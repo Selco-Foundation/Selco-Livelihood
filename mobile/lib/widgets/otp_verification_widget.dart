@@ -12,7 +12,6 @@ import '../utils/i18_key_constants.dart' as i18;
 class OtpVerificationWidget extends StatefulWidget {
   const OtpVerificationWidget({
     super.key,
-    required this.label,
     required this.onVerificationChanged,
     required this.keyPrefix,
     required this.activityFacilityId,
@@ -24,7 +23,6 @@ class OtpVerificationWidget extends StatefulWidget {
     this.repository,
   });
 
-  final String label;
   final ValueChanged<bool> onVerificationChanged;
   final String keyPrefix;
   final String activityFacilityId;
@@ -150,42 +148,38 @@ class _OtpVerificationWidgetState extends State<OtpVerificationWidget> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        LabeledField(
-          label: widget.label,
-          capitalizedFirstLetter: false,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 2,
-                child: DigitTextFormInput(
-                  key: ValueKey('$prefix-otp-field'),
-                  controller: _controller,
-                  innerLabel: context.translate(i18.machineForm.enterOtp),
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  onChange: _onOtpChanged,
-                  isDisabled: !widget.isEnabled || _isVerified,
-                ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 2,
+              child: DigitTextFormInput(
+                key: ValueKey('$prefix-otp-field'),
+                controller: _controller,
+                innerLabel: context.translate(i18.machineForm.enterOtp),
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChange: _onOtpChanged,
+                isDisabled: !widget.isEnabled || _isVerified,
               ),
-              const SizedBox(width: spacer2),
-              Expanded(
-                child: DigitButton(
-                  key: ValueKey('$prefix-verify-otp-button'),
-                  mainAxisSize: MainAxisSize.max,
-                  label: context.translate(i18.machineForm.verify),
-                  onPressed: () => _verify(),
-                  isDisabled: !widget.isEnabled ||
-                      _isBusy ||
-                      _isVerified ||
-                      !_otpRequested ||
-                      _controller.text.trim().isEmpty,
-                  type: DigitButtonType.secondary,
-                  size: DigitButtonSize.large,
-                ),
+            ),
+            const SizedBox(width: spacer2),
+            Expanded(
+              child: DigitButton(
+                key: ValueKey('$prefix-verify-otp-button'),
+                mainAxisSize: MainAxisSize.max,
+                label: context.translate(i18.machineForm.verify),
+                onPressed: () => _verify(),
+                isDisabled: !widget.isEnabled ||
+                    _isBusy ||
+                    _isVerified ||
+                    !_otpRequested ||
+                    _controller.text.trim().isEmpty,
+                type: DigitButtonType.secondary,
+                size: DigitButtonSize.large,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
         if (_isVerified) ...[
           const SizedBox(height: spacer2),

@@ -85,6 +85,7 @@ class AppInitRepo {
             moduleName: 'Installation',
             masterDetails: [
               MdmsMasterDetailModel(name: 'Solution'),
+              MdmsMasterDetailModel(name: 'RejectionReasons'),
             ],
           ),
         ],

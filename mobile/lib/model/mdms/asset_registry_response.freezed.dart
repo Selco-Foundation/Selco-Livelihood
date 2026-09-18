@@ -927,6 +927,9 @@ InstallationModule _$InstallationModuleFromJson(Map<String, dynamic> json) {
 mixin _$InstallationModule {
   @JsonKey(name: 'Solution')
   List<InstallationSolution> get solution => throw _privateConstructorUsedError;
+  @JsonKey(name: 'RejectionReasons')
+  List<RejectionReason> get rejectionReasons =>
+      throw _privateConstructorUsedError;
 
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
   @JsonKey(ignore: true)
@@ -940,7 +943,10 @@ abstract class $InstallationModuleCopyWith<$Res> {
           InstallationModule value, $Res Function(InstallationModule) then) =
       _$InstallationModuleCopyWithImpl<$Res, InstallationModule>;
   @useResult
-  $Res call({@JsonKey(name: 'Solution') List<InstallationSolution> solution});
+  $Res call(
+      {@JsonKey(name: 'Solution') List<InstallationSolution> solution,
+      @JsonKey(name: 'RejectionReasons')
+      List<RejectionReason> rejectionReasons});
 }
 
 /// @nodoc
@@ -957,12 +963,17 @@ class _$InstallationModuleCopyWithImpl<$Res, $Val extends InstallationModule>
   @override
   $Res call({
     Object? solution = null,
+    Object? rejectionReasons = null,
   }) {
     return _then(_value.copyWith(
       solution: null == solution
           ? _value.solution
           : solution // ignore: cast_nullable_to_non_nullable
               as List<InstallationSolution>,
+      rejectionReasons: null == rejectionReasons
+          ? _value.rejectionReasons
+          : rejectionReasons // ignore: cast_nullable_to_non_nullable
+              as List<RejectionReason>,
     ) as $Val);
   }
 }
@@ -975,7 +986,10 @@ abstract class _$$InstallationModuleImplCopyWith<$Res>
       __$$InstallationModuleImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({@JsonKey(name: 'Solution') List<InstallationSolution> solution});
+  $Res call(
+      {@JsonKey(name: 'Solution') List<InstallationSolution> solution,
+      @JsonKey(name: 'RejectionReasons')
+      List<RejectionReason> rejectionReasons});
 }
 
 /// @nodoc
@@ -990,12 +1004,17 @@ class __$$InstallationModuleImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? solution = null,
+    Object? rejectionReasons = null,
   }) {
     return _then(_$InstallationModuleImpl(
       solution: null == solution
           ? _value._solution
           : solution // ignore: cast_nullable_to_non_nullable
               as List<InstallationSolution>,
+      rejectionReasons: null == rejectionReasons
+          ? _value._rejectionReasons
+          : rejectionReasons // ignore: cast_nullable_to_non_nullable
+              as List<RejectionReason>,
     ));
   }
 }
@@ -1005,8 +1024,11 @@ class __$$InstallationModuleImplCopyWithImpl<$Res>
 class _$InstallationModuleImpl implements _InstallationModule {
   const _$InstallationModuleImpl(
       {@JsonKey(name: 'Solution')
-      final List<InstallationSolution> solution = const []})
-      : _solution = solution;
+      final List<InstallationSolution> solution = const [],
+      @JsonKey(name: 'RejectionReasons')
+      final List<RejectionReason> rejectionReasons = const []})
+      : _solution = solution,
+        _rejectionReasons = rejectionReasons;
 
   factory _$InstallationModuleImpl.fromJson(Map<String, dynamic> json) =>
       _$$InstallationModuleImplFromJson(json);
@@ -1020,9 +1042,19 @@ class _$InstallationModuleImpl implements _InstallationModule {
     return EqualUnmodifiableListView(_solution);
   }
 
+  final List<RejectionReason> _rejectionReasons;
+  @override
+  @JsonKey(name: 'RejectionReasons')
+  List<RejectionReason> get rejectionReasons {
+    if (_rejectionReasons is EqualUnmodifiableListView)
+      return _rejectionReasons;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_rejectionReasons);
+  }
+
   @override
   String toString() {
-    return 'InstallationModule(solution: $solution)';
+    return 'InstallationModule(solution: $solution, rejectionReasons: $rejectionReasons)';
   }
 
   @override
@@ -1030,13 +1062,17 @@ class _$InstallationModuleImpl implements _InstallationModule {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$InstallationModuleImpl &&
-            const DeepCollectionEquality().equals(other._solution, _solution));
+            const DeepCollectionEquality().equals(other._solution, _solution) &&
+            const DeepCollectionEquality()
+                .equals(other._rejectionReasons, _rejectionReasons));
   }
 
   @JsonKey(ignore: true)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, const DeepCollectionEquality().hash(_solution));
+  int get hashCode => Object.hash(
+      runtimeType,
+      const DeepCollectionEquality().hash(_solution),
+      const DeepCollectionEquality().hash(_rejectionReasons));
 
   @JsonKey(ignore: true)
   @override
@@ -1055,8 +1091,9 @@ class _$InstallationModuleImpl implements _InstallationModule {
 
 abstract class _InstallationModule implements InstallationModule {
   const factory _InstallationModule(
-      {@JsonKey(name: 'Solution')
-      final List<InstallationSolution> solution}) = _$InstallationModuleImpl;
+      {@JsonKey(name: 'Solution') final List<InstallationSolution> solution,
+      @JsonKey(name: 'RejectionReasons')
+      final List<RejectionReason> rejectionReasons}) = _$InstallationModuleImpl;
 
   factory _InstallationModule.fromJson(Map<String, dynamic> json) =
       _$InstallationModuleImpl.fromJson;
@@ -1064,6 +1101,9 @@ abstract class _InstallationModule implements InstallationModule {
   @override
   @JsonKey(name: 'Solution')
   List<InstallationSolution> get solution;
+  @override
+  @JsonKey(name: 'RejectionReasons')
+  List<RejectionReason> get rejectionReasons;
   @override
   @JsonKey(ignore: true)
   _$$InstallationModuleImplCopyWith<_$InstallationModuleImpl> get copyWith =>

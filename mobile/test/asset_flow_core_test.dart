@@ -1720,7 +1720,9 @@ void main() {
     expect(draft.installationRejectionComments('roof').single.reason,
         'Wrong angle');
     expect(
-        draft.otherRejectionComments.single.sectionLabel, 'Completion Report');
+      draft.otherRejectionComments.map((comment) => comment.sectionLabel),
+      ['Roof', 'Completion Report'],
+    );
 
     final restored = ActivityFacilityWorkflow.fromJson(
       jsonDecode(jsonEncode(workflow)) as Map<String, dynamic>,
@@ -2190,6 +2192,24 @@ void main() {
     expect(images.map((item) => item.code), ['LATER', 'FIRST', 'DIRECT_AC']);
     expect(images.first.allowMultiples, isTrue);
     expect(images.first.requiredLabel, 'Required: 2 images');
+  });
+
+  test('rejection reason names come from Installation MDMS', () {
+    final response = AssetRegistryMdmsResponse.fromJson({
+      'Installation': {
+        'RejectionReasons': [
+          {'code': 'IMAGE_NOT_CLEAR', 'name': 'Image Not Clear'},
+          {'code': 'INCORRECT_BRAND', 'name': 'Incorrect Brand'},
+        ],
+      },
+    });
+    final repository = AssetMdmsRepository(initial: response);
+
+    expect(
+        repository.rejectionReasonName('image_not_clear'), 'Image Not Clear');
+    expect(
+        repository.rejectionReasonName(' INCORRECT_BRAND '), 'Incorrect Brand');
+    expect(repository.rejectionReasonName('UNKNOWN_REASON'), isNull);
   });
 
   test('activity component type alone selects machine or solar', () {

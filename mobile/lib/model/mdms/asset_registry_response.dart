@@ -76,10 +76,33 @@ class LivelihoodModule with _$LivelihoodModule {
 class InstallationModule with _$InstallationModule {
   const factory InstallationModule({
     @JsonKey(name: 'Solution') @Default([]) List<InstallationSolution> solution,
+    // Freezed applies this constructor annotation to the generated field.
+    // ignore: invalid_annotation_target
+    @JsonKey(name: 'RejectionReasons')
+    @Default([])
+    List<RejectionReason> rejectionReasons,
   }) = _InstallationModule;
 
   factory InstallationModule.fromJson(Map<String, dynamic> json) =>
       _$InstallationModuleFromJson(json);
+}
+
+class RejectionReason {
+  const RejectionReason({
+    required this.code,
+    required this.name,
+  });
+
+  final String code;
+  final String name;
+
+  factory RejectionReason.fromJson(Map<String, dynamic> json) =>
+      RejectionReason(
+        code: (json['code'] ?? '').toString(),
+        name: (json['name'] ?? '').toString(),
+      );
+
+  Map<String, dynamic> toJson() => {'code': code, 'name': name};
 }
 
 @freezed

@@ -325,6 +325,23 @@ String? _secureStorageWriteFailureKey;
 String tr(String code) => AppLocalizations.fallbackLabel(code);
 
 const _machineMdms = AssetRegistryMdmsResponse(
+  commonMasters: CommonMastersModule(
+    installationImages: [
+      {
+        'code': 'SOLAR_ARRAY',
+        'active': true,
+        'description': 'Solar array installation image',
+        'short_title': 'Solar Array',
+        'required_count': 1,
+      },
+    ],
+  ),
+  installation: InstallationModule(
+    rejectionReasons: [
+      RejectionReason(code: 'IMAGE_NOT_CLEAR', name: 'Image Not Clear'),
+      RejectionReason(code: 'INCORRECT_BRAND', name: 'Incorrect Brand'),
+    ],
+  ),
   livelihood: LivelihoodModule(machineFormSchema: [
     {
       'data': {
@@ -1803,6 +1820,11 @@ void main() {
         commentMessage:
             '{"reason":"Incorrect report","comment":"Replace it","sectionLabel":"Completion Report"}',
       ),
+      WorkflowComment(
+        assetType: 'INSTALLATION_IMAGE_SOLAR_ARRAY',
+        commentMessage:
+            '{"reasonCode":"INCORRECT_BRAND","comment":"Retake it","sectionLabel":"INSTALLATION_IMAGE_SOLAR_ARRAY"}',
+      ),
     ]);
 
     await tester.pumpWidget(
@@ -1819,9 +1841,29 @@ void main() {
       find.byKey(const ValueKey('solar-rejection-reasons-panel')),
       findsOneWidget,
     );
+    final bottomReasons = find.byKey(
+      const ValueKey('solar-rejection-reasons-panel'),
+    );
+    final otp = find.byKey(const ValueKey('solar-otp-widget'));
+    expect(tester.getTopLeft(bottomReasons).dy,
+        lessThan(tester.getTopLeft(otp).dy));
+    expect(
+      find.text(tr(i18.machineForm.validateInstallationOtp)),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: bottomReasons,
+        matching: find.text('Image Not Clear'),
+      ),
+      findsNothing,
+    );
     expect(find.text('Completion Report'), findsOneWidget);
     expect(find.text('Incorrect report'), findsOneWidget);
     expect(find.text('Replace it'), findsOneWidget);
+    expect(find.text('Solar Array'), findsOneWidget);
+    expect(find.text('Incorrect Brand'), findsOneWidget);
+    expect(find.text('Retake it'), findsOneWidget);
     expect(
       find.text(tr(i18.installationReport.incorrectInstallationDetails)),
       findsNothing,
@@ -2774,7 +2816,6 @@ void main() {
         theme: DigitTheme.instance.mobileTheme,
         home: Scaffold(
           body: OtpVerificationWidget(
-            label: tr(i18.machineForm.validateTrainingOtp),
             keyPrefix: 'test',
             activityFacilityId: 'activity-facility-otp-test',
             repository: fakeRepo,
@@ -2786,6 +2827,7 @@ void main() {
 
     // OTP field + Verify are always visible; the toggle starts as "Request OTP".
     expect(find.byKey(const ValueKey('test-otp-field')), findsOneWidget);
+    expect(find.text(tr(i18.machineForm.validateTrainingOtp)), findsNothing);
     expect(find.text(tr(i18.machineForm.requestOtp)), findsOneWidget);
 
     final toggleButton =
@@ -2839,7 +2881,6 @@ void main() {
         theme: DigitTheme.instance.mobileTheme,
         home: Scaffold(
           body: OtpVerificationWidget(
-            label: tr(i18.machineForm.validateTrainingOtp),
             keyPrefix: 'test-fail',
             activityFacilityId: 'activity-facility-otp-test',
             repository: fakeRepo,
@@ -3129,6 +3170,10 @@ void main() {
     );
 
     expect(find.byKey(const ValueKey('machine-form-card')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('machine-rejection-reasons-panel')),
+      findsNothing,
+    );
     expect(find.byKey(const ValueKey('machine-form-footer')), findsOneWidget);
     expect(
       find.byKey(const ValueKey('machine-workflow-report-documents')),
@@ -3199,6 +3244,66 @@ void main() {
       find.byKey(const ValueKey('submit-machine-report-button')),
     );
     expect(submit.isDisabled, isTrue);
+  });
+
+  testWidgets('machine resubmission displays latest rejection reasons', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 1600));
+    final workflow =
+        _StubActivityFacilityRemoteRepository._defaultItems[1].copyWith(
+      status: FacilityInstallationStatus.rejectedByQcSpoc,
+      workflow: const Workflow(
+        state: FacilityInstallationStatus.rejectedByQcSpoc,
+      ),
+      transactions: const [
+        WorkflowTransaction(
+          transactionId: 'rejected-machine-transaction',
+          comments: [
+            WorkflowComment(
+              assetType: 'MACHINE',
+              commentMessage:
+                  '{"reasonCode":"IMAGE_NOT_CLEAR","comment":"Retake the machine image","sectionLabel":"Machine Report"}',
+            ),
+          ],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: withAssetSubmissionBloc(MachineFormPage(workflow: workflow)),
+      ),
+    );
+    await tester.pump();
+
+    final card = find.byKey(const ValueKey('machine-form-card'));
+    final reasons = find.byKey(
+      const ValueKey('machine-rejection-reasons-panel'),
+    );
+    expect(find.descendant(of: card, matching: reasons), findsOneWidget);
+    expect(
+      find.descendant(of: reasons, matching: find.text('Machine Report')),
+      findsOneWidget,
+    );
+    expect(find.text(tr(i18.machineForm.validateTrainingOtp)), findsNothing);
+    expect(
+      find.descendant(of: reasons, matching: find.text('Image Not Clear')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: reasons,
+        matching: find.text('Retake the machine image'),
+      ),
+      findsOneWidget,
+    );
+
+    // Let the existing Asset Registry hydration timeout complete so the
+    // standalone widget test leaves no pending network timer behind.
+    await tester.pump(const Duration(seconds: 21));
+    await tester.pump();
   });
 
   testWidgets('machine capacity ignores BOM values', (tester) async {

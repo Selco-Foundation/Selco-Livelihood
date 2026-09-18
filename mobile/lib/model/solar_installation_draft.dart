@@ -309,7 +309,7 @@ class SolarInstallationDraft {
                 (assetTypeCodes[assetType] ?? assetType.name).toUpperCase();
             return type == code || type == assetType.name.toUpperCase();
           });
-          return !isAsset && !type.startsWith('INSTALLATION_IMAGE_');
+          return !isAsset;
         },
       ).toList();
 

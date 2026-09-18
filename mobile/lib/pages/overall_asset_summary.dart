@@ -35,6 +35,7 @@ import '../widgets/image_uploader.dart';
 import '../widgets/operation_progress_overlay.dart';
 import '../widgets/otp_verification_widget.dart';
 import '../widgets/solar_workflow_widgets.dart';
+import '../widgets/workflow_rejection_reasons.dart';
 import '../widgets/workflow_report_documents.dart';
 
 typedef SolarPickFiles = Future<List<PlatformFile>> Function();
@@ -635,14 +636,19 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                     installationDraftRepository.saveSolarSoon(draft);
                   },
                 ),
+              if (draft.mode == SolarWorkflowMode.resubmission)
+                WorkflowRejectionReasons(
+                  panelKey: const ValueKey('solar-rejection-reasons-panel'),
+                  surfaceKey: const ValueKey('solar-rejection-reasons-surface'),
+                  comments: draft.otherRejectionComments,
+                  showSectionLabel: true,
+                ),
               if (!draft.isReadOnly) ...[
                 const SizedBox(height: spacer4),
                 OtpVerificationWidget(
                   key: const ValueKey('solar-otp-widget'),
                   keyPrefix: 'solar',
                   activityFacilityId: draft.workflow.activityFacility.id ?? '',
-                  label: context
-                      .translate(i18.machineForm.validateInstallationOtp),
                   initiallyRequested: _otpRequested,
                   initiallyVerified: _otpVerified,
                   onRequestSucceeded: _onOtpRequested,
@@ -651,13 +657,6 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                       setState(() => _otpVerified = verified),
                 ),
               ],
-              if (draft.mode == SolarWorkflowMode.resubmission)
-                _RejectionReasonsPanel(
-                  panelKey: const ValueKey('solar-rejection-reasons-panel'),
-                  surfaceKey: const ValueKey('solar-rejection-reasons-surface'),
-                  comments: draft.otherRejectionComments,
-                  showSectionLabel: true,
-                ),
             ],
           ),
           if (missing.isNotEmpty) ...[
@@ -735,122 +734,6 @@ class _SolarSummaryFooter extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ],
-    );
-  }
-}
-
-class _RejectionReasonsPanel extends StatelessWidget {
-  const _RejectionReasonsPanel({
-    required this.comments,
-    this.panelKey,
-    this.surfaceKey,
-    this.showSectionLabel = false,
-  });
-
-  final List<WorkflowComment> comments;
-  final Key? panelKey;
-  final Key? surfaceKey;
-  final bool showSectionLabel;
-
-  String _humanize(String value) => value
-      .split('_')
-      .where((part) => part.isNotEmpty)
-      .map((part) =>
-          '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}')
-      .join(' ');
-
-  String _reason(BuildContext context, WorkflowComment comment, int index) {
-    final reason = comment.reason;
-    if (reason?.isNotEmpty == true) return reason!;
-    final code = comment.reasonCode;
-    if (code?.isNotEmpty == true) {
-      final translated = context.translate(code!);
-      return translated == code ? _humanize(code) : translated;
-    }
-    return 'Reason ${index + 1}';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (comments.isEmpty) return const SizedBox.shrink();
-    final theme = Theme.of(context);
-    final textTheme = theme.digitTextTheme(context);
-
-    return Column(
-      key: panelKey,
-      children: [
-        const SizedBox(height: spacer2),
-        Container(
-          key: surfaceKey,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: theme.colorTheme.paper.secondary,
-            border: Border.all(color: theme.colorTheme.generic.divider),
-            borderRadius: BorderRadius.circular(spacer1),
-          ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: spacer3,
-            vertical: spacer4,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                context.translate(i18.installationReport.rejectionReasons),
-                style: textTheme.headingS.copyWith(
-                  color: theme.colorTheme.text.primary,
-                ),
-              ),
-              const SizedBox(height: spacer5),
-              for (final indexed in comments.asMap().entries) ...[
-                if (showSectionLabel &&
-                    indexed.value.sectionLabel?.isNotEmpty == true) ...[
-                  Text(
-                    indexed.value.sectionLabel!,
-                    style: textTheme.label.copyWith(
-                      color: theme.colorTheme.text.primary,
-                    ),
-                  ),
-                  const SizedBox(height: spacer2),
-                ],
-                Container(
-                  key: indexed.key == 0
-                      ? const ValueKey('solar-rejection-reason-chip')
-                      : null,
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: theme.colorTheme.primary.primary2,
-                    ),
-                    borderRadius: BorderRadius.circular(spacer2),
-                    color: theme.colorTheme.paper.primary,
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    vertical: spacer1,
-                    horizontal: spacer3,
-                  ),
-                  child: Text(
-                    _reason(context, indexed.value, indexed.key),
-                    style: textTheme.label.copyWith(
-                      color: theme.colorTheme.primary.primary2,
-                    ),
-                  ),
-                ),
-                if (indexed.value.details.isNotEmpty) ...[
-                  const SizedBox(height: spacer2),
-                  Text(
-                    indexed.value.details,
-                    style: textTheme.label.copyWith(
-                      color: theme.colorTheme.text.primary,
-                    ),
-                  ),
-                ],
-                if (indexed.key < comments.length - 1)
-                  const SizedBox(height: spacer4),
-              ],
-            ],
-          ),
         ),
       ],
     );
@@ -959,7 +842,7 @@ class _InitialElementAssetSummary extends StatelessWidget {
               ),
           ],
         ),
-        _RejectionReasonsPanel(
+        WorkflowRejectionReasons(
           panelKey: ValueKey('solar-rejection-${type.name}'),
           comments: rejectionComments,
         ),
@@ -1016,7 +899,7 @@ class _ElementAssetSummary extends StatelessWidget {
             Center(child: Text('$count', style: textTheme.bodyL)),
           ],
         ),
-        _RejectionReasonsPanel(
+        WorkflowRejectionReasons(
           panelKey: ValueKey('solar-rejection-${type.name}'),
           comments: rejectionComments,
         ),
@@ -1275,7 +1158,7 @@ class _InstallationImagesPageState extends State<InstallationImagesPage> {
                           ),
                           if (widget.draft.mode ==
                               SolarWorkflowMode.resubmission)
-                            _RejectionReasonsPanel(
+                            WorkflowRejectionReasons(
                               panelKey: ValueKey(
                                 'solar-installation-rejection-${requirement.code}',
                               ),
