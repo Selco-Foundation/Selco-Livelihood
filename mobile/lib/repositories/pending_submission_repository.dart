@@ -153,31 +153,14 @@ class PendingSubmissionRepository {
         otpVerified: true,
       );
 
-  Future<void> markSubmissionCompleted(String activityFacilityId) async {
-    if (_usesTestMemory) {
-      final row = _testRows[activityFacilityId];
-      if (row != null) {
-        row
-          ..submissionCompleted = true
-          ..updatedAt = DateTime.now();
-      }
-      return;
-    }
-    try {
-      final isar = await _isar;
-      await isar.writeTxn(() async {
-        final row = await isar.cachePendingSubmissions
-            .filter()
-            .activityFacilityIdEqualTo(activityFacilityId)
-            .findFirst();
-        if (row == null) return;
-        row
-          ..submissionCompleted = true
-          ..updatedAt = DateTime.now();
-        await isar.cachePendingSubmissions.put(row);
-      });
-    } catch (_) {}
-  }
+  /// A completed submission has nothing left worth caching locally — the
+  /// server now has the authoritative data (including any images uploaded
+  /// during resubmission), so the row is dropped rather than kept around
+  /// with a flag. The Pending Approval screen already re-fetches from the
+  /// server on every visit, so it picks the facility back up from there
+  /// instead of ever reading a stale local snapshot.
+  Future<void> markSubmissionCompleted(String activityFacilityId) =>
+      remove(activityFacilityId);
 
   Future<void> remove(String activityFacilityId) async {
     if (_usesTestMemory) {

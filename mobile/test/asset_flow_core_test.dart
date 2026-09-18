@@ -325,11 +325,6 @@ void main() {
 
     await pendingSubmissionRepository
         .markSubmissionCompleted('pending-lifecycle-1');
-    record = await pendingSubmissionRepository.read('pending-lifecycle-1');
-    expect(record?.submissionCompleted, isTrue);
-    expect(record?.canSync, isFalse);
-
-    await pendingSubmissionRepository.removeConfirmed(['pending-lifecycle-1']);
     expect(
         await pendingSubmissionRepository.read('pending-lifecycle-1'), isNull);
   });
