@@ -1393,6 +1393,34 @@ void main() {
     );
   });
 
+  test(
+      'machine name falls back to billOfMaterial.additionalDetails.assetName '
+      'when the top-level name is blank', () {
+    const workflow = ActivityFacilityWorkflow(
+      activityFacility: ActivityFacility(
+        id: 'activity-facility-1',
+        facilityId: 'facility-1',
+        componentType: 'MACHINE',
+        billOfMaterial: BillOfMaterial(
+          additionalDetails: {
+            'assetName': 'Silk Spinning-7-W-DC-0.25-kgs/hr',
+          },
+        ),
+      ),
+    );
+
+    final payload = buildMachineSubmissionPayload(
+      workflow: workflow,
+      values: const {'serialNumber': 'SER-1'},
+      media: const {},
+    );
+
+    expect(
+      ((payload['assets'] as List).single as Map)['name'],
+      'Silk Spinning-7-W-DC-0.25-kgs/hr',
+    );
+  });
+
   test('machine submission defaults a blank BOM make to SELCO', () async {
     await assetMdmsRepository.store(const AssetRegistryMdmsResponse());
     addTearDown(

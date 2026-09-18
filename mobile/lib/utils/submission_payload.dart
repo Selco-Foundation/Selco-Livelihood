@@ -138,6 +138,7 @@ Map<String, dynamic> buildMachineSubmissionPayload({
       'LIVELIHOOD';
   final machineName = _firstNonBlank([
         activityFacility.billOfMaterial?.name,
+        activityFacility.billOfMaterial?.additionalDetails['assetName'],
         templateBom['name'],
         templateBom['machine_1_product'],
         firstComponent['product'],
