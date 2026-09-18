@@ -849,7 +849,7 @@ class AssetSummaryPage extends StatelessWidget {
               context.translate(i18.assetFlow.warrantyStartDate):
                   warrantyStartDateDisplay(),
               context.translate(i18.assetFlow.warrantyDuration):
-                  asset.warrantyDuration,
+                  parseWarrantyYears(asset.warrantyDuration).toString(),
               'Make': asset.selectedBrandCode ?? '',
               context.translate(i18.assetFlow.capacity): asset.totalCapacity,
             },

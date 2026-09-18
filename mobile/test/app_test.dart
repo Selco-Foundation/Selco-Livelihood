@@ -2969,6 +2969,27 @@ void main() {
     expect(find.byKey(const ValueKey('solar-fixed-footer')), findsNothing);
   });
 
+  testWidgets('solar asset summary displays numeric warranty duration', (
+    tester,
+  ) async {
+    setMobileViewport(tester, const Size(390, 3000));
+    final draft = _filledSolarDraft(SolarWorkflowMode.newReport);
+    draft.assets[SolarAssetType.panel]!.warrantyDuration = '10 Years';
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: AssetSummaryPage(
+          draft: draft,
+          assetType: SolarAssetType.panel,
+        ),
+      ),
+    );
+
+    expect(find.text('10'), findsOneWidget);
+    expect(find.text('10 Years'), findsNothing);
+  });
+
   testWidgets(
       'asset summary shows canonical Battery Type and image-only thumbnails',
       (tester) async {
