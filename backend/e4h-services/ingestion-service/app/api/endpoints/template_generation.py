@@ -362,6 +362,12 @@ async def get_facility_ingestion_template_with_data(
         # Fetch fieldplan-linked facilities if fieldplan_id is provided
         fieldplan_linked_facility_ids = set()
         fieldplan_facilities_data = []
+        # A site already in this plan's own scope (from an earlier upload) keeps its chosen
+        # Solution pre-filled on re-download. It is deliberately excluded from build_project_lock_map
+        # while the plan is still DRAFT (field_plan_locks.py's is_this_plan check -- a plan must
+        # keep editing its own scope), so that map alone leaves this row's Solution blank; this
+        # needs its own lookup instead of piggybacking on the lock/freeze mechanism.
+        existing_solution_id_by_facility_id = {}
         if fieldplan_id and fieldPlan_service_url:
             try:
                 fieldplan_client = FieldPlanServiceClient(fieldPlan_service_url)
@@ -369,6 +375,11 @@ async def get_facility_ingestion_template_with_data(
                 fieldplan_facilities = fieldplan_facilities_response.get("FieldPlanFacilities", [])
                 fieldplan_linked_facility_ids = {pf.get("facilityId") for pf in fieldplan_facilities if
                                                pf.get("facilityId")}
+                existing_solution_id_by_facility_id = {
+                    pf.get("facilityId"): pf.get("solutionId")
+                    for pf in fieldplan_facilities
+                    if pf.get("facilityId") and pf.get("solutionId")
+                }
                 logger.info(
                     f"Found {len(fieldplan_linked_facility_ids)} facilities linked to fieldplan {fieldplan_id}")
 
@@ -495,6 +506,10 @@ async def get_facility_ingestion_template_with_data(
             )
 
         solution_name_by_code = solution_names_by_code(solutions)
+        existing_solution_name_by_facility_id = {
+            facility_id: solution_name_by_code.get(solution_id, "")
+            for facility_id, solution_id in existing_solution_id_by_facility_id.items()
+        }
         freeze_row_positions = []
         lock_status_by_row = {}
         for position, facility in enumerate(all_facilities):
@@ -531,7 +546,16 @@ async def get_facility_ingestion_template_with_data(
                 optimize_for_performance=True,
                 row_specific_dropdowns={"Solution": solution_options_by_row},
                 per_row_column_values={
-                    "Solution": {p: all_facilities[p].get("locked_solution_name", "") for p in freeze_row_positions},
+                    # Frozen rows show their locked choice; everything else falls back to a
+                    # Solution already chosen for this plan's own (still-editable) scope, if any --
+                    # the dropdown stays live for those, this only pre-fills the starting value.
+                    "Solution": {
+                        p: (
+                            f.get("locked_solution_name")
+                            or existing_solution_name_by_facility_id.get(f.get("facility_id"), "")
+                        )
+                        for p, f in enumerate(all_facilities)
+                    },
                     "Lock Status": lock_status_by_row,
                     # Each site's own sector, not a plan-wide constant -- a plan may span
                     # several. Set explicitly rather than relying on the schema column's MDMS
