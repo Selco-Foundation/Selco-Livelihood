@@ -94,12 +94,25 @@ export function useFacilityReview(entryId: string) {
           .filter((document) => isResolvableAssetDocument(document.documentType))
           .map((document) => document.fileStore)
           .filter((id): id is string => Boolean(id));
-        const assetImageUrls = await fetchFileUrls(assetImageFileStoreIds, employeeTenantId!, accessToken!, user);
-        const assetImageUrlById = new Map(
-          (assetImageUrls.fileStoreIds ?? [])
-            .filter((entry): entry is { id: string; url: string } => Boolean(entry.id && entry.url))
-            .map((entry) => [entry.id, entry.url]),
-        );
+
+        // Resolved separately from the asset search itself: if this fails
+        // (media URLs didn't resolve), the asset's own text fields — serial
+        // number, PO number, warranty, etc. — don't depend on it and
+        // shouldn't be thrown away too. An empty map just means every
+        // image/video for this asset comes up unresolved, same as if the
+        // asset simply had no documents.
+        let assetImageUrlById = new Map<string, string>();
+        try {
+          const assetImageUrls = await fetchFileUrls(assetImageFileStoreIds, employeeTenantId!, accessToken!, user);
+          assetImageUrlById = new Map(
+            (assetImageUrls.fileStoreIds ?? [])
+              .filter((entry): entry is { id: string; url: string } => Boolean(entry.id && entry.url))
+              .map((entry) => [entry.id, entry.url]),
+          );
+        } catch (error) {
+          console.error("Failed to load asset media URLs for facility review:", error);
+        }
+
         if (isSolar) {
           solarAssetSections = buildSolarAssetSections(assets, assetImageUrlById);
         } else {
