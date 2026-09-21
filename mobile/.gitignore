@@ -54,3 +54,4 @@ app.*.map.json
 
 # AI Tools
 .claude/
+.kilo/

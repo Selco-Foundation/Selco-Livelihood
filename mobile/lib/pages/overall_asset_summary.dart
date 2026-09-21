@@ -647,17 +647,21 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                     installationDraftRepository.saveSolarSoon(draft);
                   },
                 ),
-              const SizedBox(height: spacer4),
-              DigitTextFormInput(
-                key: const ValueKey('solar-invoice-number-field'),
-                controller: _invoiceNumberController,
+              const SizedBox(height: spacer1),
+              LabeledField(
+                label: context.translate(i18.installationReport.invoiceNumber),
+                capitalizedFirstLetter: false,
+                child: DigitTextFormInput(
+                  key: const ValueKey('solar-invoice-number-field'),
+                  controller: _invoiceNumberController,
                 innerLabel: context.translate(i18.installationReport.invoiceNumber),
-                isDisabled: draft.isReadOnly,
-                readOnly: draft.isReadOnly,
-                onChange: (value) {
-                  draft.invoiceNumber = value;
-                  installationDraftRepository.saveSolarSoon(draft);
-                },
+                  isDisabled: draft.isReadOnly,
+                  readOnly: draft.isReadOnly,
+                  onChange: (value) {
+                    draft.invoiceNumber = value;
+                    installationDraftRepository.saveSolarSoon(draft);
+                  },
+                ),
               ),
               if (draft.mode == SolarWorkflowMode.resubmission)
                 WorkflowRejectionReasons(
@@ -667,7 +671,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                   showSectionLabel: true,
                 ),
               if (!draft.isReadOnly) ...[
-                const SizedBox(height: spacer4),
+                const SizedBox(height: spacer1 * 0.5),
                 OtpVerificationWidget(
                   key: const ValueKey('solar-otp-widget'),
                   keyPrefix: 'solar',

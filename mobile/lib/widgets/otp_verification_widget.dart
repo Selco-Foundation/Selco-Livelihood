@@ -199,7 +199,7 @@ class _OtpVerificationWidgetState extends State<OtpVerificationWidget> {
               : i18.machineForm.requestOtp),
           onPressed: () => _otpRequested ? _resendOtp() : _requestOtp(),
           isDisabled: !widget.isEnabled || _isBusy || _isVerified,
-          type: DigitButtonType.tertiary,
+          type: DigitButtonType.secondary,
           size: DigitButtonSize.large,
           textColor: theme.colorTheme.primary.primary1,
         ),
