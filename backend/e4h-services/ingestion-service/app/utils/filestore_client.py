@@ -112,3 +112,37 @@ class FilestoreClient:
 
         logger.info(f"Uploaded file to filestore successfully: fileStoreId={file_store_id}")
         return file_store_id
+
+    def get_presigned_url(self, tenant_id: str, file_store_id: str,
+                          auth_token: Optional[str] = None) -> str:
+        """Fresh pre-signed S3 URL for one file.
+
+        Pre-signed URLs are short-lived (X-Amz-Expires, one hour on this deployment) and
+        SigV4 caps any presign at seven days, so such a URL must never be written into a
+        durable artefact like a PDF -- it is minted per request, here, and handed straight
+        to the caller who is about to follow it.
+        """
+        if not self.filestore_url:
+            raise RuntimeError("FILESTORE_SERVICE_URL is not configured; file URLs cannot be resolved")
+        if not file_store_id:
+            raise ValueError("file_store_id is required")
+
+        url = f"{self.filestore_url}/filestore/v1/files/url"
+        params = {"tenantId": tenant_id, "fileStoreIds": file_store_id}
+        headers = {"auth-token": auth_token} if auth_token else {}
+
+        response = requests.get(url, params=params, headers=headers, timeout=120)
+        response.raise_for_status()
+
+        entries = (response.json() or {}).get("fileStoreIds") or []
+        if not entries:
+            raise FileNotFoundError(f"filestore knows no file with fileStoreId={file_store_id}")
+
+        signed_url = entries[0].get("url")
+        if not signed_url:
+            raise RuntimeError(f"filestore returned no url for fileStoreId={file_store_id}")
+
+        # For images filestore answers with several comma-separated size variants; the first
+        # is the original. Non-image files (our videos) carry a single URL, and splitting a
+        # URL that has no comma is a no-op, so this is safe for both.
+        return signed_url.split(",")[0]
