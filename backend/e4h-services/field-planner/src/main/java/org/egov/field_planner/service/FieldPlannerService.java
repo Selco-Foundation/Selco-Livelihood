@@ -213,7 +213,12 @@ public class FieldPlannerService {
         String stateCode = null;
         String concatenatedActivityCode = null;
         Map<String, Object> geographyDetails = fieldPlan.getGeographyDetails();
-        String stateBoundary = (String)geographyDetails.get("state");
+        @SuppressWarnings("unchecked")
+        List<String> stateBoundaries = (List<String>) geographyDetails.get("states");
+        if (stateBoundaries == null || stateBoundaries.isEmpty()) {
+            throw new CustomException("INVALID_GEOGRAPHY_DETAILS", "At least one state is required to generate the field plan name");
+        }
+        String stateBoundary = stateBoundaries.get(0);
         stateCode = boundaryCodeToCode(stateBoundary);
 //        String state = fieldPlanServiceUtil.extractStateName(stateBoundary);
         List<Map<String, Object>> activities = fieldPlan.getActivities();
@@ -547,11 +552,11 @@ public class FieldPlannerService {
             JsonNode originalNode = mapper.valueToTree(originalGeographyDetails);
             JsonNode newNode = mapper.valueToTree(newGeographyDetails);
 
-            // Check if state is unchanged (read-only)
-            JsonNode originalState = originalNode.get("state");
-            JsonNode newState = newNode.get("state");
-            if (!Objects.equals(originalState, newState)) {
-                log.warn("State cannot be changed during cascading update");
+            // Check if states are unchanged (read-only)
+            JsonNode originalStates = originalNode.get("states");
+            JsonNode newStates = newNode.get("states");
+            if (!Objects.equals(originalStates, newStates)) {
+                log.warn("States cannot be changed during cascading update");
                 return false;
             }
 
