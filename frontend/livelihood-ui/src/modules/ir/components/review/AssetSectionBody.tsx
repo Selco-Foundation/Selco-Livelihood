@@ -41,12 +41,15 @@ export function AssetSectionBody({ section }: AssetSectionBodyProps) {
       {section.items
         ?.filter((item) => {
           // An item with none of these carries no information beyond its
-          // label — which, for a single-asset Machine section, just repeats
-          // the section title (Serial Number/Capacity live in Details now).
-          // Only worth its own box when it has media, or when there's more
-          // than one item to actually distinguish.
+          // label — for a Machine item that's just the label repeating the
+          // section title (Serial Number/Capacity live in Details instead),
+          // so it's not worth its own box. This can leave every item hidden
+          // when a facility has more than one Machine asset (items don't
+          // carry per-asset fields yet) — a real gap, but showing an empty,
+          // undistinguishing box per duplicate is worse than showing none;
+          // a proper multi-asset display is a separate, deliberate change.
           const hasOwnFields = item.serialNumber || item.capacity || item.quantity !== undefined;
-          return hasOwnFields || item.images.length > 0 || (section.items?.length ?? 0) > 1;
+          return hasOwnFields || item.images.length > 0;
         })
         .map((item) => (
           <div key={item.itemNumber} className="space-y-3 rounded-md border border-border bg-muted/40 p-4">
