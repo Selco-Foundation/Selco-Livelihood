@@ -69,7 +69,7 @@ class MediaThumbnail extends StatelessWidget {
                 child: const Icon(Icons.play_circle_fill, size: 40),
               ),
               Text(
-                media.name,
+                media.viewerTitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 11),
