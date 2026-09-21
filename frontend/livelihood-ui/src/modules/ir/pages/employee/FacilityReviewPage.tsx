@@ -1,7 +1,7 @@
-import { employeeHomePath, translateOr, useAuthStore, useTranslate } from "@/shared";
+import { employeeHomePath, reloadModule, translateOr, useAuthStore, useTranslate } from "@/shared";
 import { TopBar, toast } from "@/ui";
 import { useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AuditTrailTimeline } from "../../components/review/AuditTrailTimeline";
 import { ConfirmActionDialog } from "../../components/review/ConfirmActionDialog";
 import { FacilityInfoCard } from "../../components/review/FacilityInfoCard";
@@ -51,6 +51,16 @@ export function FacilityReviewPage() {
   const [pendingAction, setPendingAction] = useState<ReviewDecisionAction | null>(null);
   const { data: plansData } = useInstallationPlans({ fieldPlanIds: planId ? [planId] : undefined });
   const planName = plansData?.plans.find((plan) => plan.planId === planId)?.planName ?? planId;
+
+  // Boundary names (BOUNDARY_<code>, e.g. an asset's boundaryCode) live in
+  // the "livelihood" localization module, which — like every module — is
+  // cached in localStorage and never refetched on its own. A boundary
+  // created after this browser's cache was written would show its raw code
+  // forever otherwise, so force a fresh fetch each time a reviewer opens a
+  // review page.
+  useEffect(() => {
+    void reloadModule("livelihood");
+  }, []);
 
   if (!hasIrAccess(user?.roles)) {
     return null;
