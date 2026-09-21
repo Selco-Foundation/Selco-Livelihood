@@ -363,6 +363,20 @@ public class AssetService {
             updated.getAuditDetails().setLastModifiedBy(request.getRequestInfo().getUserInfo().getUserName());
             updated.getAuditDetails().setLastModifiedTime(System.currentTimeMillis());
         }
+
+        // Assign IDs to newly-added documents (existing ones already carry their id from a prior save)
+        List<Document> newDocuments = CollectionUtils.isEmpty(updated.getDocuments())
+                ? Collections.emptyList()
+                : updated.getDocuments().stream()
+                        .filter(doc -> doc != null && (doc.getId() == null || doc.getId().isBlank()))
+                        .collect(Collectors.toList());
+        if (!newDocuments.isEmpty()) {
+            List<String> documentIds = idgenUtil.getIdList(request.getRequestInfo(), updated.getTenantId(),
+                    "documentId", "DOCUMENT-[SEQ_DOCUMENT_ID]", newDocuments.size());
+            IntStream.range(0, newDocuments.size())
+                    .forEach(i -> newDocuments.get(i).setId(documentIds.get(i)));
+        }
+
         assetRepository.pushUpdateAsset(updated);
         assetLocalizationService.upsertAssetBoundaryLocalizations(updated, request.getRequestInfo());
         return updated;
