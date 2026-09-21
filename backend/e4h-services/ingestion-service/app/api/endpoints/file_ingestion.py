@@ -268,9 +268,9 @@ async def upload_boundaries_excel_sheet(
         writer = ExcelDataWriter(output_file_path, output_sheet="Boundary Data")
         writer.write_data(boundary_df)
 
-        error_count = int(
-            boundary_df["status"].astype(str).str.strip().str.lower().eq("fail").sum()
-        )
+        normalized_status = boundary_df["status"].astype(str).str.strip().str.lower()
+        error_count = int(normalized_status.eq("fail").sum())
+        duplicate_count = int(normalized_status.eq("exists").sum())
 
         response = FileResponse(
             path=output_file_path,
@@ -278,6 +278,7 @@ async def upload_boundaries_excel_sheet(
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
         response.headers["X-Error-Count"] = str(error_count)
+        response.headers["X-Duplicate-Count"] = str(duplicate_count)
         return response
 
     except Exception as e:
@@ -2259,8 +2260,12 @@ def _state_by_boundary_code(boundary_data_df) -> dict:
     return states
 
 
-def _facility_states_from_sheet(df, boundary_data_df, facility_client, request_info) -> dict:
-    """facility_id -> state name for the sites listed in the sheet.
+def _facility_states_and_sectors_from_sheet(df, boundary_data_df, facility_client, request_info) -> tuple:
+    """(facility_id -> state name, facility_id -> sector) for the sites listed in the sheet.
+
+    Both come from one bulk facility read. The sector is the site's own facility_type, set at
+    ingestion; it is taken from the facility record rather than the sheet's Sector column for
+    the same reason as the state -- the cell is editable once the sheet is unprotected.
 
     A facility has no state of its own: FacilityAddress declares state/district/block but
     facility_address has no such columns, so address.state is always null. The state lives
@@ -2275,15 +2280,15 @@ def _facility_states_from_sheet(df, boundary_data_df, facility_client, request_i
     """
     site_id_column = find_site_id_column(df)
     if not site_id_column or facility_client is None:
-        return {}
+        return {}, {}
     facility_ids = [
         str(v).strip() for v in df[site_id_column] if pd.notna(v) and str(v).strip()
     ]
     if not facility_ids:
-        return {}
+        return {}, {}
     state_by_boundary_code = _state_by_boundary_code(boundary_data_df)
     if not state_by_boundary_code:
-        return {}
+        return {}, {}
     try:
         result = facility_client.bulk_search_facility(
             request_info=request_info,
@@ -2294,9 +2299,10 @@ def _facility_states_from_sheet(df, boundary_data_df, facility_client, request_i
         )
     except Exception as e:
         logger.error(f"Could not resolve facility states for eligibility: {e}", exc_info=True)
-        return {}
+        return {}, {}
 
     states = {}
+    sectors = {}
     for facility in (result.get("facilities") or []):
         facility_id = facility.get("facility_id")
         if not facility_id:
@@ -2312,7 +2318,8 @@ def _facility_states_from_sheet(df, boundary_data_df, facility_client, request_i
             ),
             "",
         )
-    return states
+        sectors[facility_id] = facility.get("facility_type") or ""
+    return states, sectors
 
 
 @router.post('/fieldPlanfacilitiesValidateData',
@@ -2326,7 +2333,7 @@ async def validate_facilities_excel_sheet(
         boundary_sheet_name: str = Form(default="BoundaryCodes",
                                         description="Name of the sheet containing boundary data"),
         fieldplan_id: str = Form(default="",
-                                 description="Field plan id; when given, its sector is used instead of the sheet's"),
+                                 description="Field plan id; when given, its Sectors bound the plan's scope and its project's site locks are enforced"),
         request_info: str = Form(default="")
 ):
     temp_input_file = None
@@ -2383,11 +2390,11 @@ async def validate_facilities_excel_sheet(
         )
 
         # The plan is what makes the rest of this validation meaningful: it supplies the
-        # sector and the project whose locks are enforced below. Failing to read it must
-        # not be a warning -- with project_id unset the lock map comes back empty and every
-        # locked row silently validates as editable, so the sheet would be reported PASSED
-        # having skipped the check it most needed.
-        plan_sector = None
+        # Sectors bounding its scope and the project whose locks are enforced below. Failing
+        # to read it must not be a warning -- with project_id unset the lock map comes back
+        # empty and every locked row silently validates as editable, so the sheet would be
+        # reported PASSED having skipped the check it most needed.
+        plan_sectors = []
         project_id = None
         if fieldplan_id and fieldPlan_service_url:
             try:
@@ -2403,7 +2410,7 @@ async def validate_facilities_excel_sheet(
                 )
             if not field_plans:
                 raise HTTPException(status_code=404, detail=f"Field plan {fieldplan_id} not found")
-            plan_sector = field_plans[0].get("sector")
+            plan_sectors = field_plans[0].get("sectors") or []
             project_id = field_plans[0].get("projectId")
 
         # Sites already under installation anywhere in this project cannot be re-scoped.
@@ -2414,15 +2421,17 @@ async def validate_facilities_excel_sheet(
             )
 
         solutions = mdms_client.fetch_installation_solutions(request_info_obj)
+        state_by_facility_id, sector_by_facility_id = _facility_states_and_sectors_from_sheet(
+            df, boundary_data_df, facility_client, request_info_obj
+        )
         linkable_rows = validate_installation_scope_solutions(
             df,
             solutions=solutions,
             sunshine_hours_by_state=fetch_state_sunshine_hours(),
             add_err=lambda i, msg: validation_errors[i].append(msg),
-            plan_sector=plan_sector,
-            state_by_facility_id=_facility_states_from_sheet(
-                df, boundary_data_df, facility_client, request_info_obj
-            ),
+            sector_by_facility_id=sector_by_facility_id,
+            allowed_sectors={str(s).strip().casefold() for s in plan_sectors if s},
+            state_by_facility_id=state_by_facility_id,
             lock_map=lock_map,
             solution_name_by_code=solution_names_by_code(solutions),
         )

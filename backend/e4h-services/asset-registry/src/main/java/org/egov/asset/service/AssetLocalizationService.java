@@ -84,6 +84,14 @@ public class AssetLocalizationService {
         if (StringUtils.isNotBlank(asset.getName())) {
             return asset.getName();
         }
+        // On create, asset.getName() may still be blank even when the client sent the display
+        // name under assetDetails.name (itemCode is no longer a required field to fall back on).
+        if (asset.getAssetDetails() != null && asset.getAssetDetails().get("name") != null) {
+            String assetDetailsName = String.valueOf(asset.getAssetDetails().get("name"));
+            if (StringUtils.isNotBlank(assetDetailsName)) {
+                return assetDetailsName;
+            }
+        }
         if (requestInfo != null && StringUtils.isNotBlank(asset.getItemCode())) {
             String itemName = mdmsUtil.resolveItemCodeDisplayName(
                     requestInfo, asset.getTenantId(), asset.getItemCode());

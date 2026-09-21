@@ -311,9 +311,13 @@ async def get_facility_ingestion_template_with_data(
     boundary_data = payload.get("boundary_data", {})
     fieldplan_id = payload.get("fieldplan_id")
     project_id = payload.get("project_id")
-    # Sent by the caller rather than read back off the plan: screen 1 already chose it, and
-    # this keeps the endpoint read-only.
-    plan_sector = payload.get("sector")
+    # Sent by the caller rather than read back off the plan: screen 1 already chose them, and
+    # this keeps the endpoint read-only. A plan may cover several Sectors. A bare string is
+    # accepted so an older single-sector caller degrades to a one-element list rather than
+    # silently losing its filter.
+    plan_sectors = payload.get("sectors") or []
+    if isinstance(plan_sectors, str):
+        plan_sectors = [plan_sectors]
     mdms_client = MDMSClient(mdms_url)
     fieldplan_activity_client = FieldPlanActivityServiceClient(fieldPlan_activity_service_url)
     try:
@@ -358,6 +362,12 @@ async def get_facility_ingestion_template_with_data(
         # Fetch fieldplan-linked facilities if fieldplan_id is provided
         fieldplan_linked_facility_ids = set()
         fieldplan_facilities_data = []
+        # A site already in this plan's own scope (from an earlier upload) keeps its chosen
+        # Solution pre-filled on re-download. It is deliberately excluded from build_project_lock_map
+        # while the plan is still DRAFT (field_plan_locks.py's is_this_plan check -- a plan must
+        # keep editing its own scope), so that map alone leaves this row's Solution blank; this
+        # needs its own lookup instead of piggybacking on the lock/freeze mechanism.
+        existing_solution_id_by_facility_id = {}
         if fieldplan_id and fieldPlan_service_url:
             try:
                 fieldplan_client = FieldPlanServiceClient(fieldPlan_service_url)
@@ -365,6 +375,11 @@ async def get_facility_ingestion_template_with_data(
                 fieldplan_facilities = fieldplan_facilities_response.get("FieldPlanFacilities", [])
                 fieldplan_linked_facility_ids = {pf.get("facilityId") for pf in fieldplan_facilities if
                                                pf.get("facilityId")}
+                existing_solution_id_by_facility_id = {
+                    pf.get("facilityId"): pf.get("solutionId")
+                    for pf in fieldplan_facilities
+                    if pf.get("facilityId") and pf.get("solutionId")
+                }
                 logger.info(
                     f"Found {len(fieldplan_linked_facility_ids)} facilities linked to fieldplan {fieldplan_id}")
 
@@ -443,20 +458,20 @@ async def get_facility_ingestion_template_with_data(
                 facility["include_in_fieldplan"] = "No"
                 logger.info(f"No fieldplan_id provided - marking facility {facility.get('facility_id')} as No")
 
-        # One sector per plan, chosen on screen 1 and sent with this request, so the Sector
-        # column is identical on every row and Solution options vary only by the site's
-        # state (FR-01). Sites tagged with any other sector are out of this plan's scope.
-        if plan_sector:
-            wanted_sector = str(plan_sector).strip().casefold()
+        # The plan's Sectors define its scope: a site tagged with any other sector is out of
+        # this plan. Each row then keeps its own sector, and its Solution options are filtered
+        # by that sector plus the site's state (FR-01).
+        if plan_sectors:
+            wanted_sectors = {str(s).strip().casefold() for s in plan_sectors if s}
             before_count = len(all_facilities)
             all_facilities = [
                 f for f in all_facilities
-                if str(f.get("facility_type") or "").strip().casefold() == wanted_sector
+                if str(f.get("facility_type") or "").strip().casefold() in wanted_sectors
             ]
             logger.info(
-                f"Filtered facilities by sector '{plan_sector}': {len(all_facilities)} of {before_count}")
+                f"Filtered facilities by sectors {sorted(wanted_sectors)}: {len(all_facilities)} of {before_count}")
         else:
-            logger.warning("No sector supplied; skipping sector filter and Solution dropdowns")
+            logger.warning("No sectors supplied; skipping sector filter")
 
         # Built here rather than left to the template service so the Solution dropdown and
         # the State column resolve their state from one identical lookup; it is handed down
@@ -466,20 +481,20 @@ async def get_facility_ingestion_template_with_data(
             all_facilities, boundary_list, boundary_localization_map
         )
 
+        # Each row's options come from that row's own sector, so this no longer depends on the
+        # plan carrying a sector at all.
         solutions = []
         solution_options_by_row = {}
-        if plan_sector:
-            try:
-                solutions = mdms_client.fetch_installation_solutions(request_info)
-                solution_options_by_row = build_solution_options_by_row(
-                    facilities=all_facilities,
-                    solutions=solutions,
-                    plan_sector=plan_sector,
-                    sunshine_hours_by_state=fetch_state_sunshine_hours(),
-                    state_by_facility_id=state_by_facility_id,
-                )
-            except Exception as e:
-                logger.error(f"Error resolving eligible solutions: {e}", exc_info=True)
+        try:
+            solutions = mdms_client.fetch_installation_solutions(request_info)
+            solution_options_by_row = build_solution_options_by_row(
+                facilities=all_facilities,
+                solutions=solutions,
+                sunshine_hours_by_state=fetch_state_sunshine_hours(),
+                state_by_facility_id=state_by_facility_id,
+            )
+        except Exception as e:
+            logger.error(f"Error resolving eligible solutions: {e}", exc_info=True)
 
         # Sites already under installation -- in this plan or a sibling plan in the same
         # project -- are shown as-is and frozen, so the PM can see they are spoken for but
@@ -491,6 +506,10 @@ async def get_facility_ingestion_template_with_data(
             )
 
         solution_name_by_code = solution_names_by_code(solutions)
+        existing_solution_name_by_facility_id = {
+            facility_id: solution_name_by_code.get(solution_id, "")
+            for facility_id, solution_id in existing_solution_id_by_facility_id.items()
+        }
         freeze_row_positions = []
         lock_status_by_row = {}
         for position, facility in enumerate(all_facilities):
@@ -525,11 +544,25 @@ async def get_facility_ingestion_template_with_data(
                 type="fieldplan",
                 extra_append_rows=0,
                 optimize_for_performance=True,
-                constant_column_values={"Sector": plan_sector or ""},
                 row_specific_dropdowns={"Solution": solution_options_by_row},
                 per_row_column_values={
-                    "Solution": {p: all_facilities[p].get("locked_solution_name", "") for p in freeze_row_positions},
+                    # Frozen rows show their locked choice; everything else falls back to a
+                    # Solution already chosen for this plan's own (still-editable) scope, if any --
+                    # the dropdown stays live for those, this only pre-fills the starting value.
+                    "Solution": {
+                        p: (
+                            f.get("locked_solution_name")
+                            or existing_solution_name_by_facility_id.get(f.get("facility_id"), "")
+                        )
+                        for p, f in enumerate(all_facilities)
+                    },
                     "Lock Status": lock_status_by_row,
+                    # Each site's own sector, not a plan-wide constant -- a plan may span
+                    # several. Set explicitly rather than relying on the schema column's MDMS
+                    # code happening to map to facility_type.
+                    "Sector": {
+                        p: (f.get("facility_type") or "") for p, f in enumerate(all_facilities)
+                    },
                 },
                 freeze_columns=["Included in Field Plan", "Solution"],
                 freeze_row_positions=freeze_row_positions,
