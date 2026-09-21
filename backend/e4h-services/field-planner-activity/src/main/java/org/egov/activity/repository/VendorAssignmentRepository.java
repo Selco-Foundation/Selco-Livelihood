@@ -18,7 +18,7 @@ import java.util.Map;
  *
  * It used to own the step's four writes as JDBC upserts, because the egov-persister config was
  * not visible from this repository and its mappings named neither the component columns nor the
- * vendor columns -- which is how field_plans.sector was silently dropped for weeks. That config
+ * vendor columns -- which is how the plan's Sector column was silently dropped for weeks. That config
  * (Configs-Livelihood/egov-persister) is now aligned with the schema, so the writes are published
  * to the save-vendor-assignment topic and applied there as one transactional mapping. See
  * development/Persister_Config/ for the audit.
@@ -53,7 +53,7 @@ public class VendorAssignmentRepository {
     /** The plan itself. Null when it does not exist. */
     public Map<String, Object> findPlan(String tenantId, String fieldPlanId) {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT id, name, status, project_id, start_date, sector FROM field_plans "
+                "SELECT id, name, status, project_id, start_date FROM field_plans "
                         + "WHERE tenant_id = ? AND id = ?",
                 tenantId, fieldPlanId);
         return rows.isEmpty() ? null : rows.get(0);

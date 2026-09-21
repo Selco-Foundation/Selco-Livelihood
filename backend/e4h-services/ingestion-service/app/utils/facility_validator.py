@@ -1,5 +1,5 @@
 import re
-from typing import Any, Callable, Dict, List, MutableMapping, Optional
+from typing import Any, Callable, Dict, List, MutableMapping, Optional, Set
 
 import pandas as pd
 from fastapi import HTTPException
@@ -200,7 +200,8 @@ def validate_installation_scope_solutions(
     solutions: List[Dict[str, Any]],
     sunshine_hours_by_state: Dict[str, float],
     add_err,
-    plan_sector: Optional[str] = None,
+    sector_by_facility_id: Optional[Dict[str, str]] = None,
+    allowed_sectors: Optional[Set[str]] = None,
     state_by_facility_id: Optional[Dict[str, str]] = None,
     lock_map: Optional[Dict[str, Any]] = None,
     solution_name_by_code: Optional[Dict[str, str]] = None,
@@ -209,8 +210,13 @@ def validate_installation_scope_solutions(
 
     A site is assigned exactly one Solution: an included site must name it, an excluded one
     must leave it blank, and the value has to be one this site is actually eligible for --
-    recomputed here rather than trusting the uploaded workbook. plan_sector, when given,
-    overrides the sheet's Sector column, which the Project Manager could otherwise edit.
+    recomputed here rather than trusting the uploaded workbook.
+
+    sector_by_facility_id supplies each site's own sector (facility_type) rather than the
+    sheet's Sector column, which the Project Manager could otherwise edit. A plan may span
+    several Sectors, so the sector is per site, not per plan. allowed_sectors, when given, is
+    the plan's declared Sector set: a site outside it is not in this plan's scope at all, and
+    is rejected before its Solution is even considered.
 
     state_by_facility_id keys eligibility off each site's boundary_code rather than the
     sheet's State cell, which is editable once the sheet is unprotected. Both sides resolve
@@ -276,11 +282,25 @@ def validate_installation_scope_solutions(
             add_err(i, "Solution is required when the site is included in the field plan")
             continue
 
-        row_sector = plan_sector or _cell(row, sector_column)
+        if sector_by_facility_id is not None:
+            row_sector = sector_by_facility_id.get(facility_id, "") or _cell(row, sector_column)
+        else:
+            row_sector = _cell(row, sector_column)
         if state_by_facility_id is not None:
             state_value = state_by_facility_id.get(facility_id, "")
         else:
             state_value = _cell(row, state_column)
+
+        # The download only ever offers sites in the plan's Sectors, so a row outside them was
+        # pasted or hand-added. Caught here explicitly: otherwise such a row could still pass by
+        # naming a Solution that is valid for its own sector.
+        if allowed_sectors and str(row_sector).strip().casefold() not in allowed_sectors:
+            add_err(
+                i,
+                f"This site's sector '{row_sector or ''}' is not one of the sectors this "
+                "installation plan covers, so it cannot be included in it.",
+            )
+            continue
 
         allowed = eligible_solution_names(solutions, row_sector, state_value, sunshine_hours_by_state)
         if solution_value not in allowed:

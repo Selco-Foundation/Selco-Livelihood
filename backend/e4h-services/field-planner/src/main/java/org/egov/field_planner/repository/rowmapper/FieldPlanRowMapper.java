@@ -58,7 +58,7 @@ public class FieldPlanRowMapper implements ResultSetExtractor<List<FieldPlan>> {
         String projectId = rs.getString("fp_projectId");
         int healthFacilityNumber = rs.getInt("fp_healthFacilityNumber");
         String status = rs.getString("fp_status");
-        String sector = rs.getString("fp_sector");
+        List<String> sectors = getSectors("fp_sectors", rs);
         long startDate = rs.getLong("fp_startDate");
         long endDate = rs.getLong("fp_endDate");
         JsonNode geographyScope = getAdditionalDetail("fp_geographyScope", rs);
@@ -81,7 +81,7 @@ public class FieldPlanRowMapper implements ResultSetExtractor<List<FieldPlan>> {
                 .projectId(projectId)
                 .healthFacilityNumber(healthFacilityNumber)
                 .status(status)
-                .sector(sector)
+                .sectors(sectors)
                 .startDate(startDate)
                 .endDate(endDate)
                 .geographyDetails(objectMapper.convertValue(geographyScope, Map.class))
@@ -185,6 +185,30 @@ public class FieldPlanRowMapper implements ResultSetExtractor<List<FieldPlan>> {
         }
         catch (IOException e){
             throw new CustomException("PARSING ERROR", "Failed to parse additionalDetail object");
+        }
+    }
+
+    /**
+     * Reads the sectors JSONB column (a plain array of Sector names) into a List<String>.
+     */
+    public List<String> getSectors(String columnName, ResultSet rs) throws SQLException {
+        try {
+            Object obj = rs.getObject(columnName);
+
+            if (obj == null) {
+                return null;
+            }
+            String json;
+            if (obj instanceof PGobject) {
+                json = ((PGobject) obj).getValue();
+            } else {
+                json = obj.toString();
+            }
+
+            return objectMapper.readValue(json, new TypeReference<List<String>>() {});
+        }
+        catch (IOException e){
+            throw new CustomException("PARSING ERROR", "Failed to parse sectors array");
         }
     }
 }
