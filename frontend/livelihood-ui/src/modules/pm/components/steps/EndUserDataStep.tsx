@@ -1,7 +1,7 @@
 import { translateOr, useTranslate } from "@/shared";
-import { Button, cn } from "@/ui";
-import { CheckCircle2, Download, FileSpreadsheet, Upload } from "lucide-react";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { Button } from "@/ui";
+import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Upload } from "lucide-react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from "react";
 import { useFacilityIngestion } from "../../hooks/use-facility-ingestion";
 import type { GeographyDetails } from "../../types/project";
 import { StepSectionCard } from "../StepSectionCard";
@@ -33,10 +33,10 @@ export const EndUserDataStep = forwardRef<EndUserDataStepHandle, EndUserDataStep
 }, ref) {
   const { t } = useTranslate();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [simulateErrors, setSimulateErrors] = useState(false);
   const {
     status,
     errorCount,
+    errorMessage,
     downloadTemplate,
     uploadAndValidate,
     downloadErrorReport,
@@ -77,37 +77,6 @@ export const EndUserDataStep = forwardRef<EndUserDataStepHandle, EndUserDataStep
           {translateOr(t, "ES_PM_DOWNLOAD_TEMPLATE", "Download Template")}
         </Button>
 
-        {/* Dev-only helper: there's no real validation backend yet, so this
-            toggle lets both the success and failure paths be exercised —
-            remove once real validation responses drive this. */}
-        <div className="flex items-center gap-3 rounded-lg border border-dashed border-border bg-muted/20 px-4 py-3">
-          <span className="text-sm font-medium text-foreground">
-            {translateOr(t, "ES_PM_SIMULATE_VALIDATION_ERRORS", "Simulate validation errors on next upload?")}
-          </span>
-          <div className="flex overflow-hidden rounded-md border border-input">
-            <button
-              type="button"
-              onClick={() => setSimulateErrors(false)}
-              className={cn(
-                "px-3 py-1 text-sm font-medium transition-colors",
-                !simulateErrors ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground",
-              )}
-            >
-              {translateOr(t, "CORE_COMMON_NO", "No")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setSimulateErrors(true)}
-              className={cn(
-                "px-3 py-1 text-sm font-medium transition-colors",
-                simulateErrors ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground",
-              )}
-            >
-              {translateOr(t, "CORE_COMMON_YES", "Yes")}
-            </button>
-          </div>
-        </div>
-
         <button
           type="button"
           disabled={isBusy}
@@ -130,7 +99,7 @@ export const EndUserDataStep = forwardRef<EndUserDataStepHandle, EndUserDataStep
           className="hidden"
           onChange={(event) => {
             const file = event.target.files?.[0];
-            if (file) void uploadAndValidate(file, simulateErrors);
+            if (file) void uploadAndValidate(file);
             event.target.value = "";
           }}
         />
@@ -144,6 +113,15 @@ export const EndUserDataStep = forwardRef<EndUserDataStepHandle, EndUserDataStep
               <Download className="size-4" />
               {translateOr(t, "ES_PM_DOWNLOAD_ERROR_REPORT", "Download Error Report")}
             </Button>
+          </div>
+        ) : null}
+
+        {status === "error" ? (
+          <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+            <AlertTriangle className="size-4 text-destructive" />
+            <p className="text-sm font-medium text-destructive">
+              {errorMessage ?? translateOr(t, "ES_PM_ACTION_FAILED", "Something went wrong. Please try again.")}
+            </p>
           </div>
         ) : null}
 

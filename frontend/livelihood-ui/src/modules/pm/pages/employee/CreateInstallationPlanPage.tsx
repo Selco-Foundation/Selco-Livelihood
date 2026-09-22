@@ -1,40 +1,49 @@
-import { employeeHomePath, translateOr, useTranslate } from "@/shared";
-import { Button, Stepper, TopBar } from "@/ui";
+import { extractApiErrorMessage, translateOr, useAuthStore, useTranslate, employeeHomePath } from "@/shared";
+import { Button, cn, TopBar } from "@/ui";
+import {
+  Stepper,
+  StepperIndicator,
+  StepperItem,
+  StepperNav,
+  StepperSeparator,
+  StepperTitle,
+  StepperTrigger,
+} from "@/components/reui/stepper";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { CheckCircle2 } from "lucide-react";
+import { Check, CheckCircle2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { ConfirmSubmitPlanDialog } from "../../components/ConfirmSubmitPlanDialog";
 import {
   isAssignmentValid,
   TechnicianAssignmentStep,
+  toRows,
   type AssignmentValue,
 } from "../../components/steps/TechnicianAssignmentStep";
 import { InstallationScopeStep, isScopeValid, type ScopeValue } from "../../components/steps/InstallationScopeStep";
 import { isPlanDetailsValid, PlanDetailsStep, type PlanDetailsValue } from "../../components/steps/PlanDetailsStep";
-import {
-  isTemplateStepValid,
-  TemplateStep,
-  type TemplateValue,
-  withStaticTemplateScope,
-} from "../../components/steps/TemplateStep";
+import { isTemplateStepValid, TemplateStep, type TemplateValue } from "../../components/steps/TemplateStep";
 import { WizardActionFooter } from "../../components/WizardActionFooter";
 import { useInstallationPlanById } from "../../hooks/use-installation-plan-by-id";
+import { useInstallationPlanReviewer } from "../../hooks/use-installation-plan-reviewer";
+import { useInstallationPlanScope } from "../../hooks/use-installation-plan-scope";
+import { useInstallationPlanTemplates } from "../../hooks/use-installation-plan-templates";
 import { useProjectById } from "../../hooks/use-project-by-id";
 import { useSaveInstallationPlan } from "../../hooks/use-save-installation-plan";
+import { useVendorAssignmentSearch } from "../../hooks/use-vendor-assignment-search";
 import type { InstallationPlanRouteSearch } from "../../routes";
 import { publishInstallationPlan } from "../../services/installation-plan";
 import type { InstallationPlan } from "../../types/installation-plan";
 import { pmMyProjectsPath, pmProjectDetailsPath } from "../../utils/paths";
 
-const STEP_DEFINITIONS = [
-  { label: "Plan Details" },
-  { label: "Installation Scope" },
-  { label: "Template" },
-  { label: "Technician Assignment" },
-];
-
 export function CreateInstallationPlanPage() {
   const { t } = useTranslate();
+
+  const STEP_DEFINITIONS = [
+    { label: translateOr(t, "ES_PM_PLAN_DETAILS_STEP", "Plan Details") },
+    { label: translateOr(t, "ES_PM_INSTALLATION_SCOPE_STEP", "Installation Scope") },
+    { label: translateOr(t, "ES_PM_TEMPLATE_STEP", "Template") },
+    { label: translateOr(t, "ES_PM_TECHNICIAN_ASSIGNMENT_STEP", "Technician Assignment") },
+  ];
   // The route's path is computed at runtime via contextPath(), so there's no
   // static `Route` export to use the fully-typed search API here — read/
   // write the current route's search loosely instead (same pattern as
@@ -51,17 +60,26 @@ export function CreateInstallationPlanPage() {
   const currentStep = search.step ?? 1;
   const { data: project } = useProjectById(projectId);
   const { data: existingPlan } = useInstallationPlanById(planId);
+  const { data: assignedReviewer } = useInstallationPlanReviewer(planId);
+  const { data: savedScope } = useInstallationPlanScope(planId);
+  const { data: savedTemplates } = useInstallationPlanTemplates(planId);
   const savePlan = useSaveInstallationPlan();
+  const { data: vendorAssignmentSearch } = useVendorAssignmentSearch(planId, currentStep === 4);
+  const assignmentRows = useMemo(() => toRows(vendorAssignmentSearch?.sites ?? []), [vendorAssignmentSearch]);
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const authUser = useAuthStore((state) => state.user);
 
   const [planDetails, setPlanDetails] = useState<PlanDetailsValue>({
     geographyDetails: {},
-    sectorCode: "",
+    sectorCodes: [],
     reviewerCode: "",
   });
   const [scope, setScope] = useState<ScopeValue>([]);
   const [templates, setTemplates] = useState<TemplateValue>([]);
   const [assignments, setAssignments] = useState<AssignmentValue>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | undefined>(undefined);
+  const [isPublishing, setIsPublishing] = useState(false);
   const [justPublished, setJustPublished] = useState(false);
   const [scopeBusy, setScopeBusy] = useState(false);
   const [scopeApplied, setScopeApplied] = useState(false);
@@ -74,39 +92,74 @@ export function CreateInstallationPlanPage() {
       return;
     }
     if (!existingPlan) return;
-    setPlanDetails({
+    // reviewerCode is intentionally left out here and preserved from prior state: the assigned
+    // reviewer is never part of this response (see the dedicated effect below), so resetting it
+    // to "" on every hydration would clobber that effect's result if existingPlan ever refetches.
+    setPlanDetails((prev) => ({
       geographyDetails: existingPlan.geographyDetails ?? {},
-      sectorCode: existingPlan.additionalDetails?.sectorCode ?? "",
-      reviewerCode: existingPlan.additionalDetails?.reviewerCode ?? "",
+      sectorCodes: existingPlan.additionalDetails?.sectorCodes ?? [],
+      reviewerCode: prev.reviewerCode,
       startDate: existingPlan.startDate,
       endDate: existingPlan.endDate,
-    });
-    setScope(existingPlan.additionalDetails?.scope ?? []);
-    setTemplates(existingPlan.additionalDetails?.templates ?? []);
+    }));
+    // scope and templates are intentionally left out here too, for the same reason as
+    // reviewerCode: neither is part of this response (see the dedicated effects below), so
+    // resetting them on every hydration would wipe out those effects' results if existingPlan
+    // ever refetches.
     setAssignments(existingPlan.additionalDetails?.assignments ?? []);
     setIsPlanHydrated(true);
   }, [existingPlan, planId]);
 
-  const isPublished = existingPlan?.additionalDetails?.status === "PUBLISHED";
+  // The assigned reviewer lives in field-planner-activity's activity_assignments, not on
+  // field-planner's own FieldPlan response, so it can't come from the hydration effect above —
+  // it resolves separately and is patched in once available. Guarded on reviewerCode still being
+  // empty so it can't clobber a value the PM has since changed.
+  useEffect(() => {
+    if (!planId || !assignedReviewer) return;
+    setPlanDetails((prev) => (prev.reviewerCode ? prev : { ...prev, reviewerCode: assignedReviewer }));
+  }, [assignedReviewer, planId]);
 
-  // Scope linking is intentionally static for now. Retain linked rows and
-  // supplement them with the fixed two-solution scope for the visual flow.
-  const workflowScope = withStaticTemplateScope(scope);
+  // The plan's real Installation Scope lives in field_plan_facilities, not on field-planner's own
+  // FieldPlan response either -- same reason, own effect. Guarded on scope still being empty so a
+  // scope just uploaded this session (or a re-upload with different entries) isn't clobbered by a
+  // stale fetch resolving late.
+  useEffect(() => {
+    if (!planId || !savedScope || savedScope.length === 0) return;
+    setScope((prev) => (prev.length > 0 ? prev : savedScope));
+  }, [savedScope, planId]);
+
+  // Same reasoning again for the plan's already-uploaded IC report templates -- field_plan_template
+  // rows live outside field-planner's FieldPlan object too.
+  useEffect(() => {
+    if (!planId || !savedTemplates || savedTemplates.length === 0) return;
+    setTemplates((prev) => (prev.length > 0 ? prev : savedTemplates));
+  }, [savedTemplates, planId]);
+
+  // A new plan's dates default to the project's own start date and one month past it, capped at
+  // the project's own end date if that's sooner — never left blank for the PM to fill in from
+  // scratch. Only for a brand-new plan (existingPlan's own dates already win via the hydration
+  // effect above), and only once: guarded on startDate still being unset so it doesn't clobber a
+  // date the PM has since edited.
+  useEffect(() => {
+    if (planId || !project?.startDate || planDetails.startDate !== undefined) return;
+    const oneMonthOut = new Date(project.startDate);
+    oneMonthOut.setMonth(oneMonthOut.getMonth() + 1);
+    const defaultEndDate = project.endDate ? Math.min(oneMonthOut.getTime(), project.endDate) : oneMonthOut.getTime();
+    setPlanDetails((prev) => ({ ...prev, startDate: project.startDate, endDate: defaultEndDate }));
+  }, [project, planId, planDetails.startDate]);
+
+  const isPublished = existingPlan?.additionalDetails?.status === "PUBLISHED";
 
   const uniqueSolutionCodes = useMemo(
     () =>
-      Array.from(
-        new Set(
-          workflowScope.filter((entry) => entry.included && entry.solutionCode).map((entry) => entry.solutionCode!),
-        ),
-      ),
-    [workflowScope],
+      Array.from(new Set(scope.filter((entry) => entry.included && entry.solutionCode).map((entry) => entry.solutionCode!))),
+    [scope],
   );
 
   async function persistPlan(): Promise<InstallationPlan> {
     const plan: InstallationPlan = {
       id: planId,
-      tenantId: project?.tenantId ?? "pg",
+      tenantId: project?.tenantId ?? "livelihood",
       projectId: projectId!,
       name: existingPlan?.name,
       geographyDetails: planDetails.geographyDetails,
@@ -114,9 +167,9 @@ export function CreateInstallationPlanPage() {
       endDate: planDetails.endDate,
       additionalDetails: {
         ...existingPlan?.additionalDetails,
-        sectorCode: planDetails.sectorCode,
+        sectorCodes: planDetails.sectorCodes,
         reviewerCode: planDetails.reviewerCode,
-        scope: workflowScope,
+        scope,
         templates,
         assignments,
       },
@@ -127,7 +180,6 @@ export function CreateInstallationPlanPage() {
   const isPlanDetailsComplete = isPlanDetailsValid(planDetails, project?.startDate, project?.endDate);
   const isScopeComplete = scopeApplied || isScopeValid(scope);
   const isTemplateComplete = isTemplateStepValid(templates, uniqueSolutionCodes);
-  const isAssignmentComplete = isAssignmentValid(assignments, workflowScope);
   // The rail represents completed stages. A completed stage unlocks only
   // the next one, so the numbered navigation cannot skip unfinished work.
   const maxAccessibleStep = !planId ? 1 : !isScopeComplete ? 2 : !isTemplateComplete ? 3 : 4;
@@ -140,8 +192,6 @@ export function CreateInstallationPlanPage() {
           ? isTemplateComplete
           : false;
 
-  const stepsCompleted = [isScopeComplete, isTemplateComplete, isAssignmentComplete].filter(Boolean).length;
-  const progressPercent = !planId ? 0 : isPublished ? 100 : 25 + stepsCompleted * 25;
   // Scope application reports its completed entries before React has flushed
   // the child hook's final `done` state. Once those valid entries are in the
   // plan state, the footer can safely enable Next instead of waiting on that
@@ -167,10 +217,25 @@ export function CreateInstallationPlanPage() {
   }
 
   async function handleConfirmSubmit() {
-    const saved = await persistPlan();
-    await publishInstallationPlan(saved.id!);
-    setConfirmOpen(false);
-    setJustPublished(true);
+    setConfirmError(undefined);
+    setIsPublishing(true);
+    try {
+      const saved = await persistPlan();
+      await publishInstallationPlan(saved.id!, assignments, accessToken ?? undefined, authUser);
+      setConfirmOpen(false);
+      setJustPublished(true);
+    } catch (error) {
+      setConfirmError(
+        extractApiErrorMessage(error) ??
+          translateOr(
+            t,
+            "ES_PM_INSTALLATION_PLAN_SUBMIT_FAILED",
+            "Failed to submit the installation plan. Please try again.",
+          ),
+      );
+    } finally {
+      setIsPublishing(false);
+    }
   }
 
   if (justPublished) {
@@ -230,13 +295,55 @@ export function CreateInstallationPlanPage() {
 
       <div className="livelihood-card w-full p-6">
         <Stepper
-          steps={STEP_DEFINITIONS}
-          currentStep={currentStep}
-          onStepClick={goToStep}
-          allowAllSteps={Boolean(planId)}
-          maxAccessibleStep={maxAccessibleStep}
-          progressPercent={progressPercent}
-        />
+          value={currentStep}
+          onValueChange={(step) => goToStep(step)}
+          indicators={{ completed: <Check className="size-3.5" /> }}
+        >
+          <StepperNav>
+            {STEP_DEFINITIONS.map((step, index) => {
+              const stepNumber = index + 1;
+              const isCurrent = stepNumber === currentStep;
+              const isClickable = !isCurrent && stepNumber <= maxAccessibleStep;
+
+              return (
+                <StepperItem
+                  key={step.label}
+                  step={stepNumber}
+                  // A published plan is fully done, so every *other* step reads as completed
+                  // (dark green + check) regardless of the usual step < activeStep rule — but not
+                  // the current one, so its own number stays visible to show which page you're on.
+                  completed={isPublished && !isCurrent ? true : undefined}
+                  // Only genuinely inaccessible steps should look disabled/dimmed -- being on the
+                  // current step isn't a restriction, just where you are, so it must not fade out
+                  // the one step that should look most prominent.
+                  disabled={!isCurrent && !isClickable}
+                  className="relative flex-1 items-start"
+                >
+                  <StepperTrigger className="flex flex-col items-center gap-2">
+                    <StepperIndicator className={isCurrent ? "ring-2 ring-primary ring-offset-2" : undefined}>
+                      {stepNumber}
+                    </StepperIndicator>
+                    <StepperTitle>{step.label}</StepperTitle>
+                  </StepperTrigger>
+
+                  {STEP_DEFINITIONS.length > stepNumber ? (
+                    <StepperSeparator
+                      className={cn(
+                        "group-data-[state=completed]/step:bg-primary absolute inset-x-0 top-3 left-[calc(50%+0.875rem)] m-0 group-data-[orientation=horizontal]/stepper-nav:w-[calc(100%-2rem+0.225rem)] group-data-[orientation=horizontal]/stepper-nav:flex-none",
+                        // On a published plan every step is genuinely done, so the current step's
+                        // outgoing line is green too -- its indicator is already the same dark
+                        // green, just showing its number instead of a check. While the plan is
+                        // still a draft the current step is *not* done, so its line must stay grey
+                        // or the stepper claims progress past where you've actually got to.
+                        isPublished && "group-data-[state=active]/step:bg-primary",
+                      )}
+                    />
+                  ) : null}
+                </StepperItem>
+              );
+            })}
+          </StepperNav>
+        </Stepper>
       </div>
 
       {currentStep === 1 ? (
@@ -253,7 +360,9 @@ export function CreateInstallationPlanPage() {
         <InstallationScopeStep
           planId={planId}
           planCode={existingPlan?.name}
-          sectorCode={planDetails.sectorCode}
+          projectId={projectId}
+          projectGeography={project?.additionalDetails?.geographyDetails ?? {}}
+          sectorCodes={planDetails.sectorCodes}
           value={scope}
           onChange={setScope}
           onBusyChange={setScopeBusy}
@@ -267,7 +376,7 @@ export function CreateInstallationPlanPage() {
         <TemplateStep
           planId={planId}
           planCode={existingPlan?.name}
-          scope={workflowScope}
+          scope={scope}
           value={templates}
           onChange={setTemplates}
           onBusyChange={setTemplateBusy}
@@ -276,8 +385,8 @@ export function CreateInstallationPlanPage() {
       ) : null}
       {currentStep === 4 ? (
         <TechnicianAssignmentStep
+          planId={planId}
           planCode={existingPlan?.name}
-          scope={workflowScope}
           value={assignments}
           onChange={setAssignments}
           locked={isPublished}
@@ -307,7 +416,7 @@ export function CreateInstallationPlanPage() {
               size="sm"
               className="px-5"
               onClick={() => setConfirmOpen(true)}
-              disabled={!isAssignmentValid(assignments, workflowScope) || isNavigationBusy}
+              disabled={!isAssignmentValid(assignments, assignmentRows) || isNavigationBusy}
             >
               {translateOr(t, "CORE_COMMON_SUBMIT", "Submit")}
             </Button>
@@ -317,8 +426,12 @@ export function CreateInstallationPlanPage() {
 
       <ConfirmSubmitPlanDialog
         open={confirmOpen}
-        isSubmitting={savePlan.isPending}
-        onCancel={() => setConfirmOpen(false)}
+        isSubmitting={savePlan.isPending || isPublishing}
+        errorMessage={confirmError}
+        onCancel={() => {
+          setConfirmError(undefined);
+          setConfirmOpen(false);
+        }}
         onConfirm={() => void handleConfirmSubmit()}
       />
     </div>

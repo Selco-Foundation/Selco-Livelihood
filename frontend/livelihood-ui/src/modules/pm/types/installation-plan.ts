@@ -19,17 +19,18 @@ export interface InstallationPlanTemplateEntry {
 }
 
 export interface InstallationPlanAssignmentEntry {
-  siteId: string;
-  solutionCode: string;
-  /** Static asset identifier within an end-user site's solution. */
-  assetCode?: string;
-  vendorOrgCode?: string;
-  vendorUserCode?: string;
+  facilityId: string;
+  componentType: "SOLAR" | "MACHINE";
+  componentSequence: number;
+  vendorOrgId?: string;
+  vendorOrgName?: string;
+  vendorUserId?: string;
+  vendorUserName?: string;
   vendorEmail?: string;
 }
 
 export interface InstallationPlanAdditionalDetails {
-  sectorCode?: string;
+  sectorCodes?: string[];
   reviewerCode?: string;
   scope?: InstallationPlanScopeEntry[];
   templates?: InstallationPlanTemplateEntry[];

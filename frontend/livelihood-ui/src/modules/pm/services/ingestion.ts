@@ -1,12 +1,9 @@
-// No `/ingestion-service` backend endpoint is wired up yet — these functions
-// simulate the download/validate/create round-trip with static data. Swap
-// each body for the matching request (documented above it) once the real
-// ingestion service is available; the shapes below already match what it
-// returns.
-
+import { apiClient } from "@/shared";
+import { createRequestInfo } from "@/shared/api/request-info";
+import type { AuthUser } from "@/shared/stores/auth-store";
+import { extractBlobApiErrorMessage, postMultipartExpectingBlob } from "../utils/ingestion-request";
+import { buildProjectBoundaryTree } from "../utils/boundary-tree";
 import type { DownloadedFile } from "../utils/file-download";
-import { MOCK_BOUNDARY_HIERARCHY } from "../constants/boundary-data";
-import { END_USER_SITES } from "../constants/end-user-sites";
 import type { GeographyDetails } from "../types/project";
 
 export interface ValidationResult {
@@ -16,85 +13,90 @@ export interface ValidationResult {
 
 export class IngestionApiError extends Error {}
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 /**
- * Mock stand-in for `POST /ingestion-service/template/facilityIngestionTemplateWithData`
- * (body: `{ RequestInfo, project_id, boundary_data }`, response: an xlsx blob).
+ * `POST /ingestion-service/template/facilityIngestionTemplateWithData` — JSON body, blob response.
+ * `boundary_data` here uses plain state/district/block codes (no facility-level leaves): this
+ * endpoint discovers matching facilities server-side, unlike the Installation Scope template
+ * (`installation-scope.ts`), which is restricted to facilities already linked to the project and
+ * therefore needs facility-level leaf codes.
  */
 export async function downloadFacilityIngestionTemplate(
   projectId: string,
   geographyDetails: GeographyDetails,
+  accessToken?: string,
+  user?: AuthUser | null,
 ): Promise<DownloadedFile> {
-  await delay(400);
-  const selectedBlockCodes = new Set(geographyDetails.blocks?.map((block) => block.code) ?? []);
-  const boundaryName = (kind: "states" | "districts" | "blocks", code: string) =>
-    MOCK_BOUNDARY_HIERARCHY[kind].find((boundary) => boundary.code === code)?.name ?? code;
-  const headers = [
-    "End User Id",
-    "End User Name (Mandatory)",
-    "State",
-    "District",
-    "Block",
-    "Phone Number (Mandatory)",
-    "Include in Project",
-  ];
-  const rows = END_USER_SITES.filter((site) => selectedBlockCodes.has(site.blockCode)).map((site) => [
-    site.id,
-    site.name,
-    boundaryName("states", site.stateCode),
-    boundaryName("districts", site.districtCode),
-    boundaryName("blocks", site.blockCode),
-    site.phoneNumber,
-    "No",
-  ]);
-  const csv = [headers, ...rows]
-    .map((row) => row.map((cell) => (/[,"\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell)).join(","))
-    .join("\n");
-  return {
-    blob: new Blob([csv], { type: "text/csv" }),
-    filename: `facility-ingestion-template-${projectId}.csv`,
-  };
+  const response = await apiClient.post(
+    "/ingestion-service/template/facilityIngestionTemplateWithData",
+    {
+      RequestInfo: createRequestInfo(accessToken, user),
+      project_id: projectId,
+      boundary_data: buildProjectBoundaryTree(geographyDetails),
+    },
+    { responseType: "blob" },
+  );
+
+  return { blob: response.data as Blob, filename: `facility-ingestion-template-${projectId}.xlsx` };
 }
 
 /**
- * Mock stand-in for `POST /ingestion-service/ingest/facilitiesValidateData`
- * (multipart: `facility_file`, `project_id`, `request_info`; response: an
- * xlsx blob plus an `x-error-count` header). Swap for the real multipart
- * upload once the backend exists — the returned shape already matches.
- *
- * `simulateErrors` is a UI-development-only knob (no backend to actually
- * validate against yet) so both the success and failure paths can be
- * exercised — remove it once real validation responses drive this.
+ * `POST /ingestion-service/ingest/facilitiesValidateData` — multipart:
+ * `facility_file`, `project_id`, `facility_sheet_name`, `boundary_sheet_name`, `request_info`.
+ * Response: annotated xlsx blob + `X-Error-Count` header. Also 400s if the uploaded `BoundaryCodes`
+ * sheet's codes don't exactly match the project's own `geographyDetails.blocks[].code` set.
  */
-export async function validateFacilitiesExcel(file: File, simulateErrors = false): Promise<ValidationResult> {
-  await delay(600);
-
-  if (simulateErrors) {
-    const report =
-      "row,column,error\n" +
-      "2,latitude,Latitude is out of range\n" +
-      "5,contact_number,Contact number must be 10 digits\n" +
-      "7,facility_name,Facility name is required\n";
-    return {
-      file: { blob: new Blob([report], { type: "text/csv" }), filename: `validation-errors-${file.name}` },
-      errorCount: 3,
-    };
+export async function validateFacilitiesExcel(
+  file: File,
+  projectId: string,
+  accessToken: string,
+  user?: AuthUser | null,
+): Promise<ValidationResult> {
+  try {
+    const { blob, errorCount } = await postMultipartExpectingBlob(
+      "/ingestion-service/ingest/facilitiesValidateData",
+      {
+        project_id: projectId,
+        facility_sheet_name: "FacilityMapping",
+        boundary_sheet_name: "BoundaryCodes",
+      },
+      file,
+      "facility_file",
+      accessToken,
+      user,
+    );
+    return { file: { blob, filename: `facility-validation-${file.name}` }, errorCount };
+  } catch (error) {
+    throw new IngestionApiError((await extractBlobApiErrorMessage(error)) ?? "Facility validation failed");
   }
-
-  return {
-    file: { blob: file, filename: file.name },
-    errorCount: 0,
-  };
 }
 
 /**
- * Mock stand-in for `POST /ingestion-service/ingest/createFacilityAndUpdateProject`
- * (multipart: validated `facility_file`, `project_id`, `request_info`).
+ * `POST /ingestion-service/ingest/createFacilityAndUpdateProject` — multipart: validated
+ * `facility_file`, `project_id`, `facility_sheet_name`, `request_info`. Requires every row's
+ * `status` column be `PASSED`. Internally bulk-links facilities to the project itself — no separate
+ * `project/facility/v1/_create` call is needed from the frontend. Response: annotated result
+ * workbook (blob) — treated as success on 200, not parsed.
  */
-export async function createFacilitiesAndUpdateProject(validatedFile: DownloadedFile): Promise<DownloadedFile> {
-  await delay(600);
-  return validatedFile;
+export async function createFacilitiesAndUpdateProject(
+  validatedFile: DownloadedFile,
+  projectId: string,
+  accessToken: string,
+  user?: AuthUser | null,
+): Promise<DownloadedFile> {
+  try {
+    const file = new File([validatedFile.blob], validatedFile.filename, {
+      type: validatedFile.blob.type || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const { blob } = await postMultipartExpectingBlob(
+      "/ingestion-service/ingest/createFacilityAndUpdateProject",
+      { project_id: projectId, facility_sheet_name: "FacilityMapping" },
+      file,
+      "facility_file",
+      accessToken,
+      user,
+    );
+    return { blob, filename: `facility-creation-result-${projectId}.xlsx` };
+  } catch (error) {
+    throw new IngestionApiError((await extractBlobApiErrorMessage(error)) ?? "Facility creation failed");
+  }
 }

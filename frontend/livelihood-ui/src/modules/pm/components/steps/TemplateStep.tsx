@@ -1,33 +1,13 @@
 import { translateOr, useTranslate } from "@/shared";
 import { Button } from "@/ui";
-import { CheckCircle2, Download, FileSpreadsheet, Upload } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
-import { END_USER_SITES } from "../../constants/end-user-sites";
-import { SOLUTION_OPTIONS } from "../../constants/solutions";
+import { useInstallationSolutions } from "../../hooks/use-installation-solutions";
 import { useSolutionTemplateUpload } from "../../hooks/use-solution-template-upload";
 import type { InstallationPlanTemplateEntry, InstallationPlanScopeEntry } from "../../types/installation-plan";
 import { StepSectionCard } from "../StepSectionCard";
 
 export type TemplateValue = InstallationPlanTemplateEntry[];
-
-/** Static UI fallback until scope-linking responses are integrated. */
-export const STATIC_TEMPLATE_SCOPE: InstallationPlanScopeEntry[] = [
-  { siteId: "ED/2026/0093", included: true, solutionCode: "202526PASF0000317" },
-  { siteId: "ED/2026/0096", included: true, solutionCode: "202526PASF0000317" },
-  { siteId: "ED/2026/0097", included: true, solutionCode: "202526PASF0000371" },
-  { siteId: "ED/2026/0101", included: true, solutionCode: "202526PASF0000371" },
-];
-
-/** Adds the static solutions that are not already represented in the scope. */
-export function withStaticTemplateScope(scope: InstallationPlanScopeEntry[]): InstallationPlanScopeEntry[] {
-  const scopedSolutionCodes = new Set(
-    scope.filter((entry) => entry.included && entry.solutionCode).map((entry) => entry.solutionCode),
-  );
-  return [
-    ...scope,
-    ...STATIC_TEMPLATE_SCOPE.filter((entry) => !scopedSolutionCodes.has(entry.solutionCode)),
-  ];
-}
 
 export function isTemplateStepValid(value: TemplateValue, uniqueSolutionCodes: string[]): boolean {
   if (uniqueSolutionCodes.length === 0) return false;
@@ -39,7 +19,7 @@ interface SolutionTemplateCardProps {
   planId: string | undefined;
   solutionCode: string;
   solutionName: string;
-  assignedSiteNames: string[];
+  assignedSiteIds: string[];
   uploaded: boolean;
   locked: boolean;
   onUploaded: () => void;
@@ -50,7 +30,7 @@ function SolutionTemplateCard({
   planId,
   solutionCode,
   solutionName,
-  assignedSiteNames,
+  assignedSiteIds,
   uploaded,
   locked,
   onUploaded,
@@ -58,8 +38,16 @@ function SolutionTemplateCard({
 }: SolutionTemplateCardProps) {
   const { t } = useTranslate();
   const inputRef = useRef<HTMLInputElement>(null);
-  const { status, errorCount, validatedFile, downloadTemplate, uploadAndValidate, downloadErrorReport, createTemplate } =
-    useSolutionTemplateUpload(planId, solutionCode);
+  const {
+    status,
+    errorCount,
+    errorMessage,
+    validatedFile,
+    downloadTemplate,
+    uploadAndValidate,
+    downloadErrorReport,
+    createTemplate,
+  } = useSolutionTemplateUpload(planId, solutionCode);
   const isBusy = status === "downloading" || status === "validating" || status === "uploading";
   const processedFileRef = useRef<typeof validatedFile>(null);
 
@@ -97,11 +85,11 @@ function SolutionTemplateCard({
               : translateOr(t, "ES_PM_TEMPLATE_NOT_UPLOADED", "Not uploaded yet")}
           </span>
           <p className="mt-1 text-xs font-medium text-muted-foreground">
-            {translateOr(t, "ES_PM_ASSIGNED_USERS", "ASSIGNED USERS").toUpperCase()} ({assignedSiteNames.length})
+            {translateOr(t, "ES_PM_ASSIGNED_USERS", "ASSIGNED SITES").toUpperCase()} ({assignedSiteIds.length})
           </p>
           <ul className="mt-1 space-y-0.5 text-sm text-foreground">
-            {assignedSiteNames.map((name) => (
-              <li key={name}>{name}</li>
+            {assignedSiteIds.map((siteId) => (
+              <li key={siteId}>{siteId}</li>
             ))}
           </ul>
         </div>
@@ -138,7 +126,7 @@ function SolutionTemplateCard({
           <input
             ref={inputRef}
             type="file"
-            accept=".xlsx,.csv"
+            accept=".xlsx"
             className="hidden"
             onChange={(event) => {
               const file = event.target.files?.[0];
@@ -155,6 +143,14 @@ function SolutionTemplateCard({
                 <Download className="size-4" />
                 {translateOr(t, "ES_PM_DOWNLOAD_ERROR_REPORT", "Download Error Report")}
               </Button>
+            </div>
+          ) : null}
+          {status === "error" ? (
+            <div className="flex w-full items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-left">
+              <AlertTriangle className="size-4 shrink-0 text-destructive" />
+              <p className="text-xs font-medium text-destructive">
+                {errorMessage ?? translateOr(t, "ES_PM_ACTION_FAILED", "Something went wrong. Please try again.")}
+              </p>
             </div>
           ) : null}
         </div>
@@ -177,21 +173,18 @@ interface TemplateStepProps {
 export function TemplateStep({ planId, planCode, scope, value, onChange, onBusyChange, locked = false }: TemplateStepProps) {
   const { t } = useTranslate();
   const busySolutionsRef = useRef(new Set<string>());
-
-  const effectiveScope = withStaticTemplateScope(scope);
+  const { data: solutions = [] } = useInstallationSolutions();
 
   const solutionsInScope = useMemo(() => {
-    const codes = new Set(
-      effectiveScope.filter((entry) => entry.included && entry.solutionCode).map((entry) => entry.solutionCode!),
-    );
-    return SOLUTION_OPTIONS.filter((solution) => codes.has(solution.code));
-  }, [effectiveScope]);
+    const codes = new Set(scope.filter((entry) => entry.included && entry.solutionCode).map((entry) => entry.solutionCode!));
+    return Array.from(codes).map((code) => ({
+      code,
+      name: solutions.find((solution) => solution.code === code)?.name ?? code,
+    }));
+  }, [scope, solutions]);
 
-  function assignedSiteNames(solutionCode: string) {
-    const siteIds = effectiveScope
-      .filter((entry) => entry.included && entry.solutionCode === solutionCode)
-      .map((entry) => entry.siteId);
-    return END_USER_SITES.filter((site) => siteIds.includes(site.id)).map((site) => site.name);
+  function assignedSiteIds(solutionCode: string) {
+    return scope.filter((entry) => entry.included && entry.solutionCode === solutionCode).map((entry) => entry.siteId);
   }
 
   function markUploaded(solutionCode: string) {
@@ -235,7 +228,7 @@ export function TemplateStep({ planId, planCode, scope, value, onChange, onBusyC
               planId={planId}
               solutionCode={solution.code}
               solutionName={solution.name}
-              assignedSiteNames={assignedSiteNames(solution.code)}
+              assignedSiteIds={assignedSiteIds(solution.code)}
               uploaded={value.some((entry) => entry.solutionCode === solution.code && entry.uploaded)}
               locked={locked}
               onUploaded={() => markUploaded(solution.code)}

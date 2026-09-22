@@ -15,6 +15,8 @@ function formatDate(value?: number) {
   return new Date(value).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+const STATE_SUMMARY_MAX_CHARS = 20;
+
 export function ProjectsTable({ projects, isLoading }: ProjectsTableProps) {
   const { t } = useTranslate();
 
@@ -59,16 +61,16 @@ export function ProjectsTable({ projects, isLoading }: ProjectsTableProps) {
           <tbody>
             {projects.map(({ project, status }, index) => {
               const isDraft = !status || status === "DRAFT";
-              const isActive = status === "ACTIVE";
-              const stateNames = resolveStateNames(project.additionalDetails?.geographyDetails);
-              const stateList = stateNames ? stateNames.split(", ") : [];
-              const visibleStateNames = stateList.slice(0, 2).join(", ");
-              const remainingStateCount = stateList.length - 2;
-              const stateSummary = stateNames
-                ? remainingStateCount > 0
-                  ? `${visibleStateNames} ${translateOr(t, "ES_PM_ADDITIONAL_STATES", "+{{count}}").replace("{{count}}", String(remainingStateCount))}`
-                  : stateNames
-                : project.address?.boundary || "-";
+              // Anything past DRAFT has a real project record to open — the workflow's actual
+              // states beyond "SCHEDULED" (e.g. ASSIGNED_TO_FIELD_STAFF, SUBMITTED_BY_FIELD_STAFF)
+              // should all stay navigable too, so this isn't pinned to one exact status string.
+              const isNavigable = !isDraft;
+              const stateNames = resolveStateNames(project.additionalDetails?.geographyDetails, t);
+              const fullStateText = stateNames.join(", ");
+              const stateSummary =
+                fullStateText.length > STATE_SUMMARY_MAX_CHARS
+                  ? `${fullStateText.slice(0, STATE_SUMMARY_MAX_CHARS)}...`
+                  : fullStateText || project.address?.boundary || "-";
 
               return (
                 <tr
@@ -76,7 +78,7 @@ export function ProjectsTable({ projects, isLoading }: ProjectsTableProps) {
                   className={"border-b border-border/70 hover:bg-muted/40" + (index % 2 === 1 ? " bg-accent" : "")}
                 >
                   <td className="px-5 py-4 font-semibold text-foreground">
-                    {isActive && project.id ? (
+                    {isNavigable && project.id ? (
                       <Link
                         to={pmProjectDetailsPath()}
                         search={{ projectId: project.id }}
@@ -88,7 +90,7 @@ export function ProjectsTable({ projects, isLoading }: ProjectsTableProps) {
                       (project.name ?? "-")
                     )}
                   </td>
-                  <td className="px-5 py-4 text-foreground" title={stateNames || project.address?.boundary}>
+                  <td className="px-5 py-4 text-foreground" title={fullStateText || project.address?.boundary}>
                     {stateSummary}
                   </td>
                   <td className="px-5 py-4 text-foreground">{formatDate(project.startDate)}</td>

@@ -1,8 +1,9 @@
 import { translateOr, useTranslate } from "@/shared";
-import { Button, cn } from "@/ui";
-import { CheckCircle2, Download, ListChecks, Upload } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Button } from "@/ui";
+import { AlertTriangle, CheckCircle2, Download, ListChecks, Upload } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useInstallationScopeIngestion } from "../../hooks/use-installation-scope-ingestion";
+import type { GeographyDetails } from "../../types/project";
 import type { InstallationPlanScopeEntry } from "../../types/installation-plan";
 import { StepSectionCard } from "../StepSectionCard";
 
@@ -16,7 +17,9 @@ export function isScopeValid(value: ScopeValue): boolean {
 interface InstallationScopeStepProps {
   planId: string | undefined;
   planCode?: string;
-  sectorCode: string;
+  projectId: string | undefined;
+  projectGeography: GeographyDetails;
+  sectorCodes: string[];
   value: ScopeValue;
   onChange: (value: ScopeValue) => void;
   onBusyChange?: (isBusy: boolean) => void;
@@ -27,22 +30,23 @@ interface InstallationScopeStepProps {
 export function InstallationScopeStep({
   planId,
   planCode,
-  sectorCode,
-  value,
+  projectId,
+  projectGeography,
+  sectorCodes,
   onChange,
   onBusyChange,
   onScopeApplied,
 }: InstallationScopeStepProps) {
   const { t } = useTranslate();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [simulateErrors, setSimulateErrors] = useState(false);
   const {
     status,
     errorCount,
+    errorMessage,
     downloadTemplate,
     uploadAndValidate,
     downloadErrorReport,
-  } = useInstallationScopeIngestion(planId, sectorCode, value);
+  } = useInstallationScopeIngestion(planId, projectId, sectorCodes, projectGeography);
 
   const isBusy = status === "downloading" || status === "validating" || status === "creating";
 
@@ -69,41 +73,16 @@ export function InstallationScopeStep({
             <span className="font-semibold text-foreground">{planCode}</span>
           </div>
         ) : null}
-        <Button type="button" variant="outline" size="sm" onClick={downloadTemplate} disabled={isBusy || !planId}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={downloadTemplate}
+          disabled={isBusy || !planId || sectorCodes.length === 0 || !projectGeography.blocks?.length}
+        >
           <Download className="size-4" />
           {translateOr(t, "ES_PM_DOWNLOAD_INSTALLATION_SCOPE", "Download Installation Scope")}
         </Button>
-
-        {/* Dev-only helper: there's no real validation backend yet, so this
-            toggle lets both the success and failure paths be exercised —
-            remove once real validation responses drive this. */}
-        <div className="flex items-center gap-3 rounded-lg border border-dashed border-border bg-muted/20 px-4 py-3">
-          <span className="text-sm font-medium text-foreground">
-            {translateOr(t, "ES_PM_SIMULATE_VALIDATION_ERRORS", "Simulate validation errors on next upload?")}
-          </span>
-          <div className="flex overflow-hidden rounded-md border border-input">
-            <button
-              type="button"
-              onClick={() => setSimulateErrors(false)}
-              className={cn(
-                "px-3 py-1 text-sm font-medium transition-colors",
-                !simulateErrors ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground",
-              )}
-            >
-              {translateOr(t, "CORE_COMMON_NO", "No")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setSimulateErrors(true)}
-              className={cn(
-                "px-3 py-1 text-sm font-medium transition-colors",
-                simulateErrors ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground",
-              )}
-            >
-              {translateOr(t, "CORE_COMMON_YES", "Yes")}
-            </button>
-          </div>
-        </div>
 
         <button
           type="button"
@@ -123,12 +102,12 @@ export function InstallationScopeStep({
         <input
           ref={inputRef}
           type="file"
-          accept=".xlsx,.csv"
+          accept=".xlsx"
           className="hidden"
           onChange={(event) => {
             const file = event.target.files?.[0];
             if (file) {
-              void uploadAndValidate(file, simulateErrors).then((entries) => {
+              void uploadAndValidate(file).then((entries) => {
                 if (entries) {
                   onChange(entries);
                   onScopeApplied?.(entries);
@@ -151,13 +130,21 @@ export function InstallationScopeStep({
           </div>
         ) : null}
 
+        {status === "error" ? (
+          <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+            <AlertTriangle className="size-4 text-destructive" />
+            <p className="text-sm font-medium text-destructive">
+              {errorMessage ?? translateOr(t, "ES_PM_ACTION_FAILED", "Something went wrong. Please try again.")}
+            </p>
+          </div>
+        ) : null}
+
         {status === "done" ? (
           <p className="flex items-center gap-2 text-sm font-medium text-primary">
             <CheckCircle2 className="size-4" />
             {translateOr(t, "ES_PM_SCOPE_APPLIED", "Installation scope applied")}
           </p>
         ) : null}
-
       </div>
     </StepSectionCard>
   );

@@ -26,13 +26,16 @@ export function ProjectFilter({ value, onChange, searchSlot }: ProjectFilterProp
       {
         key: "state" as const,
         label: translateOr(t, "ES_PM_STATE", "State"),
-        options: (hierarchy?.states ?? []).map((state) => ({ code: state.code, name: state.name })),
+        options: (hierarchy?.states ?? []).map((state) => ({
+          code: state.code,
+          name: translateOr(t, `BOUNDARY_${state.code}`, state.name),
+        })),
       },
       {
         key: "status" as const,
         label: translateOr(t, "ES_PM_STATUS", "Status"),
         options: [
-          { code: "ACTIVE", name: translateOr(t, "ES_PM_ACTIVE", "Active") },
+          { code: "SCHEDULED", name: translateOr(t, "ES_PM_SCHEDULED", "Scheduled") },
           { code: "DRAFT", name: translateOr(t, "ES_PM_DRAFT", "Draft") },
         ],
       },

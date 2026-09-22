@@ -2,9 +2,9 @@ import { translateOr, useTranslate } from "@/shared";
 import { MultiSelect } from "@/ui";
 import { ClipboardList } from "lucide-react";
 import { useMemo } from "react";
-import { REVIEWER_OPTIONS } from "../../constants/reviewers";
-import { SECTOR_OPTIONS } from "../../constants/sectors";
 import { useBoundaryTree } from "../../hooks/use-boundary-tree";
+import { useReviewerOptions } from "../../hooks/use-reviewer-options";
+import { useSectors } from "../../hooks/use-sectors";
 import type { GeographyDetails } from "../../types/project";
 import { DateField } from "../DateField";
 import { LabeledSelect } from "../LabeledSelect";
@@ -13,7 +13,7 @@ import { SelectedGroup } from "./GeographyDetailsStep";
 
 export interface PlanDetailsValue {
   geographyDetails: GeographyDetails;
-  sectorCode: string;
+  sectorCodes: string[];
   reviewerCode: string;
   startDate?: number;
   endDate?: number;
@@ -43,7 +43,7 @@ export function isPlanDetailsValid(
   return (
     Boolean(value.geographyDetails.states?.length) &&
     Boolean(value.geographyDetails.blocks?.length) &&
-    Boolean(value.sectorCode) &&
+    Boolean(value.sectorCodes?.length) &&
     Boolean(value.reviewerCode) &&
     Boolean(value.startDate) &&
     Boolean(value.endDate) &&
@@ -63,6 +63,8 @@ export function PlanDetailsStep({
 }: PlanDetailsStepProps) {
   const { t } = useTranslate();
   const { data: hierarchy } = useBoundaryTree();
+  const { data: sectorOptions = [] } = useSectors();
+  const { data: reviewerOptions = [] } = useReviewerOptions();
 
   const selectedStateCodes = useMemo(
     () => value.geographyDetails.states?.map((state) => state.code) ?? [],
@@ -92,18 +94,23 @@ export function PlanDetailsStep({
     [projectGeography.blocks],
   );
 
-  const stateOptions = (hierarchy?.states ?? []).filter((state) => projectStateCodes.has(state.code));
-  const districtOptions = (hierarchy?.districts ?? []).filter(
-    (district) => projectDistrictCodes.has(district.code) && selectedStateCodes.includes(district.stateCode),
-  );
-  const blockOptions = (hierarchy?.blocks ?? []).filter(
-    (block) => projectBlockCodes.has(block.code) && selectedDistrictCodes.includes(block.districtCode),
-  );
+  const stateOptions = (hierarchy?.states ?? [])
+    .filter((state) => projectStateCodes.has(state.code))
+    .map((state) => ({ ...state, name: translateOr(t, `BOUNDARY_${state.code}`, state.name) }));
+  const districtOptions = (hierarchy?.districts ?? [])
+    .filter((district) => projectDistrictCodes.has(district.code) && selectedStateCodes.includes(district.stateCode))
+    .map((district) => ({ ...district, name: translateOr(t, `BOUNDARY_${district.code}`, district.name) }));
+  const blockOptions = (hierarchy?.blocks ?? [])
+    .filter((block) => projectBlockCodes.has(block.code) && selectedDistrictCodes.includes(block.districtCode))
+    .map((block) => ({ ...block, name: translateOr(t, `BOUNDARY_${block.code}`, block.name) }));
   const selectedStates = stateOptions.filter((state) => selectedStateCodes.includes(state.code));
-  const selectedDistricts = (hierarchy?.districts ?? []).filter((district) =>
-    selectedDistrictCodes.includes(district.code),
-  );
-  const selectedBlocks = (hierarchy?.blocks ?? []).filter((block) => selectedBlockCodes.includes(block.code));
+  const selectedDistricts = (hierarchy?.districts ?? [])
+    .filter((district) => selectedDistrictCodes.includes(district.code))
+    .map((district) => ({ ...district, name: translateOr(t, `BOUNDARY_${district.code}`, district.name) }));
+  const selectedBlocks = (hierarchy?.blocks ?? [])
+    .filter((block) => selectedBlockCodes.includes(block.code))
+    .map((block) => ({ ...block, name: translateOr(t, `BOUNDARY_${block.code}`, block.name) }));
+  const selectedSectors = sectorOptions.filter((sector) => value.sectorCodes.includes(sector.code));
 
   function handleStatesChange(codes: string[]) {
     onChange({
@@ -153,9 +160,8 @@ export function PlanDetailsStep({
         "This installation plan is based on your selected end-user sites. You can add more sites to this plan as needed.",
       )}
     >
-      <div className="space-y-4">
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-          <div className="space-y-4">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+        <div className="space-y-4">
           <MultiSelect
             label={translateOr(t, "ES_PM_STATE", "State")}
             required
@@ -183,55 +189,21 @@ export function PlanDetailsStep({
             disabled={locked || selectedDistrictCodes.length === 0}
             hideChips
           />
-          </div>
-
-          <div className="rounded-lg border border-border bg-muted/30 p-4">
-            <p className="mb-3 text-sm font-semibold text-foreground">
-              {translateOr(t, "ES_PM_SELECTED_SUMMARY", "Selected")}
-            </p>
-            <div className="space-y-4">
-              <SelectedGroup
-                title={translateOr(t, "ES_PM_STATE", "State")}
-                emptyLabel={translateOr(t, "ES_PM_NO_STATE_SELECTED", "No state selected")}
-                items={selectedStates}
-                onRemove={(code) => handleStatesChange(selectedStateCodes.filter((selected) => selected !== code))}
-                disabled={locked}
-              />
-              <SelectedGroup
-                title={translateOr(t, "ES_PM_DISTRICTS", "District(s)")}
-                emptyLabel={translateOr(t, "ES_PM_NO_DISTRICT_SELECTED", "No district selected")}
-                items={selectedDistricts}
-                onRemove={(code) =>
-                  handleDistrictsChange(selectedDistrictCodes.filter((selected) => selected !== code))
-                }
-                disabled={locked}
-              />
-              <SelectedGroup
-                title={translateOr(t, "ES_PM_BLOCKS", "Block(s)")}
-                emptyLabel={translateOr(t, "ES_PM_NO_BLOCK_SELECTED", "No block selected")}
-                items={selectedBlocks}
-                onRemove={(code) => handleBlocksChange(selectedBlockCodes.filter((selected) => selected !== code))}
-                disabled={locked}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="max-w-[420px] space-y-4">
-          <LabeledSelect
+          <MultiSelect
             label={translateOr(t, "ES_PM_SECTOR", "Sector")}
             required
-            value={value.sectorCode}
-            options={SECTOR_OPTIONS}
+            options={sectorOptions}
+            selected={value.sectorCodes}
             placeholder={translateOr(t, "ES_PM_SELECT_SECTOR", "Select Sector")}
-            onChange={(sectorCode) => onChange({ ...value, sectorCode })}
+            onChange={(sectorCodes) => onChange({ ...value, sectorCodes })}
             disabled={locked}
+            hideChips
           />
           <LabeledSelect
             label={translateOr(t, "ES_PM_ASSIGN_INSTALLATION_REVIEWER", "Assign Installation Reviewer")}
             required
             value={value.reviewerCode}
-            options={REVIEWER_OPTIONS}
+            options={reviewerOptions}
             placeholder={translateOr(t, "ES_PM_SELECT_REVIEWER", "Select Reviewer")}
             onChange={(reviewerCode) => onChange({ ...value, reviewerCode })}
             disabled={locked}
@@ -262,6 +234,46 @@ export function PlanDetailsStep({
             <p className="text-xs text-muted-foreground">
               {translateOr(t, "ES_PM_FIELD_PLAN_DATES_HELP", "Must fall within the project's own dates")}
             </p>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-border bg-muted/30 p-4">
+          <p className="mb-3 text-sm font-semibold text-foreground">
+            {translateOr(t, "ES_PM_SELECTED_SUMMARY", "Selected")}
+          </p>
+          <div className="h-[320px] space-y-4 overflow-y-auto pr-1">
+            <SelectedGroup
+              title={translateOr(t, "ES_PM_STATE", "State")}
+              emptyLabel={translateOr(t, "ES_PM_NO_STATE_SELECTED", "No state selected")}
+              items={selectedStates}
+              onRemove={(code) => handleStatesChange(selectedStateCodes.filter((selected) => selected !== code))}
+              disabled={locked}
+            />
+            <SelectedGroup
+              title={translateOr(t, "ES_PM_DISTRICTS", "District(s)")}
+              emptyLabel={translateOr(t, "ES_PM_NO_DISTRICT_SELECTED", "No district selected")}
+              items={selectedDistricts}
+              onRemove={(code) =>
+                handleDistrictsChange(selectedDistrictCodes.filter((selected) => selected !== code))
+              }
+              disabled={locked}
+            />
+            <SelectedGroup
+              title={translateOr(t, "ES_PM_BLOCKS", "Block(s)")}
+              emptyLabel={translateOr(t, "ES_PM_NO_BLOCK_SELECTED", "No block selected")}
+              items={selectedBlocks}
+              onRemove={(code) => handleBlocksChange(selectedBlockCodes.filter((selected) => selected !== code))}
+              disabled={locked}
+            />
+          </div>
+          <div className="mt-4 border-t border-border pt-4">
+            <SelectedGroup
+              title={translateOr(t, "ES_PM_SECTOR", "Sector")}
+              emptyLabel={translateOr(t, "ES_PM_NO_SECTOR_SELECTED", "No sector selected")}
+              items={selectedSectors}
+              onRemove={(code) => onChange({ ...value, sectorCodes: value.sectorCodes.filter((selected) => selected !== code) })}
+              disabled={locked}
+            />
           </div>
         </div>
       </div>

@@ -13,6 +13,7 @@ import {
 interface ConfirmSubmitProjectDialogProps {
   open: boolean;
   isSubmitting: boolean;
+  errorMessage?: string;
   onCancel: () => void;
   onConfirm: () => void;
 }
@@ -21,6 +22,7 @@ interface ConfirmSubmitProjectDialogProps {
 export function ConfirmSubmitProjectDialog({
   open,
   isSubmitting,
+  errorMessage,
   onCancel,
   onConfirm,
 }: ConfirmSubmitProjectDialogProps) {
@@ -39,6 +41,7 @@ export function ConfirmSubmitProjectDialog({
             )}
           </AlertDialogDescription>
         </AlertDialogHeader>
+        {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isSubmitting} onClick={onCancel}>
             {translateOr(t, "CORE_COMMON_CANCEL", "Cancel")}

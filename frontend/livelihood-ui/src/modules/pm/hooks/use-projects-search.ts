@@ -11,17 +11,22 @@ export interface UseProjectsSearchOptions {
 }
 
 export function useProjectsSearch({ name, limit = 10, offset = 0, filters }: UseProjectsSearchOptions) {
+  const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
 
   return useQuery({
     queryKey: ["pm-projects", name, filters, limit, offset],
     enabled: isProjectManager(user?.roles),
     queryFn: () =>
-      searchProjects({
-        criteria: { subProjectTypeId: "PROJECT", ...(name ? { name } : {}) },
-        filters,
-        limit,
-        offset,
-      }),
+      searchProjects(
+        {
+          criteria: { subProjectTypeId: "PROJECT", ...(name ? { name } : {}) },
+          filters,
+          limit,
+          offset,
+        },
+        accessToken ?? undefined,
+        user,
+      ),
   });
 }

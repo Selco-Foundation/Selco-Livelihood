@@ -70,14 +70,27 @@ export function GeographyDetailsStep({ value, onChange, hasEndUserData = false }
   );
   const selectedBlockCodes = useMemo(() => value.blocks?.map((block) => block.code) ?? [], [value.blocks]);
 
-  const stateOptions = hierarchy?.states ?? [];
+  const stateOptions = useMemo(
+    () =>
+      (hierarchy?.states ?? []).map((state) => ({
+        ...state,
+        name: translateOr(t, `BOUNDARY_${state.code}`, state.name),
+      })),
+    [hierarchy, t],
+  );
   const districtOptions = useMemo(
-    () => (hierarchy?.districts ?? []).filter((district) => selectedStateCodes.includes(district.stateCode)),
-    [hierarchy, selectedStateCodes],
+    () =>
+      (hierarchy?.districts ?? [])
+        .filter((district) => selectedStateCodes.includes(district.stateCode))
+        .map((district) => ({ ...district, name: translateOr(t, `BOUNDARY_${district.code}`, district.name) })),
+    [hierarchy, selectedStateCodes, t],
   );
   const blockOptions = useMemo(
-    () => (hierarchy?.blocks ?? []).filter((block) => selectedDistrictCodes.includes(block.districtCode)),
-    [hierarchy, selectedDistrictCodes],
+    () =>
+      (hierarchy?.blocks ?? [])
+        .filter((block) => selectedDistrictCodes.includes(block.districtCode))
+        .map((block) => ({ ...block, name: translateOr(t, `BOUNDARY_${block.code}`, block.name) })),
+    [hierarchy, selectedDistrictCodes, t],
   );
 
   function warnIfNarrowing(removedAny: boolean) {
@@ -94,7 +107,11 @@ export function GeographyDetailsStep({ value, onChange, hasEndUserData = false }
   }
 
   function handleStatesChange(codes: string[]) {
-    warnIfNarrowing(selectedStateCodes.some((code) => !codes.includes(code)));
+    const removedStateCodes = selectedStateCodes.filter((code) => !codes.includes(code));
+    const hasCascadingRemoval =
+      (value.districts ?? []).some((district) => removedStateCodes.includes(district.stateCode)) ||
+      (value.blocks ?? []).some((block) => removedStateCodes.includes(block.stateCode));
+    warnIfNarrowing(hasCascadingRemoval);
     onChange({
       states: codes.map((code) => ({ code })),
       districts: (value.districts ?? []).filter((district) => codes.includes(district.stateCode)),
@@ -103,7 +120,11 @@ export function GeographyDetailsStep({ value, onChange, hasEndUserData = false }
   }
 
   function handleDistrictsChange(codes: string[]) {
-    warnIfNarrowing(selectedDistrictCodes.some((code) => !codes.includes(code)));
+    const removedDistrictCodes = selectedDistrictCodes.filter((code) => !codes.includes(code));
+    const hasCascadingRemoval = (value.blocks ?? []).some((block) =>
+      removedDistrictCodes.includes(block.districtCode),
+    );
+    warnIfNarrowing(hasCascadingRemoval);
     const nextDistrictOptions = districtOptions.filter((district) => codes.includes(district.code));
     onChange({
       ...value,
@@ -113,7 +134,6 @@ export function GeographyDetailsStep({ value, onChange, hasEndUserData = false }
   }
 
   function handleBlocksChange(codes: string[]) {
-    warnIfNarrowing(selectedBlockCodes.some((code) => !codes.includes(code)));
     const nextBlockOptions = blockOptions.filter((block) => codes.includes(block.code));
     onChange({
       ...value,
@@ -126,10 +146,20 @@ export function GeographyDetailsStep({ value, onChange, hasEndUserData = false }
   }
 
   const selectedStates = stateOptions.filter((state) => selectedStateCodes.includes(state.code));
-  const selectedDistricts = (hierarchy?.districts ?? []).filter((district) =>
-    selectedDistrictCodes.includes(district.code),
+  const selectedDistricts = useMemo(
+    () =>
+      (hierarchy?.districts ?? [])
+        .filter((district) => selectedDistrictCodes.includes(district.code))
+        .map((district) => ({ ...district, name: translateOr(t, `BOUNDARY_${district.code}`, district.name) })),
+    [hierarchy, selectedDistrictCodes, t],
   );
-  const selectedBlocks = (hierarchy?.blocks ?? []).filter((block) => selectedBlockCodes.includes(block.code));
+  const selectedBlocks = useMemo(
+    () =>
+      (hierarchy?.blocks ?? [])
+        .filter((block) => selectedBlockCodes.includes(block.code))
+        .map((block) => ({ ...block, name: translateOr(t, `BOUNDARY_${block.code}`, block.name) })),
+    [hierarchy, selectedBlockCodes, t],
+  );
 
   return (
     <StepSectionCard
@@ -175,7 +205,7 @@ export function GeographyDetailsStep({ value, onChange, hasEndUserData = false }
           <p className="mb-3 text-sm font-semibold text-foreground">
             {translateOr(t, "ES_PM_SELECTED_SUMMARY", "Selected")}
           </p>
-          <div className="space-y-4">
+          <div className="h-[160px] space-y-4 overflow-y-auto pr-1">
             <SelectedGroup
               title={translateOr(t, "ES_PM_STATES", "State")}
               emptyLabel={translateOr(t, "ES_PM_NO_STATE_SELECTED", "No state selected")}

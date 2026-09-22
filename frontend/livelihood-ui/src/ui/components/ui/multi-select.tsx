@@ -26,6 +26,12 @@ export interface MultiSelectProps<TOption extends MultiSelectOption> {
    *  its own selection summary elsewhere (e.g. a shared panel covering
    *  several MultiSelects) instead of repeating it under every field. */
   hideChips?: boolean;
+  /** Restrict to at most one selection — picking an option replaces the
+   *  current selection instead of adding to it, and the Select All row is
+   *  hidden. Use when the underlying field only ever stores a single value
+   *  (e.g. field-planner's single-state geography), so the picker can't
+   *  silently let the user choose more than what will actually be saved. */
+  single?: boolean;
 }
 
 /**
@@ -50,6 +56,7 @@ export function MultiSelect<TOption extends MultiSelectOption>({
   disabled = false,
   error,
   hideChips = false,
+  single = false,
 }: MultiSelectProps<TOption>) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -75,6 +82,11 @@ export function MultiSelect<TOption extends MultiSelectOption>({
   const allSelected = sortedOptions.length > 0 && selected.length === sortedOptions.length;
 
   function toggleOption(code: string) {
+    if (single) {
+      onChange(selectedSet.has(code) ? [] : [code]);
+      setOpen(false);
+      return;
+    }
     if (selectedSet.has(code)) {
       onChange(selected.filter((existing) => existing !== code));
     } else {
@@ -159,7 +171,7 @@ export function MultiSelect<TOption extends MultiSelectOption>({
             />
           </div>
 
-          {sortedOptions.length > 0 ? (
+          {sortedOptions.length > 0 && !single ? (
             <div
               role="button"
               tabIndex={0}

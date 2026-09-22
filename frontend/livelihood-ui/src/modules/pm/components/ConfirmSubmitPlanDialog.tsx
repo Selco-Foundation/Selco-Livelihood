@@ -13,11 +13,18 @@ import {
 interface ConfirmSubmitPlanDialogProps {
   open: boolean;
   isSubmitting: boolean;
+  errorMessage?: string;
   onCancel: () => void;
   onConfirm: () => void;
 }
 
-export function ConfirmSubmitPlanDialog({ open, isSubmitting, onCancel, onConfirm }: ConfirmSubmitPlanDialogProps) {
+export function ConfirmSubmitPlanDialog({
+  open,
+  isSubmitting,
+  errorMessage,
+  onCancel,
+  onConfirm,
+}: ConfirmSubmitPlanDialogProps) {
   const { t } = useTranslate();
 
   return (
@@ -33,6 +40,7 @@ export function ConfirmSubmitPlanDialog({ open, isSubmitting, onCancel, onConfir
             )}
           </AlertDialogDescription>
         </AlertDialogHeader>
+        {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isSubmitting} onClick={onCancel}>
             {translateOr(t, "CORE_COMMON_CANCEL", "Cancel")}
