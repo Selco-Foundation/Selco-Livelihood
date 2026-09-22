@@ -1,119 +1,132 @@
 import { translateOr, useTranslate } from "@/shared";
 import { Input } from "@/ui";
 import { Users } from "lucide-react";
-import { useMemo } from "react";
-import { END_USER_SITES } from "../../constants/end-user-sites";
-import { VENDOR_ORGANIZATIONS } from "../../constants/vendors";
-import type { InstallationPlanAssignmentEntry, InstallationPlanScopeEntry } from "../../types/installation-plan";
+import { useVendorAssignmentSearch } from "../../hooks/use-vendor-assignment-search";
+import { useVendorOrganisations } from "../../hooks/use-vendor-organisations";
+import { useVendorOrgUsers } from "../../hooks/use-vendor-org-users";
+import type { InstallationPlanAssignmentEntry } from "../../types/installation-plan";
+import type { VendorAssignmentSite } from "../../services/vendor-assignment";
 import { LabeledSelect } from "../LabeledSelect";
 import { StepSectionCard } from "../StepSectionCard";
 
 export type AssignmentValue = InstallationPlanAssignmentEntry[];
 
-const STATIC_ASSETS = [
-  { code: "SOLAR_PUMP", name: "Solar Pump" },
-  { code: "SOLAR_HOME_LIGHT", name: "Solar Home Light" },
-] as const;
-
-interface TechnicianAssignmentRow {
-  siteId: string;
+export interface TechnicianAssignmentRow {
+  facilityId: string;
   siteName: string;
-  phoneNumber: string;
-  solutionCode: string;
-  assetCode: string;
+  componentType: "SOLAR" | "MACHINE";
+  componentSequence: number;
   assetName: string;
 }
 
-/** The client flow assigns vendors to assets, with two static assets per
- * selected end-user site until the asset API is integrated. */
-export function getTechnicianAssignmentRows(scope: InstallationPlanScopeEntry[]): TechnicianAssignmentRow[] {
-  const firstSolutionBySite = new Map<string, string>();
-  for (const entry of scope) {
-    if (entry.included && entry.solutionCode && !firstSolutionBySite.has(entry.siteId)) {
-      firstSolutionBySite.set(entry.siteId, entry.solutionCode);
-    }
-  }
-
-  return Array.from(firstSolutionBySite.entries()).flatMap(([siteId, solutionCode]) => {
-    const site = END_USER_SITES.find((item) => item.id === siteId);
-    return STATIC_ASSETS.map((asset) => ({
-      siteId,
-      siteName: site?.name ?? siteId,
-      phoneNumber: site?.phoneNumber ?? "",
-      solutionCode,
-      assetCode: asset.code,
-      assetName: asset.name,
-    }));
-  });
+export function toRows(sites: VendorAssignmentSite[]): TechnicianAssignmentRow[] {
+  return sites.flatMap((site) =>
+    site.assets.map((asset) => ({
+      facilityId: site.facilityId,
+      siteName: site.siteName ?? site.facilityId,
+      componentType: asset.componentType,
+      componentSequence: asset.componentSequence,
+      assetName: asset.assetName ?? asset.componentType,
+    })),
+  );
 }
 
-export function isAssignmentValid(value: AssignmentValue, scope: InstallationPlanScopeEntry[]): boolean {
-  const rows = getTechnicianAssignmentRows(scope);
+export function isAssignmentValid(value: AssignmentValue, rows: TechnicianAssignmentRow[]): boolean {
   return (
     rows.length > 0 &&
     rows.every((row) =>
       value.some(
         (assignment) =>
-          assignment.siteId === row.siteId &&
-          assignment.solutionCode === row.solutionCode &&
-          assignment.assetCode === row.assetCode &&
-          Boolean(assignment.vendorOrgCode) &&
-          Boolean(assignment.vendorUserCode) &&
-          Boolean(assignment.vendorEmail),
+          assignment.facilityId === row.facilityId &&
+          assignment.componentType === row.componentType &&
+          assignment.componentSequence === row.componentSequence &&
+          Boolean(assignment.vendorOrgId) &&
+          Boolean(assignment.vendorUserId),
       ),
     )
   );
 }
 
 interface TechnicianAssignmentStepProps {
+  planId: string | undefined;
   planCode?: string;
-  scope: InstallationPlanScopeEntry[];
   value: AssignmentValue;
   onChange: (value: AssignmentValue) => void;
   locked?: boolean;
 }
 
-export function TechnicianAssignmentStep({ planCode, scope, value, onChange, locked = false }: TechnicianAssignmentStepProps) {
+function VendorUserSelect({
+  organizationId,
+  value,
+  onChange,
+  disabled,
+}: {
+  organizationId: string | undefined;
+  value: string;
+  onChange: (code: string, name?: string, email?: string) => void;
+  disabled: boolean;
+}) {
   const { t } = useTranslate();
-  const rows = useMemo(() => getTechnicianAssignmentRows(scope), [scope]);
+  const { data: users = [] } = useVendorOrgUsers(organizationId);
+
+  return (
+    <LabeledSelect
+      value={value}
+      options={users}
+      placeholder={translateOr(t, "ES_PM_SELECT_VENDOR", "Select Vendor")}
+      onChange={(code) => {
+        const user = users.find((item) => item.code === code);
+        onChange(code, user?.name, user?.email);
+      }}
+      disabled={disabled || !organizationId}
+    />
+  );
+}
+
+export function TechnicianAssignmentStep({ planId, planCode, value, onChange, locked = false }: TechnicianAssignmentStepProps) {
+  const { t } = useTranslate();
+  const { data: searchResult } = useVendorAssignmentSearch(planId);
+  const { data: organisations = [] } = useVendorOrganisations();
+  const rows = toRows(searchResult?.sites ?? []);
 
   function findAssignment(row: TechnicianAssignmentRow) {
     return value.find(
       (entry) =>
-        entry.siteId === row.siteId &&
-        entry.solutionCode === row.solutionCode &&
-        entry.assetCode === row.assetCode,
+        entry.facilityId === row.facilityId &&
+        entry.componentType === row.componentType &&
+        entry.componentSequence === row.componentSequence,
     );
   }
 
   function updateAssignment(row: TechnicianAssignmentRow, patch: Partial<InstallationPlanAssignmentEntry>) {
     const existing = findAssignment(row) ?? {
-      siteId: row.siteId,
-      solutionCode: row.solutionCode,
-      assetCode: row.assetCode,
+      facilityId: row.facilityId,
+      componentType: row.componentType,
+      componentSequence: row.componentSequence,
     };
     const updated = { ...existing, ...patch };
     onChange([
       ...value.filter(
         (entry) =>
           !(
-            entry.siteId === row.siteId &&
-            entry.solutionCode === row.solutionCode &&
-            entry.assetCode === row.assetCode
+            entry.facilityId === row.facilityId &&
+            entry.componentType === row.componentType &&
+            entry.componentSequence === row.componentSequence
           ),
       ),
       updated,
     ]);
   }
 
-  function handleOrganizationChange(row: TechnicianAssignmentRow, vendorOrgCode: string) {
-    updateAssignment(row, { vendorOrgCode, vendorUserCode: undefined, vendorEmail: "" });
-  }
-
-  function handleVendorChange(row: TechnicianAssignmentRow, vendorUserCode: string) {
-    const organization = VENDOR_ORGANIZATIONS.find((item) => item.code === findAssignment(row)?.vendorOrgCode);
-    const vendor = organization?.users.find((item) => item.code === vendorUserCode);
-    updateAssignment(row, { vendorUserCode, vendorEmail: vendor?.email ?? "" });
+  function handleOrganizationChange(row: TechnicianAssignmentRow, vendorOrgId: string) {
+    const organization = organisations.find((item) => item.code === vendorOrgId);
+    updateAssignment(row, {
+      vendorOrgId,
+      vendorOrgName: organization?.name,
+      vendorUserId: undefined,
+      vendorUserName: undefined,
+      vendorEmail: undefined,
+    });
   }
 
   return (
@@ -137,7 +150,14 @@ export function TechnicianAssignmentStep({ planCode, scope, value, onChange, loc
         ) : null}
         <div className="livelihood-card overflow-hidden">
           <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] border-collapse text-sm">
+          <table className="w-full min-w-[1100px] table-fixed border-collapse text-sm">
+            <colgroup>
+              <col className="w-[180px]" />
+              <col className="w-[220px]" />
+              <col className="w-[240px]" />
+              <col className="w-[220px]" />
+              <col className="w-[240px]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-border">
                 {[
@@ -157,16 +177,14 @@ export function TechnicianAssignmentStep({ planCode, scope, value, onChange, loc
               {rows.map((row, index) => {
                 const assignment = findAssignment(row);
                 const previousRow = rows[index - 1];
-                const startsSiteGroup = previousRow?.siteId !== row.siteId;
-                const siteAssetCount = rows.filter((item) => item.siteId === row.siteId).length;
-                const organization = VENDOR_ORGANIZATIONS.find((item) => item.code === assignment?.vendorOrgCode);
+                const startsSiteGroup = previousRow?.facilityId !== row.facilityId;
+                const siteAssetCount = rows.filter((item) => item.facilityId === row.facilityId).length;
 
                 return (
-                  <tr key={`${row.siteId}-${row.assetCode}`} className="border-b border-border/70">
+                  <tr key={`${row.facilityId}-${row.componentType}-${row.componentSequence}`} className="border-b border-border/70">
                     {startsSiteGroup ? (
                       <td rowSpan={siteAssetCount} className="px-5 py-4 align-middle font-semibold text-foreground">
                         <p>{row.siteName}</p>
-                        {row.phoneNumber ? <p className="mt-1 text-xs font-normal text-muted-foreground">+91 {row.phoneNumber}</p> : null}
                       </td>
                     ) : null}
                     <td className="px-5 py-4">
@@ -176,24 +194,29 @@ export function TechnicianAssignmentStep({ planCode, scope, value, onChange, loc
                     </td>
                     <td className="px-5 py-4">
                       <LabeledSelect
-                        value={assignment?.vendorOrgCode ?? ""}
-                        options={VENDOR_ORGANIZATIONS}
+                        value={assignment?.vendorOrgId ?? ""}
+                        options={organisations}
                         placeholder={translateOr(t, "ES_PM_SELECT_VENDOR_ORGANIZATION", "Select Organization")}
-                        onChange={(vendorOrgCode) => handleOrganizationChange(row, vendorOrgCode)}
+                        onChange={(vendorOrgId) => handleOrganizationChange(row, vendorOrgId)}
                         disabled={locked}
                       />
                     </td>
                     <td className="px-5 py-4">
-                      <LabeledSelect
-                        value={assignment?.vendorUserCode ?? ""}
-                        options={organization?.users ?? []}
-                        placeholder={translateOr(t, "ES_PM_SELECT_VENDOR", "Select Vendor")}
-                        onChange={(vendorUserCode) => handleVendorChange(row, vendorUserCode)}
-                        disabled={locked || !organization}
+                      <VendorUserSelect
+                        organizationId={assignment?.vendorOrgId}
+                        value={assignment?.vendorUserId ?? ""}
+                        onChange={(vendorUserId, vendorUserName, vendorEmail) =>
+                          updateAssignment(row, { vendorUserId, vendorUserName, vendorEmail })
+                        }
+                        disabled={locked}
                       />
                     </td>
                     <td className="px-5 py-4">
-                      <Input value={assignment?.vendorEmail ?? ""} disabled placeholder="email@example.com" />
+                      <Input
+                        value={assignment?.vendorEmail ?? ""}
+                        disabled
+                        placeholder={translateOr(t, "ES_PM_EMAIL_PLACEHOLDER", "email@example.com")}
+                      />
                     </td>
                   </tr>
                 );

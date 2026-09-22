@@ -1,7 +1,7 @@
 import { translateOr, useTranslate } from "@/shared";
 import { Badge, Skeleton } from "@/ui";
 import { Link } from "@tanstack/react-router";
-import { SECTOR_OPTIONS } from "../constants/sectors";
+import { useInstallationPlanFacilityCounts } from "../hooks/use-installation-plan-facility-counts";
 import type { InstallationPlanStatusWrapper } from "../types/installation-plan";
 import { pmCreateInstallationPlanPath } from "../utils/paths";
 
@@ -15,12 +15,17 @@ function formatDate(value?: number) {
   return new Date(value).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function sectorName(sectorCode?: string) {
-  return SECTOR_OPTIONS.find((sector) => sector.code === sectorCode)?.name ?? "-";
+// Sector codes are the sector name itself (e.g. "Textile & craft") — derived from the live
+// `Installation.Solution` MDMS master's `sectorName` field, no separate lookup needed. A plan may
+// carry more than one, so join them for display.
+function sectorNames(sectorCodes?: string[]) {
+  return sectorCodes?.length ? sectorCodes.join(", ") : "-";
 }
 
 export function InstallationPlansTable({ plans, isLoading }: InstallationPlansTableProps) {
   const { t } = useTranslate();
+  const planIds = plans.map(({ plan }) => plan.id).filter((id): id is string => Boolean(id));
+  const { data: facilityCounts = {} } = useInstallationPlanFacilityCounts(planIds);
 
   const columns = [
     translateOr(t, "ES_PM_INSTALLATION_PLAN_NAME", "Installation Plan Name"),
@@ -63,7 +68,7 @@ export function InstallationPlansTable({ plans, isLoading }: InstallationPlansTa
           </thead>
           <tbody>
             {plans.map(({ plan, status }, index) => {
-              const siteCount = plan.additionalDetails?.scope?.filter((entry) => entry.included).length ?? 0;
+              const siteCount = (plan.id ? facilityCounts[plan.id] : undefined) ?? 0;
 
               return (
                 <tr
@@ -84,7 +89,7 @@ export function InstallationPlansTable({ plans, isLoading }: InstallationPlansTa
                       {translateOr(t, "ES_PM_INSTALLATION", "Installation")}
                     </Badge>
                   </td>
-                  <td className="px-5 py-4 text-foreground">{sectorName(plan.additionalDetails?.sectorCode)}</td>
+                  <td className="px-5 py-4 text-foreground">{sectorNames(plan.additionalDetails?.sectorCodes)}</td>
                   <td className="px-5 py-4 text-foreground">{formatDate(plan.startDate)}</td>
                   <td className="px-5 py-4 text-foreground">{formatDate(plan.endDate)}</td>
                   <td className="px-5 py-4 text-foreground">{siteCount}</td>

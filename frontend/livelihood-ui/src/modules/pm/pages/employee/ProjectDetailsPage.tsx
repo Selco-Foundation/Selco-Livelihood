@@ -45,7 +45,7 @@ export function ProjectDetailsPage() {
           <div className="space-y-4">
             <div>
               <p className="text-xs font-medium text-muted-foreground">{translateOr(t, "ES_PM_STATE", "State")}</p>
-              <p className="text-sm text-foreground">{resolveStateNames(geography) || "-"}</p>
+              <p className="text-sm text-foreground">{resolveStateNames(geography, t).join(", ") || "-"}</p>
             </div>
             <div>
               <p className="text-xs font-medium text-muted-foreground">

@@ -7,7 +7,7 @@ import { pmMyProjectsPath } from "../utils/paths";
 export function PmKpis() {
   const { t } = useTranslate();
   const user = useAuthStore((state) => state.user);
-  const { data, isLoading } = useProjectsSearch({ limit: 1, offset: 0 });
+  const { data, isLoading } = useProjectsSearch({ limit: 0, offset: 0 });
 
   if (!isProjectManager(user?.roles)) {
     return null;
