@@ -103,7 +103,12 @@ public class IncidentService {
         String tenantId = request.getIncident().getTenantId();
         String boundaryCode = request.getIncident().getBoundaryCode();
         String facilityId = resolveFacilityId(request.getIncident());
-        List<IncidentStatusAgregation> statusAgregations = incidentRepository.getStatusIncidentsAgregation(boundaryCode);
+        if (facilityId == null || facilityId.isBlank()) {
+            log.warn("Skipping aggregation for incident {}: no facilityId on the incident or boundaryCode {}",
+                    request.getIncident().getIncidentId(), boundaryCode);
+            return;
+        }
+        List<IncidentStatusAgregation> statusAgregations = incidentRepository.getStatusIncidentsAgregation(facilityId);
         List<IncidentStatusAgregation> systemFunctional = incidentRepository.getStatusSystemFunctional(boundaryCode);
         log.info("Status aggregation result size: {}", statusAgregations.size());
         log.info("systemFunctional aggregation result size: {}", systemFunctional.size());
@@ -250,7 +255,14 @@ public class IncidentService {
                 return;
             }
             String boundaryCode = boundary.getFacilityCode();
-            List<IncidentStatusAgregation> statusAgregations = incidentRepository.getStatusIncidentsAgregation(boundaryCode);
+            String phcFacilityId = incidentStatusAgregation.getFacilityId();
+            if (phcFacilityId == null || phcFacilityId.isBlank()) {
+                log.warn("PHC document {} has no facilityId, publishing without ticket counts", code);
+                phcFacilityId = null;
+            }
+            List<IncidentStatusAgregation> statusAgregations = phcFacilityId == null
+                    ? List.of()
+                    : incidentRepository.getStatusIncidentsAgregation(phcFacilityId);
             List<IncidentStatusAgregation> systemFunctional = incidentRepository.getStatusSystemFunctional(boundaryCode);
             if(statusAgregations !=null && !statusAgregations.isEmpty()){
                 IncidentStatusAgregation incidentStatusAgregationDB = statusAgregations.get(0);
