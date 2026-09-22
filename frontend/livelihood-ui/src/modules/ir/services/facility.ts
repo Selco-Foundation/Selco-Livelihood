@@ -1,6 +1,6 @@
 import { apiClient, tenantId as getTenantId, type AuthUser } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
-import type { ActivityFacilitySearchResponse } from "../types/facility-review";
+import type { ActivityFacilitySearchResponse } from "../types/activity-review";
 
 export const ACTIVITY_CODE_INSTALLATION = "INS";
 

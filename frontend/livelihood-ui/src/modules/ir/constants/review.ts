@@ -1,4 +1,4 @@
-import type { MachineSectionId, SolarSectionId } from "../types/facility-review";
+import type { MachineSectionId, SolarSectionId } from "../types/activity-review";
 
 export const REVIEW_SECTION_LABELS: Record<
   SolarSectionId | MachineSectionId,

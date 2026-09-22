@@ -1,6 +1,6 @@
 import { translateOr, useTranslate } from "@/shared";
 import { Download, FileText } from "lucide-react";
-import type { ReportDocument, ReportSectionContent } from "../../types/facility-review";
+import type { ReportDocument, ReportSectionContent } from "../../types/activity-review";
 import { LabeledValueList } from "./LabeledValueList";
 
 function formatFileSize(bytes?: number): string {

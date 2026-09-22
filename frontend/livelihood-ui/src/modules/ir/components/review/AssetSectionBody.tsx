@@ -1,5 +1,5 @@
 import { translateOr, useTranslate } from "@/shared";
-import type { AssetSectionContent } from "../../types/facility-review";
+import type { AssetSectionContent } from "../../types/activity-review";
 import { LabeledValueList, LabeledValueRows } from "./LabeledValueList";
 import { SectionImageGrid, SectionVideoList } from "./SectionMedia";
 

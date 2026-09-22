@@ -1,29 +1,29 @@
 import { REVIEW_SECTION_LABELS } from "../constants/review";
 import type { MachineAssetData } from "./asset-mapping";
 import { formatEpochDate } from "./date-format";
-import { toFacilityEntry } from "./facility-entry-mapping";
+import { toReviewActivity } from "./review-activity-mapping";
 import { classifyDocument, INSTALLATION_IMAGE_PREFIX, REPORT_DOCUMENT_TYPES } from "./facility-documents";
 import type { InstallationImageCriterion } from "./installation-image-mapping";
 import type {
+  ActivityAuditCheckpoint,
   ActivityBillOfMaterial,
   ActivityBomComponent,
   ActivityDocument,
   ActivityFacilityRow,
+  ActivityReviewDetail,
+  ActivityStatus,
   ActivityTransaction,
   ActivityWorkflowEntry,
   AssetItem,
   AssetSectionContent,
   AuditSectionReasons,
-  FacilityAuditCheckpoint,
-  FacilityEntryStatus,
-  FacilityReviewDetail,
   ImageChecklistSectionContent,
   LabeledValue,
   RejectionReasonOption,
   ReportSectionContent,
   ReviewSectionContent,
   ReviewSectionId,
-} from "../types/facility-review";
+} from "../types/activity-review";
 
 export function humanize(id: string): string {
   return id
@@ -178,7 +178,7 @@ function buildAuditTrail(
   workflow: ActivityWorkflowEntry[] | undefined,
   transactions: ActivityTransaction[] | undefined,
   reasonOptions: RejectionReasonOption[],
-): FacilityAuditCheckpoint[] {
+): ActivityAuditCheckpoint[] {
   const transactionByProcessInstanceId = new Map(
     (transactions ?? [])
       .filter((transaction) => transaction.processInstanceId)
@@ -194,7 +194,7 @@ function buildAuditTrail(
 
     return {
       id: entry.id ?? `checkpoint-${index}`,
-      status: (entry.state?.applicationStatus ?? "SCHEDULED") as FacilityEntryStatus,
+      status: (entry.state?.applicationStatus ?? "SCHEDULED") as ActivityStatus,
       date: entry.auditDetails?.createdTime ? formatEpochDate(entry.auditDetails.createdTime) : "-",
       actorName: entry.assigner?.name,
       comment: entry.comment,
@@ -203,11 +203,11 @@ function buildAuditTrail(
   });
 }
 
-export function buildFacilityReviewDetail(
+export function buildActivityReviewDetail(
   row: ActivityFacilityRow,
   installationImageCriteria: InstallationImageCriterion[],
   // Real Panel/Battery/Inverter sections sourced from the asset-registry
-  // search (see hooks/use-facility-review.ts + utils/asset-mapping.ts) — the
+  // search (see hooks/use-activity-review.ts + utils/asset-mapping.ts) — the
   // BOM no longer drives Solar's asset sections; empty for a Machine entry
   // since it doesn't use it (machineAssetData is its equivalent below).
   solarAssetSections: AssetSectionContent[],
@@ -218,9 +218,9 @@ export function buildFacilityReviewDetail(
   // Machine's asset-sourced PO/invoice/warranty/serial-number/spec data —
   // see utils/asset-mapping.ts's buildMachineAssetData. Unused for Solar.
   machineAssetData: MachineAssetData,
-): FacilityReviewDetail {
+): ActivityReviewDetail {
   const { activityFacility } = row;
-  const entry = toFacilityEntry(row);
+  const activity = toReviewActivity(row);
   const latestWorkflow = row.workflow?.[0];
   const latestDocuments = latestWorkflow?.documents ?? [];
 
@@ -257,7 +257,7 @@ export function buildFacilityReviewDetail(
   }
 
   return {
-    entry,
+    activity,
     sections,
     auditTrail: buildAuditTrail(row.workflow, row.transactions, reasonOptions),
     sectionDocuments,

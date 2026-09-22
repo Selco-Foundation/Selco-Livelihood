@@ -1,14 +1,14 @@
 import { fetchWorkflowBusinessService, tenantId as getTenantId, translateOr, useAuthStore, useTranslate } from "@/shared";
 import { useQuery } from "@tanstack/react-query";
 import {
-  FACILITY_ENTRY_STATUS_LABELS,
-  FACILITY_ENTRY_STATUS_ORDER,
+  ACTIVITY_STATUS_LABELS,
+  ACTIVITY_STATUS_ORDER,
   FACILITY_INSTALLATION_BUSINESS_SERVICE,
-} from "../constants/facility-status";
-import type { FacilityFilterOption } from "../components/facility/FacilityEntryFilter";
-import type { FacilityEntryStatus } from "../types/facility-review";
+} from "../constants/activity-status";
+import type { ActivityFilterOption } from "../components/activity/ActivityFilter";
+import type { ActivityStatus } from "../types/activity-review";
 
-export function useFacilityStatusOptions() {
+export function useActivityStatusOptions() {
   const { t } = useTranslate();
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
@@ -16,7 +16,7 @@ export function useFacilityStatusOptions() {
   const tenantId = employeeTenantId || getTenantId();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["ir-facility-installation-states", tenantId],
+    queryKey: ["ir-activity-installation-states", tenantId],
     enabled: Boolean(accessToken),
     staleTime: 5 * 60_000,
     queryFn: () =>
@@ -31,13 +31,13 @@ export function useFacilityStatusOptions() {
   const availableCodes = new Set(
     (data?.BusinessServices?.[0]?.states ?? [])
       .map((state) => state.applicationStatus)
-      .filter((status): status is FacilityEntryStatus => Boolean(status)),
+      .filter((status): status is ActivityStatus => Boolean(status)),
   );
 
-  const options: FacilityFilterOption[] = FACILITY_ENTRY_STATUS_ORDER.filter((status) =>
+  const options: ActivityFilterOption[] = ACTIVITY_STATUS_ORDER.filter((status) =>
     availableCodes.has(status),
   ).map((status) => {
-    const label = FACILITY_ENTRY_STATUS_LABELS[status];
+    const label = ACTIVITY_STATUS_LABELS[status];
     return { code: status, name: translateOr(t, label.key, label.fallback) };
   });
 

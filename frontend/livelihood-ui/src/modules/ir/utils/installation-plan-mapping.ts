@@ -3,7 +3,7 @@ import type { ActivityAssignment, InstallationPlan } from "../types/installation
 
 // Facility-level statuses as rolled up by the activity-assignment API's own
 // `statusAgregation` — these are the real `FACILITY_INSTALLATION` business
-// service states (see types/facility-review.ts's FACILITY_ENTRY_STATUS).
+// service states (see types/activity-review.ts's ACTIVITY_STATUS).
 const STATUS_APPROVED = "APPROVED_BY_QC_SPOC";
 const STATUS_PENDING_REVIEW = "SUBMITTED_BY_FIELD_STAFF";
 

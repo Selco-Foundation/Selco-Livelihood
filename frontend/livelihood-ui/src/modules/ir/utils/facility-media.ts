@@ -7,7 +7,7 @@ import type {
   ReportSectionMediaPatch,
   SectionImage,
   SectionVideo,
-} from "../types/facility-review";
+} from "../types/activity-review";
 import type { FileStoreUrlResponse } from "@/shared";
 
 function buildUrlMap(response: FileStoreUrlResponse): Map<string, string> {

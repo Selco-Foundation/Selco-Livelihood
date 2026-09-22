@@ -8,7 +8,7 @@ import { hasIrAccess } from "../../utils/access";
 
 const DEFAULT_PAGE_SIZE = 10;
 
-export function InstallationPlanInboxPage() {
+export function InstallationPlanInbox() {
   const { t } = useTranslate();
   const user = useAuthStore((state) => state.user);
   const [searchText, setSearchText] = useState("");

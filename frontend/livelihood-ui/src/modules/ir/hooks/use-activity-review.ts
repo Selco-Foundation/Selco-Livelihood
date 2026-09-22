@@ -22,38 +22,38 @@ import {
   buildImageChecklistMedia,
   buildReportSectionMedia,
 } from "../utils/facility-media";
-import { buildFacilityReviewDetail } from "../utils/facility-review-mapping";
+import { buildActivityReviewDetail } from "../utils/activity-review-mapping";
 import { hasIrAccess } from "../utils/access";
 import type {
   ActivityDocument,
+  ActivityReviewDetail,
   AssetSectionContent,
-  FacilityReviewDetail,
   ReviewSectionContent,
   SectionMediaPatch,
-  SubmitFacilityReviewInput,
-} from "../types/facility-review";
+  SubmitActivityReviewInput,
+} from "../types/activity-review";
 
-export function useFacilityReview(entryId: string) {
+export function useActivityReview(activityId: string) {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
   const employeeTenantId = useAuthStore((state) => state.employeeTenantId);
   const queryClient = useQueryClient();
 
   return useQuery({
-    queryKey: ["ir-facility-review", employeeTenantId, entryId],
-    enabled: Boolean(accessToken && employeeTenantId && entryId && hasIrAccess(user?.roles)),
-    queryFn: async (): Promise<FacilityReviewDetail | null> => {
+    queryKey: ["ir-activity-review", employeeTenantId, activityId],
+    enabled: Boolean(accessToken && employeeTenantId && activityId && hasIrAccess(user?.roles)),
+    queryFn: async (): Promise<ActivityReviewDetail | null> => {
       // The installation-image checklist master and the rejection-reason
-      // options master are both the same for every entry, so they're fetched
-      // through their own shared query keys (queryClient.fetchQuery reuses
-      // useInstallationImageCriteria's/useRejectionReasonOptions' cache
-      // instead of re-fetching per review) rather than being entry-scoped
-      // like the facility row.
+      // options master are both the same for every activity, so they're
+      // fetched through their own shared query keys (queryClient.fetchQuery
+      // reuses useInstallationImageCriteria's/useRejectionReasonOptions'
+      // cache instead of re-fetching per review) rather than being
+      // activity-scoped like the facility row.
       const [data, installationImageCriteria, rejectionReasonOptions] = await Promise.all([
         searchActivityFacilities(
           {
             tenantId: employeeTenantId!,
-            ids: [entryId],
+            ids: [activityId],
             activityCodes: [ACTIVITY_CODE_INSTALLATION],
           },
           { limit: 1, offset: 0 },
@@ -88,7 +88,12 @@ export function useFacilityReview(entryId: string) {
       let solarAssetSections: AssetSectionContent[] = [];
       let machineAssetData: MachineAssetData = { details: undefined, items: [], mediaGroups: [] };
       try {
-        const assets = await searchAssetsForActivityFacility(entryId, employeeTenantId!, accessToken!, user);
+        const assets = await searchAssetsForActivityFacility(
+          activityId,
+          employeeTenantId!,
+          accessToken!,
+          user,
+        );
         const assetImageFileStoreIds = assets
           .flatMap((asset) => asset.documents ?? [])
           .filter((document) => isResolvableAssetDocument(document.documentType))
@@ -110,7 +115,7 @@ export function useFacilityReview(entryId: string) {
               .map((entry) => [entry.id, entry.url]),
           );
         } catch (error) {
-          console.error("Failed to load asset media URLs for facility review:", error);
+          console.error("Failed to load asset media URLs for activity review:", error);
         }
 
         if (isSolar) {
@@ -119,10 +124,10 @@ export function useFacilityReview(entryId: string) {
           machineAssetData = buildMachineAssetData(assets, assetImageUrlById);
         }
       } catch (error) {
-        console.error("Failed to load asset details for facility review:", error);
+        console.error("Failed to load asset details for activity review:", error);
       }
 
-      return buildFacilityReviewDetail(
+      return buildActivityReviewDetail(
         row,
         installationImageCriteria,
         solarAssetSections,
@@ -139,7 +144,7 @@ export function useFacilityReview(entryId: string) {
  * section's documents on page open would slow the page down. Cached per
  * section so re-expanding doesn't re-fetch.
  */
-export function useLoadSectionMedia(entryId: string, facilityName: string) {
+export function useLoadSectionMedia(activityId: string, facilityName: string) {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
   const employeeTenantId = useAuthStore((state) => state.employeeTenantId);
@@ -150,12 +155,12 @@ export function useLoadSectionMedia(entryId: string, facilityName: string) {
       // `staleTime: Infinity` below means this cache entry is never
       // considered stale on its own — the sorted fileStoreIds are part of
       // the key so a resubmission with different attachments (same
-      // entryId/section.id) lands on a fresh entry instead of reusing stale
-      // resolved media.
+      // activityId/section.id) lands on a fresh entry instead of reusing
+      // stale resolved media.
       queryKey: [
         "ir-section-media",
         employeeTenantId,
-        entryId,
+        activityId,
         section.id,
         documents
           .map((document) => document.fileStoreId)
@@ -184,18 +189,18 @@ export function useLoadSectionMedia(entryId: string, facilityName: string) {
     });
 }
 
-export function useSubmitFacilityReview(entryId: string) {
+export function useSubmitActivityReview(activityId: string) {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
   const employeeTenantId = useAuthStore((state) => state.employeeTenantId);
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: SubmitFacilityReviewInput) =>
+    mutationFn: (input: SubmitActivityReviewInput) =>
       submitFacilityReview(input, employeeTenantId!, accessToken!, user),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["ir-facility-review", employeeTenantId, entryId],
+        queryKey: ["ir-activity-review", employeeTenantId, activityId],
       });
     },
   });
