@@ -579,6 +579,9 @@ def create_facility_payload(
     else:
         preferred_language_code = None
 
+    # MIS ID (optional, free-text): external end-user identifier, carried through as-is.
+    mis_id = safe_get(row, 'MIS ID')
+
     facility_record = {
         'tenant_id': LIVELIHOOD_TENANT_ID,
         'facility_name': end_user_name,
@@ -606,7 +609,7 @@ def create_facility_payload(
         'facility_poc_email': safe_get(row, 'End user Email'),
         'facility_status': 'ACTIVE',
         'isOnmReady': True,
-        'additionalDetails': {'preferredLanguage': preferred_language_code},
+        'additionalDetails': {'preferredLanguage': preferred_language_code, 'misId': mis_id},
     }
     if poc_username_hdr:
         facility_record['facility_poc_username'] = safe_get(row, poc_username_hdr)
