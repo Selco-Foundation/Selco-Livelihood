@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/painting.dart';
 import 'package:isar/isar.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -152,6 +153,14 @@ class InstallationCacheRepository {
     final target = File(p.join(directory.path, '$safeKey$extension'));
     if (source.absolute.path != target.absolute.path) {
       await source.copy(target.path);
+      // Replacing a photo reuses this same destination path (the cache key
+      // is stable per slot, not per-pick), so the file's bytes change but
+      // its path doesn't. Flutter's image cache keys a decoded FileImage by
+      // path+scale, not by content or mtime, so without this eviction
+      // `Image.file`/`MediaThumbnail` would keep rendering the old cached
+      // bitmap for this path even though the file on disk is now the new
+      // photo — the exact "picking a new photo shows the old one" bug.
+      PaintingBinding.instance.imageCache.evict(FileImage(target));
     }
     return target.path;
   }

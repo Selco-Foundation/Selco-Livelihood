@@ -69,8 +69,21 @@ class _ImageUploaderState extends State<ImageUploader> {
   @override
   void didUpdateWidget(covariant ImageUploader oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // Compare against what the prop *was* last build, not against our
+    // current local state. A parent rebuild unrelated to this field (e.g.
+    // GPS ticks from `observeDocumentLocation`'s LocationBloc watch, which
+    // rebuild the whole page on every location update) can land mid-flight,
+    // after a pick but before the parent's own async persist has updated
+    // its model — at that point `initialImages` is still stale, but it
+    // legitimately differs from our just-picked local state. Diffing against
+    // `images` there would wrongly treat that staleness as a newer value
+    // from the parent and revert the picked photo. Diffing prop-vs-prop only
+    // resyncs when the parent's value has genuinely changed since we last
+    // looked at it.
+    final previous =
+        List<SolarFileRef>.of(oldWidget.initialImages ?? const []);
     final incoming = _incomingImages();
-    if (_paths(incoming) != _paths(images)) images = incoming;
+    if (_paths(incoming) != _paths(previous)) images = incoming;
   }
 
   List<SolarFileRef> _incomingImages() =>

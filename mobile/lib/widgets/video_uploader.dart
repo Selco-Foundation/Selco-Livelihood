@@ -50,9 +50,15 @@ class _VideoUploaderState extends State<VideoUploader> {
   @override
   void didUpdateWidget(covariant VideoUploader oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // See the identical comment in ImageUploader.didUpdateWidget: compare
+    // against the previous prop value, not current local state, so an
+    // unrelated parent rebuild with a still-stale prop (e.g. a GPS tick
+    // landing before the parent's async persist updates its model) can't
+    // revert a just-picked video back to the old one.
     final incoming = widget.initialVideos.map((e) => e.path).join('\u0000');
-    final current = videos.map((e) => e.path).join('\u0000');
-    if (incoming != current) videos = List.of(widget.initialVideos);
+    final previous =
+        oldWidget.initialVideos.map((e) => e.path).join('\u0000');
+    if (incoming != previous) videos = List.of(widget.initialVideos);
   }
 
   Future<void> _choose(ImageSource source) async {
