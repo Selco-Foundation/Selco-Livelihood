@@ -75,7 +75,7 @@ export {
 } from "./config/routes";
 export { queryClient } from "./query/query-client";
 export { QueryProvider } from "./query/provider";
-export { useBoundary } from "./hooks/use-boundary";
+export { useBoundary, useBoundaryHierarchy } from "./hooks/use-boundary";
 export { useDebouncedValue } from "./hooks/use-debounced-value";
 export { useFacility } from "./hooks/use-facility";
 export { useLanguages } from "./hooks/use-languages";
