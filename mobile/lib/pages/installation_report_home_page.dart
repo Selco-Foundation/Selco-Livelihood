@@ -76,7 +76,7 @@ class InstallationReportHomePage extends StatelessWidget {
                     description: context.translate(
                         i18.installationReportHome.newReportDescription),
                     count: counts.maybeWhen(
-                      loaded: (assigned, _, __, ___) => '$assigned',
+                      loaded: (assigned, _, __, ___, ____) => '$assigned',
                       orElse: () => '—',
                     ),
                     color: theme.colorTheme.primary.primary1,
@@ -92,7 +92,7 @@ class InstallationReportHomePage extends StatelessWidget {
                     description: context.translate(
                         i18.installationReportHome.pendingApprovalDescription),
                     count: counts.maybeWhen(
-                      loaded: (_, pendingApproval, __, ___) =>
+                      loaded: (_, pendingApproval, __, ___, ____) =>
                           '$pendingApproval',
                       orElse: () => '—',
                     ),
@@ -110,7 +110,8 @@ class InstallationReportHomePage extends StatelessWidget {
                     description: context.translate(
                         i18.installationReportHome.resubmissionDescription),
                     count: counts.maybeWhen(
-                      loaded: (_, __, resubmission, ___) => '$resubmission',
+                      loaded: (_, __, resubmission, ___, ____) =>
+                          '$resubmission',
                       orElse: () => '—',
                     ),
                     color: theme.colorTheme.alert.error,
@@ -127,7 +128,7 @@ class InstallationReportHomePage extends StatelessWidget {
                     description: context.translate(
                         i18.installationReportHome.approvedDescription),
                     count: counts.maybeWhen(
-                      loaded: (_, __, ___, approved) => '$approved',
+                      loaded: (_, __, ___, approved, ____) => '$approved',
                       orElse: () => '—',
                     ),
                     color: theme.colorTheme.alert.success,

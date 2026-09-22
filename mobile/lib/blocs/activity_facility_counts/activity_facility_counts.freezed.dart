@@ -230,8 +230,8 @@ mixin _$ActivityFacilityCountsState {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(
-            int assigned, int pendingApproval, int resubmission, int approved)
+    required TResult Function(int assigned, int pendingApproval,
+            int resubmission, int approved, int pendingSync)
         loaded,
   }) =>
       throw _privateConstructorUsedError;
@@ -239,8 +239,8 @@ mixin _$ActivityFacilityCountsState {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(
-            int assigned, int pendingApproval, int resubmission, int approved)?
+    TResult? Function(int assigned, int pendingApproval, int resubmission,
+            int approved, int pendingSync)?
         loaded,
   }) =>
       throw _privateConstructorUsedError;
@@ -248,8 +248,8 @@ mixin _$ActivityFacilityCountsState {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(
-            int assigned, int pendingApproval, int resubmission, int approved)?
+    TResult Function(int assigned, int pendingApproval, int resubmission,
+            int approved, int pendingSync)?
         loaded,
     required TResult orElse(),
   }) =>
@@ -339,8 +339,8 @@ class _$InitialImpl implements _Initial {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(
-            int assigned, int pendingApproval, int resubmission, int approved)
+    required TResult Function(int assigned, int pendingApproval,
+            int resubmission, int approved, int pendingSync)
         loaded,
   }) {
     return initial();
@@ -351,8 +351,8 @@ class _$InitialImpl implements _Initial {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(
-            int assigned, int pendingApproval, int resubmission, int approved)?
+    TResult? Function(int assigned, int pendingApproval, int resubmission,
+            int approved, int pendingSync)?
         loaded,
   }) {
     return initial?.call();
@@ -363,8 +363,8 @@ class _$InitialImpl implements _Initial {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(
-            int assigned, int pendingApproval, int resubmission, int approved)?
+    TResult Function(int assigned, int pendingApproval, int resubmission,
+            int approved, int pendingSync)?
         loaded,
     required TResult orElse(),
   }) {
@@ -453,8 +453,8 @@ class _$LoadingImpl implements _Loading {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(
-            int assigned, int pendingApproval, int resubmission, int approved)
+    required TResult Function(int assigned, int pendingApproval,
+            int resubmission, int approved, int pendingSync)
         loaded,
   }) {
     return loading();
@@ -465,8 +465,8 @@ class _$LoadingImpl implements _Loading {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(
-            int assigned, int pendingApproval, int resubmission, int approved)?
+    TResult? Function(int assigned, int pendingApproval, int resubmission,
+            int approved, int pendingSync)?
         loaded,
   }) {
     return loading?.call();
@@ -477,8 +477,8 @@ class _$LoadingImpl implements _Loading {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(
-            int assigned, int pendingApproval, int resubmission, int approved)?
+    TResult Function(int assigned, int pendingApproval, int resubmission,
+            int approved, int pendingSync)?
         loaded,
     required TResult orElse(),
   }) {
@@ -534,7 +534,11 @@ abstract class _$$LoadedImplCopyWith<$Res> {
       __$$LoadedImplCopyWithImpl<$Res>;
   @useResult
   $Res call(
-      {int assigned, int pendingApproval, int resubmission, int approved});
+      {int assigned,
+      int pendingApproval,
+      int resubmission,
+      int approved,
+      int pendingSync});
 }
 
 /// @nodoc
@@ -552,6 +556,7 @@ class __$$LoadedImplCopyWithImpl<$Res>
     Object? pendingApproval = null,
     Object? resubmission = null,
     Object? approved = null,
+    Object? pendingSync = null,
   }) {
     return _then(_$LoadedImpl(
       assigned: null == assigned
@@ -570,6 +575,10 @@ class __$$LoadedImplCopyWithImpl<$Res>
           ? _value.approved
           : approved // ignore: cast_nullable_to_non_nullable
               as int,
+      pendingSync: null == pendingSync
+          ? _value.pendingSync
+          : pendingSync // ignore: cast_nullable_to_non_nullable
+              as int,
     ));
   }
 }
@@ -581,7 +590,8 @@ class _$LoadedImpl implements _Loaded {
       {required this.assigned,
       required this.pendingApproval,
       required this.resubmission,
-      required this.approved});
+      required this.approved,
+      required this.pendingSync});
 
   @override
   final int assigned;
@@ -591,10 +601,12 @@ class _$LoadedImpl implements _Loaded {
   final int resubmission;
   @override
   final int approved;
+  @override
+  final int pendingSync;
 
   @override
   String toString() {
-    return 'ActivityFacilityCountsState.loaded(assigned: $assigned, pendingApproval: $pendingApproval, resubmission: $resubmission, approved: $approved)';
+    return 'ActivityFacilityCountsState.loaded(assigned: $assigned, pendingApproval: $pendingApproval, resubmission: $resubmission, approved: $approved, pendingSync: $pendingSync)';
   }
 
   @override
@@ -609,12 +621,14 @@ class _$LoadedImpl implements _Loaded {
             (identical(other.resubmission, resubmission) ||
                 other.resubmission == resubmission) &&
             (identical(other.approved, approved) ||
-                other.approved == approved));
+                other.approved == approved) &&
+            (identical(other.pendingSync, pendingSync) ||
+                other.pendingSync == pendingSync));
   }
 
   @override
-  int get hashCode => Object.hash(
-      runtimeType, assigned, pendingApproval, resubmission, approved);
+  int get hashCode => Object.hash(runtimeType, assigned, pendingApproval,
+      resubmission, approved, pendingSync);
 
   @JsonKey(ignore: true)
   @override
@@ -627,11 +641,12 @@ class _$LoadedImpl implements _Loaded {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(
-            int assigned, int pendingApproval, int resubmission, int approved)
+    required TResult Function(int assigned, int pendingApproval,
+            int resubmission, int approved, int pendingSync)
         loaded,
   }) {
-    return loaded(assigned, pendingApproval, resubmission, approved);
+    return loaded(
+        assigned, pendingApproval, resubmission, approved, pendingSync);
   }
 
   @override
@@ -639,11 +654,12 @@ class _$LoadedImpl implements _Loaded {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(
-            int assigned, int pendingApproval, int resubmission, int approved)?
+    TResult? Function(int assigned, int pendingApproval, int resubmission,
+            int approved, int pendingSync)?
         loaded,
   }) {
-    return loaded?.call(assigned, pendingApproval, resubmission, approved);
+    return loaded?.call(
+        assigned, pendingApproval, resubmission, approved, pendingSync);
   }
 
   @override
@@ -651,13 +667,14 @@ class _$LoadedImpl implements _Loaded {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(
-            int assigned, int pendingApproval, int resubmission, int approved)?
+    TResult Function(int assigned, int pendingApproval, int resubmission,
+            int approved, int pendingSync)?
         loaded,
     required TResult orElse(),
   }) {
     if (loaded != null) {
-      return loaded(assigned, pendingApproval, resubmission, approved);
+      return loaded(
+          assigned, pendingApproval, resubmission, approved, pendingSync);
     }
     return orElse();
   }
@@ -702,12 +719,14 @@ abstract class _Loaded implements ActivityFacilityCountsState {
       {required final int assigned,
       required final int pendingApproval,
       required final int resubmission,
-      required final int approved}) = _$LoadedImpl;
+      required final int approved,
+      required final int pendingSync}) = _$LoadedImpl;
 
   int get assigned;
   int get pendingApproval;
   int get resubmission;
   int get approved;
+  int get pendingSync;
   @JsonKey(ignore: true)
   _$$LoadedImplCopyWith<_$LoadedImpl> get copyWith =>
       throw _privateConstructorUsedError;

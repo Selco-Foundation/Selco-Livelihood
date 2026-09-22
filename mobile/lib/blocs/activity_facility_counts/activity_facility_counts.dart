@@ -88,6 +88,7 @@ class ActivityFacilityCountsBloc
       pendingApproval: results[1] + localPendingCount,
       resubmission: results[2],
       approved: results[3],
+      pendingSync: local.length,
     ));
   }
 }
@@ -110,5 +111,6 @@ class ActivityFacilityCountsState with _$ActivityFacilityCountsState {
     required int pendingApproval,
     required int resubmission,
     required int approved,
+    required int pendingSync,
   }) = _Loaded;
 }

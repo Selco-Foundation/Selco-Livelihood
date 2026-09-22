@@ -92,7 +92,8 @@ class HomePage extends StatelessWidget {
                         HomeItemCard(
                           key: const ValueKey('assigned-report-card'),
                           count: counts.maybeWhen(
-                            loaded: (assigned, _, __, ___) => '$assigned',
+                            loaded: (assigned, _, __, ___, ____) =>
+                                '$assigned',
                             orElse: () => '—',
                           ),
                           label: context.translate(i18.home.assigned),
@@ -102,7 +103,7 @@ class HomePage extends StatelessWidget {
                         HomeItemCard(
                           key: const ValueKey('pending-approval-report-card'),
                           count: counts.maybeWhen(
-                            loaded: (_, pendingApproval, __, ___) =>
+                            loaded: (_, pendingApproval, __, ___, ____) =>
                                 '$pendingApproval',
                             orElse: () => '—',
                           ),
@@ -113,7 +114,8 @@ class HomePage extends StatelessWidget {
                         HomeItemCard(
                           key: const ValueKey('approved-report-card'),
                           count: counts.maybeWhen(
-                            loaded: (_, __, ___, approved) => '$approved',
+                            loaded: (_, __, ___, approved, ____) =>
+                                '$approved',
                             orElse: () => '—',
                           ),
                           label: context.translate(i18.home.approved),
@@ -124,7 +126,7 @@ class HomePage extends StatelessWidget {
                         HomeItemCard(
                           key: const ValueKey('resubmission-report-card'),
                           count: counts.maybeWhen(
-                            loaded: (_, __, resubmission, ___) =>
+                            loaded: (_, __, resubmission, ___, ____) =>
                                 '$resubmission',
                             orElse: () => '—',
                           ),
@@ -145,8 +147,16 @@ class HomePage extends StatelessWidget {
                       child: InfoCard(
                         key: const ValueKey('sync-warning-card'),
                         title: context.translate(i18.home.syncPendingWarning),
-                        description:
-                            context.translate(i18.home.pendingSyncDescription),
+                        description: context
+                            .translate(i18.home.pendingSyncDescription)
+                            .replaceAll(
+                              '{count}',
+                              '${counts.maybeWhen(
+                                loaded: (_, __, ___, ____, pendingSync) =>
+                                    pendingSync,
+                                orElse: () => 0,
+                              )}',
+                            ),
                         type: InfoType.warning,
                         capitalizedLetter: false,
                       ),
