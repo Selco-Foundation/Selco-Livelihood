@@ -358,6 +358,7 @@ export function CreateInstallationPlanPage() {
           planId={planId}
           planCode={existingPlan?.name}
           scope={scope}
+          projectGeography={project?.additionalDetails?.geographyDetails ?? {}}
           value={templates}
           onChange={setTemplates}
           onBusyChange={setTemplateBusy}
