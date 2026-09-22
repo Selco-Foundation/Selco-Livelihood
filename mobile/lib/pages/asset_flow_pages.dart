@@ -333,6 +333,14 @@ class AddNewAssetPage extends StatefulWidget {
 }
 
 class _AddNewAssetPageState extends State<AddNewAssetPage> {
+  // Ids freed by removing a unit's supportingPhoto, banked per index so a
+  // *later, separate* pick (remove and add are two distinct taps here,
+  // since the remove button is always shown) can still reuse them — the
+  // id lives inside the nullable SolarFileRef, so clearing the photo on
+  // removal would otherwise discard it before a replacement pick ever sees
+  // it, sending the replacement out as a fresh insert instead of an update.
+  final Map<int, String> _freedSupportingPhotoIds = {};
+
   @override
   void initState() {
     super.initState();
@@ -513,23 +521,38 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
                         pickMedia: widget.pickMedia,
                         onImagesSelected: (files) async {
                           final file = files.isEmpty ? null : files.last;
-                          final previousId =
+                          final existingId =
                               indexed.value.supportingPhoto?.id;
-                          final persisted = file == null
-                              ? null
-                              : await installationCacheRepository
-                                  .persistMediaRef(
-                                  commitDocumentMetadata(
-                                    context,
-                                    previousId?.trim().isNotEmpty == true
-                                        ? file.copyWith(id: previousId)
-                                        : file,
-                                    documentType: 'ASSET',
-                                    uidPrefix:
-                                        'DOC-${widget.assetType.name.toUpperCase()}-IMAGE',
-                                  ),
-                                  '${widget.draft.cacheKey}-${widget.assetType.name}-${indexed.key}-support',
-                                );
+                          if (file == null) {
+                            if (existingId?.trim().isNotEmpty == true) {
+                              _freedSupportingPhotoIds[indexed.key] =
+                                  existingId!;
+                            }
+                            if (!mounted) return;
+                            setState(
+                                () => indexed.value.supportingPhoto = null);
+                            await installationDraftRepository
+                                .saveSolar(widget.draft);
+                            return;
+                          }
+                          final previousId =
+                              existingId?.trim().isNotEmpty == true
+                                  ? existingId
+                                  : _freedSupportingPhotoIds
+                                      .remove(indexed.key);
+                          final persisted = await installationCacheRepository
+                              .persistMediaRef(
+                            commitDocumentMetadata(
+                              context,
+                              previousId?.trim().isNotEmpty == true
+                                  ? file.copyWith(id: previousId)
+                                  : file,
+                              documentType: 'ASSET',
+                              uidPrefix:
+                                  'DOC-${widget.assetType.name.toUpperCase()}-IMAGE',
+                            ),
+                            '${widget.draft.cacheKey}-${widget.assetType.name}-${indexed.key}-support',
+                          );
                           if (!mounted) return;
                           setState(
                               () => indexed.value.supportingPhoto = persisted);
