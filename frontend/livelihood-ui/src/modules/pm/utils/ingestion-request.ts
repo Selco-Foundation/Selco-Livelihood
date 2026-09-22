@@ -1,4 +1,5 @@
 import { apiClient } from "@/shared";
+import { pickErrorMessage } from "@/shared/api/errors";
 import { createRequestInfo } from "@/shared/api/request-info";
 import { tenantId as resolveTenantId } from "@/shared/config/global-config";
 import { getViteEnv } from "@/shared/env";
@@ -21,10 +22,40 @@ export interface BlobUploadResult {
  * Every ingestion-service backend client that calls through the gateway (`filestore_client.py`,
  * `localization_service_client.py`) authenticates with an `auth-token` header instead, and the
  * legacy `installation-ui` app's `CustomRequest` did the same for these exact multipart endpoints
- * via its `attachAuthHeaders` flag — so `includeAuthHeaders` (on by default here, since every
- * caller of this helper is one of those multipart endpoints) mirrors that: it sends the token and
- * tenant as real headers so the gateway can find them regardless of body shape.
+ * via its `attachAuthHeaders` flag. So the token and tenant go out as real headers here, letting
+ * the gateway find them regardless of body shape — unconditionally, because *every* multipart
+ * upload in this module needs them. (`createSolutionTemplate` used to build its own FormData and
+ * omit them; it now routes through here too.)
  */
+async function postMultipart<T>(
+  url: string,
+  fields: Record<string, string>,
+  file: File,
+  fileFieldName: string,
+  accessToken: string,
+  user: AuthUser | null | undefined,
+  responseType: "blob" | "json",
+  timeoutMs: number,
+) {
+  const formData = new FormData();
+  formData.append(fileFieldName, file, file.name);
+  for (const [key, value] of Object.entries(fields)) {
+    formData.append(key, value);
+  }
+  formData.append("request_info", JSON.stringify(createRequestInfo(accessToken, user)));
+
+  return apiClient.post<T>(url, formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+      Authorization: `Bearer ${accessToken}`,
+      "auth-token": accessToken,
+      tenantId: resolveTenantId(getViteEnv("VITE_STATE_LEVEL_TENANT_ID")),
+    },
+    responseType,
+    timeout: timeoutMs,
+  });
+}
+
 export async function postMultipartExpectingBlob(
   url: string,
   fields: Record<string, string>,
@@ -33,33 +64,75 @@ export async function postMultipartExpectingBlob(
   accessToken: string,
   user: AuthUser | null | undefined,
   timeoutMs = 60_000,
-  includeAuthHeaders = true,
 ): Promise<BlobUploadResult> {
-  const formData = new FormData();
-  formData.append(fileFieldName, file, file.name);
-  for (const [key, value] of Object.entries(fields)) {
-    formData.append(key, value);
-  }
-  formData.append("request_info", JSON.stringify(createRequestInfo(accessToken, user)));
-
-  const headers: Record<string, string> = {
-    "Content-Type": "multipart/form-data",
-    Authorization: `Bearer ${accessToken}`,
-  };
-  if (includeAuthHeaders) {
-    headers["auth-token"] = accessToken;
-    headers["tenantId"] = resolveTenantId(getViteEnv("VITE_STATE_LEVEL_TENANT_ID"));
-  }
-
-  const response = await apiClient.post(url, formData, {
-    headers,
-    responseType: "blob",
-    timeout: timeoutMs,
-  });
+  const response = await postMultipart<Blob>(
+    url,
+    fields,
+    file,
+    fileFieldName,
+    accessToken,
+    user,
+    "blob",
+    timeoutMs,
+  );
 
   // axios lowercases response header names regardless of what the server sent
   const errorCount = Number(response.headers["x-error-count"] ?? 0);
-  return { blob: response.data as Blob, errorCount };
+  return { blob: response.data, errorCount };
+}
+
+/** Same upload, same headers, for the one ingestion-service endpoint that answers with JSON
+ *  rather than an annotated workbook (`createInstallationTemplate`). */
+export async function postMultipartExpectingJson<T>(
+  url: string,
+  fields: Record<string, string>,
+  file: File,
+  fileFieldName: string,
+  accessToken: string,
+  user: AuthUser | null | undefined,
+  timeoutMs = 60_000,
+): Promise<T> {
+  const response = await postMultipart<T>(
+    url,
+    fields,
+    file,
+    fileFieldName,
+    accessToken,
+    user,
+    "json",
+    timeoutMs,
+  );
+  return response.data;
+}
+
+/**
+ * POSTs a JSON body to one of ingestion-service's template-download endpoints and reads back the
+ * generated workbook.
+ *
+ * The try/catch is the point of this helper. Because `responseType` is `"blob"`, axios hands a
+ * failed request's JSON error body back as a `Blob`, so the raw axios error's `.message` is only
+ * ever the generic "Request failed with status code 400" — the server's actual explanation is
+ * sitting unread inside the blob. Callers surface `error.message` directly, so without this every
+ * template download reported that generic string no matter what really went wrong.
+ */
+export async function postJsonExpectingBlob(
+  url: string,
+  body: Record<string, unknown>,
+  filename: string,
+  accessToken: string | undefined,
+  user: AuthUser | null | undefined,
+): Promise<{ blob: Blob; filename: string }> {
+  try {
+    const response = await apiClient.post(
+      url,
+      { RequestInfo: createRequestInfo(accessToken, user), ...body },
+      { responseType: "blob" },
+    );
+    return { blob: response.data as Blob, filename };
+  } catch (error) {
+    const message = await extractBlobApiErrorMessage(error);
+    throw message ? new Error(message) : error;
+  }
 }
 
 /**
@@ -74,22 +147,9 @@ export async function extractBlobApiErrorMessage(error: unknown): Promise<string
 
   if (typeof Blob !== "undefined" && data instanceof Blob) {
     try {
-      const text = await data.text();
-      const parsed = JSON.parse(text) as {
-        Errors?: Array<{ message?: string }>;
-        error?: { message?: string; fields?: Array<{ message?: string }> };
-        // FastAPI's own convention for a plain HTTPException(detail=...) — ingestion-service's
-        // "wrong Solution uploaded" check and similar hard validation failures use this shape
-        // rather than the DIGIT-style Errors[]/error.* ones above, so it was silently falling
-        // through to a generic message instead of this genuinely useful one.
-        detail?: string;
-      };
-      return (
-        (Array.isArray(parsed.Errors) ? parsed.Errors[0]?.message : undefined) ??
-        (Array.isArray(parsed.error?.fields) ? parsed.error?.fields[0]?.message : undefined) ??
-        parsed.error?.message ??
-        parsed.detail
-      );
+      // Same precedence as any other API error — only the parsing differs, so the chain itself
+      // lives once in shared/api/errors.ts.
+      return pickErrorMessage(JSON.parse(await data.text()));
     } catch {
       return undefined;
     }

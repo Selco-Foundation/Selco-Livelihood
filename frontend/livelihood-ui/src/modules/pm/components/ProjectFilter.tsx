@@ -42,7 +42,10 @@ export function ProjectFilter({ value, onChange, searchSlot }: ProjectFilterProp
     ],
     [hierarchy?.states, t],
   );
-  const activeCategory = categories.find((item) => item.key === category)!;
+  // Falls back to the first category rather than asserting non-null: `categories` is always
+  // non-empty, so this can't be undefined, and a bad `category` degrades to showing State
+  // instead of throwing on `.options` below.
+  const activeCategory = categories.find((item) => item.key === category) ?? categories[0];
   const selectedCodes = category === "state" ? value.stateCodes : value.statuses;
   const visibleOptions = activeCategory.options
     .filter((option) => option.name.toLowerCase().includes(search.trim().toLowerCase()))
@@ -76,7 +79,7 @@ export function ProjectFilter({ value, onChange, searchSlot }: ProjectFilterProp
               className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border border-primary px-3 text-sm font-semibold text-primary"
             >
               <Filter className="size-4" />
-              {translateOr(t, "ES_IM_FILTERS", "Filters")}
+              {translateOr(t, "ES_PM_FILTERS", "Filters")}
               <Separator orientation="vertical" className="h-4" />
               <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} />
             </button>
@@ -138,7 +141,7 @@ export function ProjectFilter({ value, onChange, searchSlot }: ProjectFilterProp
               hasActiveFilters ? "cursor-pointer text-foreground hover:text-primary" : "cursor-default text-muted-foreground/50",
             )}
           >
-            {translateOr(t, "ES_IM_CLEAR_ALL_FILTERS", "clear all filters")}
+            {translateOr(t, "ES_PM_CLEAR_ALL_FILTERS", "clear all filters")}
           </button>
         </div>
       </div>

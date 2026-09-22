@@ -1,10 +1,11 @@
 import { translateOr, useTranslate } from "@/shared";
 import { Button } from "@/ui";
-import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Upload } from "lucide-react";
+import { CheckCircle2, Download, FileSpreadsheet, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 import { useInstallationSolutions } from "../../hooks/use-installation-solutions";
 import { useSolutionTemplateUpload } from "../../hooks/use-solution-template-upload";
 import type { InstallationPlanTemplateEntry, InstallationPlanScopeEntry } from "../../types/installation-plan";
+import { IngestionStatusBlocks } from "../IngestionStatusBlocks";
 import { StepSectionCard } from "../StepSectionCard";
 
 export type TemplateValue = InstallationPlanTemplateEntry[];
@@ -47,8 +48,8 @@ function SolutionTemplateCard({
     uploadAndValidate,
     downloadErrorReport,
     createTemplate,
+    isBusy,
   } = useSolutionTemplateUpload(planId, solutionCode);
-  const isBusy = status === "downloading" || status === "validating" || status === "uploading";
   const processedFileRef = useRef<typeof validatedFile>(null);
 
   useEffect(() => {
@@ -134,25 +135,13 @@ function SolutionTemplateCard({
               event.target.value = "";
             }}
           />
-          {status === "invalid" ? (
-            <div className="w-full space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-left">
-              <p className="text-xs font-medium text-destructive">
-                {translateOr(t, "ES_PM_VALIDATION_ERRORS", "Found errors in the uploaded file")}: {errorCount}
-              </p>
-              <Button type="button" variant="outline" size="sm" onClick={downloadErrorReport}>
-                <Download className="size-4" />
-                {translateOr(t, "ES_PM_DOWNLOAD_ERROR_REPORT", "Download Error Report")}
-              </Button>
-            </div>
-          ) : null}
-          {status === "error" ? (
-            <div className="flex w-full items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-left">
-              <AlertTriangle className="size-4 shrink-0 text-destructive" />
-              <p className="text-xs font-medium text-destructive">
-                {errorMessage ?? translateOr(t, "ES_PM_ACTION_FAILED", "Something went wrong. Please try again.")}
-              </p>
-            </div>
-          ) : null}
+          <IngestionStatusBlocks
+            compact
+            status={status}
+            errorCount={errorCount}
+            errorMessage={errorMessage}
+            onDownloadErrorReport={downloadErrorReport}
+          />
         </div>
       </div>
     </div>

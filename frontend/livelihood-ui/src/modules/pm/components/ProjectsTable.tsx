@@ -2,17 +2,13 @@ import { translateOr, useTranslate } from "@/shared";
 import { Skeleton } from "@/ui";
 import { Link } from "@tanstack/react-router";
 import type { ProjectStatusWrapper } from "../types/project";
+import { formatDate } from "../utils/format-date";
 import { resolveStateNames } from "../utils/geography";
 import { pmCreateProjectPath, pmProjectDetailsPath } from "../utils/paths";
 
 interface ProjectsTableProps {
   projects: ProjectStatusWrapper[];
   isLoading: boolean;
-}
-
-function formatDate(value?: number) {
-  if (!value) return "-";
-  return new Date(value).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 const STATE_SUMMARY_MAX_CHARS = 20;

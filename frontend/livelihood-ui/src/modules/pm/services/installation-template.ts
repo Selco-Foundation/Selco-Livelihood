@@ -1,8 +1,13 @@
-import { apiClient, extractApiErrorMessage } from "@/shared";
-import { createRequestInfo } from "@/shared/api/request-info";
+import { extractApiErrorMessage } from "@/shared";
 import type { AuthUser } from "@/shared/stores/auth-store";
-import { extractBlobApiErrorMessage, postMultipartExpectingBlob } from "../utils/ingestion-request";
+import {
+  extractBlobApiErrorMessage,
+  postJsonExpectingBlob,
+  postMultipartExpectingBlob,
+  postMultipartExpectingJson,
+} from "../utils/ingestion-request";
 import type { DownloadedFile } from "../utils/file-download";
+import { BULK_PAGE_SIZE, postSearch } from "../utils/url-params";
 
 export class InstallationTemplateApiError extends Error {}
 
@@ -22,17 +27,13 @@ export async function downloadSolutionTemplate(
   accessToken: string,
   user?: AuthUser | null,
 ): Promise<DownloadedFile> {
-  const response = await apiClient.post(
+  return postJsonExpectingBlob(
     "/ingestion-service/template/installationTemplate",
-    {
-      RequestInfo: createRequestInfo(accessToken, user),
-      fieldplan_id: planId,
-      solution_code: solutionCode,
-    },
-    { responseType: "blob" },
+    { fieldplan_id: planId, solution_code: solutionCode },
+    `installation-template-${solutionCode}-${planId}.xlsx`,
+    accessToken,
+    user,
   );
-
-  return { blob: response.data as Blob, filename: `installation-template-${solutionCode}-${planId}.xlsx` };
 }
 
 /**
@@ -85,20 +86,18 @@ export async function createSolutionTemplate(
   accessToken: string,
   user?: AuthUser | null,
 ): Promise<boolean> {
-  const formData = new FormData();
   const file = new File([validatedFile.blob], validatedFile.filename, {
     type: validatedFile.blob.type || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
-  formData.append("template_file", file, file.name);
-  formData.append("fieldplan_id", planId);
-  formData.append("solution_code", solutionCode);
-  formData.append("request_info", JSON.stringify(createRequestInfo(accessToken, user)));
 
   try {
-    const { data } = await apiClient.post<CreateInstallationTemplateResponse>(
+    const data = await postMultipartExpectingJson<CreateInstallationTemplateResponse>(
       "/ingestion-service/ingest/createInstallationTemplate",
-      formData,
-      { headers: { "Content-Type": "multipart/form-data", Authorization: `Bearer ${accessToken}` } },
+      { fieldplan_id: planId, solution_code: solutionCode },
+      file,
+      "template_file",
+      accessToken,
+      user,
     );
     return Boolean(data.message);
   } catch (error) {
@@ -120,12 +119,11 @@ export async function searchFieldPlanTemplateSolutionIds(
   accessToken?: string,
   user?: AuthUser | null,
 ): Promise<Set<string>> {
-  const { data } = await apiClient.post<{ FieldPlanTemplates?: Array<{ solutionId?: string }> }>(
+  const data = await postSearch<{ FieldPlanTemplates?: Array<{ solutionId?: string }> }>(
     "/field-planner/v1/field-plan-templates/_search",
-    {
-      RequestInfo: createRequestInfo(accessToken, user),
-      FieldPlanTemplate: { tenantId: user?.tenantId, fieldPlanId: planId },
-    },
+    "FieldPlanTemplate",
+    { tenantId: user?.tenantId, fieldPlanId: planId },
+    { accessToken, user, limit: BULK_PAGE_SIZE },
   );
 
   return new Set((data.FieldPlanTemplates ?? []).map((template) => template.solutionId).filter(Boolean) as string[]);

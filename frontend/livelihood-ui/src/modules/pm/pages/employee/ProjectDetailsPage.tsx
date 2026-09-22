@@ -6,13 +6,9 @@ import { InstallationPlansTable } from "../../components/InstallationPlansTable"
 import { useInstallationPlansSearch } from "../../hooks/use-installation-plans-search";
 import { useProjectById } from "../../hooks/use-project-by-id";
 import type { ProjectDetailsRouteSearch } from "../../routes";
+import { formatDate } from "../../utils/format-date";
 import { resolveStateNames } from "../../utils/geography";
 import { pmCreateInstallationPlanPath, pmMyProjectsPath } from "../../utils/paths";
-
-function formatDate(value?: number) {
-  if (!value) return "-";
-  return new Date(value).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-}
 
 export function ProjectDetailsPage() {
   const { t } = useTranslate();

@@ -4,6 +4,7 @@ import { useJurisdictionStore } from "@/shared/stores/jurisdiction-store";
 import { aggregateBoundaryCodes } from "@/shared/utils/boundary-util";
 import { useQuery } from "@tanstack/react-query";
 import type { BoundaryHierarchy } from "../constants/boundary-data";
+import { pmKeys } from "./query-keys";
 
 /**
  * Real `/boundary-service` call, seeded from the logged-in employee's own jurisdiction (the same
@@ -21,7 +22,7 @@ export function useBoundaryTree() {
   const stableCodes = [...codes].sort().join(",");
 
   return useQuery<BoundaryHierarchy>({
-    queryKey: ["pm-boundary-tree", stableCodes],
+    queryKey: pmKeys.boundaryTree(stableCodes),
     enabled: Boolean(accessToken) && codes.length > 0,
     queryFn: async () => {
       const raw = await fetchBoundaryRelations(codes, accessToken!, user);

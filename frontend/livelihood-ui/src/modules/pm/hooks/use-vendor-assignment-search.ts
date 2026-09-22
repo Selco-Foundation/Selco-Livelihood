@@ -1,6 +1,7 @@
 import { useAuthStore } from "@/shared";
 import { useQuery } from "@tanstack/react-query";
 import { searchVendorAssignment } from "../services/vendor-assignment";
+import { pmKeys } from "./query-keys";
 
 /** `enabled` defaults to true for the Technician Assignment step's own render-time use; the
  *  wizard page passes `currentStep === 4` so this doesn't fire from earlier steps just to
@@ -11,7 +12,7 @@ export function useVendorAssignmentSearch(fieldPlanId: string | undefined, enabl
   const user = useAuthStore((state) => state.user);
 
   return useQuery({
-    queryKey: ["pm-vendor-assignment", fieldPlanId],
+    queryKey: pmKeys.planVendorAssignment(fieldPlanId),
     enabled: Boolean(fieldPlanId && accessToken && enabled),
     queryFn: () => searchVendorAssignment(fieldPlanId!, accessToken!, user),
   });

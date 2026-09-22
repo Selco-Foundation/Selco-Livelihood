@@ -1,91 +1,39 @@
 import { useAuthStore } from "@/shared";
-import { useState } from "react";
 import {
   createSolutionTemplate,
   downloadSolutionTemplate,
   validateSolutionTemplate,
 } from "../services/installation-template";
-import { triggerBrowserDownload, type DownloadedFile } from "../utils/file-download";
+import { useExcelRoundTrip } from "./use-excel-round-trip";
 
-type UploadStatus = "idle" | "downloading" | "validating" | "invalid" | "uploading" | "done" | "error";
-
-/** Per-solution download/validate/create state machine for the Template
- *  step — mirrors `use-facility-ingestion.ts`'s shape, but keyed by solution
- *  code instead of a single project-wide file. */
+/**
+ * Per-solution download/validate/create for the Template step.
+ *
+ * Unlike the other two round-trips this one is two-phase (`autoCreate: false`): validation stops at
+ * a validated file, and creation happens on an explicit call. `createTemplate` reads that file from
+ * this render's closure, so callers must invoke it from an effect keyed on the returned
+ * `validatedFile` identity — not chained straight off `uploadAndValidate`'s promise, which would
+ * capture a stale closure where it was still null.
+ */
 export function useSolutionTemplateUpload(planId: string | undefined, solutionCode: string) {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
-  const [status, setStatus] = useState<UploadStatus>("idle");
-  const [errorCount, setErrorCount] = useState(0);
-  const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
-  const [validatedFile, setValidatedFile] = useState<DownloadedFile | null>(null);
-  const [errorReportFile, setErrorReportFile] = useState<DownloadedFile | null>(null);
+  const ready = Boolean(planId && accessToken);
 
-  async function downloadTemplate() {
-    if (!planId || !accessToken) return;
-    setStatus("downloading");
-    try {
-      const file = await downloadSolutionTemplate(planId, solutionCode, accessToken, user);
-      triggerBrowserDownload(file);
-      setStatus("idle");
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to download the template");
-      setStatus("error");
-    }
-  }
+  const roundTrip = useExcelRoundTrip<boolean>({
+    autoCreate: false,
+    download: ready ? () => downloadSolutionTemplate(planId!, solutionCode, accessToken!, user) : null,
+    validate: ready ? (file) => validateSolutionTemplate(file, planId!, solutionCode, accessToken!, user) : null,
+    create: ready ? (validated) => createSolutionTemplate(planId!, solutionCode, validated, accessToken!, user) : null,
+    messages: {
+      downloadFailed: "Failed to download the template",
+      uploadFailed: "IC report template validation failed",
+      createFailed: "IC report template creation failed",
+    },
+  });
 
-  async function uploadAndValidate(file: File) {
-    if (!planId || !accessToken) return;
-    setStatus("validating");
-    setErrorReportFile(null);
-    try {
-      const result = await validateSolutionTemplate(file, planId, solutionCode, accessToken, user);
-      setErrorCount(result.errorCount);
-      if (result.errorCount > 0) {
-        setValidatedFile(null);
-        setErrorReportFile(result.file);
-        setStatus("invalid");
-        return;
-      }
-      // A fresh object reference every time — TemplateStep's effect refires on this identity.
-      setValidatedFile(result.file);
-      setStatus("idle");
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "IC report template validation failed");
-      setStatus("error");
-    }
-  }
-
-  function downloadErrorReport() {
-    if (errorReportFile) triggerBrowserDownload(errorReportFile);
-  }
-
-  async function createTemplate(): Promise<boolean> {
-    if (!planId || !validatedFile || !accessToken) return false;
-    setStatus("uploading");
-    try {
-      const created = await createSolutionTemplate(planId, solutionCode, validatedFile, accessToken, user);
-      setStatus(created ? "done" : "error");
-      return created;
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "IC report template creation failed");
-      setStatus("error");
-      return false;
-    }
-  }
-
-  // `createTemplate` reads `validatedFile` from this render's closure —
-  // callers must invoke it from an effect keyed on this hook's `validatedFile`
-  // return value (not chained straight off `uploadAndValidate`'s promise),
-  // or they'll capture a stale closure where `validatedFile` is still null.
   return {
-    status,
-    errorCount,
-    errorMessage,
-    validatedFile,
-    downloadTemplate,
-    uploadAndValidate,
-    downloadErrorReport,
-    createTemplate,
+    ...roundTrip,
+    createTemplate: async () => (await roundTrip.createFromValidated()) ?? false,
   };
 }

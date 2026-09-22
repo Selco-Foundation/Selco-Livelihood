@@ -51,7 +51,11 @@ export interface Project {
   tenantId: string;
   projectNumber?: string;
   name?: string;
-  projectType: string;
+  /** Read-only here. The wizard doesn't collect it — `project`'s create validation never requires
+   *  it, and its MDMS value check is skipped when blank — but `_search` still returns it for
+   *  projects created before the field was dropped, and `_update` preserves whatever the row
+   *  already had. */
+  projectType?: string;
   projectSubType?: string;
   department?: string;
   description?: string;

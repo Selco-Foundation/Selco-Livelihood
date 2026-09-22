@@ -2,6 +2,7 @@ import { useAuthStore } from "@/shared";
 import { useQuery } from "@tanstack/react-query";
 import { searchFieldPlanTemplateSolutionIds } from "../services/installation-template";
 import type { InstallationPlanTemplateEntry } from "../types/installation-plan";
+import { pmKeys } from "./query-keys";
 
 /** Which of the plan's solutions already have a saved IC report template — not part of
  *  `useInstallationPlanById`'s own response, since `field_plan_template` rows live outside
@@ -11,7 +12,7 @@ export function useInstallationPlanTemplates(fieldPlanId: string | undefined) {
   const user = useAuthStore((state) => state.user);
 
   return useQuery<InstallationPlanTemplateEntry[]>({
-    queryKey: ["pm-installation-plan-templates", fieldPlanId],
+    queryKey: pmKeys.planTemplates(fieldPlanId),
     enabled: Boolean(fieldPlanId && accessToken),
     queryFn: async () => {
       const solutionIds = await searchFieldPlanTemplateSolutionIds(fieldPlanId!, accessToken!, user);

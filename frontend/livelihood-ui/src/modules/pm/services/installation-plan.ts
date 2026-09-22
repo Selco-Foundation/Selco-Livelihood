@@ -8,6 +8,7 @@ import type {
   InstallationPlanSearchResult,
 } from "../types/installation-plan";
 import { resolveStates } from "../utils/geography";
+import { postSearch } from "../utils/url-params";
 
 const INSTALLATION_ACTIVITY_CODE = "INS";
 const INSTALLATION_REVIEWER_ROLE = "INSTALLATION_REPORT_APPROVER_QC_TEAM";
@@ -173,17 +174,11 @@ export async function searchAssignedReviewer(
   accessToken?: string,
   user?: AuthUser | null,
 ): Promise<string | undefined> {
-  const { data } = await apiClient.post<{ ActivityAssignment?: Array<{ assignedTo?: string; isDeleted?: boolean }> }>(
+  const data = await postSearch<{ ActivityAssignment?: Array<{ assignedTo?: string; isDeleted?: boolean }> }>(
     "/activity/v1/activities/assignment/_search",
-    {
-      RequestInfo: createRequestInfo(accessToken, user),
-      ActivityAssignment: {
-        fieldPlanIds: [fieldPlanId],
-        roles: [INSTALLATION_REVIEWER_ROLE],
-        tenantId: user?.tenantId,
-      },
-    },
-    { params: { tenantId: user?.tenantId, limit: 10, offset: 0 } },
+    "ActivityAssignment",
+    { fieldPlanIds: [fieldPlanId], roles: [INSTALLATION_REVIEWER_ROLE], tenantId: user?.tenantId },
+    { accessToken, user },
   );
 
   return data.ActivityAssignment?.find((assignment) => !assignment.isDeleted && assignment.assignedTo)?.assignedTo;
@@ -239,17 +234,15 @@ export async function searchInstallationPlans(
   accessToken?: string,
   user?: AuthUser | null,
 ): Promise<InstallationPlanSearchResult> {
-  const { data } = await apiClient.post<{ FieldPlans?: RawFieldPlan[]; TotalCount?: number }>(
+  const data = await postSearch<{ FieldPlans?: RawFieldPlan[]; TotalCount?: number }>(
     "/field-planner/v1/field-plans/_search",
+    "FieldPlans",
     {
-      RequestInfo: createRequestInfo(accessToken, user),
-      FieldPlans: {
-        tenantId: user?.tenantId,
-        ...(criteria?.id?.length ? { ids: criteria.id } : {}),
-        ...(criteria?.projectId ? { projectIds: [criteria.projectId] } : {}),
-      },
+      tenantId: user?.tenantId,
+      ...(criteria?.id?.length ? { ids: criteria.id } : {}),
+      ...(criteria?.projectId ? { projectIds: [criteria.projectId] } : {}),
     },
-    { params: { tenantId: user?.tenantId, limit, offset } },
+    { accessToken, user, limit, offset },
   );
 
   const plans = (data.FieldPlans ?? []).map(toInstallationPlan);
@@ -293,10 +286,16 @@ export async function publishInstallationPlan(
     { timeout: 20_000 },
   );
 
+  // Publishing can't be undone, so the response is checked rather than defaulted. `planStatus`
+  // is a real top-level field on VendorAssignmentCreateResponse (confirmed against the service's
+  // own model), so its absence means the call did not do what this function claims — defaulting
+  // it to "PUBLISHED" would report success to the PM on the one action they can't take back.
+  if (!data.planStatus) throw new Error("INSTALLATION_PLAN_PUBLISH_UNCONFIRMED");
+
   return {
     id: data.fieldPlanId ?? planId,
     tenantId: user?.tenantId ?? "",
     projectId: "",
-    additionalDetails: { status: data.planStatus ?? "PUBLISHED" },
+    additionalDetails: { status: data.planStatus },
   };
 }

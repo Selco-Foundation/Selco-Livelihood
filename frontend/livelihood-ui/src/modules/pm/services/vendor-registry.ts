@@ -1,6 +1,5 @@
-import { apiClient } from "@/shared";
-import { createRequestInfo } from "@/shared/api/request-info";
 import type { AuthUser } from "@/shared/stores/auth-store";
+import { BULK_PAGE_SIZE, postSearch } from "../utils/url-params";
 
 const INSTALLATION_VENDOR_SUB_TYPE = "INSTALLATION_VENDOR";
 const ACTIVE_ORG_STATUS = "ACTIVE";
@@ -40,10 +39,11 @@ export async function searchVendorOrganisations(
   accessToken: string,
   user?: AuthUser | null,
 ): Promise<VendorOrganisation[]> {
-  const { data } = await apiClient.post<{ organisations?: RawOrganisation[] }>(
+  const data = await postSearch<{ organisations?: RawOrganisation[] }>(
     "/vendor/organisation/v1/_search",
-    { RequestInfo: createRequestInfo(accessToken, user), SearchCriteria: { tenantId } },
-    { params: { tenantId } },
+    "SearchCriteria",
+    { tenantId },
+    { accessToken, user, limit: BULK_PAGE_SIZE },
   );
 
   return (data.organisations ?? [])
@@ -63,13 +63,11 @@ export async function searchVendorOrgUsers(
   accessToken: string,
   user?: AuthUser | null,
 ): Promise<VendorOrgUser[]> {
-  const { data } = await apiClient.post<{ OrgUsers?: RawOrgUser[] }>(
+  const data = await postSearch<{ OrgUsers?: RawOrgUser[] }>(
     "/vendor/organisation/v1/user/_search",
-    {
-      RequestInfo: createRequestInfo(accessToken, user),
-      OrgUser: { tenantId, organizationIds: [organizationId] },
-    },
-    { params: { tenantId, limit: 100, offset: 0 } },
+    "OrgUser",
+    { tenantId, organizationIds: [organizationId] },
+    { accessToken, user, limit: BULK_PAGE_SIZE },
   );
 
   return (data.OrgUsers ?? [])

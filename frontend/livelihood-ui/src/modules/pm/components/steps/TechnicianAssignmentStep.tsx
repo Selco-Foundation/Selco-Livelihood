@@ -1,6 +1,7 @@
 import { translateOr, useTranslate } from "@/shared";
 import { Input } from "@/ui";
 import { Users } from "lucide-react";
+import { useMemo } from "react";
 import { useVendorAssignmentSearch } from "../../hooks/use-vendor-assignment-search";
 import { useVendorOrganisations } from "../../hooks/use-vendor-organisations";
 import { useVendorOrgUsers } from "../../hooks/use-vendor-org-users";
@@ -28,6 +29,30 @@ export function toRows(sites: VendorAssignmentSite[]): TechnicianAssignmentRow[]
       componentSequence: asset.componentSequence,
       assetName: asset.assetName ?? asset.componentType,
     })),
+  );
+}
+
+/**
+ * Flattens already-saved vendor selections out of a `vendor-assignment/_search` response.
+ * Each asset carries the vendor it was assigned to, so a plan's saved assignments can be read
+ * back from the same search that builds the rows — they are *not* on the FieldPlan's own
+ * `additionalDetails`, which never echoes them back. Assets with no vendor yet are skipped so
+ * a half-filled plan doesn't hydrate blank rows over the PM's in-session edits.
+ */
+export function toSavedAssignments(sites: VendorAssignmentSite[]): InstallationPlanAssignmentEntry[] {
+  return sites.flatMap((site) =>
+    site.assets
+      .filter((asset) => asset.vendorOrgId || asset.vendorUserId)
+      .map((asset) => ({
+        facilityId: site.facilityId,
+        componentType: asset.componentType,
+        componentSequence: asset.componentSequence,
+        vendorOrgId: asset.vendorOrgId,
+        vendorOrgName: asset.vendorOrgName,
+        vendorUserId: asset.vendorUserId,
+        vendorUserName: asset.vendorUserName,
+        vendorEmail: asset.vendorEmail,
+      })),
   );
 }
 
@@ -87,7 +112,14 @@ export function TechnicianAssignmentStep({ planId, planCode, value, onChange, lo
   const { t } = useTranslate();
   const { data: searchResult } = useVendorAssignmentSearch(planId);
   const { data: organisations = [] } = useVendorOrganisations();
-  const rows = toRows(searchResult?.sites ?? []);
+  const rows = useMemo(() => toRows(searchResult?.sites ?? []), [searchResult]);
+  // Pre-counted once per render instead of a rows.filter() inside the map below, which made
+  // rendering the table O(n^2) in the number of assets.
+  const assetCountByFacilityId = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const row of rows) counts.set(row.facilityId, (counts.get(row.facilityId) ?? 0) + 1);
+    return counts;
+  }, [rows]);
 
   function findAssignment(row: TechnicianAssignmentRow) {
     return value.find(
@@ -178,7 +210,7 @@ export function TechnicianAssignmentStep({ planId, planCode, value, onChange, lo
                 const assignment = findAssignment(row);
                 const previousRow = rows[index - 1];
                 const startsSiteGroup = previousRow?.facilityId !== row.facilityId;
-                const siteAssetCount = rows.filter((item) => item.facilityId === row.facilityId).length;
+                const siteAssetCount = assetCountByFacilityId.get(row.facilityId) ?? 1;
 
                 return (
                   <tr key={`${row.facilityId}-${row.componentType}-${row.componentSequence}`} className="border-b border-border/70">

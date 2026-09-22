@@ -2,6 +2,7 @@ import { useAuthStore } from "@/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createInstallationPlan, updateInstallationPlan } from "../services/installation-plan";
 import type { InstallationPlan } from "../types/installation-plan";
+import { pmKeys } from "./query-keys";
 
 /** Creates a new installation plan, or updates an existing one when
  *  `plan.id` is already set (e.g. resuming the wizard at a later step). */
@@ -16,7 +17,7 @@ export function useSaveInstallationPlan() {
         ? updateInstallationPlan(plan, accessToken ?? undefined, user)
         : createInstallationPlan(plan, accessToken ?? undefined, user),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["pm-installation-plans"] });
+      void queryClient.invalidateQueries({ queryKey: pmKeys.plans() });
     },
   });
 }

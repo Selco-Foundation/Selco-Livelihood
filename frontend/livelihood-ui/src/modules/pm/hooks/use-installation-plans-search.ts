@@ -1,6 +1,7 @@
 import { useAuthStore } from "@/shared";
 import { useQuery } from "@tanstack/react-query";
 import { searchInstallationPlans } from "../services/installation-plan";
+import { pmKeys } from "./query-keys";
 
 export interface UseInstallationPlansSearchOptions {
   projectId: string | undefined;
@@ -13,8 +14,8 @@ export function useInstallationPlansSearch({ projectId, limit = 10, offset = 0 }
   const user = useAuthStore((state) => state.user);
 
   return useQuery({
-    queryKey: ["pm-installation-plans", projectId, limit, offset],
-    enabled: Boolean(projectId),
+    queryKey: pmKeys.planList(projectId, limit, offset),
+    enabled: Boolean(projectId && accessToken),
     queryFn: () =>
       searchInstallationPlans({ criteria: { projectId }, limit, offset }, accessToken ?? undefined, user),
   });

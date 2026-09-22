@@ -1,7 +1,6 @@
-import { apiClient } from "@/shared";
-import { createRequestInfo } from "@/shared/api/request-info";
 import type { AuthUser } from "@/shared/stores/auth-store";
-import { extractBlobApiErrorMessage, postMultipartExpectingBlob } from "../utils/ingestion-request";
+import { SCOPE_BOUNDARY_SHEET_NAME, SCOPE_SHEET_NAME } from "../constants/installation-scope-sheet";
+import { extractBlobApiErrorMessage, postJsonExpectingBlob, postMultipartExpectingBlob } from "../utils/ingestion-request";
 import { buildProjectBoundaryTree } from "../utils/boundary-tree";
 import type { DownloadedFile } from "../utils/file-download";
 import type { GeographyDetails } from "../types/project";
@@ -26,17 +25,16 @@ export async function downloadFacilityIngestionTemplate(
   accessToken?: string,
   user?: AuthUser | null,
 ): Promise<DownloadedFile> {
-  const response = await apiClient.post(
+  return postJsonExpectingBlob(
     "/ingestion-service/template/facilityIngestionTemplateWithData",
     {
-      RequestInfo: createRequestInfo(accessToken, user),
       project_id: projectId,
       boundary_data: buildProjectBoundaryTree(geographyDetails),
     },
-    { responseType: "blob" },
+    `facility-ingestion-template-${projectId}.xlsx`,
+    accessToken,
+    user,
   );
-
-  return { blob: response.data as Blob, filename: `facility-ingestion-template-${projectId}.xlsx` };
 }
 
 /**
@@ -56,8 +54,8 @@ export async function validateFacilitiesExcel(
       "/ingestion-service/ingest/facilitiesValidateData",
       {
         project_id: projectId,
-        facility_sheet_name: "FacilityMapping",
-        boundary_sheet_name: "BoundaryCodes",
+        facility_sheet_name: SCOPE_SHEET_NAME,
+        boundary_sheet_name: SCOPE_BOUNDARY_SHEET_NAME,
       },
       file,
       "facility_file",
@@ -89,7 +87,7 @@ export async function createFacilitiesAndUpdateProject(
     });
     const { blob } = await postMultipartExpectingBlob(
       "/ingestion-service/ingest/createFacilityAndUpdateProject",
-      { project_id: projectId, facility_sheet_name: "FacilityMapping" },
+      { project_id: projectId, facility_sheet_name: SCOPE_SHEET_NAME },
       file,
       "facility_file",
       accessToken,

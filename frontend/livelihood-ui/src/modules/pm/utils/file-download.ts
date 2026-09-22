@@ -3,7 +3,7 @@ export interface DownloadedFile {
   filename: string;
 }
 
-/** Triggers a browser download of an in-memory file — shared by every mock
+/** Triggers a browser download of an in-memory file — shared by every
  *  ingestion/template/scope hook so the object-URL lifecycle lives in one place. */
 export function triggerBrowserDownload(file: DownloadedFile) {
   const url = URL.createObjectURL(file.blob);

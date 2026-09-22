@@ -1,6 +1,7 @@
 import type { FacilitySummary } from "@/shared/api/facility";
 import type { GeographyDetails } from "../types/project";
 import { resolveStates } from "./geography";
+import { tenantId } from "@/shared/config/global-config";
 
 export interface BoundaryTreeNode {
   boundaryCode: string;
@@ -13,13 +14,16 @@ export interface BoundaryTreeNode {
 /**
  * Builds the nested `boundary_data` tree `ingestion-service`'s template-download endpoints expect
  * (root -> state -> district -> block). Real boundary display names aren't resolvable from
- * `GeographyDetails` alone yet (see `use-boundary-tree.ts`'s TODO to rewire to a real
- * boundary-service + localization lookup) — using the code as the `name` is a safe stand-in since
+ * `GeographyDetails` alone, and `use-boundary-tree.ts` doesn't resolve them either — it sets
+ * `name` to the code too — so using the code as the `name` is a safe stand-in since
  * the server resolves state/sector matching off `boundaryCode`, not `name` (proven: sending the
  * wrong-looking name never broke the Solution dropdown in the live test runs, only a wrong code
  * did).
  */
-export function buildProjectBoundaryTree(geography: GeographyDetails, countryTenantId = "livelihood"): BoundaryTreeNode {
+export function buildProjectBoundaryTree(
+  geography: GeographyDetails,
+  countryTenantId = tenantId(),
+): BoundaryTreeNode {
   const districtsByState = new Map<string, GeographyDetails["districts"]>();
   for (const district of geography.districts ?? []) {
     const list = districtsByState.get(district.stateCode) ?? [];
@@ -70,7 +74,7 @@ export function buildProjectBoundaryTree(geography: GeographyDetails, countryTen
 export function buildScopeBoundaryTree(
   geography: GeographyDetails,
   facilities: FacilitySummary[],
-  countryTenantId = "livelihood",
+  countryTenantId = tenantId(),
 ): BoundaryTreeNode {
   const facilitiesByBlockCode = new Map<string, FacilitySummary[]>();
   for (const facility of facilities) {
