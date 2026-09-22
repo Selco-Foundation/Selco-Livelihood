@@ -539,12 +539,35 @@ class InstallationDraftRepository {
           // Preserve activity-payload prefill by index when an older cache
           // entry did not yet contain capacity or a supporting photo.
           final existing = List<SolarAssetEntry>.of(target.assets);
+          // supportingPhoto specifically is resolved by a stable key
+          // (assetId, then serialNumber) rather than index, since the
+          // backend-derived `existing` list here can drift in order/count
+          // from the cached `entries` between resyncs.
+          final existingByAssetId = {
+            for (final asset in existing)
+              if (asset.assetId?.trim().isNotEmpty == true)
+                asset.assetId!: asset,
+          };
+          final existingBySerial = {
+            for (final asset in existing)
+              if (asset.serialNumber.trim().isNotEmpty)
+                asset.serialNumber: asset,
+          };
           target.assets
             ..clear()
             ..addAll(entries.whereType<Map>().indexed.map((indexed) {
               final index = indexed.$1;
               final entry = Map<String, dynamic>.from(indexed.$2);
               final prior = index < existing.length ? existing[index] : null;
+              final cachedAssetId = entry['assetId']?.toString();
+              final cachedSerial = entry['serialNumber']?.toString();
+              final photoSource = (cachedAssetId?.isNotEmpty == true
+                      ? existingByAssetId[cachedAssetId]
+                      : null) ??
+                  (cachedSerial?.isNotEmpty == true
+                      ? existingBySerial[cachedSerial]
+                      : null) ??
+                  prior;
               final cachedCapacity = entry['capacity']?.toString() ?? '';
               return SolarAssetEntry(
                 assetId: entry['assetId']?.toString() ?? prior?.assetId,
@@ -562,10 +585,22 @@ class InstallationDraftRepository {
                       ..remove('battery_type')
                       ..remove('batteryType'))
                     : const {},
-                supportingPhoto: entry['supportingPhoto'] is Map
-                    ? SolarFileRef.fromJson(Map<String, dynamic>.from(
-                        entry['supportingPhoto'] as Map))
-                    : prior?.supportingPhoto,
+                supportingPhoto: (() {
+                  final cachedPhotoJson = entry['supportingPhoto'];
+                  if (cachedPhotoJson is! Map) {
+                    return photoSource?.supportingPhoto;
+                  }
+                  var cachedPhoto = SolarFileRef.fromJson(
+                      Map<String, dynamic>.from(cachedPhotoJson));
+                  if (cachedPhoto.id?.trim().isNotEmpty != true) {
+                    final backendPhoto = photoSource?.supportingPhoto;
+                    if (backendPhoto?.id?.trim().isNotEmpty == true &&
+                        backendPhoto!.remoteId == cachedPhoto.remoteId) {
+                      cachedPhoto = cachedPhoto.copyWith(id: backendPhoto.id);
+                    }
+                  }
+                  return cachedPhoto;
+                })(),
               );
             }));
         }

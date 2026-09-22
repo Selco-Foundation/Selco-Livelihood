@@ -64,6 +64,14 @@ class _MachineFormPageState extends State<MachineFormPage> {
   final Map<String, TextEditingController> _extraControllers = {};
 
   final Map<String, List<SolarFileRef>> _mediaByField = {};
+  // Document ids freed by a removal, banked per field until a later pick
+  // consumes them — a remove and its replacement pick are two separate
+  // callbacks (two separate `_setSchemaMedia` calls), so the id can't be
+  // computed fresh from a single call's before/after diff; it must survive
+  // between calls or it's lost and the replacement goes out as a fresh
+  // insert instead of an update.
+  final Map<String, List<String>> _freedDocumentIds = {};
+  String? _assetId;
   bool _trainedEndUser = true;
   bool _otpVerified = false;
   bool _otpRequested = false;
@@ -294,13 +302,12 @@ class _MachineFormPageState extends State<MachineFormPage> {
       };
 
   Future<void> _loadDraft() async {
-    final shouldHydrateAsset = widget.readOnly ||
-        widget.workflow.status?.trim().toUpperCase() ==
-            FacilityInstallationStatus.rejectedByQcSpoc;
+    final shouldHydrateAsset = widget.readOnly || _workflowMode == 'resubmission';
     if (shouldHydrateAsset && _cacheKey.isNotEmpty) {
       final assets = await assetRepository.search(_cacheKey);
       if (assets.isNotEmpty) {
         final asset = assets.first;
+        _assetId = (asset['assetId'] ?? asset['assetID'])?.toString();
         final details = <String, dynamic>{
           if (asset['additionalDetails'] is Map)
             ...Map<String, dynamic>.from(asset['additionalDetails'] as Map),
@@ -321,17 +328,38 @@ class _MachineFormPageState extends State<MachineFormPage> {
     if (!widget.readOnly && cached is Map) {
       final values = Map<String, dynamic>.from(cached);
       _seed(values);
+      _assetId ??= values['assetId']?.toString();
       _trainedEndUser = values['trainedEndUser'] != false;
       final media = values['media'] is Map
           ? Map<String, dynamic>.from(values['media'] as Map)
           : const <String, dynamic>{};
       for (final field in _schema?.fields ?? const <MachineFormField>[]) {
         if (!field.isMedia || media[field.fieldName] is! List) continue;
+        // A cache entry written before this device last saw the backend's
+        // document ids (e.g. an older app session) won't carry one — backfill
+        // it from the freshly backend-hydrated media above (matched by
+        // fileStoreId) so an unmodified/replaced photo still round-trips its
+        // id instead of silently going out as a brand-new document.
+        final backendMedia = _mediaByField[field.fieldName] ?? const [];
         _mediaByField[field.fieldName] = (media[field.fieldName] as List)
             .whereType<Map>()
-            .map((value) => SolarFileRef.fromJson(
-                  Map<String, dynamic>.from(value),
-                ).copyWith(displayTitle: field.title))
+            .map((value) {
+              var file = SolarFileRef.fromJson(
+                Map<String, dynamic>.from(value),
+              ).copyWith(displayTitle: field.title);
+              if (file.id?.trim().isNotEmpty != true) {
+                final match = backendMedia.cast<SolarFileRef?>().firstWhere(
+                      (item) =>
+                          item?.remoteId?.isNotEmpty == true &&
+                          item?.remoteId == file.remoteId,
+                      orElse: () => null,
+                    );
+                if (match?.id?.trim().isNotEmpty == true) {
+                  file = file.copyWith(id: match!.id);
+                }
+              }
+              return file;
+            })
             .toList();
       }
     }
@@ -340,6 +368,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
 
   void _loadDocuments(dynamic value) {
     final documents = (value as List<dynamic>? ?? const []).whereType<Map>();
+    final byField = <String, List<SolarFileRef>>{};
     for (final raw in documents) {
       final document = Map<String, dynamic>.from(raw);
       final documentType =
@@ -374,13 +403,16 @@ class _MachineFormPageState extends State<MachineFormPage> {
             ? Map<String, dynamic>.from(document['geoLocation'] as Map)
             : null,
       );
-      final existing = _mediaByField[field.fieldName] ??= [];
-      final duplicate = existing.any((item) =>
+      final bucket = byField.putIfAbsent(field.fieldName, () => []);
+      final duplicate = bucket.any((item) =>
           (media.documentUid?.isNotEmpty == true &&
               item.documentUid == media.documentUid) ||
           (media.id?.isNotEmpty == true && item.id == media.id) ||
           item.path == media.path);
-      if (!duplicate) existing.add(media);
+      if (!duplicate) bucket.add(media);
+    }
+    for (final entry in byField.entries) {
+      _mediaByField[entry.key] = entry.value;
     }
   }
 
@@ -388,6 +420,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
     if (_cacheKey.isEmpty) return Future.value();
     return installationCacheRepository.putJson('machine-draft', _cacheKey, {
       ..._formValues,
+      if (_assetId?.trim().isNotEmpty == true) 'assetId': _assetId,
       'media': {
         for (final entry in _formMedia.entries)
           entry.key: entry.value.map((media) => media.toJson()).toList(),
@@ -404,6 +437,19 @@ class _MachineFormPageState extends State<MachineFormPage> {
     List<SolarFileRef> selected,
   ) async {
     final existing = _mediaFor(field.fieldName);
+    final selectedPaths = selected.map((file) => file.path).toSet();
+    // Ids of slots the user removed this round (their photo is no longer in
+    // `selected`) — banked for this field so a *later, separate* pick (a
+    // different callback entirely — remove and add are two distinct taps)
+    // can still reuse them, rather than being lost the moment this call's
+    // `existing` no longer includes the removed item.
+    final freedPool = _freedDocumentIds.putIfAbsent(field.fieldName, () => []);
+    for (final item in existing) {
+      if (item.id?.trim().isNotEmpty == true &&
+          !selectedPaths.contains(item.path)) {
+        freedPool.add(item.id!);
+      }
+    }
     final prepared = <SolarFileRef>[];
     final newFiles = <SolarFileRef>[];
     for (final selectedFile in selected.take(field.requiredCount)) {
@@ -415,9 +461,10 @@ class _MachineFormPageState extends State<MachineFormPage> {
         prepared.add(retained.copyWith(displayTitle: field.title));
         continue;
       }
+      final reuseId = freedPool.isNotEmpty ? freedPool.removeAt(0) : null;
       final committed = commitDocumentMetadata(
         context,
-        selectedFile.copyWith(displayTitle: field.title),
+        selectedFile.copyWith(displayTitle: field.title, id: reuseId),
         documentType: field.fieldName,
         uidPrefix: 'DOC-MACHINE-${field.fieldName}',
       );
@@ -619,6 +666,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
           workflow: widget.workflow,
           values: _formValues,
           media: _formMedia,
+          assetId: _assetId,
         ),
         preserveExisting: preserveExistingPayload,
       );

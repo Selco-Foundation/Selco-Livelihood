@@ -119,6 +119,7 @@ class SolarFileRef {
     String? documentType,
     String? documentUid,
     Map<String, dynamic>? geoLocation,
+    String? id,
   }) =>
       SolarFileRef(
         name: name,
@@ -129,7 +130,7 @@ class SolarFileRef {
         mimeType: mimeType,
         documentType: documentType ?? this.documentType,
         localPath: localPath ?? this.localPath,
-        id: id,
+        id: id ?? this.id,
         documentUid: documentUid ?? this.documentUid,
         status: status,
         additionalDetails: additionalDetails,

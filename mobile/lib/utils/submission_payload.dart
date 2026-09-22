@@ -101,6 +101,7 @@ Map<String, dynamic> buildMachineSubmissionPayload({
   required ActivityFacilityWorkflow workflow,
   required Map<String, dynamic> values,
   required Map<String, List<SolarFileRef>> media,
+  String? assetId,
 }) {
   final activityFacility = workflow.activityFacility;
   final templateBom = Map<String, dynamic>.from(
@@ -174,6 +175,7 @@ Map<String, dynamic> buildMachineSubmissionPayload({
     'facilityId': activityFacility.facilityId,
     'assets': [
       {
+        if (assetId?.trim().isNotEmpty == true) 'assetId': assetId,
         'system': system,
         'assetTypeID': assetTypeCode,
         'modelNumber': _firstNonBlank([firstComponent['modelNumber']]) ?? '',

@@ -513,13 +513,17 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
                         pickMedia: widget.pickMedia,
                         onImagesSelected: (files) async {
                           final file = files.isEmpty ? null : files.last;
+                          final previousId =
+                              indexed.value.supportingPhoto?.id;
                           final persisted = file == null
                               ? null
                               : await installationCacheRepository
                                   .persistMediaRef(
                                   commitDocumentMetadata(
                                     context,
-                                    file,
+                                    previousId?.trim().isNotEmpty == true
+                                        ? file.copyWith(id: previousId)
+                                        : file,
                                     documentType: 'ASSET',
                                     uidPrefix:
                                         'DOC-${widget.assetType.name.toUpperCase()}-IMAGE',
@@ -529,8 +533,8 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
                           if (!mounted) return;
                           setState(
                               () => indexed.value.supportingPhoto = persisted);
-                          installationDraftRepository
-                              .saveSolarSoon(widget.draft);
+                          await installationDraftRepository
+                              .saveSolar(widget.draft);
                         },
                       ),
                     ),
