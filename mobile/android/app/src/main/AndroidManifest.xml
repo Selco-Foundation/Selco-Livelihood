@@ -91,5 +91,14 @@
         <intent>
             <action android:name="android.media.action.IMAGE_CAPTURE" />
         </intent>
+        <!-- Required so ACTION_VIEW intents for web links (e.g. hyperlinks
+             tapped inside the flutter_pdfview PDF viewer) resolve on
+             Android 11+ package-visibility rules; without this,
+             Intent#resolveActivity returns null and the tap silently
+             no-ops even though a browser is installed. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
     </queries>
 </manifest>
