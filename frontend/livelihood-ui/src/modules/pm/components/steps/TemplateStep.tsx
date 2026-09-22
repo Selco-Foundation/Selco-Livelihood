@@ -2,9 +2,11 @@ import { translateOr, useTranslate } from "@/shared";
 import { Button } from "@/ui";
 import { CheckCircle2, Download, FileSpreadsheet, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
+import { useFacility } from "@/shared/hooks/use-facility";
 import { useInstallationSolutions } from "../../hooks/use-installation-solutions";
 import { useSolutionTemplateUpload } from "../../hooks/use-solution-template-upload";
 import type { InstallationPlanTemplateEntry, InstallationPlanScopeEntry } from "../../types/installation-plan";
+import type { GeographyDetails } from "../../types/project";
 import { IngestionStatusBlocks } from "../IngestionStatusBlocks";
 import { StepSectionCard } from "../StepSectionCard";
 
@@ -20,7 +22,7 @@ interface SolutionTemplateCardProps {
   planId: string | undefined;
   solutionCode: string;
   solutionName: string;
-  assignedSiteIds: string[];
+  assignedSites: Array<{ id: string; name: string }>;
   uploaded: boolean;
   locked: boolean;
   onUploaded: () => void;
@@ -31,7 +33,7 @@ function SolutionTemplateCard({
   planId,
   solutionCode,
   solutionName,
-  assignedSiteIds,
+  assignedSites,
   uploaded,
   locked,
   onUploaded,
@@ -86,11 +88,11 @@ function SolutionTemplateCard({
               : translateOr(t, "ES_PM_TEMPLATE_NOT_UPLOADED", "Not uploaded yet")}
           </span>
           <p className="mt-1 text-xs font-medium text-muted-foreground">
-            {translateOr(t, "ES_PM_ASSIGNED_USERS", "ASSIGNED SITES").toUpperCase()} ({assignedSiteIds.length})
+            {translateOr(t, "ES_PM_ASSIGNED_USERS", "ASSIGNED SITES").toUpperCase()} ({assignedSites.length})
           </p>
           <ul className="mt-1 space-y-0.5 text-sm text-foreground">
-            {assignedSiteIds.map((siteId) => (
-              <li key={siteId}>{siteId}</li>
+            {assignedSites.map((site) => (
+              <li key={site.id}>{site.name}</li>
             ))}
           </ul>
         </div>
@@ -152,6 +154,8 @@ interface TemplateStepProps {
   planId: string | undefined;
   planCode?: string;
   scope: InstallationPlanScopeEntry[];
+  /** The parent project's geography — only used to look the plan's sites up by name. */
+  projectGeography: GeographyDetails;
   value: TemplateValue;
   onChange: (value: TemplateValue) => void;
   onBusyChange?: (isBusy: boolean) => void;
@@ -159,7 +163,16 @@ interface TemplateStepProps {
   locked?: boolean;
 }
 
-export function TemplateStep({ planId, planCode, scope, value, onChange, onBusyChange, locked = false }: TemplateStepProps) {
+export function TemplateStep({
+  planId,
+  planCode,
+  scope,
+  projectGeography,
+  value,
+  onChange,
+  onBusyChange,
+  locked = false,
+}: TemplateStepProps) {
   const { t } = useTranslate();
   const busySolutionsRef = useRef(new Set<string>());
   const { data: solutions = [] } = useInstallationSolutions();
@@ -172,8 +185,24 @@ export function TemplateStep({ planId, planCode, scope, value, onChange, onBusyC
     }));
   }, [scope, solutions]);
 
-  function assignedSiteIds(solutionCode: string) {
-    return scope.filter((entry) => entry.included && entry.solutionCode === solutionCode).map((entry) => entry.siteId);
+  // A plan's scope stores only facility ids, so the readable site name has to come from
+  // facility-service. It is looked up over the project's own blocks — the same search
+  // `downloadScopeTemplate` uses to decide which facilities belong to the plan at all. These are
+  // real data, not localization keys, so there is nothing to translate them against; the id is
+  // kept as the fallback for anything the lookup doesn't cover.
+  const { data: facilityData } = useFacility((projectGeography.blocks ?? []).map((block) => block.code));
+  const siteNameById = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const facility of facilityData?.facilities ?? []) {
+      if (facility.facilityId && facility.facilityName) names.set(facility.facilityId, facility.facilityName);
+    }
+    return names;
+  }, [facilityData]);
+
+  function assignedSites(solutionCode: string) {
+    return scope
+      .filter((entry) => entry.included && entry.solutionCode === solutionCode)
+      .map((entry) => ({ id: entry.siteId, name: siteNameById.get(entry.siteId) ?? entry.siteId }));
   }
 
   function markUploaded(solutionCode: string) {
@@ -217,7 +246,7 @@ export function TemplateStep({ planId, planCode, scope, value, onChange, onBusyC
               planId={planId}
               solutionCode={solution.code}
               solutionName={solution.name}
-              assignedSiteIds={assignedSiteIds(solution.code)}
+              assignedSites={assignedSites(solution.code)}
               uploaded={value.some((entry) => entry.solutionCode === solution.code && entry.uploaded)}
               locked={locked}
               onUploaded={() => markUploaded(solution.code)}
