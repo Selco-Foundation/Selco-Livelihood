@@ -8,10 +8,11 @@ export interface InstallationPlan {
   pendingReviewCount: number;
   completionRate: number;
   /** Seeds the shared boundary-service lookup (see hooks/use-boundary) —
-   * fetches every district/block in the state, which the District/Block
-   * filter options are then narrowed down from using `districtCodes`/
-   * `blockCodes` below, rather than showing the whole state. */
-  stateCode?: string;
+   * fetches every district/block in each of these states, which the
+   * District/Block filter options are then narrowed down from using
+   * `districtCodes`/`blockCodes` below, rather than showing every state. A
+   * plan can span more than one state. */
+  stateCodes?: string[];
   /** Real district codes actually part of this field plan (the activity
    * assignment's own geography rollup, not the project's full eligible
    * service area — those can differ, e.g. a project spans 3 districts but
@@ -37,7 +38,7 @@ export interface ActivityAssignmentStatusAggregation {
 }
 
 export interface ActivityAssignmentGeographyDetails {
-  state?: string;
+  states?: string[];
   districts?: string[];
   blocks?: string[];
 }

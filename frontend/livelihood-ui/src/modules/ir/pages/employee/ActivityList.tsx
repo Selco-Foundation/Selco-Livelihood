@@ -61,7 +61,7 @@ export function ActivityList() {
   // *options* are then narrowed down from this full list to just the ones
   // actually part of this field plan (below), rather than showing the
   // whole state's boundaries.
-  const { data: boundaryData } = useBoundary(plan?.stateCode ? [plan.stateCode] : []);
+  const { data: boundaryData } = useBoundary(plan?.stateCodes ?? []);
 
   const planBlockCodes = new Set(plan?.blockCodes ?? []);
   const planBlocks = (boundaryData?.blocks ?? []).filter((block) => planBlockCodes.has(block.code));

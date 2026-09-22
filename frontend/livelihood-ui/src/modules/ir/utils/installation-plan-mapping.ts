@@ -29,7 +29,7 @@ export function toInstallationPlan(row: ActivityAssignment): InstallationPlan {
     endDate: formatEpochDate(row.endDate),
     pendingReviewCount: statusCounts.get(STATUS_PENDING_REVIEW) ?? 0,
     completionRate,
-    stateCode: geographyDetails?.state,
+    stateCodes: geographyDetails?.states ?? [],
     districtCodes: geographyDetails?.districts ?? [],
     blockCodes: geographyDetails?.blocks ?? [],
   };
