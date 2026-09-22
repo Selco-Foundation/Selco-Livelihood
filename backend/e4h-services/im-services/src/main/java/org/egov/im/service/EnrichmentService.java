@@ -412,6 +412,9 @@ public class EnrichmentService {
                 } else if (asset != null && StringUtils.isNotBlank(asset.getItemCode())) {
                     indexView.setAssetName(asset.getItemCode());
                 }
+                if (asset != null && StringUtils.isNotBlank(asset.getAssetTypeID())) {
+                    indexView.setAssetGroup(resolveIndexAssetGroup(asset.getAssetTypeID()));
+                }
             } catch (Exception e) {
                 log.warn("Could not enrich asset name for assetId={}", incident.getAssetId(), e);
             }
@@ -438,6 +441,18 @@ public class EnrichmentService {
 
         indexView.setAttachmentUrls(buildAttachmentUrls(incidentRequest));
         indexView.setDocumentUrls(indexView.getAttachmentUrls());
+    }
+
+    /**
+     * Maps an asset's assetTypeID to the coarse index-level group (Machine/Solar). Distinct from the
+     * Incident.additionalDetail.assetCategory field, which holds finer-grained menu-path categories
+     * used for issue-type validation.
+     * Solar component types (SOLAR PANEL, BATTERY, INVERTER, PANEL) map to Solar; everything else is Machine.
+     */
+    private String resolveIndexAssetGroup(String assetTypeID) {
+        boolean isSolar = LIVELIHOOD_SOLAR_ASSET_TYPE_IDS.stream()
+                .anyMatch(solarType -> solarType.equalsIgnoreCase(assetTypeID.trim()));
+        return isSolar ? LIVELIHOOD_INDEX_ASSET_GROUP_SOLAR : LIVELIHOOD_INDEX_ASSET_GROUP_MACHINE;
     }
 
     private String buildAttachmentUrls(IncidentRequest incidentRequest) {

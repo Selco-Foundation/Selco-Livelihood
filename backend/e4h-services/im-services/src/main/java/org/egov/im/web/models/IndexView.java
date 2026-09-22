@@ -101,6 +101,9 @@ public class IndexView {
     @JsonProperty("assetName")
     private String assetName;
 
+    @JsonProperty("assetGroup")
+    private String assetGroup;
+
     @JsonProperty("attachmentUrls")
     private String attachmentUrls;
 }
