@@ -804,7 +804,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
                           _buildSchemaField(field),
                           const SizedBox(height: spacer5),
                         ],
-                        if (widget.readOnly)
+                        if (widget.readOnly || _workflowMode == 'resubmission')
                           WorkflowReportDocuments(
                             key: const ValueKey(
                                 'machine-workflow-report-documents'),
