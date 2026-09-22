@@ -100,9 +100,7 @@ export function ActivityTable({
               <thead>
                 <tr className="border-b border-border">
                   <th className="w-10 px-5 py-3">
-                    {selectableIds.length > 0 ? (
-                      <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
-                    ) : null}
+                    <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
                   </th>
                   <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ES_IR_END_USER", "End User")}
