@@ -1,10 +1,10 @@
 import { translateOr, useTranslate } from "@/shared";
-import { Button } from "@/ui";
-import { AlertTriangle, CheckCircle2, Download, ListChecks, Upload } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { ListChecks } from "lucide-react";
+import { useEffect } from "react";
 import { useInstallationScopeIngestion } from "../../hooks/use-installation-scope-ingestion";
 import type { GeographyDetails } from "../../types/project";
 import type { InstallationPlanScopeEntry } from "../../types/installation-plan";
+import { FileIngestionPanel } from "../FileIngestionPanel";
 import { StepSectionCard } from "../StepSectionCard";
 
 export type ScopeValue = InstallationPlanScopeEntry[];
@@ -38,7 +38,6 @@ export function InstallationScopeStep({
   onScopeApplied,
 }: InstallationScopeStepProps) {
   const { t } = useTranslate();
-  const inputRef = useRef<HTMLInputElement>(null);
   const {
     status,
     errorCount,
@@ -46,9 +45,8 @@ export function InstallationScopeStep({
     downloadTemplate,
     uploadAndValidate,
     downloadErrorReport,
+    isBusy,
   } = useInstallationScopeIngestion(planId, projectId, sectorCodes, projectGeography);
-
-  const isBusy = status === "downloading" || status === "validating" || status === "creating";
 
   useEffect(() => {
     onBusyChange?.(isBusy);
@@ -64,88 +62,28 @@ export function InstallationScopeStep({
         "Download the installation scope sheet, mark the sites and solutions to include, then upload it back",
       )}
     >
-      <div className="space-y-4">
-        {planCode ? (
-          <div className="flex items-center gap-2 text-sm">
-            <span className="font-medium text-muted-foreground">
-              {translateOr(t, "ES_PM_INSTALLATION_PLAN_CODE", "Installation Plan Code")}:
-            </span>
-            <span className="font-semibold text-foreground">{planCode}</span>
-          </div>
-        ) : null}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={downloadTemplate}
-          disabled={isBusy || !planId || sectorCodes.length === 0 || !projectGeography.blocks?.length}
-        >
-          <Download className="size-4" />
-          {translateOr(t, "ES_PM_DOWNLOAD_INSTALLATION_SCOPE", "Download Installation Scope")}
-        </Button>
-
-        <button
-          type="button"
-          disabled={isBusy}
-          onClick={() => inputRef.current?.click()}
-          className="flex min-h-[120px] w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-input bg-card px-4 py-6 text-center transition-colors hover:border-primary hover:bg-accent/40 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <div className="flex size-11 items-center justify-center rounded-full bg-accent text-primary">
-            <Upload className="size-5" />
-          </div>
-          <span className="text-sm text-muted-foreground">
-            {status === "validating"
-              ? translateOr(t, "ES_PM_VALIDATING", "Validating...")
-              : translateOr(t, "ES_PM_UPLOAD_HINT", "Click to upload the filled-in scope sheet")}
-          </span>
-        </button>
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".xlsx"
-          className="hidden"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) {
-              void uploadAndValidate(file).then((entries) => {
-                if (entries) {
-                  onChange(entries);
-                  onScopeApplied?.(entries);
-                }
-              });
+      <FileIngestionPanel
+        planCode={planCode}
+        status={status}
+        errorCount={errorCount}
+        errorMessage={errorMessage}
+        isBusy={isBusy}
+        downloadLabel={translateOr(t, "ES_PM_DOWNLOAD_INSTALLATION_SCOPE", "Download Installation Scope")}
+        downloadDisabled={!planId || sectorCodes.length === 0 || !projectGeography.blocks?.length}
+        onDownload={downloadTemplate}
+        accept=".xlsx"
+        uploadHint={translateOr(t, "ES_PM_UPLOAD_HINT", "Click to upload the filled-in scope sheet")}
+        doneMessage={translateOr(t, "ES_PM_SCOPE_APPLIED", "Installation scope applied")}
+        onFileSelected={(file) =>
+          void uploadAndValidate(file).then((entries) => {
+            if (entries) {
+              onChange(entries);
+              onScopeApplied?.(entries);
             }
-            event.target.value = "";
-          }}
-        />
-
-        {status === "invalid" ? (
-          <div className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
-            <p className="text-sm font-medium text-destructive">
-              {translateOr(t, "ES_PM_VALIDATION_ERRORS", "Found errors in the uploaded file")}: {errorCount}
-            </p>
-            <Button type="button" variant="outline" size="sm" onClick={downloadErrorReport}>
-              <Download className="size-4" />
-              {translateOr(t, "ES_PM_DOWNLOAD_ERROR_REPORT", "Download Error Report")}
-            </Button>
-          </div>
-        ) : null}
-
-        {status === "error" ? (
-          <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
-            <AlertTriangle className="size-4 text-destructive" />
-            <p className="text-sm font-medium text-destructive">
-              {errorMessage ?? translateOr(t, "ES_PM_ACTION_FAILED", "Something went wrong. Please try again.")}
-            </p>
-          </div>
-        ) : null}
-
-        {status === "done" ? (
-          <p className="flex items-center gap-2 text-sm font-medium text-primary">
-            <CheckCircle2 className="size-4" />
-            {translateOr(t, "ES_PM_SCOPE_APPLIED", "Installation scope applied")}
-          </p>
-        ) : null}
-      </div>
+          })
+        }
+        onDownloadErrorReport={downloadErrorReport}
+      />
     </StepSectionCard>
   );
 }

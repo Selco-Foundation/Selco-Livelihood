@@ -1,24 +1,6 @@
-// Column layout for the Installation Scope Excel round-trip — stands in for
-// the real MDMS `data-ingestion.InstallationScopeIngestionSchema` used by
-// `ingestion-service`'s `fieldplanFacilityIngestionTemplate` /
-// `fieldPlanfacilitiesValidateData` / `createFieldPlanFacility` endpoints.
-// Keep this in sync with `services/installation-scope.ts`, which reads and
-// writes rows in this exact column order.
-
+// Worksheet names inside the Excel workbooks that `ingestion-service` generates and
+// reads back — sent as the `facility_sheet_name` / `boundary_sheet_name` multipart
+// fields by `services/installation-scope.ts` and `services/ingestion.ts`. The column
+// layout itself lives server-side in MDMS; nothing on the client parses sheet rows.
 export const SCOPE_SHEET_NAME = "FacilityMapping";
 export const SCOPE_BOUNDARY_SHEET_NAME = "BoundaryCodes";
-
-export const SCOPE_SHEET_HEADERS = [
-  "Site Name",
-  "Village",
-  "State",
-  "District",
-  "Block",
-  "Sector",
-  "End User Id (Mandatory)",
-  "Included in Field Plan",
-  "Solution",
-  "Lock Status",
-] as const;
-
-export type ScopeSheetHeader = (typeof SCOPE_SHEET_HEADERS)[number];

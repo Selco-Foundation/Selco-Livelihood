@@ -1,15 +1,11 @@
 import { translateOr, useTranslate } from "@/shared";
 import { Input, Label } from "@/ui";
 import { FileText } from "lucide-react";
-import { useSectors } from "../../hooks/use-sectors";
 import { DateField } from "../DateField";
-import { LabeledSelect } from "../LabeledSelect";
 import { StepSectionCard } from "../StepSectionCard";
 
 export interface ProjectDetailsValue {
   justificationCode: string;
-  /** Required by `project/v1/_create` — the proven live payload used the sector name here. */
-  projectType: string;
   startDate?: number;
   endDate?: number;
 }
@@ -29,7 +25,6 @@ const JUSTIFICATION_CODE_PATTERN = /^[A-Z]{4}$/;
 export function isProjectDetailsValid(value: ProjectDetailsValue): boolean {
   return (
     JUSTIFICATION_CODE_PATTERN.test(value.justificationCode) &&
-    Boolean(value.projectType) &&
     Boolean(value.startDate) &&
     Boolean(value.endDate) &&
     (!value.startDate || !value.endDate || value.startDate <= value.endDate)
@@ -38,7 +33,6 @@ export function isProjectDetailsValid(value: ProjectDetailsValue): boolean {
 
 export function ProjectDetailsStep({ value, onChange, errors, locked = false }: ProjectDetailsStepProps) {
   const { t } = useTranslate();
-  const { data: projectTypeOptions = [] } = useSectors();
 
   return (
     <StepSectionCard
@@ -79,16 +73,6 @@ export function ProjectDetailsStep({ value, onChange, errors, locked = false }: 
             </p>
           )}
         </div>
-
-        <LabeledSelect
-          label={translateOr(t, "ES_PM_PROJECT_TYPE", "Project Type")}
-          required
-          value={value.projectType}
-          options={projectTypeOptions}
-          placeholder={translateOr(t, "ES_PM_SELECT_PROJECT_TYPE", "Select Project Type")}
-          onChange={(projectType) => onChange({ ...value, projectType })}
-          disabled={locked}
-        />
 
         <div className="space-y-1.5">
           <Label>

@@ -4,6 +4,12 @@ import { format } from "date-fns";
 import { CalendarIcon, Info } from "lucide-react";
 import { useState } from "react";
 
+// How far the year dropdown reaches when the field has no min/max of its own. Wide on both sides
+// on purpose: these bounds exist only to give the dropdown a list to render, not to express a
+// business rule, so they should never be the reason a real date can't be picked.
+const YEARS_SELECTABLE_BACK = 30;
+const YEARS_SELECTABLE_FORWARD = 30;
+
 interface DateFieldProps {
   label: string;
   required?: boolean;
@@ -28,8 +34,18 @@ export function DateField({
   const { t } = useTranslate();
   const [open, setOpen] = useState(false);
   const selectedDate = value ? new Date(value) : undefined;
-  const disabledMatcher =
-    minDate && maxDate ? { before: minDate, after: maxDate } : minDate ? { before: minDate } : maxDate ? { after: maxDate } : undefined;
+
+  // A list of matchers rather than one object, so each bound is independent and optional —
+  // an empty list simply disables nothing.
+  const disabledMatcher = [...(minDate ? [{ before: minDate }] : []), ...(maxDate ? [{ after: maxDate }] : [])];
+
+  // The month/year dropdowns need an explicit navigable range — without one the picker offers no
+  // year list at all, leaving month-by-month arrow clicking as the only way to reach a distant
+  // date. Bounded by the field's own min/max where it has them, otherwise a window wide enough
+  // for project and plan dates.
+  const currentYear = new Date().getFullYear();
+  const startMonth = minDate ?? new Date(currentYear - YEARS_SELECTABLE_BACK, 0, 1);
+  const endMonth = maxDate ?? new Date(currentYear + YEARS_SELECTABLE_FORWARD, 11, 31);
 
   return (
     <div className="min-w-0 space-y-1.5">
@@ -65,6 +81,10 @@ export function DateField({
               setOpen(false);
             }}
             disabled={disabledMatcher}
+            captionLayout="dropdown"
+            startMonth={startMonth}
+            endMonth={endMonth}
+            defaultMonth={selectedDate ?? minDate}
             autoFocus
           />
         </PopoverContent>

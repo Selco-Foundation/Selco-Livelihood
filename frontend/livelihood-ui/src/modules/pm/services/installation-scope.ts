@@ -3,11 +3,13 @@ import { createRequestInfo } from "@/shared/api/request-info";
 import { fetchFacilities } from "@/shared/api/facility";
 import type { AuthUser } from "@/shared/stores/auth-store";
 import { searchProjectFacilities } from "./project";
+import { SCOPE_BOUNDARY_SHEET_NAME, SCOPE_SHEET_NAME } from "../constants/installation-scope-sheet";
 import { buildScopeBoundaryTree } from "../utils/boundary-tree";
-import { extractBlobApiErrorMessage, postMultipartExpectingBlob } from "../utils/ingestion-request";
+import { extractBlobApiErrorMessage, postJsonExpectingBlob, postMultipartExpectingBlob } from "../utils/ingestion-request";
 import type { GeographyDetails } from "../types/project";
 import type { InstallationPlanScopeEntry } from "../types/installation-plan";
 import type { DownloadedFile } from "../utils/file-download";
+import { fetchAllPages, searchUrlParams } from "../utils/url-params";
 
 export class InstallationScopeApiError extends Error {}
 
@@ -48,19 +50,18 @@ export async function downloadScopeTemplate(
     (facility) => linkedIds.has(facility.facilityId) && Boolean(facility.facilityType) && wantedSectors.has(facility.facilityType!),
   );
 
-  const response = await apiClient.post(
+  return postJsonExpectingBlob(
     "/ingestion-service/template/fieldplanFacilityIngestionTemplate",
     {
-      RequestInfo: createRequestInfo(accessToken, user),
       project_id: projectId,
       fieldplan_id: planId,
       sectors: sectorCodes,
       boundary_data: buildScopeBoundaryTree(projectGeography, scopedFacilities),
     },
-    { responseType: "blob" },
+    `installation-scope-${planId}.xlsx`,
+    accessToken,
+    user,
   );
-
-  return { blob: response.data as Blob, filename: `installation-scope-${planId}.xlsx` };
 }
 
 /**
@@ -78,8 +79,8 @@ export async function validateScopeSheet(
     const { blob, errorCount } = await postMultipartExpectingBlob(
       "/ingestion-service/ingest/fieldPlanfacilitiesValidateData",
       {
-        facility_sheet_name: "FacilityMapping",
-        boundary_sheet_name: "BoundaryCodes",
+        facility_sheet_name: SCOPE_SHEET_NAME,
+        boundary_sheet_name: SCOPE_BOUNDARY_SHEET_NAME,
         fieldplan_id: fieldPlanId,
       },
       file,
@@ -110,7 +111,7 @@ export async function createScopeFromSheet(
     });
     const { blob } = await postMultipartExpectingBlob(
       "/ingestion-service/ingest/createFieldPlanFacility",
-      { facility_sheet_name: "FacilityMapping", fieldplan_id: fieldPlanId },
+      { facility_sheet_name: SCOPE_SHEET_NAME, fieldplan_id: fieldPlanId },
       file,
       "facility_file",
       accessToken,
@@ -138,18 +139,26 @@ export async function searchFieldPlanFacilities(
   accessToken?: string,
   user?: AuthUser | null,
 ): Promise<InstallationPlanScopeEntry[]> {
-  const { data } = await apiClient.post<{
-    FieldPlanFacilities?: Array<{ facilityId?: string; solutionId?: string; lockStatus?: string; isdeleted?: boolean }>;
-  }>(
-    "/field-planner/v1/field-plans/facility/_search",
-    {
-      RequestInfo: createRequestInfo(accessToken, user),
-      FieldPlanFacility: { fieldPlanId: [fieldPlanId] },
-    },
-    { params: { tenantId: user?.tenantId, limit: 500, offset: 0 } },
-  );
+  const rows = await fetchAllPages(async (limit, offset) => {
+    const { data } = await apiClient.post<{
+      FieldPlanFacilities?: Array<{
+        facilityId?: string;
+        solutionId?: string;
+        lockStatus?: string;
+        isdeleted?: boolean;
+      }>;
+    }>(
+      "/field-planner/v1/field-plans/facility/_search",
+      {
+        RequestInfo: createRequestInfo(accessToken, user),
+        FieldPlanFacility: { fieldPlanId: [fieldPlanId] },
+      },
+      { params: searchUrlParams(user, { limit, offset }) },
+    );
+    return data.FieldPlanFacilities ?? [];
+  });
 
-  return (data.FieldPlanFacilities ?? [])
+  return rows
     .filter(
       (row): row is { facilityId: string; solutionId?: string; lockStatus?: string; isdeleted?: boolean } =>
         Boolean(row.facilityId) && !row.isdeleted,
@@ -175,19 +184,22 @@ export async function searchFieldPlanFacilityCounts(
 ): Promise<Record<string, number>> {
   if (fieldPlanIds.length === 0) return {};
 
-  const { data } = await apiClient.post<{
-    FieldPlanFacilities?: Array<{ fieldPlanId?: string; isdeleted?: boolean }>;
-  }>(
-    "/field-planner/v1/field-plans/facility/_search",
-    {
-      RequestInfo: createRequestInfo(accessToken, user),
-      FieldPlanFacility: { fieldPlanId: fieldPlanIds },
-    },
-    { params: { tenantId: user?.tenantId, limit: 500, offset: 0 } },
-  );
+  const rows = await fetchAllPages(async (limit, offset) => {
+    const { data } = await apiClient.post<{
+      FieldPlanFacilities?: Array<{ fieldPlanId?: string; isdeleted?: boolean }>;
+    }>(
+      "/field-planner/v1/field-plans/facility/_search",
+      {
+        RequestInfo: createRequestInfo(accessToken, user),
+        FieldPlanFacility: { fieldPlanId: fieldPlanIds },
+      },
+      { params: searchUrlParams(user, { limit, offset }) },
+    );
+    return data.FieldPlanFacilities ?? [];
+  });
 
   const counts: Record<string, number> = {};
-  for (const row of data.FieldPlanFacilities ?? []) {
+  for (const row of rows) {
     if (!row.fieldPlanId || row.isdeleted) continue;
     counts[row.fieldPlanId] = (counts[row.fieldPlanId] ?? 0) + 1;
   }

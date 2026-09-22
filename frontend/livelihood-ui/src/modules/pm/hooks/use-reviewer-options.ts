@@ -2,6 +2,7 @@ import { useAuthStore } from "@/shared";
 import { searchHrmsEmployees } from "@/shared/api/hrms";
 import { useQuery } from "@tanstack/react-query";
 import type { ReviewerOption } from "../constants/reviewers";
+import { pmKeys } from "./query-keys";
 
 const INSTALLATION_REVIEWER_ROLE = "INSTALLATION_REPORT_APPROVER_QC_TEAM";
 
@@ -16,7 +17,7 @@ export function useReviewerOptions() {
   const user = useAuthStore((state) => state.user);
 
   return useQuery<ReviewerOption[]>({
-    queryKey: ["pm-reviewer-options"],
+    queryKey: pmKeys.reviewerOptions(),
     enabled: Boolean(accessToken),
     queryFn: async () => {
       const employees = await searchHrmsEmployees(

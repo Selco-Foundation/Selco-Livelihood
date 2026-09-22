@@ -3,16 +3,12 @@ import { Badge, Skeleton } from "@/ui";
 import { Link } from "@tanstack/react-router";
 import { useInstallationPlanFacilityCounts } from "../hooks/use-installation-plan-facility-counts";
 import type { InstallationPlanStatusWrapper } from "../types/installation-plan";
+import { formatDate } from "../utils/format-date";
 import { pmCreateInstallationPlanPath } from "../utils/paths";
 
 interface InstallationPlansTableProps {
   plans: InstallationPlanStatusWrapper[];
   isLoading: boolean;
-}
-
-function formatDate(value?: number) {
-  if (!value) return "-";
-  return new Date(value).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 // Sector codes are the sector name itself (e.g. "Textile & craft") — derived from the live

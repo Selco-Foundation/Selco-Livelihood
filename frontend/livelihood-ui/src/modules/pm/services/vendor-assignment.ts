@@ -2,10 +2,10 @@ import { apiClient } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
 import type { AuthUser } from "@/shared/stores/auth-store";
 
-export type ComponentType = "SOLAR" | "MACHINE";
+export type AssetComponentType = "SOLAR" | "MACHINE";
 
 export interface VendorAssignmentAsset {
-  componentType: ComponentType;
+  componentType: AssetComponentType;
   componentSequence: number;
   assetName?: string;
   vendorOrgId?: string;
@@ -32,7 +32,7 @@ export interface VendorAssignmentSearchResult {
 
 export interface VendorAssignmentInput {
   facilityId: string;
-  componentType: ComponentType;
+  componentType: AssetComponentType;
   componentSequence: number;
   vendorOrgId?: string;
   vendorOrgName?: string;
@@ -76,7 +76,7 @@ export async function searchVendorAssignment(
 export async function validateVendorAssignment(
   fieldPlanId: string,
   assignments: VendorAssignmentInput[],
-  accessToken: string,
+  accessToken?: string,
   user?: AuthUser | null,
 ): Promise<{ valid: boolean; errors: Array<{ message?: string; facilityId?: string; componentType?: string }> }> {
   const { data } = await apiClient.post<{

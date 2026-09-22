@@ -1,9 +1,10 @@
 import { translateOr, useTranslate } from "@/shared";
 import { MultiSelect, toast } from "@/ui";
-import { MapPin, X } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { useMemo } from "react";
 import { useBoundaryTree } from "../../hooks/use-boundary-tree";
 import type { GeographyDetails } from "../../types/project";
+import { SelectedGroup } from "../SelectedGroup";
 import { StepSectionCard } from "../StepSectionCard";
 
 interface GeographyDetailsStepProps {
@@ -19,45 +20,6 @@ export function isGeographyDetailsValid(value: GeographyDetails): boolean {
   return Boolean(value.states?.length) && Boolean(value.blocks?.length);
 }
 
-interface SelectedGroupProps {
-  title: string;
-  emptyLabel: string;
-  items: { code: string; name: string }[];
-  onRemove?: (code: string) => void;
-  disabled?: boolean;
-}
-
-export function SelectedGroup({ title, emptyLabel, items, onRemove, disabled = false }: SelectedGroupProps) {
-  return (
-    <div>
-      <p className="mb-1.5 text-xs font-medium text-muted-foreground">{title}</p>
-      {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{emptyLabel}</p>
-      ) : (
-        <div className="flex flex-wrap gap-1.5">
-          {items.map((item) => (
-            <span
-              key={item.code}
-              className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground"
-            >
-              {item.name}
-              {!disabled && onRemove ? (
-                <button
-                  type="button"
-                  onClick={() => onRemove(item.code)}
-                  aria-label={`Remove ${item.name}`}
-                  className="rounded-full hover:bg-black/10"
-                >
-                  <X className="size-3" />
-                </button>
-              ) : null}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export function GeographyDetailsStep({ value, onChange, hasEndUserData = false }: GeographyDetailsStepProps) {
   const { t } = useTranslate();

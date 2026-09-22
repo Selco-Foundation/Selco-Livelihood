@@ -58,7 +58,7 @@ function PmModuleWrapper() {
   return <Outlet />;
 }
 
-export function createPmRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRoute) {
+function createPmRoutes(employeeLayoutRoute: AnyRoute) {
   const basePath = contextPath();
   const pmRootPath = `/${basePath}${PM_ROUTES.pmRoot}`;
   const myProjectsPath = `/${basePath}${PM_ROUTES.myProjects}`;
@@ -148,8 +148,8 @@ export function createPmRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
   };
 }
 
-export function createPmModule(rootRoute: AnyRoute, employeeLayoutRoute: AnyRoute) {
-  const { routes, navItems } = createPmRoutes(rootRoute, employeeLayoutRoute);
+export function createPmModule(_rootRoute: AnyRoute, employeeLayoutRoute: AnyRoute) {
+  const { routes, navItems } = createPmRoutes(employeeLayoutRoute);
 
   return {
     id: "pm",

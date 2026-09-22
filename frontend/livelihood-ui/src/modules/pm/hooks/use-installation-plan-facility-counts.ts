@@ -1,6 +1,7 @@
 import { useAuthStore } from "@/shared";
 import { useQuery } from "@tanstack/react-query";
 import { searchFieldPlanFacilityCounts } from "../services/installation-scope";
+import { pmKeys } from "./query-keys";
 
 /** `fieldPlanId -> included site count`, for a whole Installation Plans table at once — not part
  *  of any plan's own search response, since `field_plan_facilities` rows live outside
@@ -13,7 +14,7 @@ export function useInstallationPlanFacilityCounts(fieldPlanIds: string[]) {
   const sortedIds = [...fieldPlanIds].sort();
 
   return useQuery({
-    queryKey: ["pm-installation-plan-facility-counts", sortedIds],
+    queryKey: pmKeys.planFacilityCounts(sortedIds),
     enabled: Boolean(accessToken) && sortedIds.length > 0,
     queryFn: () => searchFieldPlanFacilityCounts(sortedIds, accessToken!, user),
   });

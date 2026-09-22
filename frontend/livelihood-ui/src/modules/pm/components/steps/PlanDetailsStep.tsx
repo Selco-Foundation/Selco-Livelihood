@@ -9,7 +9,7 @@ import type { GeographyDetails } from "../../types/project";
 import { DateField } from "../DateField";
 import { LabeledSelect } from "../LabeledSelect";
 import { StepSectionCard } from "../StepSectionCard";
-import { SelectedGroup } from "./GeographyDetailsStep";
+import { SelectedGroup } from "../SelectedGroup";
 
 export interface PlanDetailsValue {
   geographyDetails: GeographyDetails;

@@ -10,21 +10,29 @@ import {
   AlertDialogTitle,
 } from "@/ui";
 
-interface ConfirmSubmitPlanDialogProps {
+interface ConfirmSubmitDialogProps {
   open: boolean;
   isSubmitting: boolean;
   errorMessage?: string;
+  /** What becomes irreversible on confirm — the only thing that differs between the
+   *  project and installation-plan uses of this dialog. */
+  descriptionKey: string;
+  descriptionFallback: string;
   onCancel: () => void;
   onConfirm: () => void;
 }
 
-export function ConfirmSubmitPlanDialog({
+/** Final acknowledgement before an irreversible submit (scheduling a project, publishing an
+ *  installation plan). */
+export function ConfirmSubmitDialog({
   open,
   isSubmitting,
   errorMessage,
+  descriptionKey,
+  descriptionFallback,
   onCancel,
   onConfirm,
-}: ConfirmSubmitPlanDialogProps) {
+}: ConfirmSubmitDialogProps) {
   const { t } = useTranslate();
 
   return (
@@ -32,15 +40,11 @@ export function ConfirmSubmitPlanDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{translateOr(t, "ES_PM_IMPORTANT_NOTE", "Important Note")}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {translateOr(
-              t,
-              "ES_PM_CONFIRM_SUBMIT_PLAN_DESCRIPTION",
-              "Once this Installation Plan is submitted, you won't be able to add any new end-user sites. You can still remove an existing site, but only if no Installation Report has been submitted for it.",
-            )}
-          </AlertDialogDescription>
+          <AlertDialogDescription>{translateOr(t, descriptionKey, descriptionFallback)}</AlertDialogDescription>
         </AlertDialogHeader>
-        {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
+        {/* whitespace-pre-line so the newline-joined per-row messages from the pre-publish
+            vendor-assignment validation render as separate lines, not one run-on string. */}
+        {errorMessage ? <p className="text-sm whitespace-pre-line text-destructive">{errorMessage}</p> : null}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isSubmitting} onClick={onCancel}>
             {translateOr(t, "CORE_COMMON_CANCEL", "Cancel")}
