@@ -38,6 +38,8 @@ public class ActivityQueryBuilder {
 
     private static final String STATUS_COUNT_QUERY = "SELECT status, COUNT(*) AS occurrences " +
             "FROM facility_activities fa where fa.status is not null AND fa.isdeleted = false ";
+    private static final String FACILITY_ACTIVITY_COUNT_QUERY = "SELECT COUNT(*) " +
+            "FROM facility_activities fa where fa.isdeleted = false ";
     private static final String ACTIVITY_COUNT_QUERY = "SELECT COUNT(*) FROM facility_activities fa LEFT JOIN public.facility AS fac ON fa.facility_id = fac.id LEFT JOIN public.activities AS ac ON fa.activity_id = ac.id";
 
     private static final String PAGINATION_WRAPPER_TEMPLATE = "SELECT * FROM " +
@@ -233,6 +235,17 @@ public class ActivityQueryBuilder {
             preparedStmtList.add(fieldPlanId);
         }
         queryBuilder.append("GROUP BY status ORDER BY occurrences DESC;");
+
+        return queryBuilder.toString();
+    }
+
+    /* Returns query to get the total number of facility activities of a field plan */
+    public String getFacilityActivitiesCountQuery(String fieldPlanId, List<Object> preparedStmtList) {
+        StringBuilder queryBuilder = new StringBuilder(FACILITY_ACTIVITY_COUNT_QUERY);
+        if (fieldPlanId != null && !fieldPlanId.isEmpty()) {
+            queryBuilder.append(" AND fa.field_plan_id =? ");
+            preparedStmtList.add(fieldPlanId);
+        }
 
         return queryBuilder.toString();
     }
