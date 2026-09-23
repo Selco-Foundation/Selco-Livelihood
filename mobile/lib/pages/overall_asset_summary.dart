@@ -512,7 +512,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                 draft.isReadOnly
                     ? _ElementAssetSummary(
                         type: draft.applicableTypes[index],
-                        label: draft.labelFor(draft.applicableTypes[index]),
+                        label: draft.applicableTypes[index].pluralLabel,
                         count: draft.countFor(draft.applicableTypes[index]),
                         rejectionComments:
                             draft.mode == SolarWorkflowMode.resubmission
@@ -527,7 +527,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                       )
                     : _InitialElementAssetSummary(
                         type: draft.applicableTypes[index],
-                        label: draft.labelFor(draft.applicableTypes[index]),
+                        label: draft.applicableTypes[index].pluralLabel,
                         count: draft.countFor(draft.applicableTypes[index]),
                         rejectionComments:
                             draft.mode == SolarWorkflowMode.resubmission
@@ -605,7 +605,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                         '$_actionPrefix ${context.translate(i18.installationReport.installationImages)}',
                     onPressed: _openInstallationImages,
                   ),
-                  const SizedBox(height: spacer4),
+                  const SizedBox(height: spacer2),
                 ],
               ),
               if (draft.isReadOnly)
@@ -620,6 +620,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                   allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
                   allowMultiples: true,
                   showPreview: true,
+                  previewSpacing: 0,
                   initialFiles: draft.completionReportFiles
                       .where((file) =>
                           file.documentType == null ||
@@ -647,7 +648,6 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                     installationDraftRepository.saveSolarSoon(draft);
                   },
                 ),
-              const SizedBox(height: spacer1),
               LabeledField(
                 label: context.translate(i18.installationReport.invoiceNumber),
                 capitalizedFirstLetter: false,
@@ -671,7 +671,6 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                   showSectionLabel: true,
                 ),
               if (!draft.isReadOnly) ...[
-                const SizedBox(height: spacer1 * 0.5),
                 OtpVerificationWidget(
                   key: const ValueKey('solar-otp-widget'),
                   keyPrefix: 'solar',

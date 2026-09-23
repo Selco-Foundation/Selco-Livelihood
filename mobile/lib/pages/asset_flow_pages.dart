@@ -108,7 +108,8 @@ class _AssetCountPageState extends State<AssetCountPage> {
             LabeledField(
               label: draft.labelFor(type),
               capitalizedFirstLetter: false,
-              labelStyle: textTheme.headingS,
+              labelStyle: textTheme.headingS
+                  .copyWith(color: theme.colorTheme.text.primary),
               child: InputField(
                 key: ValueKey(
                     'solar-count-${type.name}-${draft.countFor(type)}'),

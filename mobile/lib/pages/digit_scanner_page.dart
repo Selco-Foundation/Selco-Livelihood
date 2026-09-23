@@ -630,7 +630,7 @@ class _DigitScannerPageState extends State<DigitScannerPage>
                   color: theme.colorScheme.secondary,
                 ),
                 Text(
-                  _flashEnabled ? 'Flash Off' : 'Flash On',
+                  _flashEnabled ? 'Flash off' : 'Flash on',
                   style: TextStyle(color: theme.colorScheme.secondary),
                 ),
               ],
@@ -665,7 +665,7 @@ class _DigitScannerPageState extends State<DigitScannerPage>
           child: Align(
             alignment: Alignment.topCenter,
             child: Text(
-              'Scanner',
+              'Scan QR code',
               style: TextStyle(
                 color: theme.colorScheme.onError,
                 fontSize: 16,
@@ -730,7 +730,7 @@ class _DigitScannerPageState extends State<DigitScannerPage>
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: spacer1),
                 child: Text(
-                  'Manual Scan',
+                  "Can't scan the QR Code?",
                   style: textTheme.bodyL.copyWith(
                     color: theme.colorTheme.paper.primary,
                   ),
@@ -820,7 +820,7 @@ class _DigitScannerPageState extends State<DigitScannerPage>
                       spacer2,
                     ),
                     child: Text(
-                      '${state.qrCodes.length} Resources Scanned',
+                      '${state.qrCodes.length} Resource Scanned',
                       style: textTheme.headingM.copyWith(
                         color: theme.colorTheme.text.primary,
                       ),
@@ -893,13 +893,13 @@ const _scannerLanguages = <_ScannerLanguage>[_ScannerLanguage('en_IN')];
 
 const _scannerMessages = <_ScannerMessage>[
   _ScannerMessage('BARCODE_SCANNER', 'Barcode Scanner'),
-  _ScannerMessage('SCANNER_LABEL', 'Scanner'),
-  _ScannerMessage('FLASH_ON', 'Flash On'),
-  _ScannerMessage('FLASH_OFF', 'Flash Off'),
-  _ScannerMessage('MANUAL_SCAN', 'Manual Scan'),
-  _ScannerMessage('ENTER_MANUAL_CODE', 'Enter Manual Code'),
+  _ScannerMessage('SCANNER_LABEL', 'Scan QR code'),
+  _ScannerMessage('FLASH_ON', 'Flash on'),
+  _ScannerMessage('FLASH_OFF', 'Flash off'),
+  _ScannerMessage('MANUAL_SCAN', "Can't scan the QR Code?"),
+  _ScannerMessage('ENTER_MANUAL_CODE', 'Enter Serial Number'),
   _ScannerMessage('RESOURCE_CODE', 'Serial Number'),
-  _ScannerMessage('RESOURCE_SCANNED', 'Resources Scanned'),
+  _ScannerMessage('RESOURCE_SCANNED', 'Resource Scanned'),
   _ScannerMessage('CORE_COMMON_SUBMIT', 'Submit'),
   _ScannerMessage('CORE_COMMON_CANCEL', 'Cancel'),
   _ScannerMessage('CORE_COMMON_REQUIRED', 'This field is required'),

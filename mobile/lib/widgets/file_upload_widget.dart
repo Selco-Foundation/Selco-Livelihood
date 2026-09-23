@@ -27,6 +27,7 @@ class FileUploadWidget extends StatefulWidget {
     this.reUploadText = 'Re-Upload',
     this.isDisabled = false,
     this.maxFiles,
+    this.previewSpacing = spacer3,
   });
 
   final String label;
@@ -42,6 +43,7 @@ class FileUploadWidget extends StatefulWidget {
   final String reUploadText;
   final bool isDisabled;
   final int? maxFiles;
+  final double previewSpacing;
 
   @override
   State<FileUploadWidget> createState() => _FileUploadWidgetState();
@@ -182,7 +184,7 @@ class _FileUploadWidgetState extends State<FileUploadWidget> {
             ],
           ),
         ],
-        const SizedBox(height: spacer3),
+        SizedBox(height: widget.previewSpacing),
         if (widget.showPreview)
           ReportDocumentGallery(
             files: files,

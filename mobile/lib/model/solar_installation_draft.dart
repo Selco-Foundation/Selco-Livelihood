@@ -20,7 +20,7 @@ extension SolarAssetTypeLabel on SolarAssetType {
 
   String get pluralLabel => switch (this) {
         SolarAssetType.battery => 'Batteries',
-        SolarAssetType.inverter => 'Inverters / PCUs',
+        SolarAssetType.inverter => 'Inverter/PCUs',
         SolarAssetType.panel => 'Panels',
       };
 
