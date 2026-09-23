@@ -8,15 +8,15 @@ import {
 } from "@/shared";
 import { TopBar } from "@/ui";
 import { useEffect, useMemo, useState } from "react";
-import { FacilityEntryTable } from "../../components/facility/FacilityEntryTable";
+import { ActivityTable } from "../../components/activity/ActivityTable";
 import {
-  EMPTY_FACILITY_FILTERS,
-  FacilityEntryFilter,
-  type FacilityEntryFilterState,
-  type FacilityFilterOption,
-} from "../../components/facility/FacilityEntryFilter";
-import { useBulkApproveFacilityEntries, useFacilityEntries } from "../../hooks/use-facility-entries";
-import { useFacilityStatusOptions } from "../../hooks/use-facility-status-options";
+  EMPTY_ACTIVITY_FILTERS,
+  ActivityFilter,
+  type ActivityFilterState,
+  type ActivityFilterOption,
+} from "../../components/activity/ActivityFilter";
+import { useBulkApproveActivities, useActivities } from "../../hooks/use-activities";
+import { useActivityStatusOptions } from "../../hooks/use-activity-status-options";
 import { useInstallationPlans } from "../../hooks/use-installation-plans";
 import { boundaryDisplayName, cascadeBlockOptions, resolveBoundaryCodes } from "../../utils/boundary";
 import { hasIrAccess } from "../../utils/access";
@@ -24,23 +24,23 @@ import { irInstallationPlansPath } from "../../utils/paths";
 
 const DEFAULT_PAGE_SIZE = 10;
 
-// The entries route's path is computed at runtime via contextPath(), so there's no
-// static `Route` export for typed params — read the plan id from the URL segments
-// directly instead, same convention as ComplaintDetailsPage.
-function useFacilityEntriesRouteParams() {
+// The activities route's path is computed at runtime via contextPath(), so
+// there's no static `Route` export for typed params — read the plan id from
+// the URL segments directly instead, same convention as ComplaintDetailsPage.
+function useActivitiesRouteParams() {
   return useMemo(() => {
     const segments = window.location.pathname.split("/").filter(Boolean);
-    const index = segments.indexOf("entries");
+    const index = segments.indexOf("installation-plans");
     return { planId: index >= 0 ? (segments[index + 1] ?? "") : "" };
   }, []);
 }
 
-export function FacilityEntryListPage() {
+export function ActivityList() {
   const { t } = useTranslate();
   const user = useAuthStore((state) => state.user);
-  const { planId } = useFacilityEntriesRouteParams();
+  const { planId } = useActivitiesRouteParams();
 
-  const [filters, setFilters] = useState<FacilityEntryFilterState>(EMPTY_FACILITY_FILTERS);
+  const [filters, setFilters] = useState<ActivityFilterState>(EMPTY_ACTIVITY_FILTERS);
   const [rawSearchText, setRawSearchText] = useState("");
   const searchText = useDebouncedValue(rawSearchText);
   const [pageOffset, setPageOffset] = useState(0);
@@ -49,7 +49,7 @@ export function FacilityEntryListPage() {
 
   // Scoped to this one field plan via fieldPlanIds — the authoritative source
   // for breadcrumb/summary data and the field plan's state (which seeds the
-  // boundary lookup below), independent of the facility search's own
+  // boundary lookup below), independent of the activity search's own
   // filters/pagination.
   const { data: plansData } = useInstallationPlans({ fieldPlanIds: planId ? [planId] : undefined });
   const plan = plansData?.plans.find((item) => item.planId === planId);
@@ -61,25 +61,16 @@ export function FacilityEntryListPage() {
   // *options* are then narrowed down from this full list to just the ones
   // actually part of this field plan (below), rather than showing the
   // whole state's boundaries.
-  const { data: boundaryData } = useBoundary(plan?.stateCode ? [plan.stateCode] : []);
+  const { data: boundaryData } = useBoundary(plan?.stateCodes ?? []);
 
-  // The assignment's own "blocks" field is actually facility-level leaf
-  // codes (not block codes) — map each to its parent block via the state
-  // boundary tree's `facilities` list to get the real set of block codes
-  // this plan uses.
-  const planFacilityCodes = new Set(plan?.facilityBoundaryCodes ?? []);
-  const planBlockCodes = new Set(
-    (boundaryData?.facilities ?? [])
-      .filter((facility) => planFacilityCodes.has(facility.code))
-      .map((facility) => facility.parentCode),
-  );
+  const planBlockCodes = new Set(plan?.blockCodes ?? []);
   const planBlocks = (boundaryData?.blocks ?? []).filter((block) => planBlockCodes.has(block.code));
 
   useEffect(() => {
     setPageOffset(0);
   }, [searchText]);
 
-  const { data, isLoading } = useFacilityEntries(planId, {
+  const { data, isLoading } = useActivities(planId, {
     boundaryCodes: resolveBoundaryCodes(filters, boundaryData?.blocks ?? [], boundaryData?.facilities ?? []),
     statuses: filters.status.length > 0 ? filters.status : undefined,
     searchText,
@@ -87,14 +78,14 @@ export function FacilityEntryListPage() {
     pageSize,
   });
 
-  const bulkApprove = useBulkApproveFacilityEntries(planId);
-  const { options: statusOptions } = useFacilityStatusOptions();
+  const bulkApprove = useBulkApproveActivities(planId);
+  const { options: statusOptions } = useActivityStatusOptions();
 
   const planDistrictCodes = new Set(plan?.districtCodes ?? []);
-  const districtOptions: FacilityFilterOption[] = (boundaryData?.districts ?? [])
+  const districtOptions: ActivityFilterOption[] = (boundaryData?.districts ?? [])
     .filter((district) => planDistrictCodes.has(district.code))
     .map((district) => ({ code: district.code, name: boundaryDisplayName(district.code, t) }));
-  const blockOptions: FacilityFilterOption[] = cascadeBlockOptions(
+  const blockOptions: ActivityFilterOption[] = cascadeBlockOptions(
     planBlocks,
     filters.district,
   ).map((block) => ({ code: block.code, name: boundaryDisplayName(block.code, t) }));
@@ -106,7 +97,7 @@ export function FacilityEntryListPage() {
   const totalCount = data?.totalCount ?? 0;
   const currentPage = Math.floor(pageOffset / pageSize);
 
-  function handleFilterChange(nextFilters: FacilityEntryFilterState) {
+  function handleFilterChange(nextFilters: ActivityFilterState) {
     // Selecting a district can invalidate an already-selected block from a
     // different district — prune it, matching im's InboxFilter cascade.
     const validBlockCodes = new Set(
@@ -132,7 +123,7 @@ export function FacilityEntryListPage() {
   return (
     <div className="space-y-6">
       <TopBar
-        title={translateOr(t, "ES_IR_REVIEW_SITES", "Review Sites")}
+        title={translateOr(t, "ES_IR_REVIEW_ACTIVITIES", "Review Activities")}
         breadcrumbs={[
           { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: employeeHomePath() },
           {
@@ -157,14 +148,14 @@ export function FacilityEntryListPage() {
         </div>
         <div>
           <p className="text-sm leading-[21px] text-ink-600">
-            {translateOr(t, "ES_IR_END_USER_SITE", "End User Site(s)")}
+            {translateOr(t, "ES_IR_TOTAL_ACTIVITIES", "Activities")}
           </p>
           <p className="text-base leading-6 font-semibold text-ink-950">
             {plan?.totalFacilities ?? "-"}
           </p>
         </div>
       </div>
-      <FacilityEntryFilter
+      <ActivityFilter
         districtOptions={districtOptions}
         blockOptions={blockOptions}
         statusOptions={statusOptions}
@@ -179,9 +170,9 @@ export function FacilityEntryListPage() {
         onApprove={handleBulkApprove}
         isApproving={bulkApprove.isPending}
       />
-      <FacilityEntryTable
+      <ActivityTable
         planId={planId}
-        entries={data?.entries ?? []}
+        activities={data?.activities ?? []}
         isLoading={isLoading}
         selected={selected}
         onSelectedChange={setSelected}

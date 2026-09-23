@@ -2,18 +2,18 @@ import { translateOr, useTranslate } from "@/shared";
 import { Checkbox, Pagination, Skeleton, cn } from "@/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
-  FACILITY_ENTRY_STATUS_LABELS,
-  facilityStatusBadgeVariant,
-} from "../../constants/facility-status";
-import type { FacilityEntry } from "../../types/facility-review";
+  ACTIVITY_STATUS_LABELS,
+  activityStatusBadgeVariant,
+} from "../../constants/activity-status";
+import type { ReviewActivity } from "../../types/activity-review";
 import { boundaryDisplayName } from "../../utils/boundary";
-import { irFacilityReviewPath } from "../../utils/paths";
+import { irActivityReviewPath } from "../../utils/paths";
 
 function statusLabel(
-  status: FacilityEntry["status"],
+  status: ReviewActivity["status"],
   t: ReturnType<typeof useTranslate>["t"],
 ): string {
-  const label = FACILITY_ENTRY_STATUS_LABELS[status];
+  const label = ACTIVITY_STATUS_LABELS[status];
   return translateOr(t, label.key, label.fallback);
 }
 
@@ -27,9 +27,9 @@ function boundaryLabel(
   return boundary.name ?? boundaryDisplayName(boundary.code, t);
 }
 
-interface FacilityEntryTableProps {
+interface ActivityTableProps {
   planId: string;
-  entries: FacilityEntry[];
+  activities: ReviewActivity[];
   isLoading: boolean;
   selected: Set<string>;
   onSelectedChange: (next: Set<string>) => void;
@@ -42,9 +42,9 @@ interface FacilityEntryTableProps {
   onPageSizeChange: (size: number) => void;
 }
 
-export function FacilityEntryTable({
+export function ActivityTable({
   planId,
-  entries,
+  activities,
   isLoading,
   selected,
   onSelectedChange,
@@ -55,13 +55,13 @@ export function FacilityEntryTable({
   onPrevPage,
   onPageChange,
   onPageSizeChange,
-}: FacilityEntryTableProps) {
+}: ActivityTableProps) {
   const { t } = useTranslate();
   const navigate = useNavigate();
 
-  const selectableIds = entries
-    .filter((entry) => entry.status === "SUBMITTED_BY_FIELD_STAFF")
-    .map((entry) => entry.entryId);
+  const selectableIds = activities
+    .filter((activity) => activity.status === "SUBMITTED_BY_FIELD_STAFF")
+    .map((activity) => activity.activityId);
   const allSelected =
     selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
 
@@ -69,12 +69,12 @@ export function FacilityEntryTable({
     onSelectedChange(allSelected ? new Set() : new Set(selectableIds));
   }
 
-  function toggleOne(entryId: string) {
+  function toggleOne(activityId: string) {
     const next = new Set(selected);
-    if (next.has(entryId)) {
-      next.delete(entryId);
+    if (next.has(activityId)) {
+      next.delete(activityId);
     } else {
-      next.add(entryId);
+      next.add(activityId);
     }
     onSelectedChange(next);
   }
@@ -89,9 +89,9 @@ export function FacilityEntryTable({
 
   return (
     <div className="space-y-5">
-      {entries.length === 0 ? (
+      {activities.length === 0 ? (
         <div className="livelihood-card px-6 py-16 text-center text-sm text-muted-foreground">
-          {translateOr(t, "ES_IR_NO_SITES", "No sites found for this plan")}
+          {translateOr(t, "ES_IR_NO_ACTIVITIES", "No activities found for this plan")}
         </div>
       ) : (
         <div className="livelihood-card overflow-hidden">
@@ -100,15 +100,13 @@ export function FacilityEntryTable({
               <thead>
                 <tr className="border-b border-border">
                   <th className="w-10 px-5 py-3">
-                    {selectableIds.length > 0 ? (
-                      <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
-                    ) : null}
+                    <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
                   </th>
                   <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ES_IR_END_USER", "End User")}
                   </th>
                   <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
-                    {translateOr(t, "ES_IR_ENTRY_TYPE", "Type")}
+                    {translateOr(t, "ES_IR_COMPONENT_TYPE", "Type")}
                   </th>
                   <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ES_IR_DISTRICT", "District")}
@@ -122,14 +120,14 @@ export function FacilityEntryTable({
                 </tr>
               </thead>
               <tbody>
-                {entries.map((entry, index) => {
-                  const reviewPath = irFacilityReviewPath(planId, entry.entryId);
-                  const isSelectable = entry.status === "SUBMITTED_BY_FIELD_STAFF";
-                  const badgeVariant = facilityStatusBadgeVariant(entry.status);
+                {activities.map((activity, index) => {
+                  const reviewPath = irActivityReviewPath(planId, activity.activityId);
+                  const isSelectable = activity.status === "SUBMITTED_BY_FIELD_STAFF";
+                  const badgeVariant = activityStatusBadgeVariant(activity.status);
 
                   return (
                     <tr
-                      key={entry.entryId}
+                      key={activity.activityId}
                       className={cn(
                         "cursor-pointer border-b border-border/70 hover:bg-muted/40",
                         index % 2 === 1 && "bg-accent",
@@ -141,8 +139,8 @@ export function FacilityEntryTable({
                       <td className="px-5 py-4" onClick={(event) => event.stopPropagation()}>
                         {isSelectable ? (
                           <Checkbox
-                            checked={selected.has(entry.entryId)}
-                            onCheckedChange={() => toggleOne(entry.entryId)}
+                            checked={selected.has(activity.activityId)}
+                            onCheckedChange={() => toggleOne(activity.activityId)}
                           />
                         ) : null}
                       </td>
@@ -152,36 +150,36 @@ export function FacilityEntryTable({
                           className="font-semibold text-foreground hover:text-primary hover:underline"
                           onClick={(event) => event.stopPropagation()}
                         >
-                          {entry.facilityName}
+                          {activity.facilityName}
                         </Link>
                       </td>
                       <td className="px-5 py-4 text-foreground">
-                        {entry.entryType === "MACHINE"
-                          ? translateOr(t, "ES_IR_ENTRY_TYPE_MACHINE", "Machine")
-                          : translateOr(t, "ES_IR_ENTRY_TYPE_SOLAR", "Solar")}
+                        {activity.componentType === "MACHINE"
+                          ? translateOr(t, "ES_IR_COMPONENT_TYPE_MACHINE", "Machine")
+                          : translateOr(t, "ES_IR_COMPONENT_TYPE_SOLAR", "Solar")}
                       </td>
                       <td className="px-5 py-4 text-foreground">
-                        {boundaryLabel(entry.district, t) ?? "-"}
+                        {boundaryLabel(activity.district, t) ?? "-"}
                       </td>
                       <td className="px-5 py-4 text-foreground">
-                        {boundaryLabel(entry.block, t) ?? "-"}
+                        {boundaryLabel(activity.block, t) ?? "-"}
                       </td>
                       <td className="px-5 py-4">
                         {badgeVariant === "pending" ? (
                           <span className="livelihood-sla-badge">
-                            {statusLabel(entry.status, t)}
+                            {statusLabel(activity.status, t)}
                           </span>
                         ) : badgeVariant === "rejected" ? (
                           <span className="text-sm font-medium text-destructive">
-                            {statusLabel(entry.status, t)}
+                            {statusLabel(activity.status, t)}
                           </span>
                         ) : badgeVariant === "approved" ? (
                           <span className="livelihood-sla-badge-muted">
-                            {statusLabel(entry.status, t)}
+                            {statusLabel(activity.status, t)}
                           </span>
                         ) : (
                           <span className="text-sm font-medium text-muted-foreground">
-                            {statusLabel(entry.status, t)}
+                            {statusLabel(activity.status, t)}
                           </span>
                         )}
                       </td>

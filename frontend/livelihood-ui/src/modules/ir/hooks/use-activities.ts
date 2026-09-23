@@ -5,11 +5,11 @@ import {
   bulkUpdateActivityFacilitiesWorkflow,
   searchActivityFacilities,
 } from "../services/facility";
-import type { FacilityEntry } from "../types/facility-review";
+import type { ReviewActivity } from "../types/activity-review";
 import { hasIrAccess } from "../utils/access";
-import { toFacilityEntry } from "../utils/facility-entry-mapping";
+import { toReviewActivity } from "../utils/review-activity-mapping";
 
-export interface UseFacilityEntriesOptions {
+export interface UseActivitiesOptions {
   boundaryCodes?: string[];
   statuses?: string[];
   searchText?: string;
@@ -17,15 +17,12 @@ export interface UseFacilityEntriesOptions {
   pageSize?: number;
 }
 
-export interface FacilityEntrySearchResult {
-  entries: FacilityEntry[];
+export interface ActivitySearchResult {
+  activities: ReviewActivity[];
   totalCount: number;
 }
 
-export function useFacilityEntries(
-  planId: string,
-  options: UseFacilityEntriesOptions = {},
-) {
+export function useActivities(planId: string, options: UseActivitiesOptions = {}) {
   const { boundaryCodes, statuses, searchText, pageOffset = 0, pageSize = 10 } = options;
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
@@ -37,7 +34,7 @@ export function useFacilityEntries(
 
   return useQuery({
     queryKey: [
-      "ir-facility-entries",
+      "ir-activities",
       employeeTenantId,
       planId,
       boundaryCodes,
@@ -47,7 +44,7 @@ export function useFacilityEntries(
       pageSize,
     ],
     enabled,
-    queryFn: async (): Promise<FacilityEntrySearchResult> => {
+    queryFn: async (): Promise<ActivitySearchResult> => {
       const data = await searchActivityFacilities(
         {
           tenantId: employeeTenantId!,
@@ -64,26 +61,26 @@ export function useFacilityEntries(
 
       const rows = data.facility ?? [];
       return {
-        entries: rows.map(toFacilityEntry),
+        activities: rows.map(toReviewActivity),
         totalCount: data.totalCount ?? 0,
       };
     },
   });
 }
 
-export function useBulkApproveFacilityEntries(planId: string) {
+export function useBulkApproveActivities(planId: string) {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
   const employeeTenantId = useAuthStore((state) => state.employeeTenantId);
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (entryIds: string[]) =>
+    mutationFn: (activityIds: string[]) =>
       bulkUpdateActivityFacilitiesWorkflow(
         {
           workflow: { action: "APPROVE", comments: "Approved by Installation Reviewer" },
           isAllSelected: false,
-          activityFacilityIds: entryIds,
+          activityFacilityIds: activityIds,
         },
         employeeTenantId!,
         accessToken!,
@@ -91,7 +88,7 @@ export function useBulkApproveFacilityEntries(planId: string) {
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["ir-facility-entries", employeeTenantId, planId],
+        queryKey: ["ir-activities", employeeTenantId, planId],
       });
     },
   });

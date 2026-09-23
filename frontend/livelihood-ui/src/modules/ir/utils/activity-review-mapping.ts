@@ -1,28 +1,29 @@
-import { MACHINE_MEDIA_GROUPS, REVIEW_SECTION_LABELS } from "../constants/review";
+import { REVIEW_SECTION_LABELS } from "../constants/review";
+import type { MachineAssetData } from "./asset-mapping";
 import { formatEpochDate } from "./date-format";
-import { toFacilityEntry } from "./facility-entry-mapping";
+import { toReviewActivity } from "./review-activity-mapping";
 import { classifyDocument, INSTALLATION_IMAGE_PREFIX, REPORT_DOCUMENT_TYPES } from "./facility-documents";
 import type { InstallationImageCriterion } from "./installation-image-mapping";
 import type {
+  ActivityAuditCheckpoint,
   ActivityBillOfMaterial,
   ActivityBomComponent,
   ActivityDocument,
   ActivityFacilityRow,
+  ActivityReviewDetail,
+  ActivityStatus,
   ActivityTransaction,
   ActivityWorkflowEntry,
   AssetItem,
   AssetSectionContent,
   AuditSectionReasons,
-  FacilityAuditCheckpoint,
-  FacilityEntryStatus,
-  FacilityReviewDetail,
   ImageChecklistSectionContent,
   LabeledValue,
   RejectionReasonOption,
   ReportSectionContent,
   ReviewSectionContent,
   ReviewSectionId,
-} from "../types/facility-review";
+} from "../types/activity-review";
 
 export function humanize(id: string): string {
   return id
@@ -45,7 +46,10 @@ function documentsForKey(documents: ActivityDocument[], key: string): ActivityDo
   return documents.filter((document) => classifyDocument(document).key === key);
 }
 
-function buildMachineSection(bom: ActivityBillOfMaterial | undefined): AssetSectionContent {
+function buildMachineSection(
+  bom: ActivityBillOfMaterial | undefined,
+  machineAssetData: MachineAssetData,
+): AssetSectionContent {
   const { labelKey, label } = REVIEW_SECTION_LABELS.MACHINE;
   const specifications: LabeledValue[] = [];
 
@@ -71,22 +75,33 @@ function buildMachineSection(bom: ActivityBillOfMaterial | undefined): AssetSect
     });
   }
 
+  // Real registered assets (PO/invoice/warranty/serial number, per-item
+  // photos) once the facility's been submitted; falls back to the planned
+  // BOM components (no serial/PO/warranty yet, since nothing's registered)
+  // beforehand — same before/after-submission story as Solar's sections.
+  const items =
+    machineAssetData.items.length > 0
+      ? machineAssetData.items
+      : toAssetItems(bom?.data?.components ?? []);
+
   return {
     kind: "ASSET",
     id: "MACHINE",
     labelKey,
     label,
     specifications,
-    items: toAssetItems(bom?.data?.components ?? []),
+    // This block is about the *installation* (vendor/installed-by/report
+    // number), not the machine itself — say so, so it doesn't read like a
+    // machine spec sheet alongside the real machine Details below.
+    specificationsHeading: {
+      labelKey: "ES_IR_MACHINE_INSTALLATION_DETAILS",
+      label: "Installation Details",
+    },
+    details: machineAssetData.details,
+    items,
     images: [],
     videos: [],
-    mediaGroups: MACHINE_MEDIA_GROUPS.map((group) => ({
-      id: group.id,
-      labelKey: group.labelKey,
-      label: group.label,
-      images: [],
-      videos: [],
-    })),
+    mediaGroups: machineAssetData.mediaGroups,
   };
 }
 
@@ -108,8 +123,7 @@ function buildReportSection(bom: ActivityBillOfMaterial | undefined): ReportSect
     labelKey,
     label,
     specifications,
-    installationCompletionCertificate: null,
-    assetHandoverDocument: null,
+    report: null,
     supportingDocuments: [],
   };
 }
@@ -164,7 +178,7 @@ function buildAuditTrail(
   workflow: ActivityWorkflowEntry[] | undefined,
   transactions: ActivityTransaction[] | undefined,
   reasonOptions: RejectionReasonOption[],
-): FacilityAuditCheckpoint[] {
+): ActivityAuditCheckpoint[] {
   const transactionByProcessInstanceId = new Map(
     (transactions ?? [])
       .filter((transaction) => transaction.processInstanceId)
@@ -180,7 +194,7 @@ function buildAuditTrail(
 
     return {
       id: entry.id ?? `checkpoint-${index}`,
-      status: (entry.state?.applicationStatus ?? "SCHEDULED") as FacilityEntryStatus,
+      status: (entry.state?.applicationStatus ?? "SCHEDULED") as ActivityStatus,
       date: entry.auditDetails?.createdTime ? formatEpochDate(entry.auditDetails.createdTime) : "-",
       actorName: entry.assigner?.name,
       comment: entry.comment,
@@ -189,28 +203,31 @@ function buildAuditTrail(
   });
 }
 
-export function buildFacilityReviewDetail(
+export function buildActivityReviewDetail(
   row: ActivityFacilityRow,
   installationImageCriteria: InstallationImageCriterion[],
   // Real Panel/Battery/Inverter sections sourced from the asset-registry
-  // search (see hooks/use-facility-review.ts + utils/asset-mapping.ts) — the
-  // BOM no longer drives Solar's asset sections; a Machine entry gets an
-  // empty array here since it doesn't use it.
+  // search (see hooks/use-activity-review.ts + utils/asset-mapping.ts) — the
+  // BOM no longer drives Solar's asset sections; empty for a Machine entry
+  // since it doesn't use it (machineAssetData is its equivalent below).
   solarAssetSections: AssetSectionContent[],
   // MDMS `Installation.RejectionReasons` options (see
   // hooks/use-rejection-reason-options.ts) — used here only to resolve a
   // historical audit-trail comment's reasonCode back to its display name.
   reasonOptions: RejectionReasonOption[],
-): FacilityReviewDetail {
+  // Machine's asset-sourced PO/invoice/warranty/serial-number/spec data —
+  // see utils/asset-mapping.ts's buildMachineAssetData. Unused for Solar.
+  machineAssetData: MachineAssetData,
+): ActivityReviewDetail {
   const { activityFacility } = row;
-  const entry = toFacilityEntry(row);
+  const activity = toReviewActivity(row);
   const latestWorkflow = row.workflow?.[0];
   const latestDocuments = latestWorkflow?.documents ?? [];
 
   const isSolar = activityFacility.componentType !== "MACHINE";
   const sections: ReviewSectionContent[] = isSolar
     ? solarAssetSections
-    : [buildMachineSection(activityFacility.billOfMaterial)];
+    : [buildMachineSection(activityFacility.billOfMaterial, machineAssetData)];
   sections.push(buildReportSection(activityFacility.billOfMaterial));
   // The installation-image checklist (site overview / nameplate / earthing
   // photos) verifies a Solar installation specifically — Machine entries
@@ -240,9 +257,10 @@ export function buildFacilityReviewDetail(
   }
 
   return {
-    entry,
+    activity,
     sections,
     auditTrail: buildAuditTrail(row.workflow, row.transactions, reasonOptions),
     sectionDocuments,
+    workflowDocuments: latestDocuments,
   };
 }

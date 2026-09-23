@@ -5,10 +5,10 @@ export function irInstallationPlansPath() {
   return `/${contextPath()}${IR_ROUTES.installationPlans}`;
 }
 
-export function irFacilityEntriesPath(planId: string) {
-  return `/${contextPath()}${IR_ROUTES.facilityEntries}/${planId}`;
+export function irActivitiesPath(planId: string) {
+  return `/${contextPath()}${IR_ROUTES.installationPlans}/${planId}/activities`;
 }
 
-export function irFacilityReviewPath(planId: string, entryId: string) {
-  return `/${contextPath()}${IR_ROUTES.facilityReview}/${planId}/${entryId}`;
+export function irActivityReviewPath(planId: string, activityId: string) {
+  return `/${contextPath()}${IR_ROUTES.installationPlans}/${planId}/activities/${activityId}/review`;
 }

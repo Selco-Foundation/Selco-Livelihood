@@ -1,6 +1,6 @@
 import { translateOr, useTranslate } from "@/shared";
 import { Download } from "lucide-react";
-import type { SectionImage, SectionVideo } from "../../types/facility-review";
+import type { SectionImage, SectionVideo } from "../../types/activity-review";
 
 function formatFileSize(bytes?: number): string {
   if (!bytes) {
@@ -34,9 +34,9 @@ export function SectionImageGrid({ titleKey, title, images, bare = false }: Sect
           target="_blank"
           rel="noreferrer"
           aria-label={`${translateOr(t, "ES_IR_IMAGE", "Image")} ${index + 1}`}
-          className="block h-24 w-32 shrink-0 overflow-hidden rounded-md border border-border"
+          className="block w-32 shrink-0 overflow-hidden rounded-md border border-border"
         >
-          <img src={entry.url} alt="" className="h-full w-full object-cover" />
+          <img src={entry.url} alt="" className="h-auto w-full" />
         </a>
       ))}
     </div>
@@ -83,7 +83,7 @@ export function SectionVideoList({ titleKey, title, videos, bare = false }: Sect
             src={entry.url}
             controls
             aria-label={`${translateOr(t, "ES_IR_VIDEO", "Video")} ${index + 1}`}
-            className="h-20 w-32 rounded bg-black"
+            className="h-auto w-32 rounded bg-black"
           />
           <a
             href={entry.url}
