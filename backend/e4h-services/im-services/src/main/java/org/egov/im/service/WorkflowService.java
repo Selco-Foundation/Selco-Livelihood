@@ -215,17 +215,32 @@ public class WorkflowService {
      * <p>Decline is terminal (REOPEN is only allowed from RESOLVED), so it cannot recur and its
      * single occurrence is recorded as-is.
      *
-     * <p>Also sets {@code isReopened}: true when the history already held a RESOLVED state
-     * <em>before</em> the current transition, meaning the ticket came back after being resolved.
-     * AUTO_CLOSE clears it, since that is the normal end of a resolution rather than a reopen.
+     * <p>Also sets {@code isReopened}: true when the ticket has already been through a resolution
+     * — either the history holds a RESOLVED state from an earlier cycle, or this very transition
+     * is the REOPEN. Once set it stays set for the rest of the ticket's life, including after it
+     * closes, so it reads as "this ticket was reopened" rather than "is currently reopened".
+     * It is always written as an explicit true/false and never left null, so index consumers can
+     * filter on it directly even for a freshly created ticket.
      *
      * @param current the just-transitioned instance, excluded from the RESOLVED lookback so that
-     *                the RESOLVE transition itself does not mark the ticket as reopened
+     *                the first RESOLVE transition does not mark the ticket as reopened
      * @param action  the workflow action driving this transition
      */
     private void enrichResolvedAndDeclinedTimestamps(IncidentRequestWrapper wrapper, List<ProcessInstance> processInstances,
                                                      ProcessInstance current, String action) {
+        IndexView indexView = wrapper.getIndexView();
+        if (indexView == null) {
+            indexView = new IndexView();
+            wrapper.setIndexView(indexView);
+        }
+
+        boolean reopenAction = IM_WF_REOPEN.equalsIgnoreCase(action);
+
+        // A brand-new ticket has no history, so there is nothing to resolve or decline and the
+        // only possible reopen signal is the action itself. The flag is still written so that a
+        // never-transitioned ticket indexes as false rather than null.
         if (CollectionUtils.isEmpty(processInstances)) {
+            indexView.setIsReopened(reopenAction);
             return;
         }
 
@@ -272,16 +287,9 @@ public class WorkflowService {
             }
         }
 
-        IndexView indexView = wrapper.getIndexView();
-        if (indexView == null) {
-            indexView = new IndexView();
-            wrapper.setIndexView(indexView);
-        }
-
         indexView.setResolvedTimestamp(resolvedTs);
         indexView.setDeclinedTimestamp(declinedTs);
-        indexView.setIsReopened(resolvedBeforeThisTransition
-                && !LIVELIHOOD_WF_AUTO_CLOSE.equalsIgnoreCase(action));
+        indexView.setIsReopened(resolvedBeforeThisTransition || reopenAction);
     }
 
     /**
