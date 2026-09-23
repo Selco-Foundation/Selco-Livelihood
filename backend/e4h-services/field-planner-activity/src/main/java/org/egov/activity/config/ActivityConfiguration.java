@@ -17,6 +17,46 @@ public class ActivityConfiguration {
     @Value("${fieldplan.facility.idgen.id.format}")
     private String fieldPlanFacilityIdFormat;
 
+    /**
+     * idgen id name for a bom row's IC Report number. The format itself is registered in
+     * egov-idgen's own configuration, which lives outside this repository -- if it is missing,
+     * vendor assignment fails at the Report Number step rather than dispatching numberless
+     * reports.
+     */
+    @Value("${bom.report.number.idgen.name:bom.report.number}")
+    private String bomReportNumberIdName;
+
+    /**
+     * Consumed by egov-persister's activity-persister.yml save-vendor-assignment mapping, which
+     * writes facility_activities, bom, activity_facility_users and the field_plans handover in
+     * one transaction. Keep the payload shape in sync with that mapping.
+     */
+    @Value("${vendor.assignment.kafka.create.topic:save-vendor-assignment}")
+    private String saveVendorAssignmentTopic;
+
+    /**
+     * The plan's own workflow, distinct from egov.workflow.business.service
+     * (FACILITY_INSTALLATION), which governs the individual assets. Vendor assignment's submit
+     * transitions both: the plan on this service, each asset on that one.
+     */
+    @Value("${egov.workflow.installation.plan.business.service:INSTALLATION_PLAN}")
+    private String installationPlanBusinessService;
+
+    /**
+     * The two plan statuses this service COMPARES against. It never writes them -- a written
+     * status always comes from the workflow's transition response -- but "is this plan already
+     * published?" and "is it still editable?" need a value to test, and a compiled-in literal is
+     * what let field_plans.status and the workflow's state machine drift apart in the first place.
+     *
+     * Defaults match the INSTALLATION_PLAN business service as seeded: start state DRAFT, and
+     * PUBLISH leading to the terminate state PUBLISHED. Change the workflow, change these.
+     */
+    @Value("${installation.plan.draft.status:DRAFT}")
+    private String installationPlanDraftStatus;
+
+    @Value("${installation.plan.published.status:PUBLISHED}")
+    private String installationPlanPublishedStatus;
+
     @Value("${egov.fieldplan.host}")
     private String fieldPlanServiceHost;
 
@@ -41,6 +81,26 @@ public class ActivityConfiguration {
     @Value("${egov.pdf.host}")
     private String pdfServiceHost;
 
+    // Ingestion service - merges the appendable BOM documents onto the end of the generated report.
+    @Value("${egov.ingestion.host}")
+    private String ingestionServiceHost;
+
+    @Value("${egov.ingestion.document.append.url}")
+    private String ingestionDocumentAppendUrl;
+
+    @Value("${egov.ingestion.document.append.module}")
+    private String ingestionDocumentAppendModule;
+
+    // Localization - boundary codes rendered on the report are resolved to readable names.
+    @Value("${egov.localization.host}")
+    private String localizationHost;
+
+    @Value("${egov.localization.context.path}")
+    private String localizationContextPath;
+
+    @Value("${egov.localization.search.endpoint}")
+    private String localizationSearchEndpoint;
+
     @Value("${egov.createnosave.pdf.url}")
     private String pdfCreateNoSaveUrl;
 
@@ -50,20 +110,50 @@ public class ActivityConfiguration {
     @Value("${egov.kafka.notification.email.topic}")
     private String notificationEmailTopic;
 
-    @Value("${egov.off.grid.single.phase.key}")
-    private String bomACOffGridSinglePhase;
+    @Value("${egov.kafka.notification.sms.topic:egov.core.notification.sms}")
+    private String notificationSmsTopic;
 
-    @Value("${egov.off.grid.three.phase.key}")
-    private String bomACOffGridSThreePhase;
+    @Value("${egov.iccreport.erispinning.key}")
+    private String iccreportEriSpinning;
 
-    @Value("${egov.hybrid.single.phase.key}")
-    private String bomHybridSinglePhase;
+    @Value("${egov.iccreport.lightmanufacturing.key}")
+    private String iccreportLightManufacturing;
 
-    @Value("${egov.hybrid.three.phase.key}")
-    private String bomHybridThreePhase;
+    @Value("${egov.iccreport.lsklaptop.key}")
+    private String iccreportLskLaptop;
 
-    @Value("${egov.dc.system.key}")
-    private String bomDCSystem;
+    @Value("${egov.iccreport.multistageprocessingmillet.key}")
+    private String iccreportMultiStageProcessingMillet;
+
+    @Value("${egov.iccreport.multistageprocessing.key}")
+    private String iccreportMultiStageProcessing;
+
+    @Value("${egov.iccreport.oilmill.key}")
+    private String iccreportOilMill;
+
+    @Value("${egov.iccreport.paddyintegratedprocessing.key}")
+    private String iccreportPaddyIntegratedProcessing;
+
+    @Value("${egov.iccreport.printer.key}")
+    private String iccreportPrinter;
+
+    @Value("${egov.iccreport.pulverizer.key}")
+    private String iccreportPulverizer;
+
+    @Value("${egov.iccreport.refrigerator.key}")
+    private String iccreportRefrigerator;
+
+    @Value("${egov.iccreport.ricehuller.key}")
+    private String iccreportRiceHuller;
+
+    @Value("${egov.iccreport.roaster.key}")
+    private String iccreportRoaster;
+
+    @Value("${egov.iccreport.sewingmachine.key}")
+    private String iccreportSewingMachine;
+
+    @Value("${egov.iccreport.textilelighting.key}")
+    private String iccreportTextileLighting;
 
     @Value("${search.api.limit:100}")
     private String searchApiLimit;
@@ -75,6 +165,11 @@ public class ActivityConfiguration {
     private String mdmsHost;
     @Value("${egov.mdms.search.endpoint}")
     private String mdmsEndPoint;
+
+    // MDMS v2 schema search (e.g. Installation.Solution), distinct from the v1 common-masters
+    // endpoint above (egov.mdms.search.endpoint).
+    @Value("${egov.mdms.v2.search.endpoint:/egov-mdms-service/v2/_search}")
+    private String mdmsSchemaSearchEndpoint;
 
     @Value("${project.document.id.verification.required}")
     private String documentIdVerificationRequired;
@@ -169,6 +264,10 @@ public class ActivityConfiguration {
     @Value("${egov.vendor.user.update.url}")
     private String orgUserUpdateUrl;
 
+    // Organisation (not org-user) search on vendor-registry, same host as orgUserHost above.
+    @Value("${egov.vendor.organisation.search.url:/vendor/organisation/v1/_search}")
+    private String vendorOrganisationSearchUrl;
+
     @Value("${facility.management.transaction.kafka.create.topic}")
     private String transactionPersistTopic;
 
@@ -184,11 +283,38 @@ public class ActivityConfiguration {
     @Value("${egov.asset.update.url}")
     private String assetUpdateUrl;
 
+    /**
+     * Explicit page size for the asset search behind the installation report's serial-number
+     * section: asset-registry defaults limit to 10, which would silently truncate the panel /
+     * battery / inverter serial numbers on any sizeable installation. Defaulted inline so
+     * environments that predate this property still start.
+     */
+    @Value("${egov.asset.search.limit:1000}")
+    private Integer assetSearchLimit;
+
     @Value("${email.activity.assignment.subject}")
     private String activityEmailSubject;
 
     @Value("${email.activity.assignment.body}")
     private String activityEmailBody;
+
+    @Value("${email.ic.report.submitted.subject}")
+    private String icReportSubmittedSubject;
+
+    @Value("${email.ic.report.submitted.body}")
+    private String icReportSubmittedBody;
+
+    @Value("${email.ic.report.rejected.subject}")
+    private String icReportRejectedSubject;
+
+    @Value("${email.ic.report.rejected.body}")
+    private String icReportRejectedBody;
+
+    @Value("${sms.ic.report.rejected.body}")
+    private String icReportRejectedSmsBody;
+
+    @Value("${egov.fieldplan.facility.update.lock.url}")
+    private String fieldPlanFacilityUpdateLockUrl;
 
     @Value("${egov.amc.scheduler.host}")
     private String amcSchedulerHost;
@@ -201,4 +327,30 @@ public class ActivityConfiguration {
 
     @Value("${egov.amc.scheduler.visit.generate.url}")
     private String amcVisitGenerateUrl;
+
+    // pdf-service template key for MACHINE-component installation reports (fixed, not solution-dependent).
+    @Value("${machine.installation.report.pdf.key:machine_installation_report}")
+    private String machineInstallationReportKey;
+
+    @Value("${egov.otp.host}")
+    private String otpServiceHost;
+
+    @Value("${egov.otp.create.url}")
+    private String otpServiceCreateUrl;
+
+    @Value("${egov.otp.validate.url}")
+    private String otpServiceValidateUrl;
+
+    @Value("${activity.facility.otp.sms.message.template:Your OTP for facility verification is {otp}.}")
+    private String otpSmsTemplate;
+
+    /**
+     * When true, validateActivityFacilityOtp accepts {@link #defaultOtp} instead of calling
+     * egov_otp - lets QA/testers validate without reading the SMS the real OTP was sent in.
+     */
+    @Value("${egov.otp.bypass.validation:false}")
+    private boolean byPassValidation;
+
+    @Value("${egov.otp.default:1234}")
+    private String defaultOtp;
 }

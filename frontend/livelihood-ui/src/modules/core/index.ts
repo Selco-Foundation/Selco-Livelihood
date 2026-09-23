@@ -4,7 +4,6 @@ import { createCoreRoutes } from "./routes";
 
 export { AppShell } from "./layout/AppShell";
 export { LoginPage } from "./pages/employee/LoginPage";
-export { LanguageSwitcher } from "./components/LanguageSwitcher";
 export { HomePage } from "./pages/employee/HomePage";
 export { CORE_ROUTES } from "./constants/routes";
 export { createCoreRoutes };

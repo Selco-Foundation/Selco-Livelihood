@@ -172,6 +172,7 @@ public class V1ApiController {
                 .assetTypeSearch(criteria.getAssetType())
                 .activityFacilityID(criteria.getActivityFacilityID())
                 .isOperational(criteria.getIsOperational())
+                .isOnmReady(criteria.getIsOnmReady())
                 .serialNumberSearch(criteria.getSerialNumber())
                 .modelNumber(criteria.getModelNumber())
                 .brandID(criteria.getBrandID())

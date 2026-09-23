@@ -35,6 +35,11 @@ public class ActivityRowMapper implements RowMapper<ActivityFacility> {
                     .facilityId(resultSet.getString("fa_facilityId"))
                     .activityId(resultSet.getString("fa_activityId"))
                     .activityType(resultSet.getString("activity_type"))
+                    .componentType(resultSet.getString("fa_componentType"))
+                    // getInt returns 0 for SQL NULL, which would read as a real sequence;
+                    // getObject keeps the distinction between "no component" and "1".
+                    .componentSequence(resultSet.getObject("fa_componentSequence", Integer.class))
+                    .solutionId(resultSet.getString("fa_solutionId"))
                     .scheduledAt(resultSet.getLong("fa_scheduledAt"))
                     .assignedUser(resultSet.getString("fa_assignedUser"))
                     .activatedAt(resultSet.getLong("fa_activatedAt"))

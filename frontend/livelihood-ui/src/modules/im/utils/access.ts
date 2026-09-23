@@ -1,4 +1,4 @@
-const IM_ROLES = [
+export const IM_ROLES = [
   "COMPLAINT_RESOLVER",
   "LIVELIHOOD_POC",
   "COMPLAINANT",
