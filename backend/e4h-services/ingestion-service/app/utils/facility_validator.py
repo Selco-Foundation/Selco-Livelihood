@@ -134,10 +134,10 @@ def project_facility_validation(
             if pd.isna(val) or str(val).strip() == "":
                 add_err(i, "End User Id is required; this template only supports linking existing facilities.")
 
-    # Every row, or only the id-less ones -- see validate_all_rows in the docstring.
-    new_rows = df if validate_all_rows else select_unsaved_rows(df, id_column)
+    # Only validate rows where Facility ID is empty
+    new_rows = df[df[id_column].isna() | (df[id_column].astype(str).str.strip() == "")]
     if new_rows.empty:
-        return errors  # Nothing to validate
+        return errors  # No new rows to validate
 
     # Reset index on new_rows to get 0-based row positions
     new_rows = new_rows.reset_index()

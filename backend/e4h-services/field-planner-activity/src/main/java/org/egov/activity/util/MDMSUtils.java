@@ -6,6 +6,7 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.common.http.client.ServiceRequestClient;
 import org.egov.activity.web.models.ActivityRequest;
+import org.egov.activity.web.models.InstallationImageMaster;
 import org.egov.mdms.model.MasterDetail;
 import org.egov.mdms.model.MdmsCriteria;
 import org.egov.mdms.model.MdmsCriteriaReq;
@@ -15,9 +16,11 @@ import org.egov.tracer.model.CustomException;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 import static org.egov.activity.util.ActivityConstants.*;
 
@@ -29,6 +32,7 @@ public class MDMSUtils {
     public static final String FILTER_CODE = "$.*.code";
     public static final String FILTER_NAME = "$.*.name";
     public static final String FILTER_ACTIVE_TRUE = "$.[?(@.active==true)]";
+    private static final String INSTALLATION_SOLUTION_SCHEMA_CODE = "Installation.Solution";
     private final ServiceRequestClient serviceRequestRepository;
     private final ActivityConfiguration config;
 
@@ -96,6 +100,100 @@ public class MDMSUtils {
         return new StringBuilder().append(config.getMdmsHost()).append(config.getMdmsEndPoint());
     }
 
+
+    /**
+     * The common-masters.InstallationImages master: every image an installation report can carry,
+     * with the system types that require it and the position it takes in each of their reports.
+     */
+    @SuppressWarnings("unchecked")
+    public List<InstallationImageMaster> fetchInstallationImages(RequestInfo requestInfo, String tenantId) {
+        log.info("Fetching InstallationImages MDMS master for tenantId: {}", tenantId);
+
+        MdmsCriteriaReq mdmsCriteriaReq = MdmsCriteriaReq.builder()
+                .requestInfo(requestInfo)
+                .mdmsCriteria(MdmsCriteria.builder()
+                        .tenantId(tenantId)
+                        .moduleDetails(Collections.singletonList(getInstallationImageModuleRequestData()))
+                        .build())
+                .build();
+
+        List<InstallationImageMaster> installationImageMasters = new ArrayList<>();
+        try {
+            Map response = serviceRequestRepository.fetchResult(getMdmsSearchUrl(), mdmsCriteriaReq, Map.class);
+            Map<String, Object> mdmsRes = response != null ? (Map<String, Object>) response.get("MdmsRes") : null;
+            Map<String, Object> commonMasters = mdmsRes != null
+                    ? (Map<String, Object>) mdmsRes.get(MDMS_COMMON_MASTERS_MODULE_NAME)
+                    : null;
+            List<Map<String, Object>> masterRecords = commonMasters != null
+                    ? (List<Map<String, Object>>) commonMasters.get(MASTER_INSTALLATION_IMAGES)
+                    : null;
+            if (masterRecords != null && !masterRecords.isEmpty()) {
+                List<Map<String, Object>> installationImages =
+                        (List<Map<String, Object>>) masterRecords.get(0).get(INSTALLATION_IMAGE_FIELD);
+                if (installationImages != null) {
+                    for (Map<String, Object> image : installationImages) {
+                        InstallationImageMaster parsed = toInstallationImageMaster(image);
+                        if (parsed != null) {
+                            installationImageMasters.add(parsed);
+                        }
+                    }
+                }
+            }
+            log.debug("Fetched {} InstallationImages entries for tenantId: {}", installationImageMasters.size(), tenantId);
+        } catch (Exception e) {
+            log.error("Error while fetching InstallationImages MDMS master for tenantId: {}", tenantId, e);
+            throw new CustomException("MDMS_ERROR", "error while calling mdms for InstallationImages master");
+        }
+        return installationImageMasters;
+    }
+
+    /**
+     * Flattens one master entry's "system_types": [{code, order}, ...] into a code -> order map.
+     * Entries without a code or description are skipped - they cannot be rendered.
+     */
+    @SuppressWarnings("unchecked")
+    private InstallationImageMaster toInstallationImageMaster(Map<String, Object> image) {
+        Object code = image.get("code");
+        Object description = image.get("description");
+        if (code == null || description == null) {
+            return null;
+        }
+
+        Map<String, Double> orderBySystemType = new LinkedHashMap<>();
+        Object rawSystemTypes = image.get(INSTALLATION_IMAGE_SYSTEM_TYPES_FIELD);
+        if (rawSystemTypes instanceof List) {
+            for (Object rawSystemType : (List<Object>) rawSystemTypes) {
+                if (!(rawSystemType instanceof Map)) {
+                    continue;
+                }
+                Map<String, Object> systemType = (Map<String, Object>) rawSystemType;
+                Object systemTypeCode = systemType.get("code");
+                Object order = systemType.get("order");
+                if (systemTypeCode == null) {
+                    continue;
+                }
+                // Absent or non-numeric order sorts last rather than dropping the image.
+                double sortOrder = order instanceof Number ? ((Number) order).doubleValue() : Double.MAX_VALUE;
+                orderBySystemType.put(String.valueOf(systemTypeCode), sortOrder);
+            }
+        }
+
+        Object active = image.get("active");
+        return InstallationImageMaster.builder()
+                .code(String.valueOf(code))
+                .description(String.valueOf(description))
+                .active(active instanceof Boolean ? (Boolean) active : Boolean.TRUE)
+                .orderBySystemType(orderBySystemType)
+                .build();
+    }
+
+    private ModuleDetail getInstallationImageModuleRequestData() {
+        MasterDetail installationImageMasterDetail = MasterDetail.builder().name(MASTER_INSTALLATION_IMAGES).build();
+        return ModuleDetail.builder()
+                .masterDetails(Collections.singletonList(installationImageMasterDetail))
+                .moduleName(MDMS_COMMON_MASTERS_MODULE_NAME).build();
+    }
+
     private ModuleDetail getTenantModuleRequestData() {
         List<MasterDetail> tenantMasterDetails = new ArrayList<>();
 
@@ -108,6 +206,47 @@ public class MDMSUtils {
                 .moduleName(MDMS_TENANT_MODULE_NAME).build();
 
         return tenantModuleDetail;
+    }
+
+    /**
+     * Fetches the Installation.Solution MDMS v2 schema entry whose uniqueIdentifier matches
+     * solutionCode, and returns its "data" object (code, name, sectorName, sunshineHrsMin).
+     * Returns null when solutionCode is blank or no active entry matches.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> fetchInstallationSolutionByCode(RequestInfo requestInfo, String tenantId, String solutionCode) {
+        if (solutionCode == null || solutionCode.isBlank()) {
+            return null;
+        }
+        log.info("Fetching Installation.Solution MDMS schema for code: {}, tenantId: {}", solutionCode, tenantId);
+
+        Map<String, Object> mdmsCriteria = new LinkedHashMap<>();
+        mdmsCriteria.put("tenantId", tenantId);
+        mdmsCriteria.put("schemaCode", INSTALLATION_SOLUTION_SCHEMA_CODE);
+        mdmsCriteria.put("uniqueIdentifiers", Collections.singletonList(solutionCode));
+
+        Map<String, Object> mdmsCriteriaReq = new LinkedHashMap<>();
+        mdmsCriteriaReq.put("RequestInfo", requestInfo);
+        mdmsCriteriaReq.put("MdmsCriteria", mdmsCriteria);
+
+        try {
+            StringBuilder url = new StringBuilder(config.getMdmsHost()).append(config.getMdmsSchemaSearchEndpoint());
+            Map<String, Object> response = serviceRequestRepository.fetchResult(url, mdmsCriteriaReq, Map.class);
+            List<Map<String, Object>> mdmsRecords = response != null ? (List<Map<String, Object>>) response.get("mdms") : null;
+            if (mdmsRecords == null) {
+                log.warn("No Installation.Solution MDMS records returned for code: {}", solutionCode);
+                return null;
+            }
+            for (Map<String, Object> record : mdmsRecords) {
+                if (solutionCode.equals(record.get("uniqueIdentifier")) && Boolean.TRUE.equals(record.get("isActive"))) {
+                    return (Map<String, Object>) record.get("data");
+                }
+            }
+            log.warn("No active Installation.Solution MDMS record found for code: {}", solutionCode);
+        } catch (Exception e) {
+            log.error("Error while fetching Installation.Solution MDMS master for code: {}", solutionCode, e);
+        }
+        return null;
     }
 
     private ModuleDetail getBOMModuleRequestData() {

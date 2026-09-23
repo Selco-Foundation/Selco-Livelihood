@@ -81,6 +81,26 @@ public class ActivityConfiguration {
     @Value("${egov.pdf.host}")
     private String pdfServiceHost;
 
+    // Ingestion service - merges the appendable BOM documents onto the end of the generated report.
+    @Value("${egov.ingestion.host}")
+    private String ingestionServiceHost;
+
+    @Value("${egov.ingestion.document.append.url}")
+    private String ingestionDocumentAppendUrl;
+
+    @Value("${egov.ingestion.document.append.module}")
+    private String ingestionDocumentAppendModule;
+
+    // Localization - boundary codes rendered on the report are resolved to readable names.
+    @Value("${egov.localization.host}")
+    private String localizationHost;
+
+    @Value("${egov.localization.context.path}")
+    private String localizationContextPath;
+
+    @Value("${egov.localization.search.endpoint}")
+    private String localizationSearchEndpoint;
+
     @Value("${egov.createnosave.pdf.url}")
     private String pdfCreateNoSaveUrl;
 
@@ -93,20 +113,47 @@ public class ActivityConfiguration {
     @Value("${egov.kafka.notification.sms.topic:egov.core.notification.sms}")
     private String notificationSmsTopic;
 
-    @Value("${egov.off.grid.single.phase.key}")
-    private String bomACOffGridSinglePhase;
+    @Value("${egov.iccreport.erispinning.key}")
+    private String iccreportEriSpinning;
 
-    @Value("${egov.off.grid.three.phase.key}")
-    private String bomACOffGridSThreePhase;
+    @Value("${egov.iccreport.lightmanufacturing.key}")
+    private String iccreportLightManufacturing;
 
-    @Value("${egov.hybrid.single.phase.key}")
-    private String bomHybridSinglePhase;
+    @Value("${egov.iccreport.lsklaptop.key}")
+    private String iccreportLskLaptop;
 
-    @Value("${egov.hybrid.three.phase.key}")
-    private String bomHybridThreePhase;
+    @Value("${egov.iccreport.multistageprocessingmillet.key}")
+    private String iccreportMultiStageProcessingMillet;
 
-    @Value("${egov.dc.system.key}")
-    private String bomDCSystem;
+    @Value("${egov.iccreport.multistageprocessing.key}")
+    private String iccreportMultiStageProcessing;
+
+    @Value("${egov.iccreport.oilmill.key}")
+    private String iccreportOilMill;
+
+    @Value("${egov.iccreport.paddyintegratedprocessing.key}")
+    private String iccreportPaddyIntegratedProcessing;
+
+    @Value("${egov.iccreport.printer.key}")
+    private String iccreportPrinter;
+
+    @Value("${egov.iccreport.pulverizer.key}")
+    private String iccreportPulverizer;
+
+    @Value("${egov.iccreport.refrigerator.key}")
+    private String iccreportRefrigerator;
+
+    @Value("${egov.iccreport.ricehuller.key}")
+    private String iccreportRiceHuller;
+
+    @Value("${egov.iccreport.roaster.key}")
+    private String iccreportRoaster;
+
+    @Value("${egov.iccreport.sewingmachine.key}")
+    private String iccreportSewingMachine;
+
+    @Value("${egov.iccreport.textilelighting.key}")
+    private String iccreportTextileLighting;
 
     @Value("${search.api.limit:100}")
     private String searchApiLimit;
@@ -118,6 +165,11 @@ public class ActivityConfiguration {
     private String mdmsHost;
     @Value("${egov.mdms.search.endpoint}")
     private String mdmsEndPoint;
+
+    // MDMS v2 schema search (e.g. Installation.Solution), distinct from the v1 common-masters
+    // endpoint above (egov.mdms.search.endpoint).
+    @Value("${egov.mdms.v2.search.endpoint:/egov-mdms-service/v2/_search}")
+    private String mdmsSchemaSearchEndpoint;
 
     @Value("${project.document.id.verification.required}")
     private String documentIdVerificationRequired;
@@ -212,6 +264,10 @@ public class ActivityConfiguration {
     @Value("${egov.vendor.user.update.url}")
     private String orgUserUpdateUrl;
 
+    // Organisation (not org-user) search on vendor-registry, same host as orgUserHost above.
+    @Value("${egov.vendor.organisation.search.url:/vendor/organisation/v1/_search}")
+    private String vendorOrganisationSearchUrl;
+
     @Value("${facility.management.transaction.kafka.create.topic}")
     private String transactionPersistTopic;
 
@@ -226,6 +282,15 @@ public class ActivityConfiguration {
 
     @Value("${egov.asset.update.url}")
     private String assetUpdateUrl;
+
+    /**
+     * Explicit page size for the asset search behind the installation report's serial-number
+     * section: asset-registry defaults limit to 10, which would silently truncate the panel /
+     * battery / inverter serial numbers on any sizeable installation. Defaulted inline so
+     * environments that predate this property still start.
+     */
+    @Value("${egov.asset.search.limit:1000}")
+    private Integer assetSearchLimit;
 
     @Value("${email.activity.assignment.subject}")
     private String activityEmailSubject;
@@ -262,4 +327,30 @@ public class ActivityConfiguration {
 
     @Value("${egov.amc.scheduler.visit.generate.url}")
     private String amcVisitGenerateUrl;
+
+    // pdf-service template key for MACHINE-component installation reports (fixed, not solution-dependent).
+    @Value("${machine.installation.report.pdf.key:machine_installation_report}")
+    private String machineInstallationReportKey;
+
+    @Value("${egov.otp.host}")
+    private String otpServiceHost;
+
+    @Value("${egov.otp.create.url}")
+    private String otpServiceCreateUrl;
+
+    @Value("${egov.otp.validate.url}")
+    private String otpServiceValidateUrl;
+
+    @Value("${activity.facility.otp.sms.message.template:Your OTP for facility verification is {otp}.}")
+    private String otpSmsTemplate;
+
+    /**
+     * When true, validateActivityFacilityOtp accepts {@link #defaultOtp} instead of calling
+     * egov_otp - lets QA/testers validate without reading the SMS the real OTP was sent in.
+     */
+    @Value("${egov.otp.bypass.validation:false}")
+    private boolean byPassValidation;
+
+    @Value("${egov.otp.default:1234}")
+    private String defaultOtp;
 }

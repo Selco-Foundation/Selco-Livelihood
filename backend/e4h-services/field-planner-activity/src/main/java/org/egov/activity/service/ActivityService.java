@@ -42,6 +42,8 @@ import static org.egov.common.utils.CommonUtils.populateErrorDetails;
 @Slf4j
 public class ActivityService {
 
+    private static final String INSTALLATION_REPORT_BOM_DOCUMENT_TYPE = "INSTALLATION_REPORT_BOM";
+
     private final ActivityFacilityRepository activityFacilityRepository;
 
     private final ActivityAssignmentRepository activityAssignmentRepository;
@@ -61,13 +63,15 @@ public class ActivityService {
 
     private final BomRepository bomRepository;
 
+    private final BomPdfService bomPdfService;
+
     @Qualifier("objectMapper")
     private final ObjectMapper mapper;
 
     @Autowired
     public ActivityService(
             ActivityFacilityRepository activityFacilityRepository, ActivityEnrichment activityEnrichment, ActivityConfiguration activityConfiguration, ActivityValidator activityValidator,
-            Producer producer, FacilityWorkflowService workflowService, ActivityServiceUtil activityServiceUtil, ServiceRequestRepository serviceRequest, JdbcTemplate jdbcTemplate, ActivityFacilityUsersService facilityUsersService, @Qualifier("objectMapper") ObjectMapper mapper, ActivityAssignmentRepository activityAssignmentRepository, BoundaryUtil boundaryUtil, AmcSchedulerService amcSchedulerService, BomRepository bomRepository) {
+            Producer producer, FacilityWorkflowService workflowService, ActivityServiceUtil activityServiceUtil, ServiceRequestRepository serviceRequest, JdbcTemplate jdbcTemplate, ActivityFacilityUsersService facilityUsersService, @Qualifier("objectMapper") ObjectMapper mapper, ActivityAssignmentRepository activityAssignmentRepository, BoundaryUtil boundaryUtil, AmcSchedulerService amcSchedulerService, BomRepository bomRepository, BomPdfService bomPdfService) {
             this.producer = producer;
             this.activityConfiguration = activityConfiguration;
             this.activityFacilityRepository = activityFacilityRepository;
@@ -83,6 +87,7 @@ public class ActivityService {
             this.boundaryUtil = boundaryUtil;
             this.amcSchedulerService = amcSchedulerService;
             this.bomRepository = bomRepository;
+            this.bomPdfService = bomPdfService;
     }
 
     public List<Activity> createActivity(ActivityBulkRequest request) {
@@ -423,6 +428,15 @@ public class ActivityService {
             validateRejectReasons(request);
         }
 
+        // On every (re)submission, the BOM installation report PDF is regenerated and attached to
+        // the workflow's documents BEFORE the transition call - that call is the only place
+        // documents travel to workflow-v2. Regenerating every time (rather than skipping when one
+        // is already present) is required so project_date and any BOM/serial-number changes stay
+        // current across a reject-then-resubmit cycle.
+        if (ACTION_SUBMIT_REPORT.equalsIgnoreCase(action)) {
+            attachBomInstallationReportDocument(request, existingActivityFacitlity);
+        }
+
         // 2. Call workflow transition
         ProcessInstance updatedWorkflow;
         try {
@@ -495,6 +509,40 @@ public class ActivityService {
         }
 
         return new FacilityStatusWrapper(updatedActivityFacility, updatedWorkflow.getState().getState(), null, null);
+    }
+
+    /**
+     * Drops any INSTALLATION_REPORT_BOM document already on the workflow - carried over from an
+     * earlier submission - so a regenerated report never ends up duplicated alongside the stale one.
+     */
+    private void removeExistingBomInstallationReportDocument(Workflow workflow) {
+        List<Document> documents = workflow.getDocuments();
+        if (documents == null || documents.isEmpty()) {
+            return;
+        }
+        documents.removeIf(document -> document != null
+                && INSTALLATION_REPORT_BOM_DOCUMENT_TYPE.equalsIgnoreCase(document.getDocumentType()));
+    }
+
+    private void attachBomInstallationReportDocument(FacilityWorkflowRequest request, ActivityFacility activityFacility) {
+        log.trace("Entering attachBomInstallationReportDocument method for activityFacilityId: {}", activityFacility.getId());
+        // Regenerate on every (re)submission so project_date and any BOM/serial-number changes stay
+        // current - drop any stale BOM report document before generating the fresh one.
+        removeExistingBomInstallationReportDocument(request.getWorkflow());
+        // Read before addDocumentsItem below, so the report never carries its own previous output.
+        List<Document> workflowDocuments = request.getWorkflow().getDocuments();
+        String fileStoreId = bomPdfService.generateInstallationReportPdf(request.getRequestInfo(), activityFacility, workflowDocuments);
+        AuditDetails auditDetails = activityServiceUtil.getAuditDetails(request.getRequestInfo().getUserInfo().getUuid(), null, true);
+
+        Document pdfDocument = Document.builder()
+                .documentType(INSTALLATION_REPORT_BOM_DOCUMENT_TYPE)
+                .fileStoreId(fileStoreId)
+                .documentUid("BOM-" + activityFacility.getId() + "-" + System.currentTimeMillis())
+                .auditDetails(auditDetails)
+                .build();
+
+        request.getWorkflow().addDocumentsItem(pdfDocument);
+        log.info("BOM installation report document attached to workflow for activityFacilityId: {}", activityFacility.getId());
     }
 
     private void validateRejectReasons(FacilityWorkflowRequest request) {
@@ -1178,6 +1226,189 @@ public class ActivityService {
          * Check and enrich cascading project dates and push the update to the message broker
          */
         producer.push(activityConfiguration.getUpdateActivityFacilityTopic(), request);
+    }
+
+    /**
+     * Generates an OTP for the activity facility's POC phone (activityFacility.facility.facilityPocPhone),
+     * persists a reference to it in the activity facility's additionalDetails, and sends it by SMS.
+     */
+    public OtpResponse generateActivityFacilityOtp(ActivityFacilityOtpRequest request) {
+        return createAndSendActivityFacilityOtp(request.getRequestInfo(), request.getActivityFacilityId());
+    }
+
+    /** Regenerates a fresh OTP and re-sends it by SMS, exactly like {@link #generateActivityFacilityOtp}. */
+    public OtpResponse resendActivityFacilityOtp(ActivityFacilityOtpRequest request) {
+        return createAndSendActivityFacilityOtp(request.getRequestInfo(), request.getActivityFacilityId());
+    }
+
+    private OtpResponse createAndSendActivityFacilityOtp(RequestInfo requestInfo, String activityFacilityId) {
+        validateOtpRequestInfo(requestInfo);
+        if (activityFacilityId == null || activityFacilityId.trim().isEmpty()) {
+            throw new CustomException("GENERATE_TOKEN", "Activity Facility ID is mandatory for OTP generation");
+        }
+
+        String tenantId = requestInfo.getUserInfo().getTenantId();
+        log.info("OTP generation requested for activityFacilityId={} tenantId={}", activityFacilityId, tenantId);
+
+        ActivityFacility existingActivityFacility = fetchActivityFacilityById(activityFacilityId, tenantId, requestInfo);
+        String mobileNumber = resolveFacilityPocPhone(existingActivityFacility);
+
+        OtpResponse otpResponse = createOTP(mobileNumber, tenantId);
+        if (otpResponse.getOtp() == null) {
+            throw new CustomException("ERROR_OTP_GENERATION", "Error occurred while generating OTP");
+        }
+
+        Map<String, Object> otpDetails = new HashMap<>();
+        otpDetails.put("otpReference", otpResponse.getOtp().getOtp());
+        otpDetails.put("otpGeneratedAt", System.currentTimeMillis());
+        persistActivityFacilityAdditionalDetails(existingActivityFacility, requestInfo, otpDetails);
+
+        sendOtpSms(mobileNumber, otpResponse.getOtp().getOtp(), tenantId);
+        log.info("OTP generated and SMS queued for activityFacilityId={}", activityFacilityId);
+        return otpResponse;
+    }
+
+    /** Validates the OTP previously generated for this activity facility's POC phone. */
+    public OtpResponse validateActivityFacilityOtp(ActivityFacilityOtpValidateRequest request) {
+        validateOtpRequestInfo(request.getRequestInfo());
+        if (request.getActivityFacilityId() == null || request.getActivityFacilityId().trim().isEmpty()) {
+            throw new CustomException("VALIDATE_TOKEN", "Activity Facility ID is mandatory for OTP validation");
+        }
+        if (request.getOtp() == null || request.getOtp().trim().isEmpty()) {
+            throw new CustomException("VALIDATE_TOKEN", "OTP is mandatory for OTP validation");
+        }
+
+        String tenantId = request.getRequestInfo().getUserInfo().getTenantId();
+        log.info("OTP validation requested for activityFacilityId={} tenantId={}", request.getActivityFacilityId(), tenantId);
+
+        ActivityFacility existingActivityFacility = fetchActivityFacilityById(request.getActivityFacilityId(), tenantId, request.getRequestInfo());
+        String mobileNumber = resolveFacilityPocPhone(existingActivityFacility);
+
+        OtpResponse otpResponse;
+        if (activityConfiguration.isByPassValidation()) {
+            // Bypass the real egov_otp round trip so QA/testers can validate with a well-known code
+            // instead of reading the SMS that was actually sent when the OTP was generated.
+            String defaultOtp = activityConfiguration.getDefaultOtp();
+            if (defaultOtp == null || !defaultOtp.trim().equals(request.getOtp().trim())) {
+                throw new CustomException("ERROR_OTP_VALIDATION", "OTP validation unsuccessful");
+            }
+            log.info("OTP validation bypassed via default OTP for activityFacilityId={}", request.getActivityFacilityId());
+            otpResponse = OtpResponse.builder()
+                    .otp(Otp.builder()
+                            .tenantId(tenantId)
+                            .identity(mobileNumber)
+                            .otp(defaultOtp)
+                            .validationSuccessful(true)
+                            .build())
+                    .build();
+        } else {
+            otpResponse = validateOTP(mobileNumber, tenantId, request.getOtp());
+            if (otpResponse.getOtp() == null) {
+                throw new CustomException("ERROR_OTP_VALIDATION", "OTP validation unsuccessful");
+            }
+        }
+
+        Map<String, Object> otpDetails = new HashMap<>();
+        otpDetails.put("otpVerifiedAt", System.currentTimeMillis());
+        persistActivityFacilityAdditionalDetails(existingActivityFacility, request.getRequestInfo(), otpDetails);
+
+        log.info("OTP validated for activityFacilityId={}", request.getActivityFacilityId());
+        return otpResponse;
+    }
+
+    private void validateOtpRequestInfo(RequestInfo requestInfo) {
+        if (requestInfo == null || requestInfo.getUserInfo() == null
+                || requestInfo.getUserInfo().getTenantId() == null
+                || requestInfo.getUserInfo().getTenantId().trim().isEmpty()) {
+            throw new CustomException("GENERATE_TOKEN", "Tenant ID is not found in requestInfo");
+        }
+    }
+
+    private ActivityFacility fetchActivityFacilityById(String activityFacilityId, String tenantId, RequestInfo requestInfo) {
+        ActivityFacilitySearchCriteria searchCriteria = ActivityFacilitySearchCriteria.builder()
+                .ids(List.of(activityFacilityId))
+                .tenantId(tenantId)
+                .build();
+        ActivityFacilitySearchRequest searchRequest = ActivityFacilitySearchRequest.builder()
+                .criteria(searchCriteria)
+                .requestInfo(requestInfo)
+                .build();
+        List<ActivityFacility> activityFacilities = searchActivityFacility(searchRequest, activityConfiguration.getMaxLimit(),
+                activityConfiguration.getDefaultOffset(), tenantId, false, null);
+        if (activityFacilities == null || activityFacilities.isEmpty()) {
+            throw new CustomException("FACILITY_NOT_FOUND", "Activity Facility not found with ID: " + activityFacilityId);
+        }
+        return activityFacilities.get(0);
+    }
+
+    private String resolveFacilityPocPhone(ActivityFacility activityFacility) {
+        Facility facility = activityFacility.getFacility();
+        if (facility == null || facility.getFacilityPocPhone() == null || facility.getFacilityPocPhone().trim().isEmpty()) {
+            throw new CustomException("GENERATE_TOKEN",
+                    "Facility POC phone number not found for activity facility: " + activityFacility.getId());
+        }
+        return facility.getFacilityPocPhone();
+    }
+
+    /**
+     * Merges additionalDetailsUpdates into the activity facility's existing additionalDetails and pushes
+     * the update through the same validated update pipeline as {@link #updateFacilityWorkflow} (only
+     * assignedUser/status/conditionsMet/additionalDetails are allowed to differ from the DB row).
+     */
+    private void persistActivityFacilityAdditionalDetails(ActivityFacility existingActivityFacility, RequestInfo requestInfo,
+                                                          Map<String, Object> additionalDetailsUpdates) {
+        ActivityFacility updatedActivityFacility = ActivityFacility.builder()
+                .id(existingActivityFacility.getId())
+                .tenantId(existingActivityFacility.getTenantId())
+                .activityId(existingActivityFacility.getActivityId())
+                .facilityId(existingActivityFacility.getFacilityId())
+                .fieldPlanId(existingActivityFacility.getFieldPlanId())
+                .status(existingActivityFacility.getStatus())
+                .assignedUser(existingActivityFacility.getAssignedUser())
+                .activatedAt(existingActivityFacility.getActivatedAt())
+                .completedAt(existingActivityFacility.getCompletedAt())
+                .scheduledAt(existingActivityFacility.getScheduledAt())
+                .additionalDetails(additionalDetailsUpdates)
+                .billOfMaterial(existingActivityFacility.getBillOfMaterial())
+                .build();
+
+        activityServiceUtil.mergeAdditionalDetails(updatedActivityFacility, existingActivityFacility);
+
+        ActivityFacilityBulkRequest updateRequest = ActivityFacilityBulkRequest.builder()
+                .requestInfo(requestInfo)
+                .activityFacilities(List.of(updatedActivityFacility))
+                .build();
+
+        handleUpdateActivityFacility(updateRequest, updatedActivityFacility, existingActivityFacility);
+    }
+
+    private OtpResponse createOTP(String identity, String tenantId) {
+        String url = activityConfiguration.getOtpServiceHost() + activityConfiguration.getOtpServiceCreateUrl();
+        Otp otp = Otp.builder().tenantId(tenantId).identity(identity).build();
+        OtpRequest otpRequest = OtpRequest.builder().otp(otp).build();
+        Object response = serviceRequest.fetchResult(new StringBuilder(url), otpRequest);
+        OtpResponse otpResponse = mapper.convertValue(response, OtpResponse.class);
+        if (otpResponse == null) {
+            throw new CustomException("ERROR_OTP_GENERATION", "Error occurred while creating OTP");
+        }
+        return otpResponse;
+    }
+
+    private OtpResponse validateOTP(String identity, String tenantId, String otpCode) {
+        String url = activityConfiguration.getOtpServiceHost() + activityConfiguration.getOtpServiceValidateUrl();
+        Otp otp = Otp.builder().tenantId(tenantId).identity(identity).otp(otpCode).build();
+        OtpValidateRequest otpValidateRequest = OtpValidateRequest.builder().otp(otp).build();
+        Object response = serviceRequest.fetchResult(new StringBuilder(url), otpValidateRequest);
+        OtpResponse otpResponse = mapper.convertValue(response, OtpResponse.class);
+        if (otpResponse == null) {
+            throw new CustomException("ERROR_OTP_VALIDATION", "OTP validation unsuccessful");
+        }
+        return otpResponse;
+    }
+
+    private void sendOtpSms(String mobileNumber, String otpCode, String tenantId) {
+        String message = activityConfiguration.getOtpSmsTemplate().replace("{otp}", otpCode);
+        activityServiceUtil.sendSmsViaKafka(mobileNumber, message, tenantId);
     }
 
     private void handleUpdateActivityAssignment(ActivityAssignmentBulkRequest request, ActivityAssignment activityAssignment, ActivityAssignment activityAssignmentFromDB) {
