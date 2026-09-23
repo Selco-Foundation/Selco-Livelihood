@@ -26,7 +26,21 @@ export interface BlobUploadResult {
  * the gateway find them regardless of body shape — unconditionally, because *every* multipart
  * upload in this module needs them. (`createSolutionTemplate` used to build its own FormData and
  * omit them; it now routes through here too.)
+ *
+ * `tenantId` also has to be a **query param**, separately from the header above — proven live:
+ * `/ingestion-service/template/installationTemplate` 401s with a misleading "Failed to parse
+ * request at API gateway" without `?tenantId=...` on the URL, and 200s with it, identically for
+ * `/ingestion-service/template/fieldplanFacilityIngestionTemplate`. This is the gateway's own
+ * tenant-scoped role-action lookup, done before the request is even forwarded — it has nothing to
+ * do with ingestion-service, which never reads query params on these endpoints at all (it takes
+ * `tenantId` from `RequestInfo.userInfo.tenantId` in the body). Same shape as field-planner's
+ * `@ModelAttribute URLParams` endpoints needing `tenantId`/`limit`/`offset` in the query string —
+ * just enforced one layer further out, at the gateway rather than the service.
  */
+function resolveIngestionTenantId(user: AuthUser | null | undefined): string {
+  return user?.tenantId ?? resolveTenantId(getViteEnv("VITE_STATE_LEVEL_TENANT_ID"));
+}
+
 async function postMultipart<T>(
   url: string,
   fields: Record<string, string>,
@@ -44,13 +58,15 @@ async function postMultipart<T>(
   }
   formData.append("request_info", JSON.stringify(createRequestInfo(accessToken, user)));
 
+  const tenantId = resolveIngestionTenantId(user);
   return apiClient.post<T>(url, formData, {
     headers: {
       "Content-Type": "multipart/form-data",
       Authorization: `Bearer ${accessToken}`,
       "auth-token": accessToken,
-      tenantId: resolveTenantId(getViteEnv("VITE_STATE_LEVEL_TENANT_ID")),
+      tenantId,
     },
+    params: { tenantId },
     responseType,
     timeout: timeoutMs,
   });
@@ -126,7 +142,7 @@ export async function postJsonExpectingBlob(
     const response = await apiClient.post(
       url,
       { RequestInfo: createRequestInfo(accessToken, user), ...body },
-      { responseType: "blob" },
+      { params: { tenantId: resolveIngestionTenantId(user) }, responseType: "blob" },
     );
     return { blob: response.data as Blob, filename };
   } catch (error) {
