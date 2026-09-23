@@ -1,10 +1,10 @@
-export type FacilityEntryType = "MACHINE" | "SOLAR";
+export type ActivityComponentType = "MACHINE" | "SOLAR";
 
 // Real states of the `FACILITY_INSTALLATION` business service
 // (business `field-planner-activity`): SCHEDULED -> ASSIGNED_TO_FIELD_STAFF ->
 // SUBMITTED_BY_FIELD_STAFF -> {APPROVED_BY_QC_SPOC | REJECTED_BY_QC_SPOC},
 // with REJECTED_BY_QC_SPOC looping back to SUBMITTED_BY_FIELD_STAFF.
-export const FACILITY_ENTRY_STATUS = {
+export const ACTIVITY_STATUS = {
   SCHEDULED: "SCHEDULED",
   ASSIGNED_TO_FIELD_STAFF: "ASSIGNED_TO_FIELD_STAFF",
   SUBMITTED_BY_FIELD_STAFF: "SUBMITTED_BY_FIELD_STAFF",
@@ -12,16 +12,15 @@ export const FACILITY_ENTRY_STATUS = {
   REJECTED_BY_QC_SPOC: "REJECTED_BY_QC_SPOC",
 } as const;
 
-export type FacilityEntryStatus =
-  (typeof FACILITY_ENTRY_STATUS)[keyof typeof FACILITY_ENTRY_STATUS];
+export type ActivityStatus = (typeof ACTIVITY_STATUS)[keyof typeof ACTIVITY_STATUS];
 
-export interface FacilityEntry {
-  entryId: string;
+export interface ReviewActivity {
+  activityId: string;
   facilityId: string;
   facilityName: string;
-  entryType: FacilityEntryType;
+  componentType: ActivityComponentType;
   planId: string;
-  status: FacilityEntryStatus;
+  status: ActivityStatus;
   district?: { code: string; name?: string };
   block?: { code: string; name?: string };
 }
@@ -58,7 +57,7 @@ export interface ActivityWorkflowEntry {
   action?: string;
   comment?: string;
   documents?: ActivityDocument[] | null;
-  state?: { applicationStatus?: FacilityEntryStatus };
+  state?: { applicationStatus?: ActivityStatus };
   assigner?: { name?: string; roles?: Array<{ name?: string }> };
   auditDetails?: { createdTime?: number };
 }
@@ -78,8 +77,8 @@ export interface ActivityFacilityRow {
     id: string;
     facilityId: string;
     fieldPlanId: string;
-    componentType: FacilityEntryType;
-    status: FacilityEntryStatus;
+    componentType: ActivityComponentType;
+    status: ActivityStatus;
     facility?: {
       facility_name?: string;
       boundary?: { district?: string; block?: string };
@@ -120,6 +119,10 @@ export interface LabeledValue {
   labelKey: string;
   label: string;
   value: string;
+  /** When set, the value itself is a localization key (falling back to
+   * `value` untranslated) — e.g. a boundary code's `BOUNDARY_<code>` name,
+   * same convention as `labelKey`/`label`. */
+  valueKey?: string;
 }
 
 export interface SectionImage {
@@ -162,6 +165,11 @@ export interface AssetSectionContent {
   label: string;
   count?: number;
   specifications: LabeledValue[];
+  /** Overrides the default "Specifications" heading — Machine's
+   * specifications block covers the installation (vendor/installed-by/
+   * report number), not the machine itself, so it reads "Installation
+   * Details" instead. */
+  specificationsHeading?: { labelKey: string; label: string };
   /** Battery-only, matching qc's one hardcoded special case: an extra titled
    * sub-block (Capacity/Voltage) alongside the regular specifications. */
   extraSpecifications?: { labelKey: string; label: string; fields: LabeledValue[] };
@@ -184,8 +192,11 @@ export interface ReportSectionContent {
   labelKey: string;
   label: string;
   specifications?: LabeledValue[];
-  installationCompletionCertificate: ReportDocument | null;
-  assetHandoverDocument: ReportDocument | null;
+  /** The completion report document itself (workflow documentType
+   * `INSTALLATION_REPORT_BOM`) — verified as the only report-type document
+   * real submissions actually carry, for both Solar and Machine. Matches
+   * qc's `bomCompletionReport`/`report`. */
+  report: ReportDocument | null;
   supportingDocuments: ReportDocument[];
 }
 
@@ -206,7 +217,7 @@ export type ReviewSectionContent =
 
 // ---- Lazily-loaded section media ----
 // One of these is fetched per section, on expand — see
-// hooks/use-facility-review.ts's useLoadSectionMedia.
+// hooks/use-activity-review.ts's useLoadSectionMedia.
 
 export interface AssetSectionMediaPatch {
   images: SectionImage[];
@@ -215,8 +226,7 @@ export interface AssetSectionMediaPatch {
 }
 
 export interface ReportSectionMediaPatch {
-  installationCompletionCertificate: ReportDocument | null;
-  assetHandoverDocument: ReportDocument | null;
+  report: ReportDocument | null;
   supportingDocuments: ReportDocument[];
 }
 
@@ -255,32 +265,36 @@ export interface AuditSectionReasons {
   reasons: { reasonLabel: string; comment: string }[];
 }
 
-export interface FacilityAuditCheckpoint {
+export interface ActivityAuditCheckpoint {
   id: string;
-  status: FacilityEntryStatus;
+  status: ActivityStatus;
   date: string;
   actorName?: string;
   comment?: string;
   sectionReasons?: AuditSectionReasons[];
 }
 
-export interface FacilityReviewDetail {
-  entry: FacilityEntry;
+export interface ActivityReviewDetail {
+  activity: ReviewActivity;
   sections: ReviewSectionContent[];
-  auditTrail: FacilityAuditCheckpoint[];
+  auditTrail: ActivityAuditCheckpoint[];
   /** Raw, unresolved documents per section id — the media (images/videos/
    * report files) for a section is only fetched when the section is expanded
-   * (see hooks/use-facility-review.ts's useLoadSectionMedia), since an
+   * (see hooks/use-activity-review.ts's useLoadSectionMedia), since an
    * installation report can carry a lot of attachments. */
   sectionDocuments: Partial<Record<ReviewSectionId, ActivityDocument[]>>;
+  /** The latest workflow entry's own documents, unfiltered — sent back
+   * as-is on the next workflow action (matches qc's `workflowDocuments`). */
+  workflowDocuments: ActivityDocument[];
 }
 
 // ---- Review decision ----
 
 export type ReviewDecisionAction = "APPROVE" | "REJECT";
 
-export interface SubmitFacilityReviewInput {
-  entryId: string;
+export interface SubmitActivityReviewInput {
+  activityId: string;
   action: ReviewDecisionAction;
   rejectionReasons?: SectionRejectionReasons;
+  documents: ActivityDocument[];
 }

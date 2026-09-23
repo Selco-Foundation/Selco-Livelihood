@@ -1,14 +1,14 @@
-import type { ActivityFacilityRow, FacilityEntry } from "../types/facility-review";
+import type { ActivityFacilityRow, ReviewActivity } from "../types/activity-review";
 
-export function toFacilityEntry(row: ActivityFacilityRow): FacilityEntry {
+export function toReviewActivity(row: ActivityFacilityRow): ReviewActivity {
   const { activityFacility } = row;
   const boundary = activityFacility.facility?.boundary;
 
   return {
-    entryId: activityFacility.id,
+    activityId: activityFacility.id,
     facilityId: activityFacility.facilityId,
     facilityName: activityFacility.facility?.facility_name ?? "",
-    entryType: activityFacility.componentType,
+    componentType: activityFacility.componentType,
     planId: activityFacility.fieldPlanId,
     status: activityFacility.status,
     district: boundary?.district ? { code: boundary.district } : undefined,

@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import type { RejectionReasonEntry } from "../../types/facility-review";
+import type { RejectionReasonEntry } from "../../types/activity-review";
 
 interface SectionReasonChipsProps {
   reasons: RejectionReasonEntry[];

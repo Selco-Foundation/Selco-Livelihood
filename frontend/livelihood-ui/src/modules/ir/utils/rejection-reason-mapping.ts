@@ -1,4 +1,4 @@
-import type { RejectionReasonOption } from "../types/facility-review";
+import type { RejectionReasonOption } from "../types/activity-review";
 
 // MDMS `Installation.RejectionReasons` — matches qc's own module/master
 // exactly (Digit.Hooks.useCustomMDMS(tenantId, "Installation",

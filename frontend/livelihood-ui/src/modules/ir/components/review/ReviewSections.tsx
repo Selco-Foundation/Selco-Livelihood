@@ -14,7 +14,7 @@ import type {
   ReviewSectionId,
   SectionMediaPatch,
   SectionRejectionReasons,
-} from "../../types/facility-review";
+} from "../../types/activity-review";
 import { AssetSectionBody } from "./AssetSectionBody";
 import { InstallationImageSectionBody } from "./InstallationImageSectionBody";
 import { ReportSectionBody } from "./ReportSectionBody";

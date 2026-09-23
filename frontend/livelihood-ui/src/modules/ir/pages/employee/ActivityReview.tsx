@@ -1,18 +1,18 @@
-import { employeeHomePath, translateOr, useAuthStore, useTranslate } from "@/shared";
+import { employeeHomePath, reloadModule, translateOr, useAuthStore, useTranslate } from "@/shared";
 import { TopBar, toast } from "@/ui";
 import { useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AuditTrailTimeline } from "../../components/review/AuditTrailTimeline";
 import { ConfirmActionDialog } from "../../components/review/ConfirmActionDialog";
-import { FacilityInfoCard } from "../../components/review/FacilityInfoCard";
+import { ActivityInfoCard } from "../../components/review/ActivityInfoCard";
 import type { RejectionReasonDraft } from "../../components/review/RejectionReasonDialog";
 import { ReviewActionBar } from "../../components/review/ReviewActionBar";
 import { ReviewSections } from "../../components/review/ReviewSections";
 import {
-  useFacilityReview,
+  useActivityReview,
   useLoadSectionMedia,
-  useSubmitFacilityReview,
-} from "../../hooks/use-facility-review";
+  useSubmitActivityReview,
+} from "../../hooks/use-activity-review";
 import { useInstallationPlans } from "../../hooks/use-installation-plans";
 import { useRejectionReasonOptions } from "../../hooks/use-rejection-reason-options";
 import type {
@@ -20,43 +20,54 @@ import type {
   ReviewDecisionAction,
   ReviewSectionId,
   SectionRejectionReasons,
-} from "../../types/facility-review";
+} from "../../types/activity-review";
 import { hasIrAccess } from "../../utils/access";
-import { irFacilityEntriesPath, irInstallationPlansPath } from "../../utils/paths";
+import { irActivitiesPath, irInstallationPlansPath } from "../../utils/paths";
 
-// The review route's path is computed at runtime via contextPath(), so there's no
-// static `Route` export for typed params — read plan/entry ids from the URL
-// segments directly, same convention as ComplaintDetailsPage.
-function useFacilityReviewRouteParams() {
+// The review route's path is computed at runtime via contextPath(), so
+// there's no static `Route` export for typed params — read plan/activity ids
+// from the URL segments directly, same convention as ComplaintDetailsPage.
+function useActivityReviewRouteParams() {
   return useMemo(() => {
     const segments = window.location.pathname.split("/").filter(Boolean);
-    const index = segments.indexOf("review");
+    const plansIndex = segments.indexOf("installation-plans");
+    const activitiesIndex = segments.indexOf("activities");
     return {
-      planId: index >= 0 ? (segments[index + 1] ?? "") : "",
-      entryId: index >= 0 ? (segments[index + 2] ?? "") : "",
+      planId: plansIndex >= 0 ? (segments[plansIndex + 1] ?? "") : "",
+      activityId: activitiesIndex >= 0 ? (segments[activitiesIndex + 1] ?? "") : "",
     };
   }, []);
 }
 
-export function FacilityReviewPage() {
+export function ActivityReview() {
   const { t } = useTranslate();
   const user = useAuthStore((state) => state.user);
   const navigate = useNavigate();
-  const { planId, entryId } = useFacilityReviewRouteParams();
-  const { data: detail, isLoading } = useFacilityReview(entryId);
-  const submitReview = useSubmitFacilityReview(entryId);
-  const loadSectionMedia = useLoadSectionMedia(entryId, detail?.entry.facilityName ?? "");
+  const { planId, activityId } = useActivityReviewRouteParams();
+  const { data: detail, isLoading } = useActivityReview(activityId);
+  const submitReview = useSubmitActivityReview(activityId);
+  const loadSectionMedia = useLoadSectionMedia(activityId, detail?.activity.facilityName ?? "");
   const { data: reasonOptions = [] } = useRejectionReasonOptions();
   const [rejectionReasons, setRejectionReasons] = useState<SectionRejectionReasons>({});
   const [pendingAction, setPendingAction] = useState<ReviewDecisionAction | null>(null);
   const { data: plansData } = useInstallationPlans({ fieldPlanIds: planId ? [planId] : undefined });
   const planName = plansData?.plans.find((plan) => plan.planId === planId)?.planName ?? planId;
 
+  // Boundary names (BOUNDARY_<code>, e.g. an asset's boundaryCode) live in
+  // the "livelihood" localization module, which — like every module — is
+  // cached in localStorage and never refetched on its own. A boundary
+  // created after this browser's cache was written would show its raw code
+  // forever otherwise, so force a fresh fetch each time a reviewer opens a
+  // review page.
+  useEffect(() => {
+    void reloadModule("livelihood");
+  }, []);
+
   if (!hasIrAccess(user?.roles)) {
     return null;
   }
 
-  const canEditReasons = detail?.entry.status === "SUBMITTED_BY_FIELD_STAFF";
+  const canEditReasons = detail?.activity.status === "SUBMITTED_BY_FIELD_STAFF";
   const hasAnyReason = Object.values(rejectionReasons).some((entries) => entries && entries.length > 0);
 
   function handleAddReason(sectionId: ReviewSectionId, entry: RejectionReasonDraft) {
@@ -89,14 +100,15 @@ export function FacilityReviewPage() {
 
   function handleConfirmedSubmit() {
     const action = pendingAction;
-    if (!action) {
+    if (!action || !detail) {
       return;
     }
     submitReview.mutate(
       {
-        entryId,
+        activityId,
         action,
         rejectionReasons: action === "REJECT" ? rejectionReasons : undefined,
+        documents: detail.workflowDocuments,
       },
       {
         onSuccess: () => {
@@ -106,7 +118,7 @@ export function FacilityReviewPage() {
               ? translateOr(t, "ES_IR_APPROVED_SUCCESS", "Report approved")
               : translateOr(t, "ES_IR_REJECTED_SUCCESS", "Report rejected"),
           );
-          void navigate({ to: irFacilityEntriesPath(planId) });
+          void navigate({ to: irActivitiesPath(planId) });
         },
       },
     );
@@ -127,15 +139,15 @@ export function FacilityReviewPage() {
     <div className="flex h-full min-h-0 flex-col">
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto">
         <TopBar
-          title={detail?.entry.facilityName ?? ""}
+          title={detail?.activity.facilityName ?? ""}
           breadcrumbs={[
             { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: employeeHomePath() },
             {
               label: translateOr(t, "ES_IR_INSTALLATION_PLANS", "Installation Plans"),
               to: irInstallationPlansPath(),
             },
-            { label: planName, to: irFacilityEntriesPath(planId) },
-            { label: detail?.entry.facilityName ?? "" },
+            { label: planName, to: irActivitiesPath(planId) },
+            { label: detail?.activity.facilityName ?? "" },
           ]}
         />
 
@@ -145,11 +157,11 @@ export function FacilityReviewPage() {
           </div>
         ) : !detail ? (
           <p className="text-sm text-muted-foreground">
-            {translateOr(t, "ES_IR_ENTRY_NOT_FOUND", "This entry could not be found.")}
+            {translateOr(t, "ES_IR_ACTIVITY_NOT_FOUND", "This activity could not be found.")}
           </p>
         ) : (
           <>
-            <FacilityInfoCard entry={detail.entry} />
+            <ActivityInfoCard activity={detail.activity} />
             <AuditTrailTimeline checkpoints={detail.auditTrail} />
             <ReviewSections
               sections={detail.sections}

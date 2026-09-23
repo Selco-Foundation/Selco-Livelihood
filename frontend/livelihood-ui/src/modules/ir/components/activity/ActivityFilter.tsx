@@ -19,26 +19,26 @@ import {
 import { ChevronDown, Filter, Search } from "lucide-react";
 import { useState } from "react";
 
-export interface FacilityFilterOption {
+export interface ActivityFilterOption {
   code: string;
   name: string;
 }
 
-type FacilityFilterCategory = "district" | "block" | "status";
+type ActivityFilterCategory = "district" | "block" | "status";
 
-export interface FacilityEntryFilterState {
+export interface ActivityFilterState {
   district: string[];
   block: string[];
   status: string[];
 }
 
-interface FacilityEntryFilterProps {
-  districtOptions: FacilityFilterOption[];
-  blockOptions: FacilityFilterOption[];
-  statusOptions: FacilityFilterOption[];
-  filters: FacilityEntryFilterState;
+interface ActivityFilterProps {
+  districtOptions: ActivityFilterOption[];
+  blockOptions: ActivityFilterOption[];
+  statusOptions: ActivityFilterOption[];
+  filters: ActivityFilterState;
   searchText: string;
-  onFilterChange: (filters: FacilityEntryFilterState) => void;
+  onFilterChange: (filters: ActivityFilterState) => void;
   onSearchTextChange: (searchText: string) => void;
   /** Approve Selected only renders while rows are selected. */
   selectedCount: number;
@@ -46,13 +46,13 @@ interface FacilityEntryFilterProps {
   isApproving: boolean;
 }
 
-export const EMPTY_FACILITY_FILTERS: FacilityEntryFilterState = {
+export const EMPTY_ACTIVITY_FILTERS: ActivityFilterState = {
   district: [],
   block: [],
   status: [],
 };
 
-export function FacilityEntryFilter({
+export function ActivityFilter({
   districtOptions,
   blockOptions,
   statusOptions,
@@ -63,14 +63,14 @@ export function FacilityEntryFilter({
   selectedCount,
   onApprove,
   isApproving,
-}: FacilityEntryFilterProps) {
+}: ActivityFilterProps) {
   const { t } = useTranslate();
 
   // Two independent open states — see InboxFilter for why the desktop Popover
   // and mobile Sheet can't share one boolean.
   const [desktopFiltersOpen, setDesktopFiltersOpen] = useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-  const [activeCategory, setActiveCategory] = useState<FacilityFilterCategory>("district");
+  const [activeCategory, setActiveCategory] = useState<ActivityFilterCategory>("district");
   const [categorySearch, setCategorySearch] = useState("");
 
   const categories = [
@@ -91,7 +91,7 @@ export function FacilityEntryFilter({
       return a.name.localeCompare(b.name);
     });
 
-  function toggleOption(category: FacilityFilterCategory, code: string) {
+  function toggleOption(category: ActivityFilterCategory, code: string) {
     const current = filters[category];
     onFilterChange({
       ...filters,
@@ -105,7 +105,7 @@ export function FacilityEntryFilter({
     filters.district.length > 0 || filters.block.length > 0 || filters.status.length > 0;
 
   function handleClearAllFilters() {
-    onFilterChange(EMPTY_FACILITY_FILTERS);
+    onFilterChange(EMPTY_ACTIVITY_FILTERS);
   }
 
   const optionsContent =
