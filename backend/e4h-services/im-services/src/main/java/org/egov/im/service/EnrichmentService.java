@@ -352,28 +352,35 @@ public class EnrichmentService {
             wrapper.setIndexView(indexView);
         }
         enrichReporterForLivelihoodIndexing(wrapper, indexView);
-        enrichEndUserFromFacilityPoc(wrapper.getIncidentRequest(), indexView);
+        enrichFromFacilityRegistry(wrapper.getIncidentRequest(), indexView);
     }
 
     /**
-     * The index exposes endUserName / endUserMobile as the facility's point of contact - the person
-     * the field team actually calls about a ticket - so they are sourced from the facility registry
-     * ({@code facility_poc_name} / {@code facility_poc_phone}).
+     * Single facility-registry read supplying everything the index takes from the facility.
      *
-     * <p>Runs after {@link #enrichReporterForLivelihoodIndexing} and overwrites its values, leaving
-     * the HRMS reporter as the fallback for facilities with no POC on record. Best-effort by design:
-     * a missing facility or a failed call keeps whatever the reporter resolved rather than blocking
-     * the Kafka publish.
+     * <p>endUserName / endUserMobile are the facility's point of contact - the person the field team
+     * actually calls about a ticket - read from {@code facility_poc_name} / {@code facility_poc_phone}.
+     * This runs after {@link #enrichReporterForLivelihoodIndexing} and overwrites its values, leaving
+     * the HRMS reporter as the fallback for facilities with no POC on record.
+     *
+     * <p>facilityCategory has no column on the incident, so it is transient and has to be resolved
+     * on every publish. IMService sets it for the non-Livelihood create and for every update, but
+     * createLivelihoodIncident returns before either - so without this a Livelihood ticket indexed
+     * with a null category until its first update.
+     *
+     * <p>Best-effort by design: a missing facility or a failed call leaves the existing values alone
+     * rather than blocking the Kafka publish.
      */
-    private void enrichEndUserFromFacilityPoc(IncidentRequest incidentRequest, IndexView indexView) {
+    private void enrichFromFacilityRegistry(IncidentRequest incidentRequest, IndexView indexView) {
         Incident incident = incidentRequest.getIncident();
-        Map<String, Object> facility = fetchFacilityForEndUserLookup(incident);
+        Map<String, Object> facility = fetchFacilityQuietly(incident);
         if (CollectionUtils.isEmpty(facility)) {
             return;
         }
 
         String pocName = asText(facility.get("facility_poc_name"));
         String pocPhone = asText(facility.get("facility_poc_phone"));
+        String facilityCategory = asText(facility.get("facility_category"));
 
         if (StringUtils.isNotBlank(pocName)) {
             indexView.setEndUserName(pocName);
@@ -381,8 +388,11 @@ public class EnrichmentService {
         if (StringUtils.isNotBlank(pocPhone)) {
             indexView.setEndUserMobile(pocPhone);
         }
-        log.info("Livelihood end user resolved from facility POC for incidentId={} name={}",
-                incident.getIncidentId(), pocName);
+        if (StringUtils.isNotBlank(facilityCategory)) {
+            incident.setFacilityCategory(facilityCategory);
+        }
+        log.info("Livelihood facility fields resolved for incidentId={} endUser={} facilityCategory={}",
+                incident.getIncidentId(), pocName, facilityCategory);
     }
 
     /**
@@ -392,11 +402,11 @@ public class EnrichmentService {
      * @return the first matching facility, or an empty map when nothing resolves - callers treat a
      *         miss as "leave the existing values alone", so this never throws
      */
-    private Map<String, Object> fetchFacilityForEndUserLookup(Incident incident) {
+    private Map<String, Object> fetchFacilityQuietly(Incident incident) {
         String facilityId = incident.getFacilityId();
         String boundaryCode = resolveFacilityBoundaryForLookup(incident);
         if (StringUtils.isBlank(facilityId) && StringUtils.isBlank(boundaryCode)) {
-            log.warn("No facilityId or boundaryCode on incidentId={}, skipping facility POC lookup",
+            log.warn("No facilityId or boundaryCode on incidentId={}, skipping facility lookup",
                     incident.getIncidentId());
             return Collections.emptyMap();
         }
@@ -427,12 +437,12 @@ public class EnrichmentService {
                     : (List<Map<String, Object>>) responseMap.get("facilities");
 
             if (CollectionUtils.isEmpty(facilities)) {
-                log.warn("No facility found for POC lookup facilityId={} boundaryCode={}", facilityId, boundaryCode);
+                log.warn("No facility found for facilityId={} boundaryCode={}", facilityId, boundaryCode);
                 return Collections.emptyMap();
             }
             return facilities.get(0);
         } catch (Exception e) {
-            log.warn("Failed to fetch facility POC for incidentId={} facilityId={}",
+            log.warn("Failed to fetch facility for incidentId={} facilityId={}",
                     incident.getIncidentId(), facilityId, e);
             return Collections.emptyMap();
         }
