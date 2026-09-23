@@ -84,6 +84,20 @@ export function ActivityList() {
     pageSize,
   });
 
+  // Select-all's displayed count: mirrors the exact criteria
+  // useBulkApproveActivities sends when isAllSelected is true (same
+  // boundaryCodes/searchText, statuses forced to SUBMITTED_BY_FIELD_STAFF),
+  // so the confirmation dialog's count matches what will actually be
+  // approved instead of a plan-wide, filter-blind total. pageSize: 1 since
+  // only totalCount is used.
+  const { data: approvableData } = useActivities(planId, {
+    boundaryCodes,
+    statuses: ["SUBMITTED_BY_FIELD_STAFF"],
+    searchText,
+    pageOffset: 0,
+    pageSize: 1,
+  });
+
   const bulkApprove = useBulkApproveActivities(planId);
   const { options: statusOptions } = useActivityStatusOptions();
 
@@ -110,13 +124,7 @@ export function ActivityList() {
     (plan?.pendingReviewCount ?? 0) === 0 ||
     (filters.status.length > 0 && !filters.status.includes("SUBMITTED_BY_FIELD_STAFF"));
 
-  // Select-all's displayed count: `totalCount` above counts every status
-  // matching the current filters (all of them, when no status filter is
-  // set), not just the approvable ones. `pendingReviewCount` is the same
-  // status-aggregation signal `noApprovableActivities` already trusts —
-  // reuse it here too rather than firing another request for a more precise,
-  // filter-scoped count.
-  const approvableCount = plan?.pendingReviewCount ?? 0;
+  const approvableCount = approvableData?.totalCount ?? 0;
 
   function handleFilterChange(nextFilters: ActivityFilterState) {
     // Selecting a district can invalidate an already-selected block from a

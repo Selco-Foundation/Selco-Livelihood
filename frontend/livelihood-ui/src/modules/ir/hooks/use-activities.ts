@@ -119,6 +119,12 @@ export function useBulkApproveActivities(planId: string) {
       void queryClient.invalidateQueries({
         queryKey: ["ir-activities", employeeTenantId, planId],
       });
+      // Refreshes plan.pendingReviewCount, which noApprovableActivities and
+      // (indirectly, via the plan search) other plan-level counts rely on —
+      // otherwise it stays stale after an approval until a full reload.
+      void queryClient.invalidateQueries({
+        queryKey: ["ir-installation-plans"],
+      });
     },
   });
 }
