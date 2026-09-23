@@ -10,20 +10,16 @@ import lombok.NoArgsConstructor;
 import org.egov.common.contract.request.RequestInfo;
 import org.springframework.validation.annotation.Validated;
 
-import java.util.Map;
-
+/** Mirrors vendor-registry's OrganisationApiController#_search request shape (SearchCriteria, capital S). */
 @Validated
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class GenerateBOMPdfRequest {
+public class OrgSearchRequest {
     @JsonProperty("RequestInfo")
     private @NotNull @Valid RequestInfo requestInfo = null;
 
-    @JsonProperty("solution")
-    private String solution = null;
-
-    @JsonProperty("bom")
-    private Map<String, Object> bomData = null;
+    @JsonProperty("SearchCriteria")
+    private @NotNull @Valid OrgSearchCriteria searchCriteria;
 }
