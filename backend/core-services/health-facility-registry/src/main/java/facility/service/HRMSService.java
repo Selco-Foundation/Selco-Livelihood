@@ -44,7 +44,7 @@ public class HRMSService {
     private static final Map<String, String> STATE_LOCALE_MAP = Map.of(
             "meghalaya", "en_IN",
             "assam", "as_IN",
-            "karnataka", "kn_IN"
+            "karnataka", "ka_IN"
     );
 
     // Client-approved fallback copy, used when localization has no override for the resolved locale.
@@ -55,13 +55,13 @@ public class HRMSService {
         templates.put(templateKey(ONBOARDING_SMS_WELCOME_TEMPLATE_CODE, "en_IN"),
                 "Namaste from SELCO Foundation! Setu4Livelihoods is your bridge to quick solutions. If you are "
                         + "facing any issues with your equipment, call or WhatsApp SELCO Foundation at "
-                        + "+919008308036, or visit {url} to raise an issue directly");
+                        + "+919008308036, or visit {url} to raise an issue directly.");
         templates.put(templateKey(ONBOARDING_SMS_WELCOME_TEMPLATE_CODE, "as_IN"),
                 "SELCO ফাউণ্ডেচনৰ তৰফৰ পৰা নমস্কাৰ! Setu4Livelihoods আপোনাৰ সমস্যাৰ দ্ৰুত সমাধানৰ বাবে এক সহায়ক "
                         + "মাধ্যম। আপোনাৰ সঁজুলিত কোনো সমস্যা হ'লে +919008308036 নম্বৰত ফোন কৰক বা WhatsApp-ৰ "
                         + "জৰিয়তে আমাৰ সৈতে যোগাযোগ কৰক। অথবা আপোনাৰ সমস্যা পোনপটীয়াকৈ পঞ্জীয়ন কৰিবলৈ {url} "
                         + "ভিজিট কৰক।");
-        templates.put(templateKey(ONBOARDING_SMS_WELCOME_TEMPLATE_CODE, "kn_IN"),
+        templates.put(templateKey(ONBOARDING_SMS_WELCOME_TEMPLATE_CODE, "ka_IN"),
                 "ನಮಸ್ಕಾರ, ಸೆಲ್ಕೋ ಫೌಂಡೇಶನ್ ವತಿಯಿಂದ! Setu4Livelihoods ನಿಮ್ಮ ಸಮಸ್ಯೆಗಳಿಗೆ ತ್ವರಿತ ಪರಿಹಾರ ಪಡೆಯಲು "
                         + "ಸಹಾಯ ಮಾಡುವ ಸೇತುವೆಯಾಗಿದೆ. ನಿಮ್ಮ ಯಂತ್ರೋಪಕರಣಗಳು ಯಾವುದೇ ಸಮಸ್ಯೆ ಎದುರಾದರೆ, +919008308036 "
                         + "ಸಂಖ್ಯೆಗೆ ಕರೆ ಮಾಡಿ ಅಥವಾ ವಾಟ್ಸಾಪ್ ಮೂಲಕ ನಮ್ಮನ್ನು ಸಂಪರ್ಕಿಸಿ. ಅಥವಾ ನಿಮ್ಮ ಸಮಸ್ಯೆಯನ್ನು "
@@ -79,7 +79,7 @@ public class HRMSService {
                         + "আপোনাৰ নামৰ প্ৰথম ৪টা আখৰ (প্ৰথম আখৰটো ডাঙৰ আখৰত) + @ + আপোনাৰ মোবাইল নম্বৰৰ প্ৰথম "
                         + "৪টা সংখ্যা। উদাহৰণ: আপোনাৰ নাম Shreya আৰু মোবাইল নম্বৰ 6732564901 হ'লে, আপোনাৰ "
                         + "পাছৱৰ্ড হ'ব Shre@6732।");
-        templates.put(templateKey(ONBOARDING_SMS_LOGIN_INFO_TEMPLATE_CODE, "kn_IN"),
+        templates.put(templateKey(ONBOARDING_SMS_LOGIN_INFO_TEMPLATE_CODE, "ka_IN"),
                 "ನಮಸ್ಕಾರ {name}, ನೀವು SELCO ಫೌಂಡೇಶನ್‌ನ Setu4Livelihoods ಬಳಕೆದಾರರಾಗಿ ನೋಂದಾಯಿಸಲ್ಪಟ್ಟಿದ್ದೀರಿ. "
                         + "ನಿಮ್ಮ ಬಳಕೆದಾರ ಹೆಸರು ನಿಮ್ಮ ನೋಂದಾಯಿತ ಮೊಬೈಲ್ ಸಂಖ್ಯೆ. ನಿಮ್ಮ ಲಾಗಿನ್ ಪಾಸ್‌ವರ್ಡ್ ನಿಮ್ಮ "
                         + "ಹೆಸರಿನ ಮೊದಲ 4 ಅಕ್ಷರಗಳು (ಮೊದಲ ಅಕ್ಷರ ದೊಡ್ಡಕ್ಷರದಲ್ಲಿ) + @ + ನಿಮ್ಮ ಮೊಬೈಲ್ ಸಂಖ್ಯೆಯ "
