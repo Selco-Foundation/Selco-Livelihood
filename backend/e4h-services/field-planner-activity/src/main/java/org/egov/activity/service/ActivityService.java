@@ -1009,7 +1009,7 @@ public class ActivityService {
 
             List<ActivityFacility> activityFacilities = searchActivityFacility(searchRequest, activityConfiguration.getMaxLimit(), activityConfiguration.getDefaultOffset(),
                     activityConfiguration.getTenantId(), false, null);
-            totalActivityFacilities = countAllFacilityActivities(searchRequest, activityConfiguration.getTenantId(), null, null);
+            totalActivityFacilities = countAllFacilityActivities(searchRequest, activityConfiguration.getTenantId(), null, false);
 
             // only those activity facilities whose status is SUBMITTED_BY_FIELD_STAFF
             List<ActivityFacility> activityFacilitiesList = activityFacilities.stream().filter(this::hasSubmittedByFieldStaffStatus).toList();
