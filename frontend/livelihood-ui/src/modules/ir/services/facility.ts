@@ -64,6 +64,7 @@ export interface BulkActivityFacilityWorkflowCriteria {
       statuses?: string[];
       fieldPlanIds?: string[];
       activityIds?: string[];
+      activityCodes?: string[];
       facilityName?: string;
       boundaryCodes?: string[];
     };

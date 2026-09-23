@@ -98,7 +98,7 @@ export function useBulkApproveActivities(planId: string) {
                 filters: {
                   searchCriteria: {
                     fieldPlanIds: [planId],
-                    activityIds: [ACTIVITY_CODE_INSTALLATION],
+                    activityCodes: [ACTIVITY_CODE_INSTALLATION],
                     statuses: input.filters?.statuses?.length
                       ? input.filters.statuses
                       : ["SUBMITTED_BY_FIELD_STAFF"],
