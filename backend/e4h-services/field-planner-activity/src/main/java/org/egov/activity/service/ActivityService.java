@@ -1407,6 +1407,10 @@ public class ActivityService {
     }
 
     private void sendOtpSms(String mobileNumber, String otpCode, String tenantId) {
+        if (!activityConfiguration.isOtpSmsEnabled()) {
+            log.info("OTP SMS sending is disabled via config; skipping SMS to {}", mobileNumber);
+            return;
+        }
         String message = activityConfiguration.getOtpSmsTemplate().replace("{otp}", otpCode);
         activityServiceUtil.sendSmsViaKafka(mobileNumber, message, tenantId);
     }

@@ -345,6 +345,13 @@ public class ActivityConfiguration {
     private String otpSmsTemplate;
 
     /**
+     * When false, generateActivityFacilityOtp/resendActivityFacilityOtp skip the SMS dispatch -
+     * the OTP is still created and persisted, only the notification is suppressed.
+     */
+    @Value("${egov.otp.sms.enabled:true}")
+    private boolean otpSmsEnabled;
+
+    /**
      * When true, validateActivityFacilityOtp accepts {@link #defaultOtp} instead of calling
      * egov_otp - lets QA/testers validate without reading the SMS the real OTP was sent in.
      */
