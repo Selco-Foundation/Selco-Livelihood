@@ -231,13 +231,13 @@ export function CreateInstallationPlanPage() {
     setConfirmError(undefined);
     setIsPublishing(true);
     try {
-      const saved = await persistPlan();
-
-      // Publishing is irreversible, so ask the server to check the assignments first. This
-      // endpoint writes nothing and always 200s — it just reports per-row problems the client
-      // can't see (REVIEWER_MISSING, VENDOR_MISMATCH, a vendor who left the org since being
-      // picked). Without it a plan with any of those goes straight through and can't be undone.
-      const validation = await validateVendorAssignment(saved.id!, assignments, accessToken ?? undefined, authUser);
+      // No persistPlan() here, deliberately: by step 4 there's a plan id already, and
+      // PlanDetailsStep renders locked={Boolean(planId)} from the moment the plan is first
+      // created, so none of the fields _update sends (sectors/dates/geography) can have changed
+      // since. That made the update a same-data round trip on the one action that's irreversible
+      // — pure risk, no effect, since assignments themselves aren't even part of that payload
+      // (they're written below, via vendor-assignment/_create).
+      const validation = await validateVendorAssignment(planId!, assignments, accessToken ?? undefined, authUser);
       if (!validation.valid) {
         setConfirmError(
           validation.errors
@@ -253,7 +253,7 @@ export function CreateInstallationPlanPage() {
         return;
       }
 
-      await publishInstallationPlan(saved.id!, assignments, accessToken ?? undefined, authUser);
+      await publishInstallationPlan(planId!, assignments, accessToken ?? undefined, authUser);
       // Publishing flips the plan's status to PUBLISHED, which drives the read-only
       // locking on every step. Without this the cache keeps serving the DRAFT plan.
       await queryClient.invalidateQueries({ queryKey: pmKeys.plans() });
