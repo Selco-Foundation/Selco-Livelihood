@@ -33,6 +33,15 @@ interface ActivityTableProps {
   isLoading: boolean;
   selected: Set<string>;
   onSelectedChange: (next: Set<string>) => void;
+  /** True once the master checkbox has switched into "every activity
+   * matching the current filters, across every page" mode (qc's `mainCheck`
+   * semantics) — see hooks/use-activities.ts's BulkApproveInput. Distinct
+   * from `selected`, which only ever tracks specific row ids. */
+  isAllSelected: boolean;
+  onIsAllSelectedChange: (value: boolean) => void;
+  /** Disables the master checkbox when it's cheaply provable nothing on any
+   * page could be approvable (see ActivityList.tsx's noApprovableActivities). */
+  disabled: boolean;
   currentPage: number;
   totalRecords: number;
   pageSizeLimit: number;
@@ -48,6 +57,9 @@ export function ActivityTable({
   isLoading,
   selected,
   onSelectedChange,
+  isAllSelected,
+  onIsAllSelectedChange,
+  disabled,
   currentPage,
   totalRecords,
   pageSizeLimit,
@@ -63,13 +75,31 @@ export function ActivityTable({
     .filter((activity) => activity.status === "SUBMITTED_BY_FIELD_STAFF")
     .map((activity) => activity.activityId);
   const allSelected =
-    selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
+    isAllSelected || (selectableIds.length > 0 && selectableIds.every((id) => selected.has(id)));
 
   function toggleAll() {
-    onSelectedChange(allSelected ? new Set() : new Set(selectableIds));
+    if (isAllSelected) {
+      onIsAllSelectedChange(false);
+      onSelectedChange(new Set());
+      return;
+    }
+    if (selectableIds.length === 0) {
+      return;
+    }
+    onIsAllSelectedChange(true);
+    onSelectedChange(new Set(selectableIds));
   }
 
   function toggleOne(activityId: string) {
+    if (isAllSelected) {
+      // Can't express "everything except this one" to the backend — no
+      // exclusion-list field exists on the bulk-approve contract. Degrade to
+      // an explicit selection scoped to this page: everything currently
+      // selectable here, minus the row just excluded.
+      onIsAllSelectedChange(false);
+      onSelectedChange(new Set(selectableIds.filter((id) => id !== activityId)));
+      return;
+    }
     const next = new Set(selected);
     if (next.has(activityId)) {
       next.delete(activityId);
@@ -100,7 +130,7 @@ export function ActivityTable({
               <thead>
                 <tr className="border-b border-border">
                   <th className="w-10 px-5 py-3">
-                    <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
+                    <Checkbox checked={allSelected} onCheckedChange={toggleAll} disabled={disabled} />
                   </th>
                   <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ES_IR_END_USER", "End User")}
@@ -139,7 +169,7 @@ export function ActivityTable({
                       <td className="px-5 py-4" onClick={(event) => event.stopPropagation()}>
                         {isSelectable ? (
                           <Checkbox
-                            checked={selected.has(activity.activityId)}
+                            checked={isAllSelected || selected.has(activity.activityId)}
                             onCheckedChange={() => toggleOne(activity.activityId)}
                           />
                         ) : null}

@@ -1,14 +1,16 @@
 import {
   employeeHomePath,
+  extractApiErrorMessage,
   translateOr,
   useAuthStore,
   useBoundary,
   useDebouncedValue,
   useTranslate,
 } from "@/shared";
-import { TopBar } from "@/ui";
+import { TopBar, toast } from "@/ui";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityTable } from "../../components/activity/ActivityTable";
+import { ConfirmBulkApproveDialog } from "../../components/activity/ConfirmBulkApproveDialog";
 import {
   EMPTY_ACTIVITY_FILTERS,
   ActivityFilter,
@@ -46,6 +48,8 @@ export function ActivityList() {
   const [pageOffset, setPageOffset] = useState(0);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [isAllSelected, setIsAllSelected] = useState(false);
+  const [bulkApproveConfirmOpen, setBulkApproveConfirmOpen] = useState(false);
 
   // Scoped to this one field plan via fieldPlanIds — the authoritative source
   // for breadcrumb/summary data and the field plan's state (which seeds the
@@ -70,8 +74,10 @@ export function ActivityList() {
     setPageOffset(0);
   }, [searchText]);
 
+  const boundaryCodes = resolveBoundaryCodes(filters, boundaryData?.blocks ?? [], boundaryData?.facilities ?? []);
+
   const { data, isLoading } = useActivities(planId, {
-    boundaryCodes: resolveBoundaryCodes(filters, boundaryData?.blocks ?? [], boundaryData?.facilities ?? []),
+    boundaryCodes,
     statuses: filters.status.length > 0 ? filters.status : undefined,
     searchText,
     pageOffset,
@@ -97,6 +103,21 @@ export function ActivityList() {
   const totalCount = data?.totalCount ?? 0;
   const currentPage = Math.floor(pageOffset / pageSize);
 
+  // Cheaply provable "nothing approvable" cases — see plan's Context section
+  // for why this doesn't (and can't, without an extra request) catch every
+  // possible zero-match filter combination.
+  const noApprovableActivities =
+    (plan?.pendingReviewCount ?? 0) === 0 ||
+    (filters.status.length > 0 && !filters.status.includes("SUBMITTED_BY_FIELD_STAFF"));
+
+  // Select-all's displayed count: `totalCount` above counts every status
+  // matching the current filters (all of them, when no status filter is
+  // set), not just the approvable ones. `pendingReviewCount` is the same
+  // status-aggregation signal `noApprovableActivities` already trusts —
+  // reuse it here too rather than firing another request for a more precise,
+  // filter-scoped count.
+  const approvableCount = plan?.pendingReviewCount ?? 0;
+
   function handleFilterChange(nextFilters: ActivityFilterState) {
     // Selecting a district can invalidate an already-selected block from a
     // different district — prune it, matching im's InboxFilter cascade.
@@ -111,13 +132,37 @@ export function ActivityList() {
     // rows a *different* filter set surfaces — the user can no longer see
     // what they'd be bulk-approving.
     setSelected(new Set());
+    setIsAllSelected(false);
     setPageOffset(0);
   }
 
+  function runBulkApprove() {
+    bulkApprove.mutate(
+      {
+        isAllSelected,
+        activityIds: Array.from(selected),
+        filters: { boundaryCodes, statuses: filters.status, searchText },
+      },
+      {
+        onSuccess: () => {
+          setSelected(new Set());
+          setIsAllSelected(false);
+          setBulkApproveConfirmOpen(false);
+          toast.success(translateOr(t, "ES_IR_BULK_APPROVE_SUCCESS", "Activities approved"));
+        },
+        onError: (error) => {
+          toast.error(translateOr(t, "ES_IR_BULK_APPROVE_FAILED", "Failed to approve activities"), {
+            description:
+              extractApiErrorMessage(error) ??
+              translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again."),
+          });
+        },
+      },
+    );
+  }
+
   function handleBulkApprove() {
-    bulkApprove.mutate(Array.from(selected), {
-      onSuccess: () => setSelected(new Set()),
-    });
+    setBulkApproveConfirmOpen(true);
   }
 
   return (
@@ -165,8 +210,9 @@ export function ActivityList() {
         onSearchTextChange={(value) => {
           setRawSearchText(value);
           setSelected(new Set());
+          setIsAllSelected(false);
         }}
-        selectedCount={selected.size}
+        selectedCount={isAllSelected ? approvableCount : selected.size}
         onApprove={handleBulkApprove}
         isApproving={bulkApprove.isPending}
       />
@@ -176,6 +222,9 @@ export function ActivityList() {
         isLoading={isLoading}
         selected={selected}
         onSelectedChange={setSelected}
+        isAllSelected={isAllSelected}
+        onIsAllSelectedChange={setIsAllSelected}
+        disabled={noApprovableActivities}
         currentPage={currentPage}
         totalRecords={totalCount}
         pageSizeLimit={pageSize}
@@ -186,6 +235,14 @@ export function ActivityList() {
           setPageSize(size);
           setPageOffset(0);
         }}
+      />
+      <ConfirmBulkApproveDialog
+        open={bulkApproveConfirmOpen}
+        count={isAllSelected ? approvableCount : selected.size}
+        isAllSelected={isAllSelected}
+        isSubmitting={bulkApprove.isPending}
+        onCancel={() => setBulkApproveConfirmOpen(false)}
+        onConfirm={runBulkApprove}
       />
     </div>
   );

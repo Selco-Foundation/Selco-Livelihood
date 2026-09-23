@@ -68,6 +68,19 @@ export function useActivities(planId: string, options: UseActivitiesOptions = {}
   });
 }
 
+/** `isAllSelected: true` bulk-approves every activity matching `filters`
+ * server-side (qc's "select all" checkbox semantics) instead of an explicit
+ * id list — see BulkActivityFacilityWorkflowCriteria's own doc comment. */
+export interface BulkApproveInput {
+  isAllSelected: boolean;
+  activityIds: string[];
+  filters?: {
+    boundaryCodes?: string[];
+    statuses?: string[];
+    searchText?: string;
+  };
+}
+
 export function useBulkApproveActivities(planId: string) {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
@@ -75,12 +88,28 @@ export function useBulkApproveActivities(planId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (activityIds: string[]) =>
+    mutationFn: (input: BulkApproveInput) =>
       bulkUpdateActivityFacilitiesWorkflow(
         {
           workflow: { action: "APPROVE", comments: "Approved by Installation Reviewer" },
-          isAllSelected: false,
-          activityFacilityIds: activityIds,
+          isAllSelected: input.isAllSelected,
+          ...(input.isAllSelected
+            ? {
+                filters: {
+                  searchCriteria: {
+                    fieldPlanIds: [planId],
+                    activityIds: [ACTIVITY_CODE_INSTALLATION],
+                    statuses: input.filters?.statuses?.length
+                      ? input.filters.statuses
+                      : ["SUBMITTED_BY_FIELD_STAFF"],
+                    ...(input.filters?.searchText ? { facilityName: input.filters.searchText } : {}),
+                    ...(input.filters?.boundaryCodes?.length
+                      ? { boundaryCodes: input.filters.boundaryCodes }
+                      : {}),
+                  },
+                },
+              }
+            : { activityFacilityIds: input.activityIds }),
         },
         employeeTenantId!,
         accessToken!,
