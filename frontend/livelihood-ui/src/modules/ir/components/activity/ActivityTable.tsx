@@ -78,7 +78,11 @@ export function ActivityTable({
     isAllSelected || (selectableIds.length > 0 && selectableIds.every((id) => selected.has(id)));
 
   function toggleAll() {
-    if (isAllSelected) {
+    // Branch on the visual `allSelected` state, not `isAllSelected` — every
+    // row on this page can already be individually checked (allSelected
+    // true) while isAllSelected is still false, and clicking the checkbox
+    // then means "clear", not "expand to every page".
+    if (allSelected) {
       onIsAllSelectedChange(false);
       onSelectedChange(new Set());
       return;
