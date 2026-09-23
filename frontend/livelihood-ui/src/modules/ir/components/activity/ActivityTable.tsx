@@ -42,6 +42,12 @@ interface ActivityTableProps {
   /** Disables the master checkbox when it's cheaply provable nothing on any
    * page could be approvable (see ActivityList.tsx's noApprovableActivities). */
   disabled: boolean;
+  /** Total selectable (SUBMITTED_BY_FIELD_STAFF) activities across every
+   * page matching the current filters — the same count the select-all
+   * confirmation dialog shows. Drives the master checkbox's visual state:
+   * checking every row on just the current page must NOT render it as
+   * checked, since that reads as "everything" to a reviewer but isn't. */
+  approvableCount: number;
   currentPage: number;
   totalRecords: number;
   pageSizeLimit: number;
@@ -60,6 +66,7 @@ export function ActivityTable({
   isAllSelected,
   onIsAllSelectedChange,
   disabled,
+  approvableCount,
   currentPage,
   totalRecords,
   pageSizeLimit,
@@ -74,8 +81,12 @@ export function ActivityTable({
   const selectableIds = activities
     .filter((activity) => activity.status === "SUBMITTED_BY_FIELD_STAFF")
     .map((activity) => activity.activityId);
-  const allSelected =
-    isAllSelected || (selectableIds.length > 0 && selectableIds.every((id) => selected.has(id)));
+  // Checking every row on just this page must not render the master
+  // checkbox as checked unless that's actually every approvable row across
+  // every page — otherwise the checkbox visually claims "everything" while
+  // meaning "this page", which is exactly what caused the escalation bug
+  // toggleAll used to have.
+  const allSelected = isAllSelected || (approvableCount > 0 && selected.size === approvableCount);
 
   function toggleAll() {
     // Branch on the visual `allSelected` state, not `isAllSelected` — every

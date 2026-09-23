@@ -233,6 +233,7 @@ export function ActivityList() {
         isAllSelected={isAllSelected}
         onIsAllSelectedChange={setIsAllSelected}
         disabled={noApprovableActivities}
+        approvableCount={approvableCount}
         currentPage={currentPage}
         totalRecords={totalCount}
         pageSizeLimit={pageSize}
