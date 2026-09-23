@@ -7,7 +7,7 @@ import type {
   ReportSectionMediaPatch,
   SectionImage,
   SectionVideo,
-} from "../types/facility-review";
+} from "../types/activity-review";
 import type { FileStoreUrlResponse } from "@/shared";
 
 function buildUrlMap(response: FileStoreUrlResponse): Map<string, string> {
@@ -79,8 +79,7 @@ export function buildReportSectionMedia(
     .map((url) => ({ name: `${facilityName}.pdf`, url }));
 
   return {
-    installationCompletionCertificate: findDocument(REPORT_DOCUMENT_TYPES[2]),
-    assetHandoverDocument: findDocument(REPORT_DOCUMENT_TYPES[3]),
+    report: findDocument(REPORT_DOCUMENT_TYPES[1]),
     supportingDocuments,
   };
 }

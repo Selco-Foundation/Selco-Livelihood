@@ -1,4 +1,4 @@
-import type { FacilityEntryStatus } from "../types/facility-review";
+import type { ActivityStatus } from "../types/activity-review";
 
 export const FACILITY_INSTALLATION_BUSINESS_SERVICE = "FACILITY_INSTALLATION";
 
@@ -10,7 +10,7 @@ interface StatusLabel {
 // Fixed display order for status filter options and any listing of "all
 // known statuses" — independent of whatever order the business service
 // returns its states in.
-export const FACILITY_ENTRY_STATUS_ORDER: FacilityEntryStatus[] = [
+export const ACTIVITY_STATUS_ORDER: ActivityStatus[] = [
   "SCHEDULED",
   "ASSIGNED_TO_FIELD_STAFF",
   "SUBMITTED_BY_FIELD_STAFF",
@@ -18,7 +18,7 @@ export const FACILITY_ENTRY_STATUS_ORDER: FacilityEntryStatus[] = [
   "APPROVED_BY_QC_SPOC",
 ];
 
-export const FACILITY_ENTRY_STATUS_LABELS: Record<FacilityEntryStatus, StatusLabel> = {
+export const ACTIVITY_STATUS_LABELS: Record<ActivityStatus, StatusLabel> = {
   SCHEDULED: { key: "ES_IR_STATUS_SCHEDULED", fallback: "Scheduled" },
   ASSIGNED_TO_FIELD_STAFF: { key: "ES_IR_STATUS_ASSIGNED", fallback: "Assigned" },
   SUBMITTED_BY_FIELD_STAFF: { key: "ES_IR_STATUS_PENDING", fallback: "Pending Review" },
@@ -26,11 +26,9 @@ export const FACILITY_ENTRY_STATUS_LABELS: Record<FacilityEntryStatus, StatusLab
   APPROVED_BY_QC_SPOC: { key: "ES_IR_STATUS_APPROVED", fallback: "Approved" },
 };
 
-export type FacilityStatusBadgeVariant = "neutral" | "pending" | "rejected" | "approved";
+export type ActivityStatusBadgeVariant = "neutral" | "pending" | "rejected" | "approved";
 
-export function facilityStatusBadgeVariant(
-  status: FacilityEntryStatus,
-): FacilityStatusBadgeVariant {
+export function activityStatusBadgeVariant(status: ActivityStatus): ActivityStatusBadgeVariant {
   switch (status) {
     case "SUBMITTED_BY_FIELD_STAFF":
       return "pending";

@@ -1,33 +1,33 @@
 import { translateOr, useTranslate } from "@/shared";
-import { FACILITY_ENTRY_STATUS_LABELS } from "../../constants/facility-status";
-import type { FacilityEntry } from "../../types/facility-review";
+import { ACTIVITY_STATUS_LABELS } from "../../constants/activity-status";
+import type { ReviewActivity } from "../../types/activity-review";
 import { boundaryDisplayName } from "../../utils/boundary";
 
-interface FacilityInfoCardProps {
-  entry: FacilityEntry;
+interface ActivityInfoCardProps {
+  activity: ReviewActivity;
 }
 
-export function FacilityInfoCard({ entry }: FacilityInfoCardProps) {
+export function ActivityInfoCard({ activity }: ActivityInfoCardProps) {
   const { t } = useTranslate();
-  const status = FACILITY_ENTRY_STATUS_LABELS[entry.status];
+  const status = ACTIVITY_STATUS_LABELS[activity.status];
 
   const items = [
     {
       label: translateOr(t, "ES_IR_DISTRICT", "District"),
-      value: entry.district
-        ? entry.district.name ?? boundaryDisplayName(entry.district.code, t)
+      value: activity.district
+        ? activity.district.name ?? boundaryDisplayName(activity.district.code, t)
         : "-",
     },
     {
       label: translateOr(t, "ES_IR_BLOCK", "Block"),
-      value: entry.block ? entry.block.name ?? boundaryDisplayName(entry.block.code, t) : "-",
+      value: activity.block ? activity.block.name ?? boundaryDisplayName(activity.block.code, t) : "-",
     },
     {
-      label: translateOr(t, "ES_IR_FACILITY_TYPE", "Facility Type"),
+      label: translateOr(t, "ES_IR_COMPONENT_TYPE", "Type"),
       value:
-        entry.entryType === "MACHINE"
-          ? translateOr(t, "ES_IR_ENTRY_TYPE_MACHINE", "Machine")
-          : translateOr(t, "ES_IR_ENTRY_TYPE_SOLAR", "Solar"),
+        activity.componentType === "MACHINE"
+          ? translateOr(t, "ES_IR_COMPONENT_TYPE_MACHINE", "Machine")
+          : translateOr(t, "ES_IR_COMPONENT_TYPE_SOLAR", "Solar"),
     },
     { label: translateOr(t, "ES_IR_STATUS", "Status"), value: translateOr(t, status.key, status.fallback) },
   ];

@@ -9,7 +9,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/ui";
-import type { ReviewDecisionAction } from "../../types/facility-review";
+import type { ReviewDecisionAction } from "../../types/activity-review";
 
 interface ConfirmActionDialogProps {
   action: ReviewDecisionAction | null;
