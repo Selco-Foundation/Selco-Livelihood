@@ -180,6 +180,8 @@ public class BomService {
 
         enrichBomData(request);
 
+        log.info("Request sent to pdf service {}", request);
+
         String pdfFilestoreId = uploadBOMPdfFilestore(pdfKey, tenantId, request);
         return appendBomDocumentsToPdf(pdfFilestoreId, tenantId, documentsToAppend);
     }
