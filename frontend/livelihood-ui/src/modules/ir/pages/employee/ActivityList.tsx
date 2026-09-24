@@ -48,7 +48,6 @@ export function ActivityList() {
   const [pageOffset, setPageOffset] = useState(0);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [isAllSelected, setIsAllSelected] = useState(false);
   const [bulkApproveConfirmOpen, setBulkApproveConfirmOpen] = useState(false);
 
   // Scoped to this one field plan via fieldPlanIds — the authoritative source
@@ -84,20 +83,6 @@ export function ActivityList() {
     pageSize,
   });
 
-  // Select-all's displayed count: mirrors the exact criteria
-  // useBulkApproveActivities sends when isAllSelected is true (same
-  // boundaryCodes/searchText, statuses forced to SUBMITTED_BY_FIELD_STAFF),
-  // so the confirmation dialog's count matches what will actually be
-  // approved instead of a plan-wide, filter-blind total. pageSize: 1 since
-  // only totalCount is used.
-  const { data: approvableData } = useActivities(planId, {
-    boundaryCodes,
-    statuses: ["SUBMITTED_BY_FIELD_STAFF"],
-    searchText,
-    pageOffset: 0,
-    pageSize: 1,
-  });
-
   const bulkApprove = useBulkApproveActivities(planId);
   const { options: statusOptions } = useActivityStatusOptions();
 
@@ -117,14 +102,14 @@ export function ActivityList() {
   const totalCount = data?.totalCount ?? 0;
   const currentPage = Math.floor(pageOffset / pageSize);
 
-  // Cheaply provable "nothing approvable" cases — see plan's Context section
-  // for why this doesn't (and can't, without an extra request) catch every
-  // possible zero-match filter combination.
+  // Cheaply provable "nothing approvable" cases, using the plan-wide
+  // pendingReviewCount already fetched for the KPI header — this can't (short
+  // of an extra request) catch every zero-match combination, e.g. filtered to
+  // a district with none pending while other districts in the plan do have
+  // some, but it covers the common cases for free.
   const noApprovableActivities =
     (plan?.pendingReviewCount ?? 0) === 0 ||
     (filters.status.length > 0 && !filters.status.includes("SUBMITTED_BY_FIELD_STAFF"));
-
-  const approvableCount = approvableData?.totalCount ?? 0;
 
   function handleFilterChange(nextFilters: ActivityFilterState) {
     // Selecting a district can invalidate an already-selected block from a
@@ -140,21 +125,15 @@ export function ActivityList() {
     // rows a *different* filter set surfaces — the user can no longer see
     // what they'd be bulk-approving.
     setSelected(new Set());
-    setIsAllSelected(false);
     setPageOffset(0);
   }
 
   function runBulkApprove() {
     bulkApprove.mutate(
-      {
-        isAllSelected,
-        activityIds: Array.from(selected),
-        filters: { boundaryCodes, statuses: filters.status, searchText },
-      },
+      { activityIds: Array.from(selected) },
       {
         onSuccess: () => {
           setSelected(new Set());
-          setIsAllSelected(false);
           setBulkApproveConfirmOpen(false);
           toast.success(translateOr(t, "ES_IR_BULK_APPROVE_SUCCESS", "Activities approved"));
         },
@@ -218,9 +197,8 @@ export function ActivityList() {
         onSearchTextChange={(value) => {
           setRawSearchText(value);
           setSelected(new Set());
-          setIsAllSelected(false);
         }}
-        selectedCount={isAllSelected ? approvableCount : selected.size}
+        selectedCount={selected.size}
         onApprove={handleBulkApprove}
         isApproving={bulkApprove.isPending}
       />
@@ -230,25 +208,31 @@ export function ActivityList() {
         isLoading={isLoading}
         selected={selected}
         onSelectedChange={setSelected}
-        isAllSelected={isAllSelected}
-        onIsAllSelectedChange={setIsAllSelected}
         disabled={noApprovableActivities}
-        approvableCount={approvableCount}
         currentPage={currentPage}
         totalRecords={totalCount}
         pageSizeLimit={pageSize}
-        onNextPage={() => setPageOffset(pageOffset + pageSize)}
-        onPrevPage={() => setPageOffset(Math.max(0, pageOffset - pageSize))}
-        onPageChange={(page) => setPageOffset(page * pageSize)}
+        onNextPage={() => {
+          setPageOffset(pageOffset + pageSize);
+          setSelected(new Set());
+        }}
+        onPrevPage={() => {
+          setPageOffset(Math.max(0, pageOffset - pageSize));
+          setSelected(new Set());
+        }}
+        onPageChange={(page) => {
+          setPageOffset(page * pageSize);
+          setSelected(new Set());
+        }}
         onPageSizeChange={(size) => {
           setPageSize(size);
           setPageOffset(0);
+          setSelected(new Set());
         }}
       />
       <ConfirmBulkApproveDialog
         open={bulkApproveConfirmOpen}
-        count={isAllSelected ? approvableCount : selected.size}
-        isAllSelected={isAllSelected}
+        count={selected.size}
         isSubmitting={bulkApprove.isPending}
         onCancel={() => setBulkApproveConfirmOpen(false)}
         onConfirm={runBulkApprove}

@@ -51,24 +51,14 @@ export async function searchActivityFacilities(
 }
 
 /** The `/activity/v1/activities/bulk/workflow/update` request body — matches
- * qc's `ActivityService.bulkApproveActivityFacilities`. `isAllSelected` true
- * bulk-approves every row matching `filters.searchCriteria` (qc's "select
- * all" checkbox); false approves just `activityFacilityIds` — the only mode
- * our own table's per-row checkbox selection uses. */
+ * qc's `ActivityService.bulkApproveActivityFacilities`. Our master checkbox
+ * is page-scoped, so every call sends an explicit `activityFacilityIds` list
+ * with `isAllSelected: false` — the backend still requires the field, it's
+ * just never `true` from this module. */
 export interface BulkActivityFacilityWorkflowCriteria {
   workflow: { action: string; comments: string };
   isAllSelected: boolean;
   activityFacilityIds?: string[];
-  filters?: {
-    searchCriteria: {
-      statuses?: string[];
-      fieldPlanIds?: string[];
-      activityIds?: string[];
-      activityCodes?: string[];
-      facilityName?: string;
-      boundaryCodes?: string[];
-    };
-  };
 }
 
 /** The one method that calls `/activity/v1/activities/bulk/workflow/update`

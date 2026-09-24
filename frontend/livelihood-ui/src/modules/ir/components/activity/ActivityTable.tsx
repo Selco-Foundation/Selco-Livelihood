@@ -31,23 +31,14 @@ interface ActivityTableProps {
   planId: string;
   activities: ReviewActivity[];
   isLoading: boolean;
+  /** Scoped to whichever page is currently open — the master checkbox only
+   * ever checks/unchecks this page's selectable rows, and the caller clears
+   * this on every page change (see ActivityList.tsx's page handlers). */
   selected: Set<string>;
   onSelectedChange: (next: Set<string>) => void;
-  /** True once the master checkbox has switched into "every activity
-   * matching the current filters, across every page" mode (qc's `mainCheck`
-   * semantics) — see hooks/use-activities.ts's BulkApproveInput. Distinct
-   * from `selected`, which only ever tracks specific row ids. */
-  isAllSelected: boolean;
-  onIsAllSelectedChange: (value: boolean) => void;
   /** Disables the master checkbox when it's cheaply provable nothing on any
    * page could be approvable (see ActivityList.tsx's noApprovableActivities). */
   disabled: boolean;
-  /** Total selectable (SUBMITTED_BY_FIELD_STAFF) activities across every
-   * page matching the current filters — the same count the select-all
-   * confirmation dialog shows. Drives the master checkbox's visual state:
-   * checking every row on just the current page must NOT render it as
-   * checked, since that reads as "everything" to a reviewer but isn't. */
-  approvableCount: number;
   currentPage: number;
   totalRecords: number;
   pageSizeLimit: number;
@@ -63,10 +54,7 @@ export function ActivityTable({
   isLoading,
   selected,
   onSelectedChange,
-  isAllSelected,
-  onIsAllSelectedChange,
   disabled,
-  approvableCount,
   currentPage,
   totalRecords,
   pageSizeLimit,
@@ -81,40 +69,16 @@ export function ActivityTable({
   const selectableIds = activities
     .filter((activity) => activity.status === "SUBMITTED_BY_FIELD_STAFF")
     .map((activity) => activity.activityId);
-  // Checking every row on just this page must not render the master
-  // checkbox as checked unless that's actually every approvable row across
-  // every page — otherwise the checkbox visually claims "everything" while
-  // meaning "this page", which is exactly what caused the escalation bug
-  // toggleAll used to have.
-  const allSelected = isAllSelected || (approvableCount > 0 && selected.size === approvableCount);
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
 
   function toggleAll() {
-    // Branch on the visual `allSelected` state, not `isAllSelected` — every
-    // row on this page can already be individually checked (allSelected
-    // true) while isAllSelected is still false, and clicking the checkbox
-    // then means "clear", not "expand to every page".
-    if (allSelected) {
-      onIsAllSelectedChange(false);
-      onSelectedChange(new Set());
-      return;
-    }
-    if (selectableIds.length === 0) {
-      return;
-    }
-    onIsAllSelectedChange(true);
-    onSelectedChange(new Set(selectableIds));
+    // `selected` only ever holds this page's ids (the caller resets it on
+    // every page change), so this can safely replace it wholesale rather
+    // than merge.
+    onSelectedChange(allSelected ? new Set() : new Set(selectableIds));
   }
 
   function toggleOne(activityId: string) {
-    if (isAllSelected) {
-      // Can't express "everything except this one" to the backend — no
-      // exclusion-list field exists on the bulk-approve contract. Degrade to
-      // an explicit selection scoped to this page: everything currently
-      // selectable here, minus the row just excluded.
-      onIsAllSelectedChange(false);
-      onSelectedChange(new Set(selectableIds.filter((id) => id !== activityId)));
-      return;
-    }
     const next = new Set(selected);
     if (next.has(activityId)) {
       next.delete(activityId);
@@ -184,7 +148,7 @@ export function ActivityTable({
                       <td className="px-5 py-4" onClick={(event) => event.stopPropagation()}>
                         {isSelectable ? (
                           <Checkbox
-                            checked={isAllSelected || selected.has(activity.activityId)}
+                            checked={selected.has(activity.activityId)}
                             onCheckedChange={() => toggleOne(activity.activityId)}
                           />
                         ) : null}
