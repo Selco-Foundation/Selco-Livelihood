@@ -106,7 +106,7 @@ class _AssetCountPageState extends State<AssetCountPage> {
           const SizedBox(height: spacer2),
           for (final type in draft.applicableTypes)
             LabeledField(
-              label: draft.labelFor(type),
+              label: type.pluralLabel,
               capitalizedFirstLetter: false,
               labelStyle: textTheme.headingS
                   .copyWith(color: theme.colorTheme.text.primary),
