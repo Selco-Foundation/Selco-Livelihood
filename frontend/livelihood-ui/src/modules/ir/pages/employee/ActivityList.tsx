@@ -123,10 +123,26 @@ export function ActivityList() {
     bulkApprove.mutate(
       { activityIds: Array.from(selected) },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
           setSelected(new Set());
           setBulkApproveConfirmOpen(false);
-          toast.success(translateOr(t, "ES_IR_BULK_APPROVE_SUCCESS", "Activities approved"));
+          const failedCount = result.data.failedProjectIDs?.length ?? 0;
+          if (failedCount > 0) {
+            // A 207 response still resolves (not an error) — the backend
+            // approved some and failed others in the same batch, so this
+            // isn't a plain success or a plain failure.
+            toast.warning(
+              translateOr(t, "ES_IR_BULK_APPROVE_PARTIAL_SUCCESS_PREFIX", "Approved, but") +
+                ` ${failedCount} ` +
+                translateOr(
+                  t,
+                  "ES_IR_BULK_APPROVE_PARTIAL_SUCCESS_SUFFIX",
+                  "activities could not be approved.",
+                ),
+            );
+          } else {
+            toast.success(translateOr(t, "ES_IR_BULK_APPROVE_SUCCESS", "Activities approved"));
+          }
         },
         onError: (error) => {
           toast.error(translateOr(t, "ES_IR_BULK_APPROVE_FAILED", "Failed to approve activities"), {

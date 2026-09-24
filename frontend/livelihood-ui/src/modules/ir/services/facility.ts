@@ -61,16 +61,27 @@ export interface BulkActivityFacilityWorkflowCriteria {
   activityFacilityIds?: string[];
 }
 
+/** The bulk-workflow-update response body's actual field names — the
+ * backend always returns both lists, and signals which case applies via
+ * HTTP status (200 all succeeded, 207 partial, 400 all failed). */
+export interface BulkActivityFacilityWorkflowResponse {
+  succeededProjectIDs?: string[];
+  failedProjectIDs?: string[];
+}
+
 /** The one method that calls `/activity/v1/activities/bulk/workflow/update`
  * — picks the criteria from the call, makes the request, and returns
- * exactly what the backend sent back. */
+ * exactly what the backend sent back, status included (axios's default
+ * validateStatus resolves any 2xx-3xx, so the status is the only signal
+ * distinguishing a 207 partial failure from a 200 full success — the body
+ * shape alone doesn't say which). */
 export async function bulkUpdateActivityFacilitiesWorkflow(
   criteria: BulkActivityFacilityWorkflowCriteria,
   tenantId: string,
   accessToken: string,
   user?: AuthUser | null,
-): Promise<unknown> {
-  const { data } = await apiClient.post(
+): Promise<{ status: number; data: BulkActivityFacilityWorkflowResponse }> {
+  const response = await apiClient.post<BulkActivityFacilityWorkflowResponse>(
     "/activity/v1/activities/bulk/workflow/update",
     {
       RequestInfo: createRequestInfo(accessToken, user),
@@ -79,5 +90,5 @@ export async function bulkUpdateActivityFacilitiesWorkflow(
     { params: { tenantId } },
   );
 
-  return data;
+  return { status: response.status, data: response.data };
 }
