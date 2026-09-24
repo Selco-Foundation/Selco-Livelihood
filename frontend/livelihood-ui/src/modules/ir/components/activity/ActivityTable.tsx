@@ -31,6 +31,9 @@ interface ActivityTableProps {
   planId: string;
   activities: ReviewActivity[];
   isLoading: boolean;
+  /** Scoped to whichever page is currently open — the master checkbox only
+   * ever checks/unchecks this page's selectable rows, and the caller clears
+   * this on every page change (see ActivityList.tsx's page handlers). */
   selected: Set<string>;
   onSelectedChange: (next: Set<string>) => void;
   currentPage: number;
@@ -62,10 +65,12 @@ export function ActivityTable({
   const selectableIds = activities
     .filter((activity) => activity.status === "SUBMITTED_BY_FIELD_STAFF")
     .map((activity) => activity.activityId);
-  const allSelected =
-    selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
 
   function toggleAll() {
+    // `selected` only ever holds this page's ids (the caller resets it on
+    // every page change), so this can safely replace it wholesale rather
+    // than merge.
     onSelectedChange(allSelected ? new Set() : new Set(selectableIds));
   }
 
@@ -100,7 +105,11 @@ export function ActivityTable({
               <thead>
                 <tr className="border-b border-border">
                   <th className="w-10 px-5 py-3">
-                    <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={toggleAll}
+                      disabled={selectableIds.length === 0}
+                    />
                   </th>
                   <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ES_IR_END_USER", "End User")}
