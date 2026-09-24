@@ -404,7 +404,8 @@ def lock_prefilled_rows_in_excel(
     total_rows: int,
     total_columns: int,
     always_locked_columns: list = None,  # new parameter
-    extra_append_rows: int = 1000
+    extra_append_rows: int = 1000,
+    allow_insert_rows: bool = True
 ):
     always_locked_columns = always_locked_columns or []
 
@@ -466,7 +467,7 @@ def lock_prefilled_rows_in_excel(
     # Enable protection
     ws.protection.select_unlocked_cells = True
     ws.protection.formatColumns = True
-    ws.protection.insertRows = True
+    ws.protection.insertRows = allow_insert_rows
     ws.protection.sheet = True
     ws.protection.enable()
 
