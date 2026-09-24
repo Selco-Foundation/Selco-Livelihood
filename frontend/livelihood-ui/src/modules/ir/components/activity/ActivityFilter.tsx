@@ -40,7 +40,8 @@ interface ActivityFilterProps {
   searchText: string;
   onFilterChange: (filters: ActivityFilterState) => void;
   onSearchTextChange: (searchText: string) => void;
-  /** Approve Selected only renders while rows are selected. */
+  /** Approve Selected always renders (disabled at 0) rather than
+   * appearing/disappearing, so the toolbar's other controls don't shift. */
   selectedCount: number;
   onApprove: () => void;
   isApproving: boolean;
@@ -297,11 +298,21 @@ export function ActivityFilter({
               className="pl-9"
             />
           </div>
-          {selectedCount > 0 ? (
-            <Button type="button" size="sm" disabled={isApproving} onClick={onApprove}>
-              {translateOr(t, "ES_IR_BULK_APPROVE", "Approve Selected")} ({selectedCount})
-            </Button>
-          ) : null}
+          <Button
+            type="button"
+            size="sm"
+            disabled={isApproving || selectedCount === 0}
+            onClick={onApprove}
+            // Fixed width so the count suffix appearing/growing never resizes
+            // the button — this row's parent is `justify-between`, so any
+            // width change here shifts the search box (an earlier sibling)
+            // too, not just what comes after the button. Wide enough for a
+            // double-digit count ("Approve Selected (99)") at this padding.
+            className="min-w-[196px] tabular-nums"
+          >
+            {translateOr(t, "ES_IR_BULK_APPROVE", "Approve Selected")}
+            {selectedCount > 0 ? ` (${selectedCount})` : ""}
+          </Button>
           <button
             type="button"
             disabled={!hasActiveFilters}

@@ -68,6 +68,10 @@ export function useActivities(planId: string, options: UseActivitiesOptions = {}
   });
 }
 
+export interface BulkApproveInput {
+  activityIds: string[];
+}
+
 export function useBulkApproveActivities(planId: string) {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
@@ -75,12 +79,12 @@ export function useBulkApproveActivities(planId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (activityIds: string[]) =>
+    mutationFn: (input: BulkApproveInput) =>
       bulkUpdateActivityFacilitiesWorkflow(
         {
           workflow: { action: "APPROVE", comments: "Approved by Installation Reviewer" },
           isAllSelected: false,
-          activityFacilityIds: activityIds,
+          activityFacilityIds: input.activityIds,
         },
         employeeTenantId!,
         accessToken!,
@@ -89,6 +93,12 @@ export function useBulkApproveActivities(planId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["ir-activities", employeeTenantId, planId],
+      });
+      // Refreshes plan.pendingReviewCount, which noApprovableActivities and
+      // (indirectly, via the plan search) other plan-level counts rely on —
+      // otherwise it stays stale after an approval until a full reload.
+      void queryClient.invalidateQueries({
+        queryKey: ["ir-installation-plans"],
       });
     },
   });
