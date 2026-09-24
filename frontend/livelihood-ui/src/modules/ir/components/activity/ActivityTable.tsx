@@ -36,9 +36,6 @@ interface ActivityTableProps {
    * this on every page change (see ActivityList.tsx's page handlers). */
   selected: Set<string>;
   onSelectedChange: (next: Set<string>) => void;
-  /** Disables the master checkbox when it's cheaply provable nothing on any
-   * page could be approvable (see ActivityList.tsx's noApprovableActivities). */
-  disabled: boolean;
   currentPage: number;
   totalRecords: number;
   pageSizeLimit: number;
@@ -54,7 +51,6 @@ export function ActivityTable({
   isLoading,
   selected,
   onSelectedChange,
-  disabled,
   currentPage,
   totalRecords,
   pageSizeLimit,
@@ -109,7 +105,11 @@ export function ActivityTable({
               <thead>
                 <tr className="border-b border-border">
                   <th className="w-10 px-5 py-3">
-                    <Checkbox checked={allSelected} onCheckedChange={toggleAll} disabled={disabled} />
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={toggleAll}
+                      disabled={selectableIds.length === 0}
+                    />
                   </th>
                   <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ES_IR_END_USER", "End User")}

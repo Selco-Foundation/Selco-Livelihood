@@ -102,15 +102,6 @@ export function ActivityList() {
   const totalCount = data?.totalCount ?? 0;
   const currentPage = Math.floor(pageOffset / pageSize);
 
-  // Cheaply provable "nothing approvable" cases, using the plan-wide
-  // pendingReviewCount already fetched for the KPI header — this can't (short
-  // of an extra request) catch every zero-match combination, e.g. filtered to
-  // a district with none pending while other districts in the plan do have
-  // some, but it covers the common cases for free.
-  const noApprovableActivities =
-    (plan?.pendingReviewCount ?? 0) === 0 ||
-    (filters.status.length > 0 && !filters.status.includes("SUBMITTED_BY_FIELD_STAFF"));
-
   function handleFilterChange(nextFilters: ActivityFilterState) {
     // Selecting a district can invalidate an already-selected block from a
     // different district — prune it, matching im's InboxFilter cascade.
@@ -208,7 +199,6 @@ export function ActivityList() {
         isLoading={isLoading}
         selected={selected}
         onSelectedChange={setSelected}
-        disabled={noApprovableActivities}
         currentPage={currentPage}
         totalRecords={totalCount}
         pageSizeLimit={pageSize}
