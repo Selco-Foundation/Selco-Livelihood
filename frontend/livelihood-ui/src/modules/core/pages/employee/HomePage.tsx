@@ -6,7 +6,8 @@ export function HomePage() {
   const { t } = useTranslate();
   const user = useAuthStore((state) => state.user);
   const { kpis, details, actions } = getModuleOverviews();
-  const displayName = user?.name ?? user?.userName ?? "";
+  const fullName = user?.name ?? user?.userName ?? "";
+  const displayName = fullName.trim().split(/\s+/)[0];
 
   return (
     <div className="space-y-6">
