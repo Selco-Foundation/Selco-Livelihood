@@ -2104,11 +2104,24 @@ async def validate_facilities_excel_sheet(
     project_client = ProjectServiceClient(project_service_url)
 
     try:
+        # ----------------- Reject non-Excel uploads early with a clear message ----------------- #
+        if not facility_file.filename or not facility_file.filename.lower().endswith((".xlsx", ".xlsm")):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file '{facility_file.filename}': Only Excel files (.xlsx) are accepted."
+            )
+
         # Save uploaded Excel to a temp file
         temp_input_file, _ = await _save_upload_to_temp_file(facility_file, suffix=".xlsx")
 
         # Load workbook to preserve everything
-        wb = load_workbook(temp_input_file.name)
+        try:
+            wb = load_workbook(temp_input_file.name)
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail=f"'{facility_file.filename}' is not a valid Excel file. Please upload a valid .xlsx file."
+            )
 
         # ----------------- Read Boundary Sheet ----------------- #
         if boundary_sheet_name not in wb.sheetnames:
@@ -2235,6 +2248,10 @@ async def validate_facilities_excel_sheet(
 
         return response
 
+    except HTTPException:
+        # Preserve explicit status codes/messages raised above (e.g. the invalid-file check)
+        # instead of flattening them into a generic 500 below.
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
     finally:
