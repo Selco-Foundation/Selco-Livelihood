@@ -158,7 +158,10 @@ public class IndexBackfillService {
         }
 
         Map<String, String> names = localizationClient.resolveBoundaryNames(
-                null, properties.getLocalizationTenantId(), boundaryCodes);
+                null,
+                properties.getLocalizationTenantId(),
+                properties.getLocalizationModule(),
+                boundaryCodes);
 
         Map<String, Map<String, Object>> docsById = new LinkedHashMap<>();
         for (EsDoc doc : page) {

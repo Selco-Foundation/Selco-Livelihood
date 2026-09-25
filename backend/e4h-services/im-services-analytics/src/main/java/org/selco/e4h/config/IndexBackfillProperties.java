@@ -23,10 +23,13 @@ public class IndexBackfillProperties {
     private int bulkSize;
 
     /**
-     * Tenant the BOUNDARY_ localisations are registered under. Boundary labels were consolidated
-     * onto the state-level tenant by the im-services localisation migrations, so this is not the
-     * per-facility tenant id.
+     * Tenant and module the BOUNDARY_ boundary labels are registered under. These are a pair — the
+     * same boundary code is registered under different modules per tenant — and they match what
+     * im-services uses when it localises district and block names onto an incident.
      */
-    @Value("${backfill.localization.tenant.id:in}")
+    @Value("${backfill.localization.tenant.id:livelihood}")
     private String localizationTenantId;
+
+    @Value("${backfill.localization.module:rainmaker-livelihood}")
+    private String localizationModule;
 }
