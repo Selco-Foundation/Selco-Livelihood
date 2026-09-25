@@ -18,6 +18,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -52,6 +53,41 @@ public class Co2LocalizationClient {
         for (Co2FacilityContext facility : facilities) {
             applyLabels(facility, labels);
         }
+    }
+
+    /**
+     * Resolves display names for raw boundary codes, keyed by the code that was passed in.
+     *
+     * <p>Unlike {@link #enrichBoundaryLocalizedNames} this does not echo the code back when
+     * localisation has no entry for it — a caller writing these into an index wants to leave the
+     * stored value alone rather than overwrite a real name with a boundary code.
+     */
+    public Map<String, String> resolveBoundaryNames(RequestInfo requestInfo,
+                                                    String tenantId,
+                                                    Collection<String> rawCodes) {
+        if (rawCodes == null || rawCodes.isEmpty()) {
+            return Map.of();
+        }
+        Set<String> localizationCodes = new LinkedHashSet<>();
+        for (String rawCode : rawCodes) {
+            addLocalizationCode(localizationCodes, rawCode);
+        }
+        if (localizationCodes.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<String, String> labels = fetchLabels(requestInfo, tenantId, localizationCodes);
+        Map<String, String> byRawCode = new HashMap<>();
+        for (String rawCode : rawCodes) {
+            if (rawCode == null || rawCode.isBlank()) {
+                continue;
+            }
+            String label = labels.get(toLocalizationCode(rawCode));
+            if (label != null && !label.isBlank()) {
+                byRawCode.put(rawCode, label);
+            }
+        }
+        return byRawCode;
     }
 
     private void applyLabels(Co2FacilityContext facility, Map<String, String> labels) {
