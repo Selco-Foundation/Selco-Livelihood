@@ -13,6 +13,7 @@ export interface ActivityFacilitySearchCriteria {
   ids?: string[];
   fieldPlanIds?: string[];
   activityCodes?: string[];
+  componentTypes?: string[];
   boundaryCodes?: string[];
   statuses?: string[];
   facilityName?: string;

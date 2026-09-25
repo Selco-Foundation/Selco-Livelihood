@@ -19,6 +19,7 @@ import {
 } from "../../components/activity/ActivityFilter";
 import { useBulkApproveActivities, useActivities } from "../../hooks/use-activities";
 import { useActivityStatusOptions } from "../../hooks/use-activity-status-options";
+import { useInstallationTypeOptions } from "../../hooks/use-installation-type-options";
 import { useInstallationPlans } from "../../hooks/use-installation-plans";
 import { boundaryDisplayName, cascadeBlockOptions, resolveBoundaryCodes } from "../../utils/boundary";
 import { hasIrAccess } from "../../utils/access";
@@ -78,6 +79,7 @@ export function ActivityList() {
   const { data, isLoading } = useActivities(planId, {
     boundaryCodes,
     statuses: filters.status.length > 0 ? filters.status : undefined,
+    componentTypes: filters.type.length > 0 ? filters.type : undefined,
     searchText,
     pageOffset,
     pageSize,
@@ -85,6 +87,7 @@ export function ActivityList() {
 
   const bulkApprove = useBulkApproveActivities(planId);
   const { options: statusOptions } = useActivityStatusOptions();
+  const { options: typeOptions } = useInstallationTypeOptions();
 
   const planDistrictCodes = new Set(plan?.districtCodes ?? []);
   const districtOptions: ActivityFilterOption[] = (boundaryData?.districts ?? [])
@@ -198,6 +201,7 @@ export function ActivityList() {
         districtOptions={districtOptions}
         blockOptions={blockOptions}
         statusOptions={statusOptions}
+        typeOptions={typeOptions}
         filters={filters}
         searchText={rawSearchText}
         onFilterChange={handleFilterChange}

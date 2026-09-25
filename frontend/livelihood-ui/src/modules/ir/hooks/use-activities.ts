@@ -12,6 +12,7 @@ import { toReviewActivity } from "../utils/review-activity-mapping";
 export interface UseActivitiesOptions {
   boundaryCodes?: string[];
   statuses?: string[];
+  componentTypes?: string[];
   searchText?: string;
   pageOffset?: number;
   pageSize?: number;
@@ -23,7 +24,7 @@ export interface ActivitySearchResult {
 }
 
 export function useActivities(planId: string, options: UseActivitiesOptions = {}) {
-  const { boundaryCodes, statuses, searchText, pageOffset = 0, pageSize = 10 } = options;
+  const { boundaryCodes, statuses, componentTypes, searchText, pageOffset = 0, pageSize = 10 } = options;
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
   const employeeTenantId = useAuthStore((state) => state.employeeTenantId);
@@ -39,6 +40,7 @@ export function useActivities(planId: string, options: UseActivitiesOptions = {}
       planId,
       boundaryCodes,
       statuses,
+      componentTypes,
       searchText,
       pageOffset,
       pageSize,
@@ -52,6 +54,7 @@ export function useActivities(planId: string, options: UseActivitiesOptions = {}
           activityCodes: [ACTIVITY_CODE_INSTALLATION],
           ...(boundaryCodes?.length ? { boundaryCodes } : {}),
           ...(statuses?.length ? { statuses } : {}),
+          ...(componentTypes?.length ? { componentTypes } : {}),
           ...(searchText ? { facilityName: searchText } : {}),
         },
         { limit: pageSize, offset: pageOffset },

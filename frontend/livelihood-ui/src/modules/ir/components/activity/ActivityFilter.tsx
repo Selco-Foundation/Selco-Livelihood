@@ -24,18 +24,20 @@ export interface ActivityFilterOption {
   name: string;
 }
 
-type ActivityFilterCategory = "district" | "block" | "status";
+type ActivityFilterCategory = "district" | "block" | "status" | "type";
 
 export interface ActivityFilterState {
   district: string[];
   block: string[];
   status: string[];
+  type: string[];
 }
 
 interface ActivityFilterProps {
   districtOptions: ActivityFilterOption[];
   blockOptions: ActivityFilterOption[];
   statusOptions: ActivityFilterOption[];
+  typeOptions: ActivityFilterOption[];
   filters: ActivityFilterState;
   searchText: string;
   onFilterChange: (filters: ActivityFilterState) => void;
@@ -51,12 +53,14 @@ export const EMPTY_ACTIVITY_FILTERS: ActivityFilterState = {
   district: [],
   block: [],
   status: [],
+  type: [],
 };
 
 export function ActivityFilter({
   districtOptions,
   blockOptions,
   statusOptions,
+  typeOptions,
   filters,
   searchText,
   onFilterChange,
@@ -78,6 +82,7 @@ export function ActivityFilter({
     { key: "district" as const, label: translateOr(t, "ES_IR_DISTRICT", "District"), options: districtOptions },
     { key: "block" as const, label: translateOr(t, "ES_IR_BLOCK", "Block"), options: blockOptions },
     { key: "status" as const, label: translateOr(t, "ES_IR_STATUS", "Status"), options: statusOptions },
+    { key: "type" as const, label: translateOr(t, "ES_IR_COMPONENT_TYPE", "Type"), options: typeOptions },
   ];
 
   const activeCategoryData = categories.find((category) => category.key === activeCategory);
@@ -103,7 +108,10 @@ export function ActivityFilter({
   }
 
   const hasActiveFilters =
-    filters.district.length > 0 || filters.block.length > 0 || filters.status.length > 0;
+    filters.district.length > 0 ||
+    filters.block.length > 0 ||
+    filters.status.length > 0 ||
+    filters.type.length > 0;
 
   function handleClearAllFilters() {
     onFilterChange(EMPTY_ACTIVITY_FILTERS);
