@@ -1,12 +1,13 @@
 import { translateOr, useTranslate } from "@/shared";
 import { Button } from "@/ui";
-import { CheckCircle2, Download, FileSpreadsheet, Upload } from "lucide-react";
-import { useEffect, useMemo, useRef } from "react";
+import { CheckCircle2, Download, FileSpreadsheet, Info, Upload } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFacility } from "@/shared/hooks/use-facility";
 import { useInstallationSolutions } from "../../hooks/use-installation-solutions";
 import { useSolutionTemplateUpload } from "../../hooks/use-solution-template-upload";
 import type { InstallationPlanTemplateEntry, InstallationPlanScopeEntry } from "../../types/installation-plan";
 import type { GeographyDetails } from "../../types/project";
+import { hasAcceptedExtension } from "../../utils/file-validation";
 import { IngestionStatusBlocks } from "../IngestionStatusBlocks";
 import { StepSectionCard } from "../StepSectionCard";
 
@@ -41,14 +42,17 @@ function SolutionTemplateCard({
 }: SolutionTemplateCardProps) {
   const { t } = useTranslate();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [invalidFileMessage, setInvalidFileMessage] = useState<string | undefined>(undefined);
   const {
     status,
     errorCount,
     errorMessage,
     validatedFile,
+    previewFile,
+    previewHasErrors,
+    downloadPreview,
     downloadTemplate,
     uploadAndValidate,
-    downloadErrorReport,
     createTemplate,
     isBusy,
   } = useSolutionTemplateUpload(planId, solutionCode);
@@ -133,16 +137,53 @@ function SolutionTemplateCard({
             className="hidden"
             onChange={(event) => {
               const file = event.target.files?.[0];
-              if (file && !locked) void uploadAndValidate(file);
+              if (file && !locked) {
+                if (hasAcceptedExtension(file, ".xlsx")) {
+                  setInvalidFileMessage(undefined);
+                  void uploadAndValidate(file);
+                } else {
+                  setInvalidFileMessage(
+                    translateOr(t, "ES_PM_INVALID_FILE_TYPE", "Please upload a valid .xlsx file"),
+                  );
+                }
+              }
               event.target.value = "";
             }}
           />
+          {previewFile ? (
+            <div className="w-full space-y-1">
+              {previewHasErrors ? (
+                <p className="text-xs font-medium text-destructive">
+                  {translateOr(t, "ES_PM_VALIDATION_ERRORS", "Found errors in the uploaded file")}: {errorCount}
+                </p>
+              ) : null}
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant={previewHasErrors ? "destructive" : "outline"}
+                  size="sm"
+                  onClick={downloadPreview}
+                >
+                  <Download className="size-4" />
+                  {previewHasErrors
+                    ? translateOr(t, "ES_PM_PREVIEW_FILE_WITH_ERRORS", "Preview File (view errors)")
+                    : translateOr(t, "ES_PM_PREVIEW_FILE", "Preview File")}
+                </Button>
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Info className="size-3.5 shrink-0" />
+                  {translateOr(
+                    t,
+                    "ES_PM_PREVIEW_FILE_LOST_ON_NAVIGATE",
+                    "This preview won't be available once you leave this page",
+                  )}
+                </span>
+              </div>
+            </div>
+          ) : null}
           <IngestionStatusBlocks
             compact
-            status={status}
-            errorCount={errorCount}
-            errorMessage={errorMessage}
-            onDownloadErrorReport={downloadErrorReport}
+            status={invalidFileMessage ? "error" : status}
+            errorMessage={invalidFileMessage ?? errorMessage}
           />
         </div>
       </div>

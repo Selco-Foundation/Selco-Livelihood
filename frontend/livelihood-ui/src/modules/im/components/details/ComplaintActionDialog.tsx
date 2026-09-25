@@ -1,5 +1,5 @@
 import { translateOr, useAuthStore, useTranslate } from "@/shared";
-import { Button } from "@/ui";
+import { Button, SearchableSelect } from "@/ui";
 import { useMutation } from "@tanstack/react-query";
 import { Files, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -26,7 +26,6 @@ import {
   MAX_QUOTATION_SIZE_MB,
   validateQuotationFiles,
 } from "../../utils/media-validation";
-import { FormSelectField } from "../create/FormSelectField";
 
 interface ComplaintActionDialogProps {
   action: string;
@@ -417,7 +416,7 @@ export function ComplaintActionDialog({
 
         <div className="mt-4 space-y-4">
           {actionConfig.reasonMaster ? (
-            <FormSelectField
+            <SearchableSelect
               label={reasonLabel}
               required
               value={selectedReason?.code ?? ""}
@@ -441,7 +440,7 @@ export function ComplaintActionDialog({
           ) : null}
 
           {actionConfig.requiresVendorAssignee ? (
-            <FormSelectField
+            <SearchableSelect
               label={translateOr(t, "WF_ASSIGN_VENDOR_LABEL", "Assign to vendor")}
               required
               value={selectedVendor?.code ?? ""}

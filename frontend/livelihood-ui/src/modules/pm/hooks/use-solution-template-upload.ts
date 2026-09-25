@@ -24,7 +24,9 @@ export function useSolutionTemplateUpload(planId: string | undefined, solutionCo
     autoCreate: false,
     download: ready ? () => downloadSolutionTemplate(planId!, solutionCode, accessToken!, user) : null,
     validate: ready ? (file) => validateSolutionTemplate(file, planId!, solutionCode, accessToken!, user) : null,
-    create: ready ? (validated) => createSolutionTemplate(planId!, solutionCode, validated, accessToken!, user) : null,
+    create: ready
+      ? async (validated) => ({ result: await createSolutionTemplate(planId!, solutionCode, validated, accessToken!, user) })
+      : null,
     messages: {
       downloadFailed: "Failed to download the template",
       uploadFailed: "IC report template validation failed",

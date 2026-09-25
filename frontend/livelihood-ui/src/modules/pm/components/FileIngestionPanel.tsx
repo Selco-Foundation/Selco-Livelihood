@@ -1,7 +1,9 @@
 import { translateOr, useTranslate } from "@/shared";
 import { Button } from "@/ui";
-import { CheckCircle2, Download, Upload } from "lucide-react";
-import { useRef } from "react";
+import { CheckCircle2, Download, Info, Upload } from "lucide-react";
+import { useRef, useState } from "react";
+import type { DownloadedFile } from "../utils/file-download";
+import { hasAcceptedExtension } from "../utils/file-validation";
 import { IngestionStatusBlocks } from "./IngestionStatusBlocks";
 
 interface FileIngestionPanelProps {
@@ -18,7 +20,10 @@ interface FileIngestionPanelProps {
   uploadHint: string;
   doneMessage: string;
   onFileSelected: (file: File) => void;
-  onDownloadErrorReport: () => void;
+  /** The most recent server response file (validate, then create once it returns one), if any. */
+  previewFile: DownloadedFile | null;
+  previewHasErrors: boolean;
+  onPreview: () => void;
   isBusy: boolean;
 }
 
@@ -39,11 +44,14 @@ export function FileIngestionPanel({
   uploadHint,
   doneMessage,
   onFileSelected,
-  onDownloadErrorReport,
+  previewFile,
+  previewHasErrors,
+  onPreview,
   isBusy,
 }: FileIngestionPanelProps) {
   const { t } = useTranslate();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [invalidFileMessage, setInvalidFileMessage] = useState<string | undefined>(undefined);
 
   return (
     <div className="space-y-4">
@@ -81,18 +89,57 @@ export function FileIngestionPanel({
         className="hidden"
         onChange={(event) => {
           const file = event.target.files?.[0];
-          if (file) onFileSelected(file);
+          if (file) {
+            if (hasAcceptedExtension(file, accept)) {
+              setInvalidFileMessage(undefined);
+              onFileSelected(file);
+            } else {
+              setInvalidFileMessage(
+                translateOr(
+                  t,
+                  "ES_PM_INVALID_FILE_TYPE",
+                  `Please upload a valid ${accept} file`,
+                ),
+              );
+            }
+          }
           // Cleared so re-picking the same filename still fires a change event.
           event.target.value = "";
         }}
       />
 
-      <IngestionStatusBlocks
-        status={status}
-        errorCount={errorCount}
-        errorMessage={errorMessage}
-        onDownloadErrorReport={onDownloadErrorReport}
-      />
+      {previewFile ? (
+        <div className="space-y-1">
+          {previewHasErrors ? (
+            <p className="text-sm font-medium text-destructive">
+              {translateOr(t, "ES_PM_VALIDATION_ERRORS", "Found errors in the uploaded file")}: {errorCount}
+            </p>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant={previewHasErrors ? "destructive" : "outline"}
+              size="sm"
+              onClick={onPreview}
+            >
+              <Download className="size-4" />
+              {previewHasErrors
+                ? translateOr(t, "ES_PM_PREVIEW_FILE_WITH_ERRORS", "Preview File (view errors)")
+                : translateOr(t, "ES_PM_PREVIEW_FILE", "Preview File")}
+            </Button>
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Info className="size-3.5 shrink-0" />
+              {translateOr(
+                t,
+                "ES_PM_PREVIEW_FILE_LOST_ON_NAVIGATE",
+                "This preview won't be available once you leave this page",
+              )}
+            </span>
+          </div>
+        </div>
+      ) : null}
+
+      <IngestionStatusBlocks status={invalidFileMessage ? "error" : status} errorMessage={invalidFileMessage ?? errorMessage} />
 
       {status === "done" ? (
         <p className="flex items-center gap-2 text-sm font-medium text-primary">

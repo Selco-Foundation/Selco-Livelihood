@@ -44,7 +44,9 @@ export function InstallationScopeStep({
     errorMessage,
     downloadTemplate,
     uploadAndValidate,
-    downloadErrorReport,
+    previewFile,
+    previewHasErrors,
+    downloadPreview,
     isBusy,
   } = useInstallationScopeIngestion(planId, projectId, sectorCodes, projectGeography);
 
@@ -82,7 +84,9 @@ export function InstallationScopeStep({
             }
           })
         }
-        onDownloadErrorReport={downloadErrorReport}
+        previewFile={previewFile}
+        previewHasErrors={previewHasErrors}
+        onPreview={downloadPreview}
       />
     </StepSectionCard>
   );

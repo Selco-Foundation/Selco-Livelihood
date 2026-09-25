@@ -1,45 +1,24 @@
 import { translateOr, useTranslate } from "@/shared";
-import { Button, cn } from "@/ui";
-import { AlertTriangle, Download } from "lucide-react";
+import { cn } from "@/ui";
+import { AlertTriangle } from "lucide-react";
 
 interface IngestionStatusBlocksProps {
   /** The owning ingestion hook's current status. */
   status: string;
-  errorCount: number;
   errorMessage?: string;
-  onDownloadErrorReport: () => void;
   /** Tighter type and padding, for the per-solution cards in the Template step. */
   compact?: boolean;
 }
 
 /**
- * The "validation found N errors" and "something went wrong" blocks shared by every ingestion
- * surface — the two wizard upload panels and each Template-step solution card.
+ * The "something went wrong" block shared by every ingestion surface — the two wizard upload
+ * panels and each Template-step solution card. Validation-errors-in-the-file is surfaced by the
+ * Preview button next to this instead, since it's the same file either way.
  */
-export function IngestionStatusBlocks({
-  status,
-  errorCount,
-  errorMessage,
-  onDownloadErrorReport,
-  compact = false,
-}: IngestionStatusBlocksProps) {
+export function IngestionStatusBlocks({ status, errorMessage, compact = false }: IngestionStatusBlocksProps) {
   const { t } = useTranslate();
   const box = compact ? "w-full rounded-lg border p-3 text-left" : "rounded-lg border p-4";
   const text = compact ? "text-xs font-medium" : "text-sm font-medium";
-
-  if (status === "invalid") {
-    return (
-      <div className={cn("space-y-2 border-destructive/30 bg-destructive/5", box)}>
-        <p className={cn(text, "text-destructive")}>
-          {translateOr(t, "ES_PM_VALIDATION_ERRORS", "Found errors in the uploaded file")}: {errorCount}
-        </p>
-        <Button type="button" variant="outline" size="sm" onClick={onDownloadErrorReport}>
-          <Download className="size-4" />
-          {translateOr(t, "ES_PM_DOWNLOAD_ERROR_REPORT", "Download Error Report")}
-        </Button>
-      </div>
-    );
-  }
 
   if (status === "error") {
     return (

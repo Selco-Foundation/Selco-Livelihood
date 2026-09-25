@@ -23,7 +23,7 @@ export function FacilityInfoCard({ entry }: FacilityInfoCardProps) {
       value: entry.block ? entry.block.name ?? boundaryDisplayName(entry.block.code, t) : "-",
     },
     {
-      label: translateOr(t, "ES_IR_FACILITY_TYPE", "Facility Type"),
+      label: translateOr(t, "ES_IR_FACILITY_TYPE", "End User Type"),
       value:
         entry.entryType === "MACHINE"
           ? translateOr(t, "ES_IR_ENTRY_TYPE_MACHINE", "Machine")
