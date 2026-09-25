@@ -147,3 +147,5 @@ export { SplitButton } from "./components/split-button";
 export type { SplitButtonProps } from "./components/split-button";
 export { Pagination } from "./components/pagination";
 export type { PaginationProps } from "./components/pagination";
+export { SearchableSelect } from "./components/searchable-select";
+export type { SearchableSelectOption, SearchableSelectProps } from "./components/searchable-select";

@@ -1,21 +1,33 @@
-import type { SelectOption } from "../../types/create-incident";
 import { useMemo, useState } from "react";
 import { translateOr, useTranslate } from "@/shared";
-import { cn, Input, Popover, PopoverContent, PopoverTrigger } from "@/ui";
+import { cn } from "@/ui/lib/utils";
+import { Input } from "@/ui/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/ui/components/ui/popover";
 import { ChevronDown, Info, Search } from "lucide-react";
 
-interface FormSelectFieldProps {
-  label: string;
+export interface SearchableSelectOption {
+  code: string;
+  name: string;
+}
+
+export interface SearchableSelectProps<TOption extends SearchableSelectOption> {
+  label?: string;
   required?: boolean;
   value: string;
-  options: SelectOption[];
+  options: TOption[];
   placeholder?: string;
   disabled?: boolean;
   error?: string;
-  onChange: (option: SelectOption | null) => void;
+  onChange: (option: TOption | null) => void;
 }
 
-export function FormSelectField({
+/**
+ * Single-select dropdown with a search box for filtering the option list — the `MultiSelect`
+ * sibling's single-select counterpart, and the same Popover+Input pattern, so it needs no
+ * dependency beyond what the kit already has. Originated as the Incident Management module's
+ * `FormSelectField` and was promoted here once the PM module needed the identical behavior.
+ */
+export function SearchableSelect<TOption extends SearchableSelectOption>({
   label,
   required = false,
   value,
@@ -24,7 +36,7 @@ export function FormSelectField({
   disabled = false,
   error,
   onChange,
-}: FormSelectFieldProps) {
+}: SearchableSelectProps<TOption>) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const { t } = useTranslate();
@@ -43,10 +55,12 @@ export function FormSelectField({
 
   return (
     <div className="min-w-0 space-y-1.5">
-      <label className="text-sm font-medium text-foreground">
-        {label}
-        {required ? <span className="text-destructive"> *</span> : null}
-      </label>
+      {label ? (
+        <label className="text-sm font-medium text-foreground">
+          {label}
+          {required ? <span className="text-destructive"> *</span> : null}
+        </label>
+      ) : null}
       <Popover
         open={open}
         onOpenChange={(nextOpen) => {
@@ -64,9 +78,7 @@ export function FormSelectField({
               error && "border-destructive focus-visible:ring-destructive",
             )}
           >
-            <span className="truncate">
-              {selectedOption ? selectedOption.name : resolvedPlaceholder}
-            </span>
+            <span className="truncate">{selectedOption ? selectedOption.name : resolvedPlaceholder}</span>
             <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
           </button>
         </PopoverTrigger>

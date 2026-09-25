@@ -35,7 +35,9 @@ export const EndUserDataStep = forwardRef<EndUserDataStepHandle, EndUserDataStep
     errorMessage,
     downloadTemplate,
     uploadAndValidate,
-    downloadErrorReport,
+    previewFile,
+    previewHasErrors,
+    downloadPreview,
     isBusy,
   } = useFacilityIngestion(projectId, geographyDetails);
   useEffect(() => {
@@ -59,7 +61,7 @@ export const EndUserDataStep = forwardRef<EndUserDataStepHandle, EndUserDataStep
       description={translateOr(
         t,
         "ES_PM_END_USER_DATA_DESC",
-        "Download the facility template, fill it in, and upload it back",
+        "Download the end user template, fill it in, and upload it back",
       )}
     >
       <FileIngestionPanel
@@ -73,7 +75,9 @@ export const EndUserDataStep = forwardRef<EndUserDataStepHandle, EndUserDataStep
         uploadHint={translateOr(t, "ES_PM_UPLOAD_HINT", "Click to upload the filled-in template")}
         doneMessage={translateOr(t, "ES_PM_FILE_UPLOADED_SUCCESSFULLY", "File uploaded successfully")}
         onFileSelected={(file) => void uploadAndValidate(file)}
-        onDownloadErrorReport={downloadErrorReport}
+        previewFile={previewFile}
+        previewHasErrors={previewHasErrors}
+        onPreview={downloadPreview}
       />
     </StepSectionCard>
   );

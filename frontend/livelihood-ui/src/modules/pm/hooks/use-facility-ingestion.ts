@@ -20,7 +20,8 @@ export function useFacilityIngestion(projectId: string | undefined, geographyDet
     validate: ready ? (file) => validateFacilitiesExcel(file, projectId!, accessToken!, user) : null,
     create: ready
       ? async (validated) => {
-          await createFacilitiesAndUpdateProject(validated, projectId!, accessToken!, user);
+          const file = await createFacilitiesAndUpdateProject(validated, projectId!, accessToken!, user);
+          return { result: undefined, file };
         }
       : null,
     messages: {

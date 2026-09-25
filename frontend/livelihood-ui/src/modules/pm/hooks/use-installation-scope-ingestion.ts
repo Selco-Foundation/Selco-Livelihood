@@ -30,7 +30,10 @@ export function useInstallationScopeIngestion(
       : null,
     validate: canUpload ? (file) => validateScopeSheet(file, planId!, accessToken!, user) : null,
     create: canUpload
-      ? async (validated) => (await createScopeFromSheet(validated, planId!, accessToken!, user)).entries
+      ? async (validated) => {
+          const { entries, file } = await createScopeFromSheet(validated, planId!, accessToken!, user);
+          return { result: entries, file };
+        }
       : null,
     messages: {
       downloadFailed: "Failed to download the scope template",

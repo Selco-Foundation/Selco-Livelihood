@@ -1,5 +1,5 @@
 import { translateOr, useTranslate } from "@/shared";
-import { Input } from "@/ui";
+import { Input, SearchableSelect } from "@/ui";
 import { Users } from "lucide-react";
 import { useMemo } from "react";
 import { useVendorAssignmentSearch } from "../../hooks/use-vendor-assignment-search";
@@ -7,7 +7,6 @@ import { useVendorOrganisations } from "../../hooks/use-vendor-organisations";
 import { useVendorOrgUsers } from "../../hooks/use-vendor-org-users";
 import type { InstallationPlanAssignmentEntry } from "../../types/installation-plan";
 import type { VendorAssignmentSite } from "../../services/vendor-assignment";
-import { LabeledSelect } from "../LabeledSelect";
 import { StepSectionCard } from "../StepSectionCard";
 
 export type AssignmentValue = InstallationPlanAssignmentEntry[];
@@ -95,14 +94,11 @@ function VendorUserSelect({
   const { data: users = [] } = useVendorOrgUsers(organizationId);
 
   return (
-    <LabeledSelect
+    <SearchableSelect
       value={value}
       options={users}
       placeholder={translateOr(t, "ES_PM_SELECT_VENDOR", "Select Vendor")}
-      onChange={(code) => {
-        const user = users.find((item) => item.code === code);
-        onChange(code, user?.name, user?.email);
-      }}
+      onChange={(option) => onChange(option?.code ?? "", option?.name, option?.email)}
       disabled={disabled || !organizationId}
     />
   );
@@ -225,11 +221,11 @@ export function TechnicianAssignmentStep({ planId, planCode, value, onChange, lo
                       </span>
                     </td>
                     <td className="px-5 py-4">
-                      <LabeledSelect
+                      <SearchableSelect
                         value={assignment?.vendorOrgId ?? ""}
                         options={organisations}
                         placeholder={translateOr(t, "ES_PM_SELECT_VENDOR_ORGANIZATION", "Select Organization")}
-                        onChange={(vendorOrgId) => handleOrganizationChange(row, vendorOrgId)}
+                        onChange={(option) => handleOrganizationChange(row, option?.code ?? "")}
                         disabled={locked}
                       />
                     </td>

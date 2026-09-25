@@ -15,13 +15,19 @@ interface ValidationOutcome {
   errorCount: number;
 }
 
+interface CreateOutcome<TResult> {
+  result: TResult;
+  /** The server's own annotated workbook for this create, when it returns one. */
+  file?: DownloadedFile;
+}
+
 interface UseExcelRoundTripOptions<TResult> {
   /** Returns the generated template, or `null` when the caller isn't ready (missing ids etc.). */
   download: (() => Promise<DownloadedFile>) | null;
   /** Returns the annotated workbook plus its error count. `null` disables uploading. */
   validate: ((file: File) => Promise<ValidationOutcome>) | null;
   /** Applies a clean, validated workbook. */
-  create: ((validated: DownloadedFile) => Promise<TResult>) | null;
+  create: ((validated: DownloadedFile) => Promise<CreateOutcome<TResult>>) | null;
   /**
    * Runs before `download`. Return a message to abort with that error instead of downloading.
    * The Installation Scope step uses this: its sectors and boundaries arrive from queries that
@@ -63,8 +69,13 @@ export function useExcelRoundTrip<TResult = void>({
   const [status, setStatus] = useState<ExcelRoundTripStatus>("idle");
   const [errorCount, setErrorCount] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
-  const [errorReportFile, setErrorReportFile] = useState<DownloadedFile | null>(null);
   const [validatedFile, setValidatedFile] = useState<DownloadedFile | null>(null);
+  // The most recent file worth re-downloading -- the validate response until create hands back
+  // one of its own. Deliberately not cleared when a new upload starts: the old file stays
+  // previewable through "validating"/"creating" and is only replaced once the new response is in
+  // hand, so a slow or failed re-validation never makes the last known-good file disappear.
+  const [previewFile, setPreviewFile] = useState<DownloadedFile | null>(null);
+  const [previewHasErrors, setPreviewHasErrors] = useState(false);
 
   const isBusy = status === "downloading" || status === "validating" || status === "creating";
 
@@ -92,14 +103,14 @@ export function useExcelRoundTrip<TResult = void>({
     if (!validate) return null;
 
     setStatus("validating");
-    setErrorReportFile(null);
     try {
       const result = await validate(file);
       setErrorCount(result.errorCount);
+      setPreviewFile(result.file);
+      setPreviewHasErrors(result.errorCount > 0);
 
       if (result.errorCount > 0) {
         setValidatedFile(null);
-        setErrorReportFile(result.file);
         setStatus("invalid");
         return null;
       }
@@ -118,8 +129,9 @@ export function useExcelRoundTrip<TResult = void>({
 
       setStatus("creating");
       const created = await create(result.file);
+      if (created.file) setPreviewFile(created.file);
       setStatus("done");
-      return created;
+      return created.result;
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : messages.uploadFailed);
       setStatus("error");
@@ -134,8 +146,9 @@ export function useExcelRoundTrip<TResult = void>({
     setStatus("creating");
     try {
       const created = await create(validatedFile);
+      if (created.file) setPreviewFile(created.file);
       setStatus("done");
-      return created;
+      return created.result;
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : messages.createFailed ?? messages.uploadFailed);
       setStatus("error");
@@ -143,8 +156,8 @@ export function useExcelRoundTrip<TResult = void>({
     }
   }
 
-  function downloadErrorReport() {
-    if (errorReportFile) triggerBrowserDownload(errorReportFile);
+  function downloadPreview() {
+    if (previewFile) triggerBrowserDownload(previewFile);
   }
 
   return {
@@ -153,9 +166,11 @@ export function useExcelRoundTrip<TResult = void>({
     errorCount,
     errorMessage,
     validatedFile,
+    previewFile,
+    previewHasErrors,
     downloadTemplate,
     uploadAndValidate,
     createFromValidated,
-    downloadErrorReport,
+    downloadPreview,
   };
 }
