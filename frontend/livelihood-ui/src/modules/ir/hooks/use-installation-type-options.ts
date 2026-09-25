@@ -1,8 +1,6 @@
 import { fetchMdmsMasters, tenantId as getTenantId, translateOr, useAuthStore, useTranslate } from "@/shared";
 import { useQuery } from "@tanstack/react-query";
-import { COMPONENT_TYPE_LABELS } from "../constants/component-type";
 import type { ActivityFilterOption } from "../components/activity/ActivityFilter";
-import type { ActivityComponentType } from "../types/activity-review";
 
 const INSTALLATION_TYPES_MODULE = "Installation";
 const INSTALLATION_TYPES_MASTER = "InstallationTypes";
@@ -13,11 +11,14 @@ interface RawInstallationTypeOption {
 }
 
 /** MDMS `Installation.InstallationTypes` — {code, name} entries, mirroring
- * `Installation.RejectionReasons`'s shape. Label prefers the existing
- * ES_IR_COMPONENT_TYPE_* translation (same text the activity table's Type
- * column already shows) so the filter option and the table stay in sync;
- * falls back to the master's own `name` for a code that isn't one of the
- * two known component types yet. */
+ * `Installation.RejectionReasons`'s shape. The whole point of this being an
+ * MDMS master is that a new type is configurable from MDMS alone, so the
+ * label isn't a hardcoded code→text map: it's ES_IR_COMPONENT_TYPE_<CODE>
+ * (same key the activity table's Type column builds from
+ * ReviewActivity.componentType, so a translated label stays in sync between
+ * the two once staged), falling back to the master's own `name` — which,
+ * unlike the table, this hook always has — for a code that doesn't have a
+ * translation staged yet. */
 export function useInstallationTypeOptions() {
   const { t } = useTranslate();
   const accessToken = useAuthStore((state) => state.accessToken);
@@ -43,13 +44,10 @@ export function useInstallationTypeOptions() {
 
   const options: ActivityFilterOption[] = raw
     .filter((option): option is RawInstallationTypeOption & { code: string } => Boolean(option.code))
-    .map((option) => {
-      const label = COMPONENT_TYPE_LABELS[option.code as ActivityComponentType];
-      return {
-        code: option.code,
-        name: label ? translateOr(t, label.key, label.fallback) : (option.name ?? option.code),
-      };
-    });
+    .map((option) => ({
+      code: option.code,
+      name: translateOr(t, `ES_IR_COMPONENT_TYPE_${option.code}`, option.name ?? option.code),
+    }));
 
   return { options, isLoading };
 }
