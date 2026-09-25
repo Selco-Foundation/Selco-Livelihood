@@ -15,6 +15,7 @@ import org.springframework.web.util.UriUtils;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.function.Consumer;
 
 import static org.selco.e4h.util.IMConstants.*;
 @Slf4j
@@ -38,6 +39,8 @@ public class ElasticSearchClient {
     private String phcIndex;
 
     private static final String SEARCH_PATH = "_search";
+    private static final String SCROLL_PATH = "_search/scroll";
+    private static final String SCROLL_TTL = "2m";
     private static final String OLD_INDEX_NAME = "im-services";
     private String INDEX_NAME;
     private static final String INDEX_NAME_PHC = "phc-master-list-new-2";
@@ -67,6 +70,102 @@ public class ElasticSearchClient {
 
     public int getPHCDocsSize() {
         return getPHCsSize(phcIndex);
+    }
+
+    /** A hit's document id alongside its source. */
+    public record EsDoc(String id, Map<String, Object> source) {
+    }
+
+    /**
+     * Walks every document in the health facility index, handing each page to {@code pageConsumer}.
+     *
+     * <p>Uses the scroll API rather than the {@code from}/{@code size} paging the rest of this class
+     * does, because that paging stops working past {@code index.max_result_window} (10k by default)
+     * and a backfill has to reach every document, not the first ten thousand.
+     *
+     * <p>Pages are consumed as they arrive so the whole index is never held in memory at once. The
+     * document id is carried through because it is the facility id the backfill writes back on, and
+     * older documents predate {@code Data.facilityId} being populated in the source.
+     *
+     * @return the number of documents handed to the consumer
+     */
+    public int scrollAllPHC(int pageSize, Consumer<List<EsDoc>> pageConsumer) {
+        String scrollId = null;
+        int total = 0;
+        try {
+            Map<String, Object> query = new HashMap<>();
+            query.put("size", pageSize);
+            query.put("query", Map.of("match_all", Map.of()));
+            query.put("_source", true);
+            query.put("sort", List.of("_doc"));
+
+            Map<String, Object> response = restTemplate.postForObject(
+                    getBaseUrl() + "/" + phcIndex + "/" + SEARCH_PATH + "?scroll=" + SCROLL_TTL,
+                    new HttpEntity<>(query, updateService.buildHeaders()),
+                    Map.class);
+
+            while (response != null) {
+                scrollId = (String) response.get("_scroll_id");
+                List<EsDoc> page = parseESDocs(response);
+                if (page.isEmpty()) {
+                    break;
+                }
+                total += page.size();
+                pageConsumer.accept(page);
+
+                if (scrollId == null) {
+                    break;
+                }
+                response = restTemplate.postForObject(
+                        getBaseUrl() + "/" + SCROLL_PATH,
+                        new HttpEntity<>(Map.of("scroll", SCROLL_TTL, "scroll_id", scrollId),
+                                updateService.buildHeaders()),
+                        Map.class);
+            }
+        } catch (Exception e) {
+            log.error("Failed to scroll index '{}' after {} documents", phcIndex, total, e);
+        } finally {
+            clearScroll(scrollId);
+        }
+        return total;
+    }
+
+    private void clearScroll(String scrollId) {
+        if (scrollId == null) {
+            return;
+        }
+        try {
+            // The scroll id goes in the path rather than a request body: the shared RestTemplate is
+            // built on SimpleClientHttpRequestFactory, which cannot send a body on a DELETE.
+            restTemplate.exchange(
+                    getBaseUrl() + "/" + SCROLL_PATH + "/"
+                            + UriUtils.encodePathSegment(scrollId, StandardCharsets.UTF_8),
+                    HttpMethod.DELETE,
+                    new HttpEntity<>(updateService.buildHeaders()),
+                    Map.class);
+        } catch (Exception e) {
+            // The scroll context expires on its own; a failure here costs nothing but a log line.
+            log.debug("Could not clear scroll context: {}", e.getMessage());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<EsDoc> parseESDocs(Map<String, Object> response) {
+        List<EsDoc> docs = new ArrayList<>();
+        if (response == null || !(response.get("hits") instanceof Map<?, ?> hits)) {
+            return docs;
+        }
+        if (!(hits.get("hits") instanceof List<?> rawHits)) {
+            return docs;
+        }
+        for (Object rawHit : rawHits) {
+            if (rawHit instanceof Map<?, ?> hit) {
+                docs.add(new EsDoc(
+                        (String) hit.get("_id"),
+                        (Map<String, Object>) hit.get("_source")));
+            }
+        }
+        return docs;
     }
 
     private List<Map<String, Object>> fetchTickets(String indexName, int from, int size, Boolean closedTickets) {
