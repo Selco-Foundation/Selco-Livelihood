@@ -5,6 +5,7 @@ import {
   ACTIVITY_STATUS_LABELS,
   activityStatusBadgeVariant,
 } from "../../constants/activity-status";
+import { COMPONENT_TYPE_LABELS } from "../../constants/component-type";
 import type { ReviewActivity } from "../../types/activity-review";
 import { boundaryDisplayName } from "../../utils/boundary";
 import { irActivityReviewPath } from "../../utils/paths";
@@ -14,6 +15,14 @@ function statusLabel(
   t: ReturnType<typeof useTranslate>["t"],
 ): string {
   const label = ACTIVITY_STATUS_LABELS[status];
+  return translateOr(t, label.key, label.fallback);
+}
+
+function componentTypeLabel(
+  componentType: ReviewActivity["componentType"],
+  t: ReturnType<typeof useTranslate>["t"],
+): string {
+  const label = COMPONENT_TYPE_LABELS[componentType];
   return translateOr(t, label.key, label.fallback);
 }
 
@@ -163,9 +172,7 @@ export function ActivityTable({
                         </Link>
                       </td>
                       <td className="px-5 py-4 text-foreground">
-                        {activity.componentType === "MACHINE"
-                          ? translateOr(t, "ES_IR_COMPONENT_TYPE_MACHINE", "Machine")
-                          : translateOr(t, "ES_IR_COMPONENT_TYPE_SOLAR", "Solar")}
+                        {componentTypeLabel(activity.componentType, t)}
                       </td>
                       <td className="px-5 py-4 text-foreground">
                         {boundaryLabel(activity.district, t) ?? "-"}
