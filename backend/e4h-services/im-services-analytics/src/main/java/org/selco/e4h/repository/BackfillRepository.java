@@ -28,9 +28,9 @@ public class BackfillRepository {
                 queryBuilder.getTicketBackfillQuery(),
                 (rs, rowNum) -> new TicketBackfillRow(
                         rs.getString("incidentid"),
+                        rs.getString("facilityid"),
                         rs.getString("facility_category"),
                         rs.getString("facility_poc_name"),
-                        rs.getString("facility_poc_phone"),
                         rs.getBoolean("is_reopened")),
                 limit, offset);
     }
