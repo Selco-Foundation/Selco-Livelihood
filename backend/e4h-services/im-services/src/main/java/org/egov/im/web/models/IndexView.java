@@ -77,6 +77,10 @@ public class IndexView {
     @JsonProperty("declinedTimestamp")
     private Long declinedTimestamp;
 
+    /** True while the ticket is in a reopened cycle; cleared once AUTO_CLOSE closes it. */
+    @JsonProperty("isReopened")
+    private Boolean isReopened;
+
     @JsonProperty("comments")
     private String comments;
 
@@ -100,6 +104,9 @@ public class IndexView {
 
     @JsonProperty("assetName")
     private String assetName;
+
+    @JsonProperty("assetGroup")
+    private String assetGroup;
 
     @JsonProperty("attachmentUrls")
     private String attachmentUrls;
