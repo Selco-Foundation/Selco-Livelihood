@@ -2,6 +2,9 @@ package org.selco.e4h.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.egov.common.contract.request.RequestInfo;
+import org.egov.common.contract.request.Role;
+import org.egov.common.contract.request.User;
 import org.selco.e4h.config.IndexBackfillProperties;
 import org.selco.e4h.repository.BackfillRepository;
 import org.selco.e4h.repository.IncidentRepository;
@@ -43,7 +46,11 @@ public class IndexBackfillService {
     private final ElasticSearchClient esClient;
     private final ElasticSearchBulkUpdater bulkUpdater;
     private final Co2LocalizationClient localizationClient;
+    private final FacilityRegistryClient facilityRegistryClient;
     private final IndexBackfillProperties properties;
+
+    /** Matches the SYSTEMUSER the im-services data migrations present to other services. */
+    private static final String SYSTEM_USER_UUID = "14d6dbdf-e4d2-45c3-9717-c82ba17a9f19";
 
     public List<IndexBackfillSummary> backfillAll() {
         log.info("Index backfill starting: ticketIndex={} facilityIndex={}",
@@ -75,9 +82,11 @@ public class IndexBackfillService {
             }
             scanned += page.size();
 
+            Map<String, String> phonesByFacilityId = fetchPocPhones(page);
             Map<String, Map<String, Object>> docsById = new LinkedHashMap<>();
             for (TicketBackfillRow row : page) {
-                docsById.put(row.incidentId(), Map.of("Data", ticketFields(row)));
+                String phone = row.facilityId() == null ? null : phonesByFacilityId.get(row.facilityId());
+                docsById.put(row.incidentId(), Map.of("Data", ticketFields(row, phone)));
             }
             result = result.plus(bulkUpdater.bulkPartialUpdate(index, docsById, properties.getBulkSize()));
             log.info("Ticket backfill progress: scanned={} updated={} missing={} failed={}",
@@ -92,18 +101,75 @@ public class IndexBackfillService {
     }
 
     /**
+     * One registry round trip per page, for the distinct facilities that page's tickets belong to.
+     * Tickets cluster heavily onto a few facilities, so this is far smaller than the page itself.
+     */
+    private Map<String, String> fetchPocPhones(List<TicketBackfillRow> page) {
+        List<String> facilityIds = page.stream()
+                .map(TicketBackfillRow::facilityId)
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .toList();
+        return facilityRegistryClient.fetchPocPhonesByFacilityIds(systemRequestInfo(), facilityIds);
+    }
+
+    /**
      * The reopened flag is always written — including as an explicit {@code false} — so the field
      * is filterable on every ticket. The registry-sourced fields are only written when the registry
      * actually has a value, so a facility with no point of contact on record keeps whatever name
      * the live path resolved from HRMS.
+     *
+     * @param pocPhone decrypted point-of-contact phone, or null when the registry has none
      */
-    private Map<String, Object> ticketFields(TicketBackfillRow row) {
+    private Map<String, Object> ticketFields(TicketBackfillRow row, String pocPhone) {
         Map<String, Object> fields = new LinkedHashMap<>(ElasticSearchBulkUpdater.nonNullFields(mapOf(
                 "endUserName", blankToNull(row.endUserName()),
-                "endUserMobile", blankToNull(row.endUserMobile()),
+                "endUserMobile", plausiblePhoneOrNull(pocPhone),
                 "facilityCategory", blankToNull(row.facilityCategory()))));
         fields.put("isReopened", row.reopened());
         return fields;
+    }
+
+    /**
+     * Guards against indexing ciphertext. The registry decrypts the point-of-contact phone inside a
+     * {@code catch} that swallows enc-service failures and leaves the encrypted value in the
+     * response, so a degraded enc-service mid-run would otherwise write base64 into the index and
+     * look like a success. Anything that is not phone-shaped is dropped, which leaves whatever the
+     * live path already indexed in place.
+     */
+    private static String plausiblePhoneOrNull(String value) {
+        String phone = blankToNull(value);
+        if (phone == null) {
+            return null;
+        }
+        String digits = phone.replaceAll("[\\s+()-]", "");
+        if (digits.length() < 6 || digits.length() > 15 || !digits.chars().allMatch(Character::isDigit)) {
+            log.debug("Skipping point-of-contact phone that does not look decrypted");
+            return null;
+        }
+        return phone;
+    }
+
+    /**
+     * The facility registry filters out facilities that are not ONM-ready unless the caller holds
+     * one of its {@code onm-non-ready.allowed.roles}. A backfill has to see all of them, so it
+     * identifies itself as SYSTEM — the same identity the im-services data migrations use.
+     */
+    private static RequestInfo systemRequestInfo() {
+        Role system = Role.builder().code("SYSTEM").name("System user").build();
+        User userInfo = User.builder()
+                .uuid(SYSTEM_USER_UUID)
+                .userName("SYSTEMUSER")
+                .name("System User")
+                .type("SYSTEM")
+                .roles(List.of(system))
+                .build();
+        return RequestInfo.builder()
+                .apiId("im-services-analytics")
+                .ver("1.0")
+                .msgId("index-backfill")
+                .userInfo(userInfo)
+                .build();
     }
 
     /**
