@@ -2396,6 +2396,7 @@ async def validate_facilities_excel_sheet(
         # reported PASSED having skipped the check it most needed.
         plan_sectors = []
         project_id = None
+        plan_is_published = False
         if fieldplan_id and fieldPlan_service_url:
             try:
                 field_plans = FieldPlanServiceClient(fieldPlan_service_url).search_fieldPlan(
@@ -2412,6 +2413,8 @@ async def validate_facilities_excel_sheet(
                 raise HTTPException(status_code=404, detail=f"Field plan {fieldplan_id} not found")
             plan_sectors = field_plans[0].get("sectors") or []
             project_id = field_plans[0].get("projectId")
+            plan_is_published = (
+                str(field_plans[0].get("status") or "").strip().upper() == PLAN_STATUS_PUBLISHED)
 
         # Sites already under installation anywhere in this project cannot be re-scoped.
         lock_map = {}
@@ -2419,6 +2422,33 @@ async def validate_facilities_excel_sheet(
             lock_map = build_project_lock_map(
                 FieldPlanServiceClient(fieldPlan_service_url), request_info_obj, project_id, fieldplan_id
             )
+
+        # Which of this plan's sites are already installed and signed off. Only published plans
+        # can have any, and it is only ever consulted to refuse a removal, so the call is
+        # skipped entirely for the ordinary DRAFT case.
+        completed_site_ids = set()
+        if plan_is_published and fieldPlan_activity_service_url:
+            site_id_column = find_site_id_column(df)
+            sheet_facility_ids = [
+                str(v).strip() for v in df[site_id_column].tolist() if str(v).strip()
+            ] if site_id_column else []
+            try:
+                completed_site_ids = FieldPlanActivityServiceClient(
+                    fieldPlan_activity_service_url
+                ).completed_facility_ids(request_info_obj, fieldplan_id, sheet_facility_ids)
+                logger.info(
+                    f"Plan {fieldplan_id} is published; {len(completed_site_ids)} of "
+                    f"{len(sheet_facility_ids)} site(s) already approved")
+            except Exception as e:
+                # Fail closed. An empty set would read as "nothing is installed yet" and let a
+                # removal through that strands approved work -- the one outcome this check exists
+                # to prevent.
+                logger.error(f"Could not read installation status for plan {fieldplan_id}: {e}",
+                             exc_info=True)
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Could not check which installations are already complete for plan "
+                           f"{fieldplan_id}, so scope changes cannot be validated safely: {e}")
 
         solutions = mdms_client.fetch_installation_solutions(request_info_obj)
         state_by_facility_id, sector_by_facility_id = _facility_states_and_sectors_from_sheet(
@@ -2434,11 +2464,16 @@ async def validate_facilities_excel_sheet(
             state_by_facility_id=state_by_facility_id,
             lock_map=lock_map,
             solution_name_by_code=solution_names_by_code(solutions),
+            completed_site_ids=completed_site_ids,
+            plan_is_published=plan_is_published,
         )
 
         # A sheet that selects nothing is a mistake, not a no-op. Frozen rows carry
         # Include=Yes for display, so they must not count towards "something was selected".
-        if not linkable_rows:
+        # A published plan is the exception: every one of its rows is frozen, so `linkable_rows`
+        # is legitimately empty even for a sheet that changes nothing, and the old message sent
+        # the PM looking for a checkbox to tick.
+        if not linkable_rows and not plan_is_published:
             raise HTTPException(
                 status_code=400,
                 detail="No end user sites are selected for this installation plan. "
@@ -2778,7 +2813,7 @@ async def create_fielplan_facilities(
                     return c
             return None
 
-        include_col = find_col("Included in Field Plan")
+        include_col = find_col("Include in Installation Plan")
         facility_id_col = find_site_id_column(df)
         if not facility_id_col:
             raise HTTPException(
@@ -2786,11 +2821,13 @@ async def create_fielplan_facilities(
                 detail=f"Sheet '{facility_sheet_name}' has no site id column "
                        f"(expected one of {', '.join(SITE_ID_COLUMNS)}).",
             )
-        status_col = find_col("status") or "status"
+        # No status_col lookup here on purpose: the PASSED gate above reads df['status']
+        # directly. A find_col("status") would substring-match "Lock Status" first and hand
+        # back the wrong column to anyone who later tried to use it.
 
         # add result columns if missing
-        if 'Field Plan Linking Status' not in df.columns:
-            df['Field Plan Linking Status'] = ''
+        if 'Installation Plan Linking Status' not in df.columns:
+            df['Installation Plan Linking Status'] = ''
 
         fieldplan_client = FieldPlanServiceClient(fieldPlan_service_url)
         fieldplan_activity_client = FieldPlanActivityServiceClient(fieldPlan_activity_service_url)
@@ -2833,6 +2870,26 @@ async def create_fielplan_facilities(
                     fieldplan_client, request_info, project_id, fieldplan_id
                 ) if project_id else {}
 
+                # Withdrawing a site from a published plan deletes its activity rows outright
+                # (below), so the "is anything already installed?" check has to be re-run here
+                # and not merely trusted from validation -- this endpoint is reachable on its
+                # own, and the workflow can move between the two calls.
+                plan_is_published = bool(fieldplan_data) and str(
+                    fieldplan_data[0].get("status") or "").strip().upper() == PLAN_STATUS_PUBLISHED
+                completed_site_ids = set()
+                if plan_is_published and fieldPlan_activity_service_url:
+                    try:
+                        completed_site_ids = fieldplan_activity_client.completed_facility_ids(
+                            request_info, fieldplan_id, list(fieldplan_linked_facility_ids))
+                    except Exception as e:
+                        logger.error(
+                            f"Could not read installation status for plan {fieldplan_id}: {e}",
+                            exc_info=True)
+                        raise HTTPException(
+                            status_code=502,
+                            detail=f"Could not check which installations are already complete for "
+                                   f"plan {fieldplan_id}, so its scope cannot be changed safely: {e}")
+
                 pending_bulk_fieldplan_links = []
                 # iterate all rows — handle existing facility ids (linking/unlinking)
                 for index, row in df.iterrows():
@@ -2847,17 +2904,29 @@ async def create_fielplan_facilities(
                         if include_col:
                             include_val = str(row.get(include_col, "")).strip().lower()
                         else:
-                            include_val = str(row.get("Included in Field Plan (Mandatory)", "")).strip().lower()
+                            include_val = str(row.get("Include in Installation Plan (Mandatory)", "")).strip().lower()
 
                         should_link = include_val == "yes"
 
                         lock = lock_map.get(facility_id) if facility_id else None
                         if lock is not None:
-                            df.at[index, 'Field Plan Linking Status'] = (
-                                "Locked (this plan)" if lock.is_this_plan
-                                else f"Locked by another plan ({lock.field_plan_name or lock.field_plan_id})"
+                            # A published plan's own site may still be withdrawn while nothing
+                            # has been installed against it -- plans do legitimately shrink. Once
+                            # any of its assets is approved the row stays frozen, which is also
+                            # what stops the activity delete below from discarding signed-off work.
+                            withdrawing_uninstalled = (
+                                lock.is_this_plan
+                                and not should_link
+                                and facility_id not in completed_site_ids
                             )
-                            continue
+                            if not withdrawing_uninstalled:
+                                df.at[index, 'Installation Plan Linking Status'] = (
+                                    "Locked (installation completed)"
+                                    if lock.is_this_plan and facility_id in completed_site_ids
+                                    else "Locked (this plan)" if lock.is_this_plan
+                                    else f"Locked by another plan ({lock.field_plan_name or lock.field_plan_id})"
+                                )
+                                continue
 
                         solution_name = ""
                         if solution_col:
@@ -2865,7 +2934,7 @@ async def create_fielplan_facilities(
                             solution_name = "" if pd.isna(raw_solution) else str(raw_solution).strip()
                         solution_code = solution_code_by_name.get(solution_name) if solution_name else None
                         if solution_name and not solution_code:
-                            df.at[index, 'Field Plan Linking Status'] = f"Unknown Solution '{solution_name}'"
+                            df.at[index, 'Installation Plan Linking Status'] = f"Unknown Solution '{solution_name}'"
                             continue
 
                         # ---------- CASE A: existing facility_id present -> skip creation, attempt linking if requested ----------
@@ -2875,7 +2944,7 @@ async def create_fielplan_facilities(
                             if facility_id in fieldplan_linked_facility_ids:
                                 if should_link:
                                     # already linked → skip API
-                                    df.at[index, 'Field Plan Linking Status'] = "Already Linked"
+                                    df.at[index, 'Installation Plan Linking Status'] = "Already Linked"
                                 else:
                                     # linked but Excel says No → unlink
                                     try:
@@ -2895,22 +2964,22 @@ async def create_fielplan_facilities(
                                         facility_activity_ids = list({fa.get("activityFacility").get("id") for fa in facilities_activity if fa.get("activityFacility").get("id")})
                                         fieldplan_activity_client.delete_facility_activity(request_info=request_info, facility_activity_id=facility_activity_ids)
 
-                                        df.at[index, 'Field Plan Linking Status'] = "Unlinked"
+                                        df.at[index, 'Installation Plan Linking Status'] = "Unlinked"
                                         fieldplan_linked_facility_ids.remove(facility_id)
                                     except Exception as e:
-                                        df.at[index, 'Field Plan Linking Status'] = f"Exception during unlink: {str(e)}"
+                                        df.at[index, 'Installation Plan Linking Status'] = f"Exception during unlink: {str(e)}"
                             else:
                                 if should_link:
                                     pending_bulk_fieldplan_links.append((index, facility_id, solution_code))
                                 else:
-                                    df.at[index, 'Field Plan Linking Status'] = "Skipped (Include in Field Plan != Yes)"
+                                    df.at[index, 'Installation Plan Linking Status'] = "Skipped (Include in Installation Plan != Yes)"
 
                                 # continue to next row
                                 continue
 
                     except Exception as e:
                         # any unexpected error per row
-                        df.at[index, 'Field Plan Linking Status'] = "Not Attempted"
+                        df.at[index, 'Installation Plan Linking Status'] = "Not Attempted"
                         continue
 
                 if pending_bulk_fieldplan_links:
@@ -2930,11 +2999,20 @@ async def create_fielplan_facilities(
 
                             if fieldplan_resp.status_code in (200, 201, 202):
                                 for row_idx, facility_id, _solution_code in chunk:
-                                    df.at[row_idx, 'Field Plan Linking Status'] = "Linked"
+                                    df.at[row_idx, 'Installation Plan Linking Status'] = "Linked"
                                     fieldplan_linked_facility_ids.add(facility_id)
 
                                     if fieldplan_data:
                                         fieldplan = fieldplan_data[0]
+                                        # Unreachable as written, and deliberately left that way.
+                                        # 'SCHEDULED' is an *activity* status (ActivityConstants
+                                        # .SCHEDULED_STATUS); a *plan* is DRAFT or PUBLISHED, so
+                                        # this never matches. Pointing it at PUBLISHED would not
+                                        # help either: a published plan can no longer take new
+                                        # sites at all, and a draft plan's activities are created
+                                        # at publish time by VendorAssignmentService, not here.
+                                        # Left in place rather than deleted because it is the only
+                                        # record of an intent worth settling before it is removed.
                                         if fieldplan.get("status") == 'SCHEDULED':
                                             try:
                                                 facility_activity_resp = fieldplan_activity_client.create_facility_activity(
@@ -2949,10 +3027,10 @@ async def create_fielplan_facilities(
                                                 logger.error(f"Error creating facility activity for {facility_id}: {activity_exc}", exc_info=True)
                             else:
                                 for row_idx, _facility_id, _solution_code in chunk:
-                                    df.at[row_idx, 'Field Plan Linking Status'] = f"Failed: {fieldplan_resp.status_code} {fieldplan_resp.text}"
+                                    df.at[row_idx, 'Installation Plan Linking Status'] = f"Failed: {fieldplan_resp.status_code} {fieldplan_resp.text}"
                         except Exception as bulk_exc:
                             for row_idx, _facility_id, _solution_code in chunk:
-                                df.at[row_idx, 'Field Plan Linking Status'] = f"Exception: {str(bulk_exc)}"
+                                df.at[row_idx, 'Installation Plan Linking Status'] = f"Exception: {str(bulk_exc)}"
 
                     # Confirm the rows actually landed before telling the Project Manager they did.
                     #
@@ -2990,8 +3068,8 @@ async def create_fielplan_facilities(
                             # Only downgrade rows we optimistically marked Linked -- a row that
                             # already says Failed/Exception has a more specific cause.
                             if (facility_id in unconfirmed
-                                    and df.at[row_idx, 'Field Plan Linking Status'] == "Linked"):
-                                df.at[row_idx, 'Field Plan Linking Status'] = (
+                                    and df.at[row_idx, 'Installation Plan Linking Status'] == "Linked"):
+                                df.at[row_idx, 'Installation Plan Linking Status'] = (
                                     "Pending: accepted but not yet saved. Re-upload this sheet "
                                     "to confirm before moving to the Template step.")
                                 fieldplan_linked_facility_ids.discard(facility_id)
@@ -3002,11 +3080,11 @@ async def create_fielplan_facilities(
 
             except Exception as e:
                 # This block does the linking, not just the fetch: swallowing it returns a
-                # 200 with an empty "Field Plan Linking Status" column and nothing written,
+                # 200 with an empty "Installation Plan Linking Status" column and nothing written,
                 # which reads as "no sites matched" rather than as a failure. Keep the
                 # response shape, but make the cause traceable and say so in the sheet.
                 logger.error(f"Field plan linking failed for {fieldplan_id}: {e}", exc_info=True)
-                df['Field Plan Linking Status'] = df['Field Plan Linking Status'].replace(
+                df['Installation Plan Linking Status'] = df['Installation Plan Linking Status'].replace(
                     "", f"Not attempted: {type(e).__name__}: {e}"
                 )
 
@@ -3014,7 +3092,7 @@ async def create_fielplan_facilities(
         # Ensure headers exist in sheet (without wiping template)
         header_values = [cell.value for cell in ws[1]]
 
-        for col_name in ["Field Plan Linking Status"]:
+        for col_name in ["Installation Plan Linking Status"]:
             if col_name not in header_values:
                 cell = ws.cell(row=1, column=len(header_values) + 1, value=col_name)
                 cell.font = Font(bold=True)
@@ -3059,20 +3137,51 @@ async def create_fielplan_facilities(
             os.unlink(input_temp_file.name)
 
 
-def _load_and_parse_template(temp_path: str):
+def _solution_label(request_info, solution_code: Optional[str]) -> str:
+    """A Solution's display name, for error messages only -- falls back to the raw code.
+
+    Deliberately lazy: every caller is already on a failure path, so the MDMS round trip costs
+    nothing on the happy path. The checks themselves always compare codes, which is what the
+    sheet, the plan's scope and MDMS all store.
+    """
+    if not solution_code:
+        return str(solution_code)
+    try:
+        names = solution_names_by_code(
+            MDMSClient(mdms_url).fetch_installation_solutions(request_info))
+    except Exception as e:
+        logger.warning(f"Could not fetch Solution names for an error message: {e}")
+        return str(solution_code)
+    # `or` rather than a dict default: a record with a null name would otherwise render "None".
+    return names.get(str(solution_code).strip()) or str(solution_code)
+
+
+def _load_and_parse_template(temp_path: str, request_info=None, solution_code: Optional[str] = None):
     """Open an uploaded template and pull out its two BOM sections.
 
     Returns (workbook, sheet, parsed). Raises HTTPException(400) when the file is not a
-    template at all, which is a sheet-level problem with no row to annotate.
+    template at all, which is a sheet-level problem with no row to annotate. `solution_code` is
+    only used to name the Solution in those messages.
     """
     try:
         workbook = load_workbook(temp_path)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Could not read the uploaded workbook: {e}")
+        # openpyxl's own text leaks implementation detail -- "File is not a zip file" is what a
+        # Project Manager saw after uploading a .csv, which tells them nothing about what to do.
+        logger.warning(f"Uploaded file could not be opened as a workbook: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail="This file could not be read as an Excel workbook. Please upload the .xlsx "
+                   "IC Report template downloaded for this Solution.")
     try:
         sheet = first_data_sheet(workbook)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        # No BOM section anywhere in the workbook: this is some other spreadsheet entirely.
+        raise HTTPException(
+            status_code=400,
+            detail=f"This is not the IC Report template for "
+                   f"{_solution_label(request_info, solution_code)}. Please upload the file "
+                   f"downloaded for this Solution.")
     return workbook, sheet, parse_worksheet(sheet)
 
 
@@ -3089,6 +3198,8 @@ def _check_template_upload(request_info, fieldplan_id: str, solution_code: str, 
     if not fieldPlan_service_url:
         raise HTTPException(status_code=500, detail="Field plan service is not configured")
     fieldplan_client = FieldPlanServiceClient(fieldPlan_service_url)
+
+
 
     try:
         plans = fieldplan_client.search_fieldPlan(request_info, fieldplan_id).get("FieldPlans", [])
@@ -3123,15 +3234,20 @@ def _check_template_upload(request_info, fieldplan_id: str, solution_code: str, 
         raise HTTPException(
             status_code=400,
             detail=f"No end user site in this installation plan is assigned Solution "
-                   f"{solution_code}. Assign it in the Installation Scope step first.")
+                   f"{_solution_label(request_info, solution_code)}. Assign it in the Installation "
+                   f"Scope step first.")
 
     # The workbook carries its own Bundle / Item Code, which is what makes uploading the wrong
     # Solution's file detectable -- easy to do when a Plan has several similar templates open.
+    # Naming both Solutions is the point: "not the one you wanted" leaves the PM guessing which
+    # of the several templates they have open this actually is.
     if parsed.bundle_code and str(parsed.bundle_code).strip() != str(solution_code).strip():
         raise HTTPException(
             status_code=400,
-            detail=f"This workbook is the template for Solution {parsed.bundle_code}, not "
-                   f"{solution_code}. Please upload the file downloaded for this Solution.")
+            detail=f"This is the IC Report template for "
+                   f"{_solution_label(request_info, parsed.bundle_code)}, not for "
+                   f"{_solution_label(request_info, solution_code)}. Please upload the file "
+                   f"downloaded for this Solution.")
 
     # Field names come from MDMS and are assigned by position, so without the forms there is
     # nothing to name the cells against. Fail closed: a template stored unnamed yields a bom.data
@@ -3164,7 +3280,8 @@ async def validate_installation_template(
     output_path = None
     try:
         temp_file, _ = await _save_upload_to_temp_file(template_file, suffix=".xlsx")
-        workbook, sheet, parsed = _load_and_parse_template(temp_file.name)
+        workbook, sheet, parsed = _load_and_parse_template(
+            temp_file.name, request_info_obj, solution_code)
         forms = _check_template_upload(request_info_obj, fieldplan_id, solution_code, parsed)
 
         row_errors, sheet_errors = validate_line_items(parsed)
@@ -3223,7 +3340,8 @@ async def create_installation_template(
     temp_file = None
     try:
         temp_file, _ = await _save_upload_to_temp_file(template_file, suffix=".xlsx")
-        _workbook, _sheet, parsed = _load_and_parse_template(temp_file.name)
+        _workbook, _sheet, parsed = _load_and_parse_template(
+            temp_file.name, request_info_obj, solution_code)
         forms = _check_template_upload(request_info_obj, fieldplan_id, solution_code, parsed)
 
         row_errors, sheet_errors = validate_line_items(parsed)
