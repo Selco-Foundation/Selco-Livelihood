@@ -129,7 +129,7 @@ def format_facility_data_for_template(
             # Add "Include in Project" column value (find the actual column name)
             include_column_name = None
             for header in headers:
-                if "Included in Field Plan" in header:
+                if "Include in Installation Plan" in header:
                     include_column_name = header
                     break
 

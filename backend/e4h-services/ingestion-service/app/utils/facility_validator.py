@@ -205,6 +205,8 @@ def validate_installation_scope_solutions(
     state_by_facility_id: Optional[Dict[str, str]] = None,
     lock_map: Optional[Dict[str, Any]] = None,
     solution_name_by_code: Optional[Dict[str, str]] = None,
+    completed_site_ids: Optional[Set[str]] = None,
+    plan_is_published: bool = False,
 ) -> List[int]:
     """Installation-scope rules for the Include/Solution pair.
 
@@ -232,7 +234,7 @@ def validate_installation_scope_solutions(
 
     Returns the 0-based positions of rows this plan may actually link.
     """
-    include_column = _find_header(df, "Included in Field Plan")
+    include_column = _find_header(df, "Include in Installation Plan")
     solution_column = _find_header(df, "Solution")
     if not include_column or not solution_column:
         return []
@@ -240,8 +242,10 @@ def validate_installation_scope_solutions(
     sector_column = _find_header(df, "Sector")
     state_column = _find_header(df, "State")
     facility_id_column = find_site_id_column(df)
+    site_name_column = _find_header(df, "End User Name")
     lock_map = lock_map or {}
     solution_name_by_code = solution_name_by_code or {}
+    completed_site_ids = completed_site_ids or set()
 
     linkable_rows: List[int] = []
     for i, row in enumerate(df.to_dict("records")):
@@ -254,15 +258,29 @@ def validate_installation_scope_solutions(
             if lock.is_this_plan:
                 # Held by this plan, which can only mean this plan is published -- its own
                 # unpublished scope reservations are excluded from the lock map so that it can
-                # keep editing them. So the row really is fixed: it must come back untouched.
-                # Excel protection stops honest edits, but the sheet can be unprotected, so the
-                # values are re-checked here.
+                # keep editing them. Excel protection stops honest edits, but the sheet can be
+                # unprotected, so the values are re-checked here.
+                #
+                # The two edits a PM might make are not equally destructive, so they are judged
+                # separately. Re-pointing a published site at a different Solution is never
+                # allowed: vendors were dispatched against the one already chosen. Withdrawing
+                # the site is allowed while nothing has been installed yet -- plans do legitimately
+                # shrink -- and refused once any of its assets has been signed off, because that
+                # would strand approved work.
                 expected = solution_name_by_code.get(lock.solution_id, "")
-                if include_value != "yes" or (expected and solution_value != expected):
+                site_label = _cell(row, site_name_column) or facility_id
+                if include_value != "yes":
+                    if facility_id in completed_site_ids:
+                        add_err(
+                            i,
+                            f"The installation for {site_label} has already been completed and "
+                            f"approved, so it can no longer be removed from this installation plan.",
+                        )
+                elif expected and solution_value != expected:
                     add_err(
                         i,
-                        "This installation plan has already been submitted, so this site cannot "
-                        "be removed from it or given a different Solution.",
+                        f"This installation plan has already been submitted, so {site_label} "
+                        f"cannot be given a different Solution. It stays on {expected}.",
                     )
             elif include_value == "yes":
                 # Held by a sibling plan and the PM has asked to include it anyway. This is the
@@ -276,6 +294,19 @@ def validate_installation_scope_solutions(
         if include_value != "yes":
             if solution_value:
                 add_err(i, "Solution must be empty unless the site is included in the field plan")
+            continue
+
+        if plan_is_published:
+            # No lock on this row means the site is in no plan at all, so it is a brand-new
+            # addition. A published plan has already dispatched its work; growing its scope
+            # here would create a site with no vendor and no activity behind it, which nothing
+            # downstream would flag. New sites belong in a new plan.
+            site_label = _cell(row, site_name_column) or facility_id
+            add_err(
+                i,
+                f"This installation plan has already been submitted, so {site_label} can no "
+                f"longer be added to it. Create a new installation plan for it instead.",
+            )
             continue
 
         if not solution_value:
