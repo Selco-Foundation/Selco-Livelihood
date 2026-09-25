@@ -17,6 +17,19 @@ function statusLabel(
   return translateOr(t, label.key, label.fallback);
 }
 
+// Installation.InstallationTypes is MDMS-driven precisely so a new type
+// (e.g. a third asset type) can be added without a frontend deploy — no
+// hardcoded code→label map here. The key is built from the code itself, so
+// it just needs a matching ES_IR_COMPONENT_TYPE_<CODE> translation staged
+// whenever a new type shows up; the raw code is a reasonable fallback until
+// then, same as any other translateOr call.
+function componentTypeLabel(
+  componentType: ReviewActivity["componentType"],
+  t: ReturnType<typeof useTranslate>["t"],
+): string {
+  return translateOr(t, `ES_IR_COMPONENT_TYPE_${componentType}`, componentType);
+}
+
 function boundaryLabel(
   boundary: { code: string; name?: string } | undefined,
   t: ReturnType<typeof useTranslate>["t"],
@@ -163,9 +176,7 @@ export function ActivityTable({
                         </Link>
                       </td>
                       <td className="px-5 py-4 text-foreground">
-                        {activity.componentType === "MACHINE"
-                          ? translateOr(t, "ES_IR_COMPONENT_TYPE_MACHINE", "Machine")
-                          : translateOr(t, "ES_IR_COMPONENT_TYPE_SOLAR", "Solar")}
+                        {componentTypeLabel(activity.componentType, t)}
                       </td>
                       <td className="px-5 py-4 text-foreground">
                         {boundaryLabel(activity.district, t) ?? "-"}
