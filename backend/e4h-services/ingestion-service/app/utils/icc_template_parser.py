@@ -292,10 +292,9 @@ def annotate_worksheet(sheet: Worksheet, parsed: ParsedTemplate,
 
 
 def first_data_sheet(workbook) -> Worksheet:
-    """The template has one solution sheet, but a download also carries a read-only Sites
-    sheet, and a Project Manager may have added their own. Pick the sheet that actually holds
-    a BOM section rather than assuming a position or a name -- the name is the Solution's, and
-    Excel truncates it at 31 characters."""
+    """The template has one solution sheet, but a Project Manager may have added their own.
+    Pick the sheet that actually holds a BOM section rather than assuming a position or a name
+    -- the name is the Solution's, and Excel truncates it at 31 characters."""
     for name in workbook.sheetnames:
         sheet = workbook[name]
         for row in sheet.iter_rows(min_row=1, max_row=min(sheet.max_row, 60)):
