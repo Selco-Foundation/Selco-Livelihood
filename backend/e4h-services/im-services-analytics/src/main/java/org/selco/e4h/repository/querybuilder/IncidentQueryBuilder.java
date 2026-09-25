@@ -12,11 +12,11 @@ import java.util.List;
 public class IncidentQueryBuilder {
 
     private static final String CLOSED_STATUSES =
-            "'RESOLVED', 'CLOSEDAFTERRESOLUTION', 'REJECTED', 'CLOSEDAFTERREJECTION'";
+            "'RESOLVED', 'CLOSED_AFTER_RESOLUTION', 'CLOSED_AFTER_DECLINE'";
 
     private static final String STATUS_COUNT_QUERY =
             "SELECT " +
-                    "    boundarycode, " +
+                    "    facilityid, " +
                     "    COUNT(*) AS total_occurrences, " +
                     "    SUM(CASE WHEN applicationstatus NOT IN (" +
                     "        " + CLOSED_STATUSES + ") " +
@@ -33,13 +33,13 @@ public class IncidentQueryBuilder {
                     "  " + CLOSED_STATUSES +
                     ")";
 
-    public String getStatusIncidentOccurence(String boundaryCode, List<Object> preparedStmtList) {
+    public String getStatusIncidentOccurence(String facilityId, List<Object> preparedStmtList) {
         StringBuilder queryBuilder = new StringBuilder(STATUS_COUNT_QUERY);
-        if (boundaryCode != null && !boundaryCode.isEmpty()) {
-            queryBuilder.append(" WHERE boundarycode =? ");
-            preparedStmtList.add(boundaryCode);
+        if (facilityId != null && !facilityId.isEmpty()) {
+            queryBuilder.append(" WHERE facilityid =? ");
+            preparedStmtList.add(facilityId);
         }
-        queryBuilder.append("GROUP BY boundarycode;");
+        queryBuilder.append("GROUP BY facilityid;");
 
         return queryBuilder.toString();
     }

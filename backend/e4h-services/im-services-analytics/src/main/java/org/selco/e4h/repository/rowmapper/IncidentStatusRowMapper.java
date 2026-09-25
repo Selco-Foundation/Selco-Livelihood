@@ -25,10 +25,10 @@ public class IncidentStatusRowMapper implements ResultSetExtractor<List<Incident
 
         Map<String, IncidentStatusAgregation> projectMap = new LinkedHashMap<>();
         while (rs.next()) {
-            String tenantId = rs.getString("boundarycode");
+            String facilityId = rs.getString("facilityid");
 
-            if (!projectMap.containsKey(tenantId)) {
-                projectMap.put(tenantId, createStatusAgregationObj(rs));
+            if (!projectMap.containsKey(facilityId)) {
+                projectMap.put(facilityId, createStatusAgregationObj(rs));
             }
         }
 
@@ -42,13 +42,13 @@ public class IncidentStatusRowMapper implements ResultSetExtractor<List<Incident
 
     /* Builds Project Object from Result Set and address */
     private IncidentStatusAgregation getStatusOccurenceObjFromResultSet(ResultSet rs) throws SQLException {
-        String tenantId = rs.getString("boundarycode");
+        String facilityId = rs.getString("facilityid");
         int totalOccurrences = rs.getInt("total_occurrences");
         int totalOpenOccurrences = rs.getInt("total_open_occurrences");
         int totalCloseOccurrences = rs.getInt("total_close_occurrences");
 
         IncidentStatusAgregation statusAgregation = IncidentStatusAgregation.builder()
-                .tenantId(tenantId)
+                .facilityId(facilityId)
                 .totalOccurences(totalOccurrences)
                 .totalOpenOccurrences(totalOpenOccurrences)
                 .totalCloseOccurrences(totalCloseOccurrences)

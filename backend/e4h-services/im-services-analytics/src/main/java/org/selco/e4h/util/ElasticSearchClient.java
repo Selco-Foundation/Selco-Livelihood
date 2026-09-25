@@ -10,7 +10,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriUtils;
 
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 import static org.selco.e4h.util.IMConstants.*;
@@ -54,8 +57,8 @@ public class ElasticSearchClient {
         return fetchTickets(OLD_INDEX_NAME, from, size,  closedTickets);
     }
 
-    public Map<String, Object> getHFByBoundaryCode(String boundaryCode) {
-        return fetchTicketByBoundaryCode(phcIndex, boundaryCode);
+    public Map<String, Object> getHFByFacilityId(String facilityId) {
+        return fetchHFByFacilityId(phcIndex, facilityId);
     }
 
     public List<Map<String, Object>> getAllPHC(int from, int size) {
@@ -106,24 +109,29 @@ public class ElasticSearchClient {
         }
     }
 
-    private Map<String, Object> fetchTicketByBoundaryCode(String indexName, String boundaryCode) {
-        String uri = getBaseUrl() + "/{index}/" + DOC_PATH + "/{id}";
+    private Map<String, Object> fetchHFByFacilityId(String indexName, String facilityId) {
+        if (facilityId == null || facilityId.isBlank()) {
+            log.warn("Skipping health facility lookup on index '{}': facilityId is null or blank", indexName);
+            return Collections.emptyMap();
+        }
+
+        // Facility ids contain slashes (ED/2026/0013), so they must be encoded as a single path segment.
+        URI uri = URI.create(getBaseUrl() + "/" + indexName + "/" + DOC_PATH + "/"
+                + UriUtils.encodePathSegment(facilityId, StandardCharsets.UTF_8));
         HttpEntity<String> entity = new HttpEntity<>(updateService.buildHeaders());
         try {
             ResponseEntity<Map> response = restTemplate.exchange(
                     uri,
                     HttpMethod.GET,
                     entity,
-                    Map.class,
-                    indexName,
-                    boundaryCode
+                    Map.class
             );
 
-            log.info("Fetched ticket audit for boundaryCode={} from index={}", boundaryCode, indexName);
+            log.info("Fetched health facility for facilityId={} from index={}", facilityId, indexName);
             return response.getBody() != null ? response.getBody() : Collections.emptyMap();
 
         } catch (Exception e) {
-            log.error("Failed to fetch ticket audit from index '{}' with tenantId '{}'", indexName, boundaryCode, e);
+            log.error("Failed to fetch health facility from index '{}' with facilityId '{}'", indexName, facilityId, e);
             return Collections.emptyMap();
         }
     }

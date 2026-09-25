@@ -9,6 +9,7 @@ import org.selco.e4h.kafka.consumer.KafkaProducerService;
 import org.selco.e4h.repository.IncidentRepository;
 import org.selco.e4h.util.ElasticSearchClient;
 import org.selco.e4h.web.models.Boundary;
+import org.selco.e4h.web.models.Incident;
 import org.selco.e4h.web.models.IncidentRequest;
 import org.selco.e4h.web.models.IncidentRequestWrapper;
 import org.selco.e4h.web.models.IncidentStatusAgregation;
@@ -101,8 +102,13 @@ public class IncidentService {
     private void processIncident(IncidentRequest request, String mappedVendorName, String mappedVendorUserName) {
         String tenantId = request.getIncident().getTenantId();
         String boundaryCode = request.getIncident().getBoundaryCode();
-        String facilityId = extractAndEncodeFacilityCode(boundaryCode);
-        List<IncidentStatusAgregation> statusAgregations = incidentRepository.getStatusIncidentsAgregation(boundaryCode);
+        String facilityId = resolveFacilityId(request.getIncident());
+        if (facilityId == null || facilityId.isBlank()) {
+            log.warn("Skipping aggregation for incident {}: no facilityId on the incident or boundaryCode {}",
+                    request.getIncident().getIncidentId(), boundaryCode);
+            return;
+        }
+        List<IncidentStatusAgregation> statusAgregations = incidentRepository.getStatusIncidentsAgregation(facilityId);
         List<IncidentStatusAgregation> systemFunctional = incidentRepository.getStatusSystemFunctional(boundaryCode);
         log.info("Status aggregation result size: {}", statusAgregations.size());
         log.info("systemFunctional aggregation result size: {}", systemFunctional.size());
@@ -120,7 +126,7 @@ public class IncidentService {
             incidentStatusAgregation.setSystemFunctional(hasNonFunctional ? NON_FUNCTIONAL : FUNCTIONAL);
             incidentStatusAgregation.setLastModifiedTime(System.currentTimeMillis());
 
-            Map<String, Object> tickets = esClient.getHFByBoundaryCode(facilityId);
+            Map<String, Object> tickets = esClient.getHFByFacilityId(facilityId);
             log.info("Ticket with facilityID {} found: {}", facilityId, tickets);
             if (tickets != null && !tickets.isEmpty()) {
                 Map<String, Object> source = (Map<String, Object>) tickets.get("_source");
@@ -160,6 +166,19 @@ public class IncidentService {
                 }
             }
         }
+    }
+
+    /**
+     * The health facility index is keyed by the facility id (Livelihood: {@code ED/2026/0013}).
+     * The incident carries it directly; only fall back to parsing the boundary code for older
+     * E4H payloads, whose facility codes are prefixed with {@code FAC/}.
+     */
+    private static String resolveFacilityId(Incident incident) {
+        String facilityId = incident.getFacilityId();
+        if (facilityId != null && !facilityId.isBlank()) {
+            return facilityId;
+        }
+        return extractAndEncodeFacilityCode(incident.getBoundaryCode());
     }
 
     public static String extractAndEncodeFacilityCode(String boundaryCode) {
@@ -236,7 +255,14 @@ public class IncidentService {
                 return;
             }
             String boundaryCode = boundary.getFacilityCode();
-            List<IncidentStatusAgregation> statusAgregations = incidentRepository.getStatusIncidentsAgregation(boundaryCode);
+            String phcFacilityId = incidentStatusAgregation.getFacilityId();
+            if (phcFacilityId == null || phcFacilityId.isBlank()) {
+                log.warn("PHC document {} has no facilityId, publishing without ticket counts", code);
+                phcFacilityId = null;
+            }
+            List<IncidentStatusAgregation> statusAgregations = phcFacilityId == null
+                    ? List.of()
+                    : incidentRepository.getStatusIncidentsAgregation(phcFacilityId);
             List<IncidentStatusAgregation> systemFunctional = incidentRepository.getStatusSystemFunctional(boundaryCode);
             if(statusAgregations !=null && !statusAgregations.isEmpty()){
                 IncidentStatusAgregation incidentStatusAgregationDB = statusAgregations.get(0);
