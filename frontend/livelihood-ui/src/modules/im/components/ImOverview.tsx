@@ -23,7 +23,8 @@ export function ImOverview() {
   const endUser = isEndUser(user?.roles);
   const { assets, isLoading: isAssetsLoading } = useEndUserAssets({ enabled: endUser });
   const canCreate = canCreateIncident(user?.roles);
-  const displayName = user?.name ?? user?.userName ?? "";
+  const fullName = user?.name ?? user?.userName ?? "";
+  const displayName = fullName.trim().split(/\s+/)[0];
 
   useEffect(() => {
     void loadModules(["rainmaker-im"]);
