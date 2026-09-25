@@ -352,6 +352,104 @@ public class EnrichmentService {
             wrapper.setIndexView(indexView);
         }
         enrichReporterForLivelihoodIndexing(wrapper, indexView);
+        enrichFromFacilityRegistry(wrapper.getIncidentRequest(), indexView);
+    }
+
+    /**
+     * Single facility-registry read supplying everything the index takes from the facility.
+     *
+     * <p>endUserName / endUserMobile are the facility's point of contact - the person the field team
+     * actually calls about a ticket - read from {@code facility_poc_name} / {@code facility_poc_phone}.
+     * This runs after {@link #enrichReporterForLivelihoodIndexing} and overwrites its values, leaving
+     * the HRMS reporter as the fallback for facilities with no POC on record.
+     *
+     * <p>facilityCategory has no column on the incident, so it is transient and has to be resolved
+     * on every publish. IMService sets it for the non-Livelihood create and for every update, but
+     * createLivelihoodIncident returns before either - so without this a Livelihood ticket indexed
+     * with a null category until its first update.
+     *
+     * <p>Best-effort by design: a missing facility or a failed call leaves the existing values alone
+     * rather than blocking the Kafka publish.
+     */
+    private void enrichFromFacilityRegistry(IncidentRequest incidentRequest, IndexView indexView) {
+        Incident incident = incidentRequest.getIncident();
+        Map<String, Object> facility = fetchFacilityQuietly(incident);
+        if (CollectionUtils.isEmpty(facility)) {
+            return;
+        }
+
+        String pocName = asText(facility.get("facility_poc_name"));
+        String pocPhone = asText(facility.get("facility_poc_phone"));
+        String facilityCategory = asText(facility.get("facility_category"));
+
+        if (StringUtils.isNotBlank(pocName)) {
+            indexView.setEndUserName(pocName);
+        }
+        if (StringUtils.isNotBlank(pocPhone)) {
+            indexView.setEndUserMobile(pocPhone);
+        }
+        if (StringUtils.isNotBlank(facilityCategory)) {
+            incident.setFacilityCategory(facilityCategory);
+        }
+        log.info("Livelihood facility fields resolved for incidentId={} endUser={} facilityCategory={}",
+                incident.getIncidentId(), pocName, facilityCategory);
+    }
+
+    /**
+     * Looks the facility up by {@code facilityId}, which Livelihood incidents carry directly, and
+     * falls back to the facility boundary code for older payloads that predate it.
+     *
+     * @return the first matching facility, or an empty map when nothing resolves - callers treat a
+     *         miss as "leave the existing values alone", so this never throws
+     */
+    private Map<String, Object> fetchFacilityQuietly(Incident incident) {
+        String facilityId = incident.getFacilityId();
+        String boundaryCode = resolveFacilityBoundaryForLookup(incident);
+        if (StringUtils.isBlank(facilityId) && StringUtils.isBlank(boundaryCode)) {
+            log.warn("No facilityId or boundaryCode on incidentId={}, skipping facility lookup",
+                    incident.getIncidentId());
+            return Collections.emptyMap();
+        }
+
+        try {
+            UriComponentsBuilder builder = UriComponentsBuilder
+                    .fromHttpUrl(config.getFacilityHost() + config.getFacilitySearchPath())
+                    .queryParam("tenantId", incident.getTenantId() != null ? incident.getTenantId() : "");
+            if (StringUtils.isNotBlank(facilityId)) {
+                builder.queryParam("facilityId", facilityId);
+            } else {
+                builder.queryParam("boundaryCode", boundaryCode);
+            }
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+
+            ResponseEntity<Map<String, Object>> responseEntity = restTemplate.exchange(
+                    builder.toUriString(),
+                    HttpMethod.GET,
+                    new HttpEntity<>(headers),
+                    new ParameterizedTypeReference<Map<String, Object>>() {}
+            );
+
+            Map<String, Object> responseMap = responseEntity.getBody();
+            List<Map<String, Object>> facilities = responseMap == null
+                    ? null
+                    : (List<Map<String, Object>>) responseMap.get("facilities");
+
+            if (CollectionUtils.isEmpty(facilities)) {
+                log.warn("No facility found for facilityId={} boundaryCode={}", facilityId, boundaryCode);
+                return Collections.emptyMap();
+            }
+            return facilities.get(0);
+        } catch (Exception e) {
+            log.warn("Failed to fetch facility for incidentId={} facilityId={}",
+                    incident.getIncidentId(), facilityId, e);
+            return Collections.emptyMap();
+        }
+    }
+
+    private static String asText(Object value) {
+        return value instanceof String text ? text.trim() : null;
     }
 
     private void enrichReporterForLivelihoodIndexing(IncidentRequestWrapper wrapper, IndexView indexView) {
@@ -412,6 +510,9 @@ public class EnrichmentService {
                 } else if (asset != null && StringUtils.isNotBlank(asset.getItemCode())) {
                     indexView.setAssetName(asset.getItemCode());
                 }
+                if (asset != null && StringUtils.isNotBlank(asset.getAssetTypeID())) {
+                    indexView.setAssetGroup(resolveIndexAssetGroup(asset.getAssetTypeID()));
+                }
             } catch (Exception e) {
                 log.warn("Could not enrich asset name for assetId={}", incident.getAssetId(), e);
             }
@@ -438,6 +539,18 @@ public class EnrichmentService {
 
         indexView.setAttachmentUrls(buildAttachmentUrls(incidentRequest));
         indexView.setDocumentUrls(indexView.getAttachmentUrls());
+    }
+
+    /**
+     * Maps an asset's assetTypeID to the coarse index-level group (Machine/Solar). Distinct from the
+     * Incident.additionalDetail.assetCategory field, which holds finer-grained menu-path categories
+     * used for issue-type validation.
+     * Solar component types (SOLAR PANEL, BATTERY, INVERTER, PANEL) map to Solar; everything else is Machine.
+     */
+    private String resolveIndexAssetGroup(String assetTypeID) {
+        boolean isSolar = LIVELIHOOD_SOLAR_ASSET_TYPE_IDS.stream()
+                .anyMatch(solarType -> solarType.equalsIgnoreCase(assetTypeID.trim()));
+        return isSolar ? LIVELIHOOD_INDEX_ASSET_GROUP_SOLAR : LIVELIHOOD_INDEX_ASSET_GROUP_MACHINE;
     }
 
     private String buildAttachmentUrls(IncidentRequest incidentRequest) {
