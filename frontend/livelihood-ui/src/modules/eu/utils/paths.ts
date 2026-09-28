@@ -5,6 +5,10 @@ export function euFacilitiesPath() {
   return `/${contextPath()}${EU_ROUTES.facilities}`;
 }
 
+export function euFacilitiesBulkAddPath() {
+  return `/${contextPath()}${EU_ROUTES.facilitiesBulkAdd}`;
+}
+
 export function euBoundariesPath() {
   return `/${contextPath()}${EU_ROUTES.boundaries}`;
 }

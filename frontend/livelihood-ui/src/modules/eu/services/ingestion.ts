@@ -83,3 +83,75 @@ export async function uploadBoundaryData(
 
   return { success: true };
 }
+
+export async function downloadFacilityTemplate(accessToken: string, user?: AuthUser | null): Promise<void> {
+  const response = await apiClient.post(
+    "/ingestion-service/template/facilityIngestion",
+    { RequestInfo: createRequestInfo(accessToken, user) },
+    { responseType: "blob" },
+  );
+
+  const disposition = response.headers["content-disposition"] ?? "";
+  const filename = parseFilenameFromDisposition(disposition) ?? "facility-ingestion-template.xlsx";
+  downloadBlob(response.data as Blob, filename);
+}
+
+export interface ValidateFacilityDataResult {
+  errorCount: number;
+  file: { blob: Blob; filename: string };
+}
+
+/**
+ * Ports `fa`'s `FAService.uploadFacilityDataTemplate`'s validate step
+ * (`IngestionService.validateFacilityData`) — this endpoint always answers
+ * with an annotated workbook (unlike boundary's polymorphic JSON/blob
+ * response), whether or not any rows failed; `errorCount` says which.
+ */
+export async function validateFacilityData(
+  file: File,
+  accessToken: string,
+  user?: AuthUser | null,
+): Promise<ValidateFacilityDataResult> {
+  const formData = new FormData();
+  formData.append("facility_file", file);
+  formData.append("request_info", JSON.stringify(createRequestInfo(accessToken, user)));
+
+  const response = await apiClient.post("/ingestion-service/ingest/addFacilitiesValidateData", formData, {
+    headers: { "Content-Type": undefined },
+    responseType: "blob",
+  });
+
+  const errorCount = Number.parseInt(String(response.headers["x-error-count"] ?? "0"), 10);
+  const disposition = String(response.headers["content-disposition"] ?? "");
+  const filename = parseFilenameFromDisposition(disposition) ?? "facility-validation-result.xlsx";
+
+  return { errorCount, file: { blob: response.data as Blob, filename } };
+}
+
+/**
+ * Ports `fa`'s `FAService.uploadFacilityDataTemplate`'s upload step
+ * (`IngestionService.uploadFacilityData`) — takes the *validated* file from
+ * `validateFacilityData` (not the original upload), matching `are_facilities_onm_ready`
+ * to the bulk-add page's ONM-ready toggle.
+ */
+export async function uploadFacilityData(
+  validatedFile: { blob: Blob; filename: string },
+  areFacilitiesOnmReady: boolean,
+  accessToken: string,
+  user?: AuthUser | null,
+): Promise<{ blob: Blob; filename: string }> {
+  const formData = new FormData();
+  formData.append("facility_file", validatedFile.blob, validatedFile.filename);
+  formData.append("are_facilities_onm_ready", String(areFacilitiesOnmReady));
+  formData.append("request_info", JSON.stringify(createRequestInfo(accessToken, user)));
+
+  const response = await apiClient.post("/ingestion-service/ingest/facilities", formData, {
+    headers: { "Content-Type": undefined },
+    responseType: "blob",
+  });
+
+  const disposition = String(response.headers["content-disposition"] ?? "");
+  const filename = parseFilenameFromDisposition(disposition) ?? "facility-upload-result.xlsx";
+
+  return { blob: response.data as Blob, filename };
+}

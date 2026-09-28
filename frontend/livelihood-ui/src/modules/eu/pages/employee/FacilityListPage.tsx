@@ -1,17 +1,20 @@
 import { employeeHomePath, translateOr, useAuthStore, useBoundaryHierarchy, useTranslate } from "@/shared";
 import { TopBar } from "@/ui";
+import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { FacilityFilterPanel } from "../../components/facility/FacilityFilterPanel";
 import { FacilityFormDialog } from "../../components/facility/FacilityFormDialog";
 import { FacilityTable } from "../../components/facility/FacilityTable";
 import { useFacilities } from "../../hooks/use-facilities";
 import { hasEuAccess } from "../../utils/access";
+import { euFacilitiesBulkAddPath } from "../../utils/paths";
 import { EMPTY_FACILITY_FILTERS, type FacilitySearchFilters } from "../../types/facility";
 
 const DEFAULT_PAGE_SIZE = 10;
 
 export function FacilityListPage() {
   const { t } = useTranslate();
+  const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
 
   const [filters, setFilters] = useState<FacilitySearchFilters>(EMPTY_FACILITY_FILTERS);
@@ -49,9 +52,7 @@ export function FacilityListPage() {
         filters={filters}
         onFilterChange={handleFilterChange}
         onAddFacility={() => setShowAddFacility(true)}
-        onBulkAdd={() => {
-          // Wired to the bulk-add page in Phase 3.
-        }}
+        onBulkAdd={() => void navigate({ to: euFacilitiesBulkAddPath() })}
       />
 
       <FacilityTable
