@@ -74,7 +74,7 @@ jobs:
           context: .
           file: build/maven-java8/Dockerfile
           push: true
-          tags: selcohub/egov-workflow-v2:${{ env.VERSION }}-${{ env.commit_hash }}
+          tags: selcohub/egov-workflow-v2-lh:${{ env.VERSION }}-${{ env.commit_hash }}
           cache-from: type=gha   # Stores cache in GitHub Actions .
           cache-to: type=gha,mode=max  # max- stores all the layers including the intermediate layers in multi-stage
           build-args: |
@@ -82,8 +82,8 @@ jobs:
 
       - name: Build and Push Docker image for workflow-v2_DB
         run: |
-          docker build  -t selcohub/egov-workflow-v2-db:${{ env.VERSION }}-${{ env.commit_hash }} -f  Dockerfile .
-          docker push selcohub/egov-workflow-v2-db:${{ env.VERSION }}-${{ env.commit_hash }}
+          docker build  -t selcohub/egov-workflow-v2-db-lh:${{ env.VERSION }}-${{ env.commit_hash }} -f  Dockerfile .
+          docker push selcohub/egov-workflow-v2-db-lh:${{ env.VERSION }}-${{ env.commit_hash }}
         working-directory: backend/core-services/egov-workflow-v2/src/main/resources/db
 
   Workflow_Trigger:

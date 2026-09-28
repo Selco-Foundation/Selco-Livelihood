@@ -75,7 +75,7 @@ jobs:
           context: .
           file: build/maven/Dockerfile
           push: true
-          tags: selcohub/facility-registry:${{ env.VERSION }}-${{ env.commit_hash }}
+          tags: selcohub/facility-registry-lh:${{ env.VERSION }}-${{ env.commit_hash }}
           cache-from: type=gha   # Stores cache in GitHub Actions .
           cache-to: type=gha,mode=max  # max- stores all the layers including the intermediate layers in multi-stage
           build-args: |
@@ -83,8 +83,8 @@ jobs:
 
       - name: Build and Push Docker image for facility-registry-Db
         run: |
-          docker build  -t selcohub/facility-registry-db:${{ env.VERSION }}-${{ env.commit_hash }} -f  Dockerfile .
-          docker push selcohub/facility-registry-db:${{ env.VERSION }}-${{ env.commit_hash }}
+          docker build  -t selcohub/facility-registry-db-lh:${{ env.VERSION }}-${{ env.commit_hash }} -f  Dockerfile .
+          docker push selcohub/facility-registry-db-lh:${{ env.VERSION }}-${{ env.commit_hash }}
         working-directory: backend/core-services/health-facility-registry/src/main/resources/db
 
   Workflow_Trigger:

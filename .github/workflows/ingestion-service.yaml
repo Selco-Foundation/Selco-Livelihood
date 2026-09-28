@@ -56,7 +56,7 @@ jobs:
           context: .
           file: build/python/Dockerfile
           push: true
-          tags: selcohub/ingestion-service:${{ env.VERSION }}-${{ env.commit_hash }}
+          tags: selcohub/ingestion-service-lh:${{ env.VERSION }}-${{ env.commit_hash }}
           cache-from: type=gha   # Stores cache in GitHub Actions .
           cache-to: type=gha,mode=max  # max- stores all the layers including the intermediate layers in multi-stage
           build-args: |

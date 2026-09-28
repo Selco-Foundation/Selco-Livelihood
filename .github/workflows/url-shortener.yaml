@@ -74,7 +74,7 @@ jobs:
           context: .
           file: build/maven/Dockerfile
           push: true
-          tags: selcohub/egov-url-shortener:${{ env.VERSION }}-${{ env.commit_hash }}
+          tags: selcohub/egov-url-shortener-lh:${{ env.VERSION }}-${{ env.commit_hash }}
           cache-from: type=gha   # Stores cache in GitHub Actions .
           cache-to: type=gha,mode=max  # max- stores all the layers including the intermediate layers in multi-stage
           build-args: |
@@ -82,6 +82,6 @@ jobs:
 
       - name: Build and Push Docker image for egov-url-shortener-Db
         run: |
-          docker build  -t selcohub/egov-url-shortener-db:${{ env.VERSION }}-${{ env.commit_hash }} -f  Dockerfile .
-          docker push selcohub/egov-url-shortener-db:${{ env.VERSION }}-${{ env.commit_hash }}
+          docker build  -t selcohub/egov-url-shortener-db-lh:${{ env.VERSION }}-${{ env.commit_hash }} -f  Dockerfile .
+          docker push selcohub/egov-url-shortener-db-lh:${{ env.VERSION }}-${{ env.commit_hash }}
         working-directory: backend/core-services/egov-url-shortening/src/main/resources/db
