@@ -21,6 +21,8 @@ from app.ingest.icc_template_service import protect_input_cells
 from app.utils.icc_template_parser import first_data_sheet, parse_worksheet
 from app.schemas.boundary import Boundary, flatten_boundaries
 from app.utils.amc_scheduler_service_client import AMCSchedulerServiceClient
+from app.utils.scope_candidates import project_sites_in_geography
+from app.utils.field_plan_geography import is_under_any_boundary, plan_boundary_codes
 from app.utils.convertor import request_info_from_json, build_boundary_localization_map, \
     state_names_by_facility_id, resolve_boundary_names_for_code
 from app.utils.excel_utils import add_dropdowns_to_excel, autofit_columns, lock_prefilled_rows_in_excel, \
@@ -305,6 +307,38 @@ async def get_boundary_ingestion_template(
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
 
+def _restrict_to_plan_geography(request_info, fieldplan_id, facilities, linked_facility_ids):
+    """Facilities inside the plan's own blocks, plus any already linked to the plan.
+
+    Degrades to no restriction -- logged, not raised -- when the plan's geography cannot be read
+    or resolves to no codes. The download is read-mostly and the upload re-checks geography
+    authoritatively, so a sheet with too many rows is the recoverable failure; an empty sheet
+    over a data-shape quirk is not.
+    """
+    try:
+        plans = FieldPlanServiceClient(fieldPlan_service_url).search_fieldPlan(
+            request_info, fieldplan_id).get("FieldPlans", [])
+    except Exception as e:
+        logger.error(f"Could not read plan {fieldplan_id} geography; not restricting the sheet: {e}",
+                     exc_info=True)
+        return facilities
+    plan_blocks = plan_boundary_codes(plans[0] if plans else None)
+    if not plan_blocks:
+        logger.error(f"Plan {fieldplan_id} has no usable geography; not restricting the sheet")
+        return facilities
+
+    kept = [
+        facility for facility in facilities
+        if facility.get("facility_id") in linked_facility_ids
+        or is_under_any_boundary(facility.get("boundary_code") or facility.get("boundaryCode") or "",
+                                 plan_blocks)
+    ]
+    if len(kept) != len(facilities):
+        logger.info(f"Plan {fieldplan_id}: {len(facilities) - len(kept)} site(s) outside the plan's "
+                    f"geography left out of the scope sheet")
+    return kept
+
+
 @router.post('/fieldplanFacilityIngestionTemplate',
             summary='Generate facility ingestion template Excel file with schema, already present data and boundary codes',
             response_description="Returns Excel template with facility schema, facility data and boundary codes")
@@ -447,6 +481,15 @@ async def get_facility_ingestion_template_with_data(
 
         logger.info(
             f"Total facilities in template: {len(all_facilities)} (boundary: {len(existing_facility_ids)}, fieldplan: {len(fieldplan_facilities_data)})")
+
+        # Restrict to the plan's own geography. The caller builds boundary_data from the
+        # *project's* geography, so without this the sheet offered every site in the project --
+        # including ones outside this plan's blocks, which the scope upload then rejects as
+        # "outside the geography this installation plan covers". Same rule as the upload
+        # (_scope_sites_offered_to_plan): inside the plan's blocks, or already linked to it.
+        if fieldplan_id and fieldPlan_service_url:
+            all_facilities = _restrict_to_plan_geography(
+                request_info, fieldplan_id, all_facilities, fieldplan_linked_facility_ids)
 
         # Mark facilities as included in fieldplan if they are already linked
         if fieldplan_id:
@@ -666,28 +709,18 @@ async def installation_scope_preflight(payload: dict = Body(..., description="Re
         raise HTTPException(status_code=400, detail="boundary_data with at least one boundary is required")
 
     try:
-        # Candidates are the project's own sites that fall inside the chosen boundaries --
-        # the same intersection the scope download starts from.
-        project_client = ProjectServiceClient(project_service_url)
-        project_facilities = project_client.search_project_facility(
-            request_info, project_id).get("ProjectFacilities", [])
-        project_linked_facility_ids = {
-            pf.get("facilityId") for pf in project_facilities if pf.get("facilityId")}
-
+        # Candidates are the project's own sites that fall inside the chosen boundaries. Step 1
+        # sends the plan's plain block codes, which facility-service's bulk search cannot match
+        # by boundary (it compares whole codes, and a site's code carries a facility suffix), so
+        # the project's sites are fetched by id and matched against the blocks here instead.
         all_facilities = []
-        if facility_service_url and project_linked_facility_ids:
-            boundary_codes = [b.code for b in boundary_list if b.code]
-            bulk = FacilityServiceClient(facility_service_url).bulk_search_facility_with_boundary(
-                request_info=request_info,
-                tenant_ids=[LIVELIHOOD_TENANT_ID],
-                boundary_codes=boundary_codes,
-                limit=max(len(boundary_codes) * 50, 50),
-                send_non_paginated_response=True,
+        if facility_service_url:
+            all_facilities = project_sites_in_geography(
+                request_info, project_id,
+                [b.code for b in boundary_list if b.code],
+                ProjectServiceClient(project_service_url),
+                FacilityServiceClient(facility_service_url),
             )
-            all_facilities = [
-                f for f in (bulk.get("facilities") or [])
-                if f.get("facility_id") in project_linked_facility_ids
-            ]
 
         candidates_in_geography = len(all_facilities)
 
@@ -728,16 +761,16 @@ async def installation_scope_preflight(payload: dict = Body(..., description="Re
     reason = None
     if candidates.addable_count == 0:
         if candidates_in_geography == 0:
-            reason = ("No end user site in this project falls within the selected geography.")
+            cause = "No end user site in this project falls within the selected geography."
         elif candidates_in_sectors == 0:
-            reason = ("No end user site in the selected geography belongs to the selected "
-                      "sector(s).")
+            cause = "None of the end user sites in the selected geography belong to the selected sector(s)."
         elif candidates.locked_elsewhere_ids and not candidates.no_solution_ids:
-            reason = ("Every end user site in the selected geography and sector(s) is already "
-                      "part of a published installation plan in this project.")
+            cause = ("Every matching end user site is already part of a published installation "
+                     "plan in this project.")
         else:
-            reason = ("No end user site in the selected geography and sector(s) has a Solution "
-                      "available for its sector and state.")
+            cause = "None of the matching end user sites has a Solution available for its sector and state."
+        reason = (f"There are no end user sites available in the selected geography and sectors. "
+                  f"{cause} Change the geography or sectors to create this installation plan.")
         logger.info(f"Preflight found no addable site for project {project_id}: {reason}")
 
     return {
