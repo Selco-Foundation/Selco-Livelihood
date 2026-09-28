@@ -10,7 +10,7 @@ interface AssetTypeSchemaEntry {
   AssetType?: AssetTypeOption[];
 }
 
-/** The `asset-registry.AssetTypeSchema` MDMS master `fa`'s `AssetTable/Filter.js` uses for its asset-type dropdown. */
+/** The `asset-registry.AssetTypeSchema` MDMS master used for the asset-type dropdown. */
 export function useAssetTypeOptions() {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);

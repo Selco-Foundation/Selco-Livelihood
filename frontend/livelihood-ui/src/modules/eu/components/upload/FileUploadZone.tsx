@@ -14,10 +14,9 @@ interface FileUploadZoneProps {
 }
 
 /**
- * Single-file, click-to-upload zone — shared by the boundary and (Phase 3)
- * facility bulk-upload pages. Ports `fa`'s `File/CustomUploadFile.js` UX, in
- * this repo's `MediaUploadZone.tsx` visual convention rather than as a
- * hand-rolled one-off.
+ * Single-file, click-to-upload zone — shared by the boundary and facility
+ * bulk-upload pages, following this repo's `MediaUploadZone.tsx` visual
+ * convention rather than as a hand-rolled one-off.
  */
 export function FileUploadZone({
   label,

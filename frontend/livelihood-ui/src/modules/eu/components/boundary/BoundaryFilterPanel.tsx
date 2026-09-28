@@ -66,8 +66,8 @@ export function BoundaryFilterPanel({
 
     const next: BoundarySearchFilters = { ...filters, [category]: nextCurrent };
 
-    // Selecting/removing a parent boundary prunes any now-invalid children,
-    // matching fa's BoundaryTable/Filter.js cascade-reset-on-remove behavior.
+    // Selecting/removing a parent boundary prunes any now-invalid children
+    // so the filter state never holds a district/block whose parent is no longer selected.
     if (category === "state") {
       const validDistricts = cascadeByParent(boundaryData?.districts ?? [], nextCurrent).map((d) => d.code);
       next.district = filters.district.filter((code) => validDistricts.includes(code));

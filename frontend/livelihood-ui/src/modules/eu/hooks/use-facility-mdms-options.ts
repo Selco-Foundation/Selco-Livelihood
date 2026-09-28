@@ -14,7 +14,7 @@ function sortByName(options: FacilityMasterOption[]): FacilityMasterOption[] {
 
 /**
  * The `facility.FacilityCategory` / `facility.FacilityType` / `facility.SolarSolutionDesignType`
- * MDMS masters `fa`'s `FacilityForm.js` uses for its dropdowns. The master key stays
+ * MDMS masters used for the create/edit form's dropdowns. The master key stays
  * `FacilityType` — only its UI label changes (to "Sector") in this module's form.
  */
 export function useFacilityMdmsOptions() {

@@ -18,7 +18,7 @@ export const EMPTY_BOUNDARY_FILTERS: BoundarySearchFilters = {
   block: [],
 };
 
-/** Every field `BoundaryForm` collects — mirrors `fa`'s `BoundaryForm.js`. */
+/** Every field `BoundaryForm` collects. */
 export interface BoundaryFormValues {
   state: string;
   district: string;

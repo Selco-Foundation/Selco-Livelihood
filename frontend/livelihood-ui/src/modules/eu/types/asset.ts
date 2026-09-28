@@ -5,7 +5,6 @@ export interface FacilityAsset {
   modelNumber?: string;
   brand?: string;
   capacity?: string;
-  voltage?: string;
   installationDate?: string;
   isOperational?: boolean;
 }

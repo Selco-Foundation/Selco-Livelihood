@@ -36,7 +36,7 @@ export function FacilityAssetTab({ facilityId }: FacilityAssetTabProps) {
 
   function toggleOption(categoryKey: string, code: string) {
     if (categoryKey === "isOperational") {
-      // Single-select — matches fa's AssetTable/Filter.js radio-like status toggle.
+      // Status only ever has one active value at a time, unlike the multi-select filters below.
       setFilters({ ...filters, isOperational: [code] });
       return;
     }

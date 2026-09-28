@@ -3,10 +3,10 @@ import { createRequestInfo } from "@/shared/api/request-info";
 import type { BoundaryRow } from "../types/boundary";
 
 /**
- * The `getAllBoundaries` request-body criteria — matches `fa`'s
- * `useNormalizedBoundary.js`. Distinct from `shared/api/boundary.ts`'s
- * `fetchBoundaryRelations` (a tree fetch for cascading selects) — this is the
- * paginated table listing, one row per leaf (Block-level) boundary.
+ * The `getAllBoundaries` request-body criteria. Distinct from
+ * `shared/api/boundary.ts`'s `fetchBoundaryRelations` (a tree fetch for
+ * cascading selects) — this is the paginated table listing, one row per leaf
+ * (Block-level) boundary.
  */
 export interface BoundarySearchCriteria {
   tenantId: string;
@@ -68,9 +68,9 @@ export interface CreateBoundaryPayload {
   code: string;
 }
 
-/** Note: `fa`'s legacy call tolerates a "boundary already exists" error for the
- * state/district tiers (`ignoreIfExists`) — callers of this function decide
- * whether to swallow that error, this just makes the request. */
+/** Note: creating a state/district tier that already exists can return a
+ * "boundary already exists" error — callers of this function decide whether
+ * to swallow that error (`ignoreIfExists`), this just makes the request. */
 export async function createBoundary(
   payload: CreateBoundaryPayload,
   accessToken: string,

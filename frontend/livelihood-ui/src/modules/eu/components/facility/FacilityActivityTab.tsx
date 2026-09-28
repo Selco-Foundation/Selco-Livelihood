@@ -6,7 +6,7 @@ import { CategoryFilterPopover, type FilterCategoryDef } from "../CategoryFilter
 import { useActivityTypeOptions } from "../../hooks/use-activity-type-options";
 import { useFacilityActivities } from "../../hooks/use-facility-activities";
 import { EMPTY_ACTIVITY_FILTERS, type ActivityFilters } from "../../types/activity";
-import { euActivityDetailPath, euAssessmentDetailPath } from "../../utils/paths";
+import { euActivityDetailPath } from "../../utils/paths";
 
 const DEFAULT_PAGE_SIZE = 10;
 
@@ -97,10 +97,7 @@ export function FacilityActivityTab({ facilityId, facilityBoundaryCode }: Facili
               </thead>
               <tbody>
                 {activities.map((activity, index) => {
-                  const isAssessment = activity.activityType?.toUpperCase() === "ASSESSMENT";
-                  const detailsPath = isAssessment
-                    ? euAssessmentDetailPath(facilityId, activity.id)
-                    : euActivityDetailPath(facilityId, activity.id);
+                  const detailsPath = euActivityDetailPath(facilityId, activity.id);
 
                   return (
                     <tr

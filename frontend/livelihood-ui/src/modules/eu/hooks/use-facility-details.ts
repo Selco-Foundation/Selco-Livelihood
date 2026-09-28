@@ -5,7 +5,7 @@ import { FACILITIES_QUERY_KEY } from "./use-facilities";
 
 export const FACILITY_DETAILS_QUERY_KEY = "eu-facility-details";
 
-/** Single-facility fetch — same `_bulk-search` endpoint as the list, scoped by `facilityIds` (matches `fa`'s `useFacilityDetails.js`). */
+/** Single-facility fetch — same `_bulk-search` endpoint as the list, scoped by `facilityIds`. */
 export function useFacilityDetails(facilityId: string) {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);

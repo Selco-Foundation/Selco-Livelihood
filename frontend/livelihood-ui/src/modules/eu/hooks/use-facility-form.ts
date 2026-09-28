@@ -47,11 +47,11 @@ const EMPTY_VALUES: FacilityFormValues = {
 
 /**
  * Form state + validation + cascading dependent-field logic for creating (and
- * later, editing) a facility — ports `fa`'s `FacilityForm.js` minus the
- * HEALTH-category branch (HFR ID / NIN ID / POC-username exemption).
- * `editingFacilityId` mirrors `fa`'s `disable: !!createdFacility?.id` — state/
- * district/block/category/username lock once a facility exists (Phase 4 reuses
- * this hook for the facility-detail edit form).
+ * later, editing) a facility. HEALTH-category facilities (HFR ID / NIN ID /
+ * POC-username exemption) aren't supported here.
+ * `editingFacilityId`, when set, locks state/district/block/category/username
+ * once a facility already exists — this same hook backs both the create form
+ * and the facility-detail edit form.
  */
 export function useFacilityForm(editingFacilityId?: string) {
   const { t } = useTranslate();
@@ -185,10 +185,9 @@ export function useFacilityForm(editingFacilityId?: string) {
   /**
    * The update-request payload — spreads the facility's raw, untransformed
    * record first so unedited fields (id, boundary code, POC username, etc.,
-   * all disabled in edit mode) are preserved, matching `fa`'s
-   * `FacilityDetails.js` `handleFacilityUpdate` payload exactly (no
-   * `facility_poc_username` or `blockBoundaryCode` override — those two are
-   * immutable once a facility exists).
+   * all disabled in edit mode) are preserved. No `facility_poc_username` or
+   * `blockBoundaryCode` override is sent — those two are immutable once a
+   * facility exists.
    */
   function toUpdatePayload(raw: Record<string, unknown>, tenantId: string): Record<string, unknown> {
     return {

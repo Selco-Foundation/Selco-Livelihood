@@ -6,7 +6,7 @@ export interface ActivityTypeOption {
   name: string;
 }
 
-/** The `common-masters.Activities` MDMS master `fa`'s `ActivityTable/Filter.js` uses for its activity-type dropdown — AMC excluded, matching `fa`'s own `.filter((activity) => activity.code !== "AMC")`. */
+/** The `common-masters.Activities` MDMS master for the activity-type dropdown — AMC is excluded since it isn't part of Livelihood. */
 export function useActivityTypeOptions() {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
