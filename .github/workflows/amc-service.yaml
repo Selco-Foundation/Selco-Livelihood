@@ -87,7 +87,6 @@ jobs:
         working-directory: backend/e4h-services/amc-scheduler-service/src/main/resources/db
 
 
-
   Workflow_Trigger:
     if: startsWith(github.ref, 'refs/heads/develop')
     runs-on: ubuntu-latest
