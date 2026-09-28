@@ -2499,12 +2499,22 @@ async def validate_facilities_excel_sheet(
             plan_is_published = (
                 str(field_plan.get("status") or "").strip().upper() == PLAN_STATUS_PUBLISHED)
 
-        # Sites already under installation anywhere in this project cannot be re-scoped.
+        # Sites published in a sibling plan in this project cannot be re-scoped. strict=True:
+        # this is the check that refuses a double-booking, so a failed lookup must stop the
+        # upload rather than wave every row through as unlocked.
         lock_map = {}
         if project_id and fieldPlan_service_url:
-            lock_map = build_project_lock_map(
-                FieldPlanServiceClient(fieldPlan_service_url), request_info_obj, project_id, fieldplan_id
-            )
+            try:
+                lock_map = build_project_lock_map(
+                    FieldPlanServiceClient(fieldPlan_service_url), request_info_obj, project_id,
+                    fieldplan_id, strict=True,
+                )
+            except Exception as e:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Could not check which end user sites are already part of a published "
+                           f"installation plan in project {project_id}, so this scope sheet cannot "
+                           f"be validated safely: {e}")
 
         # Which of this plan's sites are already installed and signed off. Only published plans
         # can have any, and it is only ever consulted to refuse a removal, so the call is
@@ -2979,9 +2989,21 @@ async def create_fielplan_facilities(
                 # Sites under installation elsewhere in this project are shown for context
                 # only -- linking them here would put one site in two plans (FR-06).
                 project_id = fieldplan_data[0].get("projectId") if fieldplan_data else None
-                lock_map = build_project_lock_map(
-                    fieldplan_client, request_info, project_id, fieldplan_id
-                ) if project_id else {}
+                # strict=True for the same reason as the validate endpoint, and it matters more
+                # here: this call is what actually writes the scope.
+                lock_map = {}
+                if project_id:
+                    try:
+                        lock_map = build_project_lock_map(
+                            fieldplan_client, request_info, project_id, fieldplan_id, strict=True)
+                    except HTTPException:
+                        raise
+                    except Exception as e:
+                        raise HTTPException(
+                            status_code=502,
+                            detail=f"Could not check which end user sites are already part of a "
+                                   f"published installation plan in project {project_id}, so this "
+                                   f"scope cannot be saved safely: {e}")
 
                 # Withdrawing a site from a published plan deletes its activity rows outright
                 # (below), so the "is anything already installed?" check has to be re-run here

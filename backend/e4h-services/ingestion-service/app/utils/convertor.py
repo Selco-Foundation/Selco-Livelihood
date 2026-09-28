@@ -1081,6 +1081,13 @@ def build_boundary_localization_map(
             val = boundary.get(field, "")
             if val:
                 all_raw_codes.add(val)
+        # The Installation Scope download's block slot holds each site's own facility-level code,
+        # so the real block code is never in boundary_list and would go unfetched. Adding the
+        # derived one costs nothing elsewhere: for a genuine block code the same derivation just
+        # yields its district, which is already in the set.
+        block_code = boundary.get("block_code", "")
+        if block_code:
+            all_raw_codes.add(block_boundary_code(block_code, block_code))
 
     loc_codes = [f"BOUNDARY_{code}" for code in all_raw_codes]
 
@@ -1114,6 +1121,27 @@ def localize_boundary_name(raw_code: str, localization_map: Dict[str, str]) -> s
     return localization_map.get(loc_key, loc_key)
 
 
+def block_boundary_code(block_code: str, facility_boundary_code: str) -> str:
+    """The genuine block code, given whatever the request payload put in the block slot.
+
+    The Installation Scope download sends each site's FULL facility-level code
+    ({blockCode}_{facilityId}) as a `type: "block"` node -- deliberately, because the bulk facility
+    search matches boundary_code with an exact IN (...), so plain block codes return no facilities.
+    That leaves the block slot holding a facility, and facility-service registers a localization
+    message for every facility boundary whose text is the *site's own name* -- which is how the
+    Block column came to show "Anjali Bora".
+
+    Recognised by the block slot being the facility's own code rather than a prefix of it, and
+    undone the way FacilityService builds it (FacilityService.java:200, blockBoundaryCode + "_" +
+    facilityId). Facility ids carry slashes, never underscores, so the last "_" is the seam. The
+    project template sends real block codes, where the block is a proper prefix of the facility's
+    and this returns it untouched.
+    """
+    if block_code and block_code == facility_boundary_code:
+        return block_code.rsplit("_", 1)[0]
+    return block_code
+
+
 def resolve_boundary_names_for_code(
     facility_boundary_code: str,
     boundary_list: List[Boundary],
@@ -1135,7 +1163,9 @@ def resolve_boundary_names_for_code(
             return (
                 localize_boundary_name(boundary.get("state_code", ""), boundary_localization_map),
                 localize_boundary_name(boundary.get("district_code", ""), boundary_localization_map),
-                localize_boundary_name(boundary.get("block_code", ""), boundary_localization_map),
+                localize_boundary_name(
+                    block_boundary_code(boundary.get("block_code", ""), facility_boundary_code),
+                    boundary_localization_map),
             )
     return "", "", ""
 

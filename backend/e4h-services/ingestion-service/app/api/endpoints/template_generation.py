@@ -255,6 +255,12 @@ async def get_facility_ingestion_template_with_data(
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
+    except HTTPException:
+        # A deliberate refusal -- a 400 naming what the Project Manager has to change -- must
+        # keep its own status and message. Falling through to the handler below re-wrapped it
+        # as a 500 reading "An unexpected error occurred: 400: ...", which reads as a crash
+        # rather than as guidance and hides the real status from the client.
+        raise
     except Exception as e:
         logger.error(f"Unhandled error in get_facility_ingestion_template: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
@@ -527,15 +533,19 @@ async def get_facility_ingestion_template_with_data(
             all_facilities = candidates.writable
             solution_options_by_row = candidates.options_by_row
 
-            # Nothing selectable at all: hand back the reason rather than an empty spreadsheet.
-            if not all_facilities:
+            # Nothing *selectable* -- not merely nothing at all. A geography whose every site is
+            # already published in a sibling plan used to return a full sheet of frozen rows and
+            # no explanation, which reads as a broken download rather than as "there is nothing
+            # here for you". Locked rows stay in the sheet when there is something to pick
+            # alongside them; when there is not, say so instead.
+            if candidates.addable_count == 0:
                 cleanup_temp_file(output_file_path)
                 raise HTTPException(
                     status_code=400,
-                    detail="No end user site in the selected geography and sectors can be added to "
-                           "an installation plan. Either no site matches, or none has a Solution "
-                           "available for its sector and state. Change the geography or sectors on "
-                           "the plan, or check the Solutions configured for those sectors.")
+                    detail="There are no end user sites available in the selected geography and "
+                           "sectors. Every matching site is either already part of a published "
+                           "installation plan, or has no Solution available for its sector and "
+                           "state. Change the geography or sectors on the plan.")
 
         solution_name_by_code = solution_names_by_code(solutions)
         existing_solution_name_by_facility_id = {
@@ -612,6 +622,12 @@ async def get_facility_ingestion_template_with_data(
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
+    except HTTPException:
+        # A deliberate refusal -- a 400 naming what the Project Manager has to change -- must
+        # keep its own status and message. Falling through to the handler below re-wrapped it
+        # as a 500 reading "An unexpected error occurred: 400: ...", which reads as a crash
+        # rather than as guidance and hides the real status from the client.
+        raise
     except Exception as e:
         logger.error(f"Unhandled error in get_facility_ingestion_template: {e}")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
@@ -718,7 +734,7 @@ async def installation_scope_preflight(payload: dict = Body(..., description="Re
                       "sector(s).")
         elif candidates.locked_elsewhere_ids and not candidates.no_solution_ids:
             reason = ("Every end user site in the selected geography and sector(s) is already "
-                      "part of another installation plan in this project.")
+                      "part of a published installation plan in this project.")
         else:
             reason = ("No end user site in the selected geography and sector(s) has a Solution "
                       "available for its sector and state.")
@@ -879,6 +895,12 @@ async def get_facility_ingestion_template(
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
+    except HTTPException:
+        # A deliberate refusal -- a 400 naming what the Project Manager has to change -- must
+        # keep its own status and message. Falling through to the handler below re-wrapped it
+        # as a 500 reading "An unexpected error occurred: 400: ...", which reads as a crash
+        # rather than as guidance and hides the real status from the client.
+        raise
     except Exception as e:
         logger.error(f"Unhandled error in get_facility_ingestion_template: {e}")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
@@ -997,6 +1019,9 @@ async def get_facility_ingestion_template_with_staff(
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
+    except HTTPException:
+        # Keep a deliberate refusal's own status and message; see the note above.
+        raise
     except Exception as e:
         logger.error(f"Unhandled error in get_facility_ingestion_template_with_staff: {e}")
         cleanup_temp_file(output_file_path)
@@ -1051,6 +1076,9 @@ async def get_facility_ingestion_template_with_supervisors(
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
+    except HTTPException:
+        # Keep a deliberate refusal's own status and message; see the note above.
+        raise
     except Exception as e:
         logger.error(f"Unhandled error in get_facility_ingestion_template_with_supervisors: {e}")
         cleanup_temp_file(output_file_path)
