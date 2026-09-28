@@ -4,6 +4,7 @@ import { createRoute, Outlet, redirect } from "@tanstack/react-router";
 import { Building2, MapPinned } from "lucide-react";
 import { EU_ROUTES } from "./constants/routes";
 import { BoundaryListPage } from "./pages/employee/BoundaryListPage";
+import { BulkAddFacilitiesPage } from "./pages/employee/BulkAddFacilitiesPage";
 import { FacilityListPage } from "./pages/employee/FacilityListPage";
 import { UploadBoundaryPage } from "./pages/employee/UploadBoundaryPage";
 import { EU_ROLES } from "./utils/access";
@@ -32,6 +33,7 @@ export function createEuRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
   const basePath = contextPath();
   const euRootPath = `/${basePath}${EU_ROUTES.euRoot}`;
   const facilitiesPath = `/${basePath}${EU_ROUTES.facilities}`;
+  const facilitiesBulkAddPath = `/${basePath}${EU_ROUTES.facilitiesBulkAdd}`;
   const boundariesPath = `/${basePath}${EU_ROUTES.boundaries}`;
   const boundaryUploadPath = `/${basePath}${EU_ROUTES.boundaryUpload}`;
 
@@ -56,6 +58,12 @@ export function createEuRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
     component: FacilityListPage,
   });
 
+  const facilitiesBulkAddRoute = createRoute({
+    getParentRoute: () => euParentRoute,
+    path: facilitiesBulkAddPath,
+    component: BulkAddFacilitiesPage,
+  });
+
   const boundariesRoute = createRoute({
     getParentRoute: () => euParentRoute,
     path: boundariesPath,
@@ -69,7 +77,14 @@ export function createEuRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
   });
 
   return {
-    routes: [euParentRoute, euIndexRoute, facilitiesRoute, boundariesRoute, boundaryUploadRoute],
+    routes: [
+      euParentRoute,
+      euIndexRoute,
+      facilitiesRoute,
+      facilitiesBulkAddRoute,
+      boundariesRoute,
+      boundaryUploadRoute,
+    ],
     navItems: [
       {
         id: "eu-facilities",
@@ -77,6 +92,7 @@ export function createEuRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
         labelKey: "END_USER_SITES",
         to: facilitiesPath,
         icon: Building2,
+        matchPrefixes: [facilitiesBulkAddPath],
         roles: [...EU_ROLES],
       },
       {
