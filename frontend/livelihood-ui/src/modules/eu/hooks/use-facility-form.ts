@@ -182,6 +182,37 @@ export function useFacilityForm(editingFacilityId?: string) {
     };
   }
 
+  /**
+   * The update-request payload — spreads the facility's raw, untransformed
+   * record first so unedited fields (id, boundary code, POC username, etc.,
+   * all disabled in edit mode) are preserved, matching `fa`'s
+   * `FacilityDetails.js` `handleFacilityUpdate` payload exactly (no
+   * `facility_poc_username` or `blockBoundaryCode` override — those two are
+   * immutable once a facility exists).
+   */
+  function toUpdatePayload(raw: Record<string, unknown>, tenantId: string): Record<string, unknown> {
+    return {
+      ...raw,
+      tenant_id: tenantId,
+      facility_name: values.facilityName.trim(),
+      facility_category: values.facilityCategory,
+      facility_type: values.facilityType,
+      isActive: values.isOperational,
+      isOnmReady: values.isOnmReady,
+      address: {
+        tenantId,
+        ...(values.latitude.trim() ? { latitude: Number.parseFloat(values.latitude) } : {}),
+        ...(values.longitude.trim() ? { longitude: Number.parseFloat(values.longitude) } : {}),
+      },
+      facility_poc_name: values.pocName.trim(),
+      facility_poc_phone: values.pocPhone.trim(),
+      ...(values.pocEmail.trim() ? { facility_poc_email: values.pocEmail.trim() } : {}),
+      facility_details: {
+        ...(values.solarSolutionDesignType ? { solar_solution_design_type: values.solarSolutionDesignType } : {}),
+      },
+    };
+  }
+
   function reset(facility?: Facility) {
     setFieldErrors({});
     if (!facility) {
@@ -222,6 +253,7 @@ export function useFacilityForm(editingFacilityId?: string) {
     updateField,
     validate,
     toPayload,
+    toUpdatePayload,
     reset,
   };
 }

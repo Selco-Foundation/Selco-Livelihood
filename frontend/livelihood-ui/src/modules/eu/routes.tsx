@@ -5,6 +5,7 @@ import { Building2, MapPinned } from "lucide-react";
 import { EU_ROUTES } from "./constants/routes";
 import { BoundaryListPage } from "./pages/employee/BoundaryListPage";
 import { BulkAddFacilitiesPage } from "./pages/employee/BulkAddFacilitiesPage";
+import { FacilityDetailPage } from "./pages/employee/FacilityDetailPage";
 import { FacilityListPage } from "./pages/employee/FacilityListPage";
 import { UploadBoundaryPage } from "./pages/employee/UploadBoundaryPage";
 import { EU_ROLES } from "./utils/access";
@@ -64,6 +65,12 @@ export function createEuRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
     component: BulkAddFacilitiesPage,
   });
 
+  const facilityDetailRoute = createRoute({
+    getParentRoute: () => euParentRoute,
+    path: `${facilitiesPath}/$facilityId`,
+    component: FacilityDetailPage,
+  });
+
   const boundariesRoute = createRoute({
     getParentRoute: () => euParentRoute,
     path: boundariesPath,
@@ -82,6 +89,7 @@ export function createEuRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
       euIndexRoute,
       facilitiesRoute,
       facilitiesBulkAddRoute,
+      facilityDetailRoute,
       boundariesRoute,
       boundaryUploadRoute,
     ],
@@ -92,7 +100,9 @@ export function createEuRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
         labelKey: "END_USER_SITES",
         to: facilitiesPath,
         icon: Building2,
-        matchPrefixes: [facilitiesBulkAddPath],
+        // Covers bulk-add, facility detail, and (Phase 5) its nested
+        // activity/assessment-detail pages — all live under this one prefix.
+        matchPrefixes: [`${facilitiesPath}/`],
         roles: [...EU_ROLES],
       },
       {
