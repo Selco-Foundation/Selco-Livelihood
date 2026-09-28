@@ -5,8 +5,10 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogScrim,
   DialogTitle,
   toast,
+  useBodyScrollLock,
 } from "@/ui";
 import { useEffect } from "react";
 import { useBoundaryForm } from "../../hooks/use-boundary-form";
@@ -22,6 +24,8 @@ export function BoundaryFormDialog({ open, onOpenChange }: BoundaryFormDialogPro
   const { t } = useTranslate();
   const form = useBoundaryForm();
   const createBoundary = useCreateBoundary();
+
+  useBodyScrollLock(open);
 
   useEffect(() => {
     if (open) {
@@ -60,7 +64,15 @@ export function BoundaryFormDialog({ open, onOpenChange }: BoundaryFormDialogPro
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    // `modal={false}`: a modal Dialog's own scroll-lock only knows about its own
+    // content subtree, but FormSelectField's Popover list portals to document.body
+    // as a sibling — the lock swallowed wheel events over it, making the
+    // State/District list impossible to scroll with a mouse wheel (scrollbar drag
+    // still worked). `modal={false}` drops that lock, but Radix also skips
+    // rendering its dim/click-blocking overlay for a non-modal dialog, so
+    // `DialogScrim` + `useBodyScrollLock` restore both by hand.
+    <Dialog open={open} onOpenChange={onOpenChange} modal={false}>
+      <DialogScrim open={open} onDismiss={() => onOpenChange(false)} />
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{translateOr(t, "FA_ADD_BOUNDARY", "Add Boundary")}</DialogTitle>

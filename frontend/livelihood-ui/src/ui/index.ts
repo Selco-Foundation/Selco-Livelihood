@@ -169,3 +169,5 @@ export { Pagination } from "./components/pagination";
 export type { PaginationProps } from "./components/pagination";
 export { SearchableSelect } from "./components/searchable-select";
 export type { SearchableSelectOption, SearchableSelectProps } from "./components/searchable-select";
+export { useBodyScrollLock } from "./hooks/use-body-scroll-lock";
+export { DialogScrim } from "./components/dialog-scrim";

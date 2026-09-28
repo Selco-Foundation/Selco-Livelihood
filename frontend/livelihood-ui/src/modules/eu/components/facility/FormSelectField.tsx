@@ -90,7 +90,7 @@ export function FormSelectField({
               className="h-8 pl-8 text-sm"
             />
           </div>
-          <div className="flex max-h-56 flex-col gap-0.5 overflow-y-auto pr-2">
+          <div className="flex max-h-[min(14rem,calc(var(--radix-popover-content-available-height)-3rem))] flex-col gap-0.5 overflow-y-auto pr-2">
             {filteredOptions.length === 0 ? (
               <p className="px-2 py-1.5 text-sm text-muted-foreground">
                 {translateOr(t, "ES_COMMON_NO_OPTIONS", "No options found")}
