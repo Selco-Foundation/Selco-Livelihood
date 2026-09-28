@@ -119,6 +119,16 @@ BULK_INGEST_CHUNK_SIZE = 200
 SCOPE_LINK_CONFIRM_ATTEMPTS = 10
 SCOPE_LINK_CONFIRM_INTERVAL_SECONDS = 0.5
 AMC_CONFIGURATION_BULK_CHUNK_SIZE = 400
+# Result column the installation scope upload writes its per-row outcome into.
+LINKING_STATUS_COLUMN = "Installation Plan Linking Status"
+
+
+def _log_safe(value) -> str:
+    """Strip line breaks from a caller-supplied value before it goes into a log line, so a
+    crafted id cannot forge extra log entries."""
+    return str(value).replace("\r", "").replace("\n", "")
+
+
 ENVIRONMENT = os.getenv("ENVIRONMENT", "uat").lower()
 base_path = os.path.dirname(os.path.abspath(__file__))
 config_path = os.path.abspath(os.path.join(base_path, "..", "..", "config"))
@@ -2405,7 +2415,9 @@ def _facility_states_and_sectors_from_sheet(df, boundary_data_df, facility_clien
 
 @router.post('/fieldPlanfacilitiesValidateData',
              summary='Validate facility Excel file before processing',
-             response_description='Returns validation report Excel with PASSED/FAILED rows')
+             response_description='Returns validation report Excel with PASSED/FAILED rows',
+             responses={404: {"description": "Field plan not found"},
+                        502: {"description": "A dependent service could not be reached"}})
 async def validate_facilities_excel_sheet(
         background_tasks: BackgroundTasks,
         facility_file: UploadFile = File(..., description="Excel file containing facility data"),
@@ -2536,7 +2548,7 @@ async def validate_facilities_excel_sheet(
                 # Fail closed. An empty set would read as "nothing is installed yet" and let a
                 # removal through that strands approved work -- the one outcome this check exists
                 # to prevent.
-                logger.error(f"Could not read installation status for plan {fieldplan_id}: {e}",
+                logger.error(f"Could not read installation status for plan {_log_safe(fieldplan_id)}: {e}",
                              exc_info=True)
                 raise HTTPException(
                     status_code=502,
@@ -2865,7 +2877,9 @@ async def create_facilities_and_update_project(
 
 @router.post('/createFieldPlanFacility',
              summary='Create passed facility in Excel file and add them to project',
-             response_description='Created facilities from PASSED rows and added to the given project if selected')
+             response_description='Created facilities from PASSED rows and added to the given project if selected',
+             responses={400: {"description": "End user sites listed more than once"},
+                        502: {"description": "A dependent service could not be reached"}})
 async def create_fielplan_facilities(
         background_tasks: BackgroundTasks,
         facility_file: UploadFile = File(description="Validated Excel file with PASSED/FAILED status"),
@@ -2949,8 +2963,8 @@ async def create_fielplan_facilities(
             )
 
         # add result columns if missing
-        if 'Installation Plan Linking Status' not in df.columns:
-            df['Installation Plan Linking Status'] = ''
+        if LINKING_STATUS_COLUMN not in df.columns:
+            df[LINKING_STATUS_COLUMN] = ''
 
         fieldplan_client = FieldPlanServiceClient(fieldPlan_service_url)
         fieldplan_activity_client = FieldPlanActivityServiceClient(fieldPlan_activity_service_url)
@@ -3018,7 +3032,7 @@ async def create_fielplan_facilities(
                             request_info, fieldplan_id, list(fieldplan_linked_facility_ids))
                     except Exception as e:
                         logger.error(
-                            f"Could not read installation status for plan {fieldplan_id}: {e}",
+                            f"Could not read installation status for plan {_log_safe(fieldplan_id)}: {e}",
                             exc_info=True)
                         raise HTTPException(
                             status_code=502,
@@ -3055,12 +3069,13 @@ async def create_fielplan_facilities(
                                 and facility_id not in completed_site_ids
                             )
                             if not withdrawing_uninstalled:
-                                df.at[index, 'Installation Plan Linking Status'] = (
-                                    "Locked (installation completed)"
-                                    if lock.is_this_plan and facility_id in completed_site_ids
-                                    else "Locked (this plan)" if lock.is_this_plan
-                                    else f"Locked by another plan ({lock.field_plan_name or lock.field_plan_id})"
-                                )
+                                if lock.is_this_plan and facility_id in completed_site_ids:
+                                    lock_status = "Locked (installation completed)"
+                                elif lock.is_this_plan:
+                                    lock_status = "Locked (this plan)"
+                                else:
+                                    lock_status = f"Locked by another plan ({lock.field_plan_name or lock.field_plan_id})"
+                                df.at[index, LINKING_STATUS_COLUMN] = lock_status
                                 continue
 
                         solution_name = ""
@@ -3069,7 +3084,7 @@ async def create_fielplan_facilities(
                             solution_name = "" if pd.isna(raw_solution) else str(raw_solution).strip()
                         solution_code = solution_code_by_name.get(solution_name) if solution_name else None
                         if solution_name and not solution_code:
-                            df.at[index, 'Installation Plan Linking Status'] = f"Unknown Solution '{solution_name}'"
+                            df.at[index, LINKING_STATUS_COLUMN] = f"Unknown Solution '{solution_name}'"
                             continue
 
                         # ---------- CASE A: existing facility_id present -> skip creation, attempt linking if requested ----------
@@ -3079,7 +3094,7 @@ async def create_fielplan_facilities(
                             if facility_id in fieldplan_linked_facility_ids:
                                 if should_link:
                                     # already linked → skip API
-                                    df.at[index, 'Installation Plan Linking Status'] = "Already Linked"
+                                    df.at[index, LINKING_STATUS_COLUMN] = "Already Linked"
                                 else:
                                     # linked but Excel says No → unlink
                                     try:
@@ -3099,22 +3114,22 @@ async def create_fielplan_facilities(
                                         facility_activity_ids = list({fa.get("activityFacility").get("id") for fa in facilities_activity if fa.get("activityFacility").get("id")})
                                         fieldplan_activity_client.delete_facility_activity(request_info=request_info, facility_activity_id=facility_activity_ids)
 
-                                        df.at[index, 'Installation Plan Linking Status'] = "Unlinked"
+                                        df.at[index, LINKING_STATUS_COLUMN] = "Unlinked"
                                         fieldplan_linked_facility_ids.remove(facility_id)
                                     except Exception as e:
-                                        df.at[index, 'Installation Plan Linking Status'] = f"Exception during unlink: {str(e)}"
+                                        df.at[index, LINKING_STATUS_COLUMN] = f"Exception during unlink: {str(e)}"
                             else:
                                 if should_link:
                                     pending_bulk_fieldplan_links.append((index, facility_id, solution_code))
                                 else:
-                                    df.at[index, 'Installation Plan Linking Status'] = "Skipped (Include in Installation Plan != Yes)"
+                                    df.at[index, LINKING_STATUS_COLUMN] = "Skipped (Include in Installation Plan != Yes)"
 
                                 # continue to next row
                                 continue
 
                     except Exception as e:
                         # any unexpected error per row
-                        df.at[index, 'Installation Plan Linking Status'] = "Not Attempted"
+                        df.at[index, LINKING_STATUS_COLUMN] = "Not Attempted"
                         continue
 
                 if pending_bulk_fieldplan_links:
@@ -3134,7 +3149,7 @@ async def create_fielplan_facilities(
 
                             if fieldplan_resp.status_code in (200, 201, 202):
                                 for row_idx, facility_id, _solution_code in chunk:
-                                    df.at[row_idx, 'Installation Plan Linking Status'] = "Linked"
+                                    df.at[row_idx, LINKING_STATUS_COLUMN] = "Linked"
                                     fieldplan_linked_facility_ids.add(facility_id)
 
                                     if fieldplan_data:
@@ -3162,10 +3177,10 @@ async def create_fielplan_facilities(
                                                 logger.error(f"Error creating facility activity for {facility_id}: {activity_exc}", exc_info=True)
                             else:
                                 for row_idx, _facility_id, _solution_code in chunk:
-                                    df.at[row_idx, 'Installation Plan Linking Status'] = f"Failed: {fieldplan_resp.status_code} {fieldplan_resp.text}"
+                                    df.at[row_idx, LINKING_STATUS_COLUMN] = f"Failed: {fieldplan_resp.status_code} {fieldplan_resp.text}"
                         except Exception as bulk_exc:
                             for row_idx, _facility_id, _solution_code in chunk:
-                                df.at[row_idx, 'Installation Plan Linking Status'] = f"Exception: {str(bulk_exc)}"
+                                df.at[row_idx, LINKING_STATUS_COLUMN] = f"Exception: {str(bulk_exc)}"
 
                     # Confirm the rows actually landed before telling the Project Manager they did.
                     #
@@ -3203,8 +3218,8 @@ async def create_fielplan_facilities(
                             # Only downgrade rows we optimistically marked Linked -- a row that
                             # already says Failed/Exception has a more specific cause.
                             if (facility_id in unconfirmed
-                                    and df.at[row_idx, 'Installation Plan Linking Status'] == "Linked"):
-                                df.at[row_idx, 'Installation Plan Linking Status'] = (
+                                    and df.at[row_idx, LINKING_STATUS_COLUMN] == "Linked"):
+                                df.at[row_idx, LINKING_STATUS_COLUMN] = (
                                     "Pending: accepted but not yet saved. Re-upload this sheet "
                                     "to confirm before moving to the Template step.")
                                 fieldplan_linked_facility_ids.discard(facility_id)
@@ -3225,7 +3240,7 @@ async def create_fielplan_facilities(
                 # which reads as "no sites matched" rather than as a failure. Keep the
                 # response shape, but make the cause traceable and say so in the sheet.
                 logger.error(f"Field plan linking failed for {fieldplan_id}: {e}", exc_info=True)
-                df['Installation Plan Linking Status'] = df['Installation Plan Linking Status'].replace(
+                df[LINKING_STATUS_COLUMN] = df[LINKING_STATUS_COLUMN].replace(
                     "", f"Not attempted: {type(e).__name__}: {e}"
                 )
 
@@ -3233,7 +3248,7 @@ async def create_fielplan_facilities(
         # Ensure headers exist in sheet (without wiping template)
         header_values = [cell.value for cell in ws[1]]
 
-        for col_name in ["Installation Plan Linking Status"]:
+        for col_name in [LINKING_STATUS_COLUMN]:
             if col_name not in header_values:
                 cell = ws.cell(row=1, column=len(header_values) + 1, value=col_name)
                 cell.font = Font(bold=True)
@@ -3461,7 +3476,9 @@ async def validate_installation_template(
 
 @router.post('/createInstallationTemplate',
              summary='Store a validated IC Report template for one Solution',
-             response_description='Returns the saved template summary as JSON')
+             response_description='Returns the saved template summary as JSON',
+             responses={400: {"description": "The template still has errors"},
+                        502: {"description": "A dependent service could not be reached"}})
 async def create_installation_template(
         template_file: UploadFile = File(..., description="The filled IC Report template"),
         fieldplan_id: str = Form(..., description="Field plan id"),
@@ -3732,7 +3749,8 @@ def get_vendor_id_for_amc_field_staff(user_info_data: List[dict]) -> str:
 
 @router.post('/amcConfigurationBulkIngest',
              summary='Bulk ingest AMC configuration template data',
-             response_description="Returns processed Excel file with AMC configuration creation results")
+             response_description="Returns processed Excel file with AMC configuration creation results",
+             responses={400: {"description": "user_info_list does not identify a single AMC vendor"}})
 async def bulk_ingest_amc_configurations(
         background_tasks: BackgroundTasks,
         amc_file: UploadFile = File(..., description="Excel file containing AMC configuration data"),

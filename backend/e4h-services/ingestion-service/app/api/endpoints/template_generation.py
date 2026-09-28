@@ -341,7 +341,8 @@ def _restrict_to_plan_geography(request_info, fieldplan_id, facilities, linked_f
 
 @router.post('/fieldplanFacilityIngestionTemplate',
             summary='Generate facility ingestion template Excel file with schema, already present data and boundary codes',
-            response_description="Returns Excel template with facility schema, facility data and boundary codes")
+            response_description="Returns Excel template with facility schema, facility data and boundary codes",
+             responses={400: {"description": "No end user site is available for the plan"}})
 async def get_facility_ingestion_template_with_data(
         background_tasks: BackgroundTasks,
         facility_service: FacilityTemplateService = Depends(),
@@ -676,9 +677,31 @@ async def get_facility_ingestion_template_with_data(
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
 
+def _preflight_empty_reason(candidates, candidates_in_geography: int,
+                            candidates_in_sectors: int) -> Optional[str]:
+    """Say which stage emptied the set, so the PM knows whether to change the geography, the
+    sectors, or to go and look at the sibling plan holding the sites. None when there is
+    something to add."""
+    if candidates.addable_count > 0:
+        return None
+    if candidates_in_geography == 0:
+        cause = "No end user site in this project falls within the selected geography."
+    elif candidates_in_sectors == 0:
+        cause = "None of the end user sites in the selected geography belong to the selected sector(s)."
+    elif candidates.locked_elsewhere_ids and not candidates.no_solution_ids:
+        cause = ("Every matching end user site is already part of a published installation "
+                 "plan in this project.")
+    else:
+        cause = "None of the matching end user sites has a Solution available for its sector and state."
+    return (f"There are no end user sites available in the selected geography and sectors. "
+            f"{cause} Change the geography or sectors to create this installation plan.")
+
+
 @router.post('/installationScopePreflight',
              summary='Check whether a geography and sector selection yields any addable end user site',
-             response_description="Counts of addable and skipped sites for an Installation Plan's scope")
+             response_description="Counts of addable and skipped sites for an Installation Plan's scope",
+             responses={400: {"description": "project_id or boundary_data missing"},
+                        502: {"description": "A dependent service could not be reached"}})
 async def installation_scope_preflight(payload: dict = Body(..., description="RequestInfo, project_id, sectors, boundary_data")):
     """Answer "can this plan have a scope at all?" before the Project Manager commits to a
     geography and sector selection.
@@ -756,21 +779,8 @@ async def installation_scope_preflight(payload: dict = Body(..., description="Re
         logger.error(f"Installation scope preflight failed for project {project_id}: {e}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"Could not check the selected geography and sectors: {e}")
 
-    # Say which stage emptied the set, so the PM knows whether to change the geography, the
-    # sectors, or to go and look at the sibling plan holding the sites.
-    reason = None
-    if candidates.addable_count == 0:
-        if candidates_in_geography == 0:
-            cause = "No end user site in this project falls within the selected geography."
-        elif candidates_in_sectors == 0:
-            cause = "None of the end user sites in the selected geography belong to the selected sector(s)."
-        elif candidates.locked_elsewhere_ids and not candidates.no_solution_ids:
-            cause = ("Every matching end user site is already part of a published installation "
-                     "plan in this project.")
-        else:
-            cause = "None of the matching end user sites has a Solution available for its sector and state."
-        reason = (f"There are no end user sites available in the selected geography and sectors. "
-                  f"{cause} Change the geography or sectors to create this installation plan.")
+    reason = _preflight_empty_reason(candidates, candidates_in_geography, candidates_in_sectors)
+    if reason:
         logger.info(f"Preflight found no addable site for project {project_id}: {reason}")
 
     return {
