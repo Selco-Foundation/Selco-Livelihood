@@ -73,7 +73,7 @@ jobs:
           context: .
           file: build/maven/Dockerfile
           push: true
-          tags: selcohub/asset-registry:${{ env.VERSION }}-${{ env.commit_hash }}
+          tags: selcohub/asset-registry-lh:${{ env.VERSION }}-${{ env.commit_hash }}
           cache-from: type=gha   # Stores cache in GitHub Actions .
           cache-to: type=gha,mode=max  # max- stores all the layers including the intermediate layers in multi-stage
           build-args: |
@@ -81,8 +81,8 @@ jobs:
           
       - name: Build and Push Docker image for asset-registry-DB
         run: |
-          docker build  -t selcohub/asset-registry-db:${{ env.VERSION }}-${{ env.commit_hash }} -f  Dockerfile .
-          docker push selcohub/asset-registry-db:${{ env.VERSION }}-${{ env.commit_hash }}
+          docker build  -t selcohub/asset-registry-db-lh:${{ env.VERSION }}-${{ env.commit_hash }} -f  Dockerfile .
+          docker push selcohub/asset-registry-db-lh:${{ env.VERSION }}-${{ env.commit_hash }}
         working-directory: backend/e4h-services/asset-registry/src/main/resources/db
 
 
