@@ -2,7 +2,7 @@ import { extractApiErrorMessage, translateOr, useAuthStore, useTranslate, employ
 import { Button, TopBar } from "@/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { ConfirmSubmitDialog } from "../../components/ConfirmSubmitDialog";
 import { WizardStepper } from "../../components/WizardStepper";
 import { WizardSuccessCard } from "../../components/WizardSuccessCard";
@@ -29,8 +29,17 @@ import type { InstallationPlanRouteSearch } from "../../routes";
 import { publishInstallationPlan, type SavedInstallationPlan } from "../../services/installation-plan";
 import { validateVendorAssignment } from "../../services/vendor-assignment";
 import type { InstallationPlan } from "../../types/installation-plan";
+import type { Project } from "../../types/project";
 import { pmMyProjectsPath, pmProjectDetailsPath } from "../../utils/paths";
 import { tenantId } from "@/shared/config/global-config";
+
+/** The route's search-param navigator, cast once from the untyped `useNavigate()` (see the
+ *  comment at its one call site) -- named so the extracted hooks below can take it as a
+ *  parameter instead of each re-declaring the same inline type. */
+type PlanNavigate = (opts: {
+  search: (prev: InstallationPlanRouteSearch) => InstallationPlanRouteSearch;
+  replace?: boolean;
+}) => Promise<void>;
 
 export function CreateInstallationPlanPage() {
   const { t } = useTranslate();
@@ -47,10 +56,7 @@ export function CreateInstallationPlanPage() {
   // CreateProjectPage/im's InboxPage).
   const search = useSearch({ strict: false }) as InstallationPlanRouteSearch;
   const rawNavigate = useNavigate();
-  const navigate = rawNavigate as (opts: {
-    search: (prev: InstallationPlanRouteSearch) => InstallationPlanRouteSearch;
-    replace?: boolean;
-  }) => Promise<void>;
+  const navigate = rawNavigate as PlanNavigate;
 
   const projectId = search.projectId;
   const planId = search.planId;
@@ -89,81 +95,12 @@ export function CreateInstallationPlanPage() {
   const [isPlanHydrated, setIsPlanHydrated] = useState(!planId);
   const [saveError, setSaveError] = useState<string | undefined>(undefined);
 
-  useEffect(() => {
-    if (!planId) {
-      setIsPlanHydrated(true);
-      return;
-    }
-    if (!existingPlan) return;
-    // The scope and template queries have to settle too, not just the plan. They are separate
-    // requests, and until they land `scope`/`templates` are empty, which makes maxAccessibleStep
-    // 2 -- so marking the plan hydrated on `existingPlan` alone lets the guard below rewrite a
-    // reload of step 3 or 4 back to step 2, with `replace`, losing the history entry.
-    if (isScopeLoading || isTemplatesLoading) return;
-    // reviewerCode is intentionally left out here and preserved from prior state: the assigned
-    // reviewer is never part of this response (see the dedicated effect below), so resetting it
-    // to "" on every hydration would clobber that effect's result if existingPlan ever refetches.
-    setPlanDetails((prev) => ({
-      geographyDetails: existingPlan.geographyDetails ?? {},
-      sectorCodes: existingPlan.additionalDetails?.sectorCodes ?? [],
-      reviewerCode: prev.reviewerCode,
-      startDate: existingPlan.startDate,
-      endDate: existingPlan.endDate,
-    }));
-    // scope, templates and assignments are intentionally left out here too, for the same reason
-    // as reviewerCode: none of them is part of this response (see the dedicated effects below),
-    // so resetting them on every hydration would wipe out those effects' results if existingPlan
-    // ever refetches.
-    setIsPlanHydrated(true);
-  }, [existingPlan, planId, isScopeLoading, isTemplatesLoading]);
-
-  // The assigned reviewer lives in field-planner-activity's activity_assignments, not on
-  // field-planner's own FieldPlan response, so it can't come from the hydration effect above —
-  // it resolves separately and is patched in once available. Guarded on reviewerCode still being
-  // empty so it can't clobber a value the PM has since changed.
-  useEffect(() => {
-    if (!planId || !assignedReviewer) return;
-    setPlanDetails((prev) => (prev.reviewerCode ? prev : { ...prev, reviewerCode: assignedReviewer }));
-  }, [assignedReviewer, planId]);
-
-  // The plan's real Installation Scope lives in field_plan_facilities, not on field-planner's own
-  // FieldPlan response either -- same reason, own effect. Guarded on scope still being empty so a
-  // scope just uploaded this session (or a re-upload with different entries) isn't clobbered by a
-  // stale fetch resolving late.
-  useEffect(() => {
-    if (!planId || !savedScope || savedScope.length === 0) return;
-    setScope((prev) => (prev.length > 0 ? prev : savedScope));
-  }, [savedScope, planId]);
-
-  // Same reasoning again for the plan's already-uploaded IC report templates -- field_plan_template
-  // rows live outside field-planner's FieldPlan object too.
-  useEffect(() => {
-    if (!planId || !savedTemplates || savedTemplates.length === 0) return;
-    setTemplates((prev) => (prev.length > 0 ? prev : savedTemplates));
-  }, [savedTemplates, planId]);
-
-  // ...and once more for the saved technician assignments. `additionalDetails.assignments` is
-  // never echoed back by field-planner either, so reopening a draft used to land on step 4 with
-  // every dropdown blank even though the vendors had been saved. They do come back on the
-  // vendor-assignment search already loaded above — each asset carries its own vendor fields —
-  // so they're flattened out of that rather than fetched again. Same empty-guard as the others.
-  useEffect(() => {
-    if (!planId || !savedAssignments || savedAssignments.length === 0) return;
-    setAssignments((prev) => (prev.length > 0 ? prev : savedAssignments));
-  }, [savedAssignments, planId]);
-
-  // A new plan's dates default to the project's own start date and one month past it, capped at
-  // the project's own end date if that's sooner — never left blank for the PM to fill in from
-  // scratch. Only for a brand-new plan (existingPlan's own dates already win via the hydration
-  // effect above), and only once: guarded on startDate still being unset so it doesn't clobber a
-  // date the PM has since edited.
-  useEffect(() => {
-    if (planId || !project?.startDate || planDetails.startDate !== undefined) return;
-    const oneMonthOut = new Date(project.startDate);
-    oneMonthOut.setMonth(oneMonthOut.getMonth() + 1);
-    const defaultEndDate = project.endDate ? Math.min(oneMonthOut.getTime(), project.endDate) : oneMonthOut.getTime();
-    setPlanDetails((prev) => ({ ...prev, startDate: project.startDate, endDate: defaultEndDate }));
-  }, [project, planId, planDetails.startDate]);
+  usePlanDetailsHydration(planId, existingPlan, isScopeLoading, isTemplatesLoading, setPlanDetails, setIsPlanHydrated);
+  useReviewerHydration(planId, assignedReviewer, setPlanDetails);
+  useScopeHydration(planId, savedScope, setScope);
+  useTemplatesHydration(planId, savedTemplates, setTemplates);
+  useAssignmentsHydration(planId, savedAssignments, setAssignments);
+  useDefaultPlanDates(planId, project, planDetails.startDate, setPlanDetails);
 
   const isPublished = existingPlan?.additionalDetails?.status === "PUBLISHED";
 
@@ -199,15 +136,27 @@ export function CreateInstallationPlanPage() {
   const isTemplateComplete = isTemplateStepValid(templates, uniqueSolutionCodes);
   // The rail represents completed stages. A completed stage unlocks only
   // the next one, so the numbered navigation cannot skip unfinished work.
-  const maxAccessibleStep = !planId ? 1 : !isScopeComplete ? 2 : !isTemplateComplete ? 3 : 4;
-  const canGoNext =
-    currentStep === 1
-      ? isPlanDetailsComplete
-      : currentStep === 2
-        ? isScopeComplete
-        : currentStep === 3
-          ? isTemplateComplete
-          : false;
+  let maxAccessibleStep: number;
+  if (!planId) {
+    maxAccessibleStep = 1;
+  } else if (!isScopeComplete) {
+    maxAccessibleStep = 2;
+  } else if (!isTemplateComplete) {
+    maxAccessibleStep = 3;
+  } else {
+    maxAccessibleStep = 4;
+  }
+
+  let canGoNext: boolean;
+  if (currentStep === 1) {
+    canGoNext = isPlanDetailsComplete;
+  } else if (currentStep === 2) {
+    canGoNext = isScopeComplete;
+  } else if (currentStep === 3) {
+    canGoNext = isTemplateComplete;
+  } else {
+    canGoNext = false;
+  }
 
   // Scope application reports its completed entries before React has flushed
   // the child hook's final `done` state. Once those valid entries are in the
@@ -215,10 +164,7 @@ export function CreateInstallationPlanPage() {
   // stale busy flag for one more render.
   const isNavigationBusy = savePlan.isPending || (scopeBusy && !isScopeComplete) || templateBusy;
 
-  useEffect(() => {
-    if (!isPlanHydrated || currentStep <= maxAccessibleStep) return;
-    void navigate({ search: (prev) => ({ ...prev, step: maxAccessibleStep }), replace: true });
-  }, [currentStep, isPlanHydrated, maxAccessibleStep, navigate]);
+  useStepGuard(isPlanHydrated, currentStep, maxAccessibleStep, navigate);
 
   function goToStep(step: number) {
     if (isNavigationBusy || step < 1 || step > maxAccessibleStep) return;
@@ -312,6 +258,89 @@ export function CreateInstallationPlanPage() {
     }
   }
 
+  function renderStepContent() {
+    if (currentStep === 1) {
+      return (
+        <PlanDetailsStep
+          value={planDetails}
+          onChange={setPlanDetails}
+          projectGeography={project?.additionalDetails?.geographyDetails ?? {}}
+          projectStartDate={project?.startDate}
+          projectEndDate={project?.endDate}
+          locked={Boolean(planId)}
+          // Kept locked while the lookup is still in flight, so the field doesn't flicker
+          // editable; unlocked only once we know this plan genuinely has no reviewer, which
+          // means the assignment failed after creation and needs to be redone.
+          reviewerLocked={Boolean(planId) && (isReviewerLoading || Boolean(assignedReviewer))}
+        />
+      );
+    }
+    if (currentStep === 2) {
+      return (
+        <InstallationScopeStep
+          planId={planId}
+          planCode={existingPlan?.name}
+          projectId={projectId}
+          projectGeography={project?.additionalDetails?.geographyDetails ?? {}}
+          sectorCodes={planDetails.sectorCodes}
+          onChange={setScope}
+          onBusyChange={setScopeBusy}
+          onScopeApplied={(entries) => {
+            setScope(entries);
+            setScopeApplied(true);
+          }}
+        />
+      );
+    }
+    if (currentStep === 3) {
+      return (
+        <TemplateStep
+          planId={planId}
+          planCode={existingPlan?.name}
+          scope={scope}
+          projectGeography={project?.additionalDetails?.geographyDetails ?? {}}
+          value={templates}
+          onChange={setTemplates}
+          onBusyChange={setTemplateBusy}
+          locked={isPublished}
+        />
+      );
+    }
+    if (currentStep === 4) {
+      return (
+        <TechnicianAssignmentStep
+          planId={planId}
+          planCode={existingPlan?.name}
+          value={assignments}
+          onChange={setAssignments}
+          locked={isPublished}
+        />
+      );
+    }
+    return null;
+  }
+
+  function renderFooterButtons() {
+    if (currentStep < 4) {
+      return (
+        <Button type="button" size="sm" className="px-5" onClick={handleNext} disabled={!canGoNext || isNavigationBusy}>
+          {translateOr(t, "CORE_COMMON_NEXT", "Next")}
+        </Button>
+      );
+    }
+    return (
+      <Button
+        type="button"
+        size="sm"
+        className="px-5"
+        onClick={() => setConfirmOpen(true)}
+        disabled={!isAssignmentValid(assignments, assignmentRows) || isNavigationBusy}
+      >
+        {translateOr(t, "CORE_COMMON_SUBMIT", "Submit")}
+      </Button>
+    );
+  }
+
   if (justPublished) {
     return (
       <WizardSuccessCard
@@ -366,57 +395,7 @@ export function CreateInstallationPlanPage() {
         allCompleted={isPublished}
       />
 
-      {currentStep === 1 ? (
-        <PlanDetailsStep
-          value={planDetails}
-          onChange={setPlanDetails}
-          projectGeography={project?.additionalDetails?.geographyDetails ?? {}}
-          projectStartDate={project?.startDate}
-          projectEndDate={project?.endDate}
-          locked={Boolean(planId)}
-          // Kept locked while the lookup is still in flight, so the field doesn't flicker
-          // editable; unlocked only once we know this plan genuinely has no reviewer, which
-          // means the assignment failed after creation and needs to be redone.
-          reviewerLocked={Boolean(planId) && (isReviewerLoading || Boolean(assignedReviewer))}
-        />
-      ) : null}
-      {currentStep === 2 ? (
-        <InstallationScopeStep
-          planId={planId}
-          planCode={existingPlan?.name}
-          projectId={projectId}
-          projectGeography={project?.additionalDetails?.geographyDetails ?? {}}
-          sectorCodes={planDetails.sectorCodes}
-          value={scope}
-          onChange={setScope}
-          onBusyChange={setScopeBusy}
-          onScopeApplied={(entries) => {
-            setScope(entries);
-            setScopeApplied(true);
-          }}
-        />
-      ) : null}
-      {currentStep === 3 ? (
-        <TemplateStep
-          planId={planId}
-          planCode={existingPlan?.name}
-          scope={scope}
-          projectGeography={project?.additionalDetails?.geographyDetails ?? {}}
-          value={templates}
-          onChange={setTemplates}
-          onBusyChange={setTemplateBusy}
-          locked={isPublished}
-        />
-      ) : null}
-      {currentStep === 4 ? (
-        <TechnicianAssignmentStep
-          planId={planId}
-          planCode={existingPlan?.name}
-          value={assignments}
-          onChange={setAssignments}
-          locked={isPublished}
-        />
-      ) : null}
+      {renderStepContent()}
 
       {saveError ? (
         <p className="text-sm whitespace-pre-line text-destructive" role="alert">
@@ -437,21 +416,7 @@ export function CreateInstallationPlanPage() {
               {translateOr(t, "CORE_COMMON_BACK", "Back")}
             </Button>
           ) : null}
-          {currentStep < 4 ? (
-            <Button type="button" size="sm" className="px-5" onClick={handleNext} disabled={!canGoNext || isNavigationBusy}>
-              {translateOr(t, "CORE_COMMON_NEXT", "Next")}
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              size="sm"
-              className="px-5"
-              onClick={() => setConfirmOpen(true)}
-              disabled={!isAssignmentValid(assignments, assignmentRows) || isNavigationBusy}
-            >
-              {translateOr(t, "CORE_COMMON_SUBMIT", "Submit")}
-            </Button>
-          )}
+          {renderFooterButtons()}
         </WizardActionFooter>
       ) : null}
 
@@ -469,4 +434,145 @@ export function CreateInstallationPlanPage() {
       />
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------------------------
+// The wizard's data-hydration effects, extracted to their own top-level functions (rather than
+// left inline in the component) so each keeps its own, independently readable control flow --
+// they are unchanged from what used to run directly inside CreateInstallationPlanPage, moved
+// verbatim including every guard and comment below.
+// ---------------------------------------------------------------------------------------------
+
+/** Loads an existing plan's own fields into local state once the plan itself -- and the two
+ *  sibling queries whose absence would otherwise make the plan look unfinished -- have all
+ *  resolved. */
+function usePlanDetailsHydration(
+  planId: string | undefined,
+  existingPlan: InstallationPlan | null | undefined,
+  isScopeLoading: boolean,
+  isTemplatesLoading: boolean,
+  setPlanDetails: Dispatch<SetStateAction<PlanDetailsValue>>,
+  setIsPlanHydrated: Dispatch<SetStateAction<boolean>>,
+) {
+  useEffect(() => {
+    if (!planId) {
+      setIsPlanHydrated(true);
+      return;
+    }
+    if (!existingPlan) return;
+    // The scope and template queries have to settle too, not just the plan. They are separate
+    // requests, and until they land `scope`/`templates` are empty, which makes maxAccessibleStep
+    // 2 -- so marking the plan hydrated on `existingPlan` alone lets the guard below rewrite a
+    // reload of step 3 or 4 back to step 2, with `replace`, losing the history entry.
+    if (isScopeLoading || isTemplatesLoading) return;
+    // reviewerCode is intentionally left out here and preserved from prior state: the assigned
+    // reviewer is never part of this response (see useReviewerHydration below), so resetting it
+    // to "" on every hydration would clobber that effect's result if existingPlan ever refetches.
+    setPlanDetails((prev) => ({
+      geographyDetails: existingPlan.geographyDetails ?? {},
+      sectorCodes: existingPlan.additionalDetails?.sectorCodes ?? [],
+      reviewerCode: prev.reviewerCode,
+      startDate: existingPlan.startDate,
+      endDate: existingPlan.endDate,
+    }));
+    // scope, templates and assignments are intentionally left out here too, for the same reason
+    // as reviewerCode: none of them is part of this response (see the hydration hooks below),
+    // so resetting them on every hydration would wipe out those effects' results if existingPlan
+    // ever refetches.
+    setIsPlanHydrated(true);
+  }, [existingPlan, planId, isScopeLoading, isTemplatesLoading]);
+}
+
+/** The assigned reviewer lives in field-planner-activity's activity_assignments, not on
+ *  field-planner's own FieldPlan response, so it can't come from `usePlanDetailsHydration` above
+ *  -- it resolves separately and is patched in once available. Guarded on reviewerCode still
+ *  being empty so it can't clobber a value the PM has since changed. */
+function useReviewerHydration(
+  planId: string | undefined,
+  assignedReviewer: string | undefined,
+  setPlanDetails: Dispatch<SetStateAction<PlanDetailsValue>>,
+) {
+  useEffect(() => {
+    if (!planId || !assignedReviewer) return;
+    setPlanDetails((prev) => (prev.reviewerCode ? prev : { ...prev, reviewerCode: assignedReviewer }));
+  }, [assignedReviewer, planId]);
+}
+
+/** The plan's real Installation Scope lives in field_plan_facilities, not on field-planner's own
+ *  FieldPlan response either -- same reason, own effect. Guarded on scope still being empty so a
+ *  scope just uploaded this session (or a re-upload with different entries) isn't clobbered by a
+ *  stale fetch resolving late. */
+function useScopeHydration(
+  planId: string | undefined,
+  savedScope: ScopeValue | undefined,
+  setScope: Dispatch<SetStateAction<ScopeValue>>,
+) {
+  useEffect(() => {
+    if (!planId || !savedScope || savedScope.length === 0) return;
+    setScope((prev) => (prev.length > 0 ? prev : savedScope));
+  }, [savedScope, planId]);
+}
+
+/** Same reasoning again for the plan's already-uploaded IC report templates --
+ *  field_plan_template rows live outside field-planner's FieldPlan object too. */
+function useTemplatesHydration(
+  planId: string | undefined,
+  savedTemplates: TemplateValue | undefined,
+  setTemplates: Dispatch<SetStateAction<TemplateValue>>,
+) {
+  useEffect(() => {
+    if (!planId || !savedTemplates || savedTemplates.length === 0) return;
+    setTemplates((prev) => (prev.length > 0 ? prev : savedTemplates));
+  }, [savedTemplates, planId]);
+}
+
+/** ...and once more for the saved technician assignments. `additionalDetails.assignments` is
+ *  never echoed back by field-planner either, so reopening a draft used to land on step 4 with
+ *  every dropdown blank even though the vendors had been saved. They do come back on the
+ *  vendor-assignment search already loaded by the page -- each asset carries its own vendor
+ *  fields -- so they're flattened out of that rather than fetched again. Same empty-guard as the
+ *  others. */
+function useAssignmentsHydration(
+  planId: string | undefined,
+  savedAssignments: AssignmentValue,
+  setAssignments: Dispatch<SetStateAction<AssignmentValue>>,
+) {
+  useEffect(() => {
+    if (!planId || !savedAssignments || savedAssignments.length === 0) return;
+    setAssignments((prev) => (prev.length > 0 ? prev : savedAssignments));
+  }, [savedAssignments, planId]);
+}
+
+/** A new plan's dates default to the project's own start date and one month past it, capped at
+ *  the project's own end date if that's sooner -- never left blank for the PM to fill in from
+ *  scratch. Only for a brand-new plan (an existing plan's own dates already win via
+ *  `usePlanDetailsHydration` above), and only once: guarded on startDate still being unset so it
+ *  doesn't clobber a date the PM has since edited. */
+function useDefaultPlanDates(
+  planId: string | undefined,
+  project: Project | null | undefined,
+  planDetailsStartDate: number | undefined,
+  setPlanDetails: Dispatch<SetStateAction<PlanDetailsValue>>,
+) {
+  useEffect(() => {
+    if (planId || !project?.startDate || planDetailsStartDate !== undefined) return;
+    const oneMonthOut = new Date(project.startDate);
+    oneMonthOut.setMonth(oneMonthOut.getMonth() + 1);
+    const defaultEndDate = project.endDate ? Math.min(oneMonthOut.getTime(), project.endDate) : oneMonthOut.getTime();
+    setPlanDetails((prev) => ({ ...prev, startDate: project.startDate, endDate: defaultEndDate }));
+  }, [project, planId, planDetailsStartDate]);
+}
+
+/** Redirects back to the furthest step the plan has actually earned whenever the URL points past
+ *  it -- a reload or a hand-edited link to a later step, most often. */
+function useStepGuard(
+  isPlanHydrated: boolean,
+  currentStep: number,
+  maxAccessibleStep: number,
+  navigate: PlanNavigate,
+) {
+  useEffect(() => {
+    if (!isPlanHydrated || currentStep <= maxAccessibleStep) return;
+    void navigate({ search: (prev) => ({ ...prev, step: maxAccessibleStep }), replace: true });
+  }, [currentStep, isPlanHydrated, maxAccessibleStep, navigate]);
 }

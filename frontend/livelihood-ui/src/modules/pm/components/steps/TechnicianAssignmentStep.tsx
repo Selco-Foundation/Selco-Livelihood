@@ -19,6 +19,12 @@ export interface TechnicianAssignmentRow {
   assetName: string;
 }
 
+/** "Anjali Bora, Solar Panel" — the row context a screen reader needs, since the table's own
+ *  column and row headers are not announced by the selects inside its cells. */
+function rowLabel(row: TechnicianAssignmentRow): string {
+  return `${row.siteName}, ${row.assetName}`;
+}
+
 export function toRows(sites: VendorAssignmentSite[]): TechnicianAssignmentRow[] {
   return sites.flatMap((site) =>
     site.assets.map((asset) => ({
@@ -84,17 +90,24 @@ function VendorUserSelect({
   value,
   onChange,
   disabled,
-}: {
+  rowLabel,
+}: Readonly<{
   organizationId: string | undefined;
   value: string;
   onChange: (code: string, name?: string, email?: string) => void;
   disabled: boolean;
-}) {
+  /** Which asset row this select belongs to, for the accessible name. */
+  rowLabel: string;
+}>) {
   const { t } = useTranslate();
   const { data: users = [] } = useVendorOrgUsers(organizationId);
 
   return (
     <SearchableSelect
+      // No visible label -- the column header is the field name on screen. Screen reader users
+      // get no column context, though, so the row has to be named here or every one of these
+      // announces identically.
+      ariaLabel={`${translateOr(t, "ES_PM_VENDOR", "Vendor")}, ${rowLabel}`}
       value={value}
       options={users}
       placeholder={translateOr(t, "ES_PM_SELECT_VENDOR", "Select Vendor")}
@@ -104,7 +117,7 @@ function VendorUserSelect({
   );
 }
 
-export function TechnicianAssignmentStep({ planId, planCode, value, onChange, locked = false }: TechnicianAssignmentStepProps) {
+export function TechnicianAssignmentStep({ planId, planCode, value, onChange, locked = false }: Readonly<TechnicianAssignmentStepProps>) {
   const { t } = useTranslate();
   const { data: searchResult } = useVendorAssignmentSearch(planId);
   const { data: organisations = [] } = useVendorOrganisations();
@@ -222,6 +235,7 @@ export function TechnicianAssignmentStep({ planId, planCode, value, onChange, lo
                     </td>
                     <td className="px-5 py-4">
                       <SearchableSelect
+                        ariaLabel={`${translateOr(t, "ES_PM_VENDOR_ORGANIZATION", "Vendor Organization")}, ${rowLabel(row)}`}
                         value={assignment?.vendorOrgId ?? ""}
                         options={organisations}
                         placeholder={translateOr(t, "ES_PM_SELECT_VENDOR_ORGANIZATION", "Select Organization")}
@@ -231,6 +245,7 @@ export function TechnicianAssignmentStep({ planId, planCode, value, onChange, lo
                     </td>
                     <td className="px-5 py-4">
                       <VendorUserSelect
+                        rowLabel={rowLabel(row)}
                         organizationId={assignment?.vendorOrgId}
                         value={assignment?.vendorUserId ?? ""}
                         onChange={(vendorUserId, vendorUserName, vendorEmail) =>

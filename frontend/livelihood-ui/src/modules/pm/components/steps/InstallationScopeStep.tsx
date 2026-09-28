@@ -20,7 +20,6 @@ interface InstallationScopeStepProps {
   projectId: string | undefined;
   projectGeography: GeographyDetails;
   sectorCodes: string[];
-  value: ScopeValue;
   onChange: (value: ScopeValue) => void;
   onBusyChange?: (isBusy: boolean) => void;
   /** Commits successfully applied scope entries to the parent wizard. */
@@ -36,12 +35,13 @@ export function InstallationScopeStep({
   onChange,
   onBusyChange,
   onScopeApplied,
-}: InstallationScopeStepProps) {
+}: Readonly<InstallationScopeStepProps>) {
   const { t } = useTranslate();
   const {
     status,
     errorCount,
     errorMessage,
+    errorIsGuidance,
     downloadTemplate,
     uploadAndValidate,
     previewFile,
@@ -69,6 +69,7 @@ export function InstallationScopeStep({
         status={status}
         errorCount={errorCount}
         errorMessage={errorMessage}
+        errorIsGuidance={errorIsGuidance}
         isBusy={isBusy}
         downloadLabel={translateOr(t, "ES_PM_DOWNLOAD_INSTALLATION_SCOPE", "Download Installation Scope")}
         downloadDisabled={!planId || sectorCodes.length === 0 || !projectGeography.blocks?.length}

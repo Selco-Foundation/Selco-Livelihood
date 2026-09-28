@@ -1,6 +1,12 @@
 import type { AuthUser } from "@/shared/stores/auth-store";
 import { SCOPE_BOUNDARY_SHEET_NAME, SCOPE_SHEET_NAME } from "../constants/installation-scope-sheet";
-import { extractBlobApiErrorMessage, postJsonExpectingBlob, postMultipartExpectingBlob } from "../utils/ingestion-request";
+import {
+  extractBlobApiErrorMessage,
+  httpStatusOf,
+  IngestionRequestError,
+  postJsonExpectingBlob,
+  postMultipartExpectingBlob,
+} from "../utils/ingestion-request";
 import { buildProjectBoundaryTree } from "../utils/boundary-tree";
 import type { DownloadedFile } from "../utils/file-download";
 import type { GeographyDetails } from "../types/project";
@@ -10,7 +16,8 @@ export interface ValidationResult {
   errorCount: number;
 }
 
-export class IngestionApiError extends Error {}
+/** Carries the server's HTTP status so the UI can tell guidance (4xx) from a fault. */
+export class IngestionApiError extends IngestionRequestError {}
 
 /**
  * `POST /ingestion-service/template/facilityIngestionTemplateWithData` — JSON body, blob response.
@@ -31,7 +38,7 @@ export async function downloadFacilityIngestionTemplate(
       project_id: projectId,
       boundary_data: buildProjectBoundaryTree(geographyDetails),
     },
-    `facility-ingestion-template-${projectId}.xlsx`,
+    `project-end-user-sites-${projectId}.xlsx`,
     accessToken,
     user,
   );
@@ -62,9 +69,12 @@ export async function validateFacilitiesExcel(
       accessToken,
       user,
     );
-    return { file: { blob, filename: `facility-validation-${file.name}` }, errorCount };
+    return { file: { blob, filename: `project-end-user-sites-validated-${file.name}` }, errorCount };
   } catch (error) {
-    throw new IngestionApiError((await extractBlobApiErrorMessage(error)) ?? "Facility validation failed");
+    throw new IngestionApiError(
+      (await extractBlobApiErrorMessage(error)) ?? "Facility validation failed",
+      httpStatusOf(error),
+    );
   }
 }
 
@@ -93,8 +103,11 @@ export async function createFacilitiesAndUpdateProject(
       accessToken,
       user,
     );
-    return { blob, filename: `facility-creation-result-${projectId}.xlsx` };
+    return { blob, filename: `project-end-user-sites-report-${projectId}.xlsx` };
   } catch (error) {
-    throw new IngestionApiError((await extractBlobApiErrorMessage(error)) ?? "Facility creation failed");
+    throw new IngestionApiError(
+      (await extractBlobApiErrorMessage(error)) ?? "Facility creation failed",
+      httpStatusOf(error),
+    );
   }
 }

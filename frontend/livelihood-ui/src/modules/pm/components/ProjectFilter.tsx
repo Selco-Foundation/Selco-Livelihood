@@ -14,7 +14,7 @@ interface ProjectFilterProps {
 }
 
 /** Project-list adaptation of the Inbox filter popover. */
-export function ProjectFilter({ value, onChange, searchSlot }: ProjectFilterProps) {
+export function ProjectFilter({ value, onChange, searchSlot }: Readonly<ProjectFilterProps>) {
   const { t } = useTranslate();
   const { data: hierarchy } = useBoundaryTree();
   const [open, setOpen] = useState(false);

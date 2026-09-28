@@ -30,6 +30,21 @@ interface SolutionTemplateCardProps {
   onBusyChange: (solutionCode: string, isBusy: boolean) => void;
 }
 
+/** The dropzone's one-line status caption -- uploaded, mid-validation, or the initial prompt. */
+function dropzoneCaption(
+  uploaded: boolean,
+  status: string,
+  t: (key: string) => string,
+): string {
+  if (uploaded) {
+    return translateOr(t, "ES_PM_TEMPLATE_UPLOADED_SHORT", "Uploaded")
+  }
+  if (status === "validating") {
+    return translateOr(t, "ES_PM_VALIDATING", "Validating...")
+  }
+  return translateOr(t, "ES_PM_DRAG_DROP_HINT", "Drag and drop file here or click below")
+}
+
 function SolutionTemplateCard({
   planId,
   solutionCode,
@@ -39,7 +54,7 @@ function SolutionTemplateCard({
   locked,
   onUploaded,
   onBusyChange,
-}: SolutionTemplateCardProps) {
+}: Readonly<SolutionTemplateCardProps>) {
   const { t } = useTranslate();
   const inputRef = useRef<HTMLInputElement>(null);
   const [invalidFileMessage, setInvalidFileMessage] = useState<string | undefined>(undefined);
@@ -47,6 +62,7 @@ function SolutionTemplateCard({
     status,
     errorCount,
     errorMessage,
+    errorIsGuidance,
     validatedFile,
     previewFile,
     previewHasErrors,
@@ -106,13 +122,7 @@ function SolutionTemplateCard({
             <p className="text-sm font-semibold text-foreground">
               {translateOr(t, "ES_PM_TEMPLATE_FOR", "Template for")} {solutionName}
             </p>
-            <p className="text-xs text-muted-foreground">
-              {uploaded
-                ? translateOr(t, "ES_PM_TEMPLATE_UPLOADED_SHORT", "Uploaded")
-                : status === "validating"
-                  ? translateOr(t, "ES_PM_VALIDATING", "Validating...")
-                  : translateOr(t, "ES_PM_DRAG_DROP_HINT", "Drag and drop file here or click below")}
-            </p>
+            <p className="text-xs text-muted-foreground">{dropzoneCaption(uploaded, status, t)}</p>
           </div>
           <div className="flex gap-2">
             <Button type="button" variant="outline" size="sm" onClick={downloadTemplate} disabled={isBusy}>
@@ -184,6 +194,7 @@ function SolutionTemplateCard({
             compact
             status={invalidFileMessage ? "error" : status}
             errorMessage={invalidFileMessage ?? errorMessage}
+            isGuidance={invalidFileMessage ? true : errorIsGuidance}
           />
         </div>
       </div>
@@ -216,7 +227,7 @@ export function TemplateStep({
   onChange,
   onBusyChange,
   locked = false,
-}: TemplateStepProps) {
+}: Readonly<TemplateStepProps>) {
   const { t } = useTranslate();
   const busySolutionsRef = useRef(new Set<string>());
   const { data: solutions = [] } = useInstallationSolutions();

@@ -77,7 +77,7 @@ export function PlanDetailsStep({
   projectEndDate,
   locked = false,
   reviewerLocked = locked,
-}: PlanDetailsStepProps) {
+}: Readonly<PlanDetailsStepProps>) {
   const { t } = useTranslate();
   const { data: hierarchy } = useBoundaryTree();
   const { data: sectorOptions = [] } = useSectors();

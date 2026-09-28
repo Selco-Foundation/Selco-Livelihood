@@ -80,7 +80,7 @@ function Stepper({
   children,
   indicators = {},
   ...props
-}: StepperProps) {
+}: Readonly<StepperProps>) {
   const [activeStep, setActiveStep] = useState(defaultValue)
   const [triggerNodes, setTriggerNodes] = useState<HTMLButtonElement[]>([])
 
@@ -180,22 +180,27 @@ function StepperItem({
   className,
   children,
   ...props
-}: StepperItemProps) {
+}: Readonly<StepperItemProps>) {
   const { activeStep } = useStepper()
 
-  const state: StepState =
-    completed || step < activeStep
-      ? "completed"
-      : activeStep === step
-        ? "active"
-        : "inactive"
+  let state: StepState
+  if (completed || step < activeStep) {
+    state = "completed"
+  } else if (activeStep === step) {
+    state = "active"
+  } else {
+    state = "inactive"
+  }
 
   const isLoading = loading && step === activeStep
 
+  const stepItemContextValue = useMemo<StepItemContextValue>(
+    () => ({ step, state, isDisabled: disabled, isLoading }),
+    [step, state, disabled, isLoading]
+  )
+
   return (
-    <StepItemContext.Provider
-      value={{ step, state, isDisabled: disabled, isLoading }}
-    >
+    <StepItemContext.Provider value={stepItemContextValue}>
       <div
         data-slot="stepper-item"
         className={cn(
@@ -220,7 +225,7 @@ function StepperTrigger({
   tabIndex,
   render,
   ...props
-}: StepperTriggerProps) {
+}: Readonly<StepperTriggerProps>) {
   const { state, isLoading } = useStepItem()
   const stepperCtx = useStepper()
   const {
@@ -248,8 +253,7 @@ function StepperTrigger({
 
   // Find our index among triggers for navigation
   const myIdx = useMemo(
-    () =>
-      triggerNodes.findIndex((n: HTMLButtonElement) => n === btnRef.current),
+    () => triggerNodes.indexOf(btnRef.current as HTMLButtonElement),
     [triggerNodes, btnRef.current]
   )
 
@@ -430,7 +434,7 @@ function StepperContent({
   forceMount,
   children,
   className,
-}: StepperContentProps) {
+}: Readonly<StepperContentProps>) {
   const { activeStep } = useStepper()
   const isActive = value === activeStep
 

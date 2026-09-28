@@ -32,7 +32,7 @@ export function ConfirmSubmitDialog({
   descriptionFallback,
   onCancel,
   onConfirm,
-}: ConfirmSubmitDialogProps) {
+}: Readonly<ConfirmSubmitDialogProps>) {
   const { t } = useTranslate();
 
   return (

@@ -21,7 +21,7 @@ export function isGeographyDetailsValid(value: GeographyDetails): boolean {
 }
 
 
-export function GeographyDetailsStep({ value, onChange, hasEndUserData = false }: GeographyDetailsStepProps) {
+export function GeographyDetailsStep({ value, onChange, hasEndUserData = false }: Readonly<GeographyDetailsStepProps>) {
   const { t } = useTranslate();
   const { data: hierarchy, isLoading } = useBoundaryTree();
 
@@ -69,10 +69,10 @@ export function GeographyDetailsStep({ value, onChange, hasEndUserData = false }
   }
 
   function handleStatesChange(codes: string[]) {
-    const removedStateCodes = selectedStateCodes.filter((code) => !codes.includes(code));
+    const removedStateCodes = new Set(selectedStateCodes.filter((code) => !codes.includes(code)));
     const hasCascadingRemoval =
-      (value.districts ?? []).some((district) => removedStateCodes.includes(district.stateCode)) ||
-      (value.blocks ?? []).some((block) => removedStateCodes.includes(block.stateCode));
+      (value.districts ?? []).some((district) => removedStateCodes.has(district.stateCode)) ||
+      (value.blocks ?? []).some((block) => removedStateCodes.has(block.stateCode));
     warnIfNarrowing(hasCascadingRemoval);
     onChange({
       states: codes.map((code) => ({ code })),
@@ -82,9 +82,9 @@ export function GeographyDetailsStep({ value, onChange, hasEndUserData = false }
   }
 
   function handleDistrictsChange(codes: string[]) {
-    const removedDistrictCodes = selectedDistrictCodes.filter((code) => !codes.includes(code));
+    const removedDistrictCodes = new Set(selectedDistrictCodes.filter((code) => !codes.includes(code)));
     const hasCascadingRemoval = (value.blocks ?? []).some((block) =>
-      removedDistrictCodes.includes(block.districtCode),
+      removedDistrictCodes.has(block.districtCode),
     );
     warnIfNarrowing(hasCascadingRemoval);
     const nextDistrictOptions = districtOptions.filter((district) => codes.includes(district.code));

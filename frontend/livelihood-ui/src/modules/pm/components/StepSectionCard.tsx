@@ -8,7 +8,7 @@ interface StepSectionCardProps {
   children: ReactNode;
 }
 
-export function StepSectionCard({ icon: Icon, title, description, children }: StepSectionCardProps) {
+export function StepSectionCard({ icon: Icon, title, description, children }: Readonly<StepSectionCardProps>) {
   return (
     <section className="livelihood-card p-6">
       <div className="mb-6 flex items-center gap-3">

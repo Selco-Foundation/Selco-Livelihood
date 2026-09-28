@@ -11,7 +11,7 @@ interface SelectedGroupProps {
   disabled?: boolean;
 }
 
-export function SelectedGroup({ title, emptyLabel, items, onRemove, disabled = false }: SelectedGroupProps) {
+export function SelectedGroup({ title, emptyLabel, items, onRemove, disabled = false }: Readonly<SelectedGroupProps>) {
   return (
     <div>
       <p className="mb-1.5 text-xs font-medium text-muted-foreground">{title}</p>

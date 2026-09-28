@@ -33,6 +33,7 @@ export const EndUserDataStep = forwardRef<EndUserDataStepHandle, EndUserDataStep
     status,
     errorCount,
     errorMessage,
+    errorIsGuidance,
     downloadTemplate,
     uploadAndValidate,
     previewFile,
@@ -68,6 +69,7 @@ export const EndUserDataStep = forwardRef<EndUserDataStepHandle, EndUserDataStep
         status={status}
         errorCount={errorCount}
         errorMessage={errorMessage}
+        errorIsGuidance={errorIsGuidance}
         isBusy={isBusy}
         downloadLabel={translateOr(t, "ES_PM_DOWNLOAD_TEMPLATE", "Download Template")}
         onDownload={downloadTemplate}

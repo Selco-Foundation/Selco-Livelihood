@@ -5,13 +5,20 @@ import type { AuthUser } from "@/shared/stores/auth-store";
 import { searchProjectFacilities } from "./project";
 import { SCOPE_BOUNDARY_SHEET_NAME, SCOPE_SHEET_NAME } from "../constants/installation-scope-sheet";
 import { buildScopeBoundaryTree } from "../utils/boundary-tree";
-import { extractBlobApiErrorMessage, postJsonExpectingBlob, postMultipartExpectingBlob } from "../utils/ingestion-request";
+import {
+  extractBlobApiErrorMessage,
+  httpStatusOf,
+  IngestionRequestError,
+  postJsonExpectingBlob,
+  postMultipartExpectingBlob,
+} from "../utils/ingestion-request";
 import type { GeographyDetails } from "../types/project";
 import type { InstallationPlanScopeEntry } from "../types/installation-plan";
 import type { DownloadedFile } from "../utils/file-download";
 import { fetchAllPages, searchUrlParams } from "../utils/url-params";
 
-export class InstallationScopeApiError extends Error {}
+/** Carries the server's HTTP status so the UI can tell guidance (4xx) from a fault. */
+export class InstallationScopeApiError extends IngestionRequestError {}
 
 export interface ScopeValidationResult {
   errorCount: number;
@@ -90,7 +97,10 @@ export async function validateScopeSheet(
     );
     return { file: { blob, filename: `installation-scope-validated-${file.name}` }, errorCount };
   } catch (error) {
-    throw new InstallationScopeApiError((await extractBlobApiErrorMessage(error)) ?? "Scope validation failed");
+    throw new InstallationScopeApiError(
+      (await extractBlobApiErrorMessage(error)) ?? "Scope validation failed",
+      httpStatusOf(error),
+    );
   }
 }
 
@@ -120,7 +130,10 @@ export async function createScopeFromSheet(
     const entries = await searchFieldPlanFacilities(fieldPlanId, accessToken, user);
     return { entries, file: { blob, filename: "installation-scope-linking-report.xlsx" } };
   } catch (error) {
-    throw new InstallationScopeApiError((await extractBlobApiErrorMessage(error)) ?? "Scope creation failed");
+    throw new InstallationScopeApiError(
+      (await extractBlobApiErrorMessage(error)) ?? "Scope creation failed",
+      httpStatusOf(error),
+    );
   }
 }
 

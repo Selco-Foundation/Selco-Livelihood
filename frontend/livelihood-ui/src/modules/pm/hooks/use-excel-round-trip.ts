@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { triggerBrowserDownload, type DownloadedFile } from "../utils/file-download";
+import { isGuidanceError } from "../utils/ingestion-request";
 
 export type ExcelRoundTripStatus =
   | "idle"
@@ -69,6 +70,9 @@ export function useExcelRoundTrip<TResult = void>({
   const [status, setStatus] = useState<ExcelRoundTripStatus>("idle");
   const [errorCount, setErrorCount] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
+  // Whether the last failure was the server asking for different input rather than a fault. Drives
+  // the tone of the message block: a 4xx is guidance and reads as an alarm in red.
+  const [errorIsGuidance, setErrorIsGuidance] = useState(false);
   const [validatedFile, setValidatedFile] = useState<DownloadedFile | null>(null);
   // The most recent file worth re-downloading -- the validate response until create hands back
   // one of its own. Deliberately not cleared when a new upload starts: the old file stays
@@ -79,13 +83,19 @@ export function useExcelRoundTrip<TResult = void>({
 
   const isBusy = status === "downloading" || status === "validating" || status === "creating";
 
+  function fail(message: string, isGuidance: boolean) {
+    setErrorMessage(message);
+    setErrorIsGuidance(isGuidance);
+    setStatus("error");
+  }
+
   async function downloadTemplate() {
     if (!download) return;
 
     const precheckError = precheck?.();
     if (precheckError) {
-      setErrorMessage(precheckError);
-      setStatus("error");
+      // "Plan details are still loading" is advice too, not a breakage.
+      fail(precheckError, true);
       return;
     }
 
@@ -94,8 +104,7 @@ export function useExcelRoundTrip<TResult = void>({
       triggerBrowserDownload(await download());
       setStatus("idle");
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : messages.downloadFailed);
-      setStatus("error");
+      fail(error instanceof Error ? error.message : messages.downloadFailed, isGuidanceError(error));
     }
   }
 
@@ -133,8 +142,7 @@ export function useExcelRoundTrip<TResult = void>({
       setStatus("done");
       return created.result;
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : messages.uploadFailed);
-      setStatus("error");
+      fail(error instanceof Error ? error.message : messages.uploadFailed, isGuidanceError(error));
       return null;
     }
   }
@@ -150,8 +158,10 @@ export function useExcelRoundTrip<TResult = void>({
       setStatus("done");
       return created.result;
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : messages.createFailed ?? messages.uploadFailed);
-      setStatus("error");
+      fail(
+        error instanceof Error ? error.message : messages.createFailed ?? messages.uploadFailed,
+        isGuidanceError(error),
+      );
       return null;
     }
   }
@@ -165,6 +175,7 @@ export function useExcelRoundTrip<TResult = void>({
     isBusy,
     errorCount,
     errorMessage,
+    errorIsGuidance,
     validatedFile,
     previewFile,
     previewHasErrors,

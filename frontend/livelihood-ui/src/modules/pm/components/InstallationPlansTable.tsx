@@ -18,7 +18,7 @@ function sectorNames(sectorCodes?: string[]) {
   return sectorCodes?.length ? sectorCodes.join(", ") : "-";
 }
 
-export function InstallationPlansTable({ plans, isLoading }: InstallationPlansTableProps) {
+export function InstallationPlansTable({ plans, isLoading }: Readonly<InstallationPlansTableProps>) {
   const { t } = useTranslate();
   const planIds = plans.map(({ plan }) => plan.id).filter((id): id is string => Boolean(id));
   const { data: facilityCounts = {} } = useInstallationPlanFacilityCounts(planIds);

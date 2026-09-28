@@ -31,7 +31,7 @@ export function isProjectDetailsValid(value: ProjectDetailsValue): boolean {
   );
 }
 
-export function ProjectDetailsStep({ value, onChange, errors, locked = false }: ProjectDetailsStepProps) {
+export function ProjectDetailsStep({ value, onChange, errors, locked = false }: Readonly<ProjectDetailsStepProps>) {
   const { t } = useTranslate();
 
   return (

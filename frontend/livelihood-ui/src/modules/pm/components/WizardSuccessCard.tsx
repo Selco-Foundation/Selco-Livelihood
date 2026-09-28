@@ -13,7 +13,7 @@ interface WizardSuccessCardProps {
 }
 
 /** The terminal screen both PM wizards show once their final submit succeeds. */
-export function WizardSuccessCard({ title, itemLabel, itemName, actions }: WizardSuccessCardProps) {
+export function WizardSuccessCard({ title, itemLabel, itemName, actions }: Readonly<WizardSuccessCardProps>) {
   return (
     <div className="w-full space-y-6">
       <div className="livelihood-card overflow-hidden">

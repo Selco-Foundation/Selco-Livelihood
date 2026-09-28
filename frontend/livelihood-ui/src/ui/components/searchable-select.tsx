@@ -10,8 +10,7 @@ export interface SearchableSelectOption {
   name: string;
 }
 
-export interface SearchableSelectProps<TOption extends SearchableSelectOption> {
-  label?: string;
+interface SearchableSelectBaseProps<TOption extends SearchableSelectOption> {
   required?: boolean;
   value: string;
   options: TOption[];
@@ -22,6 +21,22 @@ export interface SearchableSelectProps<TOption extends SearchableSelectOption> {
 }
 
 /**
+ * A visible label, or an invisible one — but never neither.
+ *
+ * Dropping the label is legitimate: inside a table the column header is the field name, and
+ * repeating it on every row would be noise. What is not legitimate is the result, a trigger whose
+ * only accessible name is its own current value, so a keyboard user tabbing through the technician
+ * grid hears "Select, Select, Select" with no idea which column or which row they are in. Making
+ * this a union means omitting both is a compile error rather than something to notice in an audit.
+ */
+export type SearchableSelectProps<TOption extends SearchableSelectOption> =
+  SearchableSelectBaseProps<TOption> &
+    (
+      | { label: string; ariaLabel?: string }
+      | { label?: undefined; ariaLabel: string }
+    );
+
+/**
  * Single-select dropdown with a search box for filtering the option list — the `MultiSelect`
  * sibling's single-select counterpart, and the same Popover+Input pattern, so it needs no
  * dependency beyond what the kit already has. Originated as the Incident Management module's
@@ -29,6 +44,7 @@ export interface SearchableSelectProps<TOption extends SearchableSelectOption> {
  */
 export function SearchableSelect<TOption extends SearchableSelectOption>({
   label,
+  ariaLabel,
   required = false,
   value,
   options,
@@ -36,13 +52,14 @@ export function SearchableSelect<TOption extends SearchableSelectOption>({
   disabled = false,
   error,
   onChange,
-}: SearchableSelectProps<TOption>) {
+}: Readonly<SearchableSelectProps<TOption>>) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const { t } = useTranslate();
   // Same reasoning as MultiSelect: without these the trigger announces only its current value,
   // and `required` is visual-only.
   const triggerId = useId();
+  const labelId = `${triggerId}-label`;
   const errorId = `${triggerId}-error`;
   const resolvedPlaceholder = placeholder ?? translateOr(t, "ES_COMMON_SELECT_PLACEHOLDER", "Select");
 
@@ -60,9 +77,15 @@ export function SearchableSelect<TOption extends SearchableSelectOption>({
   return (
     <div className="min-w-0 space-y-1.5">
       {label ? (
-        <label htmlFor={triggerId} className="text-sm font-medium text-foreground">
+        <label id={labelId} className="text-sm font-medium text-foreground">
           {label}
-          {required ? <span className="text-destructive"> *</span> : null}
+          {/* Decorative; the word beside it is what assistive technology reads. */}
+          {required ? (
+            <>
+              <span className="text-destructive" aria-hidden="true"> *</span>
+              <span className="sr-only"> (required)</span>
+            </>
+          ) : null}
         </label>
       ) : null}
       <Popover
@@ -77,8 +100,12 @@ export function SearchableSelect<TOption extends SearchableSelectOption>({
             type="button"
             id={triggerId}
             disabled={disabled}
-            aria-required={required || undefined}
-            aria-invalid={error ? true : undefined}
+            // Neither aria-required nor aria-invalid is supported on role="button", so the
+            // required state travels in the label text and the error stays linked by description.
+            // With a visible label the trigger's own id is listed second, so the value is
+            // announced after the field name; without one, ariaLabel carries the whole name.
+            aria-labelledby={label ? `${labelId} ${triggerId}` : undefined}
+            aria-label={label ? undefined : ariaLabel}
             aria-describedby={error ? errorId : undefined}
             className={cn(
               "livelihood-filter-select flex items-center justify-between gap-2 pr-3 text-left disabled:cursor-not-allowed disabled:opacity-50",

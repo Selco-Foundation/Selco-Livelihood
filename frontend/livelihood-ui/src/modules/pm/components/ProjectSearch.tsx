@@ -8,7 +8,7 @@ interface ProjectSearchProps {
   onSearch: (searchText: string) => void;
 }
 
-export function ProjectSearch({ initialSearchText = "", onSearch }: ProjectSearchProps) {
+export function ProjectSearch({ initialSearchText = "", onSearch }: Readonly<ProjectSearchProps>) {
   const { t } = useTranslate();
   const [searchText, setSearchText] = useState(initialSearchText);
   const debouncedSearchText = useDebouncedValue(searchText);

@@ -30,7 +30,7 @@ export function DateField({
   error,
   minDate,
   maxDate,
-}: DateFieldProps) {
+}: Readonly<DateFieldProps>) {
   const { t } = useTranslate();
   const [open, setOpen] = useState(false);
   const selectedDate = value ? new Date(value) : undefined;

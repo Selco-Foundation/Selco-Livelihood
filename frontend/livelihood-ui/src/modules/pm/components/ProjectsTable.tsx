@@ -13,7 +13,7 @@ interface ProjectsTableProps {
 
 const STATE_SUMMARY_MAX_CHARS = 20;
 
-export function ProjectsTable({ projects, isLoading }: ProjectsTableProps) {
+export function ProjectsTable({ projects, isLoading }: Readonly<ProjectsTableProps>) {
   const { t } = useTranslate();
 
   const columns = [

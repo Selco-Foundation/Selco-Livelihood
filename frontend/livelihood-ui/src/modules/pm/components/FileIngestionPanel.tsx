@@ -12,6 +12,8 @@ interface FileIngestionPanelProps {
   status: string;
   errorCount: number;
   errorMessage?: string;
+  /** True when `errorMessage` is the server asking for different input rather than a fault. */
+  errorIsGuidance?: boolean;
   downloadLabel: string;
   downloadDisabled?: boolean;
   onDownload: () => void;
@@ -37,6 +39,7 @@ export function FileIngestionPanel({
   status,
   errorCount,
   errorMessage,
+  errorIsGuidance = false,
   downloadLabel,
   downloadDisabled = false,
   onDownload,
@@ -48,7 +51,7 @@ export function FileIngestionPanel({
   previewHasErrors,
   onPreview,
   isBusy,
-}: FileIngestionPanelProps) {
+}: Readonly<FileIngestionPanelProps>) {
   const { t } = useTranslate();
   const inputRef = useRef<HTMLInputElement>(null);
   const [invalidFileMessage, setInvalidFileMessage] = useState<string | undefined>(undefined);
@@ -139,7 +142,12 @@ export function FileIngestionPanel({
         </div>
       ) : null}
 
-      <IngestionStatusBlocks status={invalidFileMessage ? "error" : status} errorMessage={invalidFileMessage ?? errorMessage} />
+      <IngestionStatusBlocks
+        status={invalidFileMessage ? "error" : status}
+        errorMessage={invalidFileMessage ?? errorMessage}
+        // A wrong file type is advice too -- the PM just has to pick a different file.
+        isGuidance={invalidFileMessage ? true : errorIsGuidance}
+      />
 
       {status === "done" ? (
         <p className="flex items-center gap-2 text-sm font-medium text-primary">

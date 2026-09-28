@@ -41,15 +41,19 @@ function resolveIngestionTenantId(user: AuthUser | null | undefined): string {
   return user?.tenantId ?? resolveTenantId(getViteEnv("VITE_STATE_LEVEL_TENANT_ID"));
 }
 
+interface PostMultipartOptions {
+  accessToken: string;
+  user: AuthUser | null | undefined;
+  responseType: "blob" | "json";
+  timeoutMs: number;
+}
+
 async function postMultipart<T>(
   url: string,
   fields: Record<string, string>,
   file: File,
   fileFieldName: string,
-  accessToken: string,
-  user: AuthUser | null | undefined,
-  responseType: "blob" | "json",
-  timeoutMs: number,
+  { accessToken, user, responseType, timeoutMs }: PostMultipartOptions,
 ) {
   const formData = new FormData();
   formData.append(fileFieldName, file, file.name);
@@ -81,16 +85,12 @@ export async function postMultipartExpectingBlob(
   user: AuthUser | null | undefined,
   timeoutMs = 60_000,
 ): Promise<BlobUploadResult> {
-  const response = await postMultipart<Blob>(
-    url,
-    fields,
-    file,
-    fileFieldName,
+  const response = await postMultipart<Blob>(url, fields, file, fileFieldName, {
     accessToken,
     user,
-    "blob",
+    responseType: "blob",
     timeoutMs,
-  );
+  });
 
   // axios lowercases response header names regardless of what the server sent
   const errorCount = Number(response.headers["x-error-count"] ?? 0);
@@ -108,17 +108,38 @@ export async function postMultipartExpectingJson<T>(
   user: AuthUser | null | undefined,
   timeoutMs = 60_000,
 ): Promise<T> {
-  const response = await postMultipart<T>(
-    url,
-    fields,
-    file,
-    fileFieldName,
+  const response = await postMultipart<T>(url, fields, file, fileFieldName, {
     accessToken,
     user,
-    "json",
+    responseType: "json",
     timeoutMs,
-  );
+  });
   return response.data;
+}
+
+/**
+ * An ingestion-service failure, carrying the HTTP status the server actually answered with.
+ *
+ * The status is what lets the UI tell the two kinds apart. A 4xx from these endpoints is not a
+ * malfunction: the server is telling the Project Manager what to change ("There are no end user
+ * sites available in the selected geography..."), and rendering that in red next to a warning
+ * triangle reads as a bug rather than as guidance. A 5xx, or no status at all, genuinely is a
+ * failure.
+ */
+export class IngestionRequestError extends Error {
+  readonly status?: number;
+
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = "IngestionRequestError";
+    this.status = status;
+  }
+}
+
+/** Whether an error is the server asking for a different input rather than reporting a fault. */
+export function isGuidanceError(error: unknown): boolean {
+  const status = (error as { status?: number })?.status;
+  return typeof status === "number" && status >= 400 && status < 500;
 }
 
 /**
@@ -147,8 +168,14 @@ export async function postJsonExpectingBlob(
     return { blob: response.data as Blob, filename };
   } catch (error) {
     const message = await extractBlobApiErrorMessage(error);
-    throw message ? new Error(message) : error;
+    if (!message) throw error;
+    throw new IngestionRequestError(message, httpStatusOf(error));
   }
+}
+
+/** The response status of a failed axios request, when there was a response at all. */
+export function httpStatusOf(error: unknown): number | undefined {
+  return (error as { response?: { status?: number } })?.response?.status;
 }
 
 /**

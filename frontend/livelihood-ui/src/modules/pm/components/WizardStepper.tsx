@@ -33,7 +33,7 @@ export function WizardStepper({
   onStepChange,
   isStepClickable,
   allCompleted = false,
-}: WizardStepperProps) {
+}: Readonly<WizardStepperProps>) {
   return (
     <div className="livelihood-card w-full p-6">
       <Stepper value={currentStep} onValueChange={onStepChange} indicators={{ completed: <Check className="size-3.5" /> }}>

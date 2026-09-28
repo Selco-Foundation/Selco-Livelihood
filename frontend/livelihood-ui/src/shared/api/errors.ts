@@ -33,7 +33,7 @@ function detailMessage(detail: ApiErrorBody["detail"]): string | undefined {
   if (!first?.msg) {
     return undefined;
   }
-  const field = Array.isArray(first.loc) ? first.loc[first.loc.length - 1] : undefined;
+  const field = Array.isArray(first.loc) ? first.loc.at(-1) : undefined;
   return field === undefined ? first.msg : `${String(field)}: ${first.msg}`;
 }
 

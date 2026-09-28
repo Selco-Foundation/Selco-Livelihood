@@ -57,13 +57,18 @@ export function MultiSelect<TOption extends MultiSelectOption>({
   error,
   hideChips = false,
   single = false,
-}: MultiSelectProps<TOption>) {
+}: Readonly<MultiSelectProps<TOption>>) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  // Ties the visible label and the error text to the trigger. Without it a screen reader
-  // announces this control as just "N selected", with no field name -- and since this primitive
-  // backs every State/District/Block/Sector field in both PM wizards, that is every one of them.
+  // Names the trigger and ties the error text to it. Without this a screen reader announces the
+  // control as just "N selected", with no field name -- and this primitive backs every
+  // State/District/Block/Sector field in both PM wizards, so that is every one of them.
+  //
+  // aria-labelledby rather than the label's htmlFor: <label for> only names form controls, and
+  // the trigger is a <button>, which it does not name at all. Listing the trigger's own id second
+  // keeps its value in the announcement, so it reads "State, required, 3 selected".
   const triggerId = useId();
+  const labelId = `${triggerId}-label`;
   const errorId = `${triggerId}-error`;
 
   const sortedOptions = useMemo(
@@ -84,7 +89,11 @@ export function MultiSelect<TOption extends MultiSelectOption>({
     return sortedOptions.filter((option) => option.name.toLowerCase().includes(normalizedQuery));
   }, [sortedOptions, query]);
 
-  const allSelected = sortedOptions.length > 0 && selected.length === sortedOptions.length;
+  // Membership, not a length comparison. `selected` can hold a code that is not among `options`
+  // -- a district still selected after its state was deselected, say, or a value from saved data
+  // whose option list has since narrowed. Comparing counts calls that "all selected", so Select
+  // All renders checked and clicking it *clears* the selection instead of completing it.
+  const allSelected = sortedOptions.length > 0 && sortedOptions.every((option) => selectedSet.has(option.code));
 
   function toggleOption(code: string) {
     if (single) {
@@ -109,9 +118,16 @@ export function MultiSelect<TOption extends MultiSelectOption>({
 
   return (
     <div className="min-w-0 space-y-1.5">
-      <label htmlFor={triggerId} className="text-sm font-medium text-foreground">
+      <label id={labelId} className="text-sm font-medium text-foreground">
         {label}
-        {required ? <span className="text-destructive"> *</span> : null}
+        {/* The asterisk is decoration; the word carries the same meaning to assistive technology,
+            which is how the required state reaches it now that aria-required has been dropped. */}
+        {required ? (
+          <>
+            <span className="text-destructive" aria-hidden="true"> *</span>
+            <span className="sr-only"> (required)</span>
+          </>
+        ) : null}
       </label>
 
       {!hideChips && selectedOptions.length > 0 ? (
@@ -147,9 +163,10 @@ export function MultiSelect<TOption extends MultiSelectOption>({
             type="button"
             id={triggerId}
             disabled={disabled}
-            // `required` alone only drew a visual asterisk; assistive technology needs these.
-            aria-required={required || undefined}
-            aria-invalid={error ? true : undefined}
+            // No aria-required or aria-invalid here: neither is supported on role="button", and
+            // asserting them is worse than leaving them off. The required state travels in the
+            // label text instead, and the error stays linked through aria-describedby.
+            aria-labelledby={`${labelId} ${triggerId}`}
             aria-describedby={error ? errorId : undefined}
             className={cn(
               "livelihood-filter-select flex items-center justify-between gap-2 pr-3 text-left disabled:cursor-not-allowed disabled:opacity-50",
@@ -182,21 +199,16 @@ export function MultiSelect<TOption extends MultiSelectOption>({
           </div>
 
           {sortedOptions.length > 0 && !single ? (
-            <div
-              role="button"
-              tabIndex={0}
+            // A real <button>, not a styled div with a role: it gets Enter/Space activation and
+            // focusability for free, rather than reimplementing both by hand.
+            <button
+              type="button"
               onClick={toggleSelectAll}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  toggleSelectAll();
-                }
-              }}
-              className="mb-1 flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm font-medium text-primary hover:underline"
+              className="mb-1 flex w-full cursor-pointer items-center gap-2 rounded-sm bg-transparent px-2 py-1.5 text-left text-sm font-medium text-primary hover:underline"
             >
               <Checkbox checked={allSelected} tabIndex={-1} className="pointer-events-none" />
               {selectAllLabel}
-            </div>
+            </button>
           ) : null}
 
           <div className="flex max-h-56 flex-col gap-0.5 overflow-y-auto pr-2">
@@ -204,18 +216,11 @@ export function MultiSelect<TOption extends MultiSelectOption>({
               <p className="px-2 py-1.5 text-sm text-muted-foreground">{noOptionsLabel}</p>
             ) : (
               filteredOptions.map((option) => (
-                <div
+                <button
                   key={option.code}
-                  role="button"
-                  tabIndex={0}
+                  type="button"
                   onClick={() => toggleOption(option.code)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      toggleOption(option.code);
-                    }
-                  }}
-                  className="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+                  className="flex w-full cursor-pointer items-center gap-2 rounded-sm bg-transparent px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
                 >
                   <Checkbox
                     checked={selectedSet.has(option.code)}
@@ -223,7 +228,7 @@ export function MultiSelect<TOption extends MultiSelectOption>({
                     className="pointer-events-none"
                   />
                   <span className="truncate">{option.name}</span>
-                </div>
+                </button>
               ))
             )}
           </div>

@@ -10,7 +10,7 @@ interface NewProjectButtonProps {
 
 /** Single "New Project" entry point, reused on both the Overview page and
  *  the My Projects page so the two surfaces stay visually identical. */
-export function NewProjectButton({ size = "sm" }: NewProjectButtonProps) {
+export function NewProjectButton({ size = "sm" }: Readonly<NewProjectButtonProps>) {
   const { t } = useTranslate();
 
   return (

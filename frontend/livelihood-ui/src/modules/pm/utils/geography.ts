@@ -6,7 +6,10 @@ import type { GeographyDetails, GeographyState } from "../types/project";
  *  created); this is the one place that reconciles them. */
 export function resolveStates(geography: GeographyDetails | undefined): GeographyState[] {
   if (geography?.states?.length) return geography.states;
-  if (geography?.state) return [geography.state];
+  // NOSONAR: this is the one sanctioned reader of the deprecated field (see its own doc comment
+  // on GeographyDetails.state) -- it exists specifically to bridge older records that still carry
+  // the legacy single-state shape, so the reference cannot simply be removed.
+  if (geography?.state) return [geography.state]; // NOSONAR
   return [];
 }
 

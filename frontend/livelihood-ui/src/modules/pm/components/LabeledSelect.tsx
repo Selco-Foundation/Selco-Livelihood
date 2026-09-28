@@ -26,7 +26,7 @@ export function LabeledSelect<TOption extends LabeledSelectOption>({
   placeholder = "Select",
   disabled = false,
   onChange,
-}: LabeledSelectProps<TOption>) {
+}: Readonly<LabeledSelectProps<TOption>>) {
   return (
     <div className="min-w-0 space-y-1.5">
       {label ? (

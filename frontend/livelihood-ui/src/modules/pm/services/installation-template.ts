@@ -2,6 +2,8 @@ import { extractApiErrorMessage } from "@/shared";
 import type { AuthUser } from "@/shared/stores/auth-store";
 import {
   extractBlobApiErrorMessage,
+  httpStatusOf,
+  IngestionRequestError,
   postJsonExpectingBlob,
   postMultipartExpectingBlob,
   postMultipartExpectingJson,
@@ -9,7 +11,8 @@ import {
 import type { DownloadedFile } from "../utils/file-download";
 import { BULK_PAGE_SIZE, postSearch } from "../utils/url-params";
 
-export class InstallationTemplateApiError extends Error {}
+/** Carries the server's HTTP status so the UI can tell guidance (4xx) from a fault. */
+export class InstallationTemplateApiError extends IngestionRequestError {}
 
 export interface TemplateValidationResult {
   file: DownloadedFile;
@@ -62,6 +65,7 @@ export async function validateSolutionTemplate(
   } catch (error) {
     throw new InstallationTemplateApiError(
       (await extractBlobApiErrorMessage(error)) ?? "IC report template validation failed",
+      httpStatusOf(error),
     );
   }
 }
@@ -101,7 +105,10 @@ export async function createSolutionTemplate(
     );
     return Boolean(data.message);
   } catch (error) {
-    throw new InstallationTemplateApiError(extractApiErrorMessage(error) ?? "IC report template creation failed");
+    throw new InstallationTemplateApiError(
+      extractApiErrorMessage(error) ?? "IC report template creation failed",
+      httpStatusOf(error),
+    );
   }
 }
 
