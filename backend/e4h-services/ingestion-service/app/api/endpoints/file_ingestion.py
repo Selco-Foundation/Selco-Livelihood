@@ -25,10 +25,12 @@ from app.utils.facility_validator import (
     collect_hfr_nin_errors_for_row,
     collect_anganwadi_poc_username_errors_for_row,
     validate_installation_scope_solutions,
+    duplicated_site_ids,
     find_site_id_column,
     SITE_ID_COLUMNS,
 )
 from app.utils.state_sunshine_hours_repository import fetch_state_sunshine_hours
+from app.utils.field_plan_geography import is_under_any_boundary, plan_boundary_codes
 from app.utils.field_plan_locks import build_project_lock_map, solution_codes_by_name, \
     solution_names_by_code, PLAN_STATUS_PUBLISHED
 from app.utils.icc_template_parser import annotate_worksheet, first_data_sheet, parse_worksheet, \
@@ -2260,12 +2262,89 @@ def _state_by_boundary_code(boundary_data_df) -> dict:
     return states
 
 
-def _facility_states_and_sectors_from_sheet(df, boundary_data_df, facility_client, request_info) -> tuple:
-    """(facility_id -> state name, facility_id -> sector) for the sites listed in the sheet.
+def _scope_sites_offered_to_plan(
+    request_info,
+    project_id,
+    fieldplan_id,
+    field_plan,
+    plan_is_published: bool,
+    boundary_code_by_facility_id: dict,
+) -> tuple:
+    """(sites in this project, sites this plan's scope download would have offered).
 
-    Both come from one bulk facility read. The sector is the site's own facility_type, set at
-    ingestion; it is taken from the facility record rather than the sheet's Sector column for
-    the same reason as the state -- the cell is editable once the sheet is unprotected.
+    Restricted to the ids the sheet actually names -- `boundary_code_by_facility_id` was resolved
+    from them -- so this costs one project lookup rather than re-deriving the whole geography.
+    The scope download starts from the same intersection (project membership, then the plan's
+    boundaries); it is reconstructed here rather than shared because that handler also writes,
+    unlinking sites that have left the project.
+
+    Returns (None, None) when the check cannot or need not run, which the validator reads as
+    "skip": with no plan there is nothing to check against, and on a published plan every row is
+    already refused by the lock rules or the no-new-sites rule, so the lookups would be wasted.
+    """
+    if not project_id or plan_is_published or not project_service_url:
+        return None, None
+
+    try:
+        project_facilities = ProjectServiceClient(project_service_url).search_project_facility(
+            request_info, project_id).get("ProjectFacilities", [])
+    except Exception as e:
+        # Fail closed. An empty project set would fail every row rather than none, but guessing
+        # the other way silently restores the hole this check exists to close.
+        logger.error(f"Could not read facilities for project {project_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not check which end user sites belong to project {project_id}, "
+                   f"so the uploaded scope cannot be validated: {e}")
+    project_site_ids = {pf.get("facilityId") for pf in project_facilities if pf.get("facilityId")}
+
+    # Sites this plan already holds stay acceptable even if they now fall outside its geography:
+    # a plan whose boundaries were narrowed afterwards must still be able to re-upload its own
+    # sheet. Project membership is not relaxed the same way -- the download unlinks a site that
+    # has left the project, so it would not be on offer either.
+    already_linked = set()
+    if fieldplan_id and fieldPlan_service_url:
+        try:
+            already_linked = {
+                pf.get("facilityId") for pf in FieldPlanServiceClient(fieldPlan_service_url)
+                .search_fieldplan_facility(request_info, fieldplan_id)
+                .get("FieldPlanFacilities", []) if pf.get("facilityId")
+            }
+        except Exception as e:
+            logger.error(f"Could not read current scope of plan {fieldplan_id}: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=502,
+                detail=f"Could not read the current scope of plan {fieldplan_id}, so the "
+                       f"uploaded scope cannot be validated: {e}")
+
+    plan_blocks = plan_boundary_codes(field_plan)
+    if not plan_blocks:
+        # Degrade rather than reject everything: with no usable geography on the record, keep the
+        # project check and let the existing state/Solution eligibility rules catch a site from
+        # elsewhere, as they do today. A worse message beats refusing every row.
+        logger.error(
+            f"Field plan {fieldplan_id} has no usable geography; checking project membership "
+            f"only for this scope upload")
+        return project_site_ids, set(project_site_ids)
+
+    allowed = {
+        facility_id for facility_id, boundary_code in boundary_code_by_facility_id.items()
+        if facility_id in project_site_ids
+        and (is_under_any_boundary(boundary_code, plan_blocks) or facility_id in already_linked)
+    }
+    return project_site_ids, allowed
+
+
+def _facility_states_and_sectors_from_sheet(df, boundary_data_df, facility_client, request_info) -> tuple:
+    """(facility_id -> state name, facility_id -> sector, facility_id -> boundary code).
+
+    All three for the sites listed in the sheet, from one bulk facility read. The boundary code
+    is the raw value the other two are derived from; the scope upload uses it to check each site
+    against the plan's own geography.
+
+    The sector is the site's own facility_type, set at ingestion; it is taken from the facility
+    record rather than the sheet's Sector column for the same reason as the state -- the cell is
+    editable once the sheet is unprotected.
 
     A facility has no state of its own: FacilityAddress declares state/district/block but
     facility_address has no such columns, so address.state is always null. The state lives
@@ -2280,15 +2359,15 @@ def _facility_states_and_sectors_from_sheet(df, boundary_data_df, facility_clien
     """
     site_id_column = find_site_id_column(df)
     if not site_id_column or facility_client is None:
-        return {}, {}
+        return {}, {}, {}
     facility_ids = [
         str(v).strip() for v in df[site_id_column] if pd.notna(v) and str(v).strip()
     ]
     if not facility_ids:
-        return {}, {}
+        return {}, {}, {}
     state_by_boundary_code = _state_by_boundary_code(boundary_data_df)
     if not state_by_boundary_code:
-        return {}, {}
+        return {}, {}, {}
     try:
         result = facility_client.bulk_search_facility(
             request_info=request_info,
@@ -2299,10 +2378,11 @@ def _facility_states_and_sectors_from_sheet(df, boundary_data_df, facility_clien
         )
     except Exception as e:
         logger.error(f"Could not resolve facility states for eligibility: {e}", exc_info=True)
-        return {}, {}
+        return {}, {}, {}
 
     states = {}
     sectors = {}
+    boundary_codes = {}
     for facility in (result.get("facilities") or []):
         facility_id = facility.get("facility_id")
         if not facility_id:
@@ -2319,7 +2399,8 @@ def _facility_states_and_sectors_from_sheet(df, boundary_data_df, facility_clien
             "",
         )
         sectors[facility_id] = facility.get("facility_type") or ""
-    return states, sectors
+        boundary_codes[facility_id] = boundary_code
+    return states, sectors, boundary_codes
 
 
 @router.post('/fieldPlanfacilitiesValidateData',
@@ -2397,6 +2478,7 @@ async def validate_facilities_excel_sheet(
         plan_sectors = []
         project_id = None
         plan_is_published = False
+        field_plan = None
         if fieldplan_id and fieldPlan_service_url:
             try:
                 field_plans = FieldPlanServiceClient(fieldPlan_service_url).search_fieldPlan(
@@ -2411,10 +2493,11 @@ async def validate_facilities_excel_sheet(
                 )
             if not field_plans:
                 raise HTTPException(status_code=404, detail=f"Field plan {fieldplan_id} not found")
-            plan_sectors = field_plans[0].get("sectors") or []
-            project_id = field_plans[0].get("projectId")
+            field_plan = field_plans[0]
+            plan_sectors = field_plan.get("sectors") or []
+            project_id = field_plan.get("projectId")
             plan_is_published = (
-                str(field_plans[0].get("status") or "").strip().upper() == PLAN_STATUS_PUBLISHED)
+                str(field_plan.get("status") or "").strip().upper() == PLAN_STATUS_PUBLISHED)
 
         # Sites already under installation anywhere in this project cannot be re-scoped.
         lock_map = {}
@@ -2451,8 +2534,18 @@ async def validate_facilities_excel_sheet(
                            f"{fieldplan_id}, so scope changes cannot be validated safely: {e}")
 
         solutions = mdms_client.fetch_installation_solutions(request_info_obj)
-        state_by_facility_id, sector_by_facility_id = _facility_states_and_sectors_from_sheet(
-            df, boundary_data_df, facility_client, request_info_obj
+        state_by_facility_id, sector_by_facility_id, boundary_code_by_facility_id = (
+            _facility_states_and_sectors_from_sheet(
+                df, boundary_data_df, facility_client, request_info_obj
+            )
+        )
+        project_site_ids, allowed_site_ids = _scope_sites_offered_to_plan(
+            request_info=request_info_obj,
+            project_id=project_id,
+            fieldplan_id=fieldplan_id,
+            field_plan=field_plan,
+            plan_is_published=plan_is_published,
+            boundary_code_by_facility_id=boundary_code_by_facility_id,
         )
         linkable_rows = validate_installation_scope_solutions(
             df,
@@ -2466,6 +2559,8 @@ async def validate_facilities_excel_sheet(
             solution_name_by_code=solution_names_by_code(solutions),
             completed_site_ids=completed_site_ids,
             plan_is_published=plan_is_published,
+            allowed_site_ids=allowed_site_ids,
+            project_site_ids=project_site_ids,
         )
 
         # A sheet that selects nothing is a mistake, not a no-op. Frozen rows carry
@@ -2473,7 +2568,11 @@ async def validate_facilities_excel_sheet(
         # A published plan is the exception: every one of its rows is frozen, so `linkable_rows`
         # is legitimately empty even for a sheet that changes nothing, and the old message sent
         # the PM looking for a checkbox to tick.
-        if not linkable_rows and not plan_is_published:
+        # `not any(validation_errors)` matters as much as the rest: a sheet whose every included
+        # row was rejected also has no linkable rows, and raising here would throw away the
+        # per-row messages written below -- leaving the PM a generic 400 and no annotated
+        # workbook to tell them which row is wrong.
+        if not linkable_rows and not plan_is_published and not any(validation_errors):
             raise HTTPException(
                 status_code=400,
                 detail="No end user sites are selected for this installation plan. "
@@ -2825,6 +2924,20 @@ async def create_fielplan_facilities(
         # directly. A find_col("status") would substring-match "Lock Status" first and hand
         # back the wrong column to anyone who later tried to use it.
 
+        # Re-checked here even though every row arrived PASSED, because a sheet validated before
+        # this rule existed still says PASSED, and because the damage is done by this endpoint:
+        # the loop below walks the rows in order, so one row links a duplicated site while the
+        # other unlinks it and hard-deletes its facility activities. Raised before the try block
+        # further down, which turns any exception into a 200 with a note in the sheet.
+        repeated = duplicated_site_ids(df)
+        if repeated:
+            raise HTTPException(
+                status_code=400,
+                detail=f"These end user sites are listed more than once in the sheet: "
+                       f"{', '.join(repeated)}. List each site once, then validate the sheet "
+                       f"again before submitting it.",
+            )
+
         # add result columns if missing
         if 'Installation Plan Linking Status' not in df.columns:
             df['Installation Plan Linking Status'] = ''
@@ -3078,6 +3191,12 @@ async def create_fielplan_facilities(
                             f"confirmed {len(expected_ids)} scope row(s) persisted for plan "
                             f"{fieldplan_id}")
 
+            except HTTPException:
+                # Deliberate refusals raised inside this block -- the completed-installations
+                # lookup above fails closed with a 502 -- must reach the client. Without this
+                # they are caught below and turned into a 200 with a note in the sheet, which
+                # reads as success and defeats the point of failing closed.
+                raise
             except Exception as e:
                 # This block does the linking, not just the fetch: swallowing it returns a
                 # 200 with an empty "Installation Plan Linking Status" column and nothing written,

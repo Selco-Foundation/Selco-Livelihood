@@ -195,6 +195,52 @@ def _cell(row, column) -> str:
     return "" if pd.isna(value) else str(value).strip()
 
 
+def _duplicate_site_rows(rows, include_column, facility_id_column) -> Dict[int, List[int]]:
+    """{row position: every position sharing its End User Id}, for ids listed more than once.
+
+    Groups are built over *every* row carrying an id, not only the included ones, because the
+    damaging case is a site listed twice with disagreeing Include values: `create_fielplan_facilities`
+    walks the sheet in order, so one row links the site while the other unlinks it and deletes
+    its facility activities. Only groups the PM actually asked to include are reported, though --
+    two untouched Include=No rows are redundant, not dangerous, and are not worth blocking an
+    upload over.
+    """
+    positions_by_id: Dict[str, List[int]] = {}
+    for i, row in enumerate(rows):
+        site_id = _cell(row, facility_id_column)
+        # Blank ids would otherwise all pair with each other; they get their own message from
+        # project_facility_validation.
+        if site_id:
+            positions_by_id.setdefault(site_id, []).append(i)
+
+    duplicates: Dict[int, List[int]] = {}
+    for positions in positions_by_id.values():
+        if len(positions) < 2:
+            continue
+        # Same test as the row loop's, character for character: if these two disagreed about
+        # what "included" means, a row could be flagged here and skipped there, or the reverse.
+        if not any(_cell(rows[p], include_column).lower() == "yes" for p in positions):
+            continue
+        for position in positions:
+            duplicates[position] = positions
+    return duplicates
+
+
+def duplicated_site_ids(df) -> List[str]:
+    """End User Ids listed on more than one row, where at least one of those rows says Yes.
+
+    The same rule `validate_installation_scope_solutions` applies per row, in the form the create
+    endpoint needs: it has no per-row error column, so it reports the ids and refuses the file.
+    """
+    include_column = _find_header(df, "Include in Installation Plan")
+    facility_id_column = find_site_id_column(df)
+    if not include_column or not facility_id_column:
+        return []
+    rows = df.to_dict("records")
+    duplicates = _duplicate_site_rows(rows, include_column, facility_id_column)
+    return sorted({_cell(rows[i], facility_id_column) for i in duplicates})
+
+
 def validate_installation_scope_solutions(
     df,
     solutions: List[Dict[str, Any]],
@@ -207,6 +253,8 @@ def validate_installation_scope_solutions(
     solution_name_by_code: Optional[Dict[str, str]] = None,
     completed_site_ids: Optional[Set[str]] = None,
     plan_is_published: bool = False,
+    allowed_site_ids: Optional[Set[str]] = None,
+    project_site_ids: Optional[Set[str]] = None,
 ) -> List[int]:
     """Installation-scope rules for the Include/Solution pair.
 
@@ -232,6 +280,19 @@ def validate_installation_scope_solutions(
     reservations are filtered out of the map) must come back unchanged. Excel protection alone
     can't guarantee that -- the sheet can be unprotected -- so it is re-checked here.
 
+    allowed_site_ids, when given, is the set of sites the scope download would have offered
+    this plan -- in the project and inside its geography. A row naming anything else was typed
+    or pasted in, and is rejected before its Solution is considered. project_site_ids narrows
+    the diagnosis only: it separates "not in this project at all" from "in the project but
+    outside this plan's geography", which are different mistakes with different fixes. Pass
+    allowed_site_ids=None to disable the check entirely (no plan context, or a published plan,
+    where every row is already refused on other grounds).
+
+    A site listed on more than one row is rejected on every one of them, whenever any of those
+    rows asks to include it. Such a pair is not merely redundant: the create endpoint walks the
+    rows in order, so a Yes/No pair both links and unlinks the site, and unlinking hard-deletes
+    its facility activities.
+
     Returns the 0-based positions of rows this plan may actually link.
     """
     include_column = _find_header(df, "Include in Installation Plan")
@@ -247,11 +308,28 @@ def validate_installation_scope_solutions(
     solution_name_by_code = solution_name_by_code or {}
     completed_site_ids = completed_site_ids or set()
 
+    rows = df.to_dict("records")
+    duplicate_rows = _duplicate_site_rows(rows, include_column, facility_id_column)
+
     linkable_rows: List[int] = []
-    for i, row in enumerate(df.to_dict("records")):
+    for i, row in enumerate(rows):
         include_value = _cell(row, include_column).lower()
         solution_value = _cell(row, solution_column)
         facility_id = _cell(row, facility_id_column)
+
+        # Checked ahead of the lock rules: a sheet listing one site twice is malformed whatever
+        # else is true of that site, and the lock branch below returns early either way.
+        if i in duplicate_rows:
+            other_rows = [other for other in duplicate_rows[i] if other != i]
+            # +2, not +1: the header occupies Excel row 1 and the data starts at row 2.
+            others = ", ".join(str(other + 2) for other in other_rows)
+            label = "row" if len(other_rows) == 1 else "rows"
+            add_err(
+                i,
+                f"End User Id '{facility_id}' appears more than once in this sheet "
+                f"(also on Excel {label} {others}). List each end user site once.",
+            )
+            continue
 
         lock = lock_map.get(facility_id) if facility_id else None
         if lock is not None:
@@ -309,12 +387,41 @@ def validate_installation_scope_solutions(
             )
             continue
 
+        # Every row above this point was offered by the download or refused on stronger grounds.
+        # A row that reaches here naming a site the download would never have listed was typed
+        # or pasted in. Without this the row is still rejected -- a site outside the plan's
+        # geography has no entry in the workbook's BoundaryCodes sheet, so its state resolves to
+        # "" and the eligibility check below finds no Solution valid -- but the PM is told the
+        # Solution is wrong when the site is.
+        # A blank id is a different mistake and already has its own message from
+        # project_facility_validation; saying it is "not one of this project's sites" on top of
+        # that would point the PM at the wrong fix.
+        if allowed_site_ids is not None and facility_id and facility_id not in allowed_site_ids:
+            site_label = _cell(row, site_name_column) or facility_id
+            if project_site_ids is not None and facility_id in project_site_ids:
+                add_err(
+                    i,
+                    f"{site_label} is outside the geography this installation plan covers, so "
+                    f"it cannot be included in it.",
+                )
+            else:
+                add_err(
+                    i,
+                    f"{site_label} is not one of this project's end user sites, so it cannot be "
+                    f"added to this installation plan.",
+                )
+            continue
+
         if not solution_value:
             add_err(i, "Solution is required when the site is included in the field plan")
             continue
 
-        if sector_by_facility_id is not None:
-            row_sector = sector_by_facility_id.get(facility_id, "") or _cell(row, sector_column)
+        if sector_by_facility_id:
+            # Only fall back to the sheet's Sector cell when the lookup produced nothing at all
+            # (its documented degraded mode). A populated map that simply has no entry for this
+            # id means the site did not resolve, and trusting the cell there would hand a
+            # hand-added row the sector it typed for itself.
+            row_sector = sector_by_facility_id.get(facility_id, "")
         else:
             row_sector = _cell(row, sector_column)
         if state_by_facility_id is not None:
