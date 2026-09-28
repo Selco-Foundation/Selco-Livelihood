@@ -1,7 +1,7 @@
 import { translateOr, useTranslate } from "@/shared";
 import { Button } from "@/ui";
 import { CheckCircle2, Download, FileSpreadsheet, Info, Upload } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useFacility } from "@/shared/hooks/use-facility";
 import { useInstallationSolutions } from "../../hooks/use-installation-solutions";
 import { useSolutionTemplateUpload } from "../../hooks/use-solution-template-upload";
@@ -92,7 +92,7 @@ function SolutionTemplateCard({
               : translateOr(t, "ES_PM_TEMPLATE_NOT_UPLOADED", "Not uploaded yet")}
           </span>
           <p className="mt-1 text-xs font-medium text-muted-foreground">
-            {translateOr(t, "ES_PM_ASSIGNED_USERS", "ASSIGNED SITES").toUpperCase()} ({assignedSites.length})
+            {translateOr(t, "ES_PM_ASSIGNED_SITES", "ASSIGNED SITES").toUpperCase()} ({assignedSites.length})
           </p>
           <ul className="mt-1 space-y-0.5 text-sm text-foreground">
             {assignedSites.map((site) => (
@@ -108,7 +108,7 @@ function SolutionTemplateCard({
             </p>
             <p className="text-xs text-muted-foreground">
               {uploaded
-                ? translateOr(t, "ES_PM_TEMPLATE_UPLOADED", "Uploaded")
+                ? translateOr(t, "ES_PM_TEMPLATE_UPLOADED_SHORT", "Uploaded")
                 : status === "validating"
                   ? translateOr(t, "ES_PM_VALIDATING", "Validating...")
                   : translateOr(t, "ES_PM_DRAG_DROP_HINT", "Drag and drop file here or click below")}
@@ -198,7 +198,10 @@ interface TemplateStepProps {
   /** The parent project's geography — only used to look the plan's sites up by name. */
   projectGeography: GeographyDetails;
   value: TemplateValue;
-  onChange: (value: TemplateValue) => void;
+  /** Accepts an updater, not just a value: two solution cards can be uploading at once, and each
+   *  resolves from its own promise, so building the next array from the `value` of the render
+   *  that started the upload loses whatever the other card finished in the meantime. */
+  onChange: Dispatch<SetStateAction<TemplateValue>>;
   onBusyChange?: (isBusy: boolean) => void;
   /** Published plans retain uploaded templates but do not allow replacements. */
   locked?: boolean;
@@ -247,8 +250,10 @@ export function TemplateStep({
   }
 
   function markUploaded(solutionCode: string) {
-    const withoutSolution = value.filter((entry) => entry.solutionCode !== solutionCode);
-    onChange([...withoutSolution, { solutionCode, uploaded: true }]);
+    onChange((previous) => [
+      ...previous.filter((entry) => entry.solutionCode !== solutionCode),
+      { solutionCode, uploaded: true },
+    ]);
   }
 
   function handleCardBusyChange(solutionCode: string, isBusy: boolean) {

@@ -71,7 +71,9 @@ export const EndUserDataStep = forwardRef<EndUserDataStepHandle, EndUserDataStep
         isBusy={isBusy}
         downloadLabel={translateOr(t, "ES_PM_DOWNLOAD_TEMPLATE", "Download Template")}
         onDownload={downloadTemplate}
-        accept=".xlsx,.csv"
+        // .xlsx only: the validate/create calls address the workbook by sheet name
+        // (facility_sheet_name / boundary_sheet_name), which a CSV cannot satisfy.
+        accept=".xlsx"
         uploadHint={translateOr(t, "ES_PM_UPLOAD_HINT", "Click to upload the filled-in template")}
         doneMessage={translateOr(t, "ES_PM_FILE_UPLOADED_SUCCESSFULLY", "File uploaded successfully")}
         onFileSelected={(file) => void uploadAndValidate(file)}

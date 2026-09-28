@@ -33,6 +33,18 @@ interface PlanDetailsStepProps {
   projectEndDate?: number;
   /** Plan details become immutable once the plan has been created. */
   locked?: boolean;
+  /** The reviewer field alone, separately lockable. Defaults to `locked`. The caller unlocks it
+   *  when the plan has no reviewer assigned -- which happens when the assignment failed after the
+   *  plan was created -- because `locked` would otherwise leave the field empty *and* read-only,
+   *  and `isPlanDetailsValid` requires a reviewer, so Next could never be enabled again. */
+  reviewerLocked?: boolean;
+}
+
+/** Local midnight of a timestamp, so two dates compare by calendar day rather than by instant. */
+function startOfDay(timestamp: number): number {
+  const date = new Date(timestamp);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
 }
 
 export function isPlanDetailsValid(
@@ -48,8 +60,12 @@ export function isPlanDetailsValid(
     Boolean(value.startDate) &&
     Boolean(value.endDate) &&
     (!value.startDate || !value.endDate || value.startDate <= value.endDate) &&
-    (!value.startDate || !projectStartDate || value.startDate >= projectStartDate) &&
-    (!value.endDate || !projectEndDate || value.endDate <= projectEndDate)
+    // Compared by calendar day, not by instant. DateField hands back local midnight, while the
+    // project's own dates can carry a time (a UTC midnight read in IST is 05:30 local). The
+    // calendar's minDate matcher is day-granular, so without this the PM can pick the project's
+    // own start day, have it accepted by the picker, and then find Next silently disabled.
+    (!value.startDate || !projectStartDate || startOfDay(value.startDate) >= startOfDay(projectStartDate)) &&
+    (!value.endDate || !projectEndDate || startOfDay(value.endDate) <= startOfDay(projectEndDate))
   );
 }
 
@@ -60,6 +76,7 @@ export function PlanDetailsStep({
   projectStartDate,
   projectEndDate,
   locked = false,
+  reviewerLocked = locked,
 }: PlanDetailsStepProps) {
   const { t } = useTranslate();
   const { data: hierarchy } = useBoundaryTree();
@@ -206,7 +223,7 @@ export function PlanDetailsStep({
             options={reviewerOptions}
             placeholder={translateOr(t, "ES_PM_SELECT_REVIEWER", "Select Reviewer")}
             onChange={(reviewerCode) => onChange({ ...value, reviewerCode })}
-            disabled={locked}
+            disabled={reviewerLocked}
           />
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-foreground">

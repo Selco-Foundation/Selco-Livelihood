@@ -74,7 +74,7 @@ export function InstallationScopeStep({
         downloadDisabled={!planId || sectorCodes.length === 0 || !projectGeography.blocks?.length}
         onDownload={downloadTemplate}
         accept=".xlsx"
-        uploadHint={translateOr(t, "ES_PM_UPLOAD_HINT", "Click to upload the filled-in scope sheet")}
+        uploadHint={translateOr(t, "ES_PM_SCOPE_UPLOAD_HINT", "Click to upload the filled-in scope sheet")}
         doneMessage={translateOr(t, "ES_PM_SCOPE_APPLIED", "Installation scope applied")}
         onFileSelected={(file) =>
           void uploadAndValidate(file).then((entries) => {

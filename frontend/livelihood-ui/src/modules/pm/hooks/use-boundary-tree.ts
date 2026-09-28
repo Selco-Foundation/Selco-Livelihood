@@ -19,7 +19,10 @@ export function useBoundaryTree() {
   const user = useAuthStore((state) => state.user);
   const boundaries = useJurisdictionStore((state) => state.boundaries);
   const codes = aggregateBoundaryCodes(boundaries);
-  const stableCodes = [...codes].sort().join(",");
+  // Sorted for query-key stability, not for display: the same set of codes must produce the same
+  // key whatever order they arrive in. The comparator is explicit because a bare sort() trips
+  // Sonar's S2871, not because the default ordering was wrong here.
+  const stableCodes = [...codes].sort((a, b) => a.localeCompare(b)).join(",");
 
   return useQuery<BoundaryHierarchy>({
     queryKey: pmKeys.boundaryTree(stableCodes),

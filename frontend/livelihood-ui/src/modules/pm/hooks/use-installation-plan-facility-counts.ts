@@ -11,7 +11,9 @@ import { pmKeys } from "./query-keys";
 export function useInstallationPlanFacilityCounts(fieldPlanIds: string[]) {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
-  const sortedIds = [...fieldPlanIds].sort();
+  // Sorted for query-key stability, not for display (see the note above). The comparator is
+  // explicit only to satisfy Sonar's S2871; the default ordering was already deterministic.
+  const sortedIds = [...fieldPlanIds].sort((a, b) => a.localeCompare(b));
 
   return useQuery({
     queryKey: pmKeys.planFacilityCounts(sortedIds),

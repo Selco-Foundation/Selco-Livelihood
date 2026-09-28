@@ -65,6 +65,14 @@ function toInstallationPlan(raw: RawFieldPlan): InstallationPlan {
   };
 }
 
+/** A saved plan, plus whatever went wrong *after* it was stored and so must not fail the save. */
+export interface SavedInstallationPlan {
+  plan: InstallationPlan;
+  /** Set when the plan exists but its reviewer could not be assigned. The plan id is still
+   *  usable; the assignment is retried by the next `updateInstallationPlan`. */
+  reviewerError?: unknown;
+}
+
 /**
  * `POST /field-planner/v1/field-plans/_create` — writes synchronously (unlike `project`), so its
  * response is trustworthy without a follow-up poll.
@@ -73,7 +81,7 @@ export async function createInstallationPlan(
   plan: InstallationPlan,
   accessToken?: string,
   user?: AuthUser | null,
-): Promise<InstallationPlan> {
+): Promise<SavedInstallationPlan> {
   const { data } = await apiClient.post<{ FieldPlans?: RawFieldPlan[] }>(
     "/field-planner/v1/field-plans/_create",
     {
@@ -98,18 +106,27 @@ export async function createInstallationPlan(
   const created = data.FieldPlans?.[0];
   if (!created?.id) throw new Error("INSTALLATION_PLAN_CREATE_FAILED");
 
+  // The plan is already stored by this point, so a failure from here on must not be thrown past
+  // the caller: it would lose `created.id`, and the next Next click would take the `_create`
+  // branch again and make a second plan, leaving this one orphaned with no reviewer. The failure
+  // is reported alongside the plan instead, and `updateInstallationPlan` retries the assignment.
+  let reviewerError: unknown;
   if (plan.additionalDetails?.reviewerCode) {
-    await assignInstallationReviewer(
-      created.id,
-      plan.additionalDetails.reviewerCode,
-      plan.startDate,
-      plan.endDate,
-      accessToken,
-      user,
-    );
+    try {
+      await assignInstallationReviewer(
+        created.id,
+        plan.additionalDetails.reviewerCode,
+        plan.startDate,
+        plan.endDate,
+        accessToken,
+        user,
+      );
+    } catch (error) {
+      reviewerError = error;
+    }
   }
 
-  return toInstallationPlan(created);
+  return { plan: toInstallationPlan(created), reviewerError };
 }
 
 /**
@@ -189,7 +206,7 @@ export async function updateInstallationPlan(
   plan: InstallationPlan,
   accessToken?: string,
   user?: AuthUser | null,
-): Promise<InstallationPlan> {
+): Promise<SavedInstallationPlan> {
   const { data } = await apiClient.post<{ FieldPlans?: RawFieldPlan[] }>(
     "/field-planner/v1/field-plans/_update",
     {
@@ -212,8 +229,27 @@ export async function updateInstallationPlan(
     },
   );
 
+  // Repairs a plan whose reviewer assignment failed at creation. Without this there is no path
+  // back: `_update` does not touch activity_assignments, so such a plan would stay reviewer-less
+  // forever. Only ever *adds* one — an assignment that already exists is left alone, so this is
+  // safe to run on every update.
+  let reviewerError: unknown;
+  const reviewerCode = plan.additionalDetails?.reviewerCode;
+  if (reviewerCode && plan.id) {
+    try {
+      const assigned = await searchAssignedReviewer(plan.id, accessToken, user);
+      if (!assigned) {
+        await assignInstallationReviewer(
+          plan.id, reviewerCode, plan.startDate, plan.endDate, accessToken, user,
+        );
+      }
+    } catch (error) {
+      reviewerError = error;
+    }
+  }
+
   const updated = data.FieldPlans?.[0];
-  return updated ? toInstallationPlan(updated) : plan;
+  return { plan: updated ? toInstallationPlan(updated) : plan, reviewerError };
 }
 
 /**

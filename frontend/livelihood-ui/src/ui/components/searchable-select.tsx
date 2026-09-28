@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { translateOr, useTranslate } from "@/shared";
 import { cn } from "@/ui/lib/utils";
 import { Input } from "@/ui/components/ui/input";
@@ -40,6 +40,10 @@ export function SearchableSelect<TOption extends SearchableSelectOption>({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const { t } = useTranslate();
+  // Same reasoning as MultiSelect: without these the trigger announces only its current value,
+  // and `required` is visual-only.
+  const triggerId = useId();
+  const errorId = `${triggerId}-error`;
   const resolvedPlaceholder = placeholder ?? translateOr(t, "ES_COMMON_SELECT_PLACEHOLDER", "Select");
 
   const selectedOption = useMemo(
@@ -56,7 +60,7 @@ export function SearchableSelect<TOption extends SearchableSelectOption>({
   return (
     <div className="min-w-0 space-y-1.5">
       {label ? (
-        <label className="text-sm font-medium text-foreground">
+        <label htmlFor={triggerId} className="text-sm font-medium text-foreground">
           {label}
           {required ? <span className="text-destructive"> *</span> : null}
         </label>
@@ -71,7 +75,11 @@ export function SearchableSelect<TOption extends SearchableSelectOption>({
         <PopoverTrigger asChild>
           <button
             type="button"
+            id={triggerId}
             disabled={disabled}
+            aria-required={required || undefined}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? errorId : undefined}
             className={cn(
               "livelihood-filter-select flex items-center justify-between gap-2 pr-3 text-left disabled:cursor-not-allowed disabled:opacity-50",
               !selectedOption && "text-muted-foreground",
@@ -125,7 +133,7 @@ export function SearchableSelect<TOption extends SearchableSelectOption>({
         </PopoverContent>
       </Popover>
       {error ? (
-        <p className="flex items-center gap-1 text-xs text-destructive">
+        <p id={errorId} className="flex items-center gap-1 text-xs text-destructive">
           <Info className="size-3.5 shrink-0" />
           {error}
         </p>

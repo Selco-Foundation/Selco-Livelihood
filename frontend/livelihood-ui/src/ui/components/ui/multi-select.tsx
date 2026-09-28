@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { ChevronDown, Info, Search, X } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Checkbox } from "./checkbox";
@@ -60,6 +60,11 @@ export function MultiSelect<TOption extends MultiSelectOption>({
 }: MultiSelectProps<TOption>) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  // Ties the visible label and the error text to the trigger. Without it a screen reader
+  // announces this control as just "N selected", with no field name -- and since this primitive
+  // backs every State/District/Block/Sector field in both PM wizards, that is every one of them.
+  const triggerId = useId();
+  const errorId = `${triggerId}-error`;
 
   const sortedOptions = useMemo(
     () => [...options].sort((a, b) => a.name.localeCompare(b.name)),
@@ -104,7 +109,7 @@ export function MultiSelect<TOption extends MultiSelectOption>({
 
   return (
     <div className="min-w-0 space-y-1.5">
-      <label className="text-sm font-medium text-foreground">
+      <label htmlFor={triggerId} className="text-sm font-medium text-foreground">
         {label}
         {required ? <span className="text-destructive"> *</span> : null}
       </label>
@@ -140,7 +145,12 @@ export function MultiSelect<TOption extends MultiSelectOption>({
         <PopoverTrigger asChild>
           <button
             type="button"
+            id={triggerId}
             disabled={disabled}
+            // `required` alone only drew a visual asterisk; assistive technology needs these.
+            aria-required={required || undefined}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? errorId : undefined}
             className={cn(
               "livelihood-filter-select flex items-center justify-between gap-2 pr-3 text-left disabled:cursor-not-allowed disabled:opacity-50",
               selectedOptions.length === 0 && "text-muted-foreground",
@@ -220,7 +230,7 @@ export function MultiSelect<TOption extends MultiSelectOption>({
         </PopoverContent>
       </Popover>
       {error ? (
-        <p className="flex items-center gap-1 text-xs text-destructive">
+        <p id={errorId} className="flex items-center gap-1 text-xs text-destructive">
           <Info className="size-3.5 shrink-0" />
           {error}
         </p>

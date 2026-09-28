@@ -36,7 +36,10 @@ export function ConfirmSubmitDialog({
   const { t } = useTranslate();
 
   return (
-    <AlertDialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
+    // Close requests are refused while the submit is in flight -- Escape and the overlay included.
+    // The caller closes the dialog itself once the work succeeds; until then this has to stay up
+    // to show its own error.
+    <AlertDialog open={open} onOpenChange={(nextOpen) => !nextOpen && !isSubmitting && onCancel()}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{translateOr(t, "ES_PM_IMPORTANT_NOTE", "Important Note")}</AlertDialogTitle>
@@ -49,7 +52,17 @@ export function ConfirmSubmitDialog({
           <AlertDialogCancel disabled={isSubmitting} onClick={onCancel}>
             {translateOr(t, "CORE_COMMON_CANCEL", "Cancel")}
           </AlertDialogCancel>
-          <AlertDialogAction disabled={isSubmitting} onClick={onConfirm}>
+          <AlertDialogAction
+            disabled={isSubmitting}
+            // AlertDialogAction is a Radix close button, and its own handler runs after this one,
+            // so without preventDefault the dialog unmounts the instant Confirm is clicked --
+            // while onConfirm's async work is still running. Any error it reports would then be
+            // set on a dialog that no longer exists, and the isSubmitting state never shows.
+            onClick={(event) => {
+              event.preventDefault();
+              onConfirm();
+            }}
+          >
             {translateOr(t, "ES_PM_CONFIRM_AND_SUBMIT", "Confirm & Submit")}
           </AlertDialogAction>
         </AlertDialogFooter>

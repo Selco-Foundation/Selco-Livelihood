@@ -10,6 +10,14 @@ export function triggerBrowserDownload(file: DownloadedFile) {
   const link = document.createElement("a");
   link.href = url;
   link.download = file.filename;
+  // Attached before clicking: some browsers ignore a click on an anchor that is not in the
+  // document.
+  link.style.display = "none";
+  document.body.appendChild(link);
   link.click();
-  URL.revokeObjectURL(url);
+  link.remove();
+  // Revoked on a later task, not inline: the download is started asynchronously, so revoking in
+  // the same tick as the click can pull the blob out from under a read that has not begun yet
+  // and produce an empty or failed download.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }

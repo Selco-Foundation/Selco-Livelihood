@@ -26,7 +26,7 @@ import { useProjectById } from "../../hooks/use-project-by-id";
 import { useSaveInstallationPlan } from "../../hooks/use-save-installation-plan";
 import { useVendorAssignmentSearch } from "../../hooks/use-vendor-assignment-search";
 import type { InstallationPlanRouteSearch } from "../../routes";
-import { publishInstallationPlan } from "../../services/installation-plan";
+import { publishInstallationPlan, type SavedInstallationPlan } from "../../services/installation-plan";
 import { validateVendorAssignment } from "../../services/vendor-assignment";
 import type { InstallationPlan } from "../../types/installation-plan";
 import { pmMyProjectsPath, pmProjectDetailsPath } from "../../utils/paths";
@@ -57,9 +57,9 @@ export function CreateInstallationPlanPage() {
   const currentStep = search.step ?? 1;
   const { data: project } = useProjectById(projectId);
   const { data: existingPlan } = useInstallationPlanById(planId);
-  const { data: assignedReviewer } = useInstallationPlanReviewer(planId);
-  const { data: savedScope } = useInstallationPlanScope(planId);
-  const { data: savedTemplates } = useInstallationPlanTemplates(planId);
+  const { data: assignedReviewer, isLoading: isReviewerLoading } = useInstallationPlanReviewer(planId);
+  const { data: savedScope, isLoading: isScopeLoading } = useInstallationPlanScope(planId);
+  const { data: savedTemplates, isLoading: isTemplatesLoading } = useInstallationPlanTemplates(planId);
   const savePlan = useSaveInstallationPlan();
   const queryClient = useQueryClient();
   const { data: vendorAssignmentSearch } = useVendorAssignmentSearch(planId, currentStep === 4);
@@ -87,6 +87,7 @@ export function CreateInstallationPlanPage() {
   const [scopeApplied, setScopeApplied] = useState(false);
   const [templateBusy, setTemplateBusy] = useState(false);
   const [isPlanHydrated, setIsPlanHydrated] = useState(!planId);
+  const [saveError, setSaveError] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (!planId) {
@@ -94,6 +95,11 @@ export function CreateInstallationPlanPage() {
       return;
     }
     if (!existingPlan) return;
+    // The scope and template queries have to settle too, not just the plan. They are separate
+    // requests, and until they land `scope`/`templates` are empty, which makes maxAccessibleStep
+    // 2 -- so marking the plan hydrated on `existingPlan` alone lets the guard below rewrite a
+    // reload of step 3 or 4 back to step 2, with `replace`, losing the history entry.
+    if (isScopeLoading || isTemplatesLoading) return;
     // reviewerCode is intentionally left out here and preserved from prior state: the assigned
     // reviewer is never part of this response (see the dedicated effect below), so resetting it
     // to "" on every hydration would clobber that effect's result if existingPlan ever refetches.
@@ -109,7 +115,7 @@ export function CreateInstallationPlanPage() {
     // so resetting them on every hydration would wipe out those effects' results if existingPlan
     // ever refetches.
     setIsPlanHydrated(true);
-  }, [existingPlan, planId]);
+  }, [existingPlan, planId, isScopeLoading, isTemplatesLoading]);
 
   // The assigned reviewer lives in field-planner-activity's activity_assignments, not on
   // field-planner's own FieldPlan response, so it can't come from the hydration effect above —
@@ -167,7 +173,7 @@ export function CreateInstallationPlanPage() {
     [scope],
   );
 
-  async function persistPlan(): Promise<InstallationPlan> {
+  async function persistPlan(): Promise<SavedInstallationPlan> {
     const plan: InstallationPlan = {
       id: planId,
       tenantId: project?.tenantId ?? tenantId(),
@@ -221,10 +227,43 @@ export function CreateInstallationPlanPage() {
 
   async function handleNext() {
     if (!canGoNext || isNavigationBusy) return;
+    setSaveError(undefined);
     // Moving forward is the only point at which a step is persisted. This
     // leaves Back and stepper navigation safely read-only.
-    const saved = await persistPlan();
-    void navigate({ search: () => ({ projectId, planId: saved.id, step: currentStep + 1 }), replace: true });
+    let saved: SavedInstallationPlan;
+    try {
+      saved = await persistPlan();
+    } catch (error) {
+      // Without this the rejection is unhandled and the PM sees nothing at all: Next simply
+      // re-enables and the step never advances.
+      setSaveError(
+        extractApiErrorMessage(error) ??
+          translateOr(
+            t,
+            "ES_PM_INSTALLATION_PLAN_SAVE_FAILED",
+            "Failed to save this installation plan. Please try again.",
+          ),
+      );
+      return;
+    }
+
+    // The plan itself saved; only the reviewer assignment failed. Stay on this step and say so,
+    // rather than advancing past a plan that has no reviewer. The id is already in the URL below,
+    // so pressing Next again updates and retries the assignment instead of creating a second plan.
+    if (saved.reviewerError) {
+      void navigate({ search: (prev) => ({ ...prev, planId: saved.plan.id }), replace: true });
+      setSaveError(
+        extractApiErrorMessage(saved.reviewerError) ??
+          translateOr(
+            t,
+            "ES_PM_REVIEWER_ASSIGNMENT_FAILED",
+            "The installation plan was saved, but the Installation Reviewer could not be assigned. Please try again.",
+          ),
+      );
+      return;
+    }
+
+    void navigate({ search: () => ({ projectId, planId: saved.plan.id, step: currentStep + 1 }), replace: true });
   }
 
   async function handleConfirmSubmit() {
@@ -335,6 +374,10 @@ export function CreateInstallationPlanPage() {
           projectStartDate={project?.startDate}
           projectEndDate={project?.endDate}
           locked={Boolean(planId)}
+          // Kept locked while the lookup is still in flight, so the field doesn't flicker
+          // editable; unlocked only once we know this plan genuinely has no reviewer, which
+          // means the assignment failed after creation and needs to be redone.
+          reviewerLocked={Boolean(planId) && (isReviewerLoading || Boolean(assignedReviewer))}
         />
       ) : null}
       {currentStep === 2 ? (
@@ -373,6 +416,12 @@ export function CreateInstallationPlanPage() {
           onChange={setAssignments}
           locked={isPublished}
         />
+      ) : null}
+
+      {saveError ? (
+        <p className="text-sm whitespace-pre-line text-destructive" role="alert">
+          {saveError}
+        </p>
       ) : null}
 
       {!isPublished ? (
