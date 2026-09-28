@@ -73,7 +73,7 @@ jobs:
           context: .
           file: build/maven/Dockerfile
           push: true
-          tags: selcohub/field-planner:${{ env.VERSION }}-${{ env.commit_hash }}
+          tags: selcohub/field-planner-lh:${{ env.VERSION }}-${{ env.commit_hash }}
           cache-from: type=gha   # Stores cache in GitHub Actions .
           cache-to: type=gha,mode=max  # max- stores all the layers including the intermediate layers in multi-stage
           build-args: |
@@ -81,8 +81,8 @@ jobs:
 
       - name: Build and Push Docker image for Field-Planner-DB
         run: |
-          docker build  -t selcohub/field-planner-db:${{ env.VERSION }}-${{ env.commit_hash }} -f  Dockerfile .
-          docker push selcohub/field-planner-db:${{ env.VERSION }}-${{ env.commit_hash }}
+          docker build  -t selcohub/field-planner-db-lh:${{ env.VERSION }}-${{ env.commit_hash }} -f  Dockerfile .
+          docker push selcohub/field-planner-db-lh:${{ env.VERSION }}-${{ env.commit_hash }}
         working-directory: backend/e4h-services/field-planner/src/main/resources/db
 
 #  Workflow_Trigger:
