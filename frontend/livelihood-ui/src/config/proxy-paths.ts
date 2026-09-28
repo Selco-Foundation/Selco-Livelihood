@@ -13,4 +13,5 @@ export const API_PROXY_PATHS = [
   "/filestore",
   "/asset-registry",
   "/activity",
+  "/ingestion-service",
 ] as const;

@@ -1,4 +1,6 @@
 import { apiClient } from "./client";
+import { createRequestInfo } from "./request-info";
+import type { AuthUser } from "../stores/auth-store";
 
 export interface LocalizationMessage {
   code: string;
@@ -57,3 +59,20 @@ export async function fetchLocalization({
 }
 
 export { messagesToResourceMap };
+
+/**
+ * Registers a display name for a code (e.g. a newly created boundary's
+ * `Boundary_<code>` key) — matches `fa`'s `LocalizationService.upsertLocalization`.
+ * Callers must `reloadModule(...)` (see `@/shared`'s i18n) afterwards to bust the
+ * cached bundle, same as `fa`'s manual `PersistantStorage` cache-bust.
+ */
+export async function upsertLocalization(
+  payload: { tenantId: string; messages: LocalizationMessage[] },
+  accessToken: string,
+  user?: AuthUser | null,
+): Promise<void> {
+  await apiClient.post("/localization/messages/v1/_upsert", {
+    RequestInfo: createRequestInfo(accessToken, user),
+    ...payload,
+  });
+}

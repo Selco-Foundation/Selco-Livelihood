@@ -1,9 +1,11 @@
 import { contextPath, translateOr, useModuleI18n, useTranslate } from "@/shared";
 import type { AnyRoute } from "@tanstack/react-router";
 import { createRoute, Outlet, redirect } from "@tanstack/react-router";
-import { Building2 } from "lucide-react";
+import { Building2, MapPinned } from "lucide-react";
 import { EU_ROUTES } from "./constants/routes";
+import { BoundaryListPage } from "./pages/employee/BoundaryListPage";
 import { FacilityListPage } from "./pages/employee/FacilityListPage";
+import { UploadBoundaryPage } from "./pages/employee/UploadBoundaryPage";
 import { EU_ROLES } from "./utils/access";
 
 /**
@@ -30,6 +32,8 @@ export function createEuRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
   const basePath = contextPath();
   const euRootPath = `/${basePath}${EU_ROUTES.euRoot}`;
   const facilitiesPath = `/${basePath}${EU_ROUTES.facilities}`;
+  const boundariesPath = `/${basePath}${EU_ROUTES.boundaries}`;
+  const boundaryUploadPath = `/${basePath}${EU_ROUTES.boundaryUpload}`;
 
   // Parent route — loads rainmaker-eu translations before any EU page renders
   const euParentRoute = createRoute({
@@ -52,8 +56,20 @@ export function createEuRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
     component: FacilityListPage,
   });
 
+  const boundariesRoute = createRoute({
+    getParentRoute: () => euParentRoute,
+    path: boundariesPath,
+    component: BoundaryListPage,
+  });
+
+  const boundaryUploadRoute = createRoute({
+    getParentRoute: () => euParentRoute,
+    path: boundaryUploadPath,
+    component: UploadBoundaryPage,
+  });
+
   return {
-    routes: [euParentRoute, euIndexRoute, facilitiesRoute],
+    routes: [euParentRoute, euIndexRoute, facilitiesRoute, boundariesRoute, boundaryUploadRoute],
     navItems: [
       {
         id: "eu-facilities",
@@ -61,6 +77,15 @@ export function createEuRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
         labelKey: "END_USER_SITES",
         to: facilitiesPath,
         icon: Building2,
+        roles: [...EU_ROLES],
+      },
+      {
+        id: "eu-boundaries",
+        label: "Boundaries",
+        labelKey: "FA_LABEL_BOUNDARIES",
+        to: boundariesPath,
+        icon: MapPinned,
+        matchPrefixes: [boundaryUploadPath],
         roles: [...EU_ROLES],
       },
     ],

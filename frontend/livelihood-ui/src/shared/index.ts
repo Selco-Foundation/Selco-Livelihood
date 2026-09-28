@@ -2,6 +2,7 @@ export { apiClient } from "./api/client";
 export {
   fetchLocalization,
   messagesToResourceMap,
+  upsertLocalization,
   type FetchLocalizationParams,
   type LocalizationMessage,
   type LocalizationResponse,
