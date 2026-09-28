@@ -121,6 +121,7 @@ export {
   AccordionItem,
   AccordionTrigger,
 } from "./components/ui/accordion";
+export { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 export {
   Select,
   SelectContent,

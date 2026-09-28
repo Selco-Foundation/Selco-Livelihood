@@ -15,6 +15,7 @@ export interface FacilitySearchCriteria {
   limit: number;
   offset: number;
   boundaryCodes?: string[];
+  facilityIds?: string[];
 }
 
 interface FacilitySearchResponseItem {
@@ -54,6 +55,7 @@ function toFacility(item: FacilitySearchResponseItem): Facility {
     latitude: item.address?.latitude,
     longitude: item.address?.longitude,
     solarSolutionDesignType: item.facility_details?.solar_solution_design_type,
+    raw: item as unknown as Record<string, unknown>,
   };
 }
 
@@ -121,8 +123,14 @@ export async function createFacility(
   return data;
 }
 
+/**
+ * The `Facility` update-request body — a single `FacilityUpdate` object (not
+ * an array like create), spreading the record's raw, untransformed fields
+ * first so anything not explicitly edited here is preserved as-is. Matches
+ * `fa`'s `FacilityDetails.js` `handleFacilityUpdate` payload shape exactly.
+ */
 export async function updateFacility(
-  payload: Partial<CreateFacilityPayload> & { facility_id: string },
+  payload: Record<string, unknown>,
   accessToken: string,
   user?: AuthUser | null,
 ): Promise<unknown> {
@@ -130,7 +138,7 @@ export async function updateFacility(
     "/facility-service/v2/facility/update",
     {
       RequestInfo: createRequestInfo(accessToken, user),
-      facilities: [payload],
+      FacilityUpdate: payload,
     },
     { params: { tenantId: getTenantId() } },
   );

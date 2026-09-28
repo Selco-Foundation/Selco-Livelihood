@@ -1,7 +1,9 @@
 import { translateOr, useTranslate, type BoundaryHierarchy } from "@/shared";
 import { Pagination, Skeleton } from "@/ui";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { boundaryDisplayName, resolveBoundaryLabels } from "../../utils/boundary";
 import type { Facility } from "../../types/facility";
+import { euFacilityDetailPath } from "../../utils/paths";
 
 interface FacilityTableProps {
   facilities: Facility[];
@@ -29,6 +31,7 @@ export function FacilityTable({
   onPageSizeChange,
 }: FacilityTableProps) {
   const { t } = useTranslate();
+  const navigate = useNavigate();
 
   if (isLoading) {
     return (
@@ -73,14 +76,27 @@ export function FacilityTable({
               <tbody>
                 {facilities.map((facility, index) => {
                   const labels = resolveBoundaryLabels(facility.boundaryCode, boundaryData);
+                  const detailPath = euFacilityDetailPath(facility.id);
                   return (
                     <tr
                       key={facility.id}
-                      className={index % 2 === 1 ? "border-b border-border/70 bg-accent" : "border-b border-border/70"}
+                      className={
+                        "cursor-pointer " +
+                        (index % 2 === 1 ? "border-b border-border/70 bg-accent" : "border-b border-border/70")
+                      }
+                      onClick={() => {
+                        navigate({ to: detailPath }).catch(() => {});
+                      }}
                     >
                       <td className="px-5 py-4 text-foreground">{facility.id || "-"}</td>
                       <td className="px-5 py-4 font-semibold text-foreground">
-                        {facility.facilityName || "-"}
+                        <Link
+                          to={detailPath}
+                          className="hover:underline"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {facility.facilityName || "-"}
+                        </Link>
                       </td>
                       <td className="px-5 py-4 text-foreground">
                         {labels.state ? boundaryDisplayName(labels.state, t) : "-"}

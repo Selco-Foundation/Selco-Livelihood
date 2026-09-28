@@ -21,6 +21,10 @@ export interface Facility {
   latitude?: number;
   longitude?: number;
   solarSolutionDesignType?: string;
+  /** The untransformed backend record — `fa`'s update call spreads this first and
+   * overrides only the edited fields, since `/facility-service/v2/facility/update`
+   * replaces the whole record rather than patching it. */
+  raw?: Record<string, unknown>;
 }
 
 export interface FacilitySearchFilters {
