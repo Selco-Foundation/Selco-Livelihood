@@ -13,57 +13,44 @@ export interface AssetSearchCriteria {
   isOperational?: boolean;
 }
 
+/**
+ * `assetDetails` uses one generic shape across every asset type — verified
+ * against a real response by both `ir`'s and `im`'s existing asset-registry
+ * integrations: `{ name, capacity: "550 Wp", capacityUnit, totalCapacity }`.
+ * There are no separate per-type fields like `panelCapacity`/`batteryVoltage`
+ * on the current backend, and `capacity` already comes pre-formatted with its
+ * unit, so there's no separate voltage field either.
+ */
 interface AssetDetails {
-  panelCapacity?: number;
-  batteryCapacity?: number;
-  inverterCapacity?: number;
-  batteryVoltage?: number;
-  capacityUnit?: string;
-  voltageUnit?: string;
-  invertorCapacityUnit?: string;
+  capacity?: string;
 }
 
-interface AssetSearchResponseItem {
+export interface AssetSearchDocument {
+  documentType?: string;
+  fileStore?: string;
+}
+
+export interface AssetSearchResponseItem {
   assetId?: string;
   assetTypeID?: string;
   serialNumber?: string;
   modelNumber?: string;
   brandID?: string;
+  system?: string;
   isOperational?: boolean;
-  warrantyStartDate?: number;
+  /** ISO 8601 date-time string, not epoch millis — verified against a real
+   * asset-registry response by `ir`'s `services/asset.ts`. */
+  warrantyStartDate?: string;
+  warrantyDuration?: number;
   assetDetails?: AssetDetails;
+  documents?: AssetSearchDocument[] | null;
 }
 
-function formatCapacity(assetType: string | undefined, details: AssetDetails | undefined): string | undefined {
-  if (!details) return undefined;
-  switch (assetType) {
-    case "PANEL":
-      return details.panelCapacity !== undefined ? `${details.panelCapacity} ${details.capacityUnit ?? ""}`.trim() : undefined;
-    case "BATTERY":
-      return details.batteryCapacity !== undefined ? `${details.batteryCapacity} ${details.capacityUnit ?? ""}`.trim() : undefined;
-    case "INVERTER":
-      return details.inverterCapacity !== undefined
-        ? `${details.inverterCapacity} ${details.invertorCapacityUnit ?? ""}`.trim()
-        : undefined;
-    default:
-      return undefined;
-  }
-}
-
-function formatVoltage(assetType: string | undefined, details: AssetDetails | undefined): string | undefined {
-  if (assetType !== "BATTERY" || !details || details.batteryVoltage === undefined) {
-    return undefined;
-  }
-  return `${details.batteryVoltage} ${details.voltageUnit ?? ""}`.trim();
-}
-
-function formatInstallationDate(timestamp: number | undefined): string | undefined {
-  if (!timestamp) return undefined;
-  return new Date(timestamp).toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+function formatInstallationDate(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return date.toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 function toFacilityAsset(row: AssetSearchResponseItem): FacilityAsset {
@@ -73,8 +60,7 @@ function toFacilityAsset(row: AssetSearchResponseItem): FacilityAsset {
     serialNumber: row.serialNumber,
     modelNumber: row.modelNumber,
     brand: row.brandID,
-    capacity: formatCapacity(row.assetTypeID, row.assetDetails),
-    voltage: formatVoltage(row.assetTypeID, row.assetDetails),
+    capacity: row.assetDetails?.capacity,
     installationDate: formatInstallationDate(row.warrantyStartDate),
     isOperational: row.isOperational,
   };
@@ -93,4 +79,28 @@ export async function searchAssets(
   );
 
   return (data ?? []).map(toFacilityAsset);
+}
+
+/**
+ * Raw rows (documents preserved, not simplified into `FacilityAsset`) for one
+ * activity's asset sections — scoped by `activityFacilityID` rather than
+ * `facilityID`, matching the installation review module's already-proven
+ * criteria field for this same per-activity case.
+ */
+export async function searchAssetsForActivity(
+  activityFacilityId: string,
+  tenantId: string,
+  accessToken: string,
+  user?: AuthUser | null,
+): Promise<AssetSearchResponseItem[]> {
+  const { data } = await apiClient.post<AssetSearchResponseItem[]>(
+    "/asset-registry/v1/asset/_search",
+    {
+      RequestInfo: createRequestInfo(accessToken, user),
+      criteria: { tenantId, activityFacilityID: activityFacilityId },
+    },
+    { params: { limit: 1000, offset: 0 } },
+  );
+
+  return data ?? [];
 }

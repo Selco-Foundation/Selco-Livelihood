@@ -13,10 +13,6 @@ export function euActivityDetailPath(facilityId: string, activityId: string) {
   return `${euFacilityDetailPath(facilityId)}/activities/${encodeURIComponent(activityId)}`;
 }
 
-export function euAssessmentDetailPath(facilityId: string, planFacilityId: string) {
-  return `${euFacilityDetailPath(facilityId)}/assessments/${encodeURIComponent(planFacilityId)}`;
-}
-
 export function euFacilitiesBulkAddPath() {
   return `/${contextPath()}${EU_ROUTES.facilitiesBulkAdd}`;
 }

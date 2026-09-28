@@ -3,11 +3,11 @@ import { createRequestInfo } from "@/shared/api/request-info";
 import type { Facility } from "../types/facility";
 
 /**
- * The `Facility` `_bulk-search` request-body criteria. `fa`'s legacy `useFacility.js`
- * filtered by separate `state`/`district`/`block` arrays, but the real backend (verified
- * live) doesn't resolve a `boundary` object on the response and only narrows results by
- * leaf `boundaryCodes` — matching `shared/api/facility.ts`'s already-proven request shape.
- * Filter selections are resolved to leaf codes before reaching this criteria (see
+ * The `Facility` `_bulk-search` request-body criteria. The real backend
+ * (verified live) doesn't resolve a `boundary` object on the response and
+ * only narrows results by leaf `boundaryCodes` — matching
+ * `shared/api/facility.ts`'s already-proven request shape. Filter selections
+ * are resolved to leaf codes before reaching this criteria (see
  * `utils/boundary.ts`'s `resolveFacilityBoundaryCodes`).
  */
 export interface FacilitySearchCriteria {
@@ -84,7 +84,7 @@ export async function searchFacilities(
   return { facilities, total: data.totalCount ?? facilities.length };
 }
 
-/** The `Facility` create-request body — one entry, matching `fa`'s `FacilityAdminActions.js` payload shape. */
+/** The `Facility` create-request body — one entry. */
 export interface CreateFacilityPayload {
   tenant_id: string;
   facility_name: string;
@@ -101,10 +101,8 @@ export interface CreateFacilityPayload {
   facility_details: { solar_solution_design_type?: string };
 }
 
-// Note: unlike the search endpoint above, `fa`'s legacy create/update calls send
-// `{ facilities: [...] }` at the body's top level (no `Facility` wrapper key) —
-// confirmed against `CustomRequest.js`, which only ever adds a top-level
-// `RequestInfo` and never re-wraps the caller's own `data`.
+// Note: unlike the search endpoint above, create/update send
+// `{ facilities: [...] }` at the body's top level (no `Facility` wrapper key).
 
 export async function createFacility(
   payload: CreateFacilityPayload,
@@ -126,8 +124,7 @@ export async function createFacility(
 /**
  * The `Facility` update-request body — a single `FacilityUpdate` object (not
  * an array like create), spreading the record's raw, untransformed fields
- * first so anything not explicitly edited here is preserved as-is. Matches
- * `fa`'s `FacilityDetails.js` `handleFacilityUpdate` payload shape exactly.
+ * first so anything not explicitly edited here is preserved as-is.
  */
 export async function updateFacility(
   payload: Record<string, unknown>,

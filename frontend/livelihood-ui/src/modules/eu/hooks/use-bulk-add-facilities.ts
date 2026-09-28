@@ -13,10 +13,9 @@ export type BulkAddFacilitiesResult =
   | { status: "invalid_data"; errorCount: number; resultFile: { blob: Blob; filename: string } };
 
 /**
- * Ports `fa`'s `FAService.uploadFacilityDataTemplate` — validate the file
- * first; if any rows failed, stop there and hand back the annotated workbook
- * (same "fix and re-upload" flow as boundaries). Only a fully valid file
- * moves on to the actual ingest call.
+ * Validate the file first; if any rows failed, stop there and hand back the
+ * annotated workbook (same "fix and re-upload" flow as boundaries). Only a
+ * fully valid file moves on to the actual ingest call.
  */
 export function useBulkAddFacilities() {
   const accessToken = useAuthStore((state) => state.accessToken);

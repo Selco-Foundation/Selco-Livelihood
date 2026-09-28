@@ -12,12 +12,11 @@ export interface BoundaryFieldErrors {
 }
 
 /**
- * Form state for creating a boundary — ports `fa`'s `BoundaryForm.js` +
- * `StateToggleField.js`/`DistrictToggleField.js`: State/District can either be
- * picked from the existing hierarchy or typed as a brand-new name (toggled
+ * Form state for creating a boundary: State/District can either be picked
+ * from the existing hierarchy or typed as a brand-new name (toggled
  * independently, except typing a new State forces District into text mode
  * too, since a district can't be picked under a state that doesn't exist
- * yet). Block is always free text — `fa` never offers a Block dropdown here.
+ * yet). Block is always free text — there's no existing-block dropdown here.
  */
 export function useBoundaryForm() {
   const { t } = useTranslate();

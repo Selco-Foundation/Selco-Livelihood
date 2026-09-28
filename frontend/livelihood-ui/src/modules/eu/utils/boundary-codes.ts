@@ -21,10 +21,9 @@ export interface GeographyCodes {
 }
 
 /**
- * Ports `fa`'s `BoundaryService.computeGeographyCodes` — when a tier is typed as
- * free text (not picked from the existing hierarchy), its code is derived by
- * appending the normalized name to its parent's code; when picked from an
- * existing tier, the value already *is* the code.
+ * When a tier is typed as free text (not picked from the existing hierarchy),
+ * its code is derived by appending the normalized name to its parent's code;
+ * when picked from an existing tier, the value already *is* the code.
  */
 export function computeGeographyCodes({
   country = DEFAULT_COUNTRY,

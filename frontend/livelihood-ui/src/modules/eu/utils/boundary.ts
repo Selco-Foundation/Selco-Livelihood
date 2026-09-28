@@ -9,7 +9,7 @@ export function cascadeByParent(nodes: BoundaryNode[], selectedParentCodes: stri
   return nodes.filter((node) => selectedParentCodes.includes(node.parentCode));
 }
 
-/** Display name for a boundary code — same localization convention as im/ir/qc (`BOUNDARY_<code>`), falling back to the raw code when no translation exists. */
+/** Display name for a boundary code — same localization convention as im/ir (`BOUNDARY_<code>`), falling back to the raw code when no translation exists. */
 export function boundaryDisplayName(
   code: string,
   t: ReturnType<typeof useTranslate>["t"],

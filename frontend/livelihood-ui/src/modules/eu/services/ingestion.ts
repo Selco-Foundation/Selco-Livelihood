@@ -45,11 +45,10 @@ export interface IngestUploadResult {
 const DEFAULT_BOUNDARY_SHEET_NAME = "Boundary Data";
 
 /**
- * Ports `fa`'s `IngestionService.uploadBoundaryDataAndGetDisplayFile` — the
- * response is polymorphic: a JSON ack on full success, or an annotated
- * spreadsheet (with an `x-error-count` header) when some rows failed
- * validation. Content-type decides which one came back, rather than sniffing
- * bytes like the legacy code did — more reliable against a real backend.
+ * This endpoint's response is polymorphic: a JSON ack on full success, or an
+ * annotated spreadsheet (with an `x-error-count` header) when some rows
+ * failed validation. Content-type decides which one came back — more
+ * reliable than sniffing the response bytes.
  */
 export async function uploadBoundaryData(
   file: File,
@@ -102,10 +101,9 @@ export interface ValidateFacilityDataResult {
 }
 
 /**
- * Ports `fa`'s `FAService.uploadFacilityDataTemplate`'s validate step
- * (`IngestionService.validateFacilityData`) — this endpoint always answers
- * with an annotated workbook (unlike boundary's polymorphic JSON/blob
- * response), whether or not any rows failed; `errorCount` says which.
+ * This endpoint always answers with an annotated workbook (unlike boundary's
+ * polymorphic JSON/blob response), whether or not any rows failed;
+ * `errorCount` says which.
  */
 export async function validateFacilityData(
   file: File,
@@ -129,10 +127,9 @@ export async function validateFacilityData(
 }
 
 /**
- * Ports `fa`'s `FAService.uploadFacilityDataTemplate`'s upload step
- * (`IngestionService.uploadFacilityData`) — takes the *validated* file from
- * `validateFacilityData` (not the original upload), matching `are_facilities_onm_ready`
- * to the bulk-add page's ONM-ready toggle.
+ * Takes the *validated* file from `validateFacilityData` (not the original
+ * upload), sending `are_facilities_onm_ready` from the bulk-add page's
+ * ONM-ready toggle.
  */
 export async function uploadFacilityData(
   validatedFile: { blob: Blob; filename: string },

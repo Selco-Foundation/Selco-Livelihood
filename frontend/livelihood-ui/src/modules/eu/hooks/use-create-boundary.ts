@@ -13,8 +13,7 @@ export interface CreateBoundaryInput {
 }
 
 /**
- * Ports `fa`'s `BoundaryAdminActions.js` `handleBoundaryCreate` sequence:
- * compute codes for whichever tiers were typed as free text, create each new
+ * Compute codes for whichever tiers were typed as free text, create each new
  * tier (boundary + relationship + a localized display name), then create the
  * block (always, since it's never picked from an existing list), and finally
  * bust the cached `rainmaker-in` bundle so the new names render immediately.

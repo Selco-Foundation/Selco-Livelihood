@@ -62,9 +62,9 @@ export { messagesToResourceMap };
 
 /**
  * Registers a display name for a code (e.g. a newly created boundary's
- * `Boundary_<code>` key) — matches `fa`'s `LocalizationService.upsertLocalization`.
- * Callers must `reloadModule(...)` (see `@/shared`'s i18n) afterwards to bust the
- * cached bundle, same as `fa`'s manual `PersistantStorage` cache-bust.
+ * `Boundary_<code>` key). Callers must `reloadModule(...)` (see `@/shared`'s
+ * i18n) afterwards to bust the cached bundle so the new name renders
+ * immediately instead of waiting for the next natural refetch.
  */
 export async function upsertLocalization(
   payload: { tenantId: string; messages: LocalizationMessage[] },

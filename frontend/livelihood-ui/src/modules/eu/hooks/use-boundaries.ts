@@ -5,7 +5,7 @@ import type { BoundarySearchFilters } from "../types/boundary";
 
 export const BOUNDARIES_QUERY_KEY = "eu-boundaries";
 
-/** The deepest selected tier narrows the search — matches `fa`'s `BoundaryTable/Filter.js` (block > district > state, whichever is populated). */
+/** The deepest selected tier narrows the search (block > district > state, whichever is populated). */
 function resolveParentCodes(filters: BoundarySearchFilters): string[] | undefined {
   if (filters.block.length > 0) return filters.block;
   if (filters.district.length > 0) return filters.district;

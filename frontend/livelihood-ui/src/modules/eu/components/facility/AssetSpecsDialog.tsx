@@ -15,9 +15,6 @@ export function AssetSpecsDialog({ asset, onClose }: AssetSpecsDialogProps) {
         { label: translateOr(t, "ASSET_BRAND", "Brand"), value: asset.brand },
         { label: translateOr(t, "ASSET_MODEL_NUMBER", "Model Number"), value: asset.modelNumber },
         { label: translateOr(t, "ASSET_CAPACITY", "Capacity"), value: asset.capacity },
-        ...(asset.assetType === "BATTERY"
-          ? [{ label: translateOr(t, "ASSET_VOLTAGE", "Voltage"), value: asset.voltage }]
-          : []),
       ]
     : [];
 

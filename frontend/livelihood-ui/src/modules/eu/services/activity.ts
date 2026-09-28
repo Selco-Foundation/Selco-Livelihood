@@ -45,7 +45,7 @@ function formatDate(timestamp: number | string | undefined): string | undefined 
 
 /** Assessment activities are tracked by the assessment module's own mark-complete
  * flow, which never updates this generic activity-tracking service's `completedAt`
- * — fall back to the field plan's own end date instead, matching `fa`'s `useActivity.js`. */
+ * — fall back to the field plan's own end date instead. */
 function activityEndDate(activityFacility: ActivityFacilityResponseRow["activityFacility"]): string | undefined {
   return activityFacility?.activityType?.toUpperCase() === "ASSESSMENT"
     ? activityFacility.fieldPlan?.endDate
