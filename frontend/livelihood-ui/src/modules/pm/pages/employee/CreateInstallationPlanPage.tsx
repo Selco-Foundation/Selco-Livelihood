@@ -17,6 +17,7 @@ import { InstallationScopeStep, isScopeValid, type ScopeValue } from "../../comp
 import { isPlanDetailsValid, PlanDetailsStep, type PlanDetailsValue } from "../../components/steps/PlanDetailsStep";
 import { isTemplateStepValid, TemplateStep, type TemplateValue } from "../../components/steps/TemplateStep";
 import { WizardActionFooter } from "../../components/WizardActionFooter";
+import { IngestionStatusBlocks } from "../../components/IngestionStatusBlocks";
 import { pmKeys } from "../../hooks/query-keys";
 import { useInstallationPlanById } from "../../hooks/use-installation-plan-by-id";
 import { useInstallationPlanReviewer } from "../../hooks/use-installation-plan-reviewer";
@@ -27,6 +28,7 @@ import { useSaveInstallationPlan } from "../../hooks/use-save-installation-plan"
 import { useVendorAssignmentSearch } from "../../hooks/use-vendor-assignment-search";
 import type { InstallationPlanRouteSearch } from "../../routes";
 import { publishInstallationPlan, type SavedInstallationPlan } from "../../services/installation-plan";
+import { checkInstallationScope } from "../../services/installation-scope";
 import { validateVendorAssignment } from "../../services/vendor-assignment";
 import type { InstallationPlan } from "../../types/installation-plan";
 import type { Project } from "../../types/project";
@@ -94,6 +96,11 @@ export function CreateInstallationPlanPage() {
   const [templateBusy, setTemplateBusy] = useState(false);
   const [isPlanHydrated, setIsPlanHydrated] = useState(!planId);
   const [saveError, setSaveError] = useState<string | undefined>(undefined);
+  // Step 1's "is there anything this plan could scope?" answer, when it is no. Kept apart from
+  // saveError because it is guidance (amber), not a failure: the PM's selection is valid, it just
+  // has nothing in it yet.
+  const [scopeWarning, setScopeWarning] = useState<string | undefined>(undefined);
+  const [isCheckingScope, setIsCheckingScope] = useState(false);
 
   usePlanDetailsHydration(planId, existingPlan, isScopeLoading, isTemplatesLoading, setPlanDetails, setIsPlanHydrated);
   useReviewerHydration(planId, assignedReviewer, setPlanDetails);
@@ -162,7 +169,57 @@ export function CreateInstallationPlanPage() {
   // the child hook's final `done` state. Once those valid entries are in the
   // plan state, the footer can safely enable Next instead of waiting on that
   // stale busy flag for one more render.
-  const isNavigationBusy = savePlan.isPending || (scopeBusy && !isScopeComplete) || templateBusy;
+  const isNavigationBusy =
+    savePlan.isPending || isCheckingScope || (scopeBusy && !isScopeComplete) || templateBusy;
+
+  // A warning about one selection says nothing about the next, so it goes as soon as the
+  // geography or sectors change rather than lingering over a selection it no longer describes.
+  const scopeSelectionKey = JSON.stringify([planDetails.geographyDetails, planDetails.sectorCodes]);
+  useEffect(() => {
+    setScopeWarning(undefined);
+  }, [scopeSelectionKey]);
+
+  /**
+   * Whether a brand-new plan with this selection would have any end user site to scope. Asked
+   * before creating it because the plan's geography and sectors lock the moment it exists: a plan
+   * created over a selection with no free site cannot be fixed, only abandoned. Fails closed --
+   * if the check itself can't run, the plan isn't created either.
+   */
+  async function hasAddableSites(): Promise<boolean> {
+    setIsCheckingScope(true);
+    try {
+      const result = await checkInstallationScope(
+        projectId!,
+        planDetails.sectorCodes,
+        planDetails.geographyDetails,
+        accessToken ?? undefined,
+        authUser,
+      );
+      if (result.addableSiteCount > 0) return true;
+      setScopeWarning(
+        result.reason ??
+          translateOr(
+            t,
+            "ES_PM_NO_END_USER_SITES_AVAILABLE",
+            "There are no end user sites available in the selected geography and sectors.",
+          ),
+      );
+      return false;
+    } catch (error) {
+      setSaveError(
+        extractApiErrorMessage(error) ??
+          (error instanceof Error ? error.message : undefined) ??
+          translateOr(
+            t,
+            "ES_PM_SCOPE_CHECK_FAILED",
+            "Could not check the end user sites for this selection. Please try again.",
+          ),
+      );
+      return false;
+    } finally {
+      setIsCheckingScope(false);
+    }
+  }
 
   useStepGuard(isPlanHydrated, currentStep, maxAccessibleStep, navigate);
 
@@ -174,6 +231,12 @@ export function CreateInstallationPlanPage() {
   async function handleNext() {
     if (!canGoNext || isNavigationBusy) return;
     setSaveError(undefined);
+    // Only a plan about to be created is checked. An existing plan's step 1 is locked, so there is
+    // no selection left to change.
+    if (!planId) {
+      setScopeWarning(undefined);
+      if (!(await hasAddableSites())) return;
+    }
     // Moving forward is the only point at which a step is persisted. This
     // leaves Back and stepper navigation safely read-only.
     let saved: SavedInstallationPlan;
@@ -396,6 +459,10 @@ export function CreateInstallationPlanPage() {
       />
 
       {renderStepContent()}
+
+      {currentStep === 1 && scopeWarning ? (
+        <IngestionStatusBlocks status="error" isGuidance errorMessage={scopeWarning} />
+      ) : null}
 
       {saveError ? (
         <p className="text-sm whitespace-pre-line text-destructive" role="alert">

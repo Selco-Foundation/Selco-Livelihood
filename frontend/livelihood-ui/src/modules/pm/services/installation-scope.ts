@@ -4,12 +4,13 @@ import { fetchFacilities } from "@/shared/api/facility";
 import type { AuthUser } from "@/shared/stores/auth-store";
 import { searchProjectFacilities } from "./project";
 import { SCOPE_BOUNDARY_SHEET_NAME, SCOPE_SHEET_NAME } from "../constants/installation-scope-sheet";
-import { buildScopeBoundaryTree } from "../utils/boundary-tree";
+import { buildProjectBoundaryTree, buildScopeBoundaryTree } from "../utils/boundary-tree";
 import {
   extractBlobApiErrorMessage,
   httpStatusOf,
   IngestionRequestError,
   postJsonExpectingBlob,
+  postJsonExpectingJson,
   postMultipartExpectingBlob,
 } from "../utils/ingestion-request";
 import type { GeographyDetails } from "../types/project";
@@ -23,6 +24,44 @@ export class InstallationScopeApiError extends IngestionRequestError {}
 export interface ScopeValidationResult {
   errorCount: number;
   file: DownloadedFile;
+}
+
+/** What `/installationScopePreflight` reports for a geography + sector selection. */
+export interface InstallationScopePreflight {
+  addableSiteCount: number;
+  candidatesInGeography: number;
+  candidatesInSectors: number;
+  skippedNoSolution: string[];
+  skippedLockedElsewhere: string[];
+  /** Set only when `addableSiteCount` is 0: which stage emptied the set, in PM-facing words. */
+  reason: string | null;
+}
+
+/**
+ * `POST /ingestion-service/template/installationScopePreflight` — would a plan with this geography
+ * and these sectors have *any* end user site it could take? Asked before step 1 creates the plan,
+ * because once it exists its geography and sectors are locked, and a plan with nothing to scope is
+ * stuck. Sends the plan's own selection as plain block codes (`buildProjectBoundaryTree`) — the
+ * backend matches the project's sites against those itself, so no facility pre-fetch is needed.
+ * No `fieldplan_id`: the plan doesn't exist yet, so every published plan's sites count as taken.
+ */
+export async function checkInstallationScope(
+  projectId: string,
+  sectorCodes: string[],
+  planGeography: GeographyDetails,
+  accessToken: string | undefined,
+  user?: AuthUser | null,
+): Promise<InstallationScopePreflight> {
+  return postJsonExpectingJson<InstallationScopePreflight>(
+    "/ingestion-service/template/installationScopePreflight",
+    {
+      project_id: projectId,
+      sectors: sectorCodes,
+      boundary_data: buildProjectBoundaryTree(planGeography),
+    },
+    accessToken,
+    user,
+  );
 }
 
 /**

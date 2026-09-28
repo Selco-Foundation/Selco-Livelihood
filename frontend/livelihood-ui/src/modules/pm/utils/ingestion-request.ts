@@ -173,6 +173,32 @@ export async function postJsonExpectingBlob(
   }
 }
 
+/**
+ * Same request shape as {@link postJsonExpectingBlob} -- `RequestInfo` in the body, `tenantId` as a
+ * query param for the gateway -- for the ingestion-service endpoints that answer with JSON rather
+ * than a workbook (the installation-scope preflight). The error body is already parsed JSON here,
+ * so it goes through `pickErrorMessage` directly instead of the blob reader.
+ */
+export async function postJsonExpectingJson<T>(
+  url: string,
+  body: Record<string, unknown>,
+  accessToken: string | undefined,
+  user: AuthUser | null | undefined,
+): Promise<T> {
+  try {
+    const response = await apiClient.post<T>(
+      url,
+      { RequestInfo: createRequestInfo(accessToken, user), ...body },
+      { params: { tenantId: resolveIngestionTenantId(user) } },
+    );
+    return response.data;
+  } catch (error) {
+    const message = pickErrorMessage((error as { response?: { data?: unknown } })?.response?.data);
+    if (!message) throw error;
+    throw new IngestionRequestError(message, httpStatusOf(error));
+  }
+}
+
 /** The response status of a failed axios request, when there was a response at all. */
 export function httpStatusOf(error: unknown): number | undefined {
   return (error as { response?: { status?: number } })?.response?.status;
