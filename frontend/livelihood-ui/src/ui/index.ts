@@ -144,3 +144,5 @@ export { SplitButton } from "./components/split-button";
 export type { SplitButtonProps } from "./components/split-button";
 export { Pagination } from "./components/pagination";
 export type { PaginationProps } from "./components/pagination";
+export { useBodyScrollLock } from "./hooks/use-body-scroll-lock";
+export { DialogScrim } from "./components/dialog-scrim";
