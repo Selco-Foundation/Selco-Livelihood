@@ -48,13 +48,13 @@ export function ProjectDetailsPage() {
                 {translateOr(t, "ES_PM_DISTRICTS", "District(s)")}
               </p>
               <p className="text-sm font-medium text-primary">
-                {translateOr(t, "ES_PM_N_SELECTED", "{{count}} selected").replace("{{count}}", String(districtCount))}
+                {t("ES_PM_N_SELECTED", { count: districtCount, defaultValue: "{{count}} selected" })}
               </p>
             </div>
             <div>
               <p className="text-xs font-medium text-muted-foreground">{translateOr(t, "ES_PM_BLOCKS", "Block(s)")}</p>
               <p className="text-sm font-medium text-primary">
-                {translateOr(t, "ES_PM_N_SELECTED", "{{count}} selected").replace("{{count}}", String(blockCount))}
+                {t("ES_PM_N_SELECTED", { count: blockCount, defaultValue: "{{count}} selected" })}
               </p>
             </div>
           </div>
