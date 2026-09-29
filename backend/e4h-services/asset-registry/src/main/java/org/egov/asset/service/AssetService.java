@@ -362,6 +362,42 @@ public class AssetService {
         return jdbcTemplate.queryForObject(query.toString(), params.toArray(), Integer.class);
     }
 
+    /**
+     * Nests each asset's units (rows whose parent_id is that asset) into its children, with their
+     * documents. One query for the whole page; assets without units keep children null.
+     */
+    public void attachChildren(String tenantId, List<Asset> assets) {
+        if (CollectionUtils.isEmpty(assets)) {
+            return;
+        }
+        List<String> parentIds = assets.stream().map(Asset::getAssetId).collect(Collectors.toList());
+        StringBuilder query = new StringBuilder("SELECT * FROM asset WHERE parent_id IN (")
+                .append(createQuery(parentIds)).append(")");
+        List<Object> params = new ArrayList<>(parentIds);
+        if (!isBlank(tenantId)) {
+            query.append(" AND tenant_id = ?");
+            params.add(tenantId);
+        }
+        query.append(" ORDER BY created_time ASC");
+        List<Asset> children = jdbcTemplate.query(query.toString(), params.toArray(), assetRowMapper.rowMapper);
+        if (children.isEmpty()) {
+            return;
+        }
+
+        Map<String, List<Document>> documentsMap = searchDocumentsByAssetIds(tenantId,
+                children.stream().map(Asset::getAssetId).collect(Collectors.toList()));
+        children.forEach(child -> child.setDocuments(documentsMap.getOrDefault(child.getAssetId(), new ArrayList<>())));
+
+        Map<String, List<Asset>> childrenByParent = children.stream()
+                .collect(Collectors.groupingBy(Asset::getParentId, LinkedHashMap::new, Collectors.toList()));
+        assets.forEach(asset -> {
+            List<Asset> units = childrenByParent.get(asset.getAssetId());
+            if (units != null) {
+                asset.setChildren(units);
+            }
+        });
+    }
+
     public Map<String, List<Document>> searchDocumentsByAssetIds(String tenantId, List<String> assetIds) {
         if (assetIds == null || assetIds.isEmpty()) {
             return new HashMap<>();
