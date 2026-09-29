@@ -108,7 +108,7 @@ function SolutionTemplateCard({
               : translateOr(t, "ES_PM_TEMPLATE_NOT_UPLOADED", "Not uploaded yet")}
           </span>
           <p className="mt-1 text-xs font-medium text-muted-foreground">
-            {translateOr(t, "ES_PM_ASSIGNED_SITES", "ASSIGNED SITES").toUpperCase()} ({assignedSites.length})
+            {translateOr(t, "ES_PM_ASSIGNED_SITES", "Assigned Sites")} ({assignedSites.length})
           </p>
           <ul className="mt-1 space-y-0.5 text-sm text-foreground">
             {assignedSites.map((site) => (

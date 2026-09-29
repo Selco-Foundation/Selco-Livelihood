@@ -5,6 +5,7 @@ import type { ProjectStatusWrapper } from "../types/project";
 import { formatDate } from "../utils/format-date";
 import { resolveStateNames } from "../utils/geography";
 import { pmCreateProjectPath, pmProjectDetailsPath } from "../utils/paths";
+import { formatStatusLabel } from "../utils/status-label";
 
 interface ProjectsTableProps {
   projects: ProjectStatusWrapper[];
@@ -92,7 +93,7 @@ export function ProjectsTable({ projects, isLoading }: Readonly<ProjectsTablePro
                   <td className="px-5 py-4 text-foreground">{formatDate(project.startDate)}</td>
                   <td className="px-5 py-4 text-foreground">{formatDate(project.endDate)}</td>
                   <td className="px-5 py-4">
-                    <span className="livelihood-sla-badge">{status ?? "DRAFT"}</span>
+                    <span className="livelihood-sla-badge">{formatStatusLabel(t, status)}</span>
                   </td>
                   <td className="px-5 py-4">
                     {isDraft && project.id ? (

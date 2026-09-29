@@ -1,5 +1,6 @@
 import { useId, useMemo, useState } from "react";
 import { ChevronDown, Info, Search, X } from "lucide-react";
+import { translateOr, useTranslate } from "@/shared";
 import { cn } from "../../lib/utils";
 import { Checkbox } from "./checkbox";
 import { Input } from "./input";
@@ -49,10 +50,10 @@ export function MultiSelect<TOption extends MultiSelectOption>({
   options,
   selected,
   onChange,
-  placeholder = "Select",
-  searchPlaceholder = "Search",
-  noOptionsLabel = "No options found",
-  selectAllLabel = "Select All",
+  placeholder,
+  searchPlaceholder,
+  noOptionsLabel,
+  selectAllLabel,
   disabled = false,
   error,
   hideChips = false,
@@ -60,6 +61,11 @@ export function MultiSelect<TOption extends MultiSelectOption>({
 }: Readonly<MultiSelectProps<TOption>>) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const { t } = useTranslate();
+  const resolvedPlaceholder = placeholder ?? translateOr(t, "ES_COMMON_SELECT_PLACEHOLDER", "Select");
+  const resolvedSearchPlaceholder = searchPlaceholder ?? translateOr(t, "ES_COMMON_SEARCH", "Search");
+  const resolvedNoOptionsLabel = noOptionsLabel ?? translateOr(t, "ES_COMMON_NO_OPTIONS", "No options found");
+  const resolvedSelectAllLabel = selectAllLabel ?? translateOr(t, "ES_COMMON_SELECT_ALL", "Select All");
   // Names the trigger and ties the error text to it. Without this a screen reader announces the
   // control as just "N selected", with no field name -- and this primitive backs every
   // State/District/Block/Sector field in both PM wizards, so that is every one of them.
@@ -125,7 +131,7 @@ export function MultiSelect<TOption extends MultiSelectOption>({
         {required ? (
           <>
             <span className="text-destructive" aria-hidden="true"> *</span>
-            <span className="sr-only"> (required)</span>
+            <span className="sr-only">{translateOr(t, "ES_COMMON_REQUIRED_SUFFIX", " (required)")}</span>
           </>
         ) : null}
       </label>
@@ -141,7 +147,7 @@ export function MultiSelect<TOption extends MultiSelectOption>({
               <button
                 type="button"
                 onClick={() => removeChip(option.code)}
-                aria-label={`Remove ${option.name}`}
+                aria-label={`${translateOr(t, "ES_COMMON_REMOVE", "Remove")} ${option.name}`}
                 className="rounded-full hover:bg-black/10"
               >
                 <X className="size-3" />
@@ -176,8 +182,11 @@ export function MultiSelect<TOption extends MultiSelectOption>({
           >
             <span className="truncate">
               {selectedOptions.length > 0
-                ? `${selectedOptions.length} selected`
-                : placeholder}
+                ? t("ES_COMMON_N_SELECTED", {
+                    count: selectedOptions.length,
+                    defaultValue: "{{count}} selected",
+                  })
+                : resolvedPlaceholder}
             </span>
             <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
           </button>
@@ -193,7 +202,7 @@ export function MultiSelect<TOption extends MultiSelectOption>({
               autoFocus
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder={searchPlaceholder}
+              placeholder={resolvedSearchPlaceholder}
               className="h-8 pl-8 text-sm"
             />
           </div>
@@ -207,13 +216,13 @@ export function MultiSelect<TOption extends MultiSelectOption>({
               className="mb-1 flex w-full cursor-pointer items-center gap-2 rounded-sm bg-transparent px-2 py-1.5 text-left text-sm font-medium text-primary hover:underline"
             >
               <Checkbox checked={allSelected} tabIndex={-1} className="pointer-events-none" />
-              {selectAllLabel}
+              {resolvedSelectAllLabel}
             </button>
           ) : null}
 
           <div className="flex max-h-56 flex-col gap-0.5 overflow-y-auto pr-2">
             {filteredOptions.length === 0 ? (
-              <p className="px-2 py-1.5 text-sm text-muted-foreground">{noOptionsLabel}</p>
+              <p className="px-2 py-1.5 text-sm text-muted-foreground">{resolvedNoOptionsLabel}</p>
             ) : (
               filteredOptions.map((option) => (
                 <button
