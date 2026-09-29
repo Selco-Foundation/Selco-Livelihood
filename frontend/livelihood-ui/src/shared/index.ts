@@ -126,4 +126,11 @@ export {
   filterRolesForEmployeeTenant,
   hydrateEmployeeJurisdictions,
 } from "./utils/employee-session";
+export {
+  hasRole,
+  hasAnyRole,
+  isProjectManager,
+  PROJECT_MANAGER_ROLE,
+  type RoleLike,
+} from "./utils/roles";
 export type { ModuleDefinition, ModuleOverview, NavItem } from "./modules/types";

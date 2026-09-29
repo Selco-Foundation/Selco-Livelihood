@@ -940,7 +940,9 @@ public class ActivityService {
                 .build();
 
         StringBuilder assetSearchUri = new StringBuilder(activityConfiguration.getAssetHost())
-                .append(activityConfiguration.getAssetSearchUrl());
+                .append(activityConfiguration.getAssetSearchUrl())
+                // asset _search defaults to limit=10; a Solar install can have more units (+ its parent)
+                .append("?offset=0&limit=").append(activityConfiguration.getAssetSearchLimit());
 
         try {
             List<Asset> assets = serviceRequest.fetchResult(assetSearchUri, assetSearchRequest, new TypeReference<List<Asset>>() {});
@@ -1009,7 +1011,7 @@ public class ActivityService {
 
             List<ActivityFacility> activityFacilities = searchActivityFacility(searchRequest, activityConfiguration.getMaxLimit(), activityConfiguration.getDefaultOffset(),
                     activityConfiguration.getTenantId(), false, null);
-            totalActivityFacilities = countAllFacilityActivities(searchRequest, activityConfiguration.getTenantId(), null, null);
+            totalActivityFacilities = countAllFacilityActivities(searchRequest, activityConfiguration.getTenantId(), null, false);
 
             // only those activity facilities whose status is SUBMITTED_BY_FIELD_STAFF
             List<ActivityFacility> activityFacilitiesList = activityFacilities.stream().filter(this::hasSubmittedByFieldStaffStatus).toList();
@@ -1043,7 +1045,7 @@ public class ActivityService {
                 FacilityWorkflowRequest workflowRequest = FacilityWorkflowRequest.builder()
                         .requestInfo(facilityBulkApproveRequest.getRequestInfo())
                         .activityFacilityId(activityFacilityId)
-                        .workflow(facilityBulkApproveRequest.getWorkflow())
+                        .workflow(buildBulkWorkflowForFacility(facilityBulkApproveRequest, activityFacilityId))
                         .build();
 
                 FacilityStatusWrapper updatedProject = updateFacilityWorkflow(workflowRequest);
@@ -1063,6 +1065,40 @@ public class ActivityService {
             result.put("totalActivityFacilities", totalActivityFacilities);
         }
         return result;
+    }
+
+    /**
+     * Per-facility copy of the bulk request's shared workflow. workflow-v2 stores documents per
+     * transition, so - like the single-approve screen, which resends workflow[0].documents - each
+     * facility's latest process-instance documents (IC report PDF, photos) are carried forward onto
+     * its new transition; otherwise the approved instance would have none. A fresh copy per facility
+     * also keeps one facility's documents from leaking into the next.
+     */
+    private Workflow buildBulkWorkflowForFacility(FacilityBulkApproveRequest request, String activityFacilityId) {
+        Workflow shared = request.getWorkflow();
+        Workflow workflow = Workflow.builder()
+                .action(shared != null ? shared.getAction() : null)
+                .comments(shared != null ? shared.getComments() : null)
+                .assignes(shared != null ? shared.getAssignes() : null)
+                .rating(shared != null ? shared.getRating() : null)
+                .build();
+        if (shared != null) {
+            workflow.setAdditionalDetails(shared.getAdditionalDetails());
+        }
+
+        if (shared != null && shared.getDocuments() != null && !shared.getDocuments().isEmpty()) {
+            workflow.setDocuments(new ArrayList<>(shared.getDocuments()));
+            return workflow;
+        }
+
+        List<ProcessInstance> processInstances = workflowService.getProcessInstanceById(
+                activityFacilityId, activityConfiguration.getTenantId(), request.getRequestInfo());
+        // history=true search returns newest first; [0] is the latest transition.
+        if (processInstances != null && !processInstances.isEmpty()
+                && processInstances.get(0).getDocuments() != null) {
+            workflow.setDocuments(new ArrayList<>(processInstances.get(0).getDocuments()));
+        }
+        return workflow;
     }
 
     private boolean hasSubmittedByFieldStaffStatus(ActivityFacility activityFacility) {
@@ -1889,7 +1925,8 @@ public class ActivityService {
                     .build();
 
             StringBuilder assetSearchUri = new StringBuilder(activityConfiguration.getAssetHost())
-                    .append(activityConfiguration.getAssetSearchUrl());
+                    .append(activityConfiguration.getAssetSearchUrl())
+                    .append("?offset=0&limit=").append(activityConfiguration.getAssetSearchLimit());
 
             List<Asset> installedAssets = serviceRequest.fetchResult(
                     assetSearchUri,

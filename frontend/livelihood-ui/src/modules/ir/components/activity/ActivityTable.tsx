@@ -17,6 +17,19 @@ function statusLabel(
   return translateOr(t, label.key, label.fallback);
 }
 
+// Installation.InstallationTypes is MDMS-driven precisely so a new type
+// (e.g. a third asset type) can be added without a frontend deploy — no
+// hardcoded code→label map here. The key is built from the code itself, so
+// it just needs a matching ES_IR_COMPONENT_TYPE_<CODE> translation staged
+// whenever a new type shows up; the raw code is a reasonable fallback until
+// then, same as any other translateOr call.
+function componentTypeLabel(
+  componentType: ReviewActivity["componentType"],
+  t: ReturnType<typeof useTranslate>["t"],
+): string {
+  return translateOr(t, `ES_IR_COMPONENT_TYPE_${componentType}`, componentType);
+}
+
 function boundaryLabel(
   boundary: { code: string; name?: string } | undefined,
   t: ReturnType<typeof useTranslate>["t"],
@@ -31,6 +44,9 @@ interface ActivityTableProps {
   planId: string;
   activities: ReviewActivity[];
   isLoading: boolean;
+  /** Scoped to whichever page is currently open — the master checkbox only
+   * ever checks/unchecks this page's selectable rows, and the caller clears
+   * this on every page change (see ActivityList.tsx's page handlers). */
   selected: Set<string>;
   onSelectedChange: (next: Set<string>) => void;
   currentPage: number;
@@ -62,10 +78,12 @@ export function ActivityTable({
   const selectableIds = activities
     .filter((activity) => activity.status === "SUBMITTED_BY_FIELD_STAFF")
     .map((activity) => activity.activityId);
-  const allSelected =
-    selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
 
   function toggleAll() {
+    // `selected` only ever holds this page's ids (the caller resets it on
+    // every page change), so this can safely replace it wholesale rather
+    // than merge.
     onSelectedChange(allSelected ? new Set() : new Set(selectableIds));
   }
 
@@ -100,7 +118,11 @@ export function ActivityTable({
               <thead>
                 <tr className="border-b border-border">
                   <th className="w-10 px-5 py-3">
-                    <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={toggleAll}
+                      disabled={selectableIds.length === 0}
+                    />
                   </th>
                   <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ES_IR_END_USER", "End User")}
@@ -154,9 +176,7 @@ export function ActivityTable({
                         </Link>
                       </td>
                       <td className="px-5 py-4 text-foreground">
-                        {activity.componentType === "MACHINE"
-                          ? translateOr(t, "ES_IR_COMPONENT_TYPE_MACHINE", "Machine")
-                          : translateOr(t, "ES_IR_COMPONENT_TYPE_SOLAR", "Solar")}
+                        {componentTypeLabel(activity.componentType, t)}
                       </td>
                       <td className="px-5 py-4 text-foreground">
                         {boundaryLabel(activity.district, t) ?? "-"}

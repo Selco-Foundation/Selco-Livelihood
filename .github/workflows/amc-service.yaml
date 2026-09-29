@@ -74,7 +74,7 @@ jobs:
           context: .
           file: build/maven/Dockerfile
           push: true
-          tags: selcohub/amc-service:${{ env.VERSION }}-${{ env.commit_hash }}
+          tags: selcohub/amc-service-lh:${{ env.VERSION }}-${{ env.commit_hash }}
           cache-from: type=gha   # Stores cache in GitHub Actions .
           cache-to: type=gha,mode=max  # max- stores all the layers including the intermediate layers in multi-stage
           build-args: |
@@ -82,8 +82,8 @@ jobs:
 
       - name: Build and Push Docker image for Amc-Service-DB
         run: |
-          docker build  -t selcohub/amc-service-db:${{ env.VERSION }}-${{ env.commit_hash }} -f  Dockerfile .
-          docker push selcohub/amc-service-db:${{ env.VERSION }}-${{ env.commit_hash }}
+          docker build  -t selcohub/amc-service-db-lh:${{ env.VERSION }}-${{ env.commit_hash }} -f  Dockerfile .
+          docker push selcohub/amc-service-db-lh:${{ env.VERSION }}-${{ env.commit_hash }}
         working-directory: backend/e4h-services/amc-scheduler-service/src/main/resources/db
 
 

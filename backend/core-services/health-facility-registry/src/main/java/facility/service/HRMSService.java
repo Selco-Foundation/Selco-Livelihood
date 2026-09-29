@@ -55,15 +55,15 @@ public class HRMSService {
         templates.put(templateKey(ONBOARDING_SMS_WELCOME_TEMPLATE_CODE, "en_IN"),
                 "Namaste from SELCO Foundation! Setu4Livelihoods is your bridge to quick solutions. If you are "
                         + "facing any issues with your equipment, call or WhatsApp SELCO Foundation at "
-                        + "+919008308036, or visit {url} to raise an issue directly.");
+                        + "+918123479090, or visit {url} to raise an issue directly.");
         templates.put(templateKey(ONBOARDING_SMS_WELCOME_TEMPLATE_CODE, "as_IN"),
                 "SELCO ফাউণ্ডেচনৰ তৰফৰ পৰা নমস্কাৰ! Setu4Livelihoods আপোনাৰ সমস্যাৰ দ্ৰুত সমাধানৰ বাবে এক সহায়ক "
-                        + "মাধ্যম। আপোনাৰ সঁজুলিত কোনো সমস্যা হ'লে +919008308036 নম্বৰত ফোন কৰক বা WhatsApp-ৰ "
+                        + "মাধ্যম। আপোনাৰ সঁজুলিত কোনো সমস্যা হ'লে +918123479090 নম্বৰত ফোন কৰক বা WhatsApp-ৰ "
                         + "জৰিয়তে আমাৰ সৈতে যোগাযোগ কৰক। অথবা আপোনাৰ সমস্যা পোনপটীয়াকৈ পঞ্জীয়ন কৰিবলৈ {url} "
                         + "ভিজিট কৰক।");
         templates.put(templateKey(ONBOARDING_SMS_WELCOME_TEMPLATE_CODE, "ka_IN"),
                 "ನಮಸ್ಕಾರ, ಸೆಲ್ಕೋ ಫೌಂಡೇಶನ್ ವತಿಯಿಂದ! Setu4Livelihoods ನಿಮ್ಮ ಸಮಸ್ಯೆಗಳಿಗೆ ತ್ವರಿತ ಪರಿಹಾರ ಪಡೆಯಲು "
-                        + "ಸಹಾಯ ಮಾಡುವ ಸೇತುವೆಯಾಗಿದೆ. ನಿಮ್ಮ ಯಂತ್ರೋಪಕರಣಗಳು ಯಾವುದೇ ಸಮಸ್ಯೆ ಎದುರಾದರೆ, +919008308036 "
+                        + "ಸಹಾಯ ಮಾಡುವ ಸೇತುವೆಯಾಗಿದೆ. ನಿಮ್ಮ ಯಂತ್ರೋಪಕರಣಗಳು ಯಾವುದೇ ಸಮಸ್ಯೆ ಎದುರಾದರೆ, +918123479090 "
                         + "ಸಂಖ್ಯೆಗೆ ಕರೆ ಮಾಡಿ ಅಥವಾ ವಾಟ್ಸಾಪ್ ಮೂಲಕ ನಮ್ಮನ್ನು ಸಂಪರ್ಕಿಸಿ. ಅಥವಾ ನಿಮ್ಮ ಸಮಸ್ಯೆಯನ್ನು "
                         + "ನೇರವಾಗಿ ದಾಖಲಿಸಲು {url} ಗೆ ಭೇಟಿ ನೀಡಿ.");
 

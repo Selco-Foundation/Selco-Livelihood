@@ -24,23 +24,26 @@ export interface ActivityFilterOption {
   name: string;
 }
 
-type ActivityFilterCategory = "district" | "block" | "status";
+type ActivityFilterCategory = "district" | "block" | "status" | "type";
 
 export interface ActivityFilterState {
   district: string[];
   block: string[];
   status: string[];
+  type: string[];
 }
 
 interface ActivityFilterProps {
   districtOptions: ActivityFilterOption[];
   blockOptions: ActivityFilterOption[];
   statusOptions: ActivityFilterOption[];
+  typeOptions: ActivityFilterOption[];
   filters: ActivityFilterState;
   searchText: string;
   onFilterChange: (filters: ActivityFilterState) => void;
   onSearchTextChange: (searchText: string) => void;
-  /** Approve Selected only renders while rows are selected. */
+  /** Approve Selected always renders (disabled at 0) rather than
+   * appearing/disappearing, so the toolbar's other controls don't shift. */
   selectedCount: number;
   onApprove: () => void;
   isApproving: boolean;
@@ -50,12 +53,14 @@ export const EMPTY_ACTIVITY_FILTERS: ActivityFilterState = {
   district: [],
   block: [],
   status: [],
+  type: [],
 };
 
 export function ActivityFilter({
   districtOptions,
   blockOptions,
   statusOptions,
+  typeOptions,
   filters,
   searchText,
   onFilterChange,
@@ -77,6 +82,7 @@ export function ActivityFilter({
     { key: "district" as const, label: translateOr(t, "ES_IR_DISTRICT", "District"), options: districtOptions },
     { key: "block" as const, label: translateOr(t, "ES_IR_BLOCK", "Block"), options: blockOptions },
     { key: "status" as const, label: translateOr(t, "ES_IR_STATUS", "Status"), options: statusOptions },
+    { key: "type" as const, label: translateOr(t, "ES_IR_COMPONENT_TYPE", "Type"), options: typeOptions },
   ];
 
   const activeCategoryData = categories.find((category) => category.key === activeCategory);
@@ -102,7 +108,10 @@ export function ActivityFilter({
   }
 
   const hasActiveFilters =
-    filters.district.length > 0 || filters.block.length > 0 || filters.status.length > 0;
+    filters.district.length > 0 ||
+    filters.block.length > 0 ||
+    filters.status.length > 0 ||
+    filters.type.length > 0;
 
   function handleClearAllFilters() {
     onFilterChange(EMPTY_ACTIVITY_FILTERS);
@@ -297,11 +306,21 @@ export function ActivityFilter({
               className="pl-9"
             />
           </div>
-          {selectedCount > 0 ? (
-            <Button type="button" size="sm" disabled={isApproving} onClick={onApprove}>
-              {translateOr(t, "ES_IR_BULK_APPROVE", "Approve Selected")} ({selectedCount})
-            </Button>
-          ) : null}
+          <Button
+            type="button"
+            size="sm"
+            disabled={isApproving || selectedCount === 0}
+            onClick={onApprove}
+            // Fixed width so the count suffix appearing/growing never resizes
+            // the button — this row's parent is `justify-between`, so any
+            // width change here shifts the search box (an earlier sibling)
+            // too, not just what comes after the button. Wide enough for a
+            // double-digit count ("Approve Selected (99)") at this padding.
+            className="min-w-[196px] tabular-nums"
+          >
+            {translateOr(t, "ES_IR_BULK_APPROVE", "Approve Selected")}
+            {selectedCount > 0 ? ` (${selectedCount})` : ""}
+          </Button>
           <button
             type="button"
             disabled={!hasActiveFilters}

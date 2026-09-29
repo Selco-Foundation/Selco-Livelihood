@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, FrozenSet, List, NamedTuple, Optional
 
 from app.core.logging import AppLogger
 from app.utils.state_sunshine_hours_repository import normalize_state_key
@@ -43,6 +43,12 @@ def eligible_solution_names(
         min_hours = _to_float(solution.get("sunshineHrsMin"))
         # state_sunshine_hours is NUMERIC(4,2) while the MDMS value is JSON-parsed, so
         # compare rounded rather than raw: 5 and 5.00 are the same threshold.
+        #
+        # This is an *exact* match, not a floor, despite the field being named `...Min`:
+        # confirmed as the intended rule 2026-09-25. A Solution is banded to one sunshine
+        # figure, so a state with more sun than a Solution requires does not qualify for it.
+        # The name is simply wrong; do not "fix" this to `>` without re-confirming against
+        # FR-01, and see BACKEND_CHANGES_NEEDED.md #6 for what that would change.
         if min_hours is None or round(min_hours, 2) != round(state_hours, 2):
             continue
         name = solution.get("name")
@@ -105,3 +111,69 @@ def build_solution_options_by_row(
         options_by_row[position] = cache[cache_key]
 
     return options_by_row
+
+
+class ScopeCandidates(NamedTuple):
+    """What a set of candidate sites can actually be used for, per `partition_scope_candidates`."""
+    writable: List[Dict[str, Any]]
+    options_by_row: Dict[int, List[str]]
+    addable_count: int
+    no_solution_ids: List[str]
+    locked_elsewhere_ids: List[str]
+
+
+def partition_scope_candidates(
+    facilities: List[Dict[str, Any]],
+    options_by_row: Dict[int, List[str]],
+    lock_map: Dict[str, Any],
+    protected_ids: FrozenSet[str] = frozenset(),
+) -> ScopeCandidates:
+    """Decide which candidate sites belong in an Installation Scope sheet, and which are addable.
+
+    This is the one place that rule lives. The scope download and the pre-flight check both
+    call it so they cannot disagree about whether a plan has any usable sites -- they gather
+    their candidates differently (the download also reconciles the plan's existing scope, which
+    is a write and must not happen on a read-only check), but they must judge them identically.
+
+    - `writable`: the rows worth putting in the sheet. Everything except a site no Solution can
+      be assigned to, which could only ever render as a dead cell -- no dropdown, and a
+      validation failure on upload that reads like a data-entry fault.
+    - `addable_count`: of those, how many a PM could newly include -- excludes sites a sibling
+      plan already holds. This is what "does this geography and sector yield anything?" means.
+    - `protected_ids`: sites that must be written even with no eligible Solution, because they
+      are already in this plan's scope. Reference data can change after a plan is built, and
+      silently dropping a site the plan already contains would hide it rather than explain it.
+
+    `options_by_row` is keyed by position in `facilities`; the returned one is re-keyed to
+    positions in `writable`.
+    """
+    writable: List[Dict[str, Any]] = []
+    rekeyed: Dict[int, List[str]] = {}
+    no_solution_ids: List[str] = []
+    locked_elsewhere_ids: List[str] = []
+    addable_count = 0
+
+    for position, facility in enumerate(facilities):
+        facility_id = facility.get("facility_id") or facility.get("facilityId")
+        options = options_by_row.get(position) or []
+        lock = lock_map.get(facility_id) if facility_id else None
+
+        if not options and facility_id not in protected_ids:
+            no_solution_ids.append(facility_id)
+            continue
+
+        rekeyed[len(writable)] = options
+        writable.append(facility)
+
+        if lock is not None and not lock.is_this_plan:
+            locked_elsewhere_ids.append(facility_id)
+            continue
+        addable_count += 1
+
+    return ScopeCandidates(
+        writable=writable,
+        options_by_row=rekeyed,
+        addable_count=addable_count,
+        no_solution_ids=no_solution_ids,
+        locked_elsewhere_ids=locked_elsewhere_ids,
+    )

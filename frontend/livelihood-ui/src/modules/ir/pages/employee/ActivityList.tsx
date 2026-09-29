@@ -1,14 +1,16 @@
 import {
   employeeHomePath,
+  extractApiErrorMessage,
   translateOr,
   useAuthStore,
   useBoundary,
   useDebouncedValue,
   useTranslate,
 } from "@/shared";
-import { TopBar } from "@/ui";
+import { TopBar, toast } from "@/ui";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityTable } from "../../components/activity/ActivityTable";
+import { ConfirmBulkApproveDialog } from "../../components/activity/ConfirmBulkApproveDialog";
 import {
   EMPTY_ACTIVITY_FILTERS,
   ActivityFilter,
@@ -17,6 +19,7 @@ import {
 } from "../../components/activity/ActivityFilter";
 import { useBulkApproveActivities, useActivities } from "../../hooks/use-activities";
 import { useActivityStatusOptions } from "../../hooks/use-activity-status-options";
+import { useInstallationTypeOptions } from "../../hooks/use-installation-type-options";
 import { useInstallationPlans } from "../../hooks/use-installation-plans";
 import { boundaryDisplayName, cascadeBlockOptions, resolveBoundaryCodes } from "../../utils/boundary";
 import { hasIrAccess } from "../../utils/access";
@@ -46,6 +49,7 @@ export function ActivityList() {
   const [pageOffset, setPageOffset] = useState(0);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkApproveConfirmOpen, setBulkApproveConfirmOpen] = useState(false);
 
   // Scoped to this one field plan via fieldPlanIds — the authoritative source
   // for breadcrumb/summary data and the field plan's state (which seeds the
@@ -70,9 +74,12 @@ export function ActivityList() {
     setPageOffset(0);
   }, [searchText]);
 
+  const boundaryCodes = resolveBoundaryCodes(filters, boundaryData?.blocks ?? [], boundaryData?.facilities ?? []);
+
   const { data, isLoading } = useActivities(planId, {
-    boundaryCodes: resolveBoundaryCodes(filters, boundaryData?.blocks ?? [], boundaryData?.facilities ?? []),
+    boundaryCodes,
     statuses: filters.status.length > 0 ? filters.status : undefined,
+    componentTypes: filters.type.length > 0 ? filters.type : undefined,
     searchText,
     pageOffset,
     pageSize,
@@ -80,6 +87,7 @@ export function ActivityList() {
 
   const bulkApprove = useBulkApproveActivities(planId);
   const { options: statusOptions } = useActivityStatusOptions();
+  const { options: typeOptions } = useInstallationTypeOptions();
 
   const planDistrictCodes = new Set(plan?.districtCodes ?? []);
   const districtOptions: ActivityFilterOption[] = (boundaryData?.districts ?? [])
@@ -114,10 +122,44 @@ export function ActivityList() {
     setPageOffset(0);
   }
 
+  function runBulkApprove() {
+    bulkApprove.mutate(
+      { activityIds: Array.from(selected) },
+      {
+        onSuccess: (result) => {
+          setSelected(new Set());
+          setBulkApproveConfirmOpen(false);
+          const failedCount = result.data.failedProjectIDs?.length ?? 0;
+          if (failedCount > 0) {
+            // A 207 response still resolves (not an error) — the backend
+            // approved some and failed others in the same batch, so this
+            // isn't a plain success or a plain failure.
+            toast.warning(
+              translateOr(t, "ES_IR_BULK_APPROVE_PARTIAL_SUCCESS_PREFIX", "Approved, but") +
+                ` ${failedCount} ` +
+                translateOr(
+                  t,
+                  "ES_IR_BULK_APPROVE_PARTIAL_SUCCESS_SUFFIX",
+                  "activities could not be approved.",
+                ),
+            );
+          } else {
+            toast.success(translateOr(t, "ES_IR_BULK_APPROVE_SUCCESS", "Activities approved"));
+          }
+        },
+        onError: (error) => {
+          toast.error(translateOr(t, "ES_IR_BULK_APPROVE_FAILED", "Failed to approve activities"), {
+            description:
+              extractApiErrorMessage(error) ??
+              translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again."),
+          });
+        },
+      },
+    );
+  }
+
   function handleBulkApprove() {
-    bulkApprove.mutate(Array.from(selected), {
-      onSuccess: () => setSelected(new Set()),
-    });
+    setBulkApproveConfirmOpen(true);
   }
 
   return (
@@ -159,6 +201,7 @@ export function ActivityList() {
         districtOptions={districtOptions}
         blockOptions={blockOptions}
         statusOptions={statusOptions}
+        typeOptions={typeOptions}
         filters={filters}
         searchText={rawSearchText}
         onFilterChange={handleFilterChange}
@@ -179,13 +222,30 @@ export function ActivityList() {
         currentPage={currentPage}
         totalRecords={totalCount}
         pageSizeLimit={pageSize}
-        onNextPage={() => setPageOffset(pageOffset + pageSize)}
-        onPrevPage={() => setPageOffset(Math.max(0, pageOffset - pageSize))}
-        onPageChange={(page) => setPageOffset(page * pageSize)}
+        onNextPage={() => {
+          setPageOffset(pageOffset + pageSize);
+          setSelected(new Set());
+        }}
+        onPrevPage={() => {
+          setPageOffset(Math.max(0, pageOffset - pageSize));
+          setSelected(new Set());
+        }}
+        onPageChange={(page) => {
+          setPageOffset(page * pageSize);
+          setSelected(new Set());
+        }}
         onPageSizeChange={(size) => {
           setPageSize(size);
           setPageOffset(0);
+          setSelected(new Set());
         }}
+      />
+      <ConfirmBulkApproveDialog
+        open={bulkApproveConfirmOpen}
+        count={selected.size}
+        isSubmitting={bulkApprove.isPending}
+        onCancel={() => setBulkApproveConfirmOpen(false)}
+        onConfirm={runBulkApprove}
       />
     </div>
   );
