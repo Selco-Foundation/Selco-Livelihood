@@ -9,6 +9,7 @@ import type { ProjectDetailsRouteSearch } from "../../routes";
 import { formatDate } from "../../utils/format-date";
 import { resolveStateNames } from "../../utils/geography";
 import { pmCreateInstallationPlanPath, pmMyProjectsPath } from "../../utils/paths";
+import { formatStatusLabel } from "../../utils/status-label";
 
 export function ProjectDetailsPage() {
   const { t } = useTranslate();
@@ -48,13 +49,13 @@ export function ProjectDetailsPage() {
                 {translateOr(t, "ES_PM_DISTRICTS", "District(s)")}
               </p>
               <p className="text-sm font-medium text-primary">
-                {translateOr(t, "ES_PM_N_SELECTED", "{{count}} selected").replace("{{count}}", String(districtCount))}
+                {t("ES_PM_N_SELECTED", { count: districtCount, defaultValue: "{{count}} selected" })}
               </p>
             </div>
             <div>
               <p className="text-xs font-medium text-muted-foreground">{translateOr(t, "ES_PM_BLOCKS", "Block(s)")}</p>
               <p className="text-sm font-medium text-primary">
-                {translateOr(t, "ES_PM_N_SELECTED", "{{count}} selected").replace("{{count}}", String(blockCount))}
+                {t("ES_PM_N_SELECTED", { count: blockCount, defaultValue: "{{count}} selected" })}
               </p>
             </div>
           </div>
@@ -63,7 +64,7 @@ export function ProjectDetailsPage() {
               <p className="text-xs font-medium text-muted-foreground">
                 {translateOr(t, "ES_PM_PROJECT_STATUS", "Project Status")}
               </p>
-              <p className="text-sm text-foreground">{project?.additionalDetails?.status ?? "DRAFT"}</p>
+              <p className="text-sm text-foreground">{formatStatusLabel(t, project?.additionalDetails?.status)}</p>
             </div>
             <div>
               <p className="text-xs font-medium text-muted-foreground">
