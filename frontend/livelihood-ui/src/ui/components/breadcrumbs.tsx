@@ -11,6 +11,7 @@ import {
 export interface BreadcrumbEntry {
   label: string;
   to?: string;
+  search?: Record<string, unknown>;
 }
 
 interface BreadcrumbsProps {
@@ -33,7 +34,9 @@ export function Breadcrumbs({ items }: BreadcrumbsProps) {
             <BreadcrumbItem key={`item-${index}`}>
               {item.to ? (
                 <BreadcrumbLink asChild>
-                  <Link to={item.to}>{item.label}</Link>
+                  <Link to={item.to} search={item.search}>
+                    {item.label}
+                  </Link>
                 </BreadcrumbLink>
               ) : (
                 <BreadcrumbPage>{item.label}</BreadcrumbPage>

@@ -17,10 +17,12 @@ from app.decorators.rbac_validator import get_authorized_request_info
 from app.ingest.facility_template_service import FacilityTemplateService
 from app.ingest.asset_template_service import AssetTemplateService
 from app.ingest.project_service import ProjectService
-from app.ingest.icc_template_service import append_sites_sheet, protect_input_cells
+from app.ingest.icc_template_service import protect_input_cells
 from app.utils.icc_template_parser import first_data_sheet, parse_worksheet
 from app.schemas.boundary import Boundary, flatten_boundaries
 from app.utils.amc_scheduler_service_client import AMCSchedulerServiceClient
+from app.utils.scope_candidates import project_sites_in_geography
+from app.utils.field_plan_geography import is_under_any_boundary, plan_boundary_codes
 from app.utils.convertor import request_info_from_json, build_boundary_localization_map, \
     state_names_by_facility_id, resolve_boundary_names_for_code
 from app.utils.excel_utils import add_dropdowns_to_excel, autofit_columns, lock_prefilled_rows_in_excel, \
@@ -33,7 +35,8 @@ from app.utils.mdms_client import MDMSClient
 from app.utils.project_service_client import ProjectServiceClient
 from app.utils.field_plan_locks import build_project_lock_map, lock_status_label, solution_names_by_code
 from app.utils.filestore_client import FilestoreClient
-from app.utils.solution_eligibility import build_solution_options_by_row, clear_solution_column_dropdown
+from app.utils.solution_eligibility import build_solution_options_by_row, \
+    clear_solution_column_dropdown, partition_scope_candidates
 from app.utils.state_sunshine_hours_repository import fetch_state_sunshine_hours
 from app.utils.vendor_registry_client import VendorRegistryClient
 import os, tempfile, zipfile, qrcode, shutil
@@ -255,6 +258,12 @@ async def get_facility_ingestion_template_with_data(
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
+    except HTTPException:
+        # A deliberate refusal -- a 400 naming what the Project Manager has to change -- must
+        # keep its own status and message. Falling through to the handler below re-wrapped it
+        # as a 500 reading "An unexpected error occurred: 400: ...", which reads as a crash
+        # rather than as guidance and hides the real status from the client.
+        raise
     except Exception as e:
         logger.error(f"Unhandled error in get_facility_ingestion_template: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
@@ -299,9 +308,42 @@ async def get_boundary_ingestion_template(
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
 
+def _restrict_to_plan_geography(request_info, fieldplan_id, facilities, linked_facility_ids):
+    """Facilities inside the plan's own blocks, plus any already linked to the plan.
+
+    Degrades to no restriction -- logged, not raised -- when the plan's geography cannot be read
+    or resolves to no codes. The download is read-mostly and the upload re-checks geography
+    authoritatively, so a sheet with too many rows is the recoverable failure; an empty sheet
+    over a data-shape quirk is not.
+    """
+    try:
+        plans = FieldPlanServiceClient(fieldPlan_service_url).search_fieldPlan(
+            request_info, fieldplan_id).get("FieldPlans", [])
+    except Exception as e:
+        logger.error(f"Could not read plan {fieldplan_id} geography; not restricting the sheet: {e}",
+                     exc_info=True)
+        return facilities
+    plan_blocks = plan_boundary_codes(plans[0] if plans else None)
+    if not plan_blocks:
+        logger.error(f"Plan {fieldplan_id} has no usable geography; not restricting the sheet")
+        return facilities
+
+    kept = [
+        facility for facility in facilities
+        if facility.get("facility_id") in linked_facility_ids
+        or is_under_any_boundary(facility.get("boundary_code") or facility.get("boundaryCode") or "",
+                                 plan_blocks)
+    ]
+    if len(kept) != len(facilities):
+        logger.info(f"Plan {fieldplan_id}: {len(facilities) - len(kept)} site(s) outside the plan's "
+                    f"geography left out of the scope sheet")
+    return kept
+
+
 @router.post('/fieldplanFacilityIngestionTemplate',
             summary='Generate facility ingestion template Excel file with schema, already present data and boundary codes',
-            response_description="Returns Excel template with facility schema, facility data and boundary codes")
+            response_description="Returns Excel template with facility schema, facility data and boundary codes",
+             responses={400: {"description": "No end user site is available for the plan"}})
 async def get_facility_ingestion_template_with_data(
         background_tasks: BackgroundTasks,
         facility_service: FacilityTemplateService = Depends(),
@@ -442,6 +484,15 @@ async def get_facility_ingestion_template_with_data(
         logger.info(
             f"Total facilities in template: {len(all_facilities)} (boundary: {len(existing_facility_ids)}, fieldplan: {len(fieldplan_facilities_data)})")
 
+        # Restrict to the plan's own geography. The caller builds boundary_data from the
+        # *project's* geography, so without this the sheet offered every site in the project --
+        # including ones outside this plan's blocks, which the scope upload then rejects as
+        # "outside the geography this installation plan covers". Same rule as the upload
+        # (_scope_sites_offered_to_plan): inside the plan's blocks, or already linked to it.
+        if fieldplan_id and fieldPlan_service_url:
+            all_facilities = _restrict_to_plan_geography(
+                request_info, fieldplan_id, all_facilities, fieldplan_linked_facility_ids)
+
         # Mark facilities as included in fieldplan if they are already linked
         if fieldplan_id:
             for facility in all_facilities:
@@ -486,6 +537,7 @@ async def get_facility_ingestion_template_with_data(
         # plan carrying a sector at all.
         solutions = []
         solution_options_by_row = {}
+        eligibility_resolved = False
         try:
             solutions = mdms_client.fetch_installation_solutions(request_info)
             solution_options_by_row = build_solution_options_by_row(
@@ -494,6 +546,7 @@ async def get_facility_ingestion_template_with_data(
                 sunshine_hours_by_state=fetch_state_sunshine_hours(),
                 state_by_facility_id=state_by_facility_id,
             )
+            eligibility_resolved = True
         except Exception as e:
             logger.error(f"Error resolving eligible solutions: {e}", exc_info=True)
 
@@ -505,6 +558,39 @@ async def get_facility_ingestion_template_with_data(
             lock_map = build_project_lock_map(
                 FieldPlanServiceClient(fieldPlan_service_url), request_info, project_id, fieldplan_id
             )
+
+        # A site whose sector and state yield no Solution at all can only ever be a dead row --
+        # a cell with no dropdown that then fails upload validation on a row the PM could not
+        # have filled in. Drop it and say which, since "my site is missing" is otherwise just as
+        # opaque. Skipped only when eligibility actually resolved: if MDMS blipped, every row
+        # looks ineligible and filtering would hand back an empty sheet.
+        if eligibility_resolved:
+            candidates = partition_scope_candidates(
+                all_facilities,
+                solution_options_by_row,
+                lock_map,
+                protected_ids=frozenset(fieldplan_linked_facility_ids),
+            )
+            if candidates.no_solution_ids:
+                logger.info(
+                    f"Omitted {len(candidates.no_solution_ids)} site(s) from the scope sheet with no "
+                    f"eligible Solution for their sector and state: {candidates.no_solution_ids}")
+            all_facilities = candidates.writable
+            solution_options_by_row = candidates.options_by_row
+
+            # Nothing *selectable* -- not merely nothing at all. A geography whose every site is
+            # already published in a sibling plan used to return a full sheet of frozen rows and
+            # no explanation, which reads as a broken download rather than as "there is nothing
+            # here for you". Locked rows stay in the sheet when there is something to pick
+            # alongside them; when there is not, say so instead.
+            if candidates.addable_count == 0:
+                cleanup_temp_file(output_file_path)
+                raise HTTPException(
+                    status_code=400,
+                    detail="There are no end user sites available in the selected geography and "
+                           "sectors. Every matching site is either already part of a published "
+                           "installation plan, or has no Solution available for its sector and "
+                           "state. Change the geography or sectors on the plan.")
 
         solution_name_by_code = solution_names_by_code(solutions)
         existing_solution_name_by_facility_id = {
@@ -565,7 +651,7 @@ async def get_facility_ingestion_template_with_data(
                         p: (f.get("facility_type") or "") for p, f in enumerate(all_facilities)
                     },
                 },
-                freeze_columns=["Included in Field Plan", "Solution"],
+                freeze_columns=["Include in Installation Plan", "Solution"],
                 freeze_row_positions=freeze_row_positions,
                 boundary_localization_map=boundary_localization_map,
             )
@@ -581,9 +667,131 @@ async def get_facility_ingestion_template_with_data(
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
+    except HTTPException:
+        # A deliberate refusal -- a 400 naming what the Project Manager has to change -- must
+        # keep its own status and message. Falling through to the handler below re-wrapped it
+        # as a 500 reading "An unexpected error occurred: 400: ...", which reads as a crash
+        # rather than as guidance and hides the real status from the client.
+        raise
     except Exception as e:
         logger.error(f"Unhandled error in get_facility_ingestion_template: {e}")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+
+
+def _preflight_empty_reason(candidates, candidates_in_geography: int,
+                            candidates_in_sectors: int) -> Optional[str]:
+    """Say which stage emptied the set, so the PM knows whether to change the geography, the
+    sectors, or to go and look at the sibling plan holding the sites. None when there is
+    something to add."""
+    if candidates.addable_count > 0:
+        return None
+    if candidates_in_geography == 0:
+        cause = "No end user site in this project falls within the selected geography."
+    elif candidates_in_sectors == 0:
+        cause = "None of the end user sites in the selected geography belong to the selected sector(s)."
+    elif candidates.locked_elsewhere_ids and not candidates.no_solution_ids:
+        cause = ("Every matching end user site is already part of a published installation "
+                 "plan in this project.")
+    else:
+        cause = "None of the matching end user sites has a Solution available for its sector and state."
+    return (f"There are no end user sites available in the selected geography and sectors. "
+            f"{cause} Change the geography or sectors to create this installation plan.")
+
+
+@router.post('/installationScopePreflight',
+             summary='Check whether a geography and sector selection yields any addable end user site',
+             response_description="Counts of addable and skipped sites for an Installation Plan's scope",
+             responses={400: {"description": "project_id or boundary_data missing"},
+                        502: {"description": "A dependent service could not be reached"}})
+async def installation_scope_preflight(payload: dict = Body(..., description="RequestInfo, project_id, sectors, boundary_data")):
+    """Answer "can this plan have a scope at all?" before the Project Manager commits to a
+    geography and sector selection.
+
+    Read-only, and deliberately not a slice of the scope download: that endpoint also
+    reconciles the plan's existing scope, which *writes* -- it unlinks sites no longer in the
+    project and deletes their activities. This only counts. What both share is the judgement
+    itself, `partition_scope_candidates`, so they cannot disagree about whether a plan is
+    viable while differing on how they gathered the candidates.
+
+    `fieldplan_id` is optional and normally absent: at Plan Details time the plan does not
+    exist yet, and with no current plan every lock in the project applies, which is the
+    correct reading for "what could a new plan take?".
+    """
+    request_info = request_info_from_json(payload.get("RequestInfo", {}))
+    project_id = payload.get("project_id")
+    fieldplan_id = payload.get("fieldplan_id")
+    boundary_data = payload.get("boundary_data", {})
+    plan_sectors = payload.get("sectors") or []
+    if isinstance(plan_sectors, str):
+        plan_sectors = [plan_sectors]
+
+    if not project_id:
+        raise HTTPException(status_code=400, detail="project_id is required")
+
+    boundary_list: List[Boundary] = flatten_boundaries(boundary_data)
+    if not boundary_list:
+        raise HTTPException(status_code=400, detail="boundary_data with at least one boundary is required")
+
+    try:
+        # Candidates are the project's own sites that fall inside the chosen boundaries. Step 1
+        # sends the plan's plain block codes, which facility-service's bulk search cannot match
+        # by boundary (it compares whole codes, and a site's code carries a facility suffix), so
+        # the project's sites are fetched by id and matched against the blocks here instead.
+        all_facilities = []
+        if facility_service_url:
+            all_facilities = project_sites_in_geography(
+                request_info, project_id,
+                [b.code for b in boundary_list if b.code],
+                ProjectServiceClient(project_service_url),
+                FacilityServiceClient(facility_service_url),
+            )
+
+        candidates_in_geography = len(all_facilities)
+
+        if plan_sectors:
+            wanted_sectors = {str(s).strip().casefold() for s in plan_sectors if s}
+            all_facilities = [
+                f for f in all_facilities
+                if str(f.get("facility_type") or "").strip().casefold() in wanted_sectors
+            ]
+        candidates_in_sectors = len(all_facilities)
+
+        state_by_facility_id = state_names_by_facility_id(
+            all_facilities, boundary_list,
+            build_boundary_localization_map(boundary_list, localization_service_url))
+
+        solutions = MDMSClient(mdms_url).fetch_installation_solutions(request_info)
+        options_by_row = build_solution_options_by_row(
+            facilities=all_facilities,
+            solutions=solutions,
+            sunshine_hours_by_state=fetch_state_sunshine_hours(),
+            state_by_facility_id=state_by_facility_id,
+        )
+
+        lock_map = {}
+        if fieldPlan_service_url:
+            lock_map = build_project_lock_map(
+                FieldPlanServiceClient(fieldPlan_service_url), request_info, project_id, fieldplan_id)
+
+        candidates = partition_scope_candidates(all_facilities, options_by_row, lock_map)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Installation scope preflight failed for project {project_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Could not check the selected geography and sectors: {e}")
+
+    reason = _preflight_empty_reason(candidates, candidates_in_geography, candidates_in_sectors)
+    if reason:
+        logger.info(f"Preflight found no addable site for project {project_id}: {reason}")
+
+    return {
+        "addableSiteCount": candidates.addable_count,
+        "candidatesInGeography": candidates_in_geography,
+        "candidatesInSectors": candidates_in_sectors,
+        "skippedNoSolution": candidates.no_solution_ids,
+        "skippedLockedElsewhere": candidates.locked_elsewhere_ids,
+        "reason": reason,
+    }
 
 
 @router.post('/installationTemplate',
@@ -591,7 +799,7 @@ async def get_facility_ingestion_template_with_data(
              response_description="Returns the Solution's blank IC Report template as .xlsx")
 async def get_installation_template(
         background_tasks: BackgroundTasks,
-        payload: dict = Body(..., description="RequestInfo, fieldplan_id, solution_code, optional boundary_data")
+        payload: dict = Body(..., description="RequestInfo, fieldplan_id, solution_code")
 ):
     """Serve a Solution's blank template (FR-08).
 
@@ -602,7 +810,6 @@ async def get_installation_template(
     request_info = request_info_from_json(payload.get("RequestInfo", {}))
     fieldplan_id = payload.get("fieldplan_id")
     solution_code = payload.get("solution_code")
-    boundary_data = payload.get("boundary_data") or {}
 
     if not fieldplan_id or not solution_code:
         raise HTTPException(status_code=400, detail="fieldplan_id and solution_code are required")
@@ -665,26 +872,13 @@ async def get_installation_template(
         with open(output_file_path, "wb") as handle:
             handle.write(workbook_bytes)
 
-        # 4. Lock the template's structure. Not optional and not inside a try/except, unlike the
-        # Sites sheet below: field names are assigned by position on upload, so serving a sheet
-        # whose rows can be inserted or renumbered invites a silent mis-naming of every cell after
-        # the edit. A template that cannot be protected should not be served.
+        # 4. Lock the template's structure. Field names are assigned by position on upload, so
+        # serving a sheet whose rows can be inserted or renumbered invites a silent mis-naming of
+        # every cell after the edit. A template that cannot be protected should not be served.
         workbook = load_workbook(output_file_path)
         template_sheet = first_data_sheet(workbook)
         protect_input_cells(template_sheet, parse_worksheet(template_sheet))
         workbook.save(output_file_path)
-
-        # 5. Append the read-only Sites sheet. Reference only -- never read back on upload.
-        try:
-            sites = _sites_for_template(
-                request_info, fieldplan_client, sites_for_solution, boundary_data, fieldplan_id)
-            workbook = load_workbook(output_file_path)
-            append_sites_sheet(workbook, sites)
-            workbook.save(output_file_path)
-        except Exception as e:
-            # The template is usable without the reference sheet, so a failure here degrades
-            # rather than blocks the download.
-            logger.error(f"Could not append the Sites sheet: {e}", exc_info=True)
 
         background_tasks.add_task(cleanup_temp_file, output_file_path)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -703,70 +897,6 @@ async def get_installation_template(
         if output_file_path:
             cleanup_temp_file(output_file_path)
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
-
-
-def _sites_for_template(request_info, fieldplan_client, links, boundary_data, fieldplan_id):
-    """Rows for the read-only Sites sheet: which end user sites this Solution's template covers.
-
-    Geography is filled in only when the caller passes boundary_data, since resolving a
-    facility's state means matching its boundary_code against that list -- the facility record
-    itself carries no state (address.state has no column behind it). The sheet is still useful
-    without it, so a caller that omits boundary_data gets names and statuses.
-    """
-    facility_ids = [link.get("facilityId") for link in links if link.get("facilityId")]
-    facilities_by_id = {}
-    if facility_ids and facility_service_url:
-        try:
-            result = FacilityServiceClient(facility_service_url).bulk_search_facility(
-                request_info=request_info,
-                tenant_ids=[LIVELIHOOD_TENANT_ID],
-                facility_ids=facility_ids,
-                limit=max(len(facility_ids), 50),
-                send_non_paginated_response=True,
-            )
-            facilities_by_id = {
-                f.get("facility_id"): f for f in (result.get("facilities") or [])
-                if f.get("facility_id")
-            }
-        except Exception as e:
-            logger.error(f"Could not fetch facilities for the Sites sheet: {e}", exc_info=True)
-
-    geography = {}
-    if boundary_data and facilities_by_id:
-        boundary_list = flatten_boundaries(boundary_data)
-        localization = build_boundary_localization_map(boundary_list, localization_service_url)
-        for facility in facilities_by_id.values():
-            code = facility.get("boundary_code") or facility.get("boundaryCode") or ""
-            geography[facility.get("facility_id")] = resolve_boundary_names_for_code(
-                code, boundary_list, localization)
-
-    # A site published in a sibling plan is flagged here so the PM sees it on this screen
-    # rather than discovering it at Vendor Assignment.
-    lock_map = {}
-    plan_project_id = None
-    try:
-        plans = fieldplan_client.search_fieldPlan(request_info, fieldplan_id).get("FieldPlans", [])
-        plan_project_id = plans[0].get("projectId") if plans else None
-    except Exception as e:
-        logger.error(f"Could not read plan {fieldplan_id} for the Sites sheet: {e}", exc_info=True)
-    if plan_project_id:
-        lock_map = build_project_lock_map(
-            fieldplan_client, request_info, plan_project_id, fieldplan_id)
-
-    rows = []
-    for facility_id in facility_ids:
-        facility = facilities_by_id.get(facility_id) or {}
-        state, district, block = geography.get(facility_id, ("", "", ""))
-        lock = lock_map.get(facility_id)
-        rows.append({
-            "name": facility.get("facility_name") or facility.get("name") or "",
-            "facility_id": facility_id,
-            "state": state,
-            "district": district,
-            "block": block,
-            "status": "" if lock is None or lock.is_this_plan else lock_status_label(lock),
-        })
-    return rows
 
 
 
@@ -809,6 +939,12 @@ async def get_facility_ingestion_template(
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
+    except HTTPException:
+        # A deliberate refusal -- a 400 naming what the Project Manager has to change -- must
+        # keep its own status and message. Falling through to the handler below re-wrapped it
+        # as a 500 reading "An unexpected error occurred: 400: ...", which reads as a crash
+        # rather than as guidance and hides the real status from the client.
+        raise
     except Exception as e:
         logger.error(f"Unhandled error in get_facility_ingestion_template: {e}")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
@@ -927,6 +1063,9 @@ async def get_facility_ingestion_template_with_staff(
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
+    except HTTPException:
+        # Keep a deliberate refusal's own status and message; see the note above.
+        raise
     except Exception as e:
         logger.error(f"Unhandled error in get_facility_ingestion_template_with_staff: {e}")
         cleanup_temp_file(output_file_path)
@@ -981,6 +1120,9 @@ async def get_facility_ingestion_template_with_supervisors(
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
+    except HTTPException:
+        # Keep a deliberate refusal's own status and message; see the note above.
+        raise
     except Exception as e:
         logger.error(f"Unhandled error in get_facility_ingestion_template_with_supervisors: {e}")
         cleanup_temp_file(output_file_path)

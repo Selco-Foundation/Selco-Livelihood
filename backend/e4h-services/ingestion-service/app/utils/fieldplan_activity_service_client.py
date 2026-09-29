@@ -1,11 +1,16 @@
 import json
-from typing import Dict, Any, List
+from typing import Any, Dict, List, Set
 
 import requests
 
 from app.core.tenant import LIVELIHOOD_TENANT_ID
 from app.schemas.request_info import RequestInfo
 from app.schemas.vendor_ingestion_shema_response import ResponseInfo
+
+# The installation workflow's terminal state, mirroring field-planner-activity's
+# ActivityConstants.APPROVED_BY_QC_SPOC. A site whose asset has reached it is installed and
+# signed off, which is what makes removing it from the plan destructive.
+ACTIVITY_STATUS_APPROVED_BY_QC = "APPROVED_BY_QC_SPOC"
 
 
 class FieldPlanActivityServiceClient:
@@ -49,6 +54,54 @@ class FieldPlanActivityServiceClient:
         except requests.exceptions.RequestException as req_err:
             print(f"An error occurred: {req_err}")
             raise req_err
+
+    def completed_facility_ids(self, request_info: RequestInfo, fieldplan_id: str,
+                               facility_ids: List[str]) -> Set[str]:
+        """Which of these sites already have an approved installation in this plan.
+
+        "Completed" means an asset reached APPROVED_BY_QC_SPOC -- the terminal state of the
+        installation workflow, the same one ActivityService uses to decide a site is finished
+        and release its lock. One asset is enough: once any of a site's assets is signed off,
+        removing the site would strand approved work.
+
+        Asks the server to filter by status rather than pulling every activity back, and takes
+        the whole facility list in one call -- the per-site `search_facility_activity` would be
+        one round trip per sheet row.
+        """
+        if not facility_ids:
+            return set()
+
+        url = f"{self.fieldPlan_activity_service_url}/activity/v1/activities/_search"
+        payload = {
+            "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
+            "ActivityFacility": {
+                "tenantId": LIVELIHOOD_TENANT_ID,
+                "fieldPlanIds": [fieldplan_id],
+                "facilityIds": list(facility_ids),
+                "statuses": [ACTIVITY_STATUS_APPROVED_BY_QC],
+            },
+        }
+        params = {"tenantId": LIVELIHOOD_TENANT_ID, "limit": 1000, "offset": 0,
+                  "includeDeleted": "false"}
+
+        completed: Set[str] = set()
+        while True:
+            response = requests.post(url, headers={"Content-Type": "application/json"},
+                                     json=payload, params=params)
+            response.raise_for_status()
+            data = response.json()
+            rows = data.get("facility", []) or []
+            for row in rows:
+                activity_facility = row.get("activityFacility") or row
+                facility_id = activity_facility.get("facilityId") or activity_facility.get("facility_id")
+                if facility_id:
+                    completed.add(facility_id)
+            total = data.get("totalCount", 0)
+            params["offset"] += params["limit"]
+            if params["offset"] >= total or not rows:
+                break
+
+        return completed
 
     def search_facility_activity(self, request_info: RequestInfo, fieldplan_id: str, facility_id:str) -> Dict[str, Any]:
         tenant_id = LIVELIHOOD_TENANT_ID
