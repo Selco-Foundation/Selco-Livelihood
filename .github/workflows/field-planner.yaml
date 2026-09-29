@@ -87,7 +87,7 @@ jobs:
 
       # Raise a PR in DevOps-Livelihood to bump this service's UAT image tag.
       - name: Raise UAT image update PR
-        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/staging'
+        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/staging' || github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
           SERVICE_NAME: field-planner   # key in livelihood-uat-tags.yaml
