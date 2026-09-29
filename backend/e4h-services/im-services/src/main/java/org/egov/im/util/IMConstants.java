@@ -164,7 +164,7 @@ public final class IMConstants {
     public static final String LIVELIHOOD_INDEX_ASSET_GROUP_SOLAR = "Solar";
 
     public static final List<String> LIVELIHOOD_SOLAR_ASSET_TYPE_IDS =
-            Collections.unmodifiableList(Arrays.asList("SOLAR PANEL", "BATTERY", "INVERTER", "PANEL"));
+            Collections.unmodifiableList(Arrays.asList("SOLAR", "SOLAR PANEL", "BATTERY", "INVERTER", "PANEL"));
 
     public static final String LIVELIHOOD_RAISED_BY_POC_DETAIL_KEY = "raisedByPocUuid";
 

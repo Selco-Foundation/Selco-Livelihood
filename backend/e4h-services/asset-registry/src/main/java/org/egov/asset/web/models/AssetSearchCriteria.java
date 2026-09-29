@@ -65,4 +65,8 @@ public class AssetSearchCriteria {
     @JsonProperty("itemCode")
     private String itemCode = null;
 
+    /** Returns only the units of this parent asset. */
+    @JsonProperty("parentId")
+    private String parentId = null;
+
 }

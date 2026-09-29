@@ -621,7 +621,7 @@ def create_facility_payload(
 
 
 HAVE_SOLAR_COLUMN = "Have Solar"
-SOLAR_ASSET_TYPE_ID = "SOLAR PANEL"
+SOLAR_ASSET_TYPE_ID = "SOLAR"
 SOLAR_ASSET_NAME = "Solar"
 SOLAR_SERIAL_SUFFIX = "SOLAR"
 
@@ -719,11 +719,6 @@ def create_asset_payloads(
     }
     # Drop empty optional fields so they aren't sent as blanks.
     asset = {k: v for k, v in asset.items() if not (v is None or (isinstance(v, str) and v.strip() == ""))}
-    # asset-registry persists name inside assetDetails (the asset table has no name column;
-    # AssetRowMapper reads assetDetails.name, else falls back to assetTypeID). Store it there too.
-    name_val = val("name")
-    if name_val is not None and str(name_val).strip() != "":
-        asset["assetDetails"] = {"name": str(name_val).strip()}
     # asset-registry dereferences documents without a null-check -> always send an empty list.
     asset["documents"] = []
 
@@ -741,7 +736,7 @@ def create_asset_payloads(
             "tenantId": asset["tenantId"],
             "vendorId": asset["vendorId"],
             "assetTypeID": SOLAR_ASSET_TYPE_ID,
-            "assetDetails": {"name": SOLAR_ASSET_NAME},
+            "name": SOLAR_ASSET_NAME,
             "isOperational": True,
             "isActive": True,
             "documents": [],
