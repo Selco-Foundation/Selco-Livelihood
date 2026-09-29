@@ -1,4 +1,4 @@
-import { extractApiErrorMessage } from "@/shared";
+import { extractApiErrorMessage, i18n, translateOr } from "@/shared";
 import type { AuthUser } from "@/shared/stores/auth-store";
 import {
   extractBlobApiErrorMessage,
@@ -64,7 +64,8 @@ export async function validateSolutionTemplate(
     return { file: { blob, filename: `installation-template-validated-${file.name}` }, errorCount };
   } catch (error) {
     throw new InstallationTemplateApiError(
-      (await extractBlobApiErrorMessage(error)) ?? "IC report template validation failed",
+      (await extractBlobApiErrorMessage(error)) ??
+        translateOr(i18n.t.bind(i18n), "ES_PM_TEMPLATE_VALIDATION_FAILED", "IC report template validation failed"),
       httpStatusOf(error),
     );
   }
@@ -106,7 +107,8 @@ export async function createSolutionTemplate(
     return Boolean(data.message);
   } catch (error) {
     throw new InstallationTemplateApiError(
-      extractApiErrorMessage(error) ?? "IC report template creation failed",
+      extractApiErrorMessage(error) ??
+        translateOr(i18n.t.bind(i18n), "ES_PM_TEMPLATE_CREATION_FAILED", "IC report template creation failed"),
       httpStatusOf(error),
     );
   }

@@ -1,4 +1,4 @@
-import { useAuthStore } from "@/shared";
+import { translateOr, useAuthStore, useTranslate } from "@/shared";
 import { createScopeFromSheet, downloadScopeTemplate, validateScopeSheet } from "../services/installation-scope";
 import type { InstallationPlanScopeEntry } from "../types/installation-plan";
 import type { GeographyDetails } from "../types/project";
@@ -15,6 +15,7 @@ export function useInstallationScopeIngestion(
   const user = useAuthStore((state) => state.user);
   const canDownload = Boolean(planId && projectId && accessToken);
   const canUpload = Boolean(planId && accessToken);
+  const { t } = useTranslate();
 
   return useExcelRoundTrip<InstallationPlanScopeEntry[]>({
     // Sectors and geography arrive from queries that resolve after the wizard's own plan/project
@@ -23,7 +24,7 @@ export function useInstallationScopeIngestion(
     // an empty boundary list. Fail loudly rather than produce a blank spreadsheet.
     precheck: () =>
       sectorCodes.length === 0 || !projectGeography.blocks?.length
-        ? "Plan details are still loading. Please wait a moment and try again."
+        ? translateOr(t, "ES_PM_PLAN_DETAILS_LOADING", "Plan details are still loading. Please wait a moment and try again.")
         : undefined,
     download: canDownload
       ? () => downloadScopeTemplate(planId!, projectId!, sectorCodes, projectGeography, accessToken!, user)
@@ -36,8 +37,8 @@ export function useInstallationScopeIngestion(
         }
       : null,
     messages: {
-      downloadFailed: "Failed to download the scope template",
-      uploadFailed: "Installation scope ingestion failed",
+      downloadFailed: translateOr(t, "ES_PM_DOWNLOAD_SCOPE_TEMPLATE_FAILED", "Failed to download the scope template"),
+      uploadFailed: translateOr(t, "ES_PM_SCOPE_INGESTION_FAILED", "Installation scope ingestion failed"),
     },
   });
 }

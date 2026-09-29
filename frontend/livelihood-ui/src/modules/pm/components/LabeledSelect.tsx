@@ -1,3 +1,4 @@
+import { translateOr, useTranslate } from "@/shared";
 import { Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/ui";
 
 interface LabeledSelectOption {
@@ -23,10 +24,12 @@ export function LabeledSelect<TOption extends LabeledSelectOption>({
   required = false,
   value,
   options,
-  placeholder = "Select",
+  placeholder,
   disabled = false,
   onChange,
 }: Readonly<LabeledSelectProps<TOption>>) {
+  const { t } = useTranslate();
+  const resolvedPlaceholder = placeholder ?? translateOr(t, "ES_PM_SELECT_PLACEHOLDER", "Select");
   return (
     <div className="min-w-0 space-y-1.5">
       {label ? (
@@ -37,7 +40,7 @@ export function LabeledSelect<TOption extends LabeledSelectOption>({
       ) : null}
       <Select value={value || undefined} onValueChange={onChange} disabled={disabled}>
         <SelectTrigger className="w-full">
-          <SelectValue placeholder={placeholder} />
+          <SelectValue placeholder={resolvedPlaceholder} />
         </SelectTrigger>
         <SelectContent>
           {options.map((option) => (

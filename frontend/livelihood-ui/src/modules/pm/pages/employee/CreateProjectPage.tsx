@@ -182,7 +182,10 @@ export function CreateProjectPage() {
       setConfirmOpen(false);
       setCompletedProject(scheduledProject);
     } catch (error) {
-      setConfirmError(extractApiErrorMessage(error) ?? "Failed to submit the project. Please try again.");
+      setConfirmError(
+        extractApiErrorMessage(error) ??
+          translateOr(t, "ES_PM_PROJECT_SUBMIT_FAILED", "Failed to submit the project. Please try again."),
+      );
     }
   }
 
