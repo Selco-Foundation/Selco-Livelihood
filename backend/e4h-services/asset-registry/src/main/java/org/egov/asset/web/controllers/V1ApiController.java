@@ -191,6 +191,9 @@ public class V1ApiController {
         // End users see the Solar parent and their Machines, never the individual Solar units.
         boolean excludeUnits = isEndUserOnly(searchRequest.getRequestInfo());
         List<Asset> searchResponse = assetService.fetchAssetsWithDocuments(asset, limit, offset, excludeUnits);
+        if (Boolean.TRUE.equals(criteria.getIncludeChildren())) {
+            assetService.attachChildren(criteria.getTenantId(), searchResponse);
+        }
         Integer count = assetService.getAssetsCount(asset, excludeUnits);
         return new ResponseEntity<>(searchResponse, HttpStatus.OK);
     }
