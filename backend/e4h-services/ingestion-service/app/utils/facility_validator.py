@@ -195,6 +195,52 @@ def _cell(row, column) -> str:
     return "" if pd.isna(value) else str(value).strip()
 
 
+def _duplicate_site_rows(rows, include_column, facility_id_column) -> Dict[int, List[int]]:
+    """{row position: every position sharing its End User Id}, for ids listed more than once.
+
+    Groups are built over *every* row carrying an id, not only the included ones, because the
+    damaging case is a site listed twice with disagreeing Include values: `create_fielplan_facilities`
+    walks the sheet in order, so one row links the site while the other unlinks it and deletes
+    its facility activities. Only groups the PM actually asked to include are reported, though --
+    two untouched Include=No rows are redundant, not dangerous, and are not worth blocking an
+    upload over.
+    """
+    positions_by_id: Dict[str, List[int]] = {}
+    for i, row in enumerate(rows):
+        site_id = _cell(row, facility_id_column)
+        # Blank ids would otherwise all pair with each other; they get their own message from
+        # project_facility_validation.
+        if site_id:
+            positions_by_id.setdefault(site_id, []).append(i)
+
+    duplicates: Dict[int, List[int]] = {}
+    for positions in positions_by_id.values():
+        if len(positions) < 2:
+            continue
+        # Same test as the row loop's, character for character: if these two disagreed about
+        # what "included" means, a row could be flagged here and skipped there, or the reverse.
+        if not any(_cell(rows[p], include_column).lower() == "yes" for p in positions):
+            continue
+        for position in positions:
+            duplicates[position] = positions
+    return duplicates
+
+
+def duplicated_site_ids(df) -> List[str]:
+    """End User Ids listed on more than one row, where at least one of those rows says Yes.
+
+    The same rule `validate_installation_scope_solutions` applies per row, in the form the create
+    endpoint needs: it has no per-row error column, so it reports the ids and refuses the file.
+    """
+    include_column = _find_header(df, "Include in Installation Plan")
+    facility_id_column = find_site_id_column(df)
+    if not include_column or not facility_id_column:
+        return []
+    rows = df.to_dict("records")
+    duplicates = _duplicate_site_rows(rows, include_column, facility_id_column)
+    return sorted({_cell(rows[i], facility_id_column) for i in duplicates})
+
+
 def validate_installation_scope_solutions(
     df,
     solutions: List[Dict[str, Any]],
@@ -205,6 +251,10 @@ def validate_installation_scope_solutions(
     state_by_facility_id: Optional[Dict[str, str]] = None,
     lock_map: Optional[Dict[str, Any]] = None,
     solution_name_by_code: Optional[Dict[str, str]] = None,
+    completed_site_ids: Optional[Set[str]] = None,
+    plan_is_published: bool = False,
+    allowed_site_ids: Optional[Set[str]] = None,
+    project_site_ids: Optional[Set[str]] = None,
 ) -> List[int]:
     """Installation-scope rules for the Include/Solution pair.
 
@@ -230,9 +280,22 @@ def validate_installation_scope_solutions(
     reservations are filtered out of the map) must come back unchanged. Excel protection alone
     can't guarantee that -- the sheet can be unprotected -- so it is re-checked here.
 
+    allowed_site_ids, when given, is the set of sites the scope download would have offered
+    this plan -- in the project and inside its geography. A row naming anything else was typed
+    or pasted in, and is rejected before its Solution is considered. project_site_ids narrows
+    the diagnosis only: it separates "not in this project at all" from "in the project but
+    outside this plan's geography", which are different mistakes with different fixes. Pass
+    allowed_site_ids=None to disable the check entirely (no plan context, or a published plan,
+    where every row is already refused on other grounds).
+
+    A site listed on more than one row is rejected on every one of them, whenever any of those
+    rows asks to include it. Such a pair is not merely redundant: the create endpoint walks the
+    rows in order, so a Yes/No pair both links and unlinks the site, and unlinking hard-deletes
+    its facility activities.
+
     Returns the 0-based positions of rows this plan may actually link.
     """
-    include_column = _find_header(df, "Included in Field Plan")
+    include_column = _find_header(df, "Include in Installation Plan")
     solution_column = _find_header(df, "Solution")
     if not include_column or not solution_column:
         return []
@@ -240,29 +303,62 @@ def validate_installation_scope_solutions(
     sector_column = _find_header(df, "Sector")
     state_column = _find_header(df, "State")
     facility_id_column = find_site_id_column(df)
+    site_name_column = _find_header(df, "End User Name")
     lock_map = lock_map or {}
     solution_name_by_code = solution_name_by_code or {}
+    completed_site_ids = completed_site_ids or set()
+
+    rows = df.to_dict("records")
+    duplicate_rows = _duplicate_site_rows(rows, include_column, facility_id_column)
 
     linkable_rows: List[int] = []
-    for i, row in enumerate(df.to_dict("records")):
+    for i, row in enumerate(rows):
         include_value = _cell(row, include_column).lower()
         solution_value = _cell(row, solution_column)
         facility_id = _cell(row, facility_id_column)
+
+        # Checked ahead of the lock rules: a sheet listing one site twice is malformed whatever
+        # else is true of that site, and the lock branch below returns early either way.
+        if i in duplicate_rows:
+            other_rows = [other for other in duplicate_rows[i] if other != i]
+            # +2, not +1: the header occupies Excel row 1 and the data starts at row 2.
+            others = ", ".join(str(other + 2) for other in other_rows)
+            label = "row" if len(other_rows) == 1 else "rows"
+            add_err(
+                i,
+                f"End User Id '{facility_id}' appears more than once in this sheet "
+                f"(also on Excel {label} {others}). List each end user site once.",
+            )
+            continue
 
         lock = lock_map.get(facility_id) if facility_id else None
         if lock is not None:
             if lock.is_this_plan:
                 # Held by this plan, which can only mean this plan is published -- its own
                 # unpublished scope reservations are excluded from the lock map so that it can
-                # keep editing them. So the row really is fixed: it must come back untouched.
-                # Excel protection stops honest edits, but the sheet can be unprotected, so the
-                # values are re-checked here.
+                # keep editing them. Excel protection stops honest edits, but the sheet can be
+                # unprotected, so the values are re-checked here.
+                #
+                # The two edits a PM might make are not equally destructive, so they are judged
+                # separately. Re-pointing a published site at a different Solution is never
+                # allowed: vendors were dispatched against the one already chosen. Withdrawing
+                # the site is allowed while nothing has been installed yet -- plans do legitimately
+                # shrink -- and refused once any of its assets has been signed off, because that
+                # would strand approved work.
                 expected = solution_name_by_code.get(lock.solution_id, "")
-                if include_value != "yes" or (expected and solution_value != expected):
+                site_label = _cell(row, site_name_column) or facility_id
+                if include_value != "yes":
+                    if facility_id in completed_site_ids:
+                        add_err(
+                            i,
+                            f"The installation for {site_label} has already been completed and "
+                            f"approved, so it can no longer be removed from this installation plan.",
+                        )
+                elif expected and solution_value != expected:
                     add_err(
                         i,
-                        "This installation plan has already been submitted, so this site cannot "
-                        "be removed from it or given a different Solution.",
+                        f"This installation plan has already been submitted, so {site_label} "
+                        f"cannot be given a different Solution. It stays on {expected}.",
                     )
             elif include_value == "yes":
                 # Held by a sibling plan and the PM has asked to include it anyway. This is the
@@ -275,15 +371,58 @@ def validate_installation_scope_solutions(
 
         if include_value != "yes":
             if solution_value:
-                add_err(i, "Solution must be empty unless the site is included in the field plan")
+                site_label = _cell(row, site_name_column) or facility_id
+                add_err(
+                    i,
+                    f"{site_label} has a Solution but 'Include in Installation Plan' is not Yes. "
+                    f"Set it to Yes to include the site, or clear the Solution.",
+                )
             continue
 
-        if not solution_value:
-            add_err(i, "Solution is required when the site is included in the field plan")
+        if plan_is_published:
+            # No lock on this row means the site is in no plan at all, so it is a brand-new
+            # addition. A published plan has already dispatched its work; growing its scope
+            # here would create a site with no vendor and no activity behind it, which nothing
+            # downstream would flag. New sites belong in a new plan.
+            site_label = _cell(row, site_name_column) or facility_id
+            add_err(
+                i,
+                f"This installation plan has already been submitted, so {site_label} can no "
+                f"longer be added to it. Create a new installation plan for it instead.",
+            )
             continue
 
-        if sector_by_facility_id is not None:
-            row_sector = sector_by_facility_id.get(facility_id, "") or _cell(row, sector_column)
+        # Every row above this point was offered by the download or refused on stronger grounds.
+        # A row that reaches here naming a site the download would never have listed was typed
+        # or pasted in. Without this the row is still rejected -- a site outside the plan's
+        # geography has no entry in the workbook's BoundaryCodes sheet, so its state resolves to
+        # "" and the eligibility check below finds no Solution valid -- but the PM is told the
+        # Solution is wrong when the site is.
+        # A blank id is a different mistake and already has its own message from
+        # project_facility_validation; saying it is "not one of this project's sites" on top of
+        # that would point the PM at the wrong fix.
+        if allowed_site_ids is not None and facility_id and facility_id not in allowed_site_ids:
+            site_label = _cell(row, site_name_column) or facility_id
+            if project_site_ids is not None and facility_id in project_site_ids:
+                add_err(
+                    i,
+                    f"{site_label} is outside the geography this installation plan covers, so "
+                    f"it cannot be included in it.",
+                )
+            else:
+                add_err(
+                    i,
+                    f"{site_label} is not one of this project's end user sites, so it cannot be "
+                    f"added to this installation plan.",
+                )
+            continue
+
+        if sector_by_facility_id:
+            # Only fall back to the sheet's Sector cell when the lookup produced nothing at all
+            # (its documented degraded mode). A populated map that simply has no entry for this
+            # id means the site did not resolve, and trusting the cell there would hand a
+            # hand-added row the sector it typed for itself.
+            row_sector = sector_by_facility_id.get(facility_id, "")
         else:
             row_sector = _cell(row, sector_column)
         if state_by_facility_id is not None:
@@ -302,12 +441,32 @@ def validate_installation_scope_solutions(
             )
             continue
 
+        # Checked after the sector so the Solution messages can name what the site may take: a
+        # blank cell and a wrong one have the same fix, pick from the dropdown -- unless there is
+        # nothing to pick, which needs a different fix altogether.
         allowed = eligible_solution_names(solutions, row_sector, state_value, sunshine_hours_by_state)
+        site_label = _cell(row, site_name_column) or facility_id
+        if not allowed:
+            add_err(
+                i,
+                f"No Solution is available for {site_label} (sector '{row_sector or ''}', state "
+                f"'{state_value}'), so it cannot be included in this installation plan. Set "
+                f"'Include in Installation Plan' to No for this site.",
+            )
+            continue
+        if not solution_value:
+            add_err(
+                i,
+                f"Select a Solution for {site_label}. It is marked Yes in 'Include in "
+                f"Installation Plan', so it needs one. Choose from: {', '.join(sorted(allowed))}.",
+            )
+            continue
         if solution_value not in allowed:
             add_err(
                 i,
-                f"Solution '{solution_value}' is not valid for sector '{row_sector or ''}' "
-                f"and state '{state_value}'",
+                f"'{solution_value}' is not a Solution available for {site_label} (sector "
+                f"'{row_sector or ''}', state '{state_value}'). Choose from: "
+                f"{', '.join(sorted(allowed))}.",
             )
             continue
 
