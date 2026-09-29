@@ -4,10 +4,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.egov.activity.web.models.Boundary;
 import org.egov.common.contract.request.RequestInfo;
+import lombok.extern.slf4j.Slf4j;
 import org.egov.tracer.model.CustomException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Component
+@Slf4j
 public class BoundaryUtil {
     @Autowired
     private RestTemplate restTemplate;
@@ -26,29 +27,35 @@ public class BoundaryUtil {
     @Value("${egov.boundary.search.endpoint}")
     private String boundaryUrl;
 
+    @Value("${egov.boundary.tenant}")
+    private String boundaryTenant;
+
+    @Value("${egov.boundary.hierarchy}")
+    private String boundaryHierarchy;
+
     @Autowired
     private ObjectMapper objectMapper;
 
-//    @Cacheable(value="boundaryConfiguration")
     public Map<String, Boundary> getBoundaryByCode() {
-        Map<String, Boundary> listBlock = null;
-        String params = "?boundaryType=State&includeChildren=true&tenantId=in&hierarchyType=SELCO";
-        StringBuilder uri = new StringBuilder();
-        uri.append(boundaryHost).append(boundaryUrl).append(params);
+        String params = "?boundaryType=State&includeChildren=true&tenantId="
+                + boundaryTenant + "&hierarchyType=" + boundaryHierarchy;
+        String uri = boundaryHost + boundaryUrl + params;
         RequestInfo requestInfo = new RequestInfo();
-        Object response = null;
         try {
-            response = restTemplate.postForObject(uri.toString(), requestInfo, Map.class);
+            Object response = restTemplate.postForObject(uri, requestInfo, Map.class);
             if (response == null) {
-              throw new CustomException("CONFIG_ERROR", "Boundary service returned null response");
+                throw new CustomException("CONFIG_ERROR", "Boundary service returned null response");
             }
             String jsonString = objectMapper.writeValueAsString(response);
-            listBlock = extractBlockToDistrictMapping(jsonString);
-        }catch(Exception e) {
-            throw new CustomException("CONFIG_ERROR","Error in fetching inbox query boundary ");
+            return extractBlockToDistrictMapping(jsonString);
+        } catch (CustomException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Boundary lookup failed for tenant={} hierarchy={} uri={}: {}",
+                    boundaryTenant, boundaryHierarchy, uri, e.getMessage());
+            throw new CustomException("CONFIG_ERROR",
+                    "Error in fetching inbox query boundary: " + e.getMessage());
         }
-
-        return listBlock;
     }
 
     public static Map<String, Boundary> extractBlockToDistrictMapping(String json) throws IOException {

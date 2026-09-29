@@ -91,11 +91,10 @@ public class ActivityEnrichment {
                 activityAssignment.setFieldPlan(existingFieldPlan);
             }
 
-            FieldPlanFacilityBulkResponse fieldPlanFacilityList = activityValidator.getFieldPlanFacilityById(requestInfo, activityAssignment.getFieldPlanId(), activityAssignment.getTenantId());
-            if (fieldPlanFacilityList != null) {
-                Object enrichedAdditionalDetails = mergeIntoAdditionalDetails(activityAssignment.getAdditionalDetails(), "countFieldPlanFacilities", fieldPlanFacilityList.getTotalCount());
-                activityAssignment.setAdditionalDetails((Map<String, Object>) enrichedAdditionalDetails);
-            }
+            // Count of facility activities, not of field plan facilities: a facility can have many activities
+            Integer countFacilityActivities = activityFacilityRepository.getFacilityActivitiesCount(activityAssignment.getFieldPlanId());
+            Object enrichedAdditionalDetails = mergeIntoAdditionalDetails(activityAssignment.getAdditionalDetails(), "countFieldPlanFacilities", countFacilityActivities);
+            activityAssignment.setAdditionalDetails((Map<String, Object>) enrichedAdditionalDetails);
         }
     }
 

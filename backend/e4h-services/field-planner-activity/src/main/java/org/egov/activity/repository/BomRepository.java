@@ -49,6 +49,26 @@ public class BomRepository extends GenericRepository<BillOfMaterial> {
         this.documentQueryBuilder = documentQueryBuilder;
     }
 
+    /**
+     * The id of the BOM already attached to an asset, or null when there is none.
+     *
+     * <p>An asset has at most one BOM: Vendor Assignment seeds it, and the Field Technician's app
+     * edits that same row. The app decides between _create and _update from its own local cache,
+     * though, so a reinstall or a second device sends a _create for an asset that already has a
+     * row. Without this lookup that mints a fresh random id and inserts a duplicate, which nothing
+     * at the database level prevents and which {@code enrichBillOfMaterialOnSearch} then resolves
+     * by taking whichever row happens to come back first.
+     */
+    public String findIdByActivityFacilityId(String tenantId, String activityFacilityId) {
+        if (tenantId == null || activityFacilityId == null) {
+            return null;
+        }
+        List<String> ids = jdbcTemplate.queryForList(
+                "SELECT id FROM bom WHERE tenant_id = ? AND activity_facility_id = ? ORDER BY created_time, id LIMIT 1",
+                String.class, tenantId, activityFacilityId);
+        return ids.isEmpty() ? null : ids.get(0);
+    }
+
     public List<BillOfMaterial> getBillOfMaterials(BomSearchRequest request, Integer limit, Integer offset, String tenantId, Boolean includeDeleted, Long lastChangedSince) {
         //Fetch FieldPlans based on search criteria
         List<Object> preparedStmtList = new ArrayList<>();

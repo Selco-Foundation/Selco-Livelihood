@@ -74,7 +74,7 @@ jobs:
           context: .
           file: build/maven-java8/Dockerfile
           push: true
-          tags: selcohub/inbox:${{ env.VERSION }}-${{ env.commit_hash }}
+          tags: selcohub/inbox-lh:${{ env.VERSION }}-${{ env.commit_hash }}
           cache-from: type=gha   # Stores cache in GitHub Actions .
           cache-to: type=gha,mode=max  # max- stores all the layers including the intermediate layers in multi-stage
           build-args: |

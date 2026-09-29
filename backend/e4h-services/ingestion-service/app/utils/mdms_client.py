@@ -7,6 +7,11 @@ from app.schemas.request_info import RequestInfo
 from app.schemas.vendor_ingestion_shema_response import IngestionSchemaResponse, MDMS, MDMSDataSource
 
 
+# The BOM form masters sit on the IC template upload path, which a Project Manager is waiting on.
+# Bounded so a hung MDMS surfaces as a clear failure rather than a stalled request.
+MDMS_REQUEST_TIMEOUT_SECONDS = 30
+
+
 def get_nested_value(data: Dict[str, Any], path: str) -> Any:
     """Resolve a dotted path (optionally prefixed with '$.') against a dict."""
     if not path:
@@ -121,6 +126,52 @@ class MDMSClient:
 
     def fetch_facility_selection_schema(self, request_info: RequestInfo) -> 'IngestionSchemaResponse':
         return self.fetch_schema(request_info, "data-ingestion.FacilitySelectionSchema")
+
+    def fetch_installation_solutions(self, request_info: RequestInfo) -> List[Dict[str, Any]]:
+        """Fetch every active Installation.Solution row as a plain dict
+        ({code, name, sectorName, sunshineHrsMin, sunshineHrsMax}). MDMSData allows extra
+        fields, so these come through even though they aren't declared on the
+        ingestion-schema-shaped MDMSData model."""
+        response = self.fetch_schema_column_definitions(request_info, "Installation.Solution")
+        if not response.mdms:
+            return []
+        return [mdms.data.model_dump() for mdms in response.mdms if mdms.data]
+
+    def fetch_mdms_records(self, request_info: RequestInfo, schema_code: str,
+                           unique_identifiers: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        """Raw MDMS v2 records as plain dicts, optionally narrowed to specific identifiers.
+
+        Deliberately not routed through IngestionSchemaResponse: the BOM form masters are
+        arbitrarily nested `pages[].properties[]` documents rather than the flat column
+        definitions that model describes, and validating them against it would drop the very
+        fields we need. Raises on a non-200 so the caller can fail the upload rather than
+        silently name nothing -- see bom_form_catalog.
+
+        `uniqueIdentifiers` matters for size, not just tidiness: the unfiltered
+        livelihood.BOMFormSchema response is ~620 KB, a single solution's two forms ~48 KB.
+        """
+        url = f"{self.mdms_url}/egov-mdms-service/v2/_search"
+        criteria: Dict[str, Any] = {
+            "tenantId": LIVELIHOOD_TENANT_ID,
+            "schemaCode": schema_code,
+        }
+        if unique_identifiers:
+            criteria["uniqueIdentifiers"] = list(unique_identifiers)
+
+        response = requests.post(
+            url,
+            headers={"Accept": "application/json, text/plain, */*"},
+            json={"RequestInfo": {"authToken": request_info.auth_token},
+                  "MdmsCriteria": criteria},
+            timeout=MDMS_REQUEST_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        records = response.json().get("mdms") or []
+        # isActive lives on the v2 envelope; `data.active` is the older per-record convention and
+        # both are used across these masters, so honour whichever the record carries.
+        return [record for record in records
+                if record.get("isActive", True)
+                and (record.get("data") or {}).get("active", True)]
 
     def fetch_schema_column_definitions(self, request_info: RequestInfo, schema_code: str) -> IngestionSchemaResponse:
         url = f"{self.mdms_url}/egov-mdms-service/v2/_search"

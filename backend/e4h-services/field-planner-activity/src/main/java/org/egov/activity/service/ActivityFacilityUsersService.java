@@ -77,7 +77,8 @@ public class ActivityFacilityUsersService {
                     .requestInfo(request.getRequestInfo())
                     .build();
 
-            SearchResponse<ActivityFacilityUser> response = search(searchRequest, 10,0, "in", null, false);
+            SearchResponse<ActivityFacilityUser> response = search(searchRequest, 10, 0,
+                    activityConfiguration.getTenantId(), null, false);
             if (response!=null && response.getResponse() != null && !response.getResponse().isEmpty()){
                 log.error("User already assigned to this activity facility");
                 throw new CustomException("FACILITY_ASSIGN_USER", "User "+facilityUser.getUserId() +" already assigned to this activity facility "+facilityUser.getActivityFacilityId());

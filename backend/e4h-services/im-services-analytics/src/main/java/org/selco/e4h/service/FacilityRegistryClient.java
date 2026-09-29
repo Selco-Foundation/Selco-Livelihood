@@ -58,6 +58,69 @@ public class FacilityRegistryClient {
         }
     }
 
+    /**
+     * Point-of-contact phone per facility id, decrypted.
+     *
+     * <p>The registry stores this column encrypted and only decrypts it on the way out of its
+     * search APIs, so callers must come through here rather than reading the table.
+     *
+     * <p>No tenant filter: the bulk criteria treat every field as optional, and a caller holding
+     * facility ids does not necessarily know which tenant each belongs to. {@code requestInfo} does
+     * matter though — without a role in the registry's {@code onm-non-ready.allowed.roles} the
+     * search quietly appends {@code is_onm_ready = true} and drops everything else.
+     *
+     * @return facility id to phone; facilities with no phone on record are absent from the map
+     */
+    public Map<String, String> fetchPocPhonesByFacilityIds(RequestInfo requestInfo, List<String> facilityIds) {
+        if (facilityIds == null || facilityIds.isEmpty()) {
+            return Map.of();
+        }
+        String url = properties.getFacilityHost() + properties.getFacilityBulkSearchPath();
+        Map<String, Object> criteria = new HashMap<>();
+        criteria.put("facilityIds", facilityIds);
+        criteria.put("limit", Math.max(facilityIds.size(), 50));
+        criteria.put("offset", 0);
+        criteria.put("sendNonPaginatedResponse", true);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("RequestInfo", requestInfo);
+        body.put("Facility", criteria);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        try {
+            String response = restTemplate.postForObject(url, new HttpEntity<>(body, headers), String.class);
+            return parsePocPhones(response);
+        } catch (Exception e) {
+            log.error("Facility bulk search for POC phones failed for {} ids", facilityIds.size(), e);
+            return Map.of();
+        }
+    }
+
+    private Map<String, String> parsePocPhones(String response) {
+        Map<String, String> phonesByFacilityId = new HashMap<>();
+        try {
+            JsonNode root = objectMapper.readTree(response);
+            JsonNode facilities = root.path("facilities");
+            if (!facilities.isArray()) {
+                facilities = root.path("Facility");
+            }
+            if (!facilities.isArray()) {
+                return phonesByFacilityId;
+            }
+            for (JsonNode f : facilities) {
+                String facilityId = text(f, "facility_id", "facilityId", "id");
+                String phone = text(f, "facility_poc_phone", "facilityPocPhone");
+                if (facilityId != null && phone != null && !phone.isBlank()) {
+                    phonesByFacilityId.put(facilityId, phone);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Failed to parse facility bulk search response for POC phones", e);
+        }
+        return phonesByFacilityId;
+    }
+
     private List<Co2FacilityContext> parseFacilities(String response, String tenantId) {
         List<Co2FacilityContext> result = new ArrayList<>();
         try {

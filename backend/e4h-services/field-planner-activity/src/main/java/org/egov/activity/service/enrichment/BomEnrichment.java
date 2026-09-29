@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.egov.activity.config.ActivityConfiguration;
 import org.egov.activity.repository.ActivityFacilityRepository;
+import org.egov.activity.repository.BomRepository;
 import org.egov.activity.util.ActivityServiceUtil;
 import org.egov.activity.web.models.BillOfMaterial;
 import org.egov.activity.web.models.Document;
@@ -31,6 +32,8 @@ public class BomEnrichment {
 
     private final ActivityConfiguration config;
 
+    private final BomRepository bomRepository;
+
     /* Enrich Project on Create Request */
     public void enrichBomOnCreate(BillOfMaterial billOfMaterial, RequestInfo requestInfo) {
         //Enrich Project id and audit details
@@ -44,7 +47,19 @@ public class BomEnrichment {
 
     /* Enrich FieldPlan with id and audit details */
     private void enrichBomRequestOnCreate(BillOfMaterial billOfMaterial, RequestInfo requestInfo) {
-        billOfMaterial.setId(UUID.randomUUID().toString());
+        // Reuse the asset's existing BOM rather than minting a second one. The Field Technician's
+        // app picks _create over _update from its own local cache, so a reinstall or a second
+        // device creates against an asset Vendor Assignment already seeded a row for. A lookup
+        // rather than a recomputed deterministic id, because it is also correct for rows the app
+        // itself created earlier, and because the id returned to the caller is then the real
+        // row's - which is what its follow-up _update matches on.
+        String existingId = bomRepository.findIdByActivityFacilityId(
+                billOfMaterial.getTenantId(), billOfMaterial.getActivityFacilityId());
+        if (existingId != null) {
+            log.info("Reusing existing BOM {} for activity facility {}",
+                    existingId, billOfMaterial.getActivityFacilityId());
+        }
+        billOfMaterial.setId(existingId != null ? existingId : UUID.randomUUID().toString());
         log.info("Bom id set to " + billOfMaterial.getId());
         AuditDetails auditDetails = fieldPlanServiceUtil.getAuditDetails(requestInfo.getUserInfo().getUuid(), null, true);
         billOfMaterial.setAuditDetails(auditDetails);

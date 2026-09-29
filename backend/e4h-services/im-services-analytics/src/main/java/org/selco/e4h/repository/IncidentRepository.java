@@ -29,11 +29,11 @@ public class IncidentRepository {
         this.incidentSystemFunctionalRowMapper = incidentSystemFunctionalRowMapper;
     }
 
-    public List<IncidentStatusAgregation> getStatusIncidentsAgregation(String boundaryCode) {
+    public List<IncidentStatusAgregation> getStatusIncidentsAgregation(String facilityId) {
         List<Object> preparedStmtList = new ArrayList<>();
-        String query = queryBuilder.getStatusIncidentOccurence(boundaryCode, preparedStmtList);
+        String query = queryBuilder.getStatusIncidentOccurence(facilityId, preparedStmtList);
         List<IncidentStatusAgregation> statusAgregations = jdbcTemplate.query(query, incidentStatusRowMapper, preparedStmtList.toArray());
-        log.info("Fetched incident status agregation list based on given tenant Id");
+        log.info("Fetched incident status agregation list for facilityId {}", facilityId);
         return statusAgregations;
     }
 

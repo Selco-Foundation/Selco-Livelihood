@@ -18,6 +18,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -48,10 +49,50 @@ public class Co2LocalizationClient {
         if (localizationCodes.isEmpty()) {
             return;
         }
-        Map<String, String> labels = fetchLabels(requestInfo, tenantId, localizationCodes);
+        Map<String, String> labels = fetchLabels(
+                requestInfo, tenantId, properties.getLocalizationBoundaryModule(), localizationCodes);
         for (Co2FacilityContext facility : facilities) {
             applyLabels(facility, labels);
         }
+    }
+
+    /**
+     * Resolves display names for raw boundary codes, keyed by the code that was passed in.
+     *
+     * <p>Unlike {@link #enrichBoundaryLocalizedNames} this does not echo the code back when
+     * localisation has no entry for it — a caller writing these into an index wants to leave the
+     * stored value alone rather than overwrite a real name with a boundary code.
+     *
+     * <p>The module is a parameter rather than the CO2 one this class defaults to, because the same
+     * BOUNDARY_ codes are registered under different modules per tenant.
+     */
+    public Map<String, String> resolveBoundaryNames(RequestInfo requestInfo,
+                                                    String tenantId,
+                                                    String module,
+                                                    Collection<String> rawCodes) {
+        if (rawCodes == null || rawCodes.isEmpty()) {
+            return Map.of();
+        }
+        Set<String> localizationCodes = new LinkedHashSet<>();
+        for (String rawCode : rawCodes) {
+            addLocalizationCode(localizationCodes, rawCode);
+        }
+        if (localizationCodes.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<String, String> labels = fetchLabels(requestInfo, tenantId, module, localizationCodes);
+        Map<String, String> byRawCode = new HashMap<>();
+        for (String rawCode : rawCodes) {
+            if (rawCode == null || rawCode.isBlank()) {
+                continue;
+            }
+            String label = labels.get(toLocalizationCode(rawCode));
+            if (label != null && !label.isBlank()) {
+                byRawCode.put(rawCode, label);
+            }
+        }
+        return byRawCode;
     }
 
     private void applyLabels(Co2FacilityContext facility, Map<String, String> labels) {
@@ -115,14 +156,15 @@ public class Co2LocalizationClient {
 
     private Map<String, String> fetchLabels(RequestInfo requestInfo,
                                             String tenantId,
+                                            String module,
                                             Set<String> localizationCodes) {
         Map<String, String> merged = new HashMap<>();
         List<String> codeList = new ArrayList<>(localizationCodes);
         for (int i = 0; i < codeList.size(); i += MAX_CODES_PER_REQUEST) {
             List<String> chunk = codeList.subList(i, Math.min(i + MAX_CODES_PER_REQUEST, codeList.size()));
-            Map<String, String> chunkResult = fetchLabelsChunk(requestInfo, tenantId, chunk, false);
+            Map<String, String> chunkResult = fetchLabelsChunk(requestInfo, tenantId, module, chunk, false);
             if (chunkResult.isEmpty()) {
-                chunkResult = fetchLabelsChunk(requestInfo, tenantId, chunk, true);
+                chunkResult = fetchLabelsChunk(requestInfo, tenantId, module, chunk, true);
             }
             merged.putAll(chunkResult);
         }
@@ -135,12 +177,13 @@ public class Co2LocalizationClient {
      */
     private Map<String, String> fetchLabelsChunk(RequestInfo requestInfo,
                                                  String tenantId,
+                                                 String module,
                                                  List<String> localizationCodes,
                                                  boolean codesInQuery) {
         UriComponentsBuilder urlBuilder = UriComponentsBuilder
                 .fromHttpUrl(buildSearchUrl())
                 .queryParam("tenantId", tenantId)
-                .queryParam("module", properties.getLocalizationBoundaryModule())
+                .queryParam("module", module)
                 .queryParam("locale", properties.getLocalizationLocale());
         if (codesInQuery) {
             urlBuilder.queryParam("codes", String.join(",", localizationCodes));
