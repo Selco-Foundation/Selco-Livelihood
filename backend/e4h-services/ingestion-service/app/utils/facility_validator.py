@@ -371,7 +371,12 @@ def validate_installation_scope_solutions(
 
         if include_value != "yes":
             if solution_value:
-                add_err(i, "Solution must be empty unless the site is included in the field plan")
+                site_label = _cell(row, site_name_column) or facility_id
+                add_err(
+                    i,
+                    f"{site_label} has a Solution but 'Include in Installation Plan' is not Yes. "
+                    f"Set it to Yes to include the site, or clear the Solution.",
+                )
             continue
 
         if plan_is_published:
@@ -412,10 +417,6 @@ def validate_installation_scope_solutions(
                 )
             continue
 
-        if not solution_value:
-            add_err(i, "Solution is required when the site is included in the field plan")
-            continue
-
         if sector_by_facility_id:
             # Only fall back to the sheet's Sector cell when the lookup produced nothing at all
             # (its documented degraded mode). A populated map that simply has no entry for this
@@ -440,12 +441,32 @@ def validate_installation_scope_solutions(
             )
             continue
 
+        # Checked after the sector so the Solution messages can name what the site may take: a
+        # blank cell and a wrong one have the same fix, pick from the dropdown -- unless there is
+        # nothing to pick, which needs a different fix altogether.
         allowed = eligible_solution_names(solutions, row_sector, state_value, sunshine_hours_by_state)
+        site_label = _cell(row, site_name_column) or facility_id
+        if not allowed:
+            add_err(
+                i,
+                f"No Solution is available for {site_label} (sector '{row_sector or ''}', state "
+                f"'{state_value}'), so it cannot be included in this installation plan. Set "
+                f"'Include in Installation Plan' to No for this site.",
+            )
+            continue
+        if not solution_value:
+            add_err(
+                i,
+                f"Select a Solution for {site_label}. It is marked Yes in 'Include in "
+                f"Installation Plan', so it needs one. Choose from: {', '.join(sorted(allowed))}.",
+            )
+            continue
         if solution_value not in allowed:
             add_err(
                 i,
-                f"Solution '{solution_value}' is not valid for sector '{row_sector or ''}' "
-                f"and state '{state_value}'",
+                f"'{solution_value}' is not a Solution available for {site_label} (sector "
+                f"'{row_sector or ''}', state '{state_value}'). Choose from: "
+                f"{', '.join(sorted(allowed))}.",
             )
             continue
 
