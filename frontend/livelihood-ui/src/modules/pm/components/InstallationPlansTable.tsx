@@ -5,6 +5,7 @@ import { useInstallationPlanFacilityCounts } from "../hooks/use-installation-pla
 import type { InstallationPlanStatusWrapper } from "../types/installation-plan";
 import { formatDate } from "../utils/format-date";
 import { pmCreateInstallationPlanPath } from "../utils/paths";
+import { formatStatusLabel } from "../utils/status-label";
 
 interface InstallationPlansTableProps {
   plans: InstallationPlanStatusWrapper[];
@@ -89,7 +90,7 @@ export function InstallationPlansTable({ plans, isLoading }: Readonly<Installati
                   <td className="px-5 py-4 text-foreground">{formatDate(plan.startDate)}</td>
                   <td className="px-5 py-4 text-foreground">{formatDate(plan.endDate)}</td>
                   <td className="px-5 py-4 text-foreground">{siteCount}</td>
-                  <td className="px-5 py-4 text-foreground">{status ?? "DRAFT"}</td>
+                  <td className="px-5 py-4 text-foreground">{formatStatusLabel(t, status)}</td>
                 </tr>
               );
             })}

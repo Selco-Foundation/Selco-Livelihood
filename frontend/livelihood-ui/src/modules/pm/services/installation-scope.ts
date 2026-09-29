@@ -1,4 +1,4 @@
-import { apiClient } from "@/shared";
+import { apiClient, i18n, translateOr } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
 import { fetchFacilities } from "@/shared/api/facility";
 import type { AuthUser } from "@/shared/stores/auth-store";
@@ -137,7 +137,8 @@ export async function validateScopeSheet(
     return { file: { blob, filename: `installation-scope-validated-${file.name}` }, errorCount };
   } catch (error) {
     throw new InstallationScopeApiError(
-      (await extractBlobApiErrorMessage(error)) ?? "Scope validation failed",
+      (await extractBlobApiErrorMessage(error)) ??
+        translateOr(i18n.t.bind(i18n), "ES_PM_SCOPE_VALIDATION_FAILED", "Scope validation failed"),
       httpStatusOf(error),
     );
   }
@@ -170,7 +171,8 @@ export async function createScopeFromSheet(
     return { entries, file: { blob, filename: "installation-scope-linking-report.xlsx" } };
   } catch (error) {
     throw new InstallationScopeApiError(
-      (await extractBlobApiErrorMessage(error)) ?? "Scope creation failed",
+      (await extractBlobApiErrorMessage(error)) ??
+        translateOr(i18n.t.bind(i18n), "ES_PM_SCOPE_CREATION_FAILED", "Scope creation failed"),
       httpStatusOf(error),
     );
   }

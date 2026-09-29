@@ -1,4 +1,4 @@
-import { useAuthStore } from "@/shared";
+import { translateOr, useAuthStore, useTranslate } from "@/shared";
 import {
   createSolutionTemplate,
   downloadSolutionTemplate,
@@ -19,6 +19,7 @@ export function useSolutionTemplateUpload(planId: string | undefined, solutionCo
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
   const ready = Boolean(planId && accessToken);
+  const { t } = useTranslate();
 
   const roundTrip = useExcelRoundTrip<boolean>({
     autoCreate: false,
@@ -28,9 +29,9 @@ export function useSolutionTemplateUpload(planId: string | undefined, solutionCo
       ? async (validated) => ({ result: await createSolutionTemplate(planId!, solutionCode, validated, accessToken!, user) })
       : null,
     messages: {
-      downloadFailed: "Failed to download the template",
-      uploadFailed: "IC report template validation failed",
-      createFailed: "IC report template creation failed",
+      downloadFailed: translateOr(t, "ES_PM_DOWNLOAD_TEMPLATE_FAILED", "Failed to download the template"),
+      uploadFailed: translateOr(t, "ES_PM_TEMPLATE_VALIDATION_FAILED", "IC report template validation failed"),
+      createFailed: translateOr(t, "ES_PM_TEMPLATE_CREATION_FAILED", "IC report template creation failed"),
     },
   });
 

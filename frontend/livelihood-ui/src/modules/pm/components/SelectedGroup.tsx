@@ -1,5 +1,7 @@
 import { X } from "lucide-react";
 
+import { translateOr, useTranslate } from "@/shared";
+
 /** Removable chip list used by both wizards' "Selected" summary panels. Lived inside
  *  GeographyDetailsStep and was imported out of it by PlanDetailsStep — a step reaching into
  *  a sibling step for a shared primitive. */
@@ -12,6 +14,7 @@ interface SelectedGroupProps {
 }
 
 export function SelectedGroup({ title, emptyLabel, items, onRemove, disabled = false }: Readonly<SelectedGroupProps>) {
+  const { t } = useTranslate();
   return (
     <div>
       <p className="mb-1.5 text-xs font-medium text-muted-foreground">{title}</p>
@@ -29,7 +32,7 @@ export function SelectedGroup({ title, emptyLabel, items, onRemove, disabled = f
                 <button
                   type="button"
                   onClick={() => onRemove(item.code)}
-                  aria-label={`Remove ${item.name}`}
+                  aria-label={`${translateOr(t, "ES_PM_REMOVE", "Remove")} ${item.name}`}
                   className="rounded-full hover:bg-black/10"
                 >
                   <X className="size-3" />

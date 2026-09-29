@@ -1,3 +1,4 @@
+import { i18n, translateOr } from "@/shared";
 import type { AuthUser } from "@/shared/stores/auth-store";
 import { SCOPE_BOUNDARY_SHEET_NAME, SCOPE_SHEET_NAME } from "../constants/installation-scope-sheet";
 import {
@@ -72,7 +73,8 @@ export async function validateFacilitiesExcel(
     return { file: { blob, filename: `project-end-user-sites-validated-${file.name}` }, errorCount };
   } catch (error) {
     throw new IngestionApiError(
-      (await extractBlobApiErrorMessage(error)) ?? "Facility validation failed",
+      (await extractBlobApiErrorMessage(error)) ??
+        translateOr(i18n.t.bind(i18n), "ES_PM_FACILITY_VALIDATION_FAILED", "Facility validation failed"),
       httpStatusOf(error),
     );
   }
@@ -106,7 +108,8 @@ export async function createFacilitiesAndUpdateProject(
     return { blob, filename: `project-end-user-sites-report-${projectId}.xlsx` };
   } catch (error) {
     throw new IngestionApiError(
-      (await extractBlobApiErrorMessage(error)) ?? "Facility creation failed",
+      (await extractBlobApiErrorMessage(error)) ??
+        translateOr(i18n.t.bind(i18n), "ES_PM_FACILITY_CREATION_FAILED", "Facility creation failed"),
       httpStatusOf(error),
     );
   }
