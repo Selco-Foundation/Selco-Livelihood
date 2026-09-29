@@ -545,7 +545,7 @@ public class EnrichmentService {
      * Maps an asset's assetTypeID to the coarse index-level group (Machine/Solar). Distinct from the
      * Incident.additionalDetail.assetCategory field, which holds finer-grained menu-path categories
      * used for issue-type validation.
-     * Solar component types (SOLAR PANEL, BATTERY, INVERTER, PANEL) map to Solar; everything else is Machine.
+     * Solar component types (SOLAR, legacy SOLAR PANEL, BATTERY, INVERTER, PANEL) map to Solar; everything else is Machine.
      */
     private String resolveIndexAssetGroup(String assetTypeID) {
         boolean isSolar = LIVELIHOOD_SOLAR_ASSET_TYPE_IDS.stream()
