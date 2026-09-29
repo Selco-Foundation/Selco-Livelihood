@@ -85,6 +85,24 @@ jobs:
           docker push selcohub/field-planner-db-lh:${{ env.VERSION }}-${{ env.commit_hash }}
         working-directory: backend/e4h-services/field-planner/src/main/resources/db
 
+      # Raise a PR in DevOps-Livelihood to bump this service's UAT image tag.
+      - name: Raise UAT image update PR
+        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/staging'
+        env:
+          GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+          SERVICE_NAME: field-planner   # key in livelihood-uat-tags.yaml
+          IMAGE_REPOSITORY: selcohub/field-planner-lh
+          DB_IMAGE_REPOSITORY: selcohub/field-planner-db-lh
+        run: |
+          gh workflow run uat-image-updater.yaml \
+            --repo Selco-Foundation/DevOps-Livelihood \
+            --ref uat \
+            -f service_name="$SERVICE_NAME" \
+            -f service_tag="${VERSION}-${commit_hash}" \
+            -f image_repository="$IMAGE_REPOSITORY" \
+            -f db_image_repository="$DB_IMAGE_REPOSITORY" \
+            -f source_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
 #  Workflow_Trigger:
 #    if: startsWith(github.ref, 'refs/heads/develop')
 #    runs-on: ubuntu-latest
