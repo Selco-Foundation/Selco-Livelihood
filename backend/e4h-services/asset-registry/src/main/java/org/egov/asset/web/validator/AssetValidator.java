@@ -5,21 +5,26 @@ import lombok.extern.slf4j.Slf4j;
 import org.egov.asset.service.AssetService;
 import org.egov.asset.util.*;
 import org.egov.asset.web.models.*;
+import org.apache.commons.lang.StringUtils;
 import org.egov.tracer.model.CustomException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.egov.asset.util.AssetConstants.*;
 
 @Service
 @Slf4j
 public class AssetValidator {
+
+    private static final String ERR_ASSET_HIERARCHY = "ERR_ASSET_HIERARCHY_VALIDATION";
 
     private final MdmsUtil mdmsUtil;
 
@@ -37,7 +42,95 @@ public class AssetValidator {
         this.assetService = assetService;
     }
 
+    /**
+     * Validates a create request. Besides a plain asset (e.g. a Machine) it accepts a parent with
+     * {@code children} (e.g. SOLAR with its PANEL/BATTERY/INVERTER units, created together), or a
+     * single unit with {@code parentId}. Everything is validated before anything is persisted,
+     * because writes go through Kafka and cannot be rolled back part-way.
+     */
     public void validateCreateAsset(AssetCreateRequest request) {
+        Asset asset = request.getAssetDetail().getAsset();
+        if (!CollectionUtils.isEmpty(asset.getChildren())) {
+            validateParentWithChildren(asset);
+        } else if (StringUtils.isNotBlank(asset.getParentId())) {
+            validateChildOfExistingParent(asset);
+        }
+
+        validateSingleAssetCreate(request);
+        if (!CollectionUtils.isEmpty(asset.getChildren())) {
+            for (Asset child : asset.getChildren()) {
+                validateSingleAssetCreate(AssetCreateRequest.builder()
+                        .requestInfo(request.getRequestInfo())
+                        .assetDetail(AssetCreate.builder().asset(child).build())
+                        .build());
+            }
+        }
+    }
+
+    private void validateParentWithChildren(Asset parent) {
+        Map<String, String> errorMap = new HashMap<>();
+        if (StringUtils.isNotBlank(parent.getParentId())) {
+            errorMap.put(ERR_ASSET_HIERARCHY, "An asset with children cannot itself have a parentId");
+        }
+        Set<String> childSerials = new HashSet<>();
+        for (Asset child : parent.getChildren()) {
+            if (child == null) {
+                errorMap.put(ERR_ASSET_HIERARCHY, "children must not contain null entries");
+                continue;
+            }
+            if (!CollectionUtils.isEmpty(child.getChildren())) {
+                errorMap.put(ERR_ASSET_HIERARCHY, "Only one level of children is supported");
+            }
+            if (StringUtils.isNotBlank(child.getParentId())) {
+                errorMap.put(ERR_ASSET_HIERARCHY, "Children in a parent create must not send parentId");
+            }
+            inheritFromParent(child, parent, errorMap);
+            if (StringUtils.isNotBlank(child.getSerialNumber()) && !childSerials.add(child.getSerialNumber())) {
+                errorMap.put(ErrorConstants.ASSET_DUPLICATE_VALIDATION_CODE,
+                        "Duplicate serialNumber within children: " + child.getSerialNumber());
+            }
+        }
+        if (!CollectionUtils.isEmpty(errorMap))
+            throw new CustomException(errorMap);
+    }
+
+    private void validateChildOfExistingParent(Asset child) {
+        Map<String, String> errorMap = new HashMap<>();
+        List<Asset> parents = assetService.searchAssets(
+                Asset.builder().tenantId(child.getTenantId()).assetId(child.getParentId()).build(), 1, 0);
+        if (parents.isEmpty()) {
+            errorMap.put(ERR_ASSET_HIERARCHY, "Parent asset not found: " + child.getParentId());
+        } else {
+            Asset parent = parents.get(0);
+            if (StringUtils.isNotBlank(parent.getParentId())) {
+                errorMap.put(ERR_ASSET_HIERARCHY, "Parent asset " + parent.getAssetId() + " is itself a child");
+            }
+            inheritFromParent(child, parent, errorMap);
+        }
+        if (!CollectionUtils.isEmpty(errorMap))
+            throw new CustomException(errorMap);
+    }
+
+    /** A unit takes its parent's tenant/system/facility/activityFacility/vendor when not sent, and must match it when sent. */
+    private void inheritFromParent(Asset child, Asset parent, Map<String, String> errorMap) {
+        child.setTenantId(inherit("tenantId", child.getTenantId(), parent.getTenantId(), errorMap));
+        child.setSystem(inherit("system", child.getSystem(), parent.getSystem(), errorMap));
+        child.setFacilityID(inherit("facilityID", child.getFacilityID(), parent.getFacilityID(), errorMap));
+        child.setActivityFacilityID(inherit("activityFacilityID", child.getActivityFacilityID(), parent.getActivityFacilityID(), errorMap));
+        child.setVendorId(inherit("vendorId", child.getVendorId(), parent.getVendorId(), errorMap));
+    }
+
+    private String inherit(String field, String childValue, String parentValue, Map<String, String> errorMap) {
+        if (StringUtils.isBlank(childValue)) {
+            return parentValue;
+        }
+        if (StringUtils.isNotBlank(parentValue) && !childValue.equals(parentValue)) {
+            errorMap.put(ERR_ASSET_HIERARCHY, "Child " + field + " '" + childValue + "' does not match parent '" + parentValue + "'");
+        }
+        return childValue;
+    }
+
+    private void validateSingleAssetCreate(AssetCreateRequest request) {
         log.info("AssetValidator::validateCreateAsset called | tenantId={} assetId={}",
                 request.getAssetDetail().getAsset().getTenantId(),
                 request.getAssetDetail().getAsset().getAssetId());
@@ -417,6 +510,10 @@ public class AssetValidator {
 
     private void validateExistingDuplicates(Asset asset, Map<String, String> errorMap) {
         log.debug("Checking for duplicate asset | assetId={} tenantId={}", asset.getAssetId(), asset.getTenantId());
+        // A parent (e.g. SOLAR) may carry no serial number of its own; its units are checked individually.
+        if (StringUtils.isBlank(asset.getSerialNumber()) && !CollectionUtils.isEmpty(asset.getChildren())) {
+            return;
+        }
         Asset assetSearch = Asset.builder()
                 .tenantId(asset.getTenantId())
                 .wfStatus(asset.getWfStatus())

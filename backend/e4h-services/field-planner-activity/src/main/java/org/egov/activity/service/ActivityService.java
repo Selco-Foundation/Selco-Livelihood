@@ -940,7 +940,9 @@ public class ActivityService {
                 .build();
 
         StringBuilder assetSearchUri = new StringBuilder(activityConfiguration.getAssetHost())
-                .append(activityConfiguration.getAssetSearchUrl());
+                .append(activityConfiguration.getAssetSearchUrl())
+                // asset _search defaults to limit=10; a Solar install can have more units (+ its parent)
+                .append("?offset=0&limit=").append(activityConfiguration.getAssetSearchLimit());
 
         try {
             List<Asset> assets = serviceRequest.fetchResult(assetSearchUri, assetSearchRequest, new TypeReference<List<Asset>>() {});
@@ -1923,7 +1925,8 @@ public class ActivityService {
                     .build();
 
             StringBuilder assetSearchUri = new StringBuilder(activityConfiguration.getAssetHost())
-                    .append(activityConfiguration.getAssetSearchUrl());
+                    .append(activityConfiguration.getAssetSearchUrl())
+                    .append("?offset=0&limit=").append(activityConfiguration.getAssetSearchLimit());
 
             List<Asset> installedAssets = serviceRequest.fetchResult(
                     assetSearchUri,
