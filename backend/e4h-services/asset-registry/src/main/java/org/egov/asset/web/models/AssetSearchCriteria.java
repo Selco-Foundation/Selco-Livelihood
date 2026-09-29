@@ -65,4 +65,12 @@ public class AssetSearchCriteria {
     @JsonProperty("itemCode")
     private String itemCode = null;
 
+    /** Returns only the units of this parent asset. */
+    @JsonProperty("parentId")
+    private String parentId = null;
+
+    /** When true, each returned parent carries its units (e.g. a SOLAR's PANEL/BATTERY/INVERTER) in children. */
+    @JsonProperty("includeChildren")
+    private Boolean includeChildren = null;
+
 }
