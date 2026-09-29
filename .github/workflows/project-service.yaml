@@ -85,6 +85,24 @@ jobs:
           docker push selcohub/project-db-lh:${{ env.VERSION }}-${{ env.commit_hash }}
         working-directory: backend/e4h-services/project/src/main/resources/db
 
+      # Raise a PR in DevOps-Livelihood to bump this service's UAT image tag.
+      - name: Raise UAT image update PR
+        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/staging' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+          SERVICE_NAME: project   # key in livelihood-uat-tags.yaml
+          IMAGE_REPOSITORY: selcohub/project-lh
+          DB_IMAGE_REPOSITORY: selcohub/project-db-lh
+        run: |
+          # Dispatch by file name + ref so the workflow only needs to exist on the uat branch.
+          gh api -X POST repos/Selco-Foundation/DevOps-Livelihood/actions/workflows/uat-image-updater.yaml/dispatches \
+            -f ref=uat \
+            -f "inputs[service_name]=$SERVICE_NAME" \
+            -f "inputs[service_tag]=${VERSION}-${commit_hash}" \
+            -f "inputs[image_repository]=$IMAGE_REPOSITORY" \
+            -f "inputs[db_image_repository]=$DB_IMAGE_REPOSITORY" \
+            -f "inputs[source_url]=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
 #  Workflow_Trigger:
 #    if: startsWith(github.ref, 'refs/heads/develop')
 #    runs-on: ubuntu-latest
