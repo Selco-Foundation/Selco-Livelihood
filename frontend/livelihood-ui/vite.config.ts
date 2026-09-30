@@ -72,6 +72,10 @@ export default defineConfig(({ mode }) => {
       setupFiles: ["./src/test/setup.ts"],
       css: false,
       restoreMocks: true,
+      // Coverage instrumentation slows the suite enough under full-repo
+      // parallel load to trip the 5s default, causing flaky timeouts that
+      // don't reproduce running the same files in isolation.
+      testTimeout: 20000,
       coverage: {
         provider: "v8",
         reporter: ["text", "html", "lcov"],
