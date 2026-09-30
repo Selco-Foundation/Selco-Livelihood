@@ -110,11 +110,17 @@ describe("Pagination", () => {
     expect(screen.getByRole("button", { name: "1" })).toBeInTheDocument();
   });
 
-  it("treats a totalRecords of 0 as a single page with disabled Previous and Next", () => {
-    renderPagination({ currentPage: 0, totalRecords: 0, pageSizeLimit: 10 });
+  it("renders nothing when totalRecords is 0", () => {
+    const { container } = renderPagination({ currentPage: 0, totalRecords: 0, pageSizeLimit: 10 });
 
-    expect(screen.getByText("Previous").closest("button")).toBeDisabled();
-    expect(screen.getByText("Next").closest("button")).toBeDisabled();
-    expect(screen.getByRole("button", { name: "1" })).toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("renders the items-per-page select but hides page navigation when everything fits on one page", () => {
+    renderPagination({ currentPage: 0, totalRecords: 3, pageSizeLimit: 10 });
+
+    expect(screen.getByLabelText("Items per Page")).toBeInTheDocument();
+    expect(screen.queryByText("Previous")).not.toBeInTheDocument();
+    expect(screen.queryByText("Next")).not.toBeInTheDocument();
   });
 });

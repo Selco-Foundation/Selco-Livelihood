@@ -262,8 +262,8 @@ describe("ActivityTable", () => {
   });
 
   describe("pagination", () => {
-    it("renders pagination controls when there are records", () => {
-      renderTable([makeActivity({ activityId: "a1" })], { totalRecords: 3 });
+    it("renders pagination controls when there is more than one page", () => {
+      renderTable([makeActivity({ activityId: "a1" })], { totalRecords: 30 });
       expect(screen.getByText("Previous")).toBeInTheDocument();
       expect(screen.getByText("Next")).toBeInTheDocument();
     });

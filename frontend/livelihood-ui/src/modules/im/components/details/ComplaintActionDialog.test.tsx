@@ -73,6 +73,14 @@ function fileInput(container: HTMLElement) {
   return container.querySelector('input[type="file"]') as HTMLInputElement;
 }
 
+// SearchableSelect's trigger announces "<label> <value-or-placeholder>" via
+// aria-labelledby, so matching on name alone is brittle — find it via the
+// label text's own wrapper instead (label and the Popover trigger are siblings).
+function selectTriggerFor(labelText: string) {
+  const label = screen.getByText(labelText);
+  return label.parentElement!.querySelector("button") as HTMLButtonElement;
+}
+
 beforeEach(() => {
   useAuthStore.setState({ accessToken: "token-1", user: authedUser });
   vi.mocked(fetchReasonOptions).mockReset().mockResolvedValue({});
@@ -278,7 +286,7 @@ describe("ComplaintActionDialog", () => {
         expect(fetchReasonOptions).toHaveBeenCalledWith("token-1", authedUser, ["RejectReasons"]),
       );
 
-      const trigger = await screen.findByRole("button", { name: "Select" });
+      const trigger = selectTriggerFor("Decline reason");
       await user.click(trigger);
       expect(screen.getByText("NOT_APPLICABLE")).toBeInTheDocument();
       expect(screen.queryByText("RETIRED_REASON")).not.toBeInTheDocument();
@@ -322,7 +330,7 @@ describe("ComplaintActionDialog", () => {
         expect(fetchVendorOptions).toHaveBeenCalledWith("token-1", authedUser, "BOUNDARY_1"),
       );
 
-      await user.click(await screen.findByRole("button", { name: "Select" }));
+      await user.click(selectTriggerFor("Assign to vendor"));
       expect(screen.getByText("Vendor One")).toBeInTheDocument();
       expect(screen.queryByText("Vendor Two")).not.toBeInTheDocument();
     });
@@ -336,7 +344,7 @@ describe("ComplaintActionDialog", () => {
       expect(await screen.findByText("Please select a vendor")).toBeInTheDocument();
       expect(updateIncidentAction).not.toHaveBeenCalled();
 
-      await user.click(await screen.findByRole("button", { name: "Select" }));
+      await user.click(selectTriggerFor("Assign to vendor"));
       await user.click(screen.getByText("Vendor One"));
       await user.click(screen.getByRole("button", { name: "Submit" }));
 
