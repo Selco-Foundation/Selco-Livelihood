@@ -14,6 +14,7 @@ import { submitFacilityReview } from "../services/review";
 import {
   buildMachineAssetData,
   buildSolarAssetSections,
+  flattenAssetHierarchy,
   isResolvableAssetDocument,
   type MachineAssetData,
 } from "../utils/asset-mapping";
@@ -88,12 +89,13 @@ export function useActivityReview(activityId: string) {
       let solarAssetSections: AssetSectionContent[] = [];
       let machineAssetData: MachineAssetData = { details: undefined, items: [], mediaGroups: [] };
       try {
-        const assets = await searchAssetsForActivityFacility(
+        const rawAssets = await searchAssetsForActivityFacility(
           activityId,
           employeeTenantId!,
           accessToken!,
           user,
         );
+        const assets = flattenAssetHierarchy(rawAssets);
         const assetImageFileStoreIds = assets
           .flatMap((asset) => asset.documents ?? [])
           .filter((document) => isResolvableAssetDocument(document.documentType))
