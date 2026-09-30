@@ -37,6 +37,15 @@ export interface AssetSearchResponseItem {
    * `trainedEndUser` (Machine). */
   assetDetails?: Record<string, unknown>;
   documents?: AssetSearchDocument[] | null;
+  /** Null for a standalone asset or a top-level "family" asset (e.g. Solar);
+   * set to the family asset's `assetId` on each of its physical components
+   * (Panel/Battery/Inverter). */
+  parentId?: string | null;
+  /** Populated only on a top-level "family" asset when the search requests
+   * `includeChildren: true` — null on every other row, including each of
+   * this array's own entries (the backend doesn't nest more than one level
+   * deep today, but nothing here assumes that). */
+  children?: AssetSearchResponseItem[] | null;
 }
 
 /**
@@ -58,7 +67,7 @@ export async function searchAssetsForActivityFacility(
     "/asset-registry/v1/asset/_search",
     {
       RequestInfo: createRequestInfo(accessToken, user),
-      criteria: { tenantId, activityFacilityID: activityFacilityId },
+      criteria: { tenantId, activityFacilityID: activityFacilityId, includeChildren: true },
     },
     { params: { limit, offset } },
   );
