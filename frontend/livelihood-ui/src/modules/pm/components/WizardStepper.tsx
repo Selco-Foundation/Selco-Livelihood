@@ -6,7 +6,7 @@ import {
   StepperSeparator,
   StepperTitle,
   StepperTrigger,
-} from "@/components/reui/stepper";
+} from "@/ui/components/ui/stepper";
 import { cn } from "@/ui";
 import { Check } from "lucide-react";
 

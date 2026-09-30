@@ -1,5 +1,5 @@
 import { translateOr, useTranslate } from "@/shared";
-import { Button } from "@/ui";
+import { Button, Pagination } from "@/ui";
 import { CheckCircle2, Download, FileSpreadsheet, Info, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useFacility } from "@/shared/hooks/use-facility";
@@ -12,6 +12,8 @@ import { IngestionStatusBlocks } from "../IngestionStatusBlocks";
 import { StepSectionCard } from "../StepSectionCard";
 
 export type TemplateValue = InstallationPlanTemplateEntry[];
+
+const DEFAULT_PAGE_SIZE = 10;
 
 export function isTemplateStepValid(value: TemplateValue, uniqueSolutionCodes: string[]): boolean {
   if (uniqueSolutionCodes.length === 0) return false;
@@ -110,7 +112,7 @@ function SolutionTemplateCard({
           <p className="mt-1 text-xs font-medium text-muted-foreground">
             {translateOr(t, "ES_PM_ASSIGNED_SITES", "Assigned Sites")} ({assignedSites.length})
           </p>
-          <ul className="mt-1 space-y-0.5 text-sm text-foreground">
+          <ul className="mt-1 h-30 space-y-0.5 overflow-y-auto pr-1 text-sm text-foreground">
             {assignedSites.map((site) => (
               <li key={site.id}>{site.name}</li>
             ))}
@@ -240,6 +242,19 @@ export function TemplateStep({
     }));
   }, [scope, solutions]);
 
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSizeLimit, setPageSizeLimit] = useState(DEFAULT_PAGE_SIZE);
+  const totalRecords = solutionsInScope.length;
+  const pagedSolutions = useMemo(
+    () => solutionsInScope.slice(currentPage * pageSizeLimit, (currentPage + 1) * pageSizeLimit),
+    [solutionsInScope, currentPage, pageSizeLimit],
+  );
+
+  function handlePageSizeChange(size: number) {
+    setPageSizeLimit(size);
+    setCurrentPage(0);
+  }
+
   // A plan's scope stores only facility ids, so the readable site name has to come from
   // facility-service. It is looked up over the project's own blocks — the same search
   // `downloadScopeTemplate` uses to decide which facilities belong to the plan at all. These are
@@ -297,7 +312,7 @@ export function TemplateStep({
             {translateOr(t, "ES_PM_NO_SOLUTIONS_IN_SCOPE", "No solutions in scope yet — go back and include a site")}
           </p>
         ) : (
-          solutionsInScope.map((solution) => (
+          pagedSolutions.map((solution) => (
             <SolutionTemplateCard
               key={solution.code}
               planId={planId}
@@ -311,6 +326,17 @@ export function TemplateStep({
             />
           ))
         )}
+        {totalRecords > 0 ? (
+          <Pagination
+            currentPage={currentPage}
+            totalRecords={totalRecords}
+            pageSizeLimit={pageSizeLimit}
+            onNextPage={() => setCurrentPage((page) => page + 1)}
+            onPrevPage={() => setCurrentPage((page) => Math.max(0, page - 1))}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={handlePageSizeChange}
+          />
+        ) : null}
       </div>
     </StepSectionCard>
   );
