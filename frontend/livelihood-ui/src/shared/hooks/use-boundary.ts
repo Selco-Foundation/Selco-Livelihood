@@ -13,3 +13,20 @@ export function useBoundary(codes: string[]) {
     queryFn: () => fetchBoundaryRelations(codes, accessToken!, user),
   });
 }
+
+/**
+ * The full tenant boundary tree (every state/district/block), for cascading
+ * selects that let the user pick any state rather than starting from one
+ * already known (e.g. a facility-create form) — see `useBoundary` above for
+ * the "children of a known code" case.
+ */
+export function useBoundaryHierarchy() {
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const user = useAuthStore((state) => state.user);
+
+  return useQuery({
+    queryKey: ["boundary-hierarchy"],
+    enabled: Boolean(accessToken),
+    queryFn: () => fetchBoundaryRelations([], accessToken!, user),
+  });
+}

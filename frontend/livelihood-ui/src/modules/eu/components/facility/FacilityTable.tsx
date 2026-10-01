@@ -1,0 +1,133 @@
+import { translateOr, useTranslate, type BoundaryHierarchy } from "@/shared";
+import { Pagination, Skeleton } from "@/ui";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { boundaryDisplayName, resolveBoundaryLabels } from "../../utils/boundary";
+import type { Facility } from "../../types/facility";
+import { euFacilityDetailPath } from "../../utils/paths";
+
+interface FacilityTableProps {
+  facilities: Facility[];
+  boundaryData: BoundaryHierarchy | undefined;
+  isLoading: boolean;
+  currentPage: number;
+  totalRecords: number;
+  pageSizeLimit: number;
+  onNextPage: () => void;
+  onPrevPage: () => void;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
+}
+
+export function FacilityTable({
+  facilities,
+  boundaryData,
+  isLoading,
+  currentPage,
+  totalRecords,
+  pageSizeLimit,
+  onNextPage,
+  onPrevPage,
+  onPageChange,
+  onPageSizeChange,
+}: FacilityTableProps) {
+  const { t } = useTranslate();
+  const navigate = useNavigate();
+
+  if (isLoading) {
+    return (
+      <div className="livelihood-card p-6">
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {facilities.length === 0 ? (
+        <div className="livelihood-card px-6 py-16 text-center text-sm text-muted-foreground">
+          {translateOr(t, "CS_NO_END_USER_SITES_FOUND", "No end user sites found")}
+        </div>
+      ) : (
+        <div className="livelihood-card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                    {translateOr(t, "CS_END_USER_SITE_ID", "End User Site ID")}
+                  </th>
+                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                    {translateOr(t, "END_USER_SITE_NAME", "End User Site Name")}
+                  </th>
+                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                    {translateOr(t, "CS_STATE", "State")}
+                  </th>
+                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                    {translateOr(t, "CS_DISTRICT", "District")}
+                  </th>
+                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                    {translateOr(t, "CS_BLOCK", "Block")}
+                  </th>
+                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                    {translateOr(t, "CS_POC_NAME", "POC Name")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {facilities.map((facility, index) => {
+                  const labels = resolveBoundaryLabels(facility.boundaryCode, boundaryData);
+                  const detailPath = euFacilityDetailPath(facility.id);
+                  return (
+                    <tr
+                      key={facility.id}
+                      className={
+                        "cursor-pointer " +
+                        (index % 2 === 1 ? "border-b border-border/70 bg-accent" : "border-b border-border/70")
+                      }
+                      onClick={() => {
+                        navigate({ to: detailPath }).catch(() => {});
+                      }}
+                    >
+                      <td className="px-5 py-4 text-foreground">{facility.id || "-"}</td>
+                      <td className="px-5 py-4 font-semibold text-foreground">
+                        <Link
+                          to={detailPath}
+                          className="hover:underline"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {facility.facilityName || "-"}
+                        </Link>
+                      </td>
+                      <td className="px-5 py-4 text-foreground">
+                        {labels.state ? boundaryDisplayName(labels.state, t) : "-"}
+                      </td>
+                      <td className="px-5 py-4 text-foreground">
+                        {labels.district ? boundaryDisplayName(labels.district, t) : "-"}
+                      </td>
+                      <td className="px-5 py-4 text-foreground">
+                        {labels.block ? boundaryDisplayName(labels.block, t) : "-"}
+                      </td>
+                      <td className="px-5 py-4 text-foreground">{facility.pocName || "-"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {totalRecords > 0 ? (
+        <Pagination
+          currentPage={currentPage}
+          totalRecords={totalRecords}
+          pageSizeLimit={pageSizeLimit}
+          onNextPage={onNextPage}
+          onPrevPage={onPrevPage}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
+        />
+      ) : null}
+    </div>
+  );
+}
