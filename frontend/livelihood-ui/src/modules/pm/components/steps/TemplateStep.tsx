@@ -231,7 +231,11 @@ export function TemplateStep({
   locked = false,
 }: Readonly<TemplateStepProps>) {
   const { t } = useTranslate();
-  const busySolutionsRef = useRef(new Set<string>());
+  // State, not a ref: pagination below must re-render and disable itself while any card is
+  // mid-upload, since paging away unmounts that card and strands its in-flight validate/create
+  // chain with no effect left to ever clear this.
+  const [busySolutionCodes, setBusySolutionCodes] = useState<Set<string>>(new Set());
+  const isAnyUploadBusy = busySolutionCodes.size > 0;
   const { data: solutions = [] } = useInstallationSolutions();
 
   const solutionsInScope = useMemo(() => {
@@ -250,7 +254,13 @@ export function TemplateStep({
     [solutionsInScope, currentPage, pageSizeLimit],
   );
 
+  function handlePageChange(page: number) {
+    if (isAnyUploadBusy) return;
+    setCurrentPage(page);
+  }
+
   function handlePageSizeChange(size: number) {
+    if (isAnyUploadBusy) return;
     setPageSizeLimit(size);
     setCurrentPage(0);
   }
@@ -283,10 +293,17 @@ export function TemplateStep({
   }
 
   function handleCardBusyChange(solutionCode: string, isBusy: boolean) {
-    if (isBusy) busySolutionsRef.current.add(solutionCode);
-    else busySolutionsRef.current.delete(solutionCode);
-    onBusyChange?.(busySolutionsRef.current.size > 0);
+    setBusySolutionCodes((previous) => {
+      const next = new Set(previous);
+      if (isBusy) next.add(solutionCode);
+      else next.delete(solutionCode);
+      return next;
+    });
   }
+
+  useEffect(() => {
+    onBusyChange?.(isAnyUploadBusy);
+  }, [isAnyUploadBusy, onBusyChange]);
 
   return (
     <StepSectionCard
@@ -327,15 +344,23 @@ export function TemplateStep({
           ))
         )}
         {totalRecords > 0 ? (
-          <Pagination
-            currentPage={currentPage}
-            totalRecords={totalRecords}
-            pageSizeLimit={pageSizeLimit}
-            onNextPage={() => setCurrentPage((page) => page + 1)}
-            onPrevPage={() => setCurrentPage((page) => Math.max(0, page - 1))}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={handlePageSizeChange}
-          />
+          // Disabled while any card is mid-upload -- paging away would unmount it and strand its
+          // in-flight validate/create chain with nothing left to ever report it done (see
+          // handleCardBusyChange above).
+          <div
+            className={isAnyUploadBusy ? "pointer-events-none opacity-50" : undefined}
+            aria-disabled={isAnyUploadBusy}
+          >
+            <Pagination
+              currentPage={currentPage}
+              totalRecords={totalRecords}
+              pageSizeLimit={pageSizeLimit}
+              onNextPage={() => handlePageChange(currentPage + 1)}
+              onPrevPage={() => handlePageChange(Math.max(0, currentPage - 1))}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+            />
+          </div>
         ) : null}
       </div>
     </StepSectionCard>
