@@ -294,6 +294,7 @@ export function TemplateStep({
 
   function handleCardBusyChange(solutionCode: string, isBusy: boolean) {
     setBusySolutionCodes((previous) => {
+      if (previous.has(solutionCode) === isBusy) return previous;
       const next = new Set(previous);
       if (isBusy) next.add(solutionCode);
       else next.delete(solutionCode);
