@@ -62,28 +62,20 @@ describe("ProjectDetailsPage", () => {
     expect(screen.getAllByText("Project A").length).toBeGreaterThan(0);
   });
 
-  it("shows the resolved state names and district/block selected counts", () => {
+  it.each([
+    ["the resolved state name", "Karnataka"],
+    ["the formatted project status", "Scheduled"],
+    ["an empty state for installation plans when there are none", "No installation plans yet"],
+  ])("shows %s", (_label, text) => {
     renderPage();
 
-    expect(screen.getByText("Karnataka")).toBeInTheDocument();
-  });
-
-  it("shows the formatted project status", () => {
-    renderPage();
-
-    expect(screen.getByText("Scheduled")).toBeInTheDocument();
+    expect(screen.getByText(text)).toBeInTheDocument();
   });
 
   it("links Add New to the create-installation-plan path with the current projectId", () => {
     renderPage();
 
     expect(screen.getByRole("link", { name: /Add New/i })).toBeInTheDocument();
-  });
-
-  it("shows the installation plans table with an empty state when there are none", () => {
-    renderPage();
-
-    expect(screen.getByText("No installation plans yet")).toBeInTheDocument();
   });
 
   it("shows '-' as the title while the project hasn't loaded yet", () => {

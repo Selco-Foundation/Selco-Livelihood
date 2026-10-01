@@ -18,7 +18,7 @@ describe("DateField", () => {
   });
 
   it("shows the formatted date when a value is set", () => {
-    render(<DateField label="Start Date" value={1768435200000} onChange={vi.fn()} />);
+    render(<DateField label="Start Date" value={new Date(2026, 0, 15).getTime()} onChange={vi.fn()} />);
 
     expect(screen.getByRole("button", { name: /15 Jan 2026/i })).toBeInTheDocument();
   });
@@ -44,7 +44,7 @@ describe("DateField", () => {
   it("opens the calendar and calls onChange with the picked date's timestamp", async () => {
     const onChange = vi.fn();
     const user = userEvent.setup();
-    render(<DateField label="Start Date" value={1768435200000} onChange={onChange} />);
+    render(<DateField label="Start Date" value={new Date(2026, 0, 15).getTime()} onChange={onChange} />);
 
     await user.click(screen.getByRole("button", { name: /15 Jan 2026/i }));
     const day16 = document.querySelector('[data-day="2026-01-16"] button');
