@@ -1,5 +1,5 @@
 import { translateOr, useTranslate } from "@/shared";
-import { MultiSelect } from "@/ui";
+import { MultiSelect, SearchableSelect } from "@/ui";
 import { ClipboardList } from "lucide-react";
 import { useMemo } from "react";
 import { useBoundaryTree } from "../../hooks/use-boundary-tree";
@@ -7,7 +7,6 @@ import { useReviewerOptions } from "../../hooks/use-reviewer-options";
 import { useSectors } from "../../hooks/use-sectors";
 import type { GeographyDetails } from "../../types/project";
 import { DateField } from "../DateField";
-import { LabeledSelect } from "../LabeledSelect";
 import { StepSectionCard } from "../StepSectionCard";
 import { SelectedGroup } from "../SelectedGroup";
 
@@ -216,13 +215,13 @@ export function PlanDetailsStep({
             disabled={locked}
             hideChips
           />
-          <LabeledSelect
+          <SearchableSelect
             label={translateOr(t, "ES_PM_ASSIGN_INSTALLATION_REVIEWER", "Assign Installation Reviewer")}
             required
             value={value.reviewerCode}
             options={reviewerOptions}
             placeholder={translateOr(t, "ES_PM_SELECT_REVIEWER", "Select Reviewer")}
-            onChange={(reviewerCode) => onChange({ ...value, reviewerCode })}
+            onChange={(option) => onChange({ ...value, reviewerCode: option?.code ?? "" })}
             disabled={reviewerLocked}
           />
           <div className="space-y-1.5">

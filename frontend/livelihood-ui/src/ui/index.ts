@@ -133,9 +133,29 @@ export {
   SelectTrigger,
   SelectValue,
 } from "./components/ui/select";
-export { MultiSelect } from "./components/ui/multi-select";
-export type { MultiSelectOption, MultiSelectProps } from "./components/ui/multi-select";
+export { MultiSelect } from "./components/multi-select";
+export type { MultiSelectOption, MultiSelectProps } from "./components/multi-select";
 export { Calendar } from "./components/ui/calendar";
+export {
+  Stepper,
+  StepperContent,
+  StepperDescription,
+  StepperIndicator,
+  StepperItem,
+  StepperNav,
+  StepperPanel,
+  StepperSeparator,
+  StepperTitle,
+  StepperTrigger,
+  useStepItem,
+  useStepper,
+} from "./components/reui/stepper";
+export type {
+  StepperContentProps,
+  StepperItemProps,
+  StepperProps,
+  StepperTriggerProps,
+} from "./components/reui/stepper";
 export { DataTable } from "./components/data-table";
 export { StatTile } from "./components/stat-tile";
 export type { StatTileProps } from "./components/stat-tile";
