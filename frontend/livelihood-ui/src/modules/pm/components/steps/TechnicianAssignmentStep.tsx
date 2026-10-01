@@ -1,13 +1,15 @@
 import { translateOr, useTranslate } from "@/shared";
-import { Input, SearchableSelect } from "@/ui";
+import { Input, Pagination, SearchableSelect } from "@/ui";
 import { Users } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useVendorAssignmentSearch } from "../../hooks/use-vendor-assignment-search";
 import { useVendorOrganisations } from "../../hooks/use-vendor-organisations";
 import { useVendorOrgUsers } from "../../hooks/use-vendor-org-users";
 import type { InstallationPlanAssignmentEntry } from "../../types/installation-plan";
 import type { VendorAssignmentSite } from "../../services/vendor-assignment";
 import { StepSectionCard } from "../StepSectionCard";
+
+const DEFAULT_PAGE_SIZE = 10;
 
 export type AssignmentValue = InstallationPlanAssignmentEntry[];
 
@@ -121,7 +123,19 @@ export function TechnicianAssignmentStep({ planId, planCode, value, onChange, lo
   const { t } = useTranslate();
   const { data: searchResult } = useVendorAssignmentSearch(planId);
   const { data: organisations = [] } = useVendorOrganisations();
-  const rows = useMemo(() => toRows(searchResult?.sites ?? []), [searchResult]);
+  const sites = useMemo(() => searchResult?.sites ?? [], [searchResult]);
+
+  // Paginated by site (end user), not by raw asset row, so a site's assets never split across
+  // pages -- that would break the rowSpan grouping on the "End user" column.
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSizeLimit, setPageSizeLimit] = useState(DEFAULT_PAGE_SIZE);
+  const totalRecords = sites.length;
+  const pagedSites = useMemo(
+    () => sites.slice(currentPage * pageSizeLimit, (currentPage + 1) * pageSizeLimit),
+    [sites, currentPage, pageSizeLimit],
+  );
+
+  const rows = useMemo(() => toRows(pagedSites), [pagedSites]);
   // Pre-counted once per render instead of a rows.filter() inside the map below, which made
   // rendering the table O(n^2) in the number of assets.
   const assetCountByFacilityId = useMemo(() => {
@@ -129,6 +143,11 @@ export function TechnicianAssignmentStep({ planId, planCode, value, onChange, lo
     for (const row of rows) counts.set(row.facilityId, (counts.get(row.facilityId) ?? 0) + 1);
     return counts;
   }, [rows]);
+
+  function handlePageSizeChange(size: number) {
+    setPageSizeLimit(size);
+    setCurrentPage(0);
+  }
 
   function findAssignment(row: TechnicianAssignmentRow) {
     return value.find(
@@ -268,6 +287,17 @@ export function TechnicianAssignmentStep({ planId, planCode, value, onChange, lo
           </table>
           </div>
         </div>
+        {totalRecords > 0 ? (
+          <Pagination
+            currentPage={currentPage}
+            totalRecords={totalRecords}
+            pageSizeLimit={pageSizeLimit}
+            onNextPage={() => setCurrentPage((page) => page + 1)}
+            onPrevPage={() => setCurrentPage((page) => Math.max(0, page - 1))}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={handlePageSizeChange}
+          />
+        ) : null}
       </div>
     </StepSectionCard>
   );

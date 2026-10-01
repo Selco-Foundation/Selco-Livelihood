@@ -6,8 +6,8 @@ import {
   StepperSeparator,
   StepperTitle,
   StepperTrigger,
-} from "@/components/reui/stepper";
-import { cn } from "@/ui";
+  cn,
+} from "@/ui";
 import { Check } from "lucide-react";
 
 interface WizardStepperProps {
