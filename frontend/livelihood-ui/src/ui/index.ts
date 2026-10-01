@@ -133,8 +133,8 @@ export {
   SelectTrigger,
   SelectValue,
 } from "./components/ui/select";
-export { MultiSelect } from "./components/ui/multi-select";
-export type { MultiSelectOption, MultiSelectProps } from "./components/ui/multi-select";
+export { MultiSelect } from "./components/multi-select";
+export type { MultiSelectOption, MultiSelectProps } from "./components/multi-select";
 export { Calendar } from "./components/ui/calendar";
 export { DataTable } from "./components/data-table";
 export { StatTile } from "./components/stat-tile";

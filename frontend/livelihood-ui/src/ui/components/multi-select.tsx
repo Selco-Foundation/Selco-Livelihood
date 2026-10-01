@@ -1,10 +1,10 @@
 import { useId, useMemo, useState } from "react";
 import { ChevronDown, Info, Search, X } from "lucide-react";
 import { translateOr, useTranslate } from "@/shared";
-import { cn } from "../../lib/utils";
-import { Checkbox } from "./checkbox";
-import { Input } from "./input";
-import { Popover, PopoverContent, PopoverTrigger } from "./popover";
+import { cn } from "../lib/utils";
+import { Checkbox } from "./ui/checkbox";
+import { Input } from "./ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 
 export interface MultiSelectOption {
   code: string;
