@@ -36,7 +36,7 @@ function AssetThumbnail({ asset, name }: { asset: EndUserAsset; name: string }) 
 
 function AssetBlock({ asset }: { asset: EndUserAsset }) {
   const { t } = useTranslate();
-  const name = translateOr(t, `ASSETTYPE_${asset.assetTypeId}`, asset.name);
+  const name = translateOr(t, `BOUNDARY_${asset.boundaryCode}`, asset.name);
   const subtitle = assetSubtitle(asset);
 
   return (

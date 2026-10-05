@@ -26,6 +26,10 @@ interface AssetSearchResponseItem {
   modelNumber?: string;
   isOperational?: boolean;
   documents?: AssetDocument[];
+  /** Null on a top-level asset — this module always searches with
+   * `includeChildren: false`, so a row with a non-null parentId is never
+   * returned here. */
+  parentId?: string | null;
 }
 
 function getFirstDocumentFileStore(
@@ -64,6 +68,8 @@ export async function searchAssetsForFacility(
       criteria: {
         tenantId,
         facilityID: facilityId,
+        includeChildren: false,
+        isOnmReady: true,
       },
     },
     {

@@ -116,6 +116,23 @@ describe("useActivityReview", () => {
     expect(result.current.data?.activity.facilityName).toBe("Facility A");
   });
 
+  it("flattens a parent/child asset-search response before building sections", async () => {
+    useAuthStore.setState({ accessToken: "token-1", employeeTenantId: "tenant-1", user: authedUser });
+    vi.mocked(searchActivityFacilities).mockResolvedValue({ totalCount: 1, facility: [row()] });
+    vi.mocked(searchAssetsForActivityFacility).mockResolvedValue([
+      { assetId: "family-1", assetTypeID: "SOLAR", children: [panelAsset] },
+    ]);
+    vi.mocked(fetchFileUrls).mockResolvedValue({ fileStoreIds: [{ id: "fs1", url: "https://img/fs1" }] });
+    const { wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useActivityReview("act-1"), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const panelSection = result.current.data?.sections.find((section) => section.id === "PANEL");
+    expect(panelSection).toMatchObject({ kind: "ASSET", items: [expect.objectContaining({ serialNumber: "SN-1" })] });
+  });
+
   it("returns null without throwing when the facility row is missing", async () => {
     useAuthStore.setState({ accessToken: "token-1", employeeTenantId: "tenant-1", user: authedUser });
     vi.mocked(searchActivityFacilities).mockResolvedValue({ totalCount: 0, facility: [] });

@@ -36,6 +36,24 @@ export function isResolvableAssetDocument(documentType: string | undefined): boo
   return type === ASSET_PHOTO_DOCUMENT_TYPE || MACHINE_MEDIA_DOCUMENT_TYPE_IDS.has(type);
 }
 
+/**
+ * Reconstructs the flat asset list this module was built against from the
+ * asset-registry's parent/child search response (`includeChildren: true`):
+ * one top-level "family" row (e.g. Solar, assetTypeID `SOLAR`) now carries
+ * its physical components — Panel/Battery/Inverter — in `children` instead
+ * of the backend returning them as sibling rows directly. Flattening parent
+ * and every descendant back into one array lets buildSolarAssetSections/
+ * buildMachineAssetData stay unchanged: the family row's own assetTypeID
+ * never matches Solar's PANEL/BATTERY/INVERTER filter so it's silently
+ * dropped exactly as an unrecognized row always was, and a standalone
+ * Machine asset (no children) passes through as a no-op.
+ */
+export function flattenAssetHierarchy(
+  assets: AssetSearchResponseItem[],
+): AssetSearchResponseItem[] {
+  return assets.flatMap((asset) => [asset, ...flattenAssetHierarchy(asset.children ?? [])]);
+}
+
 /** `assetDetails` uses one generic shape across every asset type — verified
  * against a real response: `{ name, capacity: "550 Wp", capacityUnit,
  * totalCapacity }` — not qc's per-type-prefixed fields (`panelCapacity` etc).
