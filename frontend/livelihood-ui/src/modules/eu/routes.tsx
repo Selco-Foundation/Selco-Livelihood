@@ -2,6 +2,7 @@ import { contextPath, translateOr, useModuleI18n, useTranslate } from "@/shared"
 import type { AnyRoute } from "@tanstack/react-router";
 import { createRoute, Outlet, redirect } from "@tanstack/react-router";
 import { Building2, MapPinned } from "lucide-react";
+import { EuKpis } from "./components/EuOverview";
 import { EU_ROUTES } from "./constants/routes";
 import { BoundaryListPage } from "./pages/employee/BoundaryListPage";
 import { ActivityDetailPage } from "./pages/employee/ActivityDetailPage";
@@ -134,5 +135,6 @@ export function createEuModule(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
     order: 3,
     routes,
     navItems,
+    overview: { kpis: EuKpis },
   };
 }
