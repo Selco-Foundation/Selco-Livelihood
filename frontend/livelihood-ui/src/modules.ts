@@ -20,8 +20,7 @@ const ir = createIrModule(rootRoute, core.employeeLayoutRoute);
 const eu = createEuModule(rootRoute, core.employeeLayoutRoute);
 const org = createOrgModule(rootRoute, core.employeeLayoutRoute);
 
-const enabledModules: ModuleDefinition<AnyRoute>[] = [core, im, ir, eu, org];
-const enabledModules: ModuleDefinition<AnyRoute>[] = [core, pm, im, ir];
+const enabledModules: ModuleDefinition<AnyRoute>[] = [core, pm, im, ir, eu, org];
 
 setRegisteredModules(enabledModules);
 
