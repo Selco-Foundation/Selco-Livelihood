@@ -1,13 +1,12 @@
-import { translateOr, useTranslate, type BoundaryHierarchy } from "@/shared";
+import { translateOr, useTranslate } from "@/shared";
 import { Pagination, Skeleton } from "@/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { boundaryDisplayName, resolveBoundaryLabels } from "../../utils/boundary";
+import { boundaryDisplayName } from "../../utils/boundary";
 import type { Facility } from "../../types/facility";
 import { euFacilityDetailPath } from "../../utils/paths";
 
 interface FacilityTableProps {
   facilities: Facility[];
-  boundaryData: BoundaryHierarchy | undefined;
   isLoading: boolean;
   currentPage: number;
   totalRecords: number;
@@ -20,7 +19,6 @@ interface FacilityTableProps {
 
 export function FacilityTable({
   facilities,
-  boundaryData,
   isLoading,
   currentPage,
   totalRecords,
@@ -75,7 +73,6 @@ export function FacilityTable({
               </thead>
               <tbody>
                 {facilities.map((facility, index) => {
-                  const labels = resolveBoundaryLabels(facility.boundaryCode, boundaryData);
                   const detailPath = euFacilityDetailPath(facility.id);
                   return (
                     <tr
@@ -99,13 +96,13 @@ export function FacilityTable({
                         </Link>
                       </td>
                       <td className="px-5 py-4 text-foreground">
-                        {labels.state ? boundaryDisplayName(labels.state, t) : "-"}
+                        {facility.stateCode ? boundaryDisplayName(facility.stateCode, t) : "-"}
                       </td>
                       <td className="px-5 py-4 text-foreground">
-                        {labels.district ? boundaryDisplayName(labels.district, t) : "-"}
+                        {facility.districtCode ? boundaryDisplayName(facility.districtCode, t) : "-"}
                       </td>
                       <td className="px-5 py-4 text-foreground">
-                        {labels.block ? boundaryDisplayName(labels.block, t) : "-"}
+                        {facility.blockCode ? boundaryDisplayName(facility.blockCode, t) : "-"}
                       </td>
                       <td className="px-5 py-4 text-foreground">{facility.pocName || "-"}</td>
                     </tr>

@@ -57,7 +57,6 @@ export function FacilityListPage() {
 
       <FacilityTable
         facilities={data?.facilities ?? []}
-        boundaryData={boundaryData}
         isLoading={isLoading}
         currentPage={currentPage}
         totalRecords={totalCount}

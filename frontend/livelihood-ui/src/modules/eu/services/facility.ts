@@ -3,12 +3,10 @@ import { createRequestInfo } from "@/shared/api/request-info";
 import type { Facility } from "../types/facility";
 
 /**
- * The `Facility` `_bulk-search` request-body criteria. The real backend
- * (verified live) doesn't resolve a `boundary` object on the response and
- * only narrows results by leaf `boundaryCodes` — matching
- * `shared/api/facility.ts`'s already-proven request shape. Filter selections
- * are resolved to leaf codes before reaching this criteria (see
- * `utils/boundary.ts`'s `resolveFacilityBoundaryCodes`).
+ * The `Facility` `_bulk-search` request-body criteria — only narrows results
+ * by leaf `boundaryCodes`, matching `shared/api/facility.ts`'s already-proven
+ * request shape. Filter selections are resolved to leaf codes before reaching
+ * this criteria (see `utils/boundary.ts`'s `resolveFacilityBoundaryCodes`).
  */
 export interface FacilitySearchCriteria {
   tenantId: string[];
@@ -32,6 +30,8 @@ interface FacilitySearchResponseItem {
   facility_details?: { solar_solution_design_type?: string };
   address?: { latitude?: number; longitude?: number };
   boundaryCode?: string;
+  /** State/district/block boundary codes the backend resolves server-side from `boundaryCode`. */
+  boundary?: { state?: string; district?: string; block?: string };
 }
 
 interface FacilitySearchResponse {
@@ -52,6 +52,9 @@ function toFacility(item: FacilitySearchResponseItem): Facility {
     pocPhone: item.facility_poc_phone,
     pocEmail: item.facility_poc_email,
     boundaryCode: item.boundaryCode,
+    stateCode: item.boundary?.state,
+    districtCode: item.boundary?.district,
+    blockCode: item.boundary?.block,
     latitude: item.address?.latitude,
     longitude: item.address?.longitude,
     solarSolutionDesignType: item.facility_details?.solar_solution_design_type,

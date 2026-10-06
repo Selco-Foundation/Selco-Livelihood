@@ -1,7 +1,7 @@
-import { translateOr, useBoundaryHierarchy, useTranslate } from "@/shared";
+import { translateOr, useTranslate } from "@/shared";
 import { Button, Card, CardContent } from "@/ui";
 import { useFacilityMdmsOptions } from "../../hooks/use-facility-mdms-options";
-import { boundaryDisplayName, resolveBoundaryLabels } from "../../utils/boundary";
+import { boundaryDisplayName } from "../../utils/boundary";
 import type { Facility } from "../../types/facility";
 
 interface InfoItemProps {
@@ -26,10 +26,8 @@ interface FacilityInfoSectionProps {
 
 export function FacilityInfoSection({ facility, onEdit }: FacilityInfoSectionProps) {
   const { t } = useTranslate();
-  const { data: boundaryData } = useBoundaryHierarchy();
   const { facilityCategories, facilityTypes, solarSolutionDesignTypes } = useFacilityMdmsOptions();
 
-  const boundaryLabels = resolveBoundaryLabels(facility.boundaryCode, boundaryData);
   const categoryName = facilityCategories.find((c) => c.code === facility.facilityCategory)?.name;
   const typeName = facilityTypes.find((c) => c.code === facility.facilityType)?.name;
   const solarDesignName = solarSolutionDesignTypes.find((c) => c.code === facility.solarSolutionDesignType)?.name;
@@ -87,15 +85,15 @@ export function FacilityInfoSection({ facility, onEdit }: FacilityInfoSectionPro
           <div className="grid gap-2 md:grid-cols-3">
             <InfoItem
               label={translateOr(t, "CS_STATE", "State")}
-              value={boundaryLabels.state ? boundaryDisplayName(boundaryLabels.state, t) : undefined}
+              value={facility.stateCode ? boundaryDisplayName(facility.stateCode, t) : undefined}
             />
             <InfoItem
               label={translateOr(t, "CS_DISTRICT", "District")}
-              value={boundaryLabels.district ? boundaryDisplayName(boundaryLabels.district, t) : undefined}
+              value={facility.districtCode ? boundaryDisplayName(facility.districtCode, t) : undefined}
             />
             <InfoItem
               label={translateOr(t, "CS_BLOCK", "Block")}
-              value={boundaryLabels.block ? boundaryDisplayName(boundaryLabels.block, t) : undefined}
+              value={facility.blockCode ? boundaryDisplayName(facility.blockCode, t) : undefined}
             />
           </div>
         </div>
