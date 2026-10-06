@@ -11,6 +11,10 @@ export interface AssetSearchCriteria {
   assetType?: string[];
   serialNumber?: string[];
   isOperational?: boolean;
+  /** When true, a "family" asset (e.g. a SOLAR system) carries its unit
+   * assets (Panel/Battery/Inverter) nested under `children` in the response,
+   * instead of returning them as separate top-level rows. */
+  includeChildren?: boolean;
 }
 
 /**
@@ -44,6 +48,17 @@ export interface AssetSearchResponseItem {
   warrantyDuration?: number;
   assetDetails?: AssetDetails;
   documents?: AssetSearchDocument[] | null;
+  /** The vendor currently mapped to this asset — a raw user uuid today, with
+   * no resolved display name available from this endpoint yet. */
+  vendorId?: string;
+  /** Null for a standalone asset or a top-level family asset; set to the
+   * family asset's `assetId` on each of its own unit assets. */
+  parentId?: string | null;
+  /** Populated only on a top-level family asset when the search requests
+   * `includeChildren: true` — null/absent on every other row, including each
+   * of this array's own entries (the backend doesn't nest more than one
+   * level deep today). */
+  children?: AssetSearchResponseItem[] | null;
 }
 
 function formatInstallationDate(value: string | undefined): string | undefined {
@@ -63,6 +78,8 @@ function toFacilityAsset(row: AssetSearchResponseItem): FacilityAsset {
     capacity: row.assetDetails?.capacity,
     installationDate: formatInstallationDate(row.warrantyStartDate),
     isOperational: row.isOperational,
+    vendorId: row.vendorId,
+    children: row.children?.map(toFacilityAsset),
   };
 }
 
@@ -103,4 +120,24 @@ export async function searchAssetsForActivity(
   );
 
   return data ?? [];
+}
+
+export interface UpdateAssetVendorMappingPayload {
+  assetId: string;
+  vendorId: string;
+}
+
+/**
+ * The vendor-mapping update endpoint is still under development. Until it
+ * exists, this resolves a static success response instead of calling
+ * `apiClient`, so the row's dirty-to-saved flow can be exercised end to end.
+ * Swap this body for a real POST once the endpoint is ready — the function's
+ * signature/shape shouldn't need to change.
+ */
+export async function updateAssetVendorMapping(
+  _payload: UpdateAssetVendorMappingPayload,
+  _accessToken: string,
+  _user?: AuthUser | null,
+): Promise<{ status: "success" }> {
+  return { status: "success" };
 }

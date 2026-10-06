@@ -7,6 +7,12 @@ export interface FacilityAsset {
   capacity?: string;
   installationDate?: string;
   isOperational?: boolean;
+  /** The vendor currently mapped to this asset — a raw user uuid today, with
+   * no resolved display name available from the asset search response yet. */
+  vendorId?: string;
+  /** Populated only on a top-level family asset (e.g. a SOLAR system) —
+   * its own unit assets (Panel/Battery/Inverter). */
+  children?: FacilityAsset[];
 }
 
 export interface AssetFilters {

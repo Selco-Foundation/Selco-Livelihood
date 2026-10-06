@@ -10,6 +10,7 @@ export function useFacilityAssets(facilityId: string, filters: AssetFilters) {
   const criteria: AssetSearchCriteria = {
     tenantId: tenantId(),
     facilityID: facilityId,
+    includeChildren: true,
     ...(filters.assetType.length > 0 ? { assetType: filters.assetType } : {}),
     ...(filters.serialNumber.length > 0 ? { serialNumber: filters.serialNumber } : {}),
     ...(filters.isOperational.length > 0 ? { isOperational: filters.isOperational[0] === "OPERATIONAL" } : {}),
