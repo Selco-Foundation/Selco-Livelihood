@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 import org.egov.common.contract.models.AuditDetails;
 import org.springframework.validation.annotation.Validated;
 
@@ -74,6 +75,12 @@ public class Organisation {
 
     @JsonProperty("orgPocUsername")
     private String orgPocUsername = null;
+
+    // Accepted on create only, to set the POC's HRMS login password. Never serialized (not in the
+    // response, not in the Kafka message) and kept out of toString() so it cannot leak into logs.
+    @JsonProperty(value = "orgPocPassword", access = JsonProperty.Access.WRITE_ONLY)
+    @ToString.Exclude
+    private String orgPocPassword = null;
 
     @JsonProperty("externalRefNumber")
     @Size(min = 2, max = 64)

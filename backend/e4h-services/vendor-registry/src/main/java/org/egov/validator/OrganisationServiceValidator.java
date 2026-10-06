@@ -6,6 +6,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.config.Configuration;
 import org.egov.repository.OrganisationRepository;
+import org.egov.service.OrganisationPocService;
 import org.egov.tracer.model.CustomException;
 import org.egov.util.BoundaryUtil;
 import org.egov.util.MDMSUtil;
@@ -62,6 +63,8 @@ public class OrganisationServiceValidator {
 
         validateOrganisationDetails(organisationList);
         log.debug("Organisation details validation completed");
+
+        validatePocDetails(organisationList);
 
         //validate organisation details against MDMS
         validateMDMSData(organisationList, requestInfo, organisationList.get(0).getTenantId(), errorMap);
@@ -315,6 +318,27 @@ public class OrganisationServiceValidator {
             validateAddress(organisation);
         }
         log.debug("Organisation details validation completed for {} organisations", organisationList.size());
+    }
+
+    /** The POC of a PLATFORM / VENDOR organisation becomes an HRMS user, so it needs everything HRMS requires to log in. */
+    private void validatePocDetails(List<Organisation> organisationList) {
+        for (Organisation organisation : organisationList) {
+            if (!OrganisationPocService.shouldCreatePocUser(organisation)) {
+                continue;
+            }
+            if (StringUtils.isBlank(organisation.getOrgPocUsername())) {
+                throw new CustomException("ORG_POC_USERNAME", "PoC username is mandatory");
+            }
+            if (StringUtils.isBlank(organisation.getOrgPocName())) {
+                throw new CustomException("ORG_POC_NAME", "PoC name is mandatory");
+            }
+            if (StringUtils.isBlank(organisation.getOrgPocPhone())) {
+                throw new CustomException("ORG_POC_PHONE", "PoC phone number is mandatory");
+            }
+            if (StringUtils.isBlank(organisation.getOrgPocPassword())) {
+                throw new CustomException("ORG_POC_PASSWORD", "PoC password is mandatory");
+            }
+        }
     }
 
     private void validateAddress(Organisation organisation){

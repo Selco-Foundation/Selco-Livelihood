@@ -21,6 +21,14 @@ public class OrganisationConstant {
     public static final String ORG_ADMIN_ROLE_CODE = "ORG_ADMIN";
     public static final String ORG_ADMIN_ROLE_NAME = "Organization admin";
     public static final String ORG_CITIZEN_TYPE = "CITIZEN";
+    public static final String VENDOR_ADMIN_ROLE_CODE = "VENDOR_ADMIN";
+    public static final String VENDOR_ADMIN_ROLE_NAME = "Vendor admin";
+    public static final String EMPLOYEE_ROLE_CODE = "EMPLOYEE";
+    public static final String EMPLOYEE_ROLE_NAME = "Employee";
+
+    // Organisation types whose POC is auto-provisioned as an HRMS employee on creation
+    public static final String ORG_TYPE_PLATFORM = "PLATFORM";
+    public static final String ORG_TYPE_VENDOR = "VENDOR";
 
     // localization contants
     public static final String ORGANISATION_CREATE_LOCALIZATION_CODE="ORGANISATION_NOTIFICATION_ON_CREATE";
