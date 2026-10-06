@@ -2,6 +2,7 @@ import { createCoreModule } from "@/modules/core";
 import { createEuModule } from "@/modules/eu";
 import { createImModule } from "@/modules/im";
 import { createIrModule } from "@/modules/ir";
+import { createOrgModule } from "@/modules/org";
 import { setRegisteredModules } from "./module-registry";
 import type { ModuleDefinition } from "@/shared";
 import type { AnyRoute } from "@tanstack/react-router";
@@ -15,8 +16,9 @@ const core = createCoreModule(rootRoute);
 const im = createImModule(rootRoute, core.employeeLayoutRoute);
 const ir = createIrModule(rootRoute, core.employeeLayoutRoute);
 const eu = createEuModule(rootRoute, core.employeeLayoutRoute);
+const org = createOrgModule(rootRoute, core.employeeLayoutRoute);
 
-const enabledModules: ModuleDefinition<AnyRoute>[] = [core, im, ir, eu];
+const enabledModules: ModuleDefinition<AnyRoute>[] = [core, im, ir, eu, org];
 
 setRegisteredModules(enabledModules);
 
