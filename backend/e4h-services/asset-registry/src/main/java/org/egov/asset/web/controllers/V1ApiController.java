@@ -247,6 +247,23 @@ public class V1ApiController {
         }
     }
 
+    @RequestMapping(value = "/v1/asset/vendor/_update", method = RequestMethod.POST)
+    public ResponseEntity<AssetVendorUpdateResponse> updateAssetVendors(
+            @Parameter(in = ParameterIn.DEFAULT, description = "Asset groups and their new vendors", required = true, schema = @Schema())
+            @Valid @RequestBody AssetVendorUpdateRequest body) {
+        log.trace("V1ApiController::updateAssetVendors called");
+        log.info("Received asset vendor update request | groups={}",
+                body.getAssetVendorUpdates() == null ? 0 : body.getAssetVendorUpdates().size());
+        try {
+            AssetVendorUpdateResponse response = assetService.updateAssetVendors(body);
+            log.info("Asset vendor update completed | groups={}", response.getAssetVendorUpdates().size());
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("Error updating asset vendors | error={}", e.getMessage(), e);
+            throw e;
+        }
+    }
+
     @RequestMapping(value = "/v1/asset/amc/_update", method = RequestMethod.POST)
     public ResponseEntity<Void> updateAssetAMC(@Parameter(in = ParameterIn.DEFAULT, description = "Updated AMC contract or visit information", required = true, schema = @Schema()) @Valid @RequestBody AssetAMCRequest body, @Parameter(in = ParameterIn.PATH, description = "System-generated unique identifier for the AMC", required = true, schema = @Schema()) @PathVariable("amcId") Object amcId) {
         log.trace("V1ApiController::updateAssetAMC called");
