@@ -1,4 +1,5 @@
 import os
+from typing import Optional, Tuple
 
 import requests
 from dotenv import load_dotenv
@@ -14,11 +15,13 @@ filestore_service_url = os.getenv("FILESTORE_SERVICE_URL")
 
 
 class FilestoreClient:
-    """Reads files out of egov-filestore.
+    """Reads files out of, and writes files into, egov-filestore.
 
-    Download only: the blank IC Report template for each Solution lives in filestore
-    (pointed at from icc_templates), and nothing in the request path ever writes there --
-    the Project Manager's filled workbook is parsed and discarded, not stored.
+    Two distinct uses, hence the two download methods:
+      - download_file: the blank IC Report template for each Solution, which is always an
+        xlsx workbook and is validated as one.
+      - download_bytes / upload_file: arbitrary content, used by the /document/append
+        endpoint, which merges PDFs and images it cannot make any format assumption about.
 
     Endpoint shape taken from processor-services' StorageUtil/ServiceRequestRepository,
     which is the only working filestore integration in this backend.
@@ -54,3 +57,92 @@ class FilestoreClient:
 
         logger.info(f"Fetched {len(response.content)} bytes from filestore for {file_store_id}")
         return response.content
+
+    def download_bytes(self, tenant_id: str, file_store_id: str,
+                       auth_token: Optional[str] = None) -> Tuple[bytes, Optional[str]]:
+        """Raw bytes of any file in filestore, plus its Content-Type.
+
+        Unlike download_file this makes no assumption about the format -- callers merging
+        PDFs and images cannot use the xlsx PK check -- so a filestore miss served as a
+        200 with an error body reaches the caller as unparseable content rather than as a
+        clear failure here. pdf_utils rejects it at that point.
+        """
+        if not self.filestore_url:
+            raise RuntimeError("FILESTORE_SERVICE_URL is not configured; files cannot be fetched")
+        if not file_store_id:
+            raise ValueError("file_store_id is required")
+
+        url = f"{self.filestore_url}/filestore/v1/files/id"
+        params = {"tenantId": tenant_id, "fileStoreId": file_store_id}
+        headers = {"auth-token": auth_token} if auth_token else {}
+
+        logger.trace(f"Downloading file from filestore: fileStoreId={file_store_id}, tenantId={tenant_id}")
+        response = requests.get(url, params=params, headers=headers, timeout=120)
+        response.raise_for_status()
+
+        logger.debug(f"Downloaded file fileStoreId={file_store_id}, size={len(response.content)} bytes")
+        return response.content, response.headers.get("Content-Type")
+
+    def upload_file(self, file_bytes: bytes, file_name: str, tenant_id: str, module: str,
+                    content_type: str = "application/pdf", tag: Optional[str] = None,
+                    auth_token: Optional[str] = None) -> str:
+        """Uploads a file to filestore and returns its generated fileStoreId."""
+        if not self.filestore_url:
+            raise RuntimeError("FILESTORE_SERVICE_URL is not configured; files cannot be uploaded")
+
+        url = f"{self.filestore_url}/filestore/v1/files"
+        data = {"tenantId": tenant_id, "module": module}
+        if tag:
+            data["tag"] = tag
+        files = {"file": (file_name, file_bytes, content_type)}
+        headers = {"auth-token": auth_token} if auth_token else {}
+
+        logger.trace(f"Uploading file to filestore: fileName={file_name}, tenantId={tenant_id}, module={module}")
+        response = requests.post(url, data=data, files=files, headers=headers, timeout=120)
+        response.raise_for_status()
+
+        response_body = response.json()
+        uploaded_files = response_body.get("files") or []
+        if not uploaded_files:
+            raise RuntimeError(f"Filestore upload returned no files: {response_body}")
+
+        file_store_id = uploaded_files[0].get("fileStoreId")
+        if not file_store_id:
+            raise RuntimeError(f"Filestore upload returned no fileStoreId: {response_body}")
+
+        logger.info(f"Uploaded file to filestore successfully: fileStoreId={file_store_id}")
+        return file_store_id
+
+    def get_presigned_url(self, tenant_id: str, file_store_id: str,
+                          auth_token: Optional[str] = None) -> str:
+        """Fresh pre-signed S3 URL for one file.
+
+        Pre-signed URLs are short-lived (X-Amz-Expires, one hour on this deployment) and
+        SigV4 caps any presign at seven days, so such a URL must never be written into a
+        durable artefact like a PDF -- it is minted per request, here, and handed straight
+        to the caller who is about to follow it.
+        """
+        if not self.filestore_url:
+            raise RuntimeError("FILESTORE_SERVICE_URL is not configured; file URLs cannot be resolved")
+        if not file_store_id:
+            raise ValueError("file_store_id is required")
+
+        url = f"{self.filestore_url}/filestore/v1/files/url"
+        params = {"tenantId": tenant_id, "fileStoreIds": file_store_id}
+        headers = {"auth-token": auth_token} if auth_token else {}
+
+        response = requests.get(url, params=params, headers=headers, timeout=120)
+        response.raise_for_status()
+
+        entries = (response.json() or {}).get("fileStoreIds") or []
+        if not entries:
+            raise FileNotFoundError(f"filestore knows no file with fileStoreId={file_store_id}")
+
+        signed_url = entries[0].get("url")
+        if not signed_url:
+            raise RuntimeError(f"filestore returned no url for fileStoreId={file_store_id}")
+
+        # For images filestore answers with several comma-separated size variants; the first
+        # is the original. Non-image files (our videos) carry a single URL, and splitting a
+        # URL that has no comma is a no-op, so this is safe for both.
+        return signed_url.split(",")[0]

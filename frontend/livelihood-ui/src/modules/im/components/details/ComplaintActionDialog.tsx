@@ -1,5 +1,5 @@
 import { translateOr, useAuthStore, useTranslate } from "@/shared";
-import { Button } from "@/ui";
+import { Button, SearchableSelect } from "@/ui";
 import { useMutation } from "@tanstack/react-query";
 import { Files, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -23,10 +23,10 @@ import { buildUploadedDocuments } from "../../utils/create-incident-documents";
 import {
   MAX_COMMENT_LENGTH,
   MAX_IMAGE_COUNT,
+  MAX_QUOTATION_COUNT,
   MAX_QUOTATION_SIZE_MB,
   validateQuotationFiles,
 } from "../../utils/media-validation";
-import { FormSelectField } from "../create/FormSelectField";
 
 interface ComplaintActionDialogProps {
   action: string;
@@ -80,6 +80,22 @@ interface ActionDocumentsFieldProps {
   t: (key: string) => string;
 }
 
+function getMaxFilesHintText(
+  t: (key: string) => string,
+  requiresQuotation: boolean,
+  maxFilesReached: boolean,
+  maxFiles: number,
+): string {
+  if (requiresQuotation) {
+    return translateOr(t, "WF_QUOTATION_MAX_FILES_REACHED", "You can upload 1 file");
+  }
+  const key = maxFilesReached ? "WF_MAX_FILES_REACHED" : "WF_MAX_FILES_HINT";
+  return translateOr(t, key, "You can upload up to {MAX_COUNT} files").replace(
+    "{MAX_COUNT}",
+    String(maxFiles),
+  );
+}
+
 function ActionDocumentsField({
   requiresQuotation,
   documentsRequired,
@@ -120,16 +136,7 @@ function ActionDocumentsField({
         </span>
       </button>
       <p className="text-xs text-ink-400">
-        {maxFilesReached
-          ? translateOr(
-              t,
-              "WF_MAX_FILES_REACHED",
-              "You can upload up to {MAX_COUNT} files",
-            ).replace("{MAX_COUNT}", String(maxFiles))
-          : translateOr(t, "WF_MAX_FILES_HINT", "You can upload up to {MAX_COUNT} files").replace(
-              "{MAX_COUNT}",
-              String(maxFiles),
-            )}
+        {getMaxFilesHintText(t, requiresQuotation, maxFilesReached, maxFiles)}
       </p>
       <input
         ref={inputRef}
@@ -309,13 +316,16 @@ export function ComplaintActionDialog({
     }
 
     const filesToUpload = Array.from(files);
-    if (uploads.length + filesToUpload.length > MAX_IMAGE_COUNT) {
+    const maxFiles = requiresQuotation ? MAX_QUOTATION_COUNT : MAX_IMAGE_COUNT;
+    if (uploads.length + filesToUpload.length > maxFiles) {
       setError(
-        translateOr(
-          t,
-          "WF_MAX_FILES_REACHED",
-          "You can upload up to {MAX_COUNT} files",
-        ).replace("{MAX_COUNT}", String(MAX_IMAGE_COUNT)),
+        requiresQuotation
+          ? translateOr(t, "WF_QUOTATION_MAX_FILES_REACHED", "You can upload 1 file")
+          : translateOr(
+              t,
+              "WF_MAX_FILES_REACHED",
+              "You can upload up to {MAX_COUNT} files",
+            ).replace("{MAX_COUNT}", String(maxFiles)),
       );
       return;
     }
@@ -417,7 +427,7 @@ export function ComplaintActionDialog({
 
         <div className="mt-4 space-y-4">
           {actionConfig.reasonMaster ? (
-            <FormSelectField
+            <SearchableSelect
               label={reasonLabel}
               required
               value={selectedReason?.code ?? ""}
@@ -441,7 +451,7 @@ export function ComplaintActionDialog({
           ) : null}
 
           {actionConfig.requiresVendorAssignee ? (
-            <FormSelectField
+            <SearchableSelect
               label={translateOr(t, "WF_ASSIGN_VENDOR_LABEL", "Assign to vendor")}
               required
               value={selectedVendor?.code ?? ""}
@@ -475,7 +485,7 @@ export function ComplaintActionDialog({
               documentsRequired={actionConfig.documents === "required"}
               uploads={uploads}
               isUploading={isUploading}
-              maxFiles={MAX_IMAGE_COUNT}
+              maxFiles={requiresQuotation ? MAX_QUOTATION_COUNT : MAX_IMAGE_COUNT}
               onUpload={handleUpload}
               onRemove={handleRemoveUpload}
               t={t}

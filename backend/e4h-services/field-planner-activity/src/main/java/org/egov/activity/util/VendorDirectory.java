@@ -5,6 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.egov.activity.config.ActivityConfiguration;
 import org.egov.activity.service.ServiceRequestRepository;
+import org.egov.activity.web.models.OrgSearchCriteria;
+import org.egov.activity.web.models.OrgSearchRequest;
+import org.egov.activity.web.models.OrgSearchResponse;
+import org.egov.activity.web.models.OrganisationLite;
 import org.egov.activity.web.models.OrgUserEnriched;
 import org.egov.activity.web.models.OrgUserResponseSearch;
 import org.egov.activity.web.models.OrgUserSearchCriteria;
@@ -118,6 +122,45 @@ public class VendorDirectory {
     /** The lookup key {@link #membersOf} returns its map under. */
     public static String key(String organisationId, String userId) {
         return organisationId + "|" + userId;
+    }
+
+    /**
+     * The organisation's display name, resolved live from vendor-registry by id. Used wherever a
+     * report or notification needs a readable vendor name but only the id is on hand (e.g. an
+     * asset's vendorId). Returns null if organisationId/tenantId is blank, the lookup fails, or no
+     * organisation matches - callers should render that as an empty field rather than fail the report.
+     */
+    public String organisationName(RequestInfo requestInfo, String tenantId, String organisationId) {
+        if (!StringUtils.hasText(organisationId) || !StringUtils.hasText(tenantId)) {
+            return null;
+        }
+        try {
+            OrgSearchRequest searchRequest = OrgSearchRequest.builder()
+                    .requestInfo(requestInfo)
+                    .searchCriteria(OrgSearchCriteria.builder()
+                            .ids(List.of(organisationId))
+                            .tenantId(tenantId)
+                            .build())
+                    .build();
+
+            StringBuilder url = new StringBuilder(configuration.getOrgUserHost())
+                    .append(configuration.getVendorOrganisationSearchUrl());
+
+            Map<String, Object> raw = serviceRequest.fetchResult(url, searchRequest,
+                    new TypeReference<Map<String, Object>>() {
+                    });
+            OrgSearchResponse response = mapper.convertValue(raw, OrgSearchResponse.class);
+
+            List<OrganisationLite> organisations = response == null ? null : response.getOrganisations();
+            if (CollectionUtils.isEmpty(organisations)) {
+                log.info("organisation search returned no match for id {} in tenant {}", organisationId, tenantId);
+                return null;
+            }
+            return organisations.get(0).getName();
+        } catch (Exception e) {
+            log.warn("Could not resolve organisation name for id {} in tenant {}: {}", organisationId, tenantId, e.getMessage());
+            return null;
+        }
     }
 
     /**

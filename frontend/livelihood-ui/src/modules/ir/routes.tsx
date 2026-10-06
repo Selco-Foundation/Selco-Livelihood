@@ -4,9 +4,9 @@ import { createRoute, Outlet, redirect } from "@tanstack/react-router";
 import { ClipboardCheck } from "lucide-react";
 import { IrKpis } from "./components/IrOverview";
 import { IR_ROUTES } from "./constants/routes";
-import { FacilityEntryListPage } from "./pages/employee/FacilityEntryListPage";
-import { FacilityReviewPage } from "./pages/employee/FacilityReviewPage";
-import { InstallationPlanInboxPage } from "./pages/employee/InstallationPlanInboxPage";
+import { ActivityList } from "./pages/employee/ActivityList";
+import { ActivityReview } from "./pages/employee/ActivityReview";
+import { InstallationPlanInbox } from "./pages/employee/InstallationPlanInbox";
 import { IR_ROLES } from "./utils/access";
 
 /**
@@ -33,8 +33,8 @@ export function createIrRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
   const basePath = contextPath();
   const irRootPath = `/${basePath}${IR_ROUTES.irRoot}`;
   const installationPlansPath = `/${basePath}${IR_ROUTES.installationPlans}`;
-  const facilityEntriesPath = `/${basePath}${IR_ROUTES.facilityEntries}/$planId`;
-  const facilityReviewPath = `/${basePath}${IR_ROUTES.facilityReview}/$planId/$entryId`;
+  const activitiesPath = `${installationPlansPath}/$planId/activities`;
+  const activityReviewPath = `${activitiesPath}/$activityId/review`;
 
   // Parent route — loads rainmaker-ir translations before any IR page renders
   const irParentRoute = createRoute({
@@ -54,19 +54,19 @@ export function createIrRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
   const installationPlansRoute = createRoute({
     getParentRoute: () => irParentRoute,
     path: installationPlansPath,
-    component: InstallationPlanInboxPage,
+    component: InstallationPlanInbox,
   });
 
-  const facilityEntriesRoute = createRoute({
+  const activitiesRoute = createRoute({
     getParentRoute: () => irParentRoute,
-    path: facilityEntriesPath,
-    component: FacilityEntryListPage,
+    path: activitiesPath,
+    component: ActivityList,
   });
 
-  const facilityReviewRoute = createRoute({
+  const activityReviewRoute = createRoute({
     getParentRoute: () => irParentRoute,
-    path: facilityReviewPath,
-    component: FacilityReviewPage,
+    path: activityReviewPath,
+    component: ActivityReview,
   });
 
   return {
@@ -74,8 +74,8 @@ export function createIrRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
       irParentRoute,
       irIndexRoute,
       installationPlansRoute,
-      facilityEntriesRoute,
-      facilityReviewRoute,
+      activitiesRoute,
+      activityReviewRoute,
     ],
     navItems: [
       {
@@ -84,10 +84,11 @@ export function createIrRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
         labelKey: "ES_IR_INSTALLATION_PLANS",
         to: installationPlansPath,
         icon: ClipboardCheck,
-        matchPrefixes: [
-          `/${basePath}${IR_ROUTES.facilityEntries}`,
-          `/${basePath}${IR_ROUTES.facilityReview}`,
-        ],
+        // No matchPrefixes needed: activities/review paths are now literally
+        // nested under installationPlansPath ($planId/activities/...), and
+        // AppShell's isNavItemActive already treats `to` as a startsWith
+        // prefix — unlike before, when "entries"/"review" were sibling
+        // segments under installation-plans that needed listing explicitly.
         roles: [...IR_ROLES],
       },
     ],

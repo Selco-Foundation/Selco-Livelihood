@@ -185,8 +185,9 @@ public class WorkflowService {
                 ? new ArrayList<>()
                 : getAllProcessInstancesWithRetry(tenantId, IncidentId, requestInfo, processInstance);
 
-        // Compute first-round resolved / declined timestamps (before any reordering)
-        enrichResolvedAndDeclinedTimestamps(wrapper, processInstances);
+        // Compute resolved / declined timestamps and the reopen flag (before any reordering)
+        enrichResolvedAndDeclinedTimestamps(wrapper, processInstances, processInstance,
+                request.getWorkflow() != null ? request.getWorkflow().getAction() : null);
 
         // Step 3: Use BusinessHoursUtil (requires latest cycle ordering)
         Collections.reverse(processInstances);
@@ -203,11 +204,43 @@ public class WorkflowService {
     }
 
     /**
-     * Computes first-round resolved and declined timestamps from the workflow history
-     * and stores them on IndexView so they are available in every index update.
+     * Computes resolved and declined timestamps from the workflow history and stores them on
+     * IndexView so they are available in every index update.
+     *
+     * <p>A Livelihood ticket can be REOPENed from RESOLVED and resolved again, so
+     * {@code resolvedTimestamp} holds the <b>most recent</b> resolution — the one that actually
+     * closed the ticket. Note the V20260226150000 backfill wrote the first resolution instead;
+     * the two only differ for tickets that were reopened.
+     *
+     * <p>Decline is terminal (REOPEN is only allowed from RESOLVED), so it cannot recur and its
+     * single occurrence is recorded as-is.
+     *
+     * <p>Also sets {@code isReopened}: true when the ticket has already been through a resolution
+     * — either the history holds a RESOLVED state from an earlier cycle, or this very transition
+     * is the REOPEN. Once set it stays set for the rest of the ticket's life, including after it
+     * closes, so it reads as "this ticket was reopened" rather than "is currently reopened".
+     * It is always written as an explicit true/false and never left null, so index consumers can
+     * filter on it directly even for a freshly created ticket.
+     *
+     * @param current the just-transitioned instance, excluded from the RESOLVED lookback so that
+     *                the first RESOLVE transition does not mark the ticket as reopened
+     * @param action  the workflow action driving this transition
      */
-    private void enrichResolvedAndDeclinedTimestamps(IncidentRequestWrapper wrapper, List<ProcessInstance> processInstances) {
+    private void enrichResolvedAndDeclinedTimestamps(IncidentRequestWrapper wrapper, List<ProcessInstance> processInstances,
+                                                     ProcessInstance current, String action) {
+        IndexView indexView = wrapper.getIndexView();
+        if (indexView == null) {
+            indexView = new IndexView();
+            wrapper.setIndexView(indexView);
+        }
+
+        boolean reopenAction = IM_WF_REOPEN.equalsIgnoreCase(action);
+
+        // A brand-new ticket has no history, so there is nothing to resolve or decline and the
+        // only possible reopen signal is the action itself. The flag is still written so that a
+        // never-transitioned ticket indexes as false rather than null.
         if (CollectionUtils.isEmpty(processInstances)) {
+            indexView.setIsReopened(reopenAction);
             return;
         }
 
@@ -221,9 +254,12 @@ public class WorkflowService {
             return 0L;
         }));
 
-        Long firstResolvedTs = null;
-        Long firstDeclinedTs = null;
+        Long resolvedTs = null;
+        Long declinedTs = null;
+        boolean resolvedBeforeThisTransition = false;
+        String currentId = current != null ? current.getId() : null;
 
+        // No early exit: the whole history is scanned so the last resolution wins.
         for (ProcessInstance pi : ordered) {
             State state = pi.getState();
             AuditDetails auditDetails = pi.getAuditDetails();
@@ -239,28 +275,21 @@ public class WorkflowService {
                 continue;
             }
 
-            if (firstResolvedTs == null && "RESOLVED".equalsIgnoreCase(status)) {
-                firstResolvedTs = ts;
+            if (LIVELIHOOD_RESOLVED.equalsIgnoreCase(status)) {
+                resolvedTs = ts;
+                if (currentId == null || !currentId.equals(pi.getId())) {
+                    resolvedBeforeThisTransition = true;
+                }
             }
 
-            // Treat REJECTED as decline; extend if you introduce explicit DECLINE statuses
-            if (firstDeclinedTs == null && "REJECTED".equalsIgnoreCase(status)) {
-                firstDeclinedTs = ts;
-            }
-
-            if (firstResolvedTs != null && firstDeclinedTs != null) {
-                break;
+            if (declinedTs == null && LIVELIHOOD_CLOSED_AFTER_DECLINE.equalsIgnoreCase(status)) {
+                declinedTs = ts;
             }
         }
 
-        IndexView indexView = wrapper.getIndexView();
-        if (indexView == null) {
-            indexView = new IndexView();
-            wrapper.setIndexView(indexView);
-        }
-
-        indexView.setResolvedTimestamp(firstResolvedTs);
-        indexView.setDeclinedTimestamp(firstDeclinedTs);
+        indexView.setResolvedTimestamp(resolvedTs);
+        indexView.setDeclinedTimestamp(declinedTs);
+        indexView.setIsReopened(resolvedBeforeThisTransition || reopenAction);
     }
 
     /**

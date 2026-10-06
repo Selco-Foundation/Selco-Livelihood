@@ -49,6 +49,12 @@ public class AssetRowMapper {
         } catch (SQLException ignored) {
             // column may not exist until migration runs
         }
+        try {
+            asset.setParentId(rs.getString("parent_id"));
+            asset.setName(rs.getString("name"));
+        } catch (SQLException ignored) {
+            // columns may not exist until migration runs; name falls back to asset_details below
+        }
 
         AuditDetails details = new AuditDetails();
         details.setCreatedBy(rs.getString("created_by"));

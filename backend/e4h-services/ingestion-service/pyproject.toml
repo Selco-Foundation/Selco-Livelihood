@@ -20,5 +20,6 @@ dependencies = [
     "greenlet>=3.2.4",
     "pillow>=11.3.0",
     "psycopg>=3.2.9",
+    "pypdf>=4.0.0",
     "sqlalchemy>=2.0.43",
 ]

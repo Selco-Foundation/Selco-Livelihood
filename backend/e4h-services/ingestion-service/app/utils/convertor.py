@@ -129,7 +129,7 @@ def format_facility_data_for_template(
             # Add "Include in Project" column value (find the actual column name)
             include_column_name = None
             for header in headers:
-                if "Included in Field Plan" in header:
+                if "Include in Installation Plan" in header:
                     include_column_name = header
                     break
 
@@ -579,6 +579,9 @@ def create_facility_payload(
     else:
         preferred_language_code = None
 
+    # MIS ID (optional, free-text): external end-user identifier, carried through as-is.
+    mis_id = safe_get(row, 'MIS ID')
+
     facility_record = {
         'tenant_id': LIVELIHOOD_TENANT_ID,
         'facility_name': end_user_name,
@@ -606,7 +609,7 @@ def create_facility_payload(
         'facility_poc_email': safe_get(row, 'End user Email'),
         'facility_status': 'ACTIVE',
         'isOnmReady': True,
-        'additionalDetails': {'preferredLanguage': preferred_language_code},
+        'additionalDetails': {'preferredLanguage': preferred_language_code, 'misId': mis_id},
     }
     if poc_username_hdr:
         facility_record['facility_poc_username'] = safe_get(row, poc_username_hdr)
@@ -618,7 +621,7 @@ def create_facility_payload(
 
 
 HAVE_SOLAR_COLUMN = "Have Solar"
-SOLAR_ASSET_TYPE_ID = "SOLAR PANEL"
+SOLAR_ASSET_TYPE_ID = "SOLAR"
 SOLAR_ASSET_NAME = "Solar"
 SOLAR_SERIAL_SUFFIX = "SOLAR"
 
@@ -716,11 +719,6 @@ def create_asset_payloads(
     }
     # Drop empty optional fields so they aren't sent as blanks.
     asset = {k: v for k, v in asset.items() if not (v is None or (isinstance(v, str) and v.strip() == ""))}
-    # asset-registry persists name inside assetDetails (the asset table has no name column;
-    # AssetRowMapper reads assetDetails.name, else falls back to assetTypeID). Store it there too.
-    name_val = val("name")
-    if name_val is not None and str(name_val).strip() != "":
-        asset["assetDetails"] = {"name": str(name_val).strip()}
     # asset-registry dereferences documents without a null-check -> always send an empty list.
     asset["documents"] = []
 
@@ -738,7 +736,7 @@ def create_asset_payloads(
             "tenantId": asset["tenantId"],
             "vendorId": asset["vendorId"],
             "assetTypeID": SOLAR_ASSET_TYPE_ID,
-            "assetDetails": {"name": SOLAR_ASSET_NAME},
+            "name": SOLAR_ASSET_NAME,
             "isOperational": True,
             "isActive": True,
             "documents": [],
@@ -1078,6 +1076,13 @@ def build_boundary_localization_map(
             val = boundary.get(field, "")
             if val:
                 all_raw_codes.add(val)
+        # The Installation Scope download's block slot holds each site's own facility-level code,
+        # so the real block code is never in boundary_list and would go unfetched. Adding the
+        # derived one costs nothing elsewhere: for a genuine block code the same derivation just
+        # yields its district, which is already in the set.
+        block_code = boundary.get("block_code", "")
+        if block_code:
+            all_raw_codes.add(block_boundary_code(block_code, block_code))
 
     loc_codes = [f"BOUNDARY_{code}" for code in all_raw_codes]
 
@@ -1111,6 +1116,27 @@ def localize_boundary_name(raw_code: str, localization_map: Dict[str, str]) -> s
     return localization_map.get(loc_key, loc_key)
 
 
+def block_boundary_code(block_code: str, facility_boundary_code: str) -> str:
+    """The genuine block code, given whatever the request payload put in the block slot.
+
+    The Installation Scope download sends each site's FULL facility-level code
+    ({blockCode}_{facilityId}) as a `type: "block"` node -- deliberately, because the bulk facility
+    search matches boundary_code with an exact IN (...), so plain block codes return no facilities.
+    That leaves the block slot holding a facility, and facility-service registers a localization
+    message for every facility boundary whose text is the *site's own name* -- which is how the
+    Block column came to show "Anjali Bora".
+
+    Recognised by the block slot being the facility's own code rather than a prefix of it, and
+    undone the way FacilityService builds it (FacilityService.java:200, blockBoundaryCode + "_" +
+    facilityId). Facility ids carry slashes, never underscores, so the last "_" is the seam. The
+    project template sends real block codes, where the block is a proper prefix of the facility's
+    and this returns it untouched.
+    """
+    if block_code and block_code == facility_boundary_code:
+        return block_code.rsplit("_", 1)[0]
+    return block_code
+
+
 def resolve_boundary_names_for_code(
     facility_boundary_code: str,
     boundary_list: List[Boundary],
@@ -1132,7 +1158,9 @@ def resolve_boundary_names_for_code(
             return (
                 localize_boundary_name(boundary.get("state_code", ""), boundary_localization_map),
                 localize_boundary_name(boundary.get("district_code", ""), boundary_localization_map),
-                localize_boundary_name(boundary.get("block_code", ""), boundary_localization_map),
+                localize_boundary_name(
+                    block_boundary_code(boundary.get("block_code", ""), facility_boundary_code),
+                    boundary_localization_map),
             )
     return "", "", ""
 

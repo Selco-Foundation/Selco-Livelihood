@@ -87,4 +87,12 @@ public class ActivityFacilityRepository extends GenericRepository<ActivityFacili
         log.info("Fetched facility status agregation list based on given Parent Ids");
         return statusAgregations;
     }
+
+    public Integer getFacilityActivitiesCount(String fieldPlanId) {
+        List<Object> preparedStmtList = new ArrayList<>();
+        String query = queryBuilder.getFacilityActivitiesCountQuery(fieldPlanId, preparedStmtList);
+        Integer count = jdbcTemplate.queryForObject(query, preparedStmtList.toArray(), Integer.class);
+        log.info("Total facility activities count for field plan " + fieldPlanId + " is : " + count);
+        return count == null ? 0 : count;
+    }
 }

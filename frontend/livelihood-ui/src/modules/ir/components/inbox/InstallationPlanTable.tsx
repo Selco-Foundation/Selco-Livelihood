@@ -2,7 +2,7 @@ import { translateOr, useTranslate } from "@/shared";
 import { Skeleton } from "@/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { InstallationPlan } from "../../types/installation-plan";
-import { irFacilityEntriesPath } from "../../utils/paths";
+import { irActivitiesPath } from "../../utils/paths";
 
 interface InstallationPlanTableProps {
   plans: InstallationPlan[];
@@ -15,7 +15,7 @@ export function InstallationPlanTable({ plans, isLoading }: InstallationPlanTabl
 
   const columns = [
     { key: "plan", label: translateOr(t, "ES_IR_INSTALLATION_PLAN", "Installation Plan") },
-    { key: "endUserSite", label: translateOr(t, "ES_IR_END_USER_SITE", "End User Site(s)") },
+    { key: "endUserSite", label: translateOr(t, "ES_IR_TOTAL_ACTIVITIES", "Activities") },
     { key: "startDate", label: translateOr(t, "ES_IR_START_DATE", "Start Date") },
     { key: "endDate", label: translateOr(t, "ES_IR_END_DATE", "End Date") },
     { key: "pending", label: translateOr(t, "ES_IR_PENDING_REVIEW", "Pending Review") },
@@ -56,7 +56,7 @@ export function InstallationPlanTable({ plans, isLoading }: InstallationPlanTabl
           </thead>
           <tbody>
             {plans.map((plan, index) => {
-              const entriesPath = irFacilityEntriesPath(plan.planId);
+              const entriesPath = irActivitiesPath(plan.planId);
 
               return (
                 <tr

@@ -255,8 +255,10 @@ public class VendorAssignmentService {
             return ValidationOutcome.failed(errors);
         }
 
-        Map<String, String> scope = solutionByFacility(
-                repository.findScope(criteria.getTenantId(), criteria.getFieldPlanId()));
+        List<Map<String, Object>> checkScopeRows =
+                repository.findScope(criteria.getTenantId(), criteria.getFieldPlanId());
+        Map<String, String> scope = solutionByFacility(checkScopeRows);
+        Map<String, String> siteNames = siteNameByFacility(checkScopeRows);
         if (scope.isEmpty()) {
             errors.add(planError("SCOPE_EMPTY",
                     "This installation plan has no end user sites. Complete the Installation Scope step first."));
@@ -388,11 +390,15 @@ public class VendorAssignmentService {
                     configuration.getInstallationPlanPublishedStatus());
             for (String facilityId : scope.keySet()) {
                 if (barred.containsKey(facilityId)) {
+                    // Name the site and the plan holding it: the Project Manager sees neither
+                    // id on this screen, and "some site is barred" leaves them hunting.
+                    String siteLabel = StringUtils.hasText(siteNames.get(facilityId))
+                            ? siteNames.get(facilityId) : facilityId;
                     errors.add(VendorAssignmentError.builder()
                             .facilityId(facilityId)
                             .code("SITE_PUBLISHED_ELSEWHERE")
-                            .message("This end user site has already been added and published into "
-                                    + "installation plan " + barred.get(facilityId)
+                            .message(siteLabel + " is already part of a published installation plan "
+                                    + barred.get(facilityId)
                                     + ". It cannot be part of another installation plan in the same project.")
                             .build());
                 }
@@ -1018,6 +1024,20 @@ public class VendorAssignmentService {
         Map<String, String> byFacility = new LinkedHashMap<>();
         for (Map<String, Object> row : scopeRows) {
             byFacility.put(asString(row.get("facility_id")), asString(row.get("solution_id")));
+        }
+        return byFacility;
+    }
+
+    /**
+     * {facility_id: end user site name} from the same scope rows, for error messages.
+     *
+     * findScope already joins facility_name; solutionByFacility just drops it. A Project Manager
+     * recognises the site by name, not by the id the assignment grid never shows them.
+     */
+    private static Map<String, String> siteNameByFacility(List<Map<String, Object>> scopeRows) {
+        Map<String, String> byFacility = new LinkedHashMap<>();
+        for (Map<String, Object> row : scopeRows) {
+            byFacility.put(asString(row.get("facility_id")), asString(row.get("facility_name")));
         }
         return byFacility;
     }

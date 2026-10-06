@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/ui";
 import { useEffect, useState } from "react";
-import type { RejectionReasonOption } from "../../types/facility-review";
+import type { RejectionReasonOption } from "../../types/activity-review";
 import { isOtherReason } from "../../utils/rejection-reason-mapping";
 
 export interface RejectionReasonDraft {

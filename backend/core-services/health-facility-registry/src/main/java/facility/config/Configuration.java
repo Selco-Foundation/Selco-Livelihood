@@ -127,6 +127,10 @@ public class Configuration {
     @Value("${egov.localization.search.endpoint}")
     private String localizationSearchEndpoint;
 
+
+    @Value("${livelihood.url.link:}")
+    private String livelihoodUrlLink;
+
     /**
      * Base URL for im-services (e.g. {@code http://localhost:8880}). When blank, incident boundary sync after facility block update is skipped.
      */

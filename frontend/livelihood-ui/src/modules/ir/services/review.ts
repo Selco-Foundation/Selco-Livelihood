@@ -1,6 +1,6 @@
 import { apiClient, type AuthUser } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
-import type { SubmitFacilityReviewInput } from "../types/facility-review";
+import type { SubmitActivityReviewInput } from "../types/activity-review";
 
 const WORKFLOW_ACTION = {
   APPROVE: "APPROVE",
@@ -9,7 +9,7 @@ const WORKFLOW_ACTION = {
 
 /** Flattens per-section rejection reasons into the flat comment list the
  * workflow update expects — matches qc's `formatRejectionReasons`. */
-function flattenRejectionReasons(input: SubmitFacilityReviewInput): Array<{
+function flattenRejectionReasons(input: SubmitActivityReviewInput): Array<{
   commentMessage: string;
   assetType: string;
 }> {
@@ -34,7 +34,7 @@ function flattenRejectionReasons(input: SubmitFacilityReviewInput): Array<{
  * returns exactly what the backend sent back — no synthesized response.
  */
 export async function submitFacilityReview(
-  input: SubmitFacilityReviewInput,
+  input: SubmitActivityReviewInput,
   tenantId: string,
   accessToken: string,
   user?: AuthUser | null,
@@ -46,13 +46,14 @@ export async function submitFacilityReview(
     "/activity/v1/activities/workflow/update",
     {
       RequestInfo: createRequestInfo(accessToken, user),
-      activityFacilityId: input.entryId,
+      activityFacilityId: input.activityId,
       workflow: {
         action,
         comments:
           input.action === "APPROVE"
             ? "Approved by Installation Reviewer"
             : "Rejected by Installation Reviewer",
+        documents: input.documents,
       },
       ...(comments.length > 0 ? { transactions: [{ comments }] } : {}),
     },

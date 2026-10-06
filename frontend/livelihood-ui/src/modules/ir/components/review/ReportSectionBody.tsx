@@ -1,6 +1,6 @@
 import { translateOr, useTranslate } from "@/shared";
 import { Download, FileText } from "lucide-react";
-import type { ReportDocument, ReportSectionContent } from "../../types/facility-review";
+import type { ReportDocument, ReportSectionContent } from "../../types/activity-review";
 import { LabeledValueList } from "./LabeledValueList";
 
 function formatFileSize(bytes?: number): string {
@@ -28,30 +28,6 @@ function DocumentCard({ document }: { document: ReportDocument }) {
   );
 }
 
-interface DocumentSlotProps {
-  titleKey: string;
-  title: string;
-  document: ReportDocument | null;
-}
-
-/** A single named document slot — shows "Not Applicable" when absent, matching e4h. */
-function DocumentSlot({ titleKey, title, document }: DocumentSlotProps) {
-  const { t } = useTranslate();
-
-  return (
-    <div className="space-y-2 rounded-md border border-border bg-muted/40 p-4">
-      <p className="text-sm font-semibold text-primary">{translateOr(t, titleKey, title)}</p>
-      {document ? (
-        <DocumentCard document={document} />
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          {translateOr(t, "ES_COMMON_NOT_APPLICABLE", "Not Applicable")}
-        </p>
-      )}
-    </div>
-  );
-}
-
 interface ReportSectionBodyProps {
   section: ReportSectionContent;
 }
@@ -68,16 +44,7 @@ export function ReportSectionBody({ section }: ReportSectionBodyProps) {
           items={section.specifications}
         />
       ) : null}
-      <DocumentSlot
-        titleKey="ES_IR_INSTALLATION_COMPLETION_CERTIFICATE"
-        title="Installation Completion Certificate"
-        document={section.installationCompletionCertificate}
-      />
-      <DocumentSlot
-        titleKey="ES_IR_ASSET_HANDOVER_DOCUMENT"
-        title="Asset Handover Document"
-        document={section.assetHandoverDocument}
-      />
+      {section.report ? <DocumentCard document={section.report} /> : null}
 
       {section.supportingDocuments.length > 0 ? (
         <div className="space-y-2 rounded-md border border-border bg-muted/40 p-4">

@@ -1,4 +1,4 @@
-import type { ImageChecklistSectionContent } from "../../types/facility-review";
+import type { ImageChecklistSectionContent } from "../../types/activity-review";
 import { SectionImageGrid } from "./SectionMedia";
 
 interface InstallationImageSectionBodyProps {

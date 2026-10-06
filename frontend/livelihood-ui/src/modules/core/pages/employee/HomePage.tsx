@@ -1,12 +1,13 @@
 import { getModuleOverviews } from "@/module-registry";
-import { translateOr, useAuthStore, useTranslate } from "@/shared";
+import { isProjectManager, translateOr, useAuthStore, useTranslate } from "@/shared";
 import { TopBar } from "@/ui";
 
 export function HomePage() {
   const { t } = useTranslate();
   const user = useAuthStore((state) => state.user);
   const { kpis, details, actions } = getModuleOverviews();
-  const displayName = user?.name ?? user?.userName ?? "";
+  const fullName = user?.name ?? user?.userName ?? "";
+  const displayName = fullName.trim().split(/\s+/)[0];
 
   return (
     <div className="space-y-6">
@@ -16,6 +17,11 @@ export function HomePage() {
             {translateOr(t, "CORE_HOME_WELCOME", "Welcome")}
             {displayName ? <span>, {displayName}</span> : null}
           </>
+        }
+        description={
+          isProjectManager(user?.roles)
+            ? translateOr(t, "ES_PM_MANAGE_PROJECTS", "Manage Projects")
+            : undefined
         }
         actions={
           actions.length > 0

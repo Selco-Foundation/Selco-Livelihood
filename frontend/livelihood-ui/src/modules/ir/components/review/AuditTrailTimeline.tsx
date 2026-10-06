@@ -1,18 +1,18 @@
 import { translateOr, useTranslate } from "@/shared";
 import { cn } from "@/ui";
-import { FACILITY_ENTRY_STATUS_LABELS } from "../../constants/facility-status";
-import type { FacilityAuditCheckpoint, FacilityEntryStatus } from "../../types/facility-review";
+import { ACTIVITY_STATUS_LABELS } from "../../constants/activity-status";
+import type { ActivityAuditCheckpoint, ActivityStatus } from "../../types/activity-review";
 
 function statusLabel(
-  status: FacilityEntryStatus,
+  status: ActivityStatus,
   t: ReturnType<typeof useTranslate>["t"],
 ): string {
-  const label = FACILITY_ENTRY_STATUS_LABELS[status];
+  const label = ACTIVITY_STATUS_LABELS[status];
   return translateOr(t, label.key, label.fallback);
 }
 
 interface AuditTrailTimelineProps {
-  checkpoints: FacilityAuditCheckpoint[];
+  checkpoints: ActivityAuditCheckpoint[];
 }
 
 export function AuditTrailTimeline({ checkpoints }: AuditTrailTimelineProps) {
