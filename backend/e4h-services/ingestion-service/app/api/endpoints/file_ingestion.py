@@ -48,6 +48,7 @@ from app.core.tenant import LIVELIHOOD_TENANT_ID
 from app.decorators.rbac_validator import get_authorized_request_info
 from app.ingest.excel_data_writer import ExcelDataWriter
 from app.processor.factory.boundary_data_processor_factory import BoundaryDataProcessorFactory
+from app.processor.boundary_validation_processor import BoundaryValidationProcessor
 from app.processor.factory.vendor_data_processor_factory import VendorDataProcessorFactory
 from app.schemas.request_info import RequestInfo
 from app.producer.producer import Producer
@@ -300,6 +301,95 @@ async def upload_boundaries_excel_sheet(
             detail="Failed to process boundary data"
         ) from e
 
+
+    finally:
+        if input_temp_file and os.path.exists(input_temp_file.name):
+            os.unlink(input_temp_file.name)
+
+
+@router.post('/boundariesValidateData',
+             summary='Validate a boundary Excel file without creating anything',
+             response_description="Returns the workbook annotated with per-row validation results")
+async def validate_boundaries_excel_sheet(
+        background_tasks: BackgroundTasks,
+        boundary_file: UploadFile = File(description="Excel file containing boundary data"),
+        boundary_sheet_name: str = Form(default="Boundary Data",
+                                        description="Name of the sheet containing boundary data"),
+        request_info: str = Form(default="")
+):
+    """Dry run for /boundaries: same sheet, same checks, no writes.
+
+    Row status is one of 'fail' (rejected), 'skipped' (duplicate row), 'exists'
+    (every level already present) or 'would_create' (listing the codes a real
+    ingestion would add).
+    """
+    logger.trace("Starting boundary Excel file validation")
+    input_temp_file = None
+    output_temp_file = None
+    request_info = request_info_from_json(request_info)
+    logger.info(f"Validating boundary file: boundary_sheet={boundary_sheet_name}")
+
+    try:
+        input_temp_file, uploaded_size = await _save_upload_to_temp_file(boundary_file, suffix=".xlsx")
+        boundary_file_path = input_temp_file.name
+        logger.debug(f"Saved uploaded file to: {boundary_file_path}, size: {uploaded_size} bytes")
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_filename = f"boundary_validation_report_{timestamp}.xlsx"
+        output_temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
+        output_temp_file.close()
+        output_file_path = output_temp_file.name
+
+        with open(boundary_file_path, 'rb') as src, open(output_file_path, 'wb') as dst:
+            dst.write(src.read())
+
+        processor = BoundaryValidationProcessor.from_processor(
+            BoundaryDataProcessorFactory.create_processor(
+                file_path=output_file_path,
+                boundary_sheet=boundary_sheet_name,
+                mdms_url=mdms_url,
+                request_info=request_info
+            )
+        )
+        logger.info("Validating boundary data (no boundaries will be created)")
+        boundary_df = processor.validate_only()
+        if boundary_df.empty:
+            raise HTTPException(status_code=400, detail="No boundary data could be read from the uploaded file")
+        boundary_df = processor.annotate_results(boundary_df)
+
+        writer = ExcelDataWriter(output_file_path, output_sheet="Boundary Data")
+        writer.write_data(boundary_df)
+
+        normalized_status = boundary_df["status"].astype(str).str.strip().str.lower()
+        error_count = int(normalized_status.eq("fail").sum())
+        duplicate_count = int(normalized_status.eq("skipped").sum())
+        exists_count = int(normalized_status.eq("exists").sum())
+        would_create_count = int(normalized_status.eq("would_create").sum())
+        logger.info(
+            "Boundary validation complete: %d fail, %d skipped, %d exists, %d would be created",
+            error_count, duplicate_count, exists_count, would_create_count,
+        )
+
+        background_tasks.add_task(cleanup_temp_file, output_file_path)
+        response = FileResponse(
+            path=output_file_path,
+            filename=output_filename,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response.headers["X-Error-Count"] = str(error_count)
+        response.headers["X-Duplicate-Count"] = str(duplicate_count)
+        response.headers["X-Exists-Count"] = str(exists_count)
+        response.headers["X-Would-Create-Count"] = str(would_create_count)
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error validating boundary data: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to validate boundary data"
+        ) from e
 
     finally:
         if input_temp_file and os.path.exists(input_temp_file.name):
