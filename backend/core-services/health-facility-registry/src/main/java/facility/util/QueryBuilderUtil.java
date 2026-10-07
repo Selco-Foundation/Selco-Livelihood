@@ -1,29 +1,37 @@
 package facility.util;
 
-import facility.service.FacilityService;
 import facility.web.models.FacilityBulkSearchCriteria;
 import facility.web.models.FacilitySearchRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.common.contract.request.Role;
 import org.egov.common.contract.request.User;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.IntStream;
 @Slf4j
 @Component
 public class QueryBuilderUtil {
 
-    @Autowired
-    public static FacilityService facilityService;
+    /**
+     * Encrypts a search term so it can be matched against the stored ciphertext. Deterministic
+     * encryption is what makes this work, and why phone search is exact-only. Passed in rather
+     * than injected: the methods here are static, so an {@code @Autowired static} field was
+     * silently never populated.
+     */
+    @FunctionalInterface
+    public interface MobileNumberEncryptor {
+        String encrypt(String mobileNumber);
+    }
 
-    public static QueryBuilderResult buildWhereClause(FacilitySearchRequest request) {
+    public static QueryBuilderResult buildWhereClause(FacilitySearchRequest request,
+                                                      MobileNumberEncryptor mobileNumberEncryptor) {
         log.trace("Entering buildWhereClause method");
         StringBuilder whereClause = new StringBuilder(" WHERE 1=1");
         List<Object> params = new ArrayList<>();
@@ -64,7 +72,7 @@ public class QueryBuilderUtil {
         }
 
         if (request.getFacilityPocPhone() != null && !request.getFacilityPocPhone().isBlank()) {
-            String encryptedMobileNumber = facilityService.encryptMobileNumber(request.getFacilityPocPhone());
+            String encryptedMobileNumber = mobileNumberEncryptor.encrypt(request.getFacilityPocPhone());
             whereClause.append(" AND facility_poc_phone = ?");
             params.add(encryptedMobileNumber);
         }
@@ -99,7 +107,9 @@ public class QueryBuilderUtil {
         return new QueryBuilderResult(whereClause.toString(), params);
     }
 
-    public static QueryBuilderResult buildBulkWhereClause(FacilityBulkSearchCriteria criteria, RequestInfo requestInfo, List<String> onmNonReadyAllowedRoles) {
+    public static QueryBuilderResult buildBulkWhereClause(FacilityBulkSearchCriteria criteria, RequestInfo requestInfo,
+                                                          List<String> onmNonReadyAllowedRoles,
+                                                          MobileNumberEncryptor mobileNumberEncryptor) {
         log.trace("Entering buildBulkWhereClause method");
         StringBuilder whereClause = new StringBuilder(" WHERE 1=1");
         List<Object> params = new ArrayList<>();
@@ -152,8 +162,18 @@ public class QueryBuilderUtil {
         }
 
         if (!CollectionUtils.isEmpty(criteria.getFacilityPocPhones())) {
-            whereClause.append(" AND facility_poc_phone in ( ").append(createQuery(criteria.getFacilityPocPhones().size())).append(" )");
-            params.addAll(criteria.getFacilityPocPhones());
+            // Encrypt before comparing - the column stores ciphertext, so the raw number never matches.
+            List<String> encryptedPhones = criteria.getFacilityPocPhones().stream()
+                    .map(mobileNumberEncryptor::encrypt)
+                    .filter(Objects::nonNull)
+                    .toList();
+            if (encryptedPhones.isEmpty()) {
+                // Every supplied number failed to encrypt; match nothing rather than everything.
+                whereClause.append(" AND 1 = 0");
+            } else {
+                whereClause.append(" AND facility_poc_phone in ( ").append(createQuery(encryptedPhones.size())).append(" )");
+                params.addAll(encryptedPhones);
+            }
         }
 
         if (!CollectionUtils.isEmpty(criteria.getFacilityPocEmails())) {

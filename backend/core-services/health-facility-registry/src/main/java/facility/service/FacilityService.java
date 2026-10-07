@@ -1010,7 +1010,7 @@ public class FacilityService {
     public List<Facility> searchFacilities(FacilitySearchRequest request) {
         log.trace("Entering searchFacilities method");
         log.info("Searching facilities with limit={}, offset={}", request.getLimit(), request.getOffset());
-        QueryBuilderResult result = QueryBuilderUtil.buildWhereClause(request);
+        QueryBuilderResult result = QueryBuilderUtil.buildWhereClause(request, this::encryptMobileNumber);
         log.debug("Built query with {} parameters", result.getParams().size());
 
         StringBuilder query = new StringBuilder(
@@ -1105,7 +1105,8 @@ public class FacilityService {
         FacilityBulkSearchCriteria criteria = request.getFacilityBulkSearchCriteria();
 
         QueryBuilderResult result = QueryBuilderUtil.buildBulkWhereClause(
-                request.getFacilityBulkSearchCriteria(), request.getRequestInfo(), configs.getOnmNonReadyAllowedRoles()
+                request.getFacilityBulkSearchCriteria(), request.getRequestInfo(), configs.getOnmNonReadyAllowedRoles(),
+                this::encryptMobileNumber
         );
 
         StringBuilder query = new StringBuilder(
@@ -1256,7 +1257,7 @@ public class FacilityService {
 
     public int countFacilities(FacilitySearchRequest request) {
         log.trace("Entering countFacilities method");
-        QueryBuilderResult result = QueryBuilderUtil.buildWhereClause(request);
+        QueryBuilderResult result = QueryBuilderUtil.buildWhereClause(request, this::encryptMobileNumber);
         String query = "SELECT COUNT(*) FROM facility" + result.getWhereClause();
         int count = jdbcTemplate.queryForObject(query, Integer.class, result.getParams().toArray());
         log.debug("Facility count: {}", count);
@@ -1270,7 +1271,8 @@ public class FacilityService {
             return 0;
         }
         QueryBuilderResult result = QueryBuilderUtil.buildBulkWhereClause(
-                request.getFacilityBulkSearchCriteria(), request.getRequestInfo(), configs.getOnmNonReadyAllowedRoles()
+                request.getFacilityBulkSearchCriteria(), request.getRequestInfo(), configs.getOnmNonReadyAllowedRoles(),
+                this::encryptMobileNumber
         );
         String query = "SELECT COUNT(*) FROM facility fac" + result.getWhereClause();
         int count = jdbcTemplate.queryForObject(query, Integer.class, result.getParams().toArray());
