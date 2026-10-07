@@ -2,6 +2,7 @@ import { contextPath, translateOr, useModuleI18n, useTranslate } from "@/shared"
 import type { AnyRoute } from "@tanstack/react-router";
 import { createRoute, Outlet, redirect } from "@tanstack/react-router";
 import { Building, Handshake, Users } from "lucide-react";
+import { OrgKpis } from "./components/OrgOverview";
 import { ORG_ROUTES } from "./constants/routes";
 import { MyOrganisationPage } from "./pages/employee/MyOrganisationPage";
 import { OrganisationDetailPage } from "./pages/employee/OrganisationDetailPage";
@@ -113,5 +114,6 @@ export function createOrgModule(rootRoute: AnyRoute, employeeLayoutRoute: AnyRou
     order: 4,
     routes,
     navItems,
+    overview: { kpis: OrgKpis },
   };
 }

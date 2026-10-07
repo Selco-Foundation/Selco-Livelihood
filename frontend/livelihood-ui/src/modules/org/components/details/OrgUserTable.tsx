@@ -3,7 +3,7 @@ import { Badge, Button, Pagination, Skeleton, Tooltip, TooltipContent, TooltipTr
 import { Pencil, Trash2, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { ORG_USER_PAGE_SIZE } from "../../constants/config";
-import type { OrgRoleGroup, OrgUser } from "../../types/organisation";
+import { roleGroupId, type OrgRoleGroup, type OrgUser } from "../../types/organisation";
 
 interface OrgUserTableProps {
   users: OrgUser[];
@@ -78,7 +78,7 @@ export function OrgUserTable({ users, isLoading, groupsForRoleCodes, onAdd, onEd
                         ) : (
                           <div className="flex flex-wrap gap-1.5">
                             {groups.map((group) => (
-                              <Badge key={group.name} variant="secondary">
+                              <Badge key={roleGroupId(group)} variant="secondary">
                                 {group.name}
                               </Badge>
                             ))}

@@ -14,7 +14,7 @@ import { useEffect } from "react";
 import { useOrgRoleGroups } from "../../hooks/use-org-role-groups";
 import { useOrgUserForm } from "../../hooks/use-org-user-form";
 import { useCreateOrgUser, useUpdateOrgUser } from "../../hooks/use-org-users";
-import type { Organisation, OrgUser } from "../../types/organisation";
+import { roleGroupId, type Organisation, type OrgUser } from "../../types/organisation";
 import { PasswordField } from "../form/PasswordField";
 import { RoleMultiSelect } from "../form/RoleMultiSelect";
 import { TextField } from "../form/TextField";
@@ -48,7 +48,7 @@ export function OrgUserFormDialog({
 
   useEffect(() => {
     if (open) {
-      form.reset(user ? groupsForRoleCodes(user.roleCodes).map((group) => group.name) : []);
+      form.reset(user ? groupsForRoleCodes(user.roleCodes).map(roleGroupId) : []);
     }
     // Only reset when the dialog opens (or role groups finish loading for an edit).
     // eslint-disable-next-line react-hooks/exhaustive-deps

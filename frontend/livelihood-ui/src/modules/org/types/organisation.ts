@@ -61,13 +61,21 @@ export interface OrgRole {
 
 /**
  * An `Organisation.OrgRoleGroups` MDMS entry — what the role dropdown shows.
- * Selecting a group assigns every role in `roleCodes`. Groups have no code of
- * their own in MDMS, so `name` doubles as the identifier.
+ * Selecting a group assigns every role in `roleCodes`; e.g. the live "Field
+ * Staff" group assigns `INSTALLATION_REPORT_PART_A_EDITOR`.
  */
 export interface OrgRoleGroup {
+  /** Present on the live livelihood data; older entries only have a name. */
+  code?: string;
   name: string;
   orgType: OrgType;
+  orgSubType?: string;
   roleCodes: string[];
+}
+
+/** Stable id for a role group — its code, falling back to its name. */
+export function roleGroupId(group: OrgRoleGroup): string {
+  return group.code || group.name;
 }
 
 export interface OrgRoleCatalog {

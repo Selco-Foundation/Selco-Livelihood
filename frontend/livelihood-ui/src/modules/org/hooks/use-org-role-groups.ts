@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { orgService } from "../services";
-import type { OrgRole, OrgRoleGroup, OrgType } from "../types/organisation";
+import { roleGroupId, type OrgRole, type OrgRoleGroup, type OrgType } from "../types/organisation";
 import { useOrgApiContext } from "./use-org-api-context";
 
 /**
@@ -24,12 +24,18 @@ export function useOrgRoleGroups(orgType: OrgType | undefined) {
     return {
       isLoading,
       groups,
-      /** Expand the selected groups into the role objects the backend expects. */
-      rolesForGroups: (groupNames: string[]): OrgRole[] => {
-        const codes = new Set(
-          groups.filter((group) => groupNames.includes(group.name)).flatMap((group) => group.roleCodes),
-        );
-        return roles.filter((role) => codes.has(role.code));
+      /**
+       * Expand the selected groups (by id) into the role objects the backend expects.
+       * A code with no `OrgRoles` entry is still sent (named by its code) so the
+       * backend rejects it visibly instead of the user silently missing a role.
+       */
+      rolesForGroups: (groupIds: string[]): Array<Pick<OrgRole, "code" | "name">> => {
+        const codes = [
+          ...new Set(
+            groups.filter((group) => groupIds.includes(roleGroupId(group))).flatMap((group) => group.roleCodes),
+          ),
+        ];
+        return codes.map((code) => roles.find((role) => role.code === code) ?? { code, name: code });
       },
       /** Groups a user holds — a group counts only when every one of its roles is present. */
       groupsForRoleCodes: (roleCodes: string[]): OrgRoleGroup[] =>

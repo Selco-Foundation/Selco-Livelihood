@@ -1,4 +1,5 @@
 import { apiClient, fetchMdmsMasters, tenantId } from "@/shared";
+import { JURISDICTION_HIERARCHY } from "../utils/boundary";
 import { createRequestInfo } from "@/shared/api/request-info";
 import type {
   CreateOrganisationInput,
@@ -18,9 +19,8 @@ import type {
 } from "../types/organisation";
 
 /**
- * vendor-registry client (`/vendor/organisation/v1/...`). Not used while
- * `ORG_USE_MOCK_API` is on — written against the contract the E4H Management
- * Hub uses, and still needs verifying end to end once the backend tasks land:
+ * vendor-registry client (`/vendor/organisation/v1/...`), written against the
+ * contract the E4H Management Hub uses. Known backend gaps:
  *  - PoC password on org create and user password on user create/update are
  *    sent but ignored by the backend until those tasks ship.
  *  - Org search returns `orgPocPhone` encrypted until the backend fixes it.
@@ -70,13 +70,23 @@ interface OrgUserRecord {
     mobileNumber?: string;
     emailId?: string;
     roles?: Array<{ code?: string; name?: string }>;
-    jurisdiction?: Array<Partial<OrgJurisdiction>>;
+    // Objects today; older records (and older Postman examples) hold plain boundary codes.
+    jurisdiction?: Array<Partial<OrgJurisdiction> | string>;
   };
 }
 
 interface OrgUserResponse {
   OrgUsers?: OrgUserRecord[];
   TotalCount?: number;
+}
+
+/**
+ * vendor-registry returns `orgPocPhone` encrypted on search (e.g. `159317|VRJL...`)
+ * until the backend decrypts it. Treat that as "unknown" rather than showing
+ * ciphertext — and never send it back on update, or it gets encrypted twice.
+ */
+function readablePhone(value: string | undefined): string | undefined {
+  return value && !value.includes("|") ? value : undefined;
 }
 
 function toOrganisation(record: OrganisationRecord): Organisation {
@@ -87,17 +97,30 @@ function toOrganisation(record: OrganisationRecord): Organisation {
     orgType: (record.orgType as OrgType) ?? "PLATFORM",
     status: record.orgStatus ?? "ACTIVE",
     pocName: record.orgPocName,
-    pocPhone: record.orgPocPhone,
+    pocPhone: readablePhone(record.orgPocPhone),
     pocEmail: record.orgPocEmail,
     pocUsername: record.orgPocUsername,
     raw: record as Record<string, unknown>,
   };
 }
 
-function toJurisdiction(item: Partial<OrgJurisdiction>): OrgJurisdiction {
+const TYPE_BY_DEPTH: OrgJurisdiction["boundaryType"][] = ["Country", "State", "District", "Block", "Facility"];
+
+function toJurisdiction(item: Partial<OrgJurisdiction> | string): OrgJurisdiction {
+  if (typeof item === "string") {
+    // Plain code: infer the level from its depth (India_Karnataka_Udupi -> District).
+    const depth = Math.min(item.split("_").length - 1, TYPE_BY_DEPTH.length - 1);
+    return {
+      hierarchy: JURISDICTION_HIERARCHY,
+      boundary: item,
+      boundaryType: TYPE_BY_DEPTH[depth],
+      tenantId: tenantId(),
+      isActive: true,
+    };
+  }
   return {
     id: item.id,
-    hierarchy: item.hierarchy ?? "SELCO",
+    hierarchy: item.hierarchy ?? JURISDICTION_HIERARCHY,
     boundary: item.boundary ?? "",
     boundaryType: item.boundaryType ?? "Country",
     tenantId: item.tenantId ?? tenantId(),
@@ -131,8 +154,10 @@ async function searchOrganisations(
       orgType: params.orgType,
       ...(params.name?.trim() ? { name: params.name.trim() } : {}),
     },
+    // The backend pages from this body key; the query params below mirror the
+    // Postman collection / E4H calls and are harmless if ignored.
     Pagination: { limit: params.limit, offset: params.offset },
-  });
+  }, { params: { tenantId: tenantId(), offset: params.offset, limit: params.limit } });
 
   const organisations = data.organisations?.map(toOrganisation) ?? [];
   return { organisations, total: data.TotalCount ?? organisations.length };
@@ -142,7 +167,7 @@ async function getOrganisation(id: string, ctx: OrgApiContext): Promise<Organisa
   const { data } = await apiClient.post<OrganisationResponse>(`${ORG_BASE}/_search`, {
     RequestInfo: createRequestInfo(ctx.accessToken, ctx.user),
     SearchCriteria: { tenantId: tenantId(), id },
-  });
+  }, { params: { tenantId: tenantId(), offset: 0, limit: 1 } });
   const record = data.organisations?.[0];
   return record ? toOrganisation(record) : null;
 }
@@ -188,7 +213,7 @@ async function updateOrganisation(
         orgPocPhone: input.pocPhone.trim(),
         orgPocEmail: input.pocEmail?.trim() || undefined,
         isActive: true,
-        orgAddress: [],
+        // orgAddress is left as fetched (via `raw`) — overriding it would delete saved addresses.
       },
     ],
   });

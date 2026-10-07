@@ -12,12 +12,13 @@ export const ORGANISATIONS_QUERY_KEY = "org-organisations";
 export const ORGANISATION_DETAILS_QUERY_KEY = "org-organisation-details";
 export const ORG_USERS_QUERY_KEY = "org-users";
 
-export function useOrganisations(params: OrganisationSearchParams) {
+/** `enabled: false` skips the request — e.g. the overview KPIs for users who can't see org lists. */
+export function useOrganisations(params: OrganisationSearchParams, enabled = true) {
   const { ctx } = useOrgApiContext();
 
   return useQuery({
     queryKey: [ORGANISATIONS_QUERY_KEY, params],
-    enabled: Boolean(ctx),
+    enabled: enabled && Boolean(ctx),
     queryFn: () => orgService.searchOrganisations(params, ctx!),
     placeholderData: (previous) => previous,
   });
@@ -62,12 +63,12 @@ export function useUpdateOrganisation(organisation: Organisation | undefined) {
 }
 
 /** The organisation the logged-in user belongs to — the POC landing page. */
-export function useOwnOrganisationId() {
+export function useOwnOrganisationId(enabled = true) {
   const { ctx, userUuid } = useOrgApiContext();
 
   return useQuery({
     queryKey: ["org-own-organisation", userUuid],
-    enabled: Boolean(ctx && userUuid),
+    enabled: enabled && Boolean(ctx && userUuid),
     queryFn: () => orgService.findOrganisationIdForUser(userUuid!, ctx!),
   });
 }

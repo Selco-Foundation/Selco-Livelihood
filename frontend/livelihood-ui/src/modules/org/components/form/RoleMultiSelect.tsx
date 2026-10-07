@@ -2,7 +2,7 @@ import { translateOr, useTranslate } from "@/shared";
 import { Badge, Checkbox, cn, Popover, PopoverContent, PopoverTrigger } from "@/ui";
 import { ChevronDown, Info, X } from "lucide-react";
 import { useState } from "react";
-import type { OrgRoleGroup } from "../../types/organisation";
+import { roleGroupId, type OrgRoleGroup } from "../../types/organisation";
 
 interface RoleMultiSelectProps {
   label: string;
@@ -18,9 +18,11 @@ export function RoleMultiSelect({ label, groups, selected, isLoading, error, onC
   const { t } = useTranslate();
   const [open, setOpen] = useState(false);
 
-  function toggle(name: string) {
-    onChange(selected.includes(name) ? selected.filter((item) => item !== name) : [...selected, name]);
+  function toggle(id: string) {
+    onChange(selected.includes(id) ? selected.filter((item) => item !== id) : [...selected, id]);
   }
+
+  const nameOf = (id: string) => groups.find((group) => roleGroupId(group) === id)?.name ?? id;
 
   return (
     <div className="min-w-0 space-y-1.5">
@@ -59,13 +61,13 @@ export function RoleMultiSelect({ label, groups, selected, isLoading, error, onC
             <div className="flex max-h-56 flex-col gap-1 overflow-y-auto">
               {groups.map((group) => (
                 <label
-                  key={group.name}
+                  key={roleGroupId(group)}
                   className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
                 >
                   <Checkbox
                     className="size-4 rounded border-2 border-primary"
-                    checked={selected.includes(group.name)}
-                    onCheckedChange={() => toggle(group.name)}
+                    checked={selected.includes(roleGroupId(group))}
+                    onCheckedChange={() => toggle(roleGroupId(group))}
                   />
                   {group.name}
                 </label>
@@ -76,14 +78,14 @@ export function RoleMultiSelect({ label, groups, selected, isLoading, error, onC
       </Popover>
       {selected.length > 0 ? (
         <div className="flex flex-wrap gap-2">
-          {selected.map((name) => (
-            <Badge key={name} variant="secondary" className="gap-1">
-              {name}
+          {selected.map((id) => (
+            <Badge key={id} variant="secondary" className="gap-1">
+              {nameOf(id)}
               <button
                 type="button"
                 aria-label={translateOr(t, "ORG_REMOVE_ROLE", "Remove role")}
                 className="cursor-pointer"
-                onClick={() => toggle(name)}
+                onClick={() => toggle(id)}
               >
                 <X className="size-3" />
               </button>
