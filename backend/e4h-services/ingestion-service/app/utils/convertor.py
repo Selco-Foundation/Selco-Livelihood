@@ -582,6 +582,11 @@ def create_facility_payload(
     # MIS ID (optional, free-text): external end-user identifier, carried through as-is.
     mis_id = safe_get(row, 'MIS ID')
 
+    # End User Type (mandatory): the template offers the MDMS display names
+    # ("Individual" / "Group"); the facility column stores the code.
+    end_user_type_name = safe_get(row, 'End User Type (Mandatory)')
+    end_user_type_code = get_mdms_code_by_name(facility_schema, 'End User Type', end_user_type_name)
+
     facility_record = {
         'tenant_id': LIVELIHOOD_TENANT_ID,
         'facility_name': end_user_name,
@@ -609,6 +614,7 @@ def create_facility_payload(
         'facility_poc_email': safe_get(row, 'End user Email'),
         'facility_status': 'ACTIVE',
         'isOnmReady': True,
+        'endUserType': end_user_type_code,
         'additionalDetails': {'preferredLanguage': preferred_language_code, 'misId': mis_id},
     }
     if poc_username_hdr:
