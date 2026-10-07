@@ -76,6 +76,9 @@ public class Facility {
     @JsonProperty("isOnmReady")
     private Boolean isOnmReady = false;
 
+    @JsonProperty("endUserType")
+    private String endUserType = null;
+
     @JsonProperty("facility_poc_name")
     private String facilityPocName = null;
 

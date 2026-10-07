@@ -188,6 +188,7 @@ public class FacilityService {
                         .additionalDetails(facilityCreate.getAdditionalDetails())
                         .isActive(true)
                         .isOnmReady(facilityCreate.getIsOnmReady())
+                        .endUserType(facilityCreate.getEndUserType())
                         .solarInstallationDate(facilityCreate.getSolarInstallationDate())
                         .rmsInstallationDate(facilityCreate.getRmsInstallationDate())
                         .solarSystemCapacityKwp(facilityCreate.getSolarSystemCapacityKwp())
@@ -687,6 +688,7 @@ public class FacilityService {
         facility.setFacilityPocPhone(update.getPocContact());
         facility.setFacilityPocEmail(update.getPocEmail());
         facility.setFacilityPocUsername(firstNonBlank(update.getFacilityPocUsername(), existingFacility.getFacilityPocUsername()));
+        facility.setEndUserType(firstNonBlank(update.getEndUserType(), existingFacility.getEndUserType()));
         facility.setHfrId(update.getHfrId());
         facility.setNinId(update.getNinId());
         facility.setFacilityStatus(update.getStatus());

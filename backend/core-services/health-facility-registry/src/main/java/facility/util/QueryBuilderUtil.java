@@ -122,6 +122,12 @@ public class QueryBuilderUtil {
             log.debug("Added {} facility categories to WHERE clause", criteria.getFacilityCategory().size());
         }
 
+        if (!CollectionUtils.isEmpty(criteria.getEndUserType())) {
+            whereClause.append(" AND fac.end_user_type in ( ").append(createQuery(criteria.getEndUserType().size())).append(" )");
+            params.addAll(criteria.getEndUserType());
+            log.debug("Added {} end user types to WHERE clause", criteria.getEndUserType().size());
+        }
+
         if (!CollectionUtils.isEmpty(criteria.getFacilityNames())) {
             whereClause.append(" AND fac.facility_name ILIKE ANY ( ARRAY [ ").append(createQuery(criteria.getFacilityNames().size())).append(" ] )");
             params.addAll(criteria.getFacilityNames().stream().map((facilityName) -> "%" + facilityName + "%").toList());

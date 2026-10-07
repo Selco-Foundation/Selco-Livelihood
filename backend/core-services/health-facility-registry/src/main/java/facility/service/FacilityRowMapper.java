@@ -53,6 +53,7 @@ public class FacilityRowMapper {
         facility.setIsActive(rs.getBoolean("is_active"));
         facility.setFacilityRegion(rs.getString("facility_region"));
         facility.setIsOnmReady(rs.getBoolean("is_onm_ready"));
+        facility.setEndUserType(rs.getString("end_user_type"));
         facility.setRmsInactive(rs.getObject("rms_inactive") != null ? rs.getBoolean("rms_inactive") : null);
         facility.setSolarInstallationDate(toLocalDate(rs.getDate("solar_installation_date")));
         facility.setRmsInstallationDate(toLocalDate(rs.getDate("rms_installation_date")));

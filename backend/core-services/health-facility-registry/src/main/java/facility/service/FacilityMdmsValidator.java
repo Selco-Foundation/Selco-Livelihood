@@ -459,6 +459,10 @@ public class FacilityMdmsValidator {
         putIfNotBlank(map, "facility_poc_email", facility.getFacilityPocEmail());
         putIfNotBlank(map, "hfr_id", facility.getHfrId());
         putIfNotBlank(map, "nin_id", facility.getNinId());
+        // Scoped by schema, not by code: only the Livelihood schema
+        // (FacilityIngestionSchemaWithoutBoundaryCode) declares end_user_type required, so Health
+        // facilities are unaffected - the same way Sectors is handled.
+        putIfNotBlank(map, "end_user_type", facility.getEndUserType());
 
         if (facility.getBoundaryCode() != null) {
             map.put("boundary_code", facility.getBoundaryCode());
