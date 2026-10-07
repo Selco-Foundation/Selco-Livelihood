@@ -114,6 +114,10 @@ public class Configuration {
     @Value("${onm-non-ready.allowed.roles}")
     private List<String> onmNonReadyAllowedRoles;
 
+    /** Roles permitted to edit an end user; see facility.edit.allowed.roles. */
+    @Value("${facility.edit.allowed.roles}")
+    private List<String> facilityEditAllowedRoles;
+
     //Localization
     @Value("${egov.localization.host}")
     private String localizationHost;

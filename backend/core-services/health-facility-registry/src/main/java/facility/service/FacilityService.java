@@ -18,7 +18,6 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static facility.config.ServiceConstants.FACILITY_ADMIN;
 import static facility.config.ServiceConstants.SYSTEM_USER;
 
 @Service
@@ -1677,18 +1676,31 @@ public class FacilityService {
         }
     }
 
+    /**
+     * Gates end user (facility) edits on {@code facility.edit.allowed.roles}.
+     *
+     * <p>Configured rather than hard-coded so the role set can change without a release -
+     * the same pattern as {@code onm-non-ready.allowed.roles}. That matters while the
+     * FACILITY_ADMIN -> END_USER_ADMIN rename is only half applied: MDMS already defines
+     * END_USER_ADMIN, the rest of the code still tests FACILITY_ADMIN.
+     *
+     * <p>ORG_PLATFORM_ADMIN (Super Admin) is included because PRD 7.8 and 8 require it to
+     * perform every End User Admin activity.
+     */
     private void validateFacilityEditAuthorization(RequestInfo requestInfo) {
         var userInfo = requestInfo != null ? requestInfo.getUserInfo() : null;
-        if (userInfo == null || userInfo.getRoles() == null) {
-            throw new IllegalArgumentException("Only FACILITY_ADMIN or SYSTEM_USER roles can edit facilities");
-        }
+        List<String> allowedRoles = configs.getFacilityEditAllowedRoles();
 
-        boolean isFacilityAdmin = userInfo.getRoles().stream()
-                .anyMatch(role -> FACILITY_ADMIN.equalsIgnoreCase(role.getCode()));
-        boolean isSystemUser = userInfo.getRoles().stream()
-                .anyMatch(role -> SYSTEM_USER.equalsIgnoreCase(role.getCode()));
-        if (!isFacilityAdmin && !isSystemUser) {
-            throw new IllegalArgumentException("Only FACILITY_ADMIN or SYSTEM_USER roles can edit facilities");
+        boolean allowed = userInfo != null
+                && userInfo.getRoles() != null
+                && userInfo.getRoles().stream()
+                        .map(role -> role.getCode())
+                        .filter(Objects::nonNull)
+                        .anyMatch(code -> allowedRoles.stream().anyMatch(code::equalsIgnoreCase));
+
+        if (!allowed) {
+            throw new IllegalArgumentException(
+                    "Only these roles can edit end users: " + String.join(", ", allowedRoles));
         }
     }
 
