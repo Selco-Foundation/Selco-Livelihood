@@ -56,9 +56,7 @@ class AssetRepository {
         .toList();
   }
 
-  /// Creates one physical asset unit (`assetDetail.Asset`, per
-  /// `asset-registry`'s `Asset.java`). Called once per `SolarAssetEntry`
-  /// (or once for the machine) from the submission pipeline.
+  /// Writes a solar parent with its children, or a standalone machine.
   Future<Map<String, dynamic>> createOrUpdate({
     required AssetSubmission asset,
     required String facilityId,

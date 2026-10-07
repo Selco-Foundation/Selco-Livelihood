@@ -249,6 +249,9 @@ Future<void> _performSubmission({
         'No submission data found for this report. Please reopen and submit again.');
   }
   var payload = Map<String, dynamic>.from(raw);
+  if (normalizeSolarSubmissionPayload(payload)) {
+    await _saveSubmissionPayload(activityFacilityId, payload);
+  }
   final submitBom = submissionRequiresBom(payload);
   if (submitBom && payload['bom'] == null && payload['boms'] is List) {
     throw Exception(
@@ -379,7 +382,10 @@ Future<void> _performSubmission({
       throw Exception(
           'Asset submission is missing ${submission.missingRequiredFields.join(', ')}. Reopen the asset form and try again.');
     }
-    if (submission.documents.any((document) => !document.isUploaded)) {
+    if ([
+      submission,
+      ...submission.children
+    ].any((unit) => unit.documents.any((document) => !document.isUploaded))) {
       throw Exception(
           'One or more supporting photos for asset ${submission.serialNumber} were not uploaded.');
     }
@@ -390,34 +396,46 @@ Future<void> _performSubmission({
         activityFacilityId: activityFacilityId,
         assetId: checkpointId,
       );
-      if (saved.isNotEmpty) continue;
+      if (saved
+          .any((remote) => assetSubmissionIsPersisted(submission, remote))) {
+        continue;
+      }
     }
 
     Map<String, dynamic>? existing;
     final matches = await assetRepository.searchRemote(
       activityFacilityId: activityFacilityId,
-      serialNumber: submission.serialNumber,
+      serialNumber: submission.isSolarParent ? null : submission.serialNumber,
     );
-    if (matches.isNotEmpty) existing = matches.first;
+    if (submission.isSolarParent) {
+      existing =
+          matches.where((asset) => asset['assetTypeID'] == 'SOLAR').firstOrNull;
+    } else if (matches.isNotEmpty) {
+      existing = matches.first;
+    }
     final remoteAssetId =
         (existing?['assetId'] ?? existing?['assetID'])?.toString();
     if (remoteAssetId?.trim().isNotEmpty == true) {
-      final existingFileStores =
-          (existing?['documents'] as List<dynamic>? ?? const [])
-              .whereType<Map>()
-              .map((document) => SubmissionDocument.fromJson(
-                    Map<String, dynamic>.from(document),
-                  ).fileStore)
-              .whereType<String>()
-              .toSet();
-      submission = submission.copyWith(
-        assetId: remoteAssetId,
-        documents: submission.documents
-            .where((document) =>
-                document.fileStore == null ||
-                !existingFileStores.contains(document.fileStore))
-            .toList(),
-      );
+      if (submission.isSolarParent) {
+        submission = reconcileSolarSubmission(submission, existing!);
+      } else {
+        final existingFileStores =
+            (existing?['documents'] as List<dynamic>? ?? const [])
+                .whereType<Map>()
+                .map((document) => SubmissionDocument.fromJson(
+                      Map<String, dynamic>.from(document),
+                    ).fileStore)
+                .whereType<String>()
+                .toSet();
+        submission = submission.copyWith(
+          assetId: remoteAssetId,
+          documents: submission.documents
+              .where((document) =>
+                  document.fileStore == null ||
+                  !existingFileStores.contains(document.fileStore))
+              .toList(),
+        );
+      }
     }
     Map<String, dynamic> submittedAsset;
     try {
@@ -432,14 +450,16 @@ Future<void> _performSubmission({
       // reached Kafka before the client received its response.
       final duplicate = await assetRepository.searchRemote(
         activityFacilityId: activityFacilityId,
-        serialNumber: submission.serialNumber,
+        serialNumber: submission.isSolarParent ? null : submission.serialNumber,
       );
-      if (duplicate.isEmpty) rethrow;
+      final recovered = duplicate
+          .where((remote) => assetSubmissionIsPersisted(submission, remote))
+          .firstOrNull;
+      if (recovered == null) rethrow;
       final duplicateId =
-          (duplicate.first['assetId'] ?? duplicate.first['assetID'])
-              ?.toString();
+          (recovered['assetId'] ?? recovered['assetID'])?.toString();
       if (duplicateId == null || duplicateId.trim().isEmpty) rethrow;
-      submittedAsset = Map<String, dynamic>.from(duplicate.first);
+      submittedAsset = Map<String, dynamic>.from(recovered);
     }
     asset
       ..['assetId'] =
@@ -448,6 +468,20 @@ Future<void> _performSubmission({
       ..['documents'] = submission.documents
           .map((document) => document.toCacheJson())
           .toList();
+    if (submission.isSolarParent) {
+      final reconciled = reconcileSolarSubmission(submission, submittedAsset);
+      asset['children'] = [
+        for (var i = 0; i < reconciled.children.length; i++)
+          {
+            ...Map<String, dynamic>.from((asset['children'] as List)[i] as Map),
+            if (reconciled.children[i].assetId != null)
+              'assetId': reconciled.children[i].assetId,
+            'documents': reconciled.children[i].documents
+                .map((doc) => doc.toCacheJson())
+                .toList(),
+          },
+      ];
+    }
     assets[index] = asset;
     payload['assets'] = assets;
     await _saveSubmissionPayload(activityFacilityId, payload);
@@ -461,8 +495,7 @@ Future<void> _performSubmission({
   );
   await _waitForAssets(
     activityFacilityId: activityFacilityId,
-    expectedSerialNumbers:
-        assets.map((asset) => asset['serialNumber']?.toString() ?? '').toSet(),
+    expectedAssets: assets.map(AssetSubmission.fromCheckpoint).toList(),
   );
 
   await _reportStage(
@@ -552,10 +585,18 @@ Future<Map<String, dynamic>> _uploadPendingMedia(
   if (workflowDocuments is List) {
     await uploadListInPlace(workflowDocuments);
   }
-  for (final asset in (payload['assets'] as List<dynamic>? ?? const [])) {
-    if (asset is Map && asset['documents'] is List) {
+  Future<void> uploadAsset(dynamic asset) async {
+    if (asset is! Map) return;
+    if (asset['documents'] is List) {
       await uploadListInPlace(asset['documents'] as List<dynamic>);
     }
+    for (final child in (asset['children'] as List<dynamic>? ?? const [])) {
+      await uploadAsset(child);
+    }
+  }
+
+  for (final asset in (payload['assets'] as List<dynamic>? ?? const [])) {
+    await uploadAsset(asset);
   }
   return payload;
 }
@@ -572,21 +613,18 @@ Future<void> _saveSubmissionPayload(
 
 Future<void> _waitForAssets({
   required String activityFacilityId,
-  required Set<String> expectedSerialNumbers,
+  required List<AssetSubmission> expectedAssets,
 }) async {
-  final expected =
-      expectedSerialNumbers.where((value) => value.isNotEmpty).toSet();
-  if (expected.isEmpty) return;
+  if (expectedAssets.isEmpty) return;
 
   for (var attempt = 0; attempt < 10; attempt++) {
     final remote = await assetRepository.searchRemote(
       activityFacilityId: activityFacilityId,
     );
-    final persisted = remote
-        .map((asset) => asset['serialNumber']?.toString() ?? '')
-        .where((value) => value.isNotEmpty)
-        .toSet();
-    if (persisted.containsAll(expected)) return;
+    if (expectedAssets.every((expected) =>
+        remote.any((asset) => assetSubmissionIsPersisted(expected, asset)))) {
+      return;
+    }
     if (attempt < 9) await Future<void>.delayed(const Duration(seconds: 1));
   }
   throw Exception(

@@ -47,7 +47,7 @@ Map<String, dynamic> buildSolarSubmissionPayload(SolarInstallationDraft draft) {
             (entry.fields['modelNumber'] ?? entry.fields['model_number'] ?? '')
                 .toString(),
         'brandID': assetDraft.selectedBrandCode,
-        'itemCode': null,
+        'itemCode': entry.itemCode,
         'name': assetDraft.system.isNotEmpty
             ? assetDraft.system
             : draft.labelFor(type),
@@ -91,7 +91,17 @@ Map<String, dynamic> buildSolarSubmissionPayload(SolarInstallationDraft draft) {
         'componentType': 'SOLAR',
       },
     },
-    'assets': assets,
+    'assets': [
+      {
+        if (draft.solarAssetId?.trim().isNotEmpty == true)
+          'assetId': draft.solarAssetId,
+        'system': draft.systemCode,
+        'assetTypeID': 'SOLAR',
+        'name': 'Solar',
+        'documents': <Map<String, dynamic>>[],
+        'children': assets,
+      },
+    ],
     'workflowDocuments':
         workflowDocuments.map((document) => document.toCacheJson()).toList(),
   };
@@ -254,4 +264,28 @@ String? _firstNonBlank(List<dynamic> values) {
     if (text != null && text.isNotEmpty) return text;
   }
   return null;
+}
+
+/// Upgrades queued solar units without losing uploaded media or child IDs.
+bool normalizeSolarSubmissionPayload(Map<String, dynamic> payload) {
+  if (payload['kind'] != 'solar') return false;
+  final assets = (payload['assets'] as List<dynamic>? ?? const [])
+      .whereType<Map>()
+      .toList();
+  if (assets.length == 1 && assets.single['assetTypeID'] == 'SOLAR') {
+    return false;
+  }
+  payload['assets'] = [
+    {
+      'system': assets.isEmpty ? 'LIVELIHOOD' : assets.first['system'],
+      'assetTypeID': 'SOLAR',
+      'name': 'Solar',
+      'documents': <Map<String, dynamic>>[],
+      'children': [
+        for (final asset in assets)
+          Map<String, dynamic>.from(asset)..remove('submitted')
+      ],
+    },
+  ];
+  return true;
 }

@@ -136,7 +136,18 @@ class InstallationDraftRepository {
     }
     final grouped = <SolarAssetType, List<SolarAssetEntry>>{};
     final warranties = <SolarAssetType, String>{};
+    final units = <Map<String, dynamic>>[];
     for (final value in values) {
+      if (value['assetTypeID'] == 'SOLAR') {
+        draft.solarAssetId = (value['assetId'] ?? value['assetID'])?.toString();
+        units.addAll((value['children'] as List<dynamic>? ?? const [])
+            .whereType<Map>()
+            .map((child) => Map<String, dynamic>.from(child)));
+      } else {
+        units.add(value);
+      }
+    }
+    for (final value in units) {
       final rawType = (value['assetTypeID'] ??
               value['assetTypeCode'] ??
               value['assetType'] ??
@@ -219,6 +230,7 @@ class InstallationDraftRepository {
     final key = draft.cacheKey;
     await installationCacheRepository.putJson('solar-draft', key, {
       'systemCode': draft.systemCode,
+      'solarAssetId': draft.solarAssetId,
       'invoiceNumber': draft.invoiceNumber,
       'counts': {
         for (final entry in draft.counts.entries) entry.key.name: entry.value,
@@ -502,6 +514,7 @@ class InstallationDraftRepository {
   }
 
   void _hydrateLocal(SolarInstallationDraft draft, Map<String, dynamic> json) {
+    draft.solarAssetId ??= json['solarAssetId']?.toString();
     final invoiceNumber = json['invoiceNumber']?.toString();
     if (invoiceNumber != null && invoiceNumber.isNotEmpty) {
       draft.invoiceNumber = invoiceNumber;

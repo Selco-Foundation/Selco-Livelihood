@@ -1154,6 +1154,167 @@ void main() {
     );
   });
 
+  test(
+      'solar parent serializes multiple units without parent-only child fields',
+      () {
+    final parent = AssetSubmission.fromCheckpoint({
+      'assetId': 'solar-1',
+      'assetTypeID': 'SOLAR',
+      'name': 'Solar',
+      'system': 'LIVELIHOOD',
+      'children': [
+        for (final type in ['PANEL', 'PANEL_2', 'BATTERY', 'INVERTER'])
+          {
+            'assetTypeID': type == 'PANEL_2' ? 'PANEL' : type,
+            'serialNumber': '$type-${type == 'PANEL' ? 'unit' : '1'}',
+            'brandID': 'SELCO_SOLAR',
+            'itemCode': type == 'PANEL' ? 'SP-330WP' : null
+          },
+      ],
+    });
+    expect(parent.missingRequiredFields, isEmpty);
+    final json = parent.toRegistryJson(
+        tenantId: 'livelihood',
+        facilityId: 'f-1',
+        activityFacilityId: 'af-1',
+        vendorId: 'v-1');
+    expect(json['assetId'], 'solar-1');
+    expect(json, isNot(contains('serialNumber')));
+    final children = json['children'] as List;
+    expect(children, hasLength(4));
+    for (final child in children) {
+      expect(child, isNot(contains('activityFacilityID')));
+      expect(child, isNot(contains('vendorId')));
+    }
+    expect(children.first['itemCode'], 'SP-330WP');
+    expect(children.last['itemCode'], isNull);
+    expect(
+        AssetSubmission.fromCheckpoint({
+          'assetTypeID': 'SOLAR',
+          'system': 'LIVELIHOOD',
+          'children': [
+            {'assetTypeID': 'PANEL'}
+          ]
+        }).missingRequiredFields,
+        contains('PANEL : serial number'));
+  });
+
+  test('solar retry reconciles IDs and photos and verifies every child', () {
+    final desired = AssetSubmission.fromCheckpoint({
+      'assetTypeID': 'SOLAR',
+      'system': 'LIVELIHOOD',
+      'children': [
+        {
+          'assetTypeID': 'PANEL',
+          'serialNumber': 'P-1',
+          'documents': [
+            {'fileStore': 'photo-1', 'documentType': 'ASSET'}
+          ]
+        },
+        {'assetTypeID': 'BATTERY', 'serialNumber': 'B-1', 'documents': []},
+      ],
+    });
+    final remote = <String, dynamic>{
+      'assetTypeID': 'SOLAR',
+      'assetId': 'parent-1',
+      'children': [
+        {
+          'assetTypeID': 'PANEL',
+          'assetId': 'panel-1',
+          'serialNumber': 'P-1',
+          'documents': [
+            {'id': 'doc-1', 'fileStore': 'photo-1', 'documentType': 'ASSET'}
+          ]
+        },
+      ],
+    };
+    expect(assetSubmissionIsPersisted(desired, remote), isFalse);
+    final reconciled = reconcileSolarSubmission(desired, remote);
+    expect(reconciled.assetId, 'parent-1');
+    expect(reconciled.children.first.assetId, 'panel-1');
+    expect(reconciled.children.first.documents.single.id, 'doc-1');
+    (remote['children'] as List).add({
+      'assetTypeID': 'BATTERY',
+      'assetId': 'battery-1',
+      'serialNumber': 'B-1'
+    });
+    expect(assetSubmissionIsPersisted(desired, remote), isTrue);
+    ((remote['children'] as List).first as Map)['documents'] = [];
+    expect(assetSubmissionIsPersisted(desired, remote), isFalse);
+  });
+
+  test('legacy solar checkpoints preserve uploads and discard submitted flags',
+      () {
+    final payload = <String, dynamic>{
+      'kind': 'solar',
+      'assets': [
+        {
+          'system': 'LIVELIHOOD',
+          'assetId': 'panel-1',
+          'assetTypeID': 'PANEL',
+          'submitted': true,
+          'documents': [
+            {'fileStore': 'uploaded-photo', 'documentUid': 'uid-1'}
+          ]
+        },
+      ]
+    };
+    expect(normalizeSolarSubmissionPayload(payload), isTrue);
+    final parent = (payload['assets'] as List).single as Map;
+    expect(parent['assetTypeID'], 'SOLAR');
+    expect(parent, isNot(contains('assetId')));
+    final child = (parent['children'] as List).single as Map;
+    expect(child['assetId'], 'panel-1');
+    expect(child, isNot(contains('submitted')));
+    expect((child['documents'] as List).single['fileStore'], 'uploaded-photo');
+    expect(normalizeSolarSubmissionPayload(payload), isFalse);
+    expect(normalizeSolarSubmissionPayload({'kind': 'machine'}), isFalse);
+  });
+
+  test('nested solar search hydrates parent and child identities separately',
+      () async {
+    const workflow = ActivityFacilityWorkflow(
+        activityFacility: ActivityFacility(id: 'af-1', facilityId: 'f-1'));
+    final repository = InstallationDraftRepository(
+      mdmsRepository:
+          AssetMdmsRepository(initial: const AssetRegistryMdmsResponse()),
+      bomSearch: (_) async => [],
+      localDraft: (_) async => null,
+      assetSearch: (_) async => [
+        {
+          'assetTypeID': 'SOLAR',
+          'assetId': 'parent-1',
+          'children': [
+            {
+              'assetTypeID': 'PANEL',
+              'assetId': 'panel-1',
+              'serialNumber': 'P-1',
+              'itemCode': 'SP-330WP',
+              'assetDetails': {'capacity': '330Wp'},
+              'documents': [
+                {'fileStore': 'photo-1', 'documentType': 'ASSET'}
+              ]
+            },
+            {
+              'assetTypeID': 'PANEL',
+              'assetId': 'panel-2',
+              'serialNumber': 'P-2'
+            },
+          ],
+        }
+      ],
+    );
+    final draft = repository.createSolar(workflow, SolarWorkflowMode.approved);
+    await repository.hydrateSolar(draft);
+    expect(draft.solarAssetId, 'parent-1');
+    expect(draft.countFor(SolarAssetType.panel), 2);
+    expect(draft.assets[SolarAssetType.panel]!.assets.first.assetId, 'panel-1');
+    expect(
+        draft.assets[SolarAssetType.panel]!.assets.first.supportingPhoto
+            ?.remoteId,
+        'photo-1');
+  });
+
   test('typed asset writes backend identifiers and asset-owned documents', () {
     final asset = AssetSubmission.fromCheckpoint({
       'system': 'DC',
@@ -1251,7 +1412,8 @@ void main() {
 
     final payload = buildSolarSubmissionPayload(draft);
     final bom = payload['bom'] as Map;
-    final asset = (payload['assets'] as List).single as Map;
+    final parent = (payload['assets'] as List).single as Map;
+    final asset = (parent['children'] as List).single as Map;
     final workflowDocument =
         (payload['workflowDocuments'] as List).single as Map;
 
@@ -1264,7 +1426,7 @@ void main() {
     });
     expect(bom.containsKey('documents'), isFalse);
     expect((asset['documents'] as List).single['fileStore'], 'asset-filestore');
-    expect(asset['itemCode'], isNull);
+    expect(asset['itemCode'], 'SP-330WP');
     expect(workflowDocument['fileStore'], 'workflow-filestore');
   });
 
@@ -1305,14 +1467,16 @@ void main() {
       ));
 
     final payload = buildSolarSubmissionPayload(draft);
-    final asset = (payload['assets'] as List).single as Map;
+    final parent = (payload['assets'] as List).single as Map;
+    final asset = (parent['children'] as List).single as Map;
     final details = asset['assetDetails'] as Map;
     expect(details['batteryType'], 'LITHIUM_ION');
     expect(details, isNot(contains('type')));
     expect(details, isNot(contains('battery_type')));
   });
 
-  test('machine itemCode is always blank and assetTypeID falls back to componentType',
+  test(
+      'machine itemCode is always blank and assetTypeID falls back to componentType',
       () async {
     const workflow = ActivityFacilityWorkflow(
       activityFacility: ActivityFacility(
@@ -1526,7 +1690,7 @@ void main() {
     expect(((payload['assets'] as List).single as Map)['brandID'], isEmpty);
   });
 
-  test('solar itemCode is always sent null', () async {
+  test('solar itemCode is null when absent', () async {
     const workflow = ActivityFacilityWorkflow(
       activityFacility: ActivityFacility(
         id: 'activity-facility-1',
@@ -1550,12 +1714,12 @@ void main() {
       ));
 
     final payload = buildSolarSubmissionPayload(draft);
-    final asset = (payload['assets'] as List).single as Map;
+    final parent = (payload['assets'] as List).single as Map;
+    final asset = (parent['children'] as List).single as Map;
     expect(asset['itemCode'], isNull);
   });
 
-  test('solar invoiceNumber applies identically to every submitted asset',
-      () {
+  test('solar invoiceNumber applies identically to every submitted asset', () {
     const workflow = ActivityFacilityWorkflow(
       activityFacility: ActivityFacility(
         id: 'activity-facility-1',
@@ -1589,15 +1753,16 @@ void main() {
       ));
 
     final payload = buildSolarSubmissionPayload(draft);
-    final assets = payload['assets'] as List;
+    final parents = payload['assets'] as List;
+    expect(parents, hasLength(1));
+    final assets = (parents.single as Map)['children'] as List;
     expect(assets, hasLength(2));
     for (final asset in assets) {
       expect((asset as Map)['assetDetails']['invoiceNumber'], 'INV-100');
     }
   });
 
-  test(
-      'hydrateSolar repopulates invoiceNumber from the first asset found',
+  test('hydrateSolar repopulates invoiceNumber from the first asset found',
       () async {
     const mdms = AssetRegistryMdmsResponse();
     const workflow = ActivityFacilityWorkflow(

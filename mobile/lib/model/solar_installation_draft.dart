@@ -272,6 +272,7 @@ class SolarInstallationDraft {
   String? systemCode;
   String? solutionId;
   String? remoteBomId;
+  String? solarAssetId;
   String? remoteBomName;
   String? invoiceNumber;
   Map<String, dynamic> remoteBomAdditionalDetails = const {};

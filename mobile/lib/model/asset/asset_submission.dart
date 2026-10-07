@@ -18,9 +18,14 @@ class AssetSubmission {
     this.warrantyDuration,
     this.assetDetails,
     this.documents = const [],
+    this.children = const [],
+    this.isOperational = false,
+    this.isActive = true,
   });
 
   final String? assetId;
+  final bool isOperational;
+  final bool isActive;
   final String system;
   final String assetTypeId;
   final String serialNumber;
@@ -32,9 +37,20 @@ class AssetSubmission {
   final dynamic warrantyDuration;
   final Map<String, dynamic>? assetDetails;
   final List<SubmissionDocument> documents;
+  final List<AssetSubmission> children;
+
+  bool get isSolarParent => assetTypeId == 'SOLAR';
+  Iterable<AssetSubmission> get units => isSolarParent ? children : [this];
 
   factory AssetSubmission.fromCheckpoint(Map<String, dynamic> json) =>
       AssetSubmission(
+        isOperational: json['isOperational'] == true,
+        isActive: json['isActive'] != false,
+        children: (json['children'] as List<dynamic>? ?? const [])
+            .whereType<Map>()
+            .map((child) => AssetSubmission.fromCheckpoint(
+                Map<String, dynamic>.from(child)))
+            .toList(),
         assetId: _text(json['assetId'] ?? json['assetID']),
         system: _text(json['system']) ?? '',
         assetTypeId: _text(json['assetTypeID']) ?? '',
@@ -60,8 +76,12 @@ class AssetSubmission {
   AssetSubmission copyWith({
     String? assetId,
     List<SubmissionDocument>? documents,
+    List<AssetSubmission>? children,
   }) =>
       AssetSubmission(
+        children: children ?? this.children,
+        isOperational: isOperational,
+        isActive: isActive,
         assetId: assetId ?? this.assetId,
         system: system,
         assetTypeId: assetTypeId,
@@ -76,11 +96,20 @@ class AssetSubmission {
         documents: documents ?? this.documents,
       );
 
-  List<String> get missingRequiredFields => {
-        'serial number': serialNumber,
-        'brand': brandId,
-        'system': system,
-      }
+  List<String> get missingRequiredFields => isSolarParent
+      ? [
+          if (system.trim().isEmpty) 'system',
+          if (children.isEmpty) 'children',
+          for (final child in children)
+            for (final field in child.missingRequiredFields
+                .where((field) => field != 'system'))
+              '${child.assetTypeId} ${child.serialNumber}: $field',
+        ]
+      : {
+          'serial number': serialNumber,
+          'brand': brandId,
+          'system': system,
+        }
           .entries
           .where((entry) => entry.value.trim().isEmpty)
           .map((entry) => entry.key)
@@ -99,17 +128,36 @@ class AssetSubmission {
         'facilityID': facilityId,
         'activityFacilityID': activityFacilityId,
         'assetTypeID': assetTypeId,
-        'serialNumber': serialNumber,
-        'modelNumber': modelNumber,
-        'brandID': brandId,
-        'itemCode': itemCode.trim().isEmpty ? null : itemCode,
+        if (!isSolarParent) 'serialNumber': serialNumber,
+        if (!isSolarParent) 'modelNumber': modelNumber,
+        if (!isSolarParent) 'brandID': brandId,
+        if (!isSolarParent)
+          'itemCode': itemCode.trim().isEmpty ? null : itemCode,
         'name': name,
         'vendorId': vendorId,
-        'isOperational': false,
-        'isActive': true,
-        'warrantyStartDate': warrantyStartDate,
-        'warrantyDuration': warrantyDuration,
-        'assetDetails': assetDetails,
+        'isOperational': isOperational,
+        'isActive': isActive,
+        if (!isSolarParent) 'warrantyStartDate': warrantyStartDate,
+        if (!isSolarParent) 'warrantyDuration': warrantyDuration,
+        if (!isSolarParent) 'assetDetails': assetDetails,
+        if (isSolarParent)
+          'children': children.map((child) {
+            final json = child.toRegistryJson(
+                tenantId: tenantId,
+                facilityId: facilityId,
+                activityFacilityId: activityFacilityId,
+                vendorId: vendorId);
+            for (final key in [
+              'tenantId',
+              'system',
+              'facilityID',
+              'activityFacilityID',
+              'vendorId'
+            ]) {
+              json.remove(key);
+            }
+            return json;
+          }).toList(),
         'documents':
             documents.map((document) => document.toAssetJson()).toList(),
       };
@@ -118,4 +166,62 @@ class AssetSubmission {
 String? _text(dynamic value) {
   final text = value?.toString().trim();
   return text == null || text.isEmpty ? null : text;
+}
+
+/// Reuses server identities and document metadata when updating solar children.
+AssetSubmission reconcileSolarSubmission(
+    AssetSubmission submission, Map<String, dynamic> remote) {
+  final existing = AssetSubmission.fromCheckpoint(remote);
+  List<SubmissionDocument> mergeDocuments(
+      List<SubmissionDocument> desired, List<SubmissionDocument> saved) {
+    final result = [...saved];
+    for (final document in desired) {
+      if (!result.any((other) =>
+          document.fileStore != null &&
+          other.fileStore == document.fileStore)) {
+        result.add(document);
+      }
+    }
+    return result;
+  }
+
+  return submission.copyWith(
+    assetId: existing.assetId,
+    documents: mergeDocuments(submission.documents, existing.documents),
+    children: submission.children.map((child) {
+      final match = existing.children
+          .where((other) =>
+              (child.assetId != null && child.assetId == other.assetId) ||
+              (child.assetTypeId == other.assetTypeId &&
+                  child.serialNumber == other.serialNumber))
+          .firstOrNull;
+      return match == null
+          ? child
+          : child.copyWith(
+              assetId: match.assetId,
+              documents: mergeDocuments(child.documents, match.documents),
+            );
+    }).toList(),
+  );
+}
+
+/// A parent alone is insufficient: all expected units and photos must persist.
+bool assetSubmissionIsPersisted(
+    AssetSubmission expected, Map<String, dynamic> remote) {
+  final saved = AssetSubmission.fromCheckpoint(remote);
+  bool documentsPresent(AssetSubmission unit, AssetSubmission other) =>
+      unit.documents.every((document) =>
+          document.isUploaded &&
+          other.documents
+              .any((saved) => saved.fileStore == document.fileStore));
+  if (expected.isSolarParent) {
+    return saved.isSolarParent &&
+        (expected.assetId == null || expected.assetId == saved.assetId) &&
+        documentsPresent(expected, saved) &&
+        expected.children.every((child) => saved.children.any((other) =>
+            child.assetTypeId == other.assetTypeId &&
+            child.serialNumber == other.serialNumber &&
+            documentsPresent(child, other)));
+  }
+  return expected.serialNumber == saved.serialNumber;
 }
