@@ -88,7 +88,7 @@ export type JurisdictionBoundaryType = "Country" | "State" | "District" | "Block
 /**
  * One user jurisdiction (stored on the HRMS employee): the boundary the user works in.
  * The deepest level picked is what's saved. Removing an existing jurisdiction
- * keeps the row and sends it back with `isActive: false`, same as E4H.
+ * keeps the row and sends it back with `isActive: false`.
  */
 export interface OrgJurisdiction {
   /** Present for jurisdictions already saved on the user. */
@@ -98,6 +98,14 @@ export interface OrgJurisdiction {
   boundaryType: JurisdictionBoundaryType;
   tenantId: string;
   isActive: boolean;
+  auditDetails?: JurisdictionAuditDetails;
+}
+
+export interface JurisdictionAuditDetails {
+  createdBy?: string;
+  createdDate?: number;
+  lastModifiedBy?: string;
+  lastModifiedDate?: number;
 }
 
 export interface OrgUser {

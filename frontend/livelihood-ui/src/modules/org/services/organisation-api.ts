@@ -125,6 +125,7 @@ function toJurisdiction(item: Partial<OrgJurisdiction> | string): OrgJurisdictio
     boundaryType: item.boundaryType ?? "Country",
     tenantId: item.tenantId ?? tenantId(),
     isActive: item.isActive ?? true,
+    ...(item.auditDetails ? { auditDetails: item.auditDetails } : {}),
   };
 }
 
@@ -283,7 +284,7 @@ async function updateOrgUser(input: UpdateOrgUserInput, ctx: OrgApiContext): Pro
       mobileNumber: input.mobileNumber.trim(),
       emailId: input.emailId?.trim() || undefined,
       roles: toRolePayload(input.roles),
-      // Existing jurisdictions merged with new ones; removed ones go back with isActive: false.
+      // Existing jurisdictions (with their auditDetails) merged with new ones; removed ones go back with isActive: false.
       jurisdiction: input.jurisdictions,
       ...(input.newPassword ? { password: input.newPassword } : {}),
     },

@@ -125,6 +125,7 @@ export function useOrgUserForm(editing?: OrgUser) {
    */
   function toJurisdictions(): OrgJurisdiction[] {
     const existing = (editing?.jurisdictions ?? []).map((item) =>
+      // Spreading `item` keeps its id and auditDetails, which HRMS needs to update the row.
       item.id && removedJurisdictionIds.includes(item.id) ? { ...item, isActive: false } : item,
     );
     const added = drafts.map(draftToJurisdiction).filter((item): item is OrgJurisdiction => item !== null);
