@@ -1,9 +1,9 @@
-import { apiClient, tenantId } from "@/shared";
+import { apiClient, searchUrlParams, tenantId } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
 import type { AuthUser } from "@/shared/stores/auth-store";
 import type { Project, ProjectListFilters, ProjectSearchCriteria, ProjectV2SearchResult } from "../types/project";
 import { resolveStates } from "../utils/geography";
-import { fetchAllPages, searchUrlParams } from "../utils/url-params";
+import { fetchAllPages } from "../utils/url-params";
 
 interface ProjectResponse {
   Project?: Project[];
