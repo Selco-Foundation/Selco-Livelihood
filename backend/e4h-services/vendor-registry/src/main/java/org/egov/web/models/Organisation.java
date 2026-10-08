@@ -61,9 +61,6 @@ public class Organisation {
     @JsonProperty("orgType")
     private String orgType = null;
 
-    @JsonProperty("orgSubType")
-    private String orgSubType = null;
-
     @JsonProperty("orgPocName")
     private String orgPocName = null;
 

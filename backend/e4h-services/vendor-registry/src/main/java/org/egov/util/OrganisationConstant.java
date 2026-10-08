@@ -11,7 +11,6 @@ public class OrganisationConstant {
     public static final String MASTER_TENANTS = "tenants";
 //    public static final String MASTER_ORG_TYPE = "OrgType";
     public static final String MASTER_ORG_TYPE = "OrgType";
-    public static final String MASTER_ORG_SUB_TYPE = "OrgSubType";
     public static final String MASTER_ORG_STATUS = "OrgStatus";
     public static final String MASTER_ORG_ROLES = "OrgRoles";
     public static final String MASTER_ORG_FUNC_CLASS = "OrgFunctionClass";

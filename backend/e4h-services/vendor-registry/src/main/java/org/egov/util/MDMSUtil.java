@@ -104,11 +104,9 @@ public class MDMSUtil {
         log.info("MDMSUtil::prepareOrganizationModuleDetails");
         List<MasterDetail> organizationModulesDetails = new ArrayList<>();
         MasterDetail orgTypeMaster = MasterDetail.builder().name(MASTER_ORG_TYPE).filter(CODE_FILTER).build();
-        MasterDetail orgSubTypeMaster = MasterDetail.builder().name(MASTER_ORG_SUB_TYPE).filter(CODE_FILTER).build();
         MasterDetail orgStatusMaster = MasterDetail.builder().name(MASTER_ORG_STATUS).filter(CODE_FILTER).build();
         MasterDetail orgRolesMaster = MasterDetail.builder().name(MASTER_ORG_ROLES).build();
         organizationModulesDetails.add(orgTypeMaster);
-        organizationModulesDetails.add(orgSubTypeMaster);
         organizationModulesDetails.add(orgStatusMaster);
         organizationModulesDetails.add(orgRolesMaster);
         return ModuleDetail.builder().masterDetails(organizationModulesDetails)
