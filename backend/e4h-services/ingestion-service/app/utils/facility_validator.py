@@ -159,7 +159,6 @@ def project_facility_validation(
     validate_row_constraints(new_rows, schema, lambda i, m: add_err(new_rows.loc[i, "index"], m))
     validate_anganwadi_poc_username(new_rows, schema, lambda i, m: add_err(new_rows.loc[i, "index"], m))
     validate_hfr_nin(new_rows, lambda i, m: add_err(new_rows.loc[i, "index"], m), facility_client)
-    validate_poc_username_not_taken(new_rows, lambda i, m: add_err(new_rows.loc[i, "index"], m), facility_client)
 
     return errors
 
@@ -503,6 +502,7 @@ def facility_validation(
     validate_columns(new_rows, schema, lambda i, m: add_err(new_rows.loc[i, "index"], m))
     validate_unique_ids(df, schema, add_err)
     validate_row_constraints(new_rows, schema, lambda i, m: add_err(new_rows.loc[i, "index"], m))
+    validate_poc_username_not_taken(new_rows, lambda i, m: add_err(new_rows.loc[i, "index"], m), facility_client)
 
     return errors
 
