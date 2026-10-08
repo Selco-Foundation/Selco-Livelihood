@@ -2,6 +2,7 @@ package facility.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import facility.util.FacilityMappedVendorHelper;
 import facility.web.models.Facility;
@@ -24,7 +25,8 @@ import java.util.Map;
 @Service
 public class FacilityRowMapper {
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = new ObjectMapper()
+            .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     private final JdbcTemplate jdbcTemplate;
 
     public FacilityRowMapper(JdbcTemplate jdbcTemplate) {
