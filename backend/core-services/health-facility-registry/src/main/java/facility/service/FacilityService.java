@@ -185,7 +185,7 @@ public class FacilityService {
                         .facilityDetails(facilityCreate.getFacilityDetails())
                         .wfStatus(facilityCreate.getWfStatus())
                         .additionalDetails(facilityCreate.getAdditionalDetails())
-                        .isActive(true)
+                        .isActive(facilityCreate.getIsActive())
                         .isOnmReady(facilityCreate.getIsOnmReady())
                         .endUserType(facilityCreate.getEndUserType())
                         .endUserPassword(facilityCreate.getEndUserPassword())
