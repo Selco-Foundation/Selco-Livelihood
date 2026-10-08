@@ -79,6 +79,9 @@ public class Facility {
     @JsonProperty("endUserType")
     private String endUserType = null;
 
+    @JsonProperty("endUserPassword")
+    private String endUserPassword = null;
+
     @JsonProperty("facility_poc_name")
     private String facilityPocName = null;
 

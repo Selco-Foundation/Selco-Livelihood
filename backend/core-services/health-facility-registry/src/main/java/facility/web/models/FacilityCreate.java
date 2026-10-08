@@ -89,6 +89,9 @@ public class FacilityCreate {
     @JsonProperty("endUserType")
     private String endUserType = null;
 
+    @JsonProperty("endUserPassword")
+    private String endUserPassword = null;
+
     @JsonProperty("user_id")
     private String userId = null;
 

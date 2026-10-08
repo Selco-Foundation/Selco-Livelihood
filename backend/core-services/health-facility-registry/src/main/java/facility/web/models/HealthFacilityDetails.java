@@ -33,9 +33,6 @@ public class HealthFacilityDetails {
     @JsonProperty("nin_id")
     private String ninId;
 
-    @JsonProperty("solar_solution_design_type")
-    private SolarSolutionDesignType solarSolutionDesignType;
-
     @JsonProperty("pocContact")
     @Pattern(
             regexp = "^\\d{10}$",

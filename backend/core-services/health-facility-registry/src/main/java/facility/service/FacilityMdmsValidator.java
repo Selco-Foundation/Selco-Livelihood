@@ -70,7 +70,7 @@ public class FacilityMdmsValidator {
                 requestInfo,
                 tenantId,
                 "facility",
-                List.of("FacilityType", "FacilityCategory", "FacilityOwnership", "SolarSolutionDesignType", "PreferredLanguage")
+                List.of("FacilityType", "FacilityCategory", "FacilityOwnership", "PreferredLanguage")
         ));
 
         List<Map<String, Object>> flattenedMdmsData = flattenMdmsData(mdmsData);
@@ -501,11 +501,6 @@ public class FacilityMdmsValidator {
 
         HealthFacilityDetails details = facility.getFacilityDetails();
         if (details != null) {
-            if (details.getSolarSolutionDesignType() != null) {
-                String solarType = details.getSolarSolutionDesignType().name();
-                map.put("solar_solution_design_type", solarType);
-                map.put("facility_details.solar_solution_design_type", solarType);
-            }
             putIfNotBlank(map, "vendor_code", details.getVendorCode());
             putIfNotBlank(map, "facility_poc_designation", details.getPocDesignation());
             putIfNotBlank(map, "poc_designation", details.getPocDesignation());

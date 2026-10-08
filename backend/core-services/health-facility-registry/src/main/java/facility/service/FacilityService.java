@@ -188,6 +188,7 @@ public class FacilityService {
                         .isActive(true)
                         .isOnmReady(facilityCreate.getIsOnmReady())
                         .endUserType(facilityCreate.getEndUserType())
+                        .endUserPassword(facilityCreate.getEndUserPassword())
                         .solarInstallationDate(facilityCreate.getSolarInstallationDate())
                         .rmsInstallationDate(facilityCreate.getRmsInstallationDate())
                         .solarSystemCapacityKwp(facilityCreate.getSolarSystemCapacityKwp())
