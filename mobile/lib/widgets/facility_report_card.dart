@@ -56,7 +56,7 @@ class FacilityReportCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              workflow.facilityTitle,
+              '${workflow.facilityTitle} - $_componentType',
               style: (isNew ? textTheme.headingL : textTheme.headingM).copyWith(
                 color: isNew
                     ? theme.colorTheme.text.primary
@@ -88,11 +88,6 @@ class FacilityReportCard extends StatelessWidget {
             _DetailRow(
                 label: context.translate(i18.installationReportHome.block),
                 value: workflow.facilityLocality.block),
-            _DetailRow(
-              key: const ValueKey('facility-component-type'),
-              label: context.translate(i18.common.type),
-              value: _componentType,
-            ),
             if (isNew)
               _NewReportActions(workflow: workflow, onAction: onAction),
             if (mode == FacilityReportMode.pendingApproval ||
@@ -230,7 +225,7 @@ class _NewReportProgress extends StatelessWidget {
 }
 
 class _DetailRow extends StatelessWidget {
-  const _DetailRow({super.key, required this.label, required this.value});
+  const _DetailRow({required this.label, required this.value});
 
   final String label;
   final String value;

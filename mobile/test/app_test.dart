@@ -170,7 +170,7 @@ class _StubActivityFacilityRemoteRepository
         scheduledAt: DateTime(2026, 2, 23).millisecondsSinceEpoch,
         componentType: 'SOLAR',
         facility: const Facility(
-          facilityName: 'Rajesh Kumar - Solar',
+          facilityName: 'Rajesh Kumar',
           boundaryCode: 'INDIA_MEGHALAYA_WESTKHASIHILLS_MAWTHADRAISHAN',
         ),
         additionalDetails: const ActivityFacilityAdditionalDetails(
@@ -186,7 +186,7 @@ class _StubActivityFacilityRemoteRepository
         scheduledAt: DateTime(2026, 2, 12).millisecondsSinceEpoch,
         componentType: 'MACHINE',
         facility: const Facility(
-          facilityName: 'Sunita Sharma - Sewing Machine',
+          facilityName: 'Sunita Sharma',
           boundaryCode: 'INDIA_MEGHALAYA_WESTKHASIHILLS_MAWTHADRAISHAN',
         ),
         additionalDetails: const ActivityFacilityAdditionalDetails(
@@ -1345,9 +1345,10 @@ void main() {
 
     void expectComponentTypes() {
       expect(find.byKey(const ValueKey('facility-component-type')),
-          findsNWidgets(2));
-      expect(find.text('Solar'), findsOneWidget);
-      expect(find.text('Machine'), findsOneWidget);
+          findsNothing);
+      expect(find.text('Type'), findsNothing);
+      expect(find.text('Rajesh Kumar - Solar'), findsOneWidget);
+      expect(find.text('Sunita Sharma - Machine'), findsOneWidget);
     }
 
     Future<void> pumpPage(Widget page) async {
@@ -1371,13 +1372,6 @@ void main() {
     expect(
         find.byKey(const ValueKey('submit-approval-button')), findsNWidgets(2));
     expectComponentTypes();
-    expect(
-      tester
-          .getTopLeft(
-              find.byKey(const ValueKey('facility-component-type')).first)
-          .dy,
-      greaterThan(tester.getTopLeft(find.text('Block').first).dy),
-    );
 
     await pumpPage(const PendingApprovalPage());
     expect(find.byType(FacilitySearchSortCard), findsOneWidget);
@@ -1430,13 +1424,7 @@ void main() {
       ),
     );
 
-    expect(
-      find.descendant(
-        of: find.byKey(const ValueKey('facility-component-type')),
-        matching: find.text('—'),
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('Facility without type - —'), findsOneWidget);
   });
 
   testWidgets('facility cards use E4H date sources for every report mode', (
@@ -1450,7 +1438,7 @@ void main() {
         completedAt: 0,
         componentType: 'MACHINE',
         facility: const Facility(
-          facilityName: 'Dated facility',
+          facilityName: 'Dated facility with a long end-user name that wraps',
           boundaryCode: 'INDIA_ASSAM_BAKSA_DHAMDHAMA',
         ),
       ),
@@ -1474,6 +1462,14 @@ void main() {
           ),
         ),
       );
+
+      final heading = find.text(
+          'Dated facility with a long end-user name that wraps - Machine');
+      expect(heading, findsOneWidget);
+      final headingStyle = tester.widget<Text>(heading).style!;
+      expect(tester.getSize(heading).height,
+          greaterThan(headingStyle.fontSize! * (headingStyle.height ?? 1)));
+      expect(tester.takeException(), isNull);
 
       if (mode == FacilityReportMode.newReport) {
         expect(find.text('Start Date'), findsOneWidget);
@@ -1560,7 +1556,7 @@ void main() {
 
     expect(find.byType(FacilityReportCard), findsNWidgets(3));
     expect(
-      tester.getTopLeft(find.text('Local Failed Machine')).dy,
+      tester.getTopLeft(find.text('Local Failed Machine - Machine')).dy,
       lessThan(tester.getTopLeft(find.text('Rajesh Kumar - Solar')).dy),
     );
     final sync = tester.widget<DigitButton>(
@@ -1585,7 +1581,7 @@ void main() {
     await pumpAuthenticatedRoute(tester, const NewReportFacilitiesRoute());
     await tester.pumpAndSettle();
     expect(find.text('Rajesh Kumar - Solar'), findsNothing);
-    expect(find.text('Sunita Sharma - Sewing Machine'), findsOneWidget);
+    expect(find.text('Sunita Sharma - Machine'), findsOneWidget);
   });
 
   testWidgets('solar and machine facilities open their separate flows', (
