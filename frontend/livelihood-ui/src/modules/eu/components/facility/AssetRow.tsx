@@ -75,8 +75,6 @@ export function AssetRow({ asset, isAlternate, assetTypeName, onView }: AssetRow
           ? translateOr(t, "OPERATIONAL", "Operational")
           : translateOr(t, "NOT_OPERATIONAL", "Not Operational")}
       </td>
-      <td className="truncate px-5 py-4 text-foreground">{asset.brand || "-"}</td>
-      <td className="truncate px-5 py-4 text-foreground">{asset.modelNumber || "-"}</td>
       <td className="px-5 py-4">
         <PaginatedSearchableSelect
           ariaLabel={`${translateOr(t, "ASSET_VENDOR_ORGANIZATION", "Vendor Organization")}, ${rowLabel}`}

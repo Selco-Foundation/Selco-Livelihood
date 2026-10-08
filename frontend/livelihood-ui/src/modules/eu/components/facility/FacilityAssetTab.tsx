@@ -76,16 +76,14 @@ export function FacilityAssetTab({ facilityId }: FacilityAssetTabProps) {
       ) : (
         <div className="livelihood-card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1310px] table-fixed border-collapse text-sm">
+            <table className="w-full min-w-[1240px] table-fixed border-collapse text-sm">
               <colgroup>
-                <col className="w-[130px]" />
-                <col className="w-[150px]" />
+                <col className="w-[160px]" />
+                <col className="w-[190px]" />
+                <col className="w-[160px]" />
                 <col className="w-[140px]" />
-                <col className="w-[120px]" />
-                <col className="w-[120px]" />
-                <col className="w-[140px]" />
-                <col className="w-[220px]" />
-                <col className="w-[200px]" />
+                <col className="w-[260px]" />
+                <col className="w-[240px]" />
                 <col className="w-[90px]" />
               </colgroup>
               <thead>
@@ -101,12 +99,6 @@ export function FacilityAssetTab({ facilityId }: FacilityAssetTabProps) {
                   </th>
                   <th className="truncate px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ASSET_STATUS", "Status")}
-                  </th>
-                  <th className="truncate px-5 py-3 text-left text-sm font-semibold text-ink-950">
-                    {translateOr(t, "ASSET_BRAND", "Brand")}
-                  </th>
-                  <th className="truncate px-5 py-3 text-left text-sm font-semibold text-ink-950">
-                    {translateOr(t, "ASSET_MODEL_NUMBER", "Model Number")}
                   </th>
                   <th className="truncate px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ASSET_VENDOR_ORGANIZATION", "Vendor Organization")}
