@@ -53,9 +53,9 @@ export function AssetRow({ asset, isAlternate, assetTypeName, onView }: AssetRow
   }
 
   function handleSave() {
-    if (!isDirty || !draftVendorUserId) return;
+    if (!isDirty || !draftVendorUserId || !selectedOrgId) return;
     updateAssetVendor.mutate(
-      { assetId: asset.assetId, vendorId: draftVendorUserId },
+      { assetId: asset.assetId, vendorId: draftVendorUserId, organisationId: selectedOrgId },
       {
         onSuccess: () => {
           setSavedOverrideVendorId(draftVendorUserId);

@@ -122,7 +122,7 @@ describe("AssetRow", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(mutateMock).toHaveBeenCalledWith(
-      { assetId: "a1", vendorId: "vendor-2" },
+      { assetId: "a1", vendorId: "vendor-2", organisationId: "org-1" },
       expect.objectContaining({ onSuccess: expect.any(Function) }),
     );
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();

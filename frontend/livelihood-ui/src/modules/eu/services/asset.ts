@@ -139,19 +139,30 @@ export async function searchAssetsForActivity(
 export interface UpdateAssetVendorMappingPayload {
   assetId: string;
   vendorId: string;
+  organisationId: string;
 }
 
 /**
- * The vendor-mapping update endpoint is still under development. Until it
- * exists, this resolves a static success response instead of calling
- * `apiClient`, so the row's dirty-to-saved flow can be exercised end to end.
- * Swap this body for a real POST once the endpoint is ready — the function's
- * signature/shape shouldn't need to change.
+ * `POST /asset-registry/v1/asset/vendor/_update` — `tenantId` and
+ * `AssetVendorUpdates` sit at the body's top level, siblings of `RequestInfo`
+ * (not nested under a `criteria`/`AssetVendorUpdate` key like the search
+ * endpoints). Takes an array so multiple assets could be remapped in one
+ * call, but this module always saves one row at a time.
  */
 export async function updateAssetVendorMapping(
-  _payload: UpdateAssetVendorMappingPayload,
-  _accessToken: string,
-  _user?: AuthUser | null,
-): Promise<{ status: "success" }> {
-  return { status: "success" };
+  payload: UpdateAssetVendorMappingPayload,
+  tenantId: string,
+  accessToken: string,
+  user?: AuthUser | null,
+): Promise<unknown> {
+  const { data } = await apiClient.post(
+    "/asset-registry/v1/asset/vendor/_update",
+    {
+      RequestInfo: createRequestInfo(accessToken, user),
+      tenantId,
+      AssetVendorUpdates: [payload],
+    },
+  );
+
+  return data;
 }

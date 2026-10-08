@@ -1,4 +1,4 @@
-import { extractApiErrorMessage, translateOr, useAuthStore, useTranslate } from "@/shared";
+import { extractApiErrorMessage, tenantId, translateOr, useAuthStore, useTranslate } from "@/shared";
 import { toast } from "@/ui";
 import { useMutation } from "@tanstack/react-query";
 import { updateAssetVendorMapping, type UpdateAssetVendorMappingPayload } from "../services/asset";
@@ -10,7 +10,7 @@ export function useUpdateAssetVendor() {
 
   return useMutation({
     mutationFn: (payload: UpdateAssetVendorMappingPayload) =>
-      updateAssetVendorMapping(payload, accessToken!, user),
+      updateAssetVendorMapping(payload, tenantId(), accessToken!, user),
     onSuccess: () => {
       toast.success(translateOr(t, "ASSET_VENDOR_UPDATE_SUCCESS", "Mapped vendor updated"));
     },

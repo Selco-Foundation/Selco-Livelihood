@@ -41,17 +41,22 @@ afterEach(() => {
 });
 
 describe("useUpdateAssetVendor", () => {
-  it("calls updateAssetVendorMapping with the payload and shows a success toast", async () => {
+  it("calls updateAssetVendorMapping with the payload and tenantId, and shows a success toast", async () => {
     useAuthStore.setState({ accessToken: "token-1", user });
     vi.mocked(updateAssetVendorMapping).mockResolvedValue({ status: "success" });
     const { wrapper } = createWrapper();
 
     const { result } = renderHook(() => useUpdateAssetVendor(), { wrapper });
-    result.current.mutate({ assetId: "a1", vendorId: "vendor-1" });
+    result.current.mutate({ assetId: "a1", vendorId: "vendor-1", organisationId: "org-1" });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(updateAssetVendorMapping).toHaveBeenCalledWith({ assetId: "a1", vendorId: "vendor-1" }, "token-1", user);
+    expect(updateAssetVendorMapping).toHaveBeenCalledWith(
+      { assetId: "a1", vendorId: "vendor-1", organisationId: "org-1" },
+      expect.any(String),
+      "token-1",
+      user,
+    );
     expect(toast.success).toHaveBeenCalled();
   });
 
@@ -61,7 +66,7 @@ describe("useUpdateAssetVendor", () => {
     const { wrapper } = createWrapper();
 
     const { result } = renderHook(() => useUpdateAssetVendor(), { wrapper });
-    result.current.mutate({ assetId: "a1", vendorId: "vendor-1" });
+    result.current.mutate({ assetId: "a1", vendorId: "vendor-1", organisationId: "org-1" });
 
     await waitFor(() => expect(result.current.isError).toBe(true));
 

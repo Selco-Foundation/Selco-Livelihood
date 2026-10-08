@@ -139,12 +139,39 @@ describe("searchAssets", () => {
 });
 
 describe("updateAssetVendorMapping", () => {
-  it("resolves a static success response without calling apiClient, since the real endpoint isn't ready yet", async () => {
+  beforeEach(() => {
     vi.mocked(apiClient.post).mockReset();
+  });
 
-    const result = await updateAssetVendorMapping({ assetId: "a1", vendorId: "vendor-1" }, "token-1");
+  it("posts tenantId and AssetVendorUpdates at the body's top level, alongside RequestInfo", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ data: { status: "success" } });
 
-    expect(result).toEqual({ status: "success" });
-    expect(apiClient.post).not.toHaveBeenCalled();
+    await updateAssetVendorMapping(
+      { assetId: "a1", vendorId: "vendor-1", organisationId: "org-1" },
+      "tenant-1",
+      "token-1",
+    );
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/asset-registry/v1/asset/vendor/_update",
+      expect.objectContaining({
+        RequestInfo: expect.objectContaining({ apiId: "Rainmaker", authToken: "token-1" }),
+        tenantId: "tenant-1",
+        AssetVendorUpdates: [{ assetId: "a1", vendorId: "vendor-1", organisationId: "org-1" }],
+      }),
+    );
+  });
+
+  it("returns the raw response data unmodified", async () => {
+    const responseData = { status: "success" };
+    vi.mocked(apiClient.post).mockResolvedValue({ data: responseData });
+
+    const result = await updateAssetVendorMapping(
+      { assetId: "a1", vendorId: "vendor-1", organisationId: "org-1" },
+      "tenant-1",
+      "token-1",
+    );
+
+    expect(result).toBe(responseData);
   });
 });
