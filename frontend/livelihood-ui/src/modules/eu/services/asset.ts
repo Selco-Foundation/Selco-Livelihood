@@ -48,9 +48,15 @@ export interface AssetSearchResponseItem {
   warrantyDuration?: number;
   assetDetails?: AssetDetails;
   documents?: AssetSearchDocument[] | null;
-  /** The vendor currently mapped to this asset — a raw user uuid today, with
-   * no resolved display name available from this endpoint yet. */
+  /** The vendor user uuid currently mapped to this asset. */
   vendorId?: string;
+  /** Read-time enrichment of `vendorId` — the resolved org/vendor-user. */
+  vendor?: {
+    userId?: string;
+    name?: string;
+    organisationId?: string;
+    organisationName?: string;
+  };
   /** Null for a standalone asset or a top-level family asset; set to the
    * family asset's `assetId` on each of its own unit assets. */
   parentId?: string | null;
@@ -79,6 +85,14 @@ function toFacilityAsset(row: AssetSearchResponseItem): FacilityAsset {
     installationDate: formatInstallationDate(row.warrantyStartDate),
     isOperational: row.isOperational,
     vendorId: row.vendorId,
+    vendor: row.vendor
+      ? {
+          userId: row.vendor.userId,
+          name: row.vendor.name,
+          organisationId: row.vendor.organisationId,
+          organisationName: row.vendor.organisationName,
+        }
+      : undefined,
     children: row.children?.map(toFacilityAsset),
   };
 }

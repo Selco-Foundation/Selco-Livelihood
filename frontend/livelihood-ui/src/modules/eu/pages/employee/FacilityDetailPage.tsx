@@ -58,7 +58,7 @@ export function FacilityDetailPage() {
               <FacilityActivityTab facilityId={facilityId} facilityBoundaryCode={facility.boundaryCode} />
             </TabsContent>
             <TabsContent value="ASSET">
-              <FacilityAssetTab facilityId={facilityId} facilityBoundaryCode={facility.boundaryCode} />
+              <FacilityAssetTab facilityId={facilityId} />
             </TabsContent>
           </Tabs>
 

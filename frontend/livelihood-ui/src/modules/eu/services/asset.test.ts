@@ -62,6 +62,7 @@ describe("searchAssets", () => {
         installationDate: undefined,
         isOperational: undefined,
         vendorId: "vendor-1",
+        vendor: undefined,
         children: [
           {
             assetId: "a1-panel",
@@ -73,6 +74,7 @@ describe("searchAssets", () => {
             installationDate: undefined,
             isOperational: undefined,
             vendorId: "vendor-1",
+            vendor: undefined,
             children: undefined,
           },
           {
@@ -85,6 +87,7 @@ describe("searchAssets", () => {
             installationDate: undefined,
             isOperational: undefined,
             vendorId: undefined,
+            vendor: undefined,
             children: undefined,
           },
         ],
@@ -99,9 +102,39 @@ describe("searchAssets", () => {
         installationDate: undefined,
         isOperational: undefined,
         vendorId: undefined,
+        vendor: undefined,
         children: undefined,
       },
     ]);
+  });
+
+  it("maps the resolved vendor enrichment object when present", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({
+      data: [
+        {
+          assetId: "a1",
+          assetTypeID: "SOLAR",
+          vendorId: "vendor-1",
+          vendor: {
+            userId: "vendor-1",
+            userName: "test_vendor",
+            name: "Test Vendor",
+            mobileNumber: "8861235521",
+            organisationId: "org-1",
+            organisationName: "Test Installation Vendor",
+          },
+        },
+      ],
+    });
+
+    const result = await searchAssets({ tenantId: "tenant-1", facilityID: "facility-1" }, {}, "token-1");
+
+    expect(result[0].vendor).toEqual({
+      userId: "vendor-1",
+      name: "Test Vendor",
+      organisationId: "org-1",
+      organisationName: "Test Installation Vendor",
+    });
   });
 });
 
