@@ -8,9 +8,12 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
+import org.egov.common.contract.request.RequestInfo;
+import org.egov.common.contract.request.Role;
 import org.egov.asset.service.AssetService;
 import org.egov.asset.service.QrResolveService;
 import org.egov.asset.util.LivelihoodPocScopeService;
+import org.egov.asset.util.VendorUtil;
 import org.egov.asset.web.models.*;
 import org.egov.asset.web.validator.AssetValidator;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,12 +24,17 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 @jakarta.annotation.Generated(value = "org.egov.codegen.SpringBootCodegen", date = "2025-05-05T14:19:51.673231117+05:30[Asia/Kolkata]")
 @Controller
 @Slf4j
 @RequestMapping("")
 public class V1ApiController {
+
+    private static final String ROLE_COMPLAINANT = "COMPLAINANT";
+    private static final Set<String> END_USER_ROLES = Set.of(ROLE_COMPLAINANT, "EMPLOYEE", "CITIZEN");
 
     private final ObjectMapper objectMapper;
 
@@ -40,16 +48,19 @@ public class V1ApiController {
 
     private final QrResolveService qrResolveService;
 
+    private final VendorUtil vendorUtil;
+
     @Autowired
     public V1ApiController(ObjectMapper objectMapper, HttpServletRequest request, AssetValidator validator,
                            AssetService assetService, LivelihoodPocScopeService livelihoodPocScopeService,
-                           QrResolveService qrResolveService) {
+                           QrResolveService qrResolveService, VendorUtil vendorUtil) {
         this.objectMapper = objectMapper;
         this.request = request;
         this.validator = validator;
         this.assetService = assetService;
         this.livelihoodPocScopeService = livelihoodPocScopeService;
         this.qrResolveService = qrResolveService;
+        this.vendorUtil = vendorUtil;
     }
 
     @RequestMapping(value = "/v1/asset/bulk/_create", method = RequestMethod.POST)
@@ -178,10 +189,22 @@ public class V1ApiController {
                 .brandID(criteria.getBrandID())
                 .vendorId(criteria.getVendorId())
                 .itemCode(criteria.getItemCode())
+                .parentId(criteria.getParentId())
                 .build();
         livelihoodPocScopeService.applyAssetSearchScope(searchRequest, asset);
-        List<Asset> searchResponse = assetService.fetchAssetsWithDocuments(asset,limit, offset);
-        Integer count = assetService.getAssetsCount(asset);
+        // End users see the Solar parent and their Machines, never the individual Solar units. With
+        // includeChildren the units are returned nested under their parent, so they must not also be
+        // listed as top-level rows (unless the caller is asking for one parent's units via parentId).
+        boolean includeChildren = Boolean.TRUE.equals(criteria.getIncludeChildren());
+        boolean excludeUnits = isEndUserOnly(searchRequest.getRequestInfo())
+                || (includeChildren && (criteria.getParentId() == null || criteria.getParentId().isBlank()));
+        List<Asset> searchResponse = assetService.fetchAssetsWithDocuments(asset, limit, offset, excludeUnits);
+        if (includeChildren) {
+            assetService.attachChildren(criteria.getTenantId(), searchResponse);
+        }
+        // Every asset (and nested child) carries its mapped vendor for display.
+        vendorUtil.attachVendors(searchRequest.getRequestInfo(), criteria.getTenantId(), searchResponse);
+        Integer count = assetService.getAssetsCount(asset, excludeUnits);
         return new ResponseEntity<>(searchResponse, HttpStatus.OK);
     }
 
@@ -253,6 +276,22 @@ public class V1ApiController {
         log.trace("V1ApiController::updateAssetWorkflow called");
         log.warn("Update asset workflow endpoint called but not implemented | assetID={}", assetID);
         return new ResponseEntity<Void>(HttpStatus.NOT_IMPLEMENTED);
+    }
+
+    /**
+     * True for an end user (COMPLAINANT) holding no staff role - every role is one of
+     * END_USER_ROLES. An allow-list, so any vendor/POC/reviewer/system role keeps full results.
+     */
+    private static boolean isEndUserOnly(RequestInfo requestInfo) {
+        if (requestInfo == null || requestInfo.getUserInfo() == null || requestInfo.getUserInfo().getRoles() == null) {
+            return false;
+        }
+        List<String> roleCodes = requestInfo.getUserInfo().getRoles().stream()
+                .map(Role::getCode)
+                .filter(code -> code != null && !code.isBlank())
+                .map(code -> code.toUpperCase(Locale.ROOT))
+                .toList();
+        return roleCodes.contains(ROLE_COMPLAINANT) && END_USER_ROLES.containsAll(roleCodes);
     }
 
 }
