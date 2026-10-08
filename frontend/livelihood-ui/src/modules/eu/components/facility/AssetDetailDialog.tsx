@@ -46,7 +46,7 @@ export function AssetDetailDialog({ asset, onClose, assetTypeName }: AssetDetail
 
   return (
     <Dialog open={Boolean(asset)} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{translateOr(t, "ASSET_DETAILS", "Asset Details")}</DialogTitle>
         </DialogHeader>
