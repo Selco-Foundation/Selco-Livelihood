@@ -132,6 +132,14 @@ public class OrganisationUserServiceValidator {
         // Get existing user with mobile number from hrms service
         List<Employee> employee = hrmsUtils.getUserByPhoneNumber(request, orgUser.getMobileNumber());
         if (employee == null || employee.isEmpty()) { //If user doesn't exist
+            // Only a newly created HRMS user gets the password from the request; an existing user's password is never touched
+            String password = orgUser.getPassword();
+            if (StringUtils.isBlank(password)) {
+                log.error("Password is mandatory to create a new organisation user");
+                throw new CustomException("OrgUserCreation", "Password is mandatory");
+            }
+            // Keep the plain password out of the request object that is later pushed to Kafka
+            orgUser.setPassword(null);
             Organisation organisation = organisations.get(0);
             String orgType = organisation.getOrgType();
             Map<String, List<Role>> rolesMap =  getOrgRoles(request.getRequestInfo(), orgUser.getTenantId());
@@ -179,15 +187,14 @@ public class OrganisationUserServiceValidator {
                     String hrmsUserUuid = employeeResp.getUser().getUuid();
                     try {
                         User hrmsUser = hrmsUtils.resolveUserForPasswordUpdate(request.getRequestInfo(), employeeResp);
-                        userUtil.updatePasswordWithHrmsUser(
-                                request.getRequestInfo(),
-                                hrmsUser,
-                                configuration.getDefaultUserPassword());
-                        log.info("New user created and default password set for uuid {}", hrmsUserUuid);
+                        userUtil.updatePasswordWithHrmsUser(request.getRequestInfo(), hrmsUser, password);
+                        log.info("New user created and password set for uuid {}", hrmsUserUuid);
                     } catch (Exception passwordUpdateEx) {
-                        // HRMS/egov-user create already succeeded; do not block org-user link on password reset.
-                        log.warn("HRMS user {} created but default password update failed: {}",
+                        // The admin chose this password, so a silent failure would leave a user nobody can log in as
+                        log.error("HRMS user {} created but setting its password failed: {}",
                                 hrmsUserUuid, passwordUpdateEx.getMessage());
+                        throw new CustomException("ORG_USER_PASSWORD_UPDATE_FAILED",
+                                "User was created in HRMS but its password could not be set: " + passwordUpdateEx.getMessage());
                     }
                 }
                 else{
