@@ -464,6 +464,15 @@ public class FacilityMdmsValidator {
         // facilities are unaffected - the same way Sectors is handled.
         putIfNotBlank(map, "end_user_type", facility.getEndUserType());
 
+        // The schema declares these as enum-yes-no, so present them the way the sheet does.
+        // Without them the required check on is_onm_ready fails even when a value was supplied.
+        if (facility.getIsOnmReady() != null) {
+            map.put("is_onm_ready", Boolean.TRUE.equals(facility.getIsOnmReady()) ? "Yes" : "No");
+        }
+        if (facility.getIsActive() != null) {
+            map.put("is_operational", Boolean.TRUE.equals(facility.getIsActive()) ? "Yes" : "No");
+        }
+
         if (facility.getBoundaryCode() != null) {
             map.put("boundary_code", facility.getBoundaryCode());
             map.put("boundaryCode", facility.getBoundaryCode());
