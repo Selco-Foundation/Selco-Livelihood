@@ -70,7 +70,7 @@ public class FacilityMdmsValidator {
                 requestInfo,
                 tenantId,
                 "facility",
-                List.of("FacilityType", "FacilityCategory", "FacilityOwnership", "PreferredLanguage")
+                List.of("FacilityType", "FacilityCategory", "FacilityOwnership", "PreferredLanguage", "EndUserType")
         ));
 
         List<Map<String, Object>> flattenedMdmsData = flattenMdmsData(mdmsData);
