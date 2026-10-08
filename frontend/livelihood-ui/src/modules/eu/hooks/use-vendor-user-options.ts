@@ -25,8 +25,11 @@ export function useVendorUserOptions(organizationId: string | undefined, pinned?
     queryFn: ({ pageParam }) =>
       searchVendorOrgUsers(organizationId!, tenantId(), PAGE_SIZE, pageParam, accessToken!, user),
     getNextPageParam: (lastPage, allPages) => {
-      const loaded = allPages.reduce((sum, page) => sum + page.options.length, 0);
-      return loaded < lastPage.total ? loaded : undefined;
+      // Must advance by the raw rows each page actually returned, not by `options.length` — a
+      // page with any non-vendor-role rows filtered out would otherwise make the next request
+      // re-read rows already consumed, and `hasMore` would never settle to false.
+      const rawLoaded = allPages.reduce((sum, page) => sum + page.rawCount, 0);
+      return rawLoaded < lastPage.total ? rawLoaded : undefined;
     },
   });
 

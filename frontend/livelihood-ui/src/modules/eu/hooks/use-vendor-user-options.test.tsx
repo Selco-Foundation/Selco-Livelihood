@@ -48,6 +48,7 @@ describe("useVendorUserOptions", () => {
     vi.mocked(searchVendorOrgUsers).mockResolvedValue({
       options: [{ code: "u1", name: "Vendor One" }],
       total: 1,
+      rawCount: 1,
     });
     const { wrapper } = createWrapper();
 
@@ -61,8 +62,8 @@ describe("useVendorUserOptions", () => {
   it("appends the next page's options and stops once every row has loaded", async () => {
     useAuthStore.setState({ accessToken: "token-1", user });
     vi.mocked(searchVendorOrgUsers)
-      .mockResolvedValueOnce({ options: [{ code: "u1", name: "Vendor One" }], total: 2 })
-      .mockResolvedValueOnce({ options: [{ code: "u2", name: "Vendor Two" }], total: 2 });
+      .mockResolvedValueOnce({ options: [{ code: "u1", name: "Vendor One" }], total: 2, rawCount: 1 })
+      .mockResolvedValueOnce({ options: [{ code: "u2", name: "Vendor Two" }], total: 2, rawCount: 1 });
     const { wrapper } = createWrapper();
 
     const { result } = renderHook(() => useVendorUserOptions("org-1"), { wrapper });
@@ -80,9 +81,46 @@ describe("useVendorUserOptions", () => {
     expect(result.current.hasMore).toBe(false);
   });
 
+  it("advances the next page's offset by the raw row count, not the role-filtered option count, so a page with filtered-out rows doesn't re-read or loop forever", async () => {
+    useAuthStore.setState({ accessToken: "token-1", user });
+    // First page: backend returns 10 raw rows but only 1 holds a vendor role. Second page:
+    // the remaining 2 raw rows complete the real total of 12, both vendor-eligible.
+    vi.mocked(searchVendorOrgUsers)
+      .mockResolvedValueOnce({ options: [{ code: "u1", name: "Vendor One" }], total: 12, rawCount: 10 })
+      .mockResolvedValueOnce(
+        {
+          options: [
+            { code: "u2", name: "Vendor Two" },
+            { code: "u3", name: "Vendor Three" },
+          ],
+          total: 12,
+          rawCount: 2,
+        },
+      );
+    const { wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useVendorUserOptions("org-1"), { wrapper });
+
+    await waitFor(() => expect(result.current.hasMore).toBe(true));
+    act(() => result.current.loadMore());
+
+    await waitFor(() => expect(result.current.hasMore).toBe(false));
+    // Offset 10 (the raw rows already consumed), not 1 (the filtered options kept).
+    expect(searchVendorOrgUsers).toHaveBeenLastCalledWith("org-1", expect.any(String), 10, 10, "token-1", user);
+    expect(result.current.options).toEqual([
+      { code: "u1", name: "Vendor One" },
+      { code: "u2", name: "Vendor Two" },
+      { code: "u3", name: "Vendor Three" },
+    ]);
+  });
+
   it("merges in the pinned vendor when it isn't already in the loaded page", async () => {
     useAuthStore.setState({ accessToken: "token-1", user });
-    vi.mocked(searchVendorOrgUsers).mockResolvedValue({ options: [{ code: "u1", name: "Vendor One" }], total: 1 });
+    vi.mocked(searchVendorOrgUsers).mockResolvedValue({
+      options: [{ code: "u1", name: "Vendor One" }],
+      total: 1,
+      rawCount: 1,
+    });
     const { wrapper } = createWrapper();
 
     const { result } = renderHook(() => useVendorUserOptions("org-1", { code: "u9", name: "Pinned Vendor" }), {

@@ -20,6 +20,11 @@ interface RawOrgUser {
 export interface VendorOrgUsersPage {
   options: VendorUserOption[];
   total: number;
+  /** Raw row count this page actually returned, before the client-side role filter — the
+   * caller's pagination offset math must advance by this, not by `options.length`, or the next
+   * request re-reads rows the backend already returned once a page has any non-vendor rows
+   * filtered out of it. */
+  rawCount: number;
 }
 
 /**
@@ -47,9 +52,10 @@ export async function searchVendorOrgUsers(
     { accessToken, user, limit, offset },
   );
 
-  const options = (data.OrgUsers ?? [])
+  const rawRows = data.OrgUsers ?? [];
+  const options = rawRows
     .filter((row) => row.user?.uuid && row.user.roles?.some((role) => VENDOR_ROLES.includes(role.code ?? "")))
     .map((row) => ({ code: row.user!.uuid!, name: row.user!.name ?? row.user!.uuid! }));
 
-  return { options, total: data.TotalCount ?? options.length };
+  return { options, total: data.TotalCount ?? rawRows.length, rawCount: rawRows.length };
 }

@@ -33,7 +33,7 @@ describe("searchVendorOrgUsers", () => {
 
     const result = await searchVendorOrgUsers("org-1", "tenant-1", 10, 0, "token-1");
 
-    expect(result).toEqual({ options: [{ code: "u1", name: "Vendor One" }], total: 1 });
+    expect(result).toEqual({ options: [{ code: "u1", name: "Vendor One" }], total: 1, rawCount: 1 });
   });
 
   it("falls back to the uuid as the name when the user has none", async () => {
@@ -72,13 +72,32 @@ describe("searchVendorOrgUsers", () => {
     expect(result.options).toEqual([{ code: "u2", name: "Vendor Two" }]);
   });
 
-  it("defaults total to the resolved option count when TotalCount is absent", async () => {
+  it("reports rawCount as the rows returned before role filtering, not the filtered option count, so pagination math stays correct", async () => {
     vi.mocked(postSearch).mockResolvedValue({
-      OrgUsers: [{ user: { uuid: "u1", name: "Vendor One", roles: [{ code: "LIVELIHOOD_VENDOR" }] } }],
+      OrgUsers: [
+        { user: { uuid: "u1", name: "Non Vendor", roles: [{ code: "EMPLOYEE" }] } },
+        { user: { uuid: "u2", name: "Vendor Two", roles: [{ code: "LIVELIHOOD_VENDOR" }] } },
+      ],
+      TotalCount: 5,
     });
 
     const result = await searchVendorOrgUsers("org-1", "tenant-1", 10, 0, "token-1");
 
-    expect(result.total).toBe(1);
+    expect(result.rawCount).toBe(2);
+    expect(result.options).toHaveLength(1);
+  });
+
+  it("defaults total to the raw row count when TotalCount is absent", async () => {
+    vi.mocked(postSearch).mockResolvedValue({
+      OrgUsers: [
+        { user: { uuid: "u1", name: "Vendor One", roles: [{ code: "LIVELIHOOD_VENDOR" }] } },
+        { user: { uuid: "u2", name: "Non Vendor", roles: [{ code: "EMPLOYEE" }] } },
+      ],
+    });
+
+    const result = await searchVendorOrgUsers("org-1", "tenant-1", 10, 0, "token-1");
+
+    expect(result.total).toBe(2);
+    expect(result.rawCount).toBe(2);
   });
 });
