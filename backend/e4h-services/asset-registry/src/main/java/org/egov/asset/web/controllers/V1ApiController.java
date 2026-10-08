@@ -13,6 +13,7 @@ import org.egov.common.contract.request.Role;
 import org.egov.asset.service.AssetService;
 import org.egov.asset.service.QrResolveService;
 import org.egov.asset.util.LivelihoodPocScopeService;
+import org.egov.asset.util.VendorUtil;
 import org.egov.asset.web.models.*;
 import org.egov.asset.web.validator.AssetValidator;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,16 +48,19 @@ public class V1ApiController {
 
     private final QrResolveService qrResolveService;
 
+    private final VendorUtil vendorUtil;
+
     @Autowired
     public V1ApiController(ObjectMapper objectMapper, HttpServletRequest request, AssetValidator validator,
                            AssetService assetService, LivelihoodPocScopeService livelihoodPocScopeService,
-                           QrResolveService qrResolveService) {
+                           QrResolveService qrResolveService, VendorUtil vendorUtil) {
         this.objectMapper = objectMapper;
         this.request = request;
         this.validator = validator;
         this.assetService = assetService;
         this.livelihoodPocScopeService = livelihoodPocScopeService;
         this.qrResolveService = qrResolveService;
+        this.vendorUtil = vendorUtil;
     }
 
     @RequestMapping(value = "/v1/asset/bulk/_create", method = RequestMethod.POST)
@@ -188,12 +192,18 @@ public class V1ApiController {
                 .parentId(criteria.getParentId())
                 .build();
         livelihoodPocScopeService.applyAssetSearchScope(searchRequest, asset);
-        // End users see the Solar parent and their Machines, never the individual Solar units.
-        boolean excludeUnits = isEndUserOnly(searchRequest.getRequestInfo());
+        // End users see the Solar parent and their Machines, never the individual Solar units. With
+        // includeChildren the units are returned nested under their parent, so they must not also be
+        // listed as top-level rows (unless the caller is asking for one parent's units via parentId).
+        boolean includeChildren = Boolean.TRUE.equals(criteria.getIncludeChildren());
+        boolean excludeUnits = isEndUserOnly(searchRequest.getRequestInfo())
+                || (includeChildren && (criteria.getParentId() == null || criteria.getParentId().isBlank()));
         List<Asset> searchResponse = assetService.fetchAssetsWithDocuments(asset, limit, offset, excludeUnits);
-        if (Boolean.TRUE.equals(criteria.getIncludeChildren())) {
+        if (includeChildren) {
             assetService.attachChildren(criteria.getTenantId(), searchResponse);
         }
+        // Every asset (and nested child) carries its mapped vendor for display.
+        vendorUtil.attachVendors(searchRequest.getRequestInfo(), criteria.getTenantId(), searchResponse);
         Integer count = assetService.getAssetsCount(asset, excludeUnits);
         return new ResponseEntity<>(searchResponse, HttpStatus.OK);
     }
