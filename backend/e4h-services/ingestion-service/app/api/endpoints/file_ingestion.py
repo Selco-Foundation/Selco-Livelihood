@@ -577,8 +577,7 @@ async def upload_facilities_excel_sheet(
         facility_file: UploadFile = File(description="Excel file containing facility data"),
         facility_sheet_name: str = Form(default="EndUserIngestionTemplate",
                                         description="Name of the sheet containing facility data"),
-        request_info: str = Form(default=""),
-        are_facilities_onm_ready: bool = Form(description="FieldPlan ID")
+        request_info: str = Form(default="")
 ):
     input_temp_file = None
     output_temp_file = None
@@ -625,7 +624,6 @@ async def upload_facilities_excel_sheet(
                     facility_data_payload = create_facility_payload(
                         request_info,
                         row,
-                        are_facilities_onm_ready,
                         facility_schema,
                     )
                     response = facility_client.create_facility(facility_data_payload)

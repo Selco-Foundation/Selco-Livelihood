@@ -356,6 +356,11 @@ class FacilityTemplateService:
                     if dropdown_options:
                         dropdowns_map[header_name] = dropdown_options
 
+                # Yes/No columns get a dropdown too - without one the cell is free text and a
+                # typo only surfaces after upload. Mirrors generate_template_file_with_data.
+                if col.get("type", "") in ["enum-yes-no"]:
+                    dropdowns_map[header_name] = ["Yes", "No"]
+
             df_facility = pd.DataFrame(columns=output_list)
             facility_writer = create_excel_data_writer(
                 output_path,

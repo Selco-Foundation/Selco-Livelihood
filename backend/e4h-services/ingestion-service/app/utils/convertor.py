@@ -542,10 +542,18 @@ def safe_get(row, key, default=None):
     return default if pd.isna(val) else val
 
 
+def read_yes_no(row, key: str, default: bool) -> bool:
+    """Read an enum-yes-no cell. Blank falls back to `default`; the validator rejects anything
+    that is neither Yes nor No, so unrecognised text here is treated as No rather than guessed."""
+    val = safe_get(row, key)
+    if val is None or str(val).strip() == "":
+        return default
+    return str(val).strip().lower() in ("yes", "true", "1")
+
+
 def create_facility_payload(
         request_info: RequestInfo,
         row: Series,
-        are_facilities_onm_ready: bool,
         facility_schema: List[Dict[str, Any]],
 ):
     facility_category_name = safe_get(row, 'Category (Mandatory)')
@@ -554,14 +562,6 @@ def create_facility_payload(
     # "Sectors" is the renamed "Type of HC" -> maps to the existing facility_type field.
     sector_name = safe_get(row, 'Sectors (Mandatory)')
     facility_type_code = get_mdms_code_by_name(facility_schema, 'Sectors', sector_name)
-
-    # Solution Design Type (non-mandatory) -> facility_details.solar_solution_design_type
-    # Optional mdms field: only resolve a code when a value is actually provided.
-    solution_design_name = safe_get(row, 'Solution Design Type')
-    if solution_design_name is not None and str(solution_design_name).strip().lower() not in ('', 'nan', 'none'):
-        solution_design_code = get_mdms_code_by_name(facility_schema, 'Solution Design Type', solution_design_name)
-    else:
-        solution_design_code = None
 
     # Livelihood: the single "End user Name" is used both as the end-user contact name
     # and as the facility name (no separate facility-name column in the template).
@@ -587,18 +587,27 @@ def create_facility_payload(
     end_user_type_name = safe_get(row, 'End User Type (Mandatory)')
     end_user_type_code = get_mdms_code_by_name(facility_schema, 'End User Type', end_user_type_name)
 
+    # Is Operational -> facility.is_active. PRD 8.3: defaults to Yes.
+    is_operational = read_yes_no(row, 'Is Operational', default=True)
+
+    # Is O&M Ready is mandatory, so a blank should not occur; fall back to No if one does.
+    # This drives POC user creation in facility-service, not just display.
+    is_onm_ready = read_yes_no(row, 'Is O&M Ready (Mandatory)', default=False)
+
+    # Blank password means the system generates one (first 4 letters of the name + '@' +
+    # first 4 digits of the phone). Never stored on the facility - passed to the user service.
+    end_user_password = safe_get(row, 'End User Password')
+    end_user_password = str(end_user_password).strip() if end_user_password is not None else None
+
     facility_record = {
         'tenant_id': LIVELIHOOD_TENANT_ID,
         'facility_name': end_user_name,
         'facility_category': facility_category_code,
         'facility_type': facility_type_code,
-        'facility_details': {
-            'solar_solution_design_type': solution_design_code,
-            'pocDesignation': safe_get(row, 'End user Designation'),
-        },
+        'facility_details': {},
         'facility_ownership': safe_get(row, 'Ownership', 'GOVERNMENT'),
         'facility_region': safe_get(row, 'Region', 'RURAL'),
-        'isActive': True,
+        'isActive': is_operational,
         'blockBoundaryCode': safe_get(row, 'Boundary Code (Mandatory)'),
         'address': {
             'tenantId': LIVELIHOOD_TENANT_ID,
@@ -613,8 +622,9 @@ def create_facility_payload(
         'facility_poc_phone': safe_get(row, 'End user Contact number (Mandatory)'),
         'facility_poc_email': safe_get(row, 'End user Email'),
         'facility_status': 'ACTIVE',
-        'isOnmReady': True,
+        'isOnmReady': is_onm_ready,
         'endUserType': end_user_type_code,
+        'endUserPassword': end_user_password or None,
         'additionalDetails': {'preferredLanguage': preferred_language_code, 'misId': mis_id},
     }
     if poc_username_hdr:

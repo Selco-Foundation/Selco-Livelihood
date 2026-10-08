@@ -159,6 +159,7 @@ def project_facility_validation(
     validate_row_constraints(new_rows, schema, lambda i, m: add_err(new_rows.loc[i, "index"], m))
     validate_anganwadi_poc_username(new_rows, schema, lambda i, m: add_err(new_rows.loc[i, "index"], m))
     validate_hfr_nin(new_rows, lambda i, m: add_err(new_rows.loc[i, "index"], m), facility_client)
+    validate_poc_username_not_taken(new_rows, lambda i, m: add_err(new_rows.loc[i, "index"], m), facility_client)
 
     return errors
 
@@ -734,6 +735,40 @@ def validate_row_constraints(df, schema, add_err):
                 filled_count = sum(bool(v) for v in values)
                 if 0 < filled_count < len(values):
                     add_err(idx, rc.message)
+
+
+def validate_poc_username_not_taken(df, add_err, facility_client):
+    """Flags rows whose End user Username already belongs to an end user in the registry.
+
+    Without this the clash is only caught by FacilityService at create time - after validation
+    has reported the sheet clean and after earlier rows have already been created, which is the
+    partial upload PRD 8.4 forbids.
+    """
+    header = _find_header(df, "End user Username")
+    if not header:
+        return
+
+    checked: Dict[str, bool] = {}
+    for idx, row in df.iterrows():
+        raw = row.get(header, "")
+        username = str(raw).strip() if pd.notna(raw) else ""
+        if not username:
+            continue  # a missing username is the required-field check's business, not this one
+
+        if username not in checked:
+            try:
+                result = facility_client.search_facility(
+                    tenant_id=LIVELIHOOD_TENANT_ID,
+                    facility_poc_username=username,
+                )
+                checked[username] = (result.get("totalCount", 0) > 0)
+            except Exception as e:
+                # Flag rather than pass: an unchecked row would still fail at create.
+                add_err(idx, f"Could not check whether username '{username}' is already taken: {e}")
+                continue
+
+        if checked[username]:
+            add_err(idx, f"End user Username '{username}' already exists in the system")
 
 
 def validate_hfr_nin(df, add_err, facility_client):
