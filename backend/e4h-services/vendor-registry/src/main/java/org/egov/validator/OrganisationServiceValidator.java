@@ -92,7 +92,9 @@ public class OrganisationServiceValidator {
         Map<String, List<String>> boundariesMap = new HashMap<>();
         List<Address> orgAddressFinalList = new ArrayList<>();
         for (Organisation organisation : organisationList) {
-            orgAddressFinalList.addAll(organisation.getOrgAddress());
+            if (organisation.getOrgAddress() != null) {
+                orgAddressFinalList.addAll(organisation.getOrgAddress());
+            }
         }
         if (!CollectionUtils.isEmpty(orgAddressFinalList)) {
             for (Address orgAddress : orgAddressFinalList) {
