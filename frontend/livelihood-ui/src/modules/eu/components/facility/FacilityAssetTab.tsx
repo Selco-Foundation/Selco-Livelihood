@@ -76,37 +76,45 @@ export function FacilityAssetTab({ facilityId }: FacilityAssetTabProps) {
       ) : (
         <div className="livelihood-card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1400px] border-collapse text-sm">
+            <table className="w-full min-w-[1310px] table-fixed border-collapse text-sm">
+              <colgroup>
+                <col className="w-[130px]" />
+                <col className="w-[150px]" />
+                <col className="w-[140px]" />
+                <col className="w-[120px]" />
+                <col className="w-[120px]" />
+                <col className="w-[140px]" />
+                <col className="w-[220px]" />
+                <col className="w-[200px]" />
+                <col className="w-[90px]" />
+              </colgroup>
               <thead>
                 <tr className="border-b border-border">
-                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                  <th className="truncate px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ASSET_TYPE", "Asset Type")}
                   </th>
-                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                  <th className="truncate px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ASSET_SERIAL_NO", "Serial No.")}
                   </th>
-                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                  <th className="truncate px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ASSET_INSTALLATION_DATE", "Installation Date")}
                   </th>
-                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                  <th className="truncate px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ASSET_STATUS", "Status")}
                   </th>
-                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                  <th className="truncate px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ASSET_BRAND", "Brand")}
                   </th>
-                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                  <th className="truncate px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ASSET_MODEL_NUMBER", "Model Number")}
                   </th>
-                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
-                    {translateOr(t, "ASSET_CAPACITY", "Capacity")}
-                  </th>
-                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                  <th className="truncate px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ASSET_VENDOR_ORGANIZATION", "Vendor Organization")}
                   </th>
-                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                  <th className="truncate px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ASSET_VENDOR", "Vendor")}
                   </th>
-                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                  <th className="truncate px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ASSET_ACTIONS", "Actions")}
                   </th>
                 </tr>

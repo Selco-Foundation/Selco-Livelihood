@@ -67,17 +67,16 @@ export function AssetRow({ asset, isAlternate, assetTypeName, onView }: AssetRow
 
   return (
     <tr className={isAlternate ? "border-b border-border/70 bg-accent" : "border-b border-border/70"}>
-      <td className="px-5 py-4 text-foreground">{typeName || "-"}</td>
-      <td className="px-5 py-4 text-foreground">{asset.serialNumber || "-"}</td>
-      <td className="px-5 py-4 text-foreground">{asset.installationDate || "-"}</td>
-      <td className="px-5 py-4 text-foreground">
+      <td className="truncate px-5 py-4 text-foreground">{typeName || "-"}</td>
+      <td className="truncate px-5 py-4 text-foreground">{asset.serialNumber || "-"}</td>
+      <td className="truncate px-5 py-4 text-foreground">{asset.installationDate || "-"}</td>
+      <td className="truncate px-5 py-4 text-foreground">
         {asset.isOperational
           ? translateOr(t, "OPERATIONAL", "Operational")
           : translateOr(t, "NOT_OPERATIONAL", "Not Operational")}
       </td>
-      <td className="px-5 py-4 text-foreground">{asset.brand || "-"}</td>
-      <td className="px-5 py-4 text-foreground">{asset.modelNumber || "-"}</td>
-      <td className="px-5 py-4 text-foreground">{asset.capacity || "-"}</td>
+      <td className="truncate px-5 py-4 text-foreground">{asset.brand || "-"}</td>
+      <td className="truncate px-5 py-4 text-foreground">{asset.modelNumber || "-"}</td>
       <td className="px-5 py-4">
         <PaginatedSearchableSelect
           ariaLabel={`${translateOr(t, "ASSET_VENDOR_ORGANIZATION", "Vendor Organization")}, ${rowLabel}`}
