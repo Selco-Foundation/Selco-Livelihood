@@ -72,6 +72,9 @@ public class Asset {
     @JsonProperty("vendorId")
     private String vendorId = null;
 
+    @JsonProperty("vendor")
+    private AssetVendor vendor = null;
+
     @JsonProperty("itemCode")
     private String itemCode = null;
 
