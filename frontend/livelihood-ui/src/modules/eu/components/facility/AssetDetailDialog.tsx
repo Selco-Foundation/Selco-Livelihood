@@ -54,15 +54,11 @@ export function AssetDetailDialog({ asset, onClose, assetTypeName }: AssetDetail
           <div className="space-y-4">
             <AssetSpecGrid asset={asset} assetTypeName={assetTypeName} />
 
-            <div className="rounded-md border border-border bg-muted/30 p-4">
-              <h3 className="mb-3 text-base font-semibold text-foreground">
-                {translateOr(t, "ASSET_CHILD_ASSETS", "Child Assets")}
-              </h3>
-              {children.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  {translateOr(t, "ASSET_NO_CHILD_ASSETS", "No child assets")}
-                </p>
-              ) : (
+            {children.length > 0 ? (
+              <div className="rounded-md border border-border bg-muted/30 p-4">
+                <h3 className="mb-3 text-base font-semibold text-foreground">
+                  {translateOr(t, "ASSET_CHILD_ASSETS", "Child Assets")}
+                </h3>
                 <div className="space-y-3">
                   {children.map((child) => (
                     <div key={child.assetId} className="rounded-md border border-border p-3">
@@ -70,8 +66,8 @@ export function AssetDetailDialog({ asset, onClose, assetTypeName }: AssetDetail
                     </div>
                   ))}
                 </div>
-              )}
-            </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </DialogContent>
