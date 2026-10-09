@@ -94,6 +94,7 @@ public class BoundaryUtil {
         BoundaryRelationshipSearchCriteria searchCriteria = BoundaryRelationshipSearchCriteria.builder()
                 .tenantId(boundaryTenantId)
                 .includeChildren(!facilityLevelCodes)
+                .includeParents(facilityLevelCodes)
                 .hierarchyType(boundaryHierarchyType)
                 .codes(distinctCodes)
                 .build();
@@ -178,7 +179,16 @@ public class BoundaryUtil {
             for (JsonNode tenantBoundary : tenantBoundaryArray) {
                 JsonNode boundaryArray = tenantBoundary.get("boundary");
                 if (boundaryArray != null && boundaryArray.isArray()) {
-                    for (JsonNode state : boundaryArray) {
+                    List<JsonNode> states = new ArrayList<>();
+                    for (JsonNode top : boundaryArray) {
+                        // includeParents responses start at Country, one level above State
+                        if ("Country".equals(top.path("boundaryType").asText()) && top.path("children").isArray()) {
+                            top.path("children").forEach(states::add);
+                        } else {
+                            states.add(top);
+                        }
+                    }
+                    for (JsonNode state : states) {
                         JsonNode districts = state.get("children");
                         JsonNode stateCodeNode = state.get("code");
                         if (stateCodeNode == null) continue;
