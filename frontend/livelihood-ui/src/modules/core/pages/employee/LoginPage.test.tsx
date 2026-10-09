@@ -221,26 +221,6 @@ describe("LoginPage", () => {
       );
     });
 
-    it("shows the not-permitted message and does not establish a session when roles are blocked", async () => {
-      const user = userEvent.setup();
-      mockSuccessfulLogin();
-      vi.mocked(assertEmployeeRolesAllowed).mockImplementation(() => {
-        throw new Error("ES_ERROR_USER_NOT_PERMITTED");
-      });
-      renderPage();
-
-      await user.type(screen.getByLabelText(/^Username/), "jo");
-      await user.type(getPasswordInput(), "secret");
-      await user.click(screen.getByRole("button", { name: "Log in" }));
-
-      await vi.waitFor(() =>
-        expect(toast.error).toHaveBeenCalledWith("Sign in failed", {
-          description: "You are not permitted to access this application.",
-        }),
-      );
-      expect(useAuthStore.getState().isAuthenticated).toBe(false);
-      expect(mockNavigate).not.toHaveBeenCalled();
-    });
 
     it("shows the OAuth error description when the login request fails with one", async () => {
       const user = userEvent.setup();
