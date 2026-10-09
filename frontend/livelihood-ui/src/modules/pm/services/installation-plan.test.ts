@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { apiClient } from "@/shared";
+import { apiClient } from "@/shared/api/client";
 import {
   assignInstallationReviewer,
   createInstallationPlan,
@@ -10,10 +10,7 @@ import {
 } from "./installation-plan";
 import type { InstallationPlan } from "../types/installation-plan";
 
-vi.mock("@/shared", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/shared")>();
-  return { ...actual, apiClient: { post: vi.fn(), get: vi.fn() } };
-});
+vi.mock("@/shared/api/client", () => ({ apiClient: { post: vi.fn(), get: vi.fn() } }));
 
 function plan(overrides: Partial<InstallationPlan> = {}): InstallationPlan {
   return { tenantId: "tenant-1", projectId: "project-1", startDate: 1000, endDate: 2000, ...overrides };

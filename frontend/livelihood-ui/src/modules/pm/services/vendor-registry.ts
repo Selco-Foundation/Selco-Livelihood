@@ -1,5 +1,6 @@
+import { postSearch } from "@/shared";
 import type { AuthUser } from "@/shared/stores/auth-store";
-import { BULK_PAGE_SIZE, postSearch } from "../utils/url-params";
+import { BULK_PAGE_SIZE } from "../utils/url-params";
 
 const INSTALLATION_VENDOR_SUB_TYPE = "INSTALLATION_VENDOR";
 const ACTIVE_ORG_STATUS = "ACTIVE";

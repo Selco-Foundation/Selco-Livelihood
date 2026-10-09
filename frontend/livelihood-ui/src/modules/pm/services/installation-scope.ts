@@ -1,4 +1,4 @@
-import { apiClient, i18n, translateOr } from "@/shared";
+import { apiClient, i18n, searchUrlParams, translateOr } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
 import { fetchFacilities } from "@/shared/api/facility";
 import type { AuthUser } from "@/shared/stores/auth-store";
@@ -16,7 +16,7 @@ import {
 import type { GeographyDetails } from "../types/project";
 import type { InstallationPlanScopeEntry } from "../types/installation-plan";
 import type { DownloadedFile } from "../utils/file-download";
-import { fetchAllPages, searchUrlParams } from "../utils/url-params";
+import { fetchAllPages } from "../utils/url-params";
 
 /** Carries the server's HTTP status so the UI can tell guidance (4xx) from a fault. */
 export class InstallationScopeApiError extends IngestionRequestError {}
