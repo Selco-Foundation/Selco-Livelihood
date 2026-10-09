@@ -148,6 +148,13 @@ export function FacilityForm({ form }: FacilityFormProps) {
             <p className="text-xs text-destructive">{fieldErrors.endUserEmail}</p>
           ) : null}
         </div>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">
+            {translateOr(t, "FACILITY_MIS_ID", "MIS ID")}
+          </label>
+          <Input value={values.misId} onChange={(event) => updateField("misId", event.target.value)} />
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">

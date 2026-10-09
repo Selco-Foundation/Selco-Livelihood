@@ -56,6 +56,7 @@ export function FacilityInfoSection({ facility, onEdit }: FacilityInfoSectionPro
           <InfoItem label={translateOr(t, "FACILITY_END_USER_USERNAME", "End User Username")} value={facility.pocUsername} />
           <InfoItem label={translateOr(t, "FACILITY_END_USER_PHONE", "End User Phone")} value={facility.pocPhone} />
           <InfoItem label={translateOr(t, "FACILITY_END_USER_EMAIL", "End User Email")} value={facility.pocEmail} />
+          <InfoItem label={translateOr(t, "FACILITY_MIS_ID", "MIS ID")} value={facility.misId} />
           <InfoItem label={translateOr(t, "END_USER_SITE_CATEGORY", "End User Site Category")} value={categoryName} />
           <InfoItem label={translateOr(t, "FACILITY_TYPE", "Sector")} value={typeName} />
           <InfoItem

@@ -38,6 +38,7 @@ const EMPTY_VALUES: FacilityFormValues = {
   endUserUsername: "",
   endUserPhone: "",
   endUserEmail: "",
+  misId: "",
   isOperational: true,
   isOnmReady: true,
   latitude: "",
@@ -183,6 +184,7 @@ export function useFacilityForm(editingFacilityId?: string) {
       facility_poc_phone: values.endUserPhone.trim(),
       ...(values.endUserEmail.trim() ? { facility_poc_email: values.endUserEmail.trim() } : {}),
       ...(values.password.trim() ? { endUserPassword: values.password.trim() } : {}),
+      ...(values.misId.trim() ? { additionalDetails: { misId: values.misId.trim() } } : {}),
       facility_details: {},
     };
   }
@@ -215,6 +217,14 @@ export function useFacilityForm(editingFacilityId?: string) {
       facility_poc_phone: values.endUserPhone.trim(),
       ...(values.endUserEmail.trim() ? { facility_poc_email: values.endUserEmail.trim() } : {}),
       ...(values.password.trim() ? { endUserPassword: values.password.trim() } : {}),
+      ...(values.misId.trim()
+        ? {
+            additionalDetails: {
+              ...((raw.additionalDetails as Record<string, unknown> | undefined) ?? {}),
+              misId: values.misId.trim(),
+            },
+          }
+        : {}),
       facility_details: {},
     };
   }
@@ -236,6 +246,7 @@ export function useFacilityForm(editingFacilityId?: string) {
       endUserUsername: facility.pocUsername ?? "",
       endUserPhone: facility.pocPhone ?? "",
       endUserEmail: facility.pocEmail ?? "",
+      misId: facility.misId ?? "",
       isOperational: facility.isActive ?? true,
       isOnmReady: facility.isActive === false ? false : (facility.isOnmReady ?? true),
       latitude: facility.latitude !== undefined ? String(facility.latitude) : "",

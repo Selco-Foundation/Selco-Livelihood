@@ -18,6 +18,8 @@ export interface Facility {
   latitude?: number;
   longitude?: number;
   endUserType?: string;
+  /** External end-user identifier, free-text — read from `additionalDetails.misId`. */
+  misId?: string;
   /** The untransformed backend record — the update call spreads this first and
    * overrides only the edited fields, since `/facility-service/v2/facility/update`
    * replaces the whole record rather than patching it. */
@@ -51,6 +53,8 @@ export interface FacilityFormValues {
   endUserUsername: string;
   endUserPhone: string;
   endUserEmail: string;
+  /** Optional, free-text — sent as `additionalDetails.misId`. */
+  misId: string;
   isOperational: boolean;
   isOnmReady: boolean;
   latitude: string;
