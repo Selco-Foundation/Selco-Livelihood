@@ -17,7 +17,7 @@ export interface Facility {
   blockCode?: string;
   latitude?: number;
   longitude?: number;
-  solarSolutionDesignType?: string;
+  endUserType?: string;
   /** The untransformed backend record — the update call spreads this first and
    * overrides only the edited fields, since `/facility-service/v2/facility/update`
    * replaces the whole record rather than patching it. */
@@ -46,7 +46,7 @@ export interface FacilityFormValues {
   facilityName: string;
   facilityCategory: string;
   facilityType: string;
-  solarSolutionDesignType: string;
+  endUserType: string;
   pocName: string;
   pocUsername: string;
   pocPhone: string;
