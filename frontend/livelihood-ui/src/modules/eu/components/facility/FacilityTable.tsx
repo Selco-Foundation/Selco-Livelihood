@@ -58,6 +58,9 @@ export function FacilityTable({
                     {translateOr(t, "FACILITY_END_USER_NAME", "End User Name")}
                   </th>
                   <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                    {translateOr(t, "FACILITY_END_USER_PHONE", "End User Phone")}
+                  </th>
+                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "CS_STATE", "State")}
                   </th>
                   <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
@@ -92,6 +95,7 @@ export function FacilityTable({
                           {facility.facilityName || facility.pocName || "-"}
                         </Link>
                       </td>
+                      <td className="px-5 py-4 text-foreground">{facility.pocPhone || "-"}</td>
                       <td className="px-5 py-4 text-foreground">
                         {facility.stateCode ? boundaryDisplayName(facility.stateCode, t) : "-"}
                       </td>
