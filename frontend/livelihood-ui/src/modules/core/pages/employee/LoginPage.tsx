@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  assertEmployeeRolesAllowed,
   employeeForgotPasswordPath,
   employeeHomePath,
   filterRolesForEmployeeTenant,
@@ -139,7 +138,6 @@ export function LoginPage() {
       }
 
       const scopedUser = filterRolesForEmployeeTenant(userInfo, userInfo.tenantId);
-      assertEmployeeRolesAllowed(scopedUser);
 
       const jurisdictionData = await hydrateEmployeeJurisdictions(
         scopedUser,
@@ -158,18 +156,8 @@ export function LoginPage() {
       await navigate({ to: resolveRedirectPath(from) });
     } catch (error) {
       const message =
-        error instanceof Error && error.message === "ES_ERROR_USER_NOT_PERMITTED"
-          ? translateOr(
-              t,
-              "ES_ERROR_USER_NOT_PERMITTED",
-              "You are not permitted to access this application.",
-            )
-          : (extractOAuthErrorDescription(error) ??
-            translateOr(
-              t,
-              "CS_LOGIN_INVALID_CREDENTIALS",
-              "Check your credentials and try again.",
-            ));
+        extractOAuthErrorDescription(error) ??
+        translateOr(t, "CS_LOGIN_INVALID_CREDENTIALS", "Check your credentials and try again.");
 
       toast.error(translateOr(t, "CS_LOGIN_FAILED", "Sign in failed"), {
         description: message,

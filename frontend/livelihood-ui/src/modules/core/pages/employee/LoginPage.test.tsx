@@ -30,7 +30,6 @@ vi.mock("@/shared", async (importOriginal) => {
     loginUser: vi.fn(),
     resolveQrLogin: vi.fn(),
     filterRolesForEmployeeTenant: vi.fn((user: unknown) => user),
-    assertEmployeeRolesAllowed: vi.fn(),
     hydrateEmployeeJurisdictions: vi.fn(),
     useLoginBannerImages: vi.fn().mockReturnValue([]),
   };
@@ -46,7 +45,6 @@ vi.mock("@/ui", async (importOriginal) => {
 });
 
 import {
-  assertEmployeeRolesAllowed,
   employeeHomePath,
   filterRolesForEmployeeTenant,
   hydrateEmployeeJurisdictions,
@@ -86,7 +84,6 @@ beforeEach(() => {
   vi.mocked(loginUser).mockReset();
   vi.mocked(resolveQrLogin).mockReset();
   vi.mocked(hydrateEmployeeJurisdictions).mockReset();
-  vi.mocked(assertEmployeeRolesAllowed).mockReset();
   vi.mocked(filterRolesForEmployeeTenant).mockImplementation((user: unknown) => user as never);
   useAuthStore.setState(initialAuthState, true);
   useJurisdictionStore.setState(initialJurisdictionState, true);
@@ -207,26 +204,6 @@ describe("LoginPage", () => {
       );
     });
 
-    it("shows the not-permitted message and does not establish a session when roles are blocked", async () => {
-      const user = userEvent.setup();
-      mockSuccessfulLogin();
-      vi.mocked(assertEmployeeRolesAllowed).mockImplementation(() => {
-        throw new Error("ES_ERROR_USER_NOT_PERMITTED");
-      });
-      renderPage();
-
-      await user.type(screen.getByLabelText(/^Username/), "jo");
-      await user.type(getPasswordInput(), "secret");
-      await user.click(screen.getByRole("button", { name: "Log in" }));
-
-      await vi.waitFor(() =>
-        expect(toast.error).toHaveBeenCalledWith("Sign in failed", {
-          description: "You are not permitted to access this application.",
-        }),
-      );
-      expect(useAuthStore.getState().isAuthenticated).toBe(false);
-      expect(mockNavigate).not.toHaveBeenCalled();
-    });
 
     it("shows the OAuth error description when the login request fails with one", async () => {
       const user = userEvent.setup();
