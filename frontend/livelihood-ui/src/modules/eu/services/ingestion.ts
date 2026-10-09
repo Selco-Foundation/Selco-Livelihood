@@ -1,6 +1,26 @@
 import { apiClient, type AuthUser } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
 
+/**
+ * axios hands a failed request's JSON error body back as a `Blob` whenever `responseType: "blob"`
+ * is set (every call in this file, since all of them can answer with either a workbook or a JSON
+ * error) — the backend's actual validation message sits unread inside it. Parses that Blob's JSON
+ * in place on `error.response.data` so every caller's existing `extractApiErrorMessage(error)`
+ * call keeps reading it exactly like any normal JSON error response, no caller changes needed.
+ */
+async function resolveBlobErrorBody(error: unknown): Promise<never> {
+  const response = (error as { response?: { data?: unknown; headers?: Record<string, string> } })?.response;
+  const contentType = response?.headers?.["content-type"] ?? "";
+  if (response && response.data instanceof Blob && contentType.includes("application/json")) {
+    try {
+      response.data = JSON.parse(await response.data.text());
+    } catch {
+      // Leave response.data as the Blob — extractApiErrorMessage falls back to the generic message.
+    }
+  }
+  throw error;
+}
+
 function parseFilenameFromDisposition(disposition: string): string | undefined {
   const utf8Match = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(disposition);
   if (utf8Match?.[1]) {
@@ -23,11 +43,13 @@ export function downloadBlob(blob: Blob, filename: string): void {
 }
 
 export async function downloadBoundaryTemplate(accessToken: string, user?: AuthUser | null): Promise<void> {
-  const response = await apiClient.post(
-    "/ingestion-service/template/boundaryIngestionTemplate",
-    { RequestInfo: createRequestInfo(accessToken, user) },
-    { responseType: "blob" },
-  );
+  const response = await apiClient
+    .post(
+      "/ingestion-service/template/boundaryIngestionTemplate",
+      { RequestInfo: createRequestInfo(accessToken, user) },
+      { responseType: "blob" },
+    )
+    .catch(resolveBlobErrorBody);
 
   const disposition = response.headers["content-disposition"] ?? "";
   const filename = parseFilenameFromDisposition(disposition) ?? "boundary-ingestion-template.xlsx";
@@ -60,17 +82,21 @@ export async function uploadBoundaryData(
   formData.append("boundary_sheet_name", DEFAULT_BOUNDARY_SHEET_NAME);
   formData.append("request_info", JSON.stringify(createRequestInfo(accessToken, user)));
 
-  const response = await apiClient.post("/ingestion-service/ingest/boundaries", formData, {
-    headers: { "Content-Type": undefined },
-    responseType: "blob",
-  });
+  const response = await apiClient
+    .post("/ingestion-service/ingest/boundaries", formData, {
+      headers: { "Content-Type": undefined },
+      responseType: "blob",
+    })
+    .catch(resolveBlobErrorBody);
 
   const contentType = String(response.headers["content-type"] ?? "");
   const errorCount = Number.parseInt(String(response.headers["x-error-count"] ?? "0"), 10);
   const blob = response.data as Blob;
 
   if (contentType.includes("application/json")) {
-    return { success: errorCount === 0 };
+    // A JSON ack can still report failed rows via the header alone, with no annotated workbook —
+    // surface the count so the UI doesn't show a "View errors" button that has nothing to open.
+    return errorCount > 0 ? { success: false, errorCount } : { success: true };
   }
 
   const disposition = String(response.headers["content-disposition"] ?? "");
@@ -84,11 +110,13 @@ export async function uploadBoundaryData(
 }
 
 export async function downloadFacilityTemplate(accessToken: string, user?: AuthUser | null): Promise<void> {
-  const response = await apiClient.post(
-    "/ingestion-service/template/facilityIngestion",
-    { RequestInfo: createRequestInfo(accessToken, user) },
-    { responseType: "blob" },
-  );
+  const response = await apiClient
+    .post(
+      "/ingestion-service/template/facilityIngestion",
+      { RequestInfo: createRequestInfo(accessToken, user) },
+      { responseType: "blob" },
+    )
+    .catch(resolveBlobErrorBody);
 
   const disposition = response.headers["content-disposition"] ?? "";
   const filename = parseFilenameFromDisposition(disposition) ?? "facility-ingestion-template.xlsx";
@@ -114,10 +142,12 @@ export async function validateFacilityData(
   formData.append("facility_file", file);
   formData.append("request_info", JSON.stringify(createRequestInfo(accessToken, user)));
 
-  const response = await apiClient.post("/ingestion-service/ingest/addFacilitiesValidateData", formData, {
-    headers: { "Content-Type": undefined },
-    responseType: "blob",
-  });
+  const response = await apiClient
+    .post("/ingestion-service/ingest/addFacilitiesValidateData", formData, {
+      headers: { "Content-Type": undefined },
+      responseType: "blob",
+    })
+    .catch(resolveBlobErrorBody);
 
   const errorCount = Number.parseInt(String(response.headers["x-error-count"] ?? "0"), 10);
   const disposition = String(response.headers["content-disposition"] ?? "");
@@ -142,10 +172,12 @@ export async function uploadFacilityData(
   formData.append("are_facilities_onm_ready", String(areFacilitiesOnmReady));
   formData.append("request_info", JSON.stringify(createRequestInfo(accessToken, user)));
 
-  const response = await apiClient.post("/ingestion-service/ingest/facilities", formData, {
-    headers: { "Content-Type": undefined },
-    responseType: "blob",
-  });
+  const response = await apiClient
+    .post("/ingestion-service/ingest/facilities", formData, {
+      headers: { "Content-Type": undefined },
+      responseType: "blob",
+    })
+    .catch(resolveBlobErrorBody);
 
   const disposition = String(response.headers["content-disposition"] ?? "");
   const filename = parseFilenameFromDisposition(disposition) ?? "facility-upload-result.xlsx";
