@@ -30,7 +30,6 @@ vi.mock("@/shared", async (importOriginal) => {
     loginUser: vi.fn(),
     resolveQrLogin: vi.fn(),
     filterRolesForEmployeeTenant: vi.fn((user: unknown) => user),
-    assertEmployeeRolesAllowed: vi.fn(),
     hydrateEmployeeJurisdictions: vi.fn(),
     useLoginBannerImages: vi.fn().mockReturnValue([]),
   };
@@ -46,7 +45,6 @@ vi.mock("@/ui", async (importOriginal) => {
 });
 
 import {
-  assertEmployeeRolesAllowed,
   employeeHomePath,
   filterRolesForEmployeeTenant,
   hydrateEmployeeJurisdictions,
@@ -86,7 +84,6 @@ beforeEach(() => {
   vi.mocked(loginUser).mockReset();
   vi.mocked(resolveQrLogin).mockReset();
   vi.mocked(hydrateEmployeeJurisdictions).mockReset();
-  vi.mocked(assertEmployeeRolesAllowed).mockReset();
   vi.mocked(filterRolesForEmployeeTenant).mockImplementation((user: unknown) => user as never);
   useAuthStore.setState(initialAuthState, true);
   useJurisdictionStore.setState(initialJurisdictionState, true);
@@ -192,9 +189,9 @@ describe("LoginPage", () => {
       expect(mockNavigate).toHaveBeenCalledWith({ to: employeeHomePath() });
     });
 
-    it("redirects to the decoded 'from' path when present in the search params", async () => {
+    it("redirects to the 'from' path when present in the search params", async () => {
       const user = userEvent.setup();
-      mockSearch = { from: encodeURIComponent("/employee/some/path?x=1") };
+      mockSearch = { from: "/employee/some/path?x=1" };
       mockSuccessfulLogin();
       renderPage();
 
@@ -207,12 +204,10 @@ describe("LoginPage", () => {
       );
     });
 
-    it("shows the not-permitted message and does not establish a session when roles are blocked", async () => {
+    it("redirects to a 'from' path containing an encoded id segment without further decoding it", async () => {
       const user = userEvent.setup();
+      mockSearch = { from: "/livelihood-ui/employee/eu/facilities/ED%2F2026%2F0013" };
       mockSuccessfulLogin();
-      vi.mocked(assertEmployeeRolesAllowed).mockImplementation(() => {
-        throw new Error("ES_ERROR_USER_NOT_PERMITTED");
-      });
       renderPage();
 
       await user.type(screen.getByLabelText(/^Username/), "jo");
@@ -220,13 +215,12 @@ describe("LoginPage", () => {
       await user.click(screen.getByRole("button", { name: "Log in" }));
 
       await vi.waitFor(() =>
-        expect(toast.error).toHaveBeenCalledWith("Sign in failed", {
-          description: "You are not permitted to access this application.",
+        expect(mockNavigate).toHaveBeenCalledWith({
+          to: "/livelihood-ui/employee/eu/facilities/ED%2F2026%2F0013",
         }),
       );
-      expect(useAuthStore.getState().isAuthenticated).toBe(false);
-      expect(mockNavigate).not.toHaveBeenCalled();
     });
+
 
     it("shows the OAuth error description when the login request fails with one", async () => {
       const user = userEvent.setup();

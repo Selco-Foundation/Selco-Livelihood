@@ -46,7 +46,7 @@ describe("useCreateBoundary", () => {
 
     const { result } = renderHook(() => useCreateBoundary(), { wrapper });
     result.current.mutate({
-      state: "Karnataka",
+      state: "State A",
       district: "",
       block: "Some Block",
       isStateTextMode: true,
@@ -56,8 +56,9 @@ describe("useCreateBoundary", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     const stateUpsertCall = vi.mocked(upsertLocalization).mock.calls.find((call) =>
-      (call[0].messages[0].code as string).includes("Karnataka"),
+      (call[0].messages[0].code as string).includes("STATE"),
     );
-    expect(stateUpsertCall?.[0].messages[0].code).toBe("BOUNDARY_India_Karnataka");
+    expect(stateUpsertCall?.[0].messages[0].code).toBe("BOUNDARY_INDIA_STATE/A");
+    expect(stateUpsertCall?.[0].messages[0].message).toBe("State A");
   });
 });

@@ -1,4 +1,4 @@
-import { apiClient, type AuthUser } from "@/shared";
+import { apiClient, tenantId as getTenantId, type AuthUser } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
 
 /**
@@ -19,6 +19,24 @@ async function resolveBlobErrorBody(error: unknown): Promise<never> {
     }
   }
   throw error;
+}
+
+/**
+ * ingestion-service's gateway reads a JSON request's auth token out of `RequestInfo.authToken` in
+ * the body, but a multipart body isn't one JSON blob, so that lookup finds nothing and the gateway
+ * rejects the request even though `request_info` really does carry the token. Every multipart call
+ * in this file needs the token and tenant as real headers instead — plus `tenantId` as a query
+ * param too, checked separately by the gateway before the request is even forwarded — so they're
+ * found regardless of body shape. Same gateway workaround `pm/utils/ingestion-request.ts`
+ * documents and applies for its own multipart calls (not reused directly — `eu` can't import from
+ * `pm` across the module boundary).
+ */
+function multipartAuthConfig(accessToken: string) {
+  const tenant = getTenantId();
+  return {
+    headers: { "Content-Type": undefined, "auth-token": accessToken, tenantId: tenant },
+    params: { tenantId: tenant },
+  };
 }
 
 function parseFilenameFromDisposition(disposition: string): string | undefined {
@@ -84,7 +102,7 @@ export async function uploadBoundaryData(
 
   const response = await apiClient
     .post("/ingestion-service/ingest/boundaries", formData, {
-      headers: { "Content-Type": undefined },
+      ...multipartAuthConfig(accessToken),
       responseType: "blob",
     })
     .catch(resolveBlobErrorBody);
@@ -110,12 +128,14 @@ export async function uploadBoundaryData(
 }
 
 export async function downloadFacilityTemplate(accessToken: string, user?: AuthUser | null): Promise<void> {
+  const formData = new FormData();
+  formData.append("request_info", JSON.stringify(createRequestInfo(accessToken, user)));
+
   const response = await apiClient
-    .post(
-      "/ingestion-service/template/facilityIngestion",
-      { RequestInfo: createRequestInfo(accessToken, user) },
-      { responseType: "blob" },
-    )
+    .post("/ingestion-service/template/facilityIngestion", formData, {
+      ...multipartAuthConfig(accessToken),
+      responseType: "blob",
+    })
     .catch(resolveBlobErrorBody);
 
   const disposition = response.headers["content-disposition"] ?? "";
@@ -144,7 +164,7 @@ export async function validateFacilityData(
 
   const response = await apiClient
     .post("/ingestion-service/ingest/addFacilitiesValidateData", formData, {
-      headers: { "Content-Type": undefined },
+      ...multipartAuthConfig(accessToken),
       responseType: "blob",
     })
     .catch(resolveBlobErrorBody);
@@ -174,7 +194,7 @@ export async function uploadFacilityData(
 
   const response = await apiClient
     .post("/ingestion-service/ingest/facilities", formData, {
-      headers: { "Content-Type": undefined },
+      ...multipartAuthConfig(accessToken),
       responseType: "blob",
     })
     .catch(resolveBlobErrorBody);

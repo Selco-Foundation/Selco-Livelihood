@@ -17,7 +17,9 @@ export interface Facility {
   blockCode?: string;
   latitude?: number;
   longitude?: number;
-  solarSolutionDesignType?: string;
+  endUserType?: string;
+  /** External end-user identifier, free-text — read from `additionalDetails.misId`. */
+  misId?: string;
   /** The untransformed backend record — the update call spreads this first and
    * overrides only the edited fields, since `/facility-service/v2/facility/update`
    * replaces the whole record rather than patching it. */
@@ -38,21 +40,26 @@ export const EMPTY_FACILITY_FILTERS: FacilitySearchFilters = {
   facility: [],
 };
 
-/** Every field `FacilityForm` collects. HEALTH-category facilities (HFR ID / NIN ID / POC-username exemption) aren't supported here. */
+/** Every field `FacilityForm` collects. HEALTH-category facilities (HFR ID / NIN ID / username exemption) aren't supported here. */
 export interface FacilityFormValues {
   state: string;
   district: string;
   block: string;
-  facilityName: string;
+  /** Sent as both `facility_name` and `facility_poc_name` on save — the end user's own name doubles as the site name. */
+  endUserName: string;
   facilityCategory: string;
   facilityType: string;
-  solarSolutionDesignType: string;
-  pocName: string;
-  pocUsername: string;
-  pocPhone: string;
-  pocEmail: string;
+  endUserType: string;
+  endUserUsername: string;
+  endUserPhone: string;
+  endUserEmail: string;
+  /** Optional, free-text — sent as `additionalDetails.misId`. */
+  misId: string;
   isOperational: boolean;
   isOnmReady: boolean;
   latitude: string;
   longitude: string;
+  /** Optional — the backend auto-generates a password when none is sent. */
+  password: string;
+  confirmPassword: string;
 }

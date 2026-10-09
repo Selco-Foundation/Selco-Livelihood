@@ -5,7 +5,6 @@ import { FACILITIES_QUERY_KEY } from "./use-facilities";
 
 export interface BulkAddFacilitiesInput {
   file: File;
-  areFacilitiesOnmReady: boolean;
 }
 
 export type BulkAddFacilitiesResult =
@@ -23,14 +22,14 @@ export function useBulkAddFacilities() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ file, areFacilitiesOnmReady }: BulkAddFacilitiesInput): Promise<BulkAddFacilitiesResult> => {
+    mutationFn: async ({ file }: BulkAddFacilitiesInput): Promise<BulkAddFacilitiesResult> => {
       const validated = await validateFacilityData(file, accessToken!, user);
 
       if (validated.errorCount > 0) {
         return { status: "invalid_data", errorCount: validated.errorCount, resultFile: validated.file };
       }
 
-      const uploaded = await uploadFacilityData(validated.file, areFacilitiesOnmReady, accessToken!, user);
+      const uploaded = await uploadFacilityData(validated.file, false, accessToken!, user);
       return { status: "success", resultFile: uploaded };
     },
     onSuccess: (result) => {

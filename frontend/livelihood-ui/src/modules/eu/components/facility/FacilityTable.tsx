@@ -55,7 +55,10 @@ export function FacilityTable({
                     {translateOr(t, "CS_END_USER_SITE_ID", "End User Site ID")}
                   </th>
                   <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
-                    {translateOr(t, "END_USER_SITE_NAME", "End User Site Name")}
+                    {translateOr(t, "FACILITY_END_USER_NAME", "End User Name")}
+                  </th>
+                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                    {translateOr(t, "FACILITY_END_USER_PHONE", "End User Phone")}
                   </th>
                   <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "CS_STATE", "State")}
@@ -65,9 +68,6 @@ export function FacilityTable({
                   </th>
                   <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "CS_BLOCK", "Block")}
-                  </th>
-                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
-                    {translateOr(t, "CS_POC_NAME", "POC Name")}
                   </th>
                 </tr>
               </thead>
@@ -92,9 +92,10 @@ export function FacilityTable({
                           className="hover:underline"
                           onClick={(event) => event.stopPropagation()}
                         >
-                          {facility.facilityName || "-"}
+                          {facility.facilityName || facility.pocName || "-"}
                         </Link>
                       </td>
+                      <td className="px-5 py-4 text-foreground">{facility.pocPhone || "-"}</td>
                       <td className="px-5 py-4 text-foreground">
                         {facility.stateCode ? boundaryDisplayName(facility.stateCode, t) : "-"}
                       </td>
@@ -104,7 +105,6 @@ export function FacilityTable({
                       <td className="px-5 py-4 text-foreground">
                         {facility.blockCode ? boundaryDisplayName(facility.blockCode, t) : "-"}
                       </td>
-                      <td className="px-5 py-4 text-foreground">{facility.pocName || "-"}</td>
                     </tr>
                   );
                 })}

@@ -26,7 +26,7 @@ export function FacilityForm({ form }: FacilityFormProps) {
     blocks,
     facilityCategories,
     facilityTypeOptions,
-    solarSolutionDesignTypes,
+    endUserTypes,
     updateField,
   } = form;
 
@@ -54,7 +54,7 @@ export function FacilityForm({ form }: FacilityFormProps) {
     code: type.code,
     name: type.name,
   }));
-  const solarDesignOptions: SelectOption[] = solarSolutionDesignTypes.map((option) => ({
+  const endUserTypeOptions: SelectOption[] = endUserTypes.map((option) => ({
     code: option.code,
     name: option.name,
   }));
@@ -94,18 +94,70 @@ export function FacilityForm({ form }: FacilityFormProps) {
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-foreground">
-            {translateOr(t, "END_USER_SITE_NAME", "End User Site Name")}
+            {translateOr(t, "FACILITY_END_USER_NAME", "End User Name")}
             <span className="text-destructive"> *</span>
           </label>
           <Input
-            value={values.facilityName}
-            onChange={(event) => updateField("facilityName", event.target.value)}
+            value={values.endUserName}
+            onChange={(event) => updateField("endUserName", event.target.value)}
           />
-          {fieldErrors.facilityName ? (
-            <p className="text-xs text-destructive">{fieldErrors.facilityName}</p>
+          {fieldErrors.endUserName ? (
+            <p className="text-xs text-destructive">{fieldErrors.endUserName}</p>
           ) : null}
         </div>
 
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">
+            {translateOr(t, "FACILITY_END_USER_USERNAME", "End User Username")}
+            <span className="text-destructive"> *</span>
+          </label>
+          <Input
+            value={values.endUserUsername}
+            disabled={isEditing}
+            onChange={(event) => updateField("endUserUsername", event.target.value)}
+          />
+          {fieldErrors.endUserUsername ? (
+            <p className="text-xs text-destructive">{fieldErrors.endUserUsername}</p>
+          ) : null}
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">
+            {translateOr(t, "FACILITY_END_USER_PHONE", "End User Phone")}
+            <span className="text-destructive"> *</span>
+          </label>
+          <Input
+            value={values.endUserPhone}
+            maxLength={10}
+            onChange={(event) => updateField("endUserPhone", event.target.value)}
+          />
+          {fieldErrors.endUserPhone ? (
+            <p className="text-xs text-destructive">{fieldErrors.endUserPhone}</p>
+          ) : null}
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">
+            {translateOr(t, "FACILITY_END_USER_EMAIL", "End User Email")}
+          </label>
+          <Input
+            value={values.endUserEmail}
+            onChange={(event) => updateField("endUserEmail", event.target.value)}
+          />
+          {fieldErrors.endUserEmail ? (
+            <p className="text-xs text-destructive">{fieldErrors.endUserEmail}</p>
+          ) : null}
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">
+            {translateOr(t, "FACILITY_MIS_ID", "MIS ID")}
+          </label>
+          <Input value={values.misId} onChange={(event) => updateField("misId", event.target.value)} />
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
         <FormSelectField
           label={translateOr(t, "END_USER_SITE_CATEGORY", "End User Site Category")}
           required
@@ -127,58 +179,11 @@ export function FacilityForm({ form }: FacilityFormProps) {
         />
 
         <FormSelectField
-          label={translateOr(t, "FACILITY_SOLAR_SOLUTION_DESIGN_TYPE", "Solar Solution Design Type")}
-          value={values.solarSolutionDesignType}
-          options={solarDesignOptions}
-          onChange={(option) => updateField("solarSolutionDesignType", option?.code ?? "")}
+          label={translateOr(t, "FACILITY_END_USER_TYPE", "End User Type")}
+          value={values.endUserType}
+          options={endUserTypeOptions}
+          onChange={(option) => updateField("endUserType", option?.code ?? "")}
         />
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">
-            {translateOr(t, "FACILITY_POC_NAME", "POC Name")}
-            <span className="text-destructive"> *</span>
-          </label>
-          <Input value={values.pocName} onChange={(event) => updateField("pocName", event.target.value)} />
-          {fieldErrors.pocName ? <p className="text-xs text-destructive">{fieldErrors.pocName}</p> : null}
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">
-            {translateOr(t, "FACILITY_POC_USERNAME", "POC Username")}
-            <span className="text-destructive"> *</span>
-          </label>
-          <Input
-            value={values.pocUsername}
-            disabled={isEditing}
-            onChange={(event) => updateField("pocUsername", event.target.value)}
-          />
-          {fieldErrors.pocUsername ? (
-            <p className="text-xs text-destructive">{fieldErrors.pocUsername}</p>
-          ) : null}
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">
-            {translateOr(t, "FACILITY_POC_PHONE", "POC Phone")}
-            <span className="text-destructive"> *</span>
-          </label>
-          <Input
-            value={values.pocPhone}
-            maxLength={10}
-            onChange={(event) => updateField("pocPhone", event.target.value)}
-          />
-          {fieldErrors.pocPhone ? <p className="text-xs text-destructive">{fieldErrors.pocPhone}</p> : null}
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">
-            {translateOr(t, "FACILITY_POC_EMAIL", "POC Email")}
-          </label>
-          <Input value={values.pocEmail} onChange={(event) => updateField("pocEmail", event.target.value)} />
-          {fieldErrors.pocEmail ? <p className="text-xs text-destructive">{fieldErrors.pocEmail}</p> : null}
-        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -212,6 +217,34 @@ export function FacilityForm({ form }: FacilityFormProps) {
           </label>
           <Input value={values.longitude} onChange={(event) => updateField("longitude", event.target.value)} />
           {fieldErrors.longitude ? <p className="text-xs text-destructive">{fieldErrors.longitude}</p> : null}
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">
+            {translateOr(t, "FACILITY_PASSWORD", "Password")}
+          </label>
+          <Input
+            type="password"
+            autoComplete="new-password"
+            value={values.password}
+            onChange={(event) => updateField("password", event.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">
+            {translateOr(t, "FACILITY_CONFIRM_PASSWORD", "Confirm Password")}
+          </label>
+          <Input
+            type="password"
+            autoComplete="new-password"
+            value={values.confirmPassword}
+            onChange={(event) => updateField("confirmPassword", event.target.value)}
+          />
+          {fieldErrors.confirmPassword ? (
+            <p className="text-xs text-destructive">{fieldErrors.confirmPassword}</p>
+          ) : null}
         </div>
       </div>
     </div>

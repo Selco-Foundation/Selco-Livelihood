@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { apiClient } from "@/shared";
-import { downloadBoundaryTemplate, uploadBoundaryData } from "./ingestion";
+import { apiClient, tenantId } from "@/shared";
+import { downloadBoundaryTemplate, downloadFacilityTemplate, uploadBoundaryData } from "./ingestion";
 
 vi.mock("@/shared", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/shared")>();
@@ -13,6 +13,10 @@ function jsonBlob(body: unknown): Blob {
 
 beforeEach(() => {
   vi.mocked(apiClient.post).mockReset();
+  // jsdom's own createObjectURL throws on a plain `new Blob()` — only
+  // downloadFacilityTemplate's success path (which calls downloadBlob) needs these stubbed.
+  window.URL.createObjectURL = vi.fn().mockReturnValue("blob:mock-url");
+  window.URL.revokeObjectURL = vi.fn();
 });
 
 describe("resolveBlobErrorBody (via downloadBoundaryTemplate)", () => {
@@ -43,6 +47,25 @@ describe("resolveBlobErrorBody (via downloadBoundaryTemplate)", () => {
   });
 });
 
+describe("downloadFacilityTemplate", () => {
+  it("sends request_info as a multipart form field with the gateway's auth-token/tenantId header and query param workaround", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ headers: {}, data: new Blob() });
+
+    await downloadFacilityTemplate("token-1");
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/ingestion-service/template/facilityIngestion",
+      expect.any(FormData),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "auth-token": "token-1", tenantId: tenantId() }),
+        params: { tenantId: tenantId() },
+      }),
+    );
+    const formData = vi.mocked(apiClient.post).mock.calls[0][1] as FormData;
+    expect(JSON.parse(formData.get("request_info") as string)).toMatchObject({ apiId: "Rainmaker" });
+  });
+});
+
 describe("uploadBoundaryData", () => {
   it("reports failed rows via errorCount when the backend answers with a JSON ack and no annotated workbook", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({
@@ -64,5 +87,20 @@ describe("uploadBoundaryData", () => {
     const result = await uploadBoundaryData(new File(["x"], "boundaries.csv"), "token-1");
 
     expect(result).toEqual({ success: true });
+  });
+
+  it("sends the gateway's auth-token/tenantId header and query param workaround", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ headers: {}, data: new Blob() });
+
+    await uploadBoundaryData(new File(["x"], "boundaries.csv"), "token-1");
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/ingestion-service/ingest/boundaries",
+      expect.any(FormData),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "auth-token": "token-1", tenantId: tenantId() }),
+        params: { tenantId: tenantId() },
+      }),
+    );
   });
 });
