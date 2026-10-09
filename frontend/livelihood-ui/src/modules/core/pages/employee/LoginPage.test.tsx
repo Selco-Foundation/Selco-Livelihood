@@ -192,9 +192,9 @@ describe("LoginPage", () => {
       expect(mockNavigate).toHaveBeenCalledWith({ to: employeeHomePath() });
     });
 
-    it("redirects to the decoded 'from' path when present in the search params", async () => {
+    it("redirects to the 'from' path when present in the search params", async () => {
       const user = userEvent.setup();
-      mockSearch = { from: encodeURIComponent("/employee/some/path?x=1") };
+      mockSearch = { from: "/employee/some/path?x=1" };
       mockSuccessfulLogin();
       renderPage();
 
@@ -204,6 +204,23 @@ describe("LoginPage", () => {
 
       await vi.waitFor(() =>
         expect(mockNavigate).toHaveBeenCalledWith({ to: "/employee/some/path?x=1" }),
+      );
+    });
+
+    it("redirects to a 'from' path containing an encoded id segment without further decoding it", async () => {
+      const user = userEvent.setup();
+      mockSearch = { from: "/livelihood-ui/employee/eu/facilities/ED%2F2026%2F0013" };
+      mockSuccessfulLogin();
+      renderPage();
+
+      await user.type(screen.getByLabelText(/^Username/), "jo");
+      await user.type(getPasswordInput(), "secret");
+      await user.click(screen.getByRole("button", { name: "Log in" }));
+
+      await vi.waitFor(() =>
+        expect(mockNavigate).toHaveBeenCalledWith({
+          to: "/livelihood-ui/employee/eu/facilities/ED%2F2026%2F0013",
+        }),
       );
     });
 
