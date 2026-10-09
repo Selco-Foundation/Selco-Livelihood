@@ -4,6 +4,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuthStore } from "@/shared";
 import { toast } from "@/ui";
+import { FACILITY_ASSETS_QUERY_KEY } from "./use-facility-assets";
 import { useUpdateAssetVendor } from "./use-update-asset-vendor";
 
 vi.mock("@/ui", async (importOriginal) => {
@@ -25,7 +26,7 @@ function createWrapper() {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
-  return { wrapper };
+  return { wrapper, queryClient };
 }
 
 const user = { uuid: "user-1" };
@@ -58,6 +59,20 @@ describe("useUpdateAssetVendor", () => {
       user,
     );
     expect(toast.success).toHaveBeenCalled();
+  });
+
+  it("invalidates the facility assets query on success so the list refetches the saved mapping", async () => {
+    useAuthStore.setState({ accessToken: "token-1", user });
+    vi.mocked(updateAssetVendorMapping).mockResolvedValue({ status: "success" });
+    const { wrapper, queryClient } = createWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHook(() => useUpdateAssetVendor(), { wrapper });
+    result.current.mutate({ assetId: "a1", vendorId: "vendor-1", organisationId: "org-1" });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: [FACILITY_ASSETS_QUERY_KEY] });
   });
 
   it("shows an error toast when the mutation fails", async () => {
