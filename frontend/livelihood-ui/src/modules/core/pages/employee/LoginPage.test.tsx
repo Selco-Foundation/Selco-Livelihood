@@ -221,6 +221,7 @@ describe("LoginPage", () => {
       );
     });
 
+
     it("shows the OAuth error description when the login request fails with one", async () => {
       const user = userEvent.setup();
       vi.mocked(loginUser).mockRejectedValue({
