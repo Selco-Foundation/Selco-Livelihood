@@ -32,7 +32,7 @@ export function OrganisationInfoSection({ organisation, onEdit }: OrganisationIn
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-lg font-semibold text-foreground">{organisation.name}</h2>
           {onEdit ? (
-            <Button type="button" variant="outline" onClick={onEdit}>
+            <Button type="button" variant="outline" size="lg" onClick={onEdit}>
               <Pencil className="size-4" />
               {translateOr(t, "CORE_COMMON_EDIT", "Edit")}
             </Button>

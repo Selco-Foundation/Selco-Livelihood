@@ -1,8 +1,12 @@
 import { translateOr } from "@/shared";
 import type { TFunction } from "i18next";
 
-/** Letters, spaces and `- ' \` .` — mirrors vendor-registry's user-name rule. */
-export const PERSON_NAME_PATTERN = /^[a-zA-Z \-'`.]*$/;
+/**
+ * Letters, digits, spaces and `- ' \` .` (e.g. "Project manager 1").
+ * vendor-registry and egov-hrms must allow digits too — their User.name
+ * @Pattern was letters-only.
+ */
+export const PERSON_NAME_PATTERN = /^[a-zA-Z0-9 \-'`.]*$/;
 export const PHONE_PATTERN = /^[0-9]{10}$/;
 export const NO_WHITESPACE_PATTERN = /^\S*$/;
 export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -20,7 +24,7 @@ export function requiredMessage(t: TFunction) {
 export function validatePersonName(value: string, t: TFunction): string | undefined {
   if (!value.trim()) return requiredMessage(t);
   if (!PERSON_NAME_PATTERN.test(value.trim())) {
-    return translateOr(t, "ORG_NAME_INVALID_CHARACTERS", "Name can only contain letters, spaces and - ' .");
+    return translateOr(t, "ORG_NAME_INVALID_CHARACTERS", "Name can only contain letters, numbers, spaces and - ' .");
   }
   return undefined;
 }

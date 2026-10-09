@@ -207,10 +207,10 @@ export function OrgUserFormDialog({
         <JurisdictionSection jurisdictions={form.jurisdictions} />
 
         <DialogFooter>
-          <Button type="button" variant="outline" disabled={isPending} onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" size="lg" disabled={isPending} onClick={() => onOpenChange(false)}>
             {translateOr(t, "CORE_COMMON_CANCEL", "Cancel")}
           </Button>
-          <Button type="button" disabled={isPending} onClick={handleSubmit}>
+          <Button type="button" size="lg" disabled={isPending} onClick={handleSubmit}>
             {isPending ? translateOr(t, "CORE_COMMON_SAVING", "Saving...") : translateOr(t, "CORE_COMMON_SAVE", "Save")}
           </Button>
         </DialogFooter>

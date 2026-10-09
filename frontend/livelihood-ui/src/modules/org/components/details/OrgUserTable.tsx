@@ -32,7 +32,7 @@ export function OrgUserTable({ users, isLoading, groupsForRoleCodes, onAdd, onEd
           {translateOr(t, "ORG_USER_LIST", "Users")}
           {users.length > 0 ? <span className="ml-2 text-sm font-normal text-muted-foreground">({users.length})</span> : null}
         </h2>
-        <Button type="button" onClick={onAdd}>
+        <Button type="button" size="lg" onClick={onAdd}>
           <UserPlus className="size-4" />
           {translateOr(t, "ADD_USER", "Add User")}
         </Button>

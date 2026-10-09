@@ -36,7 +36,7 @@ export function OrganisationToolbar({ orgType, search, onSearchChange, onAdd }: 
         ) : null}
       </div>
 
-      <Button type="button" onClick={onAdd}>
+      <Button type="button" size="lg" onClick={onAdd}>
         <Plus className="size-4" />
         {orgType === "PLATFORM"
           ? translateOr(t, "ADD_PLATFORM_ORG", "Add Platform Organisation")
