@@ -34,7 +34,7 @@ const EMPTY_VALUES: FacilityFormValues = {
   facilityName: "",
   facilityCategory: "",
   facilityType: "",
-  solarSolutionDesignType: "",
+  endUserType: "",
   pocName: "",
   pocUsername: "",
   pocPhone: "",
@@ -59,7 +59,7 @@ export function useFacilityForm(editingFacilityId?: string) {
   const [fieldErrors, setFieldErrors] = useState<FacilityFieldErrors>({});
 
   const { data: boundaryData, isLoading: isBoundaryLoading } = useBoundaryHierarchy();
-  const { facilityCategories, facilityTypes, solarSolutionDesignTypes, isLoading: isMdmsLoading } =
+  const { facilityCategories, facilityTypes, endUserTypes, isLoading: isMdmsLoading } =
     useFacilityMdmsOptions();
 
   const states = boundaryData?.states ?? [];
@@ -166,6 +166,7 @@ export function useFacilityForm(editingFacilityId?: string) {
       facility_type: values.facilityType,
       isActive: values.isOperational,
       isOnmReady: values.isOnmReady,
+      ...(values.endUserType ? { endUserType: values.endUserType } : {}),
       blockBoundaryCode: values.block,
       address: {
         tenantId,
@@ -176,9 +177,7 @@ export function useFacilityForm(editingFacilityId?: string) {
       facility_poc_username: values.pocUsername.trim(),
       facility_poc_phone: values.pocPhone.trim(),
       ...(values.pocEmail.trim() ? { facility_poc_email: values.pocEmail.trim() } : {}),
-      facility_details: {
-        ...(values.solarSolutionDesignType ? { solar_solution_design_type: values.solarSolutionDesignType } : {}),
-      },
+      facility_details: {},
     };
   }
 
@@ -198,6 +197,7 @@ export function useFacilityForm(editingFacilityId?: string) {
       facility_type: values.facilityType,
       isActive: values.isOperational,
       isOnmReady: values.isOnmReady,
+      ...(values.endUserType ? { endUserType: values.endUserType } : {}),
       address: {
         ...((raw.address as Record<string, unknown> | undefined) ?? {}),
         tenantId,
@@ -207,9 +207,7 @@ export function useFacilityForm(editingFacilityId?: string) {
       facility_poc_name: values.pocName.trim(),
       facility_poc_phone: values.pocPhone.trim(),
       ...(values.pocEmail.trim() ? { facility_poc_email: values.pocEmail.trim() } : {}),
-      facility_details: {
-        ...(values.solarSolutionDesignType ? { solar_solution_design_type: values.solarSolutionDesignType } : {}),
-      },
+      facility_details: {},
     };
   }
 
@@ -226,7 +224,7 @@ export function useFacilityForm(editingFacilityId?: string) {
       facilityName: facility.facilityName ?? "",
       facilityCategory: facility.facilityCategory ?? "",
       facilityType: facility.facilityType ?? "",
-      solarSolutionDesignType: facility.solarSolutionDesignType ?? "",
+      endUserType: facility.endUserType ?? "",
       pocName: facility.pocName ?? "",
       pocUsername: facility.pocUsername ?? "",
       pocPhone: facility.pocPhone ?? "",
@@ -248,7 +246,7 @@ export function useFacilityForm(editingFacilityId?: string) {
     blocks,
     facilityCategories,
     facilityTypeOptions,
-    solarSolutionDesignTypes,
+    endUserTypes,
     updateField,
     validate,
     toPayload,

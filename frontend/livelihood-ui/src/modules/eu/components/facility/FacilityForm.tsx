@@ -26,7 +26,7 @@ export function FacilityForm({ form }: FacilityFormProps) {
     blocks,
     facilityCategories,
     facilityTypeOptions,
-    solarSolutionDesignTypes,
+    endUserTypes,
     updateField,
   } = form;
 
@@ -54,7 +54,7 @@ export function FacilityForm({ form }: FacilityFormProps) {
     code: type.code,
     name: type.name,
   }));
-  const solarDesignOptions: SelectOption[] = solarSolutionDesignTypes.map((option) => ({
+  const endUserTypeOptions: SelectOption[] = endUserTypes.map((option) => ({
     code: option.code,
     name: option.name,
   }));
@@ -127,10 +127,10 @@ export function FacilityForm({ form }: FacilityFormProps) {
         />
 
         <FormSelectField
-          label={translateOr(t, "FACILITY_SOLAR_SOLUTION_DESIGN_TYPE", "Solar Solution Design Type")}
-          value={values.solarSolutionDesignType}
-          options={solarDesignOptions}
-          onChange={(option) => updateField("solarSolutionDesignType", option?.code ?? "")}
+          label={translateOr(t, "FACILITY_END_USER_TYPE", "End User Type")}
+          value={values.endUserType}
+          options={endUserTypeOptions}
+          onChange={(option) => updateField("endUserType", option?.code ?? "")}
         />
       </div>
 

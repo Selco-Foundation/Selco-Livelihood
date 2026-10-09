@@ -27,7 +27,7 @@ interface FacilitySearchResponseItem {
   facility_poc_username?: string;
   facility_poc_phone?: string;
   facility_poc_email?: string;
-  facility_details?: { solar_solution_design_type?: string };
+  endUserType?: string;
   address?: { latitude?: number; longitude?: number };
   boundaryCode?: string;
   /** State/district/block boundary codes the backend resolves server-side from `boundaryCode`. */
@@ -57,7 +57,7 @@ function toFacility(item: FacilitySearchResponseItem): Facility {
     blockCode: item.boundary?.block,
     latitude: item.address?.latitude,
     longitude: item.address?.longitude,
-    solarSolutionDesignType: item.facility_details?.solar_solution_design_type,
+    endUserType: item.endUserType,
     raw: item as unknown as Record<string, unknown>,
   };
 }
@@ -95,13 +95,14 @@ export interface CreateFacilityPayload {
   facility_type: string;
   isActive: boolean;
   isOnmReady: boolean;
+  endUserType?: string;
   blockBoundaryCode: string;
   address: { tenantId: string; latitude?: number; longitude?: number };
   facility_poc_name: string;
   facility_poc_username: string;
   facility_poc_phone: string;
   facility_poc_email?: string;
-  facility_details: { solar_solution_design_type?: string };
+  facility_details: Record<string, never>;
 }
 
 // Note: unlike the search endpoint above, create/update send

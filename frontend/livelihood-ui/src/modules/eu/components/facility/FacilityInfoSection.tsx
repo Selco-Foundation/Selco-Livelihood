@@ -32,11 +32,11 @@ interface FacilityInfoSectionProps {
 
 export function FacilityInfoSection({ facility, onEdit }: FacilityInfoSectionProps) {
   const { t } = useTranslate();
-  const { facilityCategories, facilityTypes, solarSolutionDesignTypes } = useFacilityMdmsOptions();
+  const { facilityCategories, facilityTypes, endUserTypes } = useFacilityMdmsOptions();
 
   const categoryName = facilityCategories.find((c) => c.code === facility.facilityCategory)?.name;
   const typeName = facilityTypes.find((c) => c.code === facility.facilityType)?.name;
-  const solarDesignName = solarSolutionDesignTypes.find((c) => c.code === facility.solarSolutionDesignType)?.name;
+  const endUserTypeName = endUserTypes.find((c) => c.code === facility.endUserType)?.name;
 
   return (
     <Card>
@@ -53,8 +53,8 @@ export function FacilityInfoSection({ facility, onEdit }: FacilityInfoSectionPro
           <InfoItem label={translateOr(t, "END_USER_SITE_CATEGORY", "End User Site Category")} value={categoryName} />
           <InfoItem label={translateOr(t, "FACILITY_TYPE", "Sector")} value={typeName} />
           <InfoItem
-            label={translateOr(t, "FACILITY_SOLAR_SOLUTION_DESIGN_TYPE", "Solar Solution Design Type")}
-            value={solarDesignName}
+            label={translateOr(t, "FACILITY_END_USER_TYPE", "End User Type")}
+            value={endUserTypeName}
           />
           <InfoItem label={translateOr(t, "FACILITY_POC_NAME", "POC Name")} value={facility.pocName} />
           <InfoItem label={translateOr(t, "FACILITY_POC_USERNAME", "POC Username")} value={facility.pocUsername} />
