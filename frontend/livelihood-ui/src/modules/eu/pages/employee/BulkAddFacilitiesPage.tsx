@@ -1,5 +1,5 @@
 import { employeeHomePath, extractApiErrorMessage, translateOr, useAuthStore, useTranslate } from "@/shared";
-import { Button, Card, CardContent, Checkbox, TopBar, toast } from "@/ui";
+import { Button, Card, CardContent, TopBar, toast } from "@/ui";
 import { Download } from "lucide-react";
 import { useState } from "react";
 import { FileUploadZone } from "../../components/upload/FileUploadZone";
@@ -13,7 +13,6 @@ export function BulkAddFacilitiesPage() {
   const { t } = useTranslate();
   const user = useAuthStore((state) => state.user);
 
-  const [areFacilitiesOnmReady, setAreFacilitiesOnmReady] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState<string>();
   const [result, setResult] = useState<
     { status: "success" } | { status: "error"; errorCount: number; downloadResult: () => void } | null
@@ -41,12 +40,14 @@ export function BulkAddFacilitiesPage() {
     setSelectedFileName(file.name);
     setResult(null);
     bulkAddFacilities.mutate(
-      { file, areFacilitiesOnmReady },
+      { file },
       {
         onSuccess: (uploadResult) => {
           if (uploadResult.status === "success") {
             setResult({ status: "success" });
-            toast.success(translateOr(t, "FACILITY_DATA_UPLOAD_SUCCESS", "Facility data uploaded successfully"));
+            toast.success(
+              translateOr(t, "FACILITY_END_USER_DATA_UPLOAD_SUCCESS", "End User data uploaded successfully"),
+            );
             return;
           }
 
@@ -61,7 +62,7 @@ export function BulkAddFacilitiesPage() {
           setResult(null);
           toast.error(
             extractApiErrorMessage(error) ??
-              translateOr(t, "FACILITY_DATA_UPLOAD_ERROR", "Failed to upload facility data"),
+              translateOr(t, "FACILITY_END_USER_DATA_UPLOAD_ERROR", "Failed to upload end user data"),
           );
         },
       },
@@ -109,21 +110,9 @@ export function BulkAddFacilitiesPage() {
       </Card>
 
       <Card>
-        <CardContent>
-          <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-foreground">
-            <Checkbox
-              checked={areFacilitiesOnmReady}
-              onCheckedChange={(checked) => setAreFacilitiesOnmReady(checked === true)}
-            />
-            {translateOr(t, "FACILITY_IS_ONM_READY", "Mark uploaded end user sites as ONM Ready")}
-          </label>
-        </CardContent>
-      </Card>
-
-      <Card>
         <CardContent className="space-y-3">
           <h3 className="text-sm font-semibold text-foreground">
-            {translateOr(t, "PM_CREATE_PROJECT_HEAD_UPLOAD_FACILITY_DATA", "Upload Facility Data")}
+            {translateOr(t, "FACILITY_UPLOAD_END_USER_DATA", "Upload End User Data")}
           </h3>
           <p className="text-sm text-muted-foreground">
             {translateOr(
@@ -133,7 +122,7 @@ export function BulkAddFacilitiesPage() {
             )}
           </p>
           <FileUploadZone
-            label={translateOr(t, "PM_CREATE_PROJECT_HEAD_UPLOAD_FACILITY_DATA", "Upload Facility Data")}
+            label={translateOr(t, "FACILITY_UPLOAD_END_USER_DATA", "Upload End User Data")}
             hint={translateOr(t, "CS_COMMON_TAP_TO_UPLOAD", "Tap to upload a file")}
             accept=".xls,.xlsx"
             uploading={bulkAddFacilities.isPending}
