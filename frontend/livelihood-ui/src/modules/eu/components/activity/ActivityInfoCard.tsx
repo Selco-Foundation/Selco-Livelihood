@@ -17,7 +17,7 @@ export function ActivityInfoCard({ info }: ActivityInfoCardProps) {
 
   return (
     <Card>
-      <CardContent className="space-y-4 pt-6">
+      <CardContent className="space-y-4">
         <h2 className="text-lg font-semibold text-foreground">
           {info.facilityName || translateOr(t, "CORE_COMMON_NOT_APPLICABLE", "N/A")}
         </h2>

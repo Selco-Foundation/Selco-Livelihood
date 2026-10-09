@@ -84,7 +84,7 @@ export function UploadBoundaryPage() {
       />
 
       <Card>
-        <CardContent className="space-y-3 pt-6">
+        <CardContent className="space-y-3">
           <h3 className="text-sm font-semibold text-foreground">
             {translateOr(t, "FA_DOWNLOAD_BOUNDARY_TEMPLATE_PAGE_TITLE", "Download Template")}
           </h3>
@@ -109,7 +109,7 @@ export function UploadBoundaryPage() {
       </Card>
 
       <Card>
-        <CardContent className="space-y-3 pt-6">
+        <CardContent className="space-y-3">
           <h3 className="text-sm font-semibold text-foreground">
             {translateOr(t, "FA_UPLOAD_BOUNDARY_DATA_PAGE_TITLE", "Upload Boundary Data")}
           </h3>

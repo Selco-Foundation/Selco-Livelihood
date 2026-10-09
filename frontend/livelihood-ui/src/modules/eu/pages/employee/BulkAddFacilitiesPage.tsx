@@ -80,7 +80,7 @@ export function BulkAddFacilitiesPage() {
       />
 
       <Card>
-        <CardContent className="space-y-3 pt-6">
+        <CardContent className="space-y-3">
           <h3 className="text-sm font-semibold text-foreground">
             {translateOr(
               t,
@@ -109,7 +109,7 @@ export function BulkAddFacilitiesPage() {
       </Card>
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-foreground">
             <Checkbox
               checked={areFacilitiesOnmReady}
@@ -121,7 +121,7 @@ export function BulkAddFacilitiesPage() {
       </Card>
 
       <Card>
-        <CardContent className="space-y-3 pt-6">
+        <CardContent className="space-y-3">
           <h3 className="text-sm font-semibold text-foreground">
             {translateOr(t, "PM_CREATE_PROJECT_HEAD_UPLOAD_FACILITY_DATA", "Upload Facility Data")}
           </h3>
