@@ -1,4 +1,11 @@
-import { employeeHomePath, translateOr, useAuthStore, useBoundaryHierarchy, useTranslate } from "@/shared";
+import {
+  employeeHomePath,
+  extractApiErrorMessage,
+  translateOr,
+  useAuthStore,
+  useBoundaryHierarchy,
+  useTranslate,
+} from "@/shared";
 import { TopBar } from "@/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
@@ -23,7 +30,7 @@ export function FacilityListPage() {
   const [showAddFacility, setShowAddFacility] = useState(false);
 
   const { data: boundaryData } = useBoundaryHierarchy();
-  const { data, isLoading } = useFacilities(filters, boundaryData, pageSize, pageOffset);
+  const { data, isLoading, isError, error } = useFacilities(filters, boundaryData, pageSize, pageOffset);
 
   if (!hasEuAccess(user?.roles)) {
     return null;
@@ -55,20 +62,26 @@ export function FacilityListPage() {
         onBulkAdd={() => void navigate({ to: euFacilitiesBulkAddPath() })}
       />
 
-      <FacilityTable
-        facilities={data?.facilities ?? []}
-        isLoading={isLoading}
-        currentPage={currentPage}
-        totalRecords={totalCount}
-        pageSizeLimit={pageSize}
-        onNextPage={() => setPageOffset(pageOffset + pageSize)}
-        onPrevPage={() => setPageOffset(Math.max(0, pageOffset - pageSize))}
-        onPageChange={(page) => setPageOffset(page * pageSize)}
-        onPageSizeChange={(size) => {
-          setPageSize(size);
-          setPageOffset(0);
-        }}
-      />
+      {isError ? (
+        <div className="livelihood-card px-6 py-16 text-center text-sm text-destructive">
+          {extractApiErrorMessage(error) ?? translateOr(t, "CS_FACILITIES_FETCH_FAILED", "Failed to load end user sites")}
+        </div>
+      ) : (
+        <FacilityTable
+          facilities={data?.facilities ?? []}
+          isLoading={isLoading}
+          currentPage={currentPage}
+          totalRecords={totalCount}
+          pageSizeLimit={pageSize}
+          onNextPage={() => setPageOffset(pageOffset + pageSize)}
+          onPrevPage={() => setPageOffset(Math.max(0, pageOffset - pageSize))}
+          onPageChange={(page) => setPageOffset(page * pageSize)}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setPageOffset(0);
+          }}
+        />
+      )}
 
       <FacilityFormDialog open={showAddFacility} onOpenChange={setShowAddFacility} />
     </div>
