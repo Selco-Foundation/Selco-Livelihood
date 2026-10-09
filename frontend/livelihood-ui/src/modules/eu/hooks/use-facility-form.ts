@@ -199,6 +199,7 @@ export function useFacilityForm(editingFacilityId?: string) {
       isActive: values.isOperational,
       isOnmReady: values.isOnmReady,
       address: {
+        ...((raw.address as Record<string, unknown> | undefined) ?? {}),
         tenantId,
         ...(values.latitude.trim() ? { latitude: Number.parseFloat(values.latitude) } : {}),
         ...(values.longitude.trim() ? { longitude: Number.parseFloat(values.longitude) } : {}),
