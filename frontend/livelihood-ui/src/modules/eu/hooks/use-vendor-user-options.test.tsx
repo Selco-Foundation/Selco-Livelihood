@@ -55,7 +55,7 @@ describe("useVendorUserOptions", () => {
     const { result } = renderHook(() => useVendorUserOptions("org-1"), { wrapper });
 
     await waitFor(() => expect(result.current.options).toEqual([{ code: "u1", name: "Vendor One" }]));
-    expect(searchVendorOrgUsers).toHaveBeenCalledWith("org-1", expect.any(String), 10, 0, "token-1", user);
+    expect(searchVendorOrgUsers).toHaveBeenCalledWith("org-1", undefined, expect.any(String), 10, 0, "token-1", user);
     expect(result.current.hasMore).toBe(false);
   });
 
@@ -77,7 +77,7 @@ describe("useVendorUserOptions", () => {
         { code: "u2", name: "Vendor Two" },
       ]),
     );
-    expect(searchVendorOrgUsers).toHaveBeenLastCalledWith("org-1", expect.any(String), 10, 1, "token-1", user);
+    expect(searchVendorOrgUsers).toHaveBeenLastCalledWith("org-1", undefined, expect.any(String), 10, 1, "token-1", user);
     expect(result.current.hasMore).toBe(false);
   });
 
@@ -106,12 +106,49 @@ describe("useVendorUserOptions", () => {
 
     await waitFor(() => expect(result.current.hasMore).toBe(false));
     // Offset 10 (the raw rows already consumed), not 1 (the filtered options kept).
-    expect(searchVendorOrgUsers).toHaveBeenLastCalledWith("org-1", expect.any(String), 10, 10, "token-1", user);
+    expect(searchVendorOrgUsers).toHaveBeenLastCalledWith(
+      "org-1",
+      undefined,
+      expect.any(String),
+      10,
+      10,
+      "token-1",
+      user,
+    );
     expect(result.current.options).toEqual([
       { code: "u1", name: "Vendor One" },
       { code: "u2", name: "Vendor Two" },
       { code: "u3", name: "Vendor Three" },
     ]);
+  });
+
+  it("re-searches from the first page with the typed query once it settles (debounced)", async () => {
+    useAuthStore.setState({ accessToken: "token-1", user });
+    vi.mocked(searchVendorOrgUsers).mockResolvedValue({
+      options: [{ code: "u1", name: "Vendor One" }],
+      total: 1,
+      rawCount: 1,
+    });
+    const { wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useVendorUserOptions("org-1"), { wrapper });
+    await waitFor(() => expect(searchVendorOrgUsers).toHaveBeenCalledTimes(1));
+
+    act(() => result.current.setQuery("dummy"));
+
+    await waitFor(
+      () =>
+        expect(searchVendorOrgUsers).toHaveBeenCalledWith(
+          "org-1",
+          "dummy",
+          expect.any(String),
+          10,
+          0,
+          "token-1",
+          user,
+        ),
+      { timeout: 1000 },
+    );
   });
 
   it("merges in the pinned vendor when it isn't already in the loaded page", async () => {

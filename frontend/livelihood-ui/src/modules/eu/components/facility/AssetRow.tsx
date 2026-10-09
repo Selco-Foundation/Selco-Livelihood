@@ -37,6 +37,7 @@ export function AssetRow({ asset, isAlternate, assetTypeName, onView }: AssetRow
       : undefined;
   const {
     options: vendorOptions,
+    setQuery: setVendorQuery,
     hasMore: hasMoreVendors,
     loadMore: loadMoreVendors,
     isLoading: isVendorLoading,
@@ -95,6 +96,7 @@ export function AssetRow({ asset, isAlternate, assetTypeName, onView }: AssetRow
           isLoading={isVendorLoading}
           hasMore={hasMoreVendors}
           onLoadMore={loadMoreVendors}
+          onQueryChange={setVendorQuery}
           onChange={(option) => setDraftVendorUserId(option?.code ?? "")}
         />
       </td>

@@ -1,14 +1,18 @@
-import { tenantId, useAuthStore } from "@/shared";
+import { tenantId, useAuthStore, useDebouncedValue } from "@/shared";
 import { useInfiniteQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { searchVendorOrgUsers, type VendorUserOption } from "../services/vendor";
 
 const PAGE_SIZE = 10;
 
 /**
  * The Vendor dropdown's options for a given organization — real offset/limit pagination (see
- * `services/vendor.ts`), accumulated page by page via `useInfiniteQuery`. The caller is expected
- * to remount this (e.g. `key={organizationId}` on the component using it) whenever the selected
- * organization changes, rather than this hook trying to reset its own accumulated pages mid-flight.
+ * `services/vendor.ts`), accumulated page by page via `useInfiniteQuery`, plus a debounced
+ * server-side `name` search. Changing the query is included in the query key, so it naturally
+ * restarts pagination from page 0 for the new search rather than appending to the old pages. The
+ * caller is expected to remount this (e.g. `key={organizationId}` on the component using it)
+ * whenever the selected organization changes, rather than this hook trying to reset its own
+ * accumulated pages mid-flight.
  *
  * `pinned` (the asset's own currently-mapped vendor, from `asset.vendor`) is merged in whenever it
  * isn't already present in the loaded pages, so the dropdown shows the right name immediately
@@ -17,13 +21,23 @@ const PAGE_SIZE = 10;
 export function useVendorUserOptions(organizationId: string | undefined, pinned?: VendorUserOption) {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
+  const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query, 300);
 
   const { data, fetchNextPage, hasNextPage, isLoading, isFetchingNextPage } = useInfiniteQuery({
-    queryKey: ["eu-vendor-user-options", organizationId],
+    queryKey: ["eu-vendor-user-options", organizationId, debouncedQuery],
     enabled: Boolean(accessToken) && Boolean(organizationId),
     initialPageParam: 0,
     queryFn: ({ pageParam }) =>
-      searchVendorOrgUsers(organizationId!, tenantId(), PAGE_SIZE, pageParam, accessToken!, user),
+      searchVendorOrgUsers(
+        organizationId!,
+        debouncedQuery || undefined,
+        tenantId(),
+        PAGE_SIZE,
+        pageParam,
+        accessToken!,
+        user,
+      ),
     getNextPageParam: (lastPage, allPages) => {
       // Must advance by the raw rows each page actually returned, not by `options.length` — a
       // page with any non-vendor-role rows filtered out would otherwise make the next request
@@ -38,6 +52,7 @@ export function useVendorUserOptions(organizationId: string | undefined, pinned?
 
   return {
     options,
+    setQuery,
     hasMore: Boolean(hasNextPage),
     loadMore: () => void fetchNextPage(),
     isLoading: isLoading || isFetchingNextPage,

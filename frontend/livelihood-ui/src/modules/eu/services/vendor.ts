@@ -30,15 +30,20 @@ export interface VendorOrgUsersPage {
 /**
  * `POST /vendor/organisation/v1/user/_search` — real offset/limit pagination exists here
  * (`OrganisationUserQueryBuilder`'s `DENSE_RANK()`-based wrapper, and the response's
- * `TotalCount`), but `OrgUserSearchCriteria` has no `name`/text filter and no `roles` field at
- * all — the `roles` sent below is accepted (unknown JSON fields don't fail deserialization) but
- * confirmed to do nothing server-side, so every org user comes back regardless of role and the
- * vendor/resolver role check happens client-side instead. A user's name lives on the nested,
- * HRMS-enriched `user` object, not top-level on the org-user row itself (same gotcha already
- * documented by `pm`'s `searchVendorOrgUsers`).
+ * `TotalCount`). `name`/`roles` filtering is implemented server-side (confirmed in
+ * `OrganisationUserRepository.getOrgUsersMatchingUserFilters` on the `admin_module_dev` backend
+ * branch): when either is given, the org's users are batch-enriched from HRMS and filtered
+ * in-memory — case-insensitive "contains" for `name`, "holds at least one" for `roles` — *before*
+ * pagination, so `TotalCount` and the returned page both already reflect the filtered set in that
+ * case. Not yet confirmed deployed to every environment this app talks to, so the client-side
+ * role check below stays as a no-cost safety net (filtering an already-filtered page by the same
+ * roles is a no-op) and `rawCount` keeps pagination correct either way. A user's name lives on the
+ * nested, HRMS-enriched `user` object, not top-level on the org-user row itself (same gotcha
+ * already documented by `pm`'s `searchVendorOrgUsers`).
  */
 export async function searchVendorOrgUsers(
   organizationId: string,
+  name: string | undefined,
   tenantId: string,
   limit: number,
   offset: number,
@@ -48,7 +53,7 @@ export async function searchVendorOrgUsers(
   const data = await postSearch<{ OrgUsers?: RawOrgUser[]; TotalCount?: number }>(
     "/vendor/organisation/v1/user/_search",
     "OrgUser",
-    { tenantId, organizationIds: [organizationId], roles: VENDOR_ROLES },
+    { tenantId, organizationIds: [organizationId], roles: VENDOR_ROLES, ...(name ? { name } : {}) },
     { accessToken, user, limit, offset },
   );
 

@@ -15,7 +15,7 @@ describe("searchVendorOrgUsers", () => {
   it("posts organizationIds as a list, the vendor/resolver roles, and the given limit/offset", async () => {
     vi.mocked(postSearch).mockResolvedValue({ OrgUsers: [], TotalCount: 0 });
 
-    await searchVendorOrgUsers("org-1", "tenant-1", 10, 20, "token-1");
+    await searchVendorOrgUsers("org-1", undefined, "tenant-1", 10, 20, "token-1");
 
     expect(postSearch).toHaveBeenCalledWith(
       "/vendor/organisation/v1/user/_search",
@@ -25,13 +25,31 @@ describe("searchVendorOrgUsers", () => {
     );
   });
 
+  it("includes name in the criteria when a query is given", async () => {
+    vi.mocked(postSearch).mockResolvedValue({ OrgUsers: [], TotalCount: 0 });
+
+    await searchVendorOrgUsers("org-1", "dummy", "tenant-1", 10, 0, "token-1");
+
+    expect(postSearch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      {
+        tenantId: "tenant-1",
+        organizationIds: ["org-1"],
+        roles: ["LIVELIHOOD_VENDOR", "COMPLAINT_RESOLVER"],
+        name: "dummy",
+      },
+      expect.anything(),
+    );
+  });
+
   it("reads name off the nested HRMS-enriched user object, not the top level", async () => {
     vi.mocked(postSearch).mockResolvedValue({
       OrgUsers: [{ id: "row-1", user: { uuid: "u1", name: "Vendor One", roles: [{ code: "LIVELIHOOD_VENDOR" }] } }],
       TotalCount: 1,
     });
 
-    const result = await searchVendorOrgUsers("org-1", "tenant-1", 10, 0, "token-1");
+    const result = await searchVendorOrgUsers("org-1", undefined, "tenant-1", 10, 0, "token-1");
 
     expect(result).toEqual({ options: [{ code: "u1", name: "Vendor One" }], total: 1, rawCount: 1 });
   });
@@ -42,7 +60,7 @@ describe("searchVendorOrgUsers", () => {
       TotalCount: 1,
     });
 
-    const result = await searchVendorOrgUsers("org-1", "tenant-1", 10, 0, "token-1");
+    const result = await searchVendorOrgUsers("org-1", undefined, "tenant-1", 10, 0, "token-1");
 
     expect(result.options).toEqual([{ code: "u1", name: "u1" }]);
   });
@@ -53,12 +71,12 @@ describe("searchVendorOrgUsers", () => {
       TotalCount: 2,
     });
 
-    const result = await searchVendorOrgUsers("org-1", "tenant-1", 10, 0, "token-1");
+    const result = await searchVendorOrgUsers("org-1", undefined, "tenant-1", 10, 0, "token-1");
 
     expect(result.options).toEqual([]);
   });
 
-  it("filters out rows whose user doesn't hold a vendor/resolver role, since the backend's roles criterion is a no-op", async () => {
+  it("filters out rows whose user doesn't hold a vendor/resolver role (defensive, in case the deployed backend doesn't enforce roles yet)", async () => {
     vi.mocked(postSearch).mockResolvedValue({
       OrgUsers: [
         { user: { uuid: "u1", name: "Non Vendor", roles: [{ code: "EMPLOYEE" }] } },
@@ -67,7 +85,7 @@ describe("searchVendorOrgUsers", () => {
       TotalCount: 2,
     });
 
-    const result = await searchVendorOrgUsers("org-1", "tenant-1", 10, 0, "token-1");
+    const result = await searchVendorOrgUsers("org-1", undefined, "tenant-1", 10, 0, "token-1");
 
     expect(result.options).toEqual([{ code: "u2", name: "Vendor Two" }]);
   });
@@ -81,7 +99,7 @@ describe("searchVendorOrgUsers", () => {
       TotalCount: 5,
     });
 
-    const result = await searchVendorOrgUsers("org-1", "tenant-1", 10, 0, "token-1");
+    const result = await searchVendorOrgUsers("org-1", undefined, "tenant-1", 10, 0, "token-1");
 
     expect(result.rawCount).toBe(2);
     expect(result.options).toHaveLength(1);
@@ -95,7 +113,7 @@ describe("searchVendorOrgUsers", () => {
       ],
     });
 
-    const result = await searchVendorOrgUsers("org-1", "tenant-1", 10, 0, "token-1");
+    const result = await searchVendorOrgUsers("org-1", undefined, "tenant-1", 10, 0, "token-1");
 
     expect(result.total).toBe(2);
     expect(result.rawCount).toBe(2);

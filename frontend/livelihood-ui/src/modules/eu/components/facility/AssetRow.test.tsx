@@ -53,6 +53,7 @@ describe("AssetRow", () => {
   it("shows the asset's current org/vendor names immediately via the pinned option, before any page has loaded", () => {
     vi.mocked(useVendorUserOptions).mockReturnValue({
       options: [{ code: "vendor-1", name: "Vendor One" }],
+      setQuery: vi.fn(),
       hasMore: false,
       loadMore: vi.fn(),
       isLoading: false,
@@ -70,6 +71,7 @@ describe("AssetRow", () => {
         { code: "vendor-1", name: "Vendor One" },
         { code: "vendor-2", name: "Vendor Two" },
       ],
+      setQuery: vi.fn(),
       hasMore: false,
       loadMore: vi.fn(),
       isLoading: false,
@@ -88,8 +90,20 @@ describe("AssetRow", () => {
   it("switching the organization clears the drafted vendor selection and loads the new org's own vendors", async () => {
     vi.mocked(useVendorUserOptions).mockImplementation((organizationId) =>
       organizationId === "org-2"
-        ? { options: [{ code: "vendor-9", name: "Org Two Vendor" }], hasMore: false, loadMore: vi.fn(), isLoading: false }
-        : { options: [{ code: "vendor-1", name: "Vendor One" }], hasMore: false, loadMore: vi.fn(), isLoading: false },
+        ? {
+            options: [{ code: "vendor-9", name: "Org Two Vendor" }],
+            setQuery: vi.fn(),
+            hasMore: false,
+            loadMore: vi.fn(),
+            isLoading: false,
+          }
+        : {
+            options: [{ code: "vendor-1", name: "Vendor One" }],
+            setQuery: vi.fn(),
+            hasMore: false,
+            loadMore: vi.fn(),
+            isLoading: false,
+          },
     );
     const user = userEvent.setup();
     renderRow(assetWithVendor);
@@ -110,6 +124,7 @@ describe("AssetRow", () => {
         { code: "vendor-1", name: "Vendor One" },
         { code: "vendor-2", name: "Vendor Two" },
       ],
+      setQuery: vi.fn(),
       hasMore: false,
       loadMore: vi.fn(),
       isLoading: false,
@@ -131,6 +146,7 @@ describe("AssetRow", () => {
   it("calls onView with the asset when the eye icon is clicked", async () => {
     vi.mocked(useVendorUserOptions).mockReturnValue({
       options: [],
+      setQuery: vi.fn(),
       hasMore: false,
       loadMore: vi.fn(),
       isLoading: false,
