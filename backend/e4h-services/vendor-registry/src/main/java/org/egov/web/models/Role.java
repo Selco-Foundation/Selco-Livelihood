@@ -71,8 +71,5 @@ public class Role {
 	@Size(max = 256)
 	private String orgType;
 
-	@Size(max = 256)
-	private String orgSubType;
-
 
 }

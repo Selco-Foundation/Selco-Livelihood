@@ -22,6 +22,8 @@ import static org.egov.util.OrganisationConstant.HRMS_USER_USERNAME_CODE;
 @Component
 @Slf4j
 public class HRMSUtils {
+    private static final int HRMS_UUID_BATCH_SIZE = 50;
+
     private final ServiceRequestRepository serviceRequestRepository;
 
     private final Configuration config;
@@ -83,6 +85,30 @@ public class HRMSUtils {
             return null;
         }
         return employeeResponse.getEmployees().get(0);
+    }
+
+    /**
+     * One HRMS search per batch of uuids instead of one per user. Batches stay below HRMS's default page size
+     * (egov.hrms.default.pagination.limit), so no page parameters are sent.
+     */
+    public Map<String, Employee> getEmployeesByUuids(Object request, List<String> uuids) {
+        Map<String, Employee> employeesByUuid = new HashMap<>();
+        for (int from = 0; from < uuids.size(); from += HRMS_UUID_BATCH_SIZE) {
+            List<String> batch = uuids.subList(from, Math.min(from + HRMS_UUID_BATCH_SIZE, uuids.size()));
+            String url = config.getHrmsHost() + config.getHrmsSearchEndPoint() + "?tenantId=" + getHrmsTenantId()
+                    + "&uuids=" + String.join(",", batch);
+            Object response = serviceRequestRepository.fetchResult(new StringBuilder(url), request);
+            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            EmployeeResponse employeeResponse = mapper.convertValue(response, EmployeeResponse.class);
+            if (employeeResponse != null && employeeResponse.getEmployees() != null) {
+                for (Employee employee : employeeResponse.getEmployees()) {
+                    if (employee.getUuid() != null) {
+                        employeesByUuid.put(employee.getUuid(), employee);
+                    }
+                }
+            }
+        }
+        return employeesByUuid;
     }
 
     public List<Employee> getUserByPhoneNumber(Object request, String phoneNumber) {

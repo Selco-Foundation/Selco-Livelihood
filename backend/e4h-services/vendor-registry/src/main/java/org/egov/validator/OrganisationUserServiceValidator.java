@@ -132,6 +132,14 @@ public class OrganisationUserServiceValidator {
         // Get existing user with mobile number from hrms service
         List<Employee> employee = hrmsUtils.getUserByPhoneNumber(request, orgUser.getMobileNumber());
         if (employee == null || employee.isEmpty()) { //If user doesn't exist
+            // Only a newly created HRMS user gets the password from the request; an existing user's password is never touched
+            String password = orgUser.getPassword();
+            if (StringUtils.isBlank(password)) {
+                log.error("Password is mandatory to create a new organisation user");
+                throw new CustomException("OrgUserCreation", "Password is mandatory");
+            }
+            // Keep the plain password out of the request object that is later pushed to Kafka
+            orgUser.setPassword(null);
             Organisation organisation = organisations.get(0);
             String orgType = organisation.getOrgType();
             Map<String, List<Role>> rolesMap =  getOrgRoles(request.getRequestInfo(), orgUser.getTenantId());
@@ -179,15 +187,14 @@ public class OrganisationUserServiceValidator {
                     String hrmsUserUuid = employeeResp.getUser().getUuid();
                     try {
                         User hrmsUser = hrmsUtils.resolveUserForPasswordUpdate(request.getRequestInfo(), employeeResp);
-                        userUtil.updatePasswordWithHrmsUser(
-                                request.getRequestInfo(),
-                                hrmsUser,
-                                configuration.getDefaultUserPassword());
-                        log.info("New user created and default password set for uuid {}", hrmsUserUuid);
+                        userUtil.updatePasswordWithHrmsUser(request.getRequestInfo(), hrmsUser, password);
+                        log.info("New user created and password set for uuid {}", hrmsUserUuid);
                     } catch (Exception passwordUpdateEx) {
-                        // HRMS/egov-user create already succeeded; do not block org-user link on password reset.
-                        log.warn("HRMS user {} created but default password update failed: {}",
+                        // The admin chose this password, so a silent failure would leave a user nobody can log in as
+                        log.error("HRMS user {} created but setting its password failed: {}",
                                 hrmsUserUuid, passwordUpdateEx.getMessage());
+                        throw new CustomException("ORG_USER_PASSWORD_UPDATE_FAILED",
+                                "User was created in HRMS but its password could not be set: " + passwordUpdateEx.getMessage());
                     }
                 }
                 else{
@@ -397,6 +404,22 @@ public class OrganisationUserServiceValidator {
         // Get employee details fetched from HRMS
         Employee employee = employees.get(0);
 
+        // Optional: a non-blank password replaces the current one, omitting it leaves it untouched.
+        // Done before the HRMS update so a rejected password (e.g. policy violation) changes nothing else.
+        String newPassword = orgUser.getPassword();
+        orgUser.setPassword(null);
+        if (StringUtils.isNotBlank(newPassword)) {
+            try {
+                userUtil.updatePasswordWithHrmsUser(request.getRequestInfo(), employee.getUser(), newPassword);
+                log.info("Password updated for organisation user {}", employee.getUser().getUuid());
+            } catch (Exception passwordUpdateEx) {
+                log.error("Password update failed for organisation user {}: {}",
+                        employee.getUser().getUuid(), passwordUpdateEx.getMessage());
+                throw new CustomException("ORG_USER_PASSWORD_UPDATE_FAILED",
+                        "The user's password could not be updated: " + passwordUpdateEx.getMessage());
+            }
+        }
+
         // -----------------------------------------
         // Detect Changes
         // -----------------------------------------
@@ -409,27 +432,6 @@ public class OrganisationUserServiceValidator {
             // Mobile special handling
             if (changes.isMobileChanged()) {
                 log.error("phone number is being updated. Old phoneNumber {} with new phoneNumber {}", existingOrgUser.getUser().getMobileNumber(), orgUser.getMobileNumber());
-                // If user found, Check if user belong to another organisation record
-//                List<String> uuids = employees.stream().map(e -> e.getUser().getUuid()).filter(Objects::nonNull).toList();
-//                OrgUserSearchCriteria searchUserCriteria1 = OrgUserSearchCriteria.builder().userId(uuids).tenantId(orgUser.getTenantId()).build();
-//                OrgUserSearchRequest orgUserSearchRequest1 = OrgUserSearchRequest.builder().requestInfo(request.getRequestInfo()).criteria(searchUserCriteria1).build();
-//                URLParams urlParams1 = URLParams.builder().limit(1).offset(0).build();
-//                List<OrgUser> usersBis = userRepository.getOrgUsers(orgUserSearchRequest1, urlParams1);
-//                if(usersBis != null && !usersBis.isEmpty()){
-//                    log.error("This user already belong to another org");
-//                    throw new CustomException("Organization", "This user already belong to another org");
-//                }
-
-                // This user not belong to another org
-//                try {
-//                    //Encrypt new mobile number
-//                    String encryptedPocMobileNumber = organisationUtil.encryptMobileNumber(orgUser.getMobileNumber());
-//                    if(encryptedPocMobileNumber!=null && !encryptedPocMobileNumber.isBlank()){
-//                        orgUser.setMobileNumber(encryptedPocMobileNumber);
-//                    }
-//                }
-//                catch (Exception e){}
-
                 employee.getUser().setMobileNumber(orgUser.getMobileNumber());
             }
 
