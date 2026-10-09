@@ -70,7 +70,10 @@ export async function fetchBoundaryRelations(
         includeChildren: true,
         includeParents: true,
         hierarchyType: "SELCO",
-        codes,
+        // Omitting `codes` entirely (rather than sending `codes: []`) fetches every
+        // boundary under the tenant's hierarchy — used to seed cascading
+        // state/district/block selects that don't start from a known code.
+        ...(codes.length > 0 ? { codes } : {}),
       },
     },
   );

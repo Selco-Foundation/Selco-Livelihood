@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { apiClient, i18n } from "@/shared";
+import { i18n } from "@/shared";
+import { apiClient } from "@/shared/api/client";
 import {
   createSolutionTemplate,
   downloadSolutionTemplate,
@@ -18,10 +19,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-vi.mock("@/shared", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/shared")>();
-  return { ...actual, apiClient: { post: vi.fn(), get: vi.fn() } };
-});
+vi.mock("@/shared/api/client", () => ({ apiClient: { post: vi.fn(), get: vi.fn() } }));
 
 describe("downloadSolutionTemplate", () => {
   beforeEach(() => {

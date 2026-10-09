@@ -1,0 +1,58 @@
+export interface Facility {
+  id: string;
+  facilityName?: string;
+  facilityCategory?: string;
+  facilityType?: string;
+  isActive?: boolean;
+  isOnmReady?: boolean;
+  pocName?: string;
+  pocUsername?: string;
+  pocPhone?: string;
+  pocEmail?: string;
+  /** The facility's own leaf boundary code (e.g. `INDIA_STATE_DISTRICT_BLOCK_ED/2026/0098`). */
+  boundaryCode?: string;
+  /** State/district/block boundary codes the backend resolves server-side from `boundaryCode`; absent when the backend couldn't resolve it. */
+  stateCode?: string;
+  districtCode?: string;
+  blockCode?: string;
+  latitude?: number;
+  longitude?: number;
+  solarSolutionDesignType?: string;
+  /** The untransformed backend record — the update call spreads this first and
+   * overrides only the edited fields, since `/facility-service/v2/facility/update`
+   * replaces the whole record rather than patching it. */
+  raw?: Record<string, unknown>;
+}
+
+export interface FacilitySearchFilters {
+  state: string[];
+  district: string[];
+  block: string[];
+  facility: string[];
+}
+
+export const EMPTY_FACILITY_FILTERS: FacilitySearchFilters = {
+  state: [],
+  district: [],
+  block: [],
+  facility: [],
+};
+
+/** Every field `FacilityForm` collects. HEALTH-category facilities (HFR ID / NIN ID / POC-username exemption) aren't supported here. */
+export interface FacilityFormValues {
+  state: string;
+  district: string;
+  block: string;
+  facilityName: string;
+  facilityCategory: string;
+  facilityType: string;
+  solarSolutionDesignType: string;
+  pocName: string;
+  pocUsername: string;
+  pocPhone: string;
+  pocEmail: string;
+  isOperational: boolean;
+  isOnmReady: boolean;
+  latitude: string;
+  longitude: string;
+}
