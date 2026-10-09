@@ -127,7 +127,8 @@ export function OrgUserTable({ users, isLoading, groupsForRoleCodes, onAdd, onEd
         </div>
       )}
 
-      {users.length > pageSize || safeOffset > 0 ? (
+      {/* Always shown once there are users — same as the organisation list. */}
+      {users.length > 0 ? (
         <Pagination
           currentPage={Math.floor(safeOffset / pageSize)}
           totalRecords={users.length}
