@@ -1,4 +1,5 @@
 export { apiClient } from "./api/client";
+export { postSearch, searchUrlParams } from "./api/search";
 export {
   fetchLocalization,
   messagesToResourceMap,

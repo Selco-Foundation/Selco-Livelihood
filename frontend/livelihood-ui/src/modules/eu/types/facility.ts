@@ -9,15 +9,12 @@ export interface Facility {
   pocUsername?: string;
   pocPhone?: string;
   pocEmail?: string;
-  /**
-   * The facility's own leaf boundary code (e.g. `INDIA_STATE_DISTRICT_BLOCK_ED/2026/0098`)
-   * — confirmed against the real `facility-service` response, whose `_bulk-search`
-   * doesn't populate a resolved `boundary.{state,district,block}` object. State/
-   * district/block names are derived from this code by walking the boundary
-   * hierarchy tree's parent chain (see `utils/boundary.ts`'s
-   * `resolveBoundaryLabels`), same as `shared/api/facility.ts`.
-   */
+  /** The facility's own leaf boundary code (e.g. `INDIA_STATE_DISTRICT_BLOCK_ED/2026/0098`). */
   boundaryCode?: string;
+  /** State/district/block boundary codes the backend resolves server-side from `boundaryCode`; absent when the backend couldn't resolve it. */
+  stateCode?: string;
+  districtCode?: string;
+  blockCode?: string;
   latitude?: number;
   longitude?: number;
   solarSolutionDesignType?: string;

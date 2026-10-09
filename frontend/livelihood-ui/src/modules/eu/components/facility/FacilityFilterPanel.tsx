@@ -193,10 +193,10 @@ export function FacilityFilterPanel({
       </div>
 
       <div className="flex items-center gap-3">
-        <Button type="button" variant="outline" onClick={onAddFacility}>
+        <Button type="button" variant="outline" size="sm" onClick={onAddFacility}>
           {translateOr(t, "ADD_END_USER_SITE", "Add End User Site")}
         </Button>
-        <Button type="button" variant="outline" onClick={onBulkAdd}>
+        <Button type="button" variant="outline" size="sm" onClick={onBulkAdd}>
           {translateOr(t, "BULK_ADD", "Bulk Add")}
         </Button>
       </div>

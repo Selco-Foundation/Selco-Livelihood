@@ -181,10 +181,10 @@ export function BoundaryFilterPanel({
       </div>
 
       <div className="flex items-center gap-3">
-        <Button type="button" variant="outline" onClick={onAddBoundary}>
+        <Button type="button" variant="outline" size="sm" onClick={onAddBoundary}>
           {translateOr(t, "FA_ADD_BOUNDARY", "Add Boundary")}
         </Button>
-        <Button type="button" variant="outline" onClick={onBulkAdd}>
+        <Button type="button" variant="outline" size="sm" onClick={onBulkAdd}>
           {translateOr(t, "BULK_ADD", "Bulk Add")}
         </Button>
       </div>

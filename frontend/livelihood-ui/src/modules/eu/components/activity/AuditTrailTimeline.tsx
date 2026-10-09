@@ -15,7 +15,7 @@ export function AuditTrailTimeline({ auditTrail }: AuditTrailTimelineProps) {
 
   return (
     <Card>
-      <CardContent className="space-y-4 pt-6">
+      <CardContent className="space-y-4">
         <h3 className="text-base font-semibold text-foreground">
           {translateOr(t, "AUDIT_TRAIL", "Audit Trail")}
         </h3>

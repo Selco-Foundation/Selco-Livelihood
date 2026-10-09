@@ -1,7 +1,7 @@
-import { translateOr, useBoundaryHierarchy, useTranslate } from "@/shared";
+import { translateOr, useTranslate } from "@/shared";
 import { Button, Card, CardContent } from "@/ui";
 import { useFacilityMdmsOptions } from "../../hooks/use-facility-mdms-options";
-import { boundaryDisplayName, resolveBoundaryLabels } from "../../utils/boundary";
+import { boundaryDisplayName } from "../../utils/boundary";
 import type { Facility } from "../../types/facility";
 
 interface InfoItemProps {
@@ -9,13 +9,19 @@ interface InfoItemProps {
   value?: string;
 }
 
+/**
+ * Renders as two grid cells (label, value), not a wrapping element — the parent grid's own
+ * column tracks are what make every row's value start at the same x position regardless of how
+ * long any one row's label is, which a per-row flex split (each label taking a fixed % of just
+ * its own row) can't do.
+ */
 function InfoItem({ label, value }: InfoItemProps) {
   const { t } = useTranslate();
   return (
-    <div className="flex gap-3 text-sm">
-      <span className="w-1/2 font-semibold text-foreground">{label}</span>
+    <>
+      <span className="font-semibold text-foreground">{label}</span>
       <span className="text-muted-foreground">{value || translateOr(t, "CORE_COMMON_NOT_APPLICABLE", "N/A")}</span>
-    </div>
+    </>
   );
 }
 
@@ -26,25 +32,23 @@ interface FacilityInfoSectionProps {
 
 export function FacilityInfoSection({ facility, onEdit }: FacilityInfoSectionProps) {
   const { t } = useTranslate();
-  const { data: boundaryData } = useBoundaryHierarchy();
   const { facilityCategories, facilityTypes, solarSolutionDesignTypes } = useFacilityMdmsOptions();
 
-  const boundaryLabels = resolveBoundaryLabels(facility.boundaryCode, boundaryData);
   const categoryName = facilityCategories.find((c) => c.code === facility.facilityCategory)?.name;
   const typeName = facilityTypes.find((c) => c.code === facility.facilityType)?.name;
   const solarDesignName = solarSolutionDesignTypes.find((c) => c.code === facility.solarSolutionDesignType)?.name;
 
   return (
     <Card>
-      <CardContent className="space-y-4 pt-6">
+      <CardContent className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-foreground">{facility.id}</h2>
-          <Button type="button" variant="outline" onClick={onEdit}>
+          <Button type="button" variant="outline" size="sm" onClick={onEdit}>
             {translateOr(t, "CORE_COMMON_EDIT", "Edit")}
           </Button>
         </div>
 
-        <div className="grid gap-2 md:grid-cols-2">
+        <div className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm md:grid-cols-[auto_1fr_auto_1fr]">
           <InfoItem label={translateOr(t, "END_USER_SITE_NAME", "End User Site Name")} value={facility.facilityName} />
           <InfoItem label={translateOr(t, "END_USER_SITE_CATEGORY", "End User Site Category")} value={categoryName} />
           <InfoItem label={translateOr(t, "FACILITY_TYPE", "Sector")} value={typeName} />
@@ -84,18 +88,18 @@ export function FacilityInfoSection({ facility, onEdit }: FacilityInfoSectionPro
           <h3 className="mb-2 text-base font-semibold text-foreground">
             {translateOr(t, "GEOGRAPHY_DETAILS", "Geography Details")}
           </h3>
-          <div className="grid gap-2 md:grid-cols-3">
+          <div className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm md:grid-cols-[auto_1fr_auto_1fr_auto_1fr]">
             <InfoItem
               label={translateOr(t, "CS_STATE", "State")}
-              value={boundaryLabels.state ? boundaryDisplayName(boundaryLabels.state, t) : undefined}
+              value={facility.stateCode ? boundaryDisplayName(facility.stateCode, t) : undefined}
             />
             <InfoItem
               label={translateOr(t, "CS_DISTRICT", "District")}
-              value={boundaryLabels.district ? boundaryDisplayName(boundaryLabels.district, t) : undefined}
+              value={facility.districtCode ? boundaryDisplayName(facility.districtCode, t) : undefined}
             />
             <InfoItem
               label={translateOr(t, "CS_BLOCK", "Block")}
-              value={boundaryLabels.block ? boundaryDisplayName(boundaryLabels.block, t) : undefined}
+              value={facility.blockCode ? boundaryDisplayName(facility.blockCode, t) : undefined}
             />
           </div>
         </div>

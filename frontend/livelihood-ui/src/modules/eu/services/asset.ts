@@ -11,6 +11,10 @@ export interface AssetSearchCriteria {
   assetType?: string[];
   serialNumber?: string[];
   isOperational?: boolean;
+  /** When true, a "family" asset (e.g. a SOLAR system) carries its unit
+   * assets (Panel/Battery/Inverter) nested under `children` in the response,
+   * instead of returning them as separate top-level rows. */
+  includeChildren?: boolean;
 }
 
 /**
@@ -44,6 +48,23 @@ export interface AssetSearchResponseItem {
   warrantyDuration?: number;
   assetDetails?: AssetDetails;
   documents?: AssetSearchDocument[] | null;
+  /** The vendor user uuid currently mapped to this asset. */
+  vendorId?: string;
+  /** Read-time enrichment of `vendorId` — the resolved org/vendor-user. */
+  vendor?: {
+    userId?: string;
+    name?: string;
+    organisationId?: string;
+    organisationName?: string;
+  };
+  /** Null for a standalone asset or a top-level family asset; set to the
+   * family asset's `assetId` on each of its own unit assets. */
+  parentId?: string | null;
+  /** Populated only on a top-level family asset when the search requests
+   * `includeChildren: true` — null/absent on every other row, including each
+   * of this array's own entries (the backend doesn't nest more than one
+   * level deep today). */
+  children?: AssetSearchResponseItem[] | null;
 }
 
 function formatInstallationDate(value: string | undefined): string | undefined {
@@ -63,6 +84,16 @@ function toFacilityAsset(row: AssetSearchResponseItem): FacilityAsset {
     capacity: row.assetDetails?.capacity,
     installationDate: formatInstallationDate(row.warrantyStartDate),
     isOperational: row.isOperational,
+    vendorId: row.vendorId,
+    vendor: row.vendor
+      ? {
+          userId: row.vendor.userId,
+          name: row.vendor.name,
+          organisationId: row.vendor.organisationId,
+          organisationName: row.vendor.organisationName,
+        }
+      : undefined,
+    children: row.children?.map(toFacilityAsset),
   };
 }
 
@@ -103,4 +134,35 @@ export async function searchAssetsForActivity(
   );
 
   return data ?? [];
+}
+
+export interface UpdateAssetVendorMappingPayload {
+  assetId: string;
+  vendorId: string;
+  organisationId: string;
+}
+
+/**
+ * `POST /asset-registry/v1/asset/vendor/_update` — `tenantId` and
+ * `AssetVendorUpdates` sit at the body's top level, siblings of `RequestInfo`
+ * (not nested under a `criteria`/`AssetVendorUpdate` key like the search
+ * endpoints). Takes an array so multiple assets could be remapped in one
+ * call, but this module always saves one row at a time.
+ */
+export async function updateAssetVendorMapping(
+  payload: UpdateAssetVendorMappingPayload,
+  tenantId: string,
+  accessToken: string,
+  user?: AuthUser | null,
+): Promise<unknown> {
+  const { data } = await apiClient.post(
+    "/asset-registry/v1/asset/vendor/_update",
+    {
+      RequestInfo: createRequestInfo(accessToken, user),
+      tenantId,
+      AssetVendorUpdates: [payload],
+    },
+  );
+
+  return data;
 }

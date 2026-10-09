@@ -1,11 +1,12 @@
 import { extractApiErrorMessage, translateOr, useTranslate } from "@/shared";
-import { Button, Skeleton } from "@/ui";
+import { Skeleton } from "@/ui";
 import { useState } from "react";
 import { CategoryFilterPopover, type FilterCategoryDef } from "../CategoryFilterPopover";
 import { useAssetTypeOptions } from "../../hooks/use-asset-type-options";
 import { useFacilityAssets } from "../../hooks/use-facility-assets";
 import { EMPTY_ASSET_FILTERS, type AssetFilters, type FacilityAsset } from "../../types/asset";
-import { AssetSpecsDialog } from "./AssetSpecsDialog";
+import { AssetDetailDialog } from "./AssetDetailDialog";
+import { AssetRow } from "./AssetRow";
 
 const ASSET_STATUS_OPTIONS = [
   { code: "OPERATIONAL", name: "Operational" },
@@ -25,6 +26,7 @@ export function FacilityAssetTab({ facilityId }: FacilityAssetTabProps) {
   const { data: assets, isLoading, isError, error } = useFacilityAssets(facilityId, filters);
 
   const serialNumberOptions = (assets ?? [])
+    .flatMap((asset) => [asset, ...(asset.children ?? [])])
     .filter((asset) => asset.serialNumber)
     .map((asset) => ({ code: asset.serialNumber!, name: asset.serialNumber! }));
 
@@ -74,46 +76,50 @@ export function FacilityAssetTab({ facilityId }: FacilityAssetTabProps) {
       ) : (
         <div className="livelihood-card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] border-collapse text-sm">
+            <table className="w-full min-w-[1240px] table-fixed border-collapse text-sm">
+              <colgroup>
+                <col className="w-[160px]" />
+                <col className="w-[190px]" />
+                <col className="w-[160px]" />
+                <col className="w-[140px]" />
+                <col className="w-[260px]" />
+                <col className="w-[240px]" />
+                <col className="w-[90px]" />
+              </colgroup>
               <thead>
                 <tr className="border-b border-border">
-                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                  <th className="truncate px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ASSET_TYPE", "Asset Type")}
                   </th>
-                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                  <th className="truncate px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ASSET_SERIAL_NO", "Serial No.")}
                   </th>
-                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                  <th className="truncate px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ASSET_INSTALLATION_DATE", "Installation Date")}
                   </th>
-                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                  <th className="truncate px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ASSET_STATUS", "Status")}
                   </th>
-                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
-                    {translateOr(t, "ASSET_SPECS", "Specs")}
+                  <th className="truncate px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                    {translateOr(t, "ASSET_VENDOR_ORGANIZATION", "Vendor Organization")}
+                  </th>
+                  <th className="truncate px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                    {translateOr(t, "ASSET_VENDOR", "Vendor")}
+                  </th>
+                  <th className="truncate px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                    {translateOr(t, "ASSET_ACTIONS", "Actions")}
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {assets.map((asset, index) => (
-                  <tr
+                  <AssetRow
                     key={asset.assetId}
-                    className={index % 2 === 1 ? "border-b border-border/70 bg-accent" : "border-b border-border/70"}
-                  >
-                    <td className="px-5 py-4 text-foreground">{assetTypeName(asset.assetType) || "-"}</td>
-                    <td className="px-5 py-4 text-foreground">{asset.serialNumber || "-"}</td>
-                    <td className="px-5 py-4 text-foreground">{asset.installationDate || "-"}</td>
-                    <td className="px-5 py-4 text-foreground">
-                      {asset.isOperational
-                        ? translateOr(t, "OPERATIONAL", "Operational")
-                        : translateOr(t, "NOT_OPERATIONAL", "Not Operational")}
-                    </td>
-                    <td className="px-5 py-4">
-                      <Button type="button" variant="outline" size="sm" onClick={() => setViewingAsset(asset)}>
-                        {translateOr(t, "VIEW_SPECS", "View Specs")}
-                      </Button>
-                    </td>
-                  </tr>
+                    asset={asset}
+                    isAlternate={index % 2 === 1}
+                    assetTypeName={assetTypeName}
+                    onView={setViewingAsset}
+                  />
                 ))}
               </tbody>
             </table>
@@ -121,7 +127,7 @@ export function FacilityAssetTab({ facilityId }: FacilityAssetTabProps) {
         </div>
       )}
 
-      <AssetSpecsDialog asset={viewingAsset} onClose={() => setViewingAsset(null)} />
+      <AssetDetailDialog asset={viewingAsset} onClose={() => setViewingAsset(null)} assetTypeName={assetTypeName} />
     </div>
   );
 }

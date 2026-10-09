@@ -51,32 +51,3 @@ export function resolveFacilityBoundaryCodes(
 
   return cascadeByParent(boundaryData?.facilities ?? [], blockCodes).map((facility) => facility.code);
 }
-
-export interface ResolvedBoundaryLabels {
-  state?: string;
-  district?: string;
-  block?: string;
-}
-
-/**
- * Walks a facility's own leaf `boundaryCode` up the boundary tree's parent
- * chain to recover its state/district/block codes — the `_bulk-search`
- * response only ever gives us the leaf code (see `services/facility.ts`).
- */
-export function resolveBoundaryLabels(
-  facilityBoundaryCode: string | undefined,
-  boundaryData: BoundaryHierarchy | undefined,
-): ResolvedBoundaryLabels {
-  if (!facilityBoundaryCode) {
-    return {};
-  }
-
-  const blockCode = (boundaryData?.facilities ?? []).find(
-    (facility) => facility.code === facilityBoundaryCode,
-  )?.parentCode;
-  const block = (boundaryData?.blocks ?? []).find((b) => b.code === blockCode);
-  const district = (boundaryData?.districts ?? []).find((d) => d.code === block?.parentCode);
-  const state = (boundaryData?.states ?? []).find((s) => s.code === district?.parentCode);
-
-  return { state: state?.code, district: district?.code, block: block?.code };
-}

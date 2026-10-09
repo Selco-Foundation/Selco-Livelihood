@@ -15,7 +15,9 @@ export function UploadBoundaryPage() {
 
   const [selectedFileName, setSelectedFileName] = useState<string>();
   const [result, setResult] = useState<
-    { status: "success" } | { status: "error"; errorCount: number; downloadResult: () => void } | null
+    | { status: "success" }
+    | { status: "error"; errorCount: number; hasErrorFile: boolean; downloadResult: () => void }
+    | null
   >(null);
 
   const downloadTemplate = useDownloadBoundaryTemplate();
@@ -52,6 +54,7 @@ export function UploadBoundaryPage() {
         setResult({
           status: "error",
           errorCount: uploadResult.errorCount ?? 0,
+          hasErrorFile: Boolean(uploadResult.errorFile),
           downloadResult: () => {
             if (uploadResult.errorFile) {
               downloadBlob(uploadResult.errorFile.blob, uploadResult.errorFile.filename);
@@ -84,7 +87,7 @@ export function UploadBoundaryPage() {
       />
 
       <Card>
-        <CardContent className="space-y-3 pt-6">
+        <CardContent className="space-y-3">
           <h3 className="text-sm font-semibold text-foreground">
             {translateOr(t, "FA_DOWNLOAD_BOUNDARY_TEMPLATE_PAGE_TITLE", "Download Template")}
           </h3>
@@ -109,7 +112,7 @@ export function UploadBoundaryPage() {
       </Card>
 
       <Card>
-        <CardContent className="space-y-3 pt-6">
+        <CardContent className="space-y-3">
           <h3 className="text-sm font-semibold text-foreground">
             {translateOr(t, "FA_UPLOAD_BOUNDARY_DATA_PAGE_TITLE", "Upload Boundary Data")}
           </h3>
@@ -133,13 +136,15 @@ export function UploadBoundaryPage() {
               <p>
                 {result.errorCount} {translateOr(t, "FA_BOUNDARY_VALIDATION_FAILED", "rows failed validation")}
               </p>
-              <button
-                type="button"
-                onClick={result.downloadResult}
-                className="mt-1 cursor-pointer font-semibold underline"
-              >
-                {translateOr(t, "CORE_COMMON_VIEW_ERRORS", "View errors")}
-              </button>
+              {result.hasErrorFile ? (
+                <button
+                  type="button"
+                  onClick={result.downloadResult}
+                  className="mt-1 cursor-pointer font-semibold underline"
+                >
+                  {translateOr(t, "CORE_COMMON_VIEW_ERRORS", "View errors")}
+                </button>
+              ) : null}
             </div>
           ) : null}
         </CardContent>

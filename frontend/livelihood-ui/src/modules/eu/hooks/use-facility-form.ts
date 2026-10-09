@@ -1,6 +1,6 @@
 import { translateOr, useBoundaryHierarchy, useTranslate } from "@/shared";
 import { useMemo, useState } from "react";
-import { cascadeByParent, resolveBoundaryLabels } from "../utils/boundary";
+import { cascadeByParent } from "../utils/boundary";
 import { useFacilityMdmsOptions } from "./use-facility-mdms-options";
 import type { CreateFacilityPayload } from "../services/facility";
 import type { Facility, FacilityFormValues } from "../types/facility";
@@ -199,6 +199,7 @@ export function useFacilityForm(editingFacilityId?: string) {
       isActive: values.isOperational,
       isOnmReady: values.isOnmReady,
       address: {
+        ...((raw.address as Record<string, unknown> | undefined) ?? {}),
         tenantId,
         ...(values.latitude.trim() ? { latitude: Number.parseFloat(values.latitude) } : {}),
         ...(values.longitude.trim() ? { longitude: Number.parseFloat(values.longitude) } : {}),
@@ -218,11 +219,10 @@ export function useFacilityForm(editingFacilityId?: string) {
       setValues(EMPTY_VALUES);
       return;
     }
-    const boundaryLabels = resolveBoundaryLabels(facility.boundaryCode, boundaryData);
     setValues({
-      state: boundaryLabels.state ?? "",
-      district: boundaryLabels.district ?? "",
-      block: boundaryLabels.block ?? "",
+      state: facility.stateCode ?? "",
+      district: facility.districtCode ?? "",
+      block: facility.blockCode ?? "",
       facilityName: facility.facilityName ?? "",
       facilityCategory: facility.facilityCategory ?? "",
       facilityType: facility.facilityType ?? "",

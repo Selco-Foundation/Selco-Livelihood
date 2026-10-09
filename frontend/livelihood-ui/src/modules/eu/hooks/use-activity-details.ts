@@ -16,11 +16,14 @@ import type { ActivityDetail, AssetItem, ResolvedReportSection } from "../types/
 export function useActivityDetails(activityId: string) {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
-  const { assetTypes } = useAssetTypeOptions();
+  const { assetTypes, isLoading: isAssetTypesLoading } = useAssetTypeOptions();
 
   return useQuery({
     queryKey: ["eu-activity-details", activityId],
-    enabled: Boolean(accessToken) && Boolean(activityId),
+    // Waiting on assetTypes to finish loading (rather than adding it to the queryKey) avoids
+    // caching asset-section labels built while the MDMS options were still an empty array — the
+    // query would never refetch once assetTypes actually arrived.
+    enabled: Boolean(accessToken) && Boolean(activityId) && !isAssetTypesLoading,
     queryFn: async (): Promise<ActivityDetail | undefined> => {
       const stateTenantId = tenantId();
       const row = await fetchActivityFacilityById(activityId, stateTenantId, accessToken!, user);
