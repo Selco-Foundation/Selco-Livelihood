@@ -63,6 +63,30 @@ describe("useFacilityForm toUpdatePayload", () => {
     expect(payload.facility_name).toBe("Jane Doe");
     expect(payload.facility_poc_name).toBe("Jane Doe");
   });
+
+  it("merges misId into the raw record's existing additionalDetails instead of replacing it", () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useFacilityForm("facility-1"), { wrapper });
+
+    act(() => {
+      result.current.updateField("misId", "MIS-123");
+    });
+
+    const raw = { id: "facility-1", additionalDetails: { preferredLanguage: "en_IN" } };
+    const payload = result.current.toUpdatePayload(raw, "new-tenant");
+
+    expect(payload.additionalDetails).toEqual({ preferredLanguage: "en_IN", misId: "MIS-123" });
+  });
+
+  it("leaves additionalDetails untouched when misId is empty", () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useFacilityForm("facility-1"), { wrapper });
+
+    const raw = { id: "facility-1", additionalDetails: { preferredLanguage: "en_IN" } };
+    const payload = result.current.toUpdatePayload(raw, "new-tenant");
+
+    expect(payload.additionalDetails).toEqual({ preferredLanguage: "en_IN" });
+  });
 });
 
 describe("useFacilityForm toPayload", () => {
@@ -77,6 +101,19 @@ describe("useFacilityForm toPayload", () => {
     });
 
     expect(result.current.toPayload("tenant-1").endUserPassword).toBe("s3cret!");
+  });
+
+  it("sends misId as additionalDetails.misId only when entered", () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useFacilityForm(), { wrapper });
+
+    expect(result.current.toPayload("tenant-1").additionalDetails).toBeUndefined();
+
+    act(() => {
+      result.current.updateField("misId", "MIS-123");
+    });
+
+    expect(result.current.toPayload("tenant-1").additionalDetails).toEqual({ misId: "MIS-123" });
   });
 });
 

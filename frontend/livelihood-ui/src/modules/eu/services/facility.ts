@@ -28,6 +28,7 @@ interface FacilitySearchResponseItem {
   facility_poc_phone?: string;
   facility_poc_email?: string;
   endUserType?: string;
+  additionalDetails?: { misId?: string };
   address?: { latitude?: number; longitude?: number };
   boundaryCode?: string;
   /** State/district/block boundary codes the backend resolves server-side from `boundaryCode`. */
@@ -58,6 +59,7 @@ function toFacility(item: FacilitySearchResponseItem): Facility {
     latitude: item.address?.latitude,
     longitude: item.address?.longitude,
     endUserType: item.endUserType,
+    misId: item.additionalDetails?.misId,
     raw: item as unknown as Record<string, unknown>,
   };
 }
@@ -105,6 +107,8 @@ export interface CreateFacilityPayload {
   /** Optional — the backend auto-generates a password when none is sent. */
   endUserPassword?: string;
   facility_details: Record<string, never>;
+  /** External end-user identifier — same `additionalDetails.misId` shape the bulk-ingestion converter sends. */
+  additionalDetails?: { misId: string };
 }
 
 // Note: unlike the search endpoint above, create/update send
