@@ -43,7 +43,7 @@ export function FacilityInfoSection({ facility, onEdit }: FacilityInfoSectionPro
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-foreground">{facility.id}</h2>
-          <Button type="button" variant="outline" onClick={onEdit}>
+          <Button type="button" variant="outline" size="sm" onClick={onEdit}>
             {translateOr(t, "CORE_COMMON_EDIT", "Edit")}
           </Button>
         </div>
