@@ -47,7 +47,7 @@ export function useCreateBoundary() {
             tenantId: stateTenantId,
             messages: [
               {
-                code: `Boundary_${code}`,
+                code: `BOUNDARY_${code}`,
                 message: name.trim().replace(/\s+/g, " "),
                 module: "rainmaker-in",
                 locale: "en_IN",
