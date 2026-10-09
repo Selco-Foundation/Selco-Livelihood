@@ -50,17 +50,7 @@ function extractOAuthErrorDescription(error: unknown): string | undefined {
 }
 
 function resolveRedirectPath(from?: string): string {
-  const fallback = employeeHomePath();
-
-  if (!from) {
-    return fallback;
-  }
-
-  try {
-    return decodeURIComponent(from) || fallback;
-  } catch {
-    return fallback;
-  }
+  return from || employeeHomePath();
 }
 
 export function LoginPage() {
