@@ -30,7 +30,6 @@ vi.mock("@/shared", async (importOriginal) => {
     loginUser: vi.fn(),
     resolveQrLogin: vi.fn(),
     filterRolesForEmployeeTenant: vi.fn((user: unknown) => user),
-    assertEmployeeRolesAllowed: vi.fn(),
     hydrateEmployeeJurisdictions: vi.fn(),
     useLoginBannerImages: vi.fn().mockReturnValue([]),
   };
@@ -46,7 +45,6 @@ vi.mock("@/ui", async (importOriginal) => {
 });
 
 import {
-  assertEmployeeRolesAllowed,
   employeeHomePath,
   filterRolesForEmployeeTenant,
   hydrateEmployeeJurisdictions,
@@ -86,7 +84,6 @@ beforeEach(() => {
   vi.mocked(loginUser).mockReset();
   vi.mocked(resolveQrLogin).mockReset();
   vi.mocked(hydrateEmployeeJurisdictions).mockReset();
-  vi.mocked(assertEmployeeRolesAllowed).mockReset();
   vi.mocked(filterRolesForEmployeeTenant).mockImplementation((user: unknown) => user as never);
   useAuthStore.setState(initialAuthState, true);
   useJurisdictionStore.setState(initialJurisdictionState, true);

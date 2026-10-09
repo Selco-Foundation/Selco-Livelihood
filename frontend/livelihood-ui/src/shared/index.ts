@@ -124,7 +124,6 @@ export {
   type JurisdictionBoundaries,
 } from "./utils/boundary-util";
 export {
-  assertEmployeeRolesAllowed,
   filterRolesForEmployeeTenant,
   hydrateEmployeeJurisdictions,
 } from "./utils/employee-session";
