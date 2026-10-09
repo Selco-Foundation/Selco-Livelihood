@@ -49,4 +49,76 @@ describe("useFacilityForm toUpdatePayload", () => {
 
     expect(payload.address).toEqual({ tenantId: "new-tenant" });
   });
+
+  it("sends the single End User Name value as both facility_name and facility_poc_name", () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useFacilityForm("facility-1"), { wrapper });
+
+    act(() => {
+      result.current.updateField("endUserName", "Jane Doe");
+    });
+
+    const payload = result.current.toUpdatePayload({ id: "facility-1" }, "new-tenant");
+
+    expect(payload.facility_name).toBe("Jane Doe");
+    expect(payload.facility_poc_name).toBe("Jane Doe");
+  });
+});
+
+describe("useFacilityForm toPayload", () => {
+  it("includes endUserPassword only when a password was entered", () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useFacilityForm(), { wrapper });
+
+    expect(result.current.toPayload("tenant-1").endUserPassword).toBeUndefined();
+
+    act(() => {
+      result.current.updateField("password", "s3cret!");
+    });
+
+    expect(result.current.toPayload("tenant-1").endUserPassword).toBe("s3cret!");
+  });
+});
+
+describe("useFacilityForm validate", () => {
+  it("requires nothing for an empty, optional password", () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useFacilityForm(), { wrapper });
+
+    act(() => {
+      result.current.validate();
+    });
+
+    expect(result.current.fieldErrors.confirmPassword).toBeUndefined();
+  });
+
+  it("flags a mismatch only once a password has been entered", () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useFacilityForm(), { wrapper });
+
+    act(() => {
+      result.current.updateField("password", "s3cret!");
+      result.current.updateField("confirmPassword", "different!");
+    });
+    act(() => {
+      result.current.validate();
+    });
+
+    expect(result.current.fieldErrors.confirmPassword).toBe("Passwords do not match");
+  });
+
+  it("passes once both password fields match", () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useFacilityForm(), { wrapper });
+
+    act(() => {
+      result.current.updateField("password", "s3cret!");
+      result.current.updateField("confirmPassword", "s3cret!");
+    });
+    act(() => {
+      result.current.validate();
+    });
+
+    expect(result.current.fieldErrors.confirmPassword).toBeUndefined();
+  });
 });

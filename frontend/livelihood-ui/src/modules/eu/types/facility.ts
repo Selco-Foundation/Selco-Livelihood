@@ -38,21 +38,24 @@ export const EMPTY_FACILITY_FILTERS: FacilitySearchFilters = {
   facility: [],
 };
 
-/** Every field `FacilityForm` collects. HEALTH-category facilities (HFR ID / NIN ID / POC-username exemption) aren't supported here. */
+/** Every field `FacilityForm` collects. HEALTH-category facilities (HFR ID / NIN ID / username exemption) aren't supported here. */
 export interface FacilityFormValues {
   state: string;
   district: string;
   block: string;
-  facilityName: string;
+  /** Sent as both `facility_name` and `facility_poc_name` on save — the end user's own name doubles as the site name. */
+  endUserName: string;
   facilityCategory: string;
   facilityType: string;
   endUserType: string;
-  pocName: string;
-  pocUsername: string;
-  pocPhone: string;
-  pocEmail: string;
+  endUserUsername: string;
+  endUserPhone: string;
+  endUserEmail: string;
   isOperational: boolean;
   isOnmReady: boolean;
   latitude: string;
   longitude: string;
+  /** Optional — the backend auto-generates a password when none is sent. */
+  password: string;
+  confirmPassword: string;
 }

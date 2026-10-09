@@ -102,6 +102,8 @@ export interface CreateFacilityPayload {
   facility_poc_username: string;
   facility_poc_phone: string;
   facility_poc_email?: string;
+  /** Optional — the backend auto-generates a password when none is sent. */
+  endUserPassword?: string;
   facility_details: Record<string, never>;
 }
 
