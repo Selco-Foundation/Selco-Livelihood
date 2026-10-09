@@ -20,12 +20,13 @@ const LEVEL_LABELS: Record<JurisdictionLevel, { key: string; fallback: string }>
   state: { key: "CS_STATE", fallback: "State" },
   district: { key: "CS_DISTRICT", fallback: "District" },
   block: { key: "CS_BLOCK", fallback: "Block" },
+  facility: { key: "ORG_END_USER", fallback: "End User" },
 };
 
 /**
  * The user's jurisdictions (HRMS jurisdictions), as in the E4H Management Hub:
  * the current ones (removable / restorable) plus new cascading picks from
- * Country down to Block. The deepest level picked on a card is what's saved.
+ * Country down to End User. The deepest level picked on a card is what's saved.
  */
 export function JurisdictionSection({ jurisdictions }: JurisdictionSectionProps) {
   const { t } = useTranslate();

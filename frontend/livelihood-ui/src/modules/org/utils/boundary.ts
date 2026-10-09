@@ -5,7 +5,7 @@ import type { JurisdictionBoundaryType, OrgJurisdiction } from "../types/organis
 /** The boundary hierarchy users are assigned against — same as the rest of livelihood-ui. */
 export const JURISDICTION_HIERARCHY = "SELCO";
 
-/** One unsaved jurisdiction card: a cascading pick from Country down to Block. */
+/** One unsaved jurisdiction card: a cascading pick from Country down to End User (Facility). */
 export interface JurisdictionDraft {
   /** Local key for React lists only — never sent to the backend. */
   key: string;
@@ -13,10 +13,10 @@ export interface JurisdictionDraft {
   state: string;
   district: string;
   block: string;
+  facility: string;
 }
 
-/** Users are assigned down to Block at most — Facility (end user site) is not a jurisdiction level. */
-export const JURISDICTION_LEVELS = ["country", "state", "district", "block"] as const;
+export const JURISDICTION_LEVELS = ["country", "state", "district", "block", "facility"] as const;
 export type JurisdictionLevel = (typeof JURISDICTION_LEVELS)[number];
 
 const LEVEL_TO_TYPE: Record<JurisdictionLevel, JurisdictionBoundaryType> = {
@@ -24,13 +24,14 @@ const LEVEL_TO_TYPE: Record<JurisdictionLevel, JurisdictionBoundaryType> = {
   state: "State",
   district: "District",
   block: "Block",
+  facility: "Facility",
 };
 
 let draftSequence = 0;
 
 export function emptyJurisdictionDraft(): JurisdictionDraft {
   draftSequence += 1;
-  return { key: `draft-${draftSequence}`, country: "", state: "", district: "", block: "" };
+  return { key: `draft-${draftSequence}`, country: "", state: "", district: "", block: "", facility: "" };
 }
 
 /** Nodes whose parent is the selected parent code; empty until a parent is chosen. */
@@ -60,6 +61,8 @@ export function optionsForLevel(
       return childrenOf(hierarchy?.districts, draft.state);
     case "block":
       return childrenOf(hierarchy?.blocks, draft.district);
+    case "facility":
+      return childrenOf(hierarchy?.facilities, draft.block);
   }
 }
 
@@ -95,5 +98,7 @@ export function boundaryDisplayName(code: string, t: TFunction): string {
 }
 
 export function boundaryTypeLabel(type: JurisdictionBoundaryType, t: TFunction): string {
+  // Livelihood calls a facility an "End User" — the boundary type itself stays `Facility`.
+  if (type === "Facility") return translateOr(t, "ORG_END_USER", "End User");
   return translateOr(t, `CS_${type.toUpperCase()}`, type);
 }
