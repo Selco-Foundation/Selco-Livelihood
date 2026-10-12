@@ -728,6 +728,11 @@ public class FacilityService {
                 effectiveCategory, facility.getFacilityPocUsername(), update.getTenantId(), update.getFacilityId()
         );
 
+        if (CATEGORY_LIVELIHOOD.equalsIgnoreCase(effectiveCategory)) {
+            enrichAddressFromBlockBoundaryCode(facility.getAddress(),
+                    firstNonBlank(update.getBoundaryCode(), existingFacility.getBoundaryCode()));
+        }
+
         // Validate with MDMS and boundary APIs
         log.info("Validating facility update against MDMS and boundaries");
         facilityMdmsValidator.validateAgainstMDMS(List.of(facility), update.getTenantId(), request.getRequestInfo());
