@@ -67,26 +67,42 @@ describe("downloadFacilityTemplate", () => {
 });
 
 describe("uploadBoundaryData", () => {
-  it("reports failed rows via errorCount when the backend answers with a JSON ack and no annotated workbook", async () => {
+  it("reports failure via errorCount and always returns the annotated workbook as resultFile", async () => {
+    const blob = new Blob(["workbook"]);
     vi.mocked(apiClient.post).mockResolvedValue({
-      headers: { "content-type": "application/json", "x-error-count": "3" },
-      data: { status: "success" },
+      headers: {
+        "x-error-count": "3",
+        "x-duplicate-count": "0",
+        "content-disposition": 'attachment; filename="boundary_validation_results.xlsx"',
+      },
+      data: blob,
     });
 
     const result = await uploadBoundaryData(new File(["x"], "boundaries.csv"), "token-1");
 
-    expect(result).toEqual({ success: false, errorCount: 3 });
+    expect(result).toEqual({
+      success: false,
+      errorCount: 3,
+      duplicateCount: 0,
+      resultFile: { blob, filename: "boundary_validation_results.xlsx" },
+    });
   });
 
-  it("reports success with no errorCount field when the JSON ack carries no error count", async () => {
+  it("reports success (and surfaces duplicateCount) when no rows failed, even though some already existed", async () => {
+    const blob = new Blob(["workbook"]);
     vi.mocked(apiClient.post).mockResolvedValue({
-      headers: { "content-type": "application/json" },
-      data: { status: "success" },
+      headers: { "x-error-count": "0", "x-duplicate-count": "2" },
+      data: blob,
     });
 
     const result = await uploadBoundaryData(new File(["x"], "boundaries.csv"), "token-1");
 
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({
+      success: true,
+      errorCount: 0,
+      duplicateCount: 2,
+      resultFile: { blob, filename: "boundary-upload-result.xlsx" },
+    });
   });
 
   it("sends the gateway's auth-token/tenantId header and query param workaround", async () => {

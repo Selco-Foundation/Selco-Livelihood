@@ -33,7 +33,12 @@ beforeEach(() => {
 
 describe("useUploadBoundary", () => {
   it("reloads the rainmaker-livelihood module (via reloadModule('livelihood')) after a successful upload", async () => {
-    vi.mocked(uploadBoundaryData).mockResolvedValue({ success: true });
+    vi.mocked(uploadBoundaryData).mockResolvedValue({
+      success: true,
+      errorCount: 0,
+      duplicateCount: 0,
+      resultFile: { blob: new Blob(), filename: "result.xlsx" },
+    });
     const { wrapper } = createWrapper();
 
     const { result } = renderHook(() => useUploadBoundary(), { wrapper });
@@ -45,7 +50,12 @@ describe("useUploadBoundary", () => {
   });
 
   it("does not reload any module when the upload reports row-level failures", async () => {
-    vi.mocked(uploadBoundaryData).mockResolvedValue({ success: false, errorCount: 2 });
+    vi.mocked(uploadBoundaryData).mockResolvedValue({
+      success: false,
+      errorCount: 2,
+      duplicateCount: 0,
+      resultFile: { blob: new Blob(), filename: "result.xlsx" },
+    });
     const { wrapper } = createWrapper();
 
     const { result } = renderHook(() => useUploadBoundary(), { wrapper });

@@ -75,20 +75,21 @@ export async function downloadBoundaryTemplate(accessToken: string, user?: AuthU
 }
 
 export interface IngestUploadResult {
-  /** `true` when the backend accepted the file and ingested it. */
+  /** `true` when no row failed (`errorCount === 0`) — rows already existing don't count as a failure. */
   success: boolean;
-  /** Present when the backend rejected rows in the file — `errorFile` is the annotated workbook to download and fix. */
-  errorCount?: number;
-  errorFile?: { blob: Blob; filename: string };
+  errorCount: number;
+  /** Rows that were already fully present (boundary + relationship) and needed no action — not a failure. */
+  duplicateCount: number;
+  /** The backend always returns this annotated workbook, success or not — per-row status/error detail. */
+  resultFile: { blob: Blob; filename: string };
 }
 
 const DEFAULT_BOUNDARY_SHEET_NAME = "Boundary Data";
 
 /**
- * This endpoint's response is polymorphic: a JSON ack on full success, or an
- * annotated spreadsheet (with an `x-error-count` header) when some rows
- * failed validation. Content-type decides which one came back — more
- * reliable than sniffing the response bytes.
+ * Always answers with the annotated workbook (never a bare JSON ack) plus
+ * `x-error-count`/`x-duplicate-count` headers, whether or not any rows
+ * failed or already existed.
  */
 export async function uploadBoundaryData(
   file: File,
@@ -107,24 +108,17 @@ export async function uploadBoundaryData(
     })
     .catch(resolveBlobErrorBody);
 
-  const contentType = String(response.headers["content-type"] ?? "");
   const errorCount = Number.parseInt(String(response.headers["x-error-count"] ?? "0"), 10);
-  const blob = response.data as Blob;
-
-  if (contentType.includes("application/json")) {
-    // A JSON ack can still report failed rows via the header alone, with no annotated workbook —
-    // surface the count so the UI doesn't show a "View errors" button that has nothing to open.
-    return errorCount > 0 ? { success: false, errorCount } : { success: true };
-  }
-
+  const duplicateCount = Number.parseInt(String(response.headers["x-duplicate-count"] ?? "0"), 10);
   const disposition = String(response.headers["content-disposition"] ?? "");
   const filename = parseFilenameFromDisposition(disposition) ?? "boundary-upload-result.xlsx";
 
-  if (errorCount > 0) {
-    return { success: false, errorCount, errorFile: { blob, filename } };
-  }
-
-  return { success: true };
+  return {
+    success: errorCount === 0,
+    errorCount,
+    duplicateCount,
+    resultFile: { blob: response.data as Blob, filename },
+  };
 }
 
 export async function downloadFacilityTemplate(accessToken: string, user?: AuthUser | null): Promise<void> {
