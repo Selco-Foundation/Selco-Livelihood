@@ -15,7 +15,9 @@ export function BulkAddFacilitiesPage() {
 
   const [selectedFileName, setSelectedFileName] = useState<string>();
   const [result, setResult] = useState<
-    { status: "success" } | { status: "error"; errorCount: number; downloadResult: () => void } | null
+    | { status: "success"; downloadResult: () => void }
+    | { status: "error"; errorCount: number; downloadResult: () => void }
+    | null
   >(null);
 
   const downloadTemplate = useDownloadFacilityTemplate();
@@ -43,19 +45,17 @@ export function BulkAddFacilitiesPage() {
       { file },
       {
         onSuccess: (uploadResult) => {
+          const downloadResult = () => downloadBlob(uploadResult.resultFile.blob, uploadResult.resultFile.filename);
+
           if (uploadResult.status === "success") {
-            setResult({ status: "success" });
+            setResult({ status: "success", downloadResult });
             toast.success(
               translateOr(t, "FACILITY_END_USER_DATA_UPLOAD_SUCCESS", "End User data uploaded successfully"),
             );
             return;
           }
 
-          setResult({
-            status: "error",
-            errorCount: uploadResult.errorCount,
-            downloadResult: () => downloadBlob(uploadResult.resultFile.blob, uploadResult.resultFile.filename),
-          });
+          setResult({ status: "error", errorCount: uploadResult.errorCount, downloadResult });
           toast.error(translateOr(t, "HEALTH_FACILITIES_VALIDATION_FAILED", "Some rows failed validation"));
         },
         onError: (error) => {
@@ -129,6 +129,20 @@ export function BulkAddFacilitiesPage() {
             selectedFileName={selectedFileName}
             onSelect={handleFileSelect}
           />
+          {result?.status === "success" ? (
+            <div className="rounded-md border border-border bg-muted/30 px-4 py-3 text-sm text-foreground">
+              <p>
+                {translateOr(t, "FACILITY_END_USER_DATA_UPLOAD_SUCCESS", "End User data uploaded successfully")}
+              </p>
+              <button
+                type="button"
+                onClick={result.downloadResult}
+                className="mt-1 cursor-pointer font-semibold underline"
+              >
+                {translateOr(t, "CORE_COMMON_DOWNLOAD", "Download")}
+              </button>
+            </div>
+          ) : null}
           {result?.status === "error" ? (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
               <p>
