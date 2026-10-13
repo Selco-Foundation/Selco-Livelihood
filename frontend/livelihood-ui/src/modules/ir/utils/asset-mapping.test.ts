@@ -4,6 +4,7 @@ import {
   ASSET_PHOTO_DOCUMENT_TYPE,
   buildMachineAssetData,
   buildSolarAssetSections,
+  flattenAssetHierarchy,
   isResolvableAssetDocument,
 } from "./asset-mapping";
 
@@ -52,6 +53,53 @@ function panel(overrides: Partial<AssetSearchResponseItem> = {}): AssetSearchRes
     ...overrides,
   };
 }
+
+describe("flattenAssetHierarchy", () => {
+  it("passes through an asset with no children unchanged", () => {
+    const asset = panel();
+    expect(flattenAssetHierarchy([asset])).toEqual([asset]);
+  });
+
+  it("flattens a top-level asset's children in after it", () => {
+    const child1 = panel({ assetId: "panel-1" });
+    const child2 = panel({ assetId: "panel-2", assetTypeID: "BATTERY" });
+    const family = { assetId: "family-1", assetTypeID: "SOLAR", children: [child1, child2] };
+
+    expect(flattenAssetHierarchy([family])).toEqual([family, child1, child2]);
+  });
+
+  it("flattens nested (grandchild) depth", () => {
+    const grandchild = panel({ assetId: "panel-1" });
+    const child = { assetId: "child-1", assetTypeID: "GROUP", children: [grandchild] };
+    const family = { assetId: "family-1", assetTypeID: "SOLAR", children: [child] };
+
+    expect(flattenAssetHierarchy([family])).toEqual([family, child, grandchild]);
+  });
+
+  it("treats null children the same as no children", () => {
+    const asset = { assetId: "a1", assetTypeID: "MACHINE", children: null };
+    expect(flattenAssetHierarchy([asset])).toEqual([asset]);
+  });
+
+  it("flattens a mixed array of family assets and standalone assets", () => {
+    const child = panel({ assetId: "panel-1" });
+    const family = { assetId: "family-1", assetTypeID: "SOLAR", children: [child] };
+    const standalone = { assetId: "machine-1", assetTypeID: "MACHINE", children: null };
+
+    expect(flattenAssetHierarchy([family, standalone])).toEqual([family, child, standalone]);
+  });
+
+  it("lets buildSolarAssetSections run against a flattened hierarchy exactly as it would against an already-flat list", () => {
+    const panelChild = panel({ assetId: "panel-1" });
+    const batteryChild = panel({ assetId: "battery-1", assetTypeID: "BATTERY" });
+    const family = { assetId: "family-1", assetTypeID: "SOLAR", children: [panelChild, batteryChild] };
+
+    const fromHierarchy = buildSolarAssetSections(flattenAssetHierarchy([family]), new Map());
+    const fromFlatList = buildSolarAssetSections([panelChild, batteryChild], new Map());
+
+    expect(fromHierarchy).toEqual(fromFlatList);
+  });
+});
 
 describe("buildSolarAssetSections", () => {
   it("builds a section only for asset types present, in PANEL/BATTERY/INVERTER order", () => {

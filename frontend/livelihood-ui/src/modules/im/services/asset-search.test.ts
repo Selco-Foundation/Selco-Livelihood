@@ -24,7 +24,12 @@ describe("searchAssetsForFacility", () => {
       "/asset-registry/v1/asset/_search",
       expect.objectContaining({
         RequestInfo: expect.objectContaining({ apiId: "Rainmaker", authToken: "token-1" }),
-        criteria: { tenantId: "tenant-1", facilityID: "facility-1" },
+        criteria: {
+          tenantId: "tenant-1",
+          facilityID: "facility-1",
+          includeChildren: false,
+          isOnmReady: true,
+        },
       }),
       { params: { limit: 50, offset: 0 } },
     );
