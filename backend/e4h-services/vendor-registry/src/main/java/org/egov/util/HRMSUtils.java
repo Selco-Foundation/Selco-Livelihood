@@ -227,7 +227,7 @@ public class HRMSUtils {
         if (jurisdiction == null || jurisdiction.isEmpty()) {
             Jurisdiction jurisdiction1 = Jurisdiction.builder()
                     .hierarchy("ADMIN")
-                    .boundary("India")
+                    .boundary("INDIA")
                     .boundaryType("Country")
                     .tenantId(getHrmsTenantId())
                     .isActive(true)
