@@ -8,10 +8,12 @@ import org.apache.commons.lang3.StringUtils;
 import org.egov.common.contract.models.AuditDetails;
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.common.models.core.SearchResponse;
+import org.egov.common.models.project.Project;
 import org.egov.common.producer.Producer;
 import org.egov.common.validator.Validator;
 import org.egov.field_planner.config.FieldPlannerConfiguration;
 import org.egov.field_planner.repository.FieldPlannerRepository;
+import org.egov.field_planner.repository.GeographyLockRepository;
 import org.egov.field_planner.service.enrichment.FieldPlannerEnrichment;
 import org.egov.field_planner.util.FieldPlannerServiceUtil;
 import org.egov.field_planner.util.MDMSUtils;
@@ -48,6 +50,8 @@ public class FieldPlannerService {
 
     private final FieldPlannerFacilityService facilityService;
 
+    private final GeographyLockService geographyLockService;
+
     @Autowired
     @Qualifier("objectMapper")
     ObjectMapper mapper;
@@ -56,7 +60,8 @@ public class FieldPlannerService {
     public FieldPlannerService(
             FieldPlannerRepository fieldPlannerRepository, List<Validator<FieldPlanFacilityBulkRequest, FieldPlanFacility>> validators, FieldPlannerFacilityService facilityService,
             FieldPlannerValidator fieldPlannerValidator, FieldPlannerEnrichment fieldPlannerEnrichment, FieldPlannerConfiguration fieldPlannerConfiguration,
-            Producer producer, MDMSUtils mdmsUtils, FieldPlannerServiceUtil fieldPlanServiceUtil, ServiceRequestRepository serviceRequestRepository) {
+            Producer producer, MDMSUtils mdmsUtils, FieldPlannerServiceUtil fieldPlanServiceUtil, ServiceRequestRepository serviceRequestRepository,
+            GeographyLockService geographyLockService) {
             this.fieldPlannerValidator = fieldPlannerValidator;
             this.producer = producer;
             this.fieldPlannerConfiguration = fieldPlannerConfiguration;
@@ -67,6 +72,7 @@ public class FieldPlannerService {
             this.fieldPlanServiceUtil = fieldPlanServiceUtil;
             this.serviceRequestRepository = serviceRequestRepository;
             this.facilityService = facilityService;
+            this.geographyLockService = geographyLockService;
     }
 
 
@@ -398,8 +404,110 @@ public class FieldPlannerService {
              */
             if (isCascadingFieldPlanDateUpdate) {
                 handleUpdateFieldPlan(request, fieldPlan, fielPlanFromDB);
+            } else {
+                handleGeographyUpdate(request, fieldPlan, fielPlanFromDB);
             }
         }
+    }
+
+    /**
+     * The PM's geography edit: the only change the non-cascade update applies. A no-op when the
+     * geography is unchanged, as this path always was.
+     *
+     * - DRAFT: add and remove freely. PUBLISHED: remove only -- a published plan takes no new
+     *   sites, so an added place could never be used. Any other status: locked.
+     * - The geography must stay inside the project's.
+     * - A place with a scoped end-user site under it cannot be removed (GeographyLockService).
+     *
+     * Everything but the geography and audit fields is taken from the stored plan before pushing:
+     * the update-fieldplan mapping writes every column from the message, so a partial request
+     * would otherwise blank the plan's status and name.
+     */
+    private void handleGeographyUpdate(FieldPlanRequest request, FieldPlan fieldPlan, FieldPlan fieldPlanFromDB) {
+        Set<String> storedCodes = GeographyLockService.geographyCodes(fieldPlanFromDB.getGeographyDetails());
+        Set<String> requestedCodes = GeographyLockService.geographyCodes(fieldPlan.getGeographyDetails());
+        if (fieldPlan.getGeographyDetails() == null || storedCodes.equals(requestedCodes)) {
+            return;
+        }
+
+        Set<String> addedCodes = difference(requestedCodes, storedCodes);
+        Set<String> removedCodes = difference(storedCodes, requestedCodes);
+        assertGeographyEditable(fieldPlanFromDB.getStatus(), addedCodes);
+        if (requestedCodes.isEmpty()) {
+            throw new CustomException("FIELDPLAN_GEOGRAPHY_EMPTY", "An installation plan needs at least one place");
+        }
+        if (!addedCodes.isEmpty()) {
+            assertInsideProject(request, fieldPlanFromDB, addedCodes);
+        }
+        if (!removedCodes.isEmpty()) {
+            assertRemovable(fieldPlanFromDB, removedCodes);
+        }
+
+        Map<String, Object> requestedGeography = fieldPlan.getGeographyDetails();
+        Map<String, Object> mergedAdditionalDetails = fieldPlan.getAdditionalDetails();
+        copyStoredFields(fieldPlanFromDB, fieldPlan);
+        fieldPlan.setGeographyDetails(requestedGeography);
+        fieldPlan.setAdditionalDetails(mergedAdditionalDetails);
+        fieldPlannerEnrichment.enrichFieldPlanRequestOnUpdate(fieldPlan, fieldPlanFromDB, request.getRequestInfo());
+
+        producer.push(fieldPlannerConfiguration.getUpdateFieldPlanTopic(),
+                FieldPlanRequest.builder().requestInfo(request.getRequestInfo()).fieldPlans(List.of(fieldPlan)).build());
+        log.info("Field plan {} geography updated: added {}, removed {}", fieldPlan.getId(), addedCodes, removedCodes);
+    }
+
+    private static void assertGeographyEditable(String status, Set<String> addedCodes) {
+        if (PUBLISHED_STATUS.equals(status)) {
+            if (!addedCodes.isEmpty()) {
+                throw new CustomException("FIELDPLAN_GEOGRAPHY_ADD_NOT_ALLOWED",
+                        "A published installation plan's geography can only be reduced. Cannot add: " + addedCodes);
+            }
+        } else if (!DRAFT_STATUS.equals(status)) {
+            throw new CustomException("FIELDPLAN_GEOGRAPHY_LOCKED",
+                    "The geography of an installation plan in status " + status + " cannot be changed");
+        }
+    }
+
+    private void assertInsideProject(FieldPlanRequest request, FieldPlan fieldPlanFromDB, Set<String> addedCodes) {
+        Project project = fieldPlannerValidator.getProjectById(request, fieldPlanFromDB);
+        Map<?, ?> projectDetails = project == null || project.getAdditionalDetails() == null ? Map.of()
+                : mapper.convertValue(project.getAdditionalDetails(), Map.class);
+        Set<String> outside = difference(addedCodes,
+                GeographyLockService.geographyCodes(projectDetails.get("geographyDetails")));
+        if (!outside.isEmpty()) {
+            throw new CustomException("FIELDPLAN_GEOGRAPHY_OUTSIDE_PROJECT",
+                    "These places are not part of the project's geography: " + outside);
+        }
+    }
+
+    private void assertRemovable(FieldPlan fieldPlanFromDB, Set<String> removedCodes) {
+        List<GeographyLock> blocking = GeographyLockService.blocking(
+                geographyLockService.planLocks(new GeographyLockRepository.PlanGeography(
+                        fieldPlanFromDB.getId(), fieldPlanFromDB.getName(), fieldPlanFromDB.getGeographyDetails())),
+                removedCodes);
+        if (!blocking.isEmpty()) {
+            throw new CustomException("FIELDPLAN_GEOGRAPHY_IN_USE",
+                    "These places have end-user sites in the plan's scope and cannot be removed: "
+                            + GeographyLockService.describe(blocking));
+        }
+    }
+
+    private static void copyStoredFields(FieldPlan from, FieldPlan to) {
+        to.setTenantId(from.getTenantId());
+        to.setName(from.getName());
+        to.setStatus(from.getStatus());
+        to.setSectors(from.getSectors());
+        to.setHealthFacilityNumber(from.getHealthFacilityNumber());
+        to.setStartDate(from.getStartDate());
+        to.setEndDate(from.getEndDate());
+        to.setProjectId(from.getProjectId());
+        to.setActivities(from.getActivities());
+        to.setIsDeleted(from.getIsDeleted());
+    }
+
+    private static Set<String> difference(Set<String> from, Set<String> minus) {
+        Set<String> result = new LinkedHashSet<>(from);
+        result.removeAll(minus);
+        return result;
     }
 
     private void handleUpdateFieldPlan(FieldPlanRequest request, FieldPlan fieldPlan, FieldPlan fieldPlanFromDB) {
