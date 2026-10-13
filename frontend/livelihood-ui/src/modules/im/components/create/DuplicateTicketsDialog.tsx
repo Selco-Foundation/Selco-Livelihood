@@ -58,10 +58,10 @@ export function DuplicateTicketsDialog({
           )}
         </p>
         <div className="mt-6 flex justify-center gap-3">
-          <Button type="button" variant="outline" size="lg" onClick={onContinue}>
+          <Button type="button" variant="outline" size="sm" onClick={onContinue}>
             {translateOr(t, "TL_COMMON_YES", "Yes")}
           </Button>
-          <Button type="button" size="lg" onClick={onCancel}>
+          <Button type="button" size="sm" onClick={onCancel}>
             {translateOr(t, "TL_COMMON_NO", "No")}
           </Button>
         </div>

@@ -92,7 +92,7 @@ export function OrgUserTable({ users, isLoading, groupsForRoleCodes, onAdd, onEd
                               <Button
                                 type="button"
                                 variant="ghost"
-                                size="icon"
+                                size="icon-sm"
                                 aria-label={translateOr(t, "CORE_COMMON_EDIT", "Edit")}
                                 onClick={() => onEdit(user)}
                               >
@@ -106,7 +106,7 @@ export function OrgUserTable({ users, isLoading, groupsForRoleCodes, onAdd, onEd
                               <Button
                                 type="button"
                                 variant="ghost"
-                                size="icon"
+                                size="icon-sm"
                                 aria-label={translateOr(t, "CORE_COMMON_DELETE", "Delete")}
                                 className="text-destructive hover:text-destructive"
                                 onClick={() => onDelete(user)}

@@ -99,6 +99,7 @@ export function BulkAddFacilitiesPage() {
           <Button
             type="button"
             variant="outline"
+            size="sm"
             disabled={downloadTemplate.isPending}
             onClick={handleDownloadTemplate}
             className="gap-2"

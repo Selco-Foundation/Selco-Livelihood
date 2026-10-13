@@ -99,6 +99,7 @@ export function UploadBoundaryPage() {
           <Button
             type="button"
             variant="outline"
+            size="sm"
             disabled={downloadTemplate.isPending}
             onClick={handleDownloadTemplate}
             className="gap-2"

@@ -18,7 +18,7 @@ export function NoOrgAccess() {
           {translateOr(t, "ORG_NO_ACCESS_DESC", "Contact your administrator if you think this is a mistake.")}
         </p>
       </div>
-      <Button asChild variant="outline" size="lg">
+      <Button asChild variant="outline" size="sm">
         <Link to={employeeHomePath()}>{translateOr(t, "ORG_BACK_TO_HOME", "Back to Home")}</Link>
       </Button>
     </div>
