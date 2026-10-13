@@ -2,6 +2,7 @@ import { createRootRoute, isNotFound } from "@tanstack/react-router";
 import { describe, expect, it, vi } from "vitest";
 import { EU_ROUTES } from "./constants/routes";
 import { createEuRoutes } from "./routes";
+import { EU_ROLES } from "./utils/access";
 
 // Route-definition tests: build a real (unattached) createRootRoute() to
 // satisfy createEuRoutes's parent-route parameters, then exercise the plain
@@ -12,9 +13,11 @@ vi.mock("@/shared", async (importOriginal) => {
   return { ...actual, useModuleI18n: vi.fn(), useTranslate: () => ({ t: (key: string) => key }) };
 });
 
+import { employeeHomePath, useAuthStore } from "@/shared";
+
 const rootRoute = createRootRoute();
 const { routes } = createEuRoutes(rootRoute, rootRoute);
-const [, euIndexRoute] = routes;
+const [euParentRoute, euIndexRoute] = routes;
 
 const euRootPath = `/livelihood-ui${EU_ROUTES.euRoot}`;
 const facilitiesPath = `/livelihood-ui${EU_ROUTES.facilities}`;
@@ -55,6 +58,26 @@ describe("createEuRoutes", () => {
         }),
       );
       expect(isNotFound(thrown)).toBe(true);
+    });
+  });
+
+  describe("euParentRoute.beforeLoad", () => {
+    it("redirects to Overview when the signed-in user lacks EU access", () => {
+      useAuthStore.setState({ user: { roles: [{ code: "OTHER" }] } });
+
+      const redirected = captureRedirect(() => (euParentRoute.options.beforeLoad as () => void)());
+
+      expect(redirected.options?.to).toBe(employeeHomePath());
+
+      useAuthStore.setState({ user: null });
+    });
+
+    it("does not redirect a user with EU access", () => {
+      useAuthStore.setState({ user: { roles: [{ code: EU_ROLES[0] }] } });
+
+      expect(() => (euParentRoute.options.beforeLoad as () => void)()).not.toThrow();
+
+      useAuthStore.setState({ user: null });
     });
   });
 });

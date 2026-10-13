@@ -22,7 +22,7 @@ vi.mock("@/shared", async (importOriginal) => {
   };
 });
 
-import { useModuleI18n } from "@/shared";
+import { employeeHomePath, useAuthStore, useModuleI18n } from "@/shared";
 
 const rootRoute = createRootRoute();
 const { routes, navItems } = createIrRoutes(rootRoute, rootRoute);
@@ -83,6 +83,26 @@ describe("createIrRoutes", () => {
         }),
       );
       expect(isNotFound(thrown)).toBe(true);
+    });
+  });
+
+  describe("irParentRoute.beforeLoad", () => {
+    it("redirects to Overview when the signed-in user lacks IR access", () => {
+      useAuthStore.setState({ user: { roles: [{ code: "OTHER" }] } });
+
+      const redirected = captureRedirect(() => (irParentRoute.options.beforeLoad as () => void)());
+
+      expect(redirected.options?.to).toBe(employeeHomePath());
+
+      useAuthStore.setState({ user: null });
+    });
+
+    it("does not redirect a user with IR access", () => {
+      useAuthStore.setState({ user: { roles: [{ code: IR_ROLES[0] }] } });
+
+      expect(() => (irParentRoute.options.beforeLoad as () => void)()).not.toThrow();
+
+      useAuthStore.setState({ user: null });
     });
   });
 

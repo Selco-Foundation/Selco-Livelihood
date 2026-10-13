@@ -1,4 +1,4 @@
-import { contextPath, translateOr, useModuleI18n, useTranslate } from "@/shared";
+import { contextPath, employeeHomePath, translateOr, useAuthStore, useModuleI18n, useTranslate } from "@/shared";
 import type { AnyRoute } from "@tanstack/react-router";
 import { createRoute, notFound, Outlet, redirect } from "@tanstack/react-router";
 import { ClipboardCheck } from "lucide-react";
@@ -7,7 +7,7 @@ import { IR_ROUTES } from "./constants/routes";
 import { ActivityList } from "./pages/employee/ActivityList";
 import { ActivityReview } from "./pages/employee/ActivityReview";
 import { InstallationPlanInbox } from "./pages/employee/InstallationPlanInbox";
-import { IR_ROLES } from "./utils/access";
+import { IR_ROLES, hasIrAccess } from "./utils/access";
 
 /**
  * Parent route component for all IR pages.
@@ -36,11 +36,21 @@ export function createIrRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
   const activitiesPath = `${installationPlansPath}/$planId/activities`;
   const activityReviewPath = `${activitiesPath}/$activityId/review`;
 
-  // Parent route — loads rainmaker-ir translations before any IR page renders
+  // Parent route — loads rainmaker-ir translations and gates the whole IR
+  // subtree behind IR_ROLES before any IR page renders. Without this, a
+  // user who lacks access (e.g. after a login redirect straight into an IR
+  // page) would reach the page component itself, which just returns null —
+  // a blank page with no way out, instead of landing back on Overview.
   const irParentRoute = createRoute({
     getParentRoute: () => employeeLayoutRoute,
     id: "ir-module",
     component: IrModuleWrapper,
+    beforeLoad: () => {
+      const user = useAuthStore.getState().user;
+      if (!hasIrAccess(user?.roles)) {
+        throw redirect({ to: employeeHomePath() });
+      }
+    },
   });
 
   const irIndexRoute = createRoute({
