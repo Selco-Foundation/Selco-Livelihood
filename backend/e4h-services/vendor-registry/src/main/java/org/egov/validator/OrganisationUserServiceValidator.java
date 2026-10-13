@@ -131,7 +131,12 @@ public class OrganisationUserServiceValidator {
 
         // Get existing user with mobile number from hrms service
         List<Employee> employee = hrmsUtils.getUserByPhoneNumber(request, orgUser.getMobileNumber());
-        if (employee == null || employee.isEmpty()) { //If user doesn't exist
+        // A deleted user is only deactivated in HRMS, so its username stays taken even when it comes back with another phone
+        List<Employee> sameUsernameEmployee = (employee == null || employee.isEmpty())
+                ? hrmsUtils.getUserByUsername(request, orgUser.getUserName()) : null;
+        if (sameUsernameEmployee != null && !sameUsernameEmployee.isEmpty()) {
+            recreateDeactivatedOrgUser(request, orgUser, sameUsernameEmployee.get(0), organisations.get(0));
+        } else if (employee == null || employee.isEmpty()) { //If user doesn't exist
             // Only a newly created HRMS user gets the password from the request; an existing user's password is never touched
             String password = orgUser.getPassword();
             if (StringUtils.isBlank(password)) {
@@ -299,6 +304,92 @@ public class OrganisationUserServiceValidator {
 
         if (!errorMap.isEmpty())
             throw new CustomException(errorMap);
+    }
+
+    /**
+     * Re-creating a user whose username already belongs to a deactivated HRMS employee (it was deleted from its
+     * organisation): reactivate that employee with the submitted details instead of creating a new one, and bring
+     * its soft-deleted eg_org_user link back (or let the service create a fresh link when there is none).
+     */
+    private void recreateDeactivatedOrgUser(OrgUserRequest request, User orgUser, Employee existingEmployee, Organisation organisation) {
+        String username = orgUser.getUserName();
+        if (!isDeactivated(existingEmployee)) {
+            log.error("Username {} already belongs to an active HRMS user", username);
+            throw new CustomException("Organization", "A user with username '" + username + "' already exists");
+        }
+
+        String password = orgUser.getPassword();
+        if (StringUtils.isBlank(password)) {
+            log.error("Password is mandatory to re-create organisation user {}", username);
+            throw new CustomException("OrgUserCreation", "Password is mandatory");
+        }
+        orgUser.setPassword(null);
+
+        String hrmsUserUuid = existingEmployee.getUser().getUuid();
+        OrgUserSearchRequest linksSearch = OrgUserSearchRequest.builder()
+                .requestInfo(request.getRequestInfo())
+                .criteria(OrgUserSearchCriteria.builder().userId(List.of(hrmsUserUuid)).tenantId(orgUser.getTenantId()).build())
+                .build();
+        List<OrgUser> activeLinks = userRepository.getOrgUsers(linksSearch, URLParams.builder().limit(100).offset(0).build());
+        if (activeLinks != null && activeLinks.stream().anyMatch(l -> !request.getOrganizationId().equals(l.getOrganizationId()))) {
+            log.error("User {} is still linked to another organisation", username);
+            throw new CustomException("Organization", "This user already belong to another org");
+        }
+
+        String orgType = organisation.getOrgType();
+        Map<String, List<Role>> rolesMap = getOrgRoles(request.getRequestInfo(), orgUser.getTenantId());
+        if (rolesMap != null && !rolesMap.isEmpty() && orgType != null && !orgType.isBlank()) {
+            List<Role> roles = rolesMap.get(orgType);
+            if (roles != null) {
+                List<String> roleCodesMDMS = roles.stream().map(Role::getCode).filter(Objects::nonNull).toList();
+                Set<String> requestRoleCodes = orgUser.getRoles().stream().map(Role::getCode).filter(Objects::nonNull).collect(Collectors.toSet());
+                validateOrgRoles(requestRoleCodes, roleCodesMDMS);
+            }
+        }
+        ensureDefaultEmployeeRoleForOrgUser(orgUser);
+
+        existingEmployee.getUser().setName(orgUser.getName());
+        existingEmployee.getUser().setEmailId(orgUser.getEmailId());
+        existingEmployee.getUser().setMobileNumber(orgUser.getMobileNumber());
+        existingEmployee.getUser().setRoles(orgUser.getRoles());
+        existingEmployee.getUser().setActive(true);
+        existingEmployee.setIsActive(true);
+        existingEmployee.setEmployeeStatus("ACTIVE");
+        existingEmployee.setReActivateEmployee(true);
+        existingEmployee.setJurisdictions(
+                mergeJurisdictionsForRecreateUser(existingEmployee.getJurisdictions(), orgUser.getJurisdictions()));
+
+        List<Employee> updatedEmployees = hrmsUtils.updateHRMSUser(EmployeeRequest.builder()
+                .requestInfo(request.getRequestInfo())
+                .employees(List.of(existingEmployee))
+                .build());
+        if (updatedEmployees == null || updatedEmployees.isEmpty()) {
+            throw new CustomException("HRMS_UPDATE", "Error occurred while reactivating the existing user");
+        }
+        Employee reactivated = updatedEmployees.get(0);
+
+        try {
+            User hrmsUser = hrmsUtils.resolveUserForPasswordUpdate(request.getRequestInfo(), reactivated);
+            userUtil.updatePasswordWithHrmsUser(request.getRequestInfo(), hrmsUser, password);
+        } catch (Exception passwordUpdateEx) {
+            log.error("HRMS user {} was reactivated but setting its password failed: {}", hrmsUserUuid, passwordUpdateEx.getMessage());
+            throw new CustomException("ORG_USER_PASSWORD_UPDATE_FAILED",
+                    "User was reactivated in HRMS but its password could not be set: " + passwordUpdateEx.getMessage());
+        }
+
+        request.setUser(reactivated.getUser());
+        request.setUserId(reactivated.getUser().getUuid());
+        Optional<String> softDeletedLinkId = userRepository.ensureActiveOrgUserLinkOrReactivateDeleted(hrmsUserUuid, request.getOrganizationId());
+        if (softDeletedLinkId.isPresent()) {
+            request.setId(softDeletedLinkId.get());
+            request.setIsDeleted(false);
+        }
+        log.info("Deactivated HRMS user {} reactivated for organisation {}", hrmsUserUuid, request.getOrganizationId());
+    }
+
+    private static boolean isDeactivated(Employee employee) {
+        return Boolean.FALSE.equals(employee.getIsActive())
+                || (employee.getUser() != null && Boolean.FALSE.equals(employee.getUser().getActive()));
     }
 
     private static long orgUserRowLastModifiedTime(OrgUser u) {
