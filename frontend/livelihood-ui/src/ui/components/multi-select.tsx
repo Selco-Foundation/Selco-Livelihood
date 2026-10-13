@@ -1,10 +1,11 @@
 import { useId, useMemo, useState } from "react";
-import { ChevronDown, Info, Search, X } from "lucide-react";
+import { ChevronDown, Info, Lock, Search, X } from "lucide-react";
 import { translateOr, useTranslate } from "@/shared";
 import { cn } from "../lib/utils";
 import { Checkbox } from "./ui/checkbox";
 import { Input } from "./ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export interface MultiSelectOption {
   code: string;
@@ -33,6 +34,9 @@ export interface MultiSelectProps<TOption extends MultiSelectOption> {
    *  (e.g. field-planner's single-state geography), so the picker can't
    *  silently let the user choose more than what will actually be saved. */
   single?: boolean;
+  /** Selected codes that cannot be deselected, mapped to the reason shown on hover. Their option
+   *  stays ticked, their chip has no remove button, and clearing via Select All keeps them. */
+  locked?: ReadonlyMap<string, string>;
 }
 
 /**
@@ -58,6 +62,7 @@ export function MultiSelect<TOption extends MultiSelectOption>({
   error,
   hideChips = false,
   single = false,
+  locked,
 }: Readonly<MultiSelectProps<TOption>>) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -101,7 +106,10 @@ export function MultiSelect<TOption extends MultiSelectOption>({
   // All renders checked and clicking it *clears* the selection instead of completing it.
   const allSelected = sortedOptions.length > 0 && sortedOptions.every((option) => selectedSet.has(option.code));
 
+  const isLocked = (code: string) => selectedSet.has(code) && Boolean(locked?.has(code));
+
   function toggleOption(code: string) {
+    if (isLocked(code)) return;
     if (single) {
       onChange(selectedSet.has(code) ? [] : [code]);
       setOpen(false);
@@ -115,7 +123,7 @@ export function MultiSelect<TOption extends MultiSelectOption>({
   }
 
   function toggleSelectAll() {
-    onChange(allSelected ? [] : sortedOptions.map((option) => option.code));
+    onChange(allSelected ? selected.filter(isLocked) : sortedOptions.map((option) => option.code));
   }
 
   function removeChip(code: string) {
@@ -144,14 +152,18 @@ export function MultiSelect<TOption extends MultiSelectOption>({
               className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground"
             >
               {option.name}
-              <button
-                type="button"
-                onClick={() => removeChip(option.code)}
-                aria-label={`${translateOr(t, "ES_COMMON_REMOVE", "Remove")} ${option.name}`}
-                className="rounded-full hover:bg-black/10"
-              >
-                <X className="size-3" />
-              </button>
+              {isLocked(option.code) ? (
+                <LockedMark reason={locked?.get(option.code)} />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => removeChip(option.code)}
+                  aria-label={`${translateOr(t, "ES_COMMON_REMOVE", "Remove")} ${option.name}`}
+                  className="rounded-full hover:bg-black/10"
+                >
+                  <X className="size-3" />
+                </button>
+              )}
             </span>
           ))}
         </div>
@@ -229,7 +241,12 @@ export function MultiSelect<TOption extends MultiSelectOption>({
                   key={option.code}
                   type="button"
                   onClick={() => toggleOption(option.code)}
-                  className="flex w-full cursor-pointer items-center gap-2 rounded-sm bg-transparent px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+                  aria-disabled={isLocked(option.code) || undefined}
+                  title={isLocked(option.code) ? locked?.get(option.code) : undefined}
+                  className={cn(
+                    "flex w-full cursor-pointer items-center gap-2 rounded-sm bg-transparent px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground",
+                    isLocked(option.code) && "cursor-not-allowed opacity-70 hover:bg-transparent hover:text-inherit",
+                  )}
                 >
                   <Checkbox
                     checked={selectedSet.has(option.code)}
@@ -237,6 +254,7 @@ export function MultiSelect<TOption extends MultiSelectOption>({
                     className="pointer-events-none"
                   />
                   <span className="truncate">{option.name}</span>
+                  {isLocked(option.code) ? <Lock className="ml-auto size-3 shrink-0 text-muted-foreground" /> : null}
                 </button>
               ))
             )}
@@ -250,5 +268,24 @@ export function MultiSelect<TOption extends MultiSelectOption>({
         </p>
       ) : null}
     </div>
+  );
+}
+
+/** Stands in for a chip's remove button when the value cannot be removed; the reason is the
+ *  tooltip and the accessible name. Shared with the PM wizards' SelectedGroup. */
+export function LockedMark({ reason }: Readonly<{ reason?: string }>) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span role="img" tabIndex={0} aria-label={reason} className="inline-flex rounded-full text-muted-foreground">
+          <Lock className="size-3" />
+        </span>
+      </TooltipTrigger>
+      {/* Grows sideways rather than down: a place used by many plans lists them all, and the
+          default balanced wrapping would stack that into a tall, narrow column. */}
+      {reason ? (
+        <TooltipContent className="max-w-[min(40rem,calc(100vw-2rem))] text-pretty">{reason}</TooltipContent>
+      ) : null}
+    </Tooltip>
   );
 }

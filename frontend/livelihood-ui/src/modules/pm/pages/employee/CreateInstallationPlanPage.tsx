@@ -1,5 +1,5 @@
 import { extractApiErrorMessage, translateOr, useAuthStore, useTranslate, employeeHomePath } from "@/shared";
-import { Button, TopBar } from "@/ui";
+import { Button, toast, TopBar } from "@/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
@@ -32,6 +32,7 @@ import { checkInstallationScope } from "../../services/installation-scope";
 import { validateVendorAssignment } from "../../services/vendor-assignment";
 import type { InstallationPlan } from "../../types/installation-plan";
 import type { Project } from "../../types/project";
+import { geographyCodesKey } from "../../utils/geography";
 import { pmMyProjectsPath, pmProjectDetailsPath } from "../../utils/paths";
 import { tenantId } from "@/shared/config/global-config";
 
@@ -110,6 +111,13 @@ export function CreateInstallationPlanPage() {
   useDefaultPlanDates(planId, project, planDetails.startDate, setPlanDetails);
 
   const isPublished = existingPlan?.additionalDetails?.status === "PUBLISHED";
+  const projectGeography = project?.additionalDetails?.geographyDetails ?? {};
+  // A published plan's geography can only shrink (it takes no new sites), so its own current
+  // geography is all it may pick from.
+  const allowedPlanGeography = isPublished ? (existingPlan?.geographyDetails ?? {}) : projectGeography;
+  const isPlanGeographyDirty =
+    Boolean(existingPlan) &&
+    geographyCodesKey(planDetails.geographyDetails) !== geographyCodesKey(existingPlan?.geographyDetails);
 
   const uniqueSolutionCodes = useMemo(
     () =>
@@ -231,8 +239,8 @@ export function CreateInstallationPlanPage() {
   async function handleNext() {
     if (!canGoNext || isNavigationBusy) return;
     setSaveError(undefined);
-    // Only a plan about to be created is checked. An existing plan's step 1 is locked, so there is
-    // no selection left to change.
+    // Only a plan about to be created is checked. An existing plan already has its scope; a
+    // geography it gains just offers more sites on the next scope download.
     if (!planId) {
       setScopeWarning(undefined);
       if (!(await hasAddableSites())) return;
@@ -245,14 +253,7 @@ export function CreateInstallationPlanPage() {
     } catch (error) {
       // Without this the rejection is unhandled and the PM sees nothing at all: Next simply
       // re-enables and the step never advances.
-      setSaveError(
-        extractApiErrorMessage(error) ??
-          translateOr(
-            t,
-            "ES_PM_INSTALLATION_PLAN_SAVE_FAILED",
-            "Failed to save this installation plan. Please try again.",
-          ),
-      );
+      reportSaveError(error);
       return;
     }
 
@@ -275,14 +276,35 @@ export function CreateInstallationPlanPage() {
     void navigate({ search: () => ({ projectId, planId: saved.plan.id, step: currentStep + 1 }), replace: true });
   }
 
+  function reportSaveError(error: unknown) {
+    // A removed place may have gained a scoped site since the locks were read.
+    void queryClient.invalidateQueries({ queryKey: pmKeys.planGeographyLocks(planId) });
+    setSaveError(
+      extractApiErrorMessage(error) ??
+        translateOr(t, "ES_PM_INSTALLATION_PLAN_SAVE_FAILED", "Failed to save this installation plan. Please try again."),
+    );
+  }
+
+  /** A published plan's only edit: dropping places that hold none of its scoped sites. */
+  async function handleSavePublishedGeography() {
+    setSaveError(undefined);
+    try {
+      await persistPlan();
+      toast.success(translateOr(t, "ES_PM_PLAN_GEOGRAPHY_SAVED", "Installation plan geography updated"));
+    } catch (error) {
+      reportSaveError(error);
+    }
+  }
+
   async function handleConfirmSubmit() {
     setConfirmError(undefined);
     setIsPublishing(true);
     try {
       // No persistPlan() here, deliberately: by step 4 there's a plan id already, and
       // PlanDetailsStep renders locked={Boolean(planId)} from the moment the plan is first
-      // created, so none of the fields _update sends (sectors/dates/geography) can have changed
-      // since. That made the update a same-data round trip on the one action that's irreversible
+      // created, so sectors/dates cannot have changed since, and a geography edit was already
+      // saved by step 1's Next. That made the update a same-data round trip on the one action that's
+      // irreversible
       // — pure risk, no effect, since assignments themselves aren't even part of that payload
       // (they're written below, via vendor-assignment/_create).
       const validation = await validateVendorAssignment(planId!, assignments, accessToken ?? undefined, authUser);
@@ -327,10 +349,12 @@ export function CreateInstallationPlanPage() {
         <PlanDetailsStep
           value={planDetails}
           onChange={setPlanDetails}
-          projectGeography={project?.additionalDetails?.geographyDetails ?? {}}
+          allowedGeography={allowedPlanGeography}
           projectStartDate={project?.startDate}
           projectEndDate={project?.endDate}
           locked={Boolean(planId)}
+          geographyEditable
+          lockTarget={planId ? { fieldPlanId: planId } : undefined}
           // Kept locked while the lookup is still in flight, so the field doesn't flicker
           // editable; unlocked only once we know this plan genuinely has no reviewer, which
           // means the assignment failed after creation and needs to be redone.
@@ -344,7 +368,7 @@ export function CreateInstallationPlanPage() {
           planId={planId}
           planCode={existingPlan?.name}
           projectId={projectId}
-          projectGeography={project?.additionalDetails?.geographyDetails ?? {}}
+          projectGeography={projectGeography}
           sectorCodes={planDetails.sectorCodes}
           onChange={setScope}
           onBusyChange={setScopeBusy}
@@ -361,7 +385,7 @@ export function CreateInstallationPlanPage() {
           planId={planId}
           planCode={existingPlan?.name}
           scope={scope}
-          projectGeography={project?.additionalDetails?.geographyDetails ?? {}}
+          projectGeography={projectGeography}
           value={templates}
           onChange={setTemplates}
           onBusyChange={setTemplateBusy}
@@ -444,8 +468,8 @@ export function CreateInstallationPlanPage() {
         <div className="livelihood-card border border-primary/30 bg-primary/5 p-4 text-sm text-foreground">
           {translateOr(
             t,
-            "ES_PM_PLAN_PUBLISHED_READONLY",
-            "This installation plan has been published and can no longer be edited.",
+            "ES_PM_PLAN_PUBLISHED_GEOGRAPHY_ONLY",
+            "This installation plan has been published. Only places with no end-user site in its scope can still be removed from its geography.",
           )}
         </div>
       ) : null}
@@ -468,6 +492,20 @@ export function CreateInstallationPlanPage() {
         <p className="text-sm whitespace-pre-line text-destructive" role="alert">
           {saveError}
         </p>
+      ) : null}
+
+      {isPublished && currentStep === 1 ? (
+        <WizardActionFooter>
+          <Button
+            type="button"
+            size="sm"
+            className="px-5"
+            onClick={() => void handleSavePublishedGeography()}
+            disabled={!isPlanGeographyDirty || !isPlanDetailsComplete || savePlan.isPending}
+          >
+            {translateOr(t, "CORE_COMMON_SAVE", "Save")}
+          </Button>
+        </WizardActionFooter>
       ) : null}
 
       {!isPublished ? (

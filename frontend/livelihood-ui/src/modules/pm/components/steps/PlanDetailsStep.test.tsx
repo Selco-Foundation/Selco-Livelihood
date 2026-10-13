@@ -7,6 +7,7 @@ import { useSectors } from "../../hooks/use-sectors";
 import { isPlanDetailsValid, PlanDetailsStep, type PlanDetailsValue } from "./PlanDetailsStep";
 
 vi.mock("../../hooks/use-boundary-tree", () => ({ useBoundaryTree: vi.fn() }));
+vi.mock("../../hooks/use-geography-locks", () => ({ useGeographyLocks: () => ({ data: undefined }) }));
 vi.mock("../../hooks/use-sectors", () => ({ useSectors: vi.fn() }));
 vi.mock("../../hooks/use-reviewer-options", () => ({ useReviewerOptions: vi.fn() }));
 
@@ -82,7 +83,7 @@ describe("PlanDetailsStep", () => {
   it("only offers state options that belong to the project's own geography", async () => {
     const user = userEvent.setup();
     render(
-      <PlanDetailsStep value={baseValue} onChange={vi.fn()} projectGeography={{ states: [{ code: "KA" }] }} />,
+      <PlanDetailsStep value={baseValue} onChange={vi.fn()} allowedGeography={{ states: [{ code: "KA" }] }} />,
     );
 
     await user.click(screen.getByRole("button", { name: /^State/i }));
@@ -94,7 +95,7 @@ describe("PlanDetailsStep", () => {
   it("selecting a state updates geographyDetails", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    render(<PlanDetailsStep value={baseValue} onChange={onChange} projectGeography={projectGeography} />);
+    render(<PlanDetailsStep value={baseValue} onChange={onChange} allowedGeography={projectGeography} />);
 
     await user.click(screen.getByRole("button", { name: /^State/i }));
     const popover = screen.getByRole("dialog");
@@ -109,7 +110,7 @@ describe("PlanDetailsStep", () => {
   it("selecting a reviewer via the SearchableSelect sets reviewerCode", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    render(<PlanDetailsStep value={baseValue} onChange={onChange} projectGeography={projectGeography} />);
+    render(<PlanDetailsStep value={baseValue} onChange={onChange} allowedGeography={projectGeography} />);
 
     await user.click(screen.getByRole("button", { name: /Assign Installation Reviewer/i }));
     await user.click(screen.getByText("Reviewer One"));
@@ -118,9 +119,18 @@ describe("PlanDetailsStep", () => {
   });
 
   it("disables geography/sector fields when locked", () => {
-    render(<PlanDetailsStep value={baseValue} onChange={vi.fn()} projectGeography={projectGeography} locked />);
+    render(<PlanDetailsStep value={baseValue} onChange={vi.fn()} allowedGeography={projectGeography} locked />);
 
     expect(screen.getByRole("button", { name: /^State/i })).toBeDisabled();
+  });
+
+  it("keeps the geography editable on an existing plan while sectors stay locked", () => {
+    render(
+      <PlanDetailsStep value={baseValue} onChange={vi.fn()} allowedGeography={projectGeography} locked geographyEditable />,
+    );
+
+    expect(screen.getByRole("button", { name: /^State/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /^Sector/i })).toBeDisabled();
   });
 
   it("keeps the reviewer field editable when reviewerLocked is explicitly false, even if locked", () => {
@@ -128,7 +138,7 @@ describe("PlanDetailsStep", () => {
       <PlanDetailsStep
         value={baseValue}
         onChange={vi.fn()}
-        projectGeography={projectGeography}
+        allowedGeography={projectGeography}
         locked
         reviewerLocked={false}
       />,
@@ -141,7 +151,7 @@ describe("PlanDetailsStep", () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     const value: PlanDetailsValue = { ...baseValue, geographyDetails: { states: [{ code: "KA" }] } };
-    render(<PlanDetailsStep value={value} onChange={onChange} projectGeography={projectGeography} />);
+    render(<PlanDetailsStep value={value} onChange={onChange} allowedGeography={projectGeography} />);
 
     await user.click(screen.getByRole("button", { name: /^District/i }));
     const popover = screen.getByRole("dialog");
@@ -160,7 +170,7 @@ describe("PlanDetailsStep", () => {
       ...baseValue,
       geographyDetails: { states: [{ code: "KA" }], districts: [{ code: "D1", stateCode: "KA" }] },
     };
-    render(<PlanDetailsStep value={value} onChange={onChange} projectGeography={projectGeography} />);
+    render(<PlanDetailsStep value={value} onChange={onChange} allowedGeography={projectGeography} />);
 
     await user.click(screen.getByRole("button", { name: /^Block/i }));
     const popover = screen.getByRole("dialog");
@@ -178,7 +188,7 @@ describe("PlanDetailsStep", () => {
   it("selecting a sector updates sectorCodes", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    render(<PlanDetailsStep value={baseValue} onChange={onChange} projectGeography={projectGeography} />);
+    render(<PlanDetailsStep value={baseValue} onChange={onChange} allowedGeography={projectGeography} />);
 
     await user.click(screen.getByRole("button", { name: /^Sector/i }));
     const popover = screen.getByRole("dialog");
@@ -190,7 +200,7 @@ describe("PlanDetailsStep", () => {
   it("picking start and end dates updates the value", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    render(<PlanDetailsStep value={baseValue} onChange={onChange} projectGeography={projectGeography} />);
+    render(<PlanDetailsStep value={baseValue} onChange={onChange} allowedGeography={projectGeography} />);
 
     const dateTriggers = screen.getAllByRole("button", { name: "Select date" });
     await user.click(dateTriggers[0]);
@@ -215,7 +225,7 @@ describe("PlanDetailsStep", () => {
         blocks: [{ code: "B1", districtCode: "D1", stateCode: "KA" }],
       },
     };
-    render(<PlanDetailsStep value={value} onChange={onChange} projectGeography={projectGeography} />);
+    render(<PlanDetailsStep value={value} onChange={onChange} allowedGeography={projectGeography} />);
 
     await user.click(screen.getByRole("button", { name: /Remove Karnataka/i }));
 
@@ -236,7 +246,7 @@ describe("PlanDetailsStep", () => {
         blocks: [{ code: "B1", districtCode: "D1", stateCode: "KA" }],
       },
     };
-    render(<PlanDetailsStep value={value} onChange={onChange} projectGeography={projectGeography} />);
+    render(<PlanDetailsStep value={value} onChange={onChange} allowedGeography={projectGeography} />);
 
     await user.click(screen.getByRole("button", { name: /Remove D1/i }));
 
@@ -257,7 +267,7 @@ describe("PlanDetailsStep", () => {
         blocks: [{ code: "B1", districtCode: "D1", stateCode: "KA" }],
       },
     };
-    render(<PlanDetailsStep value={value} onChange={onChange} projectGeography={projectGeography} />);
+    render(<PlanDetailsStep value={value} onChange={onChange} allowedGeography={projectGeography} />);
 
     await user.click(screen.getByRole("button", { name: /Remove B1/i }));
 
@@ -271,7 +281,7 @@ describe("PlanDetailsStep", () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     const value: PlanDetailsValue = { ...baseValue, sectorCodes: ["SOLAR"] };
-    render(<PlanDetailsStep value={value} onChange={onChange} projectGeography={projectGeography} />);
+    render(<PlanDetailsStep value={value} onChange={onChange} allowedGeography={projectGeography} />);
 
     await user.click(screen.getByRole("button", { name: /Remove SOLAR/i }));
 

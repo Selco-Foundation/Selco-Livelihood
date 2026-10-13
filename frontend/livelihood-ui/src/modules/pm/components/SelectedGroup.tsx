@@ -1,6 +1,7 @@
 import { X } from "lucide-react";
 
 import { translateOr, useTranslate } from "@/shared";
+import { LockedMark } from "@/ui";
 
 /** Removable chip list used by both wizards' "Selected" summary panels. Lived inside
  *  GeographyDetailsStep and was imported out of it by PlanDetailsStep — a step reaching into
@@ -11,9 +12,19 @@ interface SelectedGroupProps {
   items: { code: string; name: string }[];
   onRemove?: (code: string) => void;
   disabled?: boolean;
+  /** Items that cannot be removed, mapped to why: they show a lock with that reason instead of the
+   *  remove button. */
+  locked?: ReadonlyMap<string, string>;
 }
 
-export function SelectedGroup({ title, emptyLabel, items, onRemove, disabled = false }: Readonly<SelectedGroupProps>) {
+export function SelectedGroup({
+  title,
+  emptyLabel,
+  items,
+  onRemove,
+  disabled = false,
+  locked,
+}: Readonly<SelectedGroupProps>) {
   const { t } = useTranslate();
   return (
     <div>
@@ -28,7 +39,8 @@ export function SelectedGroup({ title, emptyLabel, items, onRemove, disabled = f
               className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground"
             >
               {item.name}
-              {!disabled && onRemove ? (
+              {!disabled && locked?.has(item.code) ? <LockedMark reason={locked.get(item.code)} /> : null}
+              {!disabled && onRemove && !locked?.has(item.code) ? (
                 <button
                   type="button"
                   onClick={() => onRemove(item.code)}

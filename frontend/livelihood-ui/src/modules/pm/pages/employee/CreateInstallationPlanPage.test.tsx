@@ -239,7 +239,7 @@ describe("CreateInstallationPlanPage", () => {
     expect(screen.getByRole("tab", { name: /Technician Assignment/i })).toBeDisabled();
   });
 
-  it("shows the publish-readonly banner and hides the footer once the plan is published", () => {
+  it("shows the published banner and hides the footer on later steps once the plan is published", () => {
     mockSearchState = { projectId: "project-1", planId: "plan-1", step: 4 };
     vi.mocked(useInstallationPlanById).mockReturnValue({
       data: { id: "plan-1", tenantId: "tenant-1", projectId: "project-1", additionalDetails: { status: "PUBLISHED" } },
@@ -254,7 +254,7 @@ describe("CreateInstallationPlanPage", () => {
     } as never);
     renderPage();
 
-    expect(screen.getByText(/published and can no longer be edited/i)).toBeInTheDocument();
+    expect(screen.getByText(/only places with no end-user site in its scope can still be removed/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument();
   });
 

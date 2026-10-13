@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { TooltipProvider } from "@/ui";
 import { SelectedGroup } from "./SelectedGroup";
 
 describe("SelectedGroup", () => {
@@ -58,5 +59,24 @@ describe("SelectedGroup", () => {
     render(<SelectedGroup title="States" emptyLabel="No states" items={[{ code: "KA", name: "Karnataka" }]} />);
 
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+});
+
+describe("SelectedGroup locked items", () => {
+  it("shows a lock with the reason instead of a remove button", () => {
+    render(
+      <SelectedGroup
+        title="Blocks"
+        emptyLabel="No blocks"
+        items={[{ code: "B1", name: "Block One" }, { code: "B2", name: "Block Two" }]}
+        onRemove={vi.fn()}
+        locked={new Map([["B1", "2 end-user site(s) in scope"]])}
+      />,
+      { wrapper: TooltipProvider },
+    );
+
+    expect(screen.getByRole("img", { name: "2 end-user site(s) in scope" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Block One/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Block Two/ })).toBeInTheDocument();
   });
 });

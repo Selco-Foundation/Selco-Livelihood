@@ -1,10 +1,11 @@
 import { translateOr, useTranslate } from "@/shared";
 import { MultiSelect, SearchableSelect } from "@/ui";
 import { ClipboardList } from "lucide-react";
-import { useMemo } from "react";
-import { useBoundaryTree } from "../../hooks/use-boundary-tree";
+import { useGeographyLocks } from "../../hooks/use-geography-locks";
+import { useGeographySelection } from "../../hooks/use-geography-selection";
 import { useReviewerOptions } from "../../hooks/use-reviewer-options";
 import { useSectors } from "../../hooks/use-sectors";
+import type { GeographyLockTarget } from "../../types/installation-plan";
 import type { GeographyDetails } from "../../types/project";
 import { DateField } from "../DateField";
 import { StepSectionCard } from "../StepSectionCard";
@@ -21,17 +22,22 @@ export interface PlanDetailsValue {
 interface PlanDetailsStepProps {
   value: PlanDetailsValue;
   onChange: (value: PlanDetailsValue) => void;
-  /** The parent project's own geography — a plan's geography must stay a
-   *  subset of it, so the pickers here only ever offer these options. */
-  projectGeography: GeographyDetails;
+  /** What the geography pickers may offer: the parent project's geography (a plan's must stay a
+   *  subset of it), or -- for a published plan, which can only shrink -- its own current one. */
+  allowedGeography: GeographyDetails;
   /** The parent project's start date — used as the earliest selectable
    *  plan start date. */
   projectStartDate?: number;
   /** The parent project's end date — used as the latest selectable plan
    *  end date. */
   projectEndDate?: number;
-  /** Plan details become immutable once the plan has been created. */
+  /** Sectors and dates become immutable once the plan has been created. */
   locked?: boolean;
+  /** The geography alone: editable on a new or DRAFT plan, read-only otherwise. Defaults to
+   *  `!locked`. What may be removed is narrowed separately, by `lockTarget`. */
+  geographyEditable?: boolean;
+  /** An existing plan: the places holding a site in its scope are fetched and cannot be removed. */
+  lockTarget?: GeographyLockTarget;
   /** The reviewer field alone, separately lockable. Defaults to `locked`. The caller unlocks it
    *  when the plan has no reviewer assigned -- which happens when the assignment failed after the
    *  plan was created -- because `locked` would otherwise leave the field empty *and* read-only,
@@ -71,100 +77,25 @@ export function isPlanDetailsValid(
 export function PlanDetailsStep({
   value,
   onChange,
-  projectGeography,
+  allowedGeography,
   projectStartDate,
   projectEndDate,
   locked = false,
+  geographyEditable = !locked,
+  lockTarget,
   reviewerLocked = locked,
 }: Readonly<PlanDetailsStepProps>) {
   const { t } = useTranslate();
-  const { data: hierarchy } = useBoundaryTree();
   const { data: sectorOptions = [] } = useSectors();
   const { data: reviewerOptions = [] } = useReviewerOptions();
-
-  const selectedStateCodes = useMemo(
-    () => value.geographyDetails.states?.map((state) => state.code) ?? [],
-    [value.geographyDetails.states],
-  );
-  const selectedDistrictCodes = useMemo(
-    () => value.geographyDetails.districts?.map((district) => district.code) ?? [],
-    [value.geographyDetails.districts],
-  );
-  const selectedBlockCodes = useMemo(
-    () => value.geographyDetails.blocks?.map((block) => block.code) ?? [],
-    [value.geographyDetails.blocks],
-  );
-
-  // Plan geography must be a subset of the project's own geography — so the
-  // option lists here are the project's selections, not the full hierarchy.
-  const projectStateCodes = useMemo(
-    () => new Set(projectGeography.states?.map((state) => state.code) ?? []),
-    [projectGeography.states],
-  );
-  const projectDistrictCodes = useMemo(
-    () => new Set(projectGeography.districts?.map((district) => district.code) ?? []),
-    [projectGeography.districts],
-  );
-  const projectBlockCodes = useMemo(
-    () => new Set(projectGeography.blocks?.map((block) => block.code) ?? []),
-    [projectGeography.blocks],
-  );
-
-  const stateOptions = (hierarchy?.states ?? [])
-    .filter((state) => projectStateCodes.has(state.code))
-    .map((state) => ({ ...state, name: translateOr(t, `BOUNDARY_${state.code}`, state.name) }));
-  const districtOptions = (hierarchy?.districts ?? [])
-    .filter((district) => projectDistrictCodes.has(district.code) && selectedStateCodes.includes(district.stateCode))
-    .map((district) => ({ ...district, name: translateOr(t, `BOUNDARY_${district.code}`, district.name) }));
-  const blockOptions = (hierarchy?.blocks ?? [])
-    .filter((block) => projectBlockCodes.has(block.code) && selectedDistrictCodes.includes(block.districtCode))
-    .map((block) => ({ ...block, name: translateOr(t, `BOUNDARY_${block.code}`, block.name) }));
-  const selectedStates = stateOptions.filter((state) => selectedStateCodes.includes(state.code));
-  const selectedDistricts = (hierarchy?.districts ?? [])
-    .filter((district) => selectedDistrictCodes.includes(district.code))
-    .map((district) => ({ ...district, name: translateOr(t, `BOUNDARY_${district.code}`, district.name) }));
-  const selectedBlocks = (hierarchy?.blocks ?? [])
-    .filter((block) => selectedBlockCodes.includes(block.code))
-    .map((block) => ({ ...block, name: translateOr(t, `BOUNDARY_${block.code}`, block.name) }));
+  const { data: lockedGeography } = useGeographyLocks(lockTarget);
+  const { states, districts, blocks } = useGeographySelection({
+    value: value.geographyDetails,
+    onChange: (geographyDetails) => onChange({ ...value, geographyDetails }),
+    allowed: allowedGeography,
+    locked: lockedGeography,
+  });
   const selectedSectors = sectorOptions.filter((sector) => value.sectorCodes.includes(sector.code));
-
-  function handleStatesChange(codes: string[]) {
-    onChange({
-      ...value,
-      geographyDetails: {
-        states: codes.map((code) => ({ code })),
-        districts: (value.geographyDetails.districts ?? []).filter((district) => codes.includes(district.stateCode)),
-        blocks: (value.geographyDetails.blocks ?? []).filter((block) => codes.includes(block.stateCode)),
-      },
-    });
-  }
-
-  function handleDistrictsChange(codes: string[]) {
-    const nextDistrictOptions = districtOptions.filter((district) => codes.includes(district.code));
-    onChange({
-      ...value,
-      geographyDetails: {
-        ...value.geographyDetails,
-        districts: nextDistrictOptions.map((district) => ({ code: district.code, stateCode: district.stateCode })),
-        blocks: (value.geographyDetails.blocks ?? []).filter((block) => codes.includes(block.districtCode)),
-      },
-    });
-  }
-
-  function handleBlocksChange(codes: string[]) {
-    const nextBlockOptions = blockOptions.filter((block) => codes.includes(block.code));
-    onChange({
-      ...value,
-      geographyDetails: {
-        ...value.geographyDetails,
-        blocks: nextBlockOptions.map((block) => ({
-          code: block.code,
-          districtCode: block.districtCode,
-          stateCode: block.stateCode,
-        })),
-      },
-    });
-  }
 
   return (
     <StepSectionCard
@@ -181,28 +112,31 @@ export function PlanDetailsStep({
           <MultiSelect
             label={translateOr(t, "ES_PM_STATE", "State")}
             required
-            options={stateOptions}
-            selected={selectedStateCodes}
-            onChange={handleStatesChange}
-            disabled={locked}
+            options={states.options}
+            selected={states.selectedCodes}
+            onChange={states.onChange}
+            disabled={!geographyEditable}
+            locked={lockedGeography}
             hideChips
           />
           <MultiSelect
             label={translateOr(t, "ES_PM_DISTRICTS", "District(s)")}
             required
-            options={districtOptions}
-            selected={selectedDistrictCodes}
-            onChange={handleDistrictsChange}
-            disabled={locked || selectedStateCodes.length === 0}
+            options={districts.options}
+            selected={districts.selectedCodes}
+            onChange={districts.onChange}
+            disabled={!geographyEditable || states.selectedCodes.length === 0}
+            locked={lockedGeography}
             hideChips
           />
           <MultiSelect
             label={translateOr(t, "ES_PM_BLOCKS", "Block(s)")}
             required
-            options={blockOptions}
-            selected={selectedBlockCodes}
-            onChange={handleBlocksChange}
-            disabled={locked || selectedDistrictCodes.length === 0}
+            options={blocks.options}
+            selected={blocks.selectedCodes}
+            onChange={blocks.onChange}
+            disabled={!geographyEditable || districts.selectedCodes.length === 0}
+            locked={lockedGeography}
             hideChips
           />
           <MultiSelect
@@ -261,25 +195,28 @@ export function PlanDetailsStep({
             <SelectedGroup
               title={translateOr(t, "ES_PM_STATE", "State")}
               emptyLabel={translateOr(t, "ES_PM_NO_STATE_SELECTED", "No state selected")}
-              items={selectedStates}
-              onRemove={(code) => handleStatesChange(selectedStateCodes.filter((selected) => selected !== code))}
-              disabled={locked}
+              items={states.selectedItems}
+              onRemove={(code) => states.onChange(states.selectedCodes.filter((selected) => selected !== code))}
+              disabled={!geographyEditable}
+              locked={lockedGeography}
             />
             <SelectedGroup
               title={translateOr(t, "ES_PM_DISTRICTS", "District(s)")}
               emptyLabel={translateOr(t, "ES_PM_NO_DISTRICT_SELECTED", "No district selected")}
-              items={selectedDistricts}
+              items={districts.selectedItems}
               onRemove={(code) =>
-                handleDistrictsChange(selectedDistrictCodes.filter((selected) => selected !== code))
+                districts.onChange(districts.selectedCodes.filter((selected) => selected !== code))
               }
-              disabled={locked}
+              disabled={!geographyEditable}
+              locked={lockedGeography}
             />
             <SelectedGroup
               title={translateOr(t, "ES_PM_BLOCKS", "Block(s)")}
               emptyLabel={translateOr(t, "ES_PM_NO_BLOCK_SELECTED", "No block selected")}
-              items={selectedBlocks}
-              onRemove={(code) => handleBlocksChange(selectedBlockCodes.filter((selected) => selected !== code))}
-              disabled={locked}
+              items={blocks.selectedItems}
+              onRemove={(code) => blocks.onChange(blocks.selectedCodes.filter((selected) => selected !== code))}
+              disabled={!geographyEditable}
+              locked={lockedGeography}
             />
           </div>
           <div className="mt-4 border-t border-border pt-4">

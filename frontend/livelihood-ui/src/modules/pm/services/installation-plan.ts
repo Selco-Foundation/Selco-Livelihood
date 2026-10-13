@@ -3,6 +3,8 @@ import { createRequestInfo } from "@/shared/api/request-info";
 import type { AuthUser } from "@/shared/stores/auth-store";
 import type { GeographyDetails } from "../types/project";
 import type {
+  GeographyLock,
+  GeographyLockTarget,
   InstallationPlan,
   InstallationPlanSearchCriteria,
   InstallationPlanSearchResult,
@@ -333,4 +335,24 @@ export async function publishInstallationPlan(
     projectId: "",
     additionalDetails: { status: data.planStatus },
   };
+}
+
+/**
+ * `POST /field-planner/v1/field-plans/geography/_locks` -- the geography codes that cannot be
+ * removed: for a project, every code its installation plans use; for a plan, every code with an
+ * end-user site in its scope. field-planner owns the rule and enforces it again on save.
+ */
+export async function fetchGeographyLocks(
+  target: GeographyLockTarget,
+  accessToken?: string,
+  user?: AuthUser | null,
+): Promise<GeographyLock[]> {
+  // The gateway refuses a request carrying no tenantId at all ("Failed to parse request at API
+  // gateway", 401) -- this body has none of its own, so it goes on the query string.
+  const { data } = await apiClient.post<{ GeographyLocks?: GeographyLock[] }>(
+    "/field-planner/v1/field-plans/geography/_locks",
+    { RequestInfo: createRequestInfo(accessToken, user), ...target },
+    { params: { tenantId: user?.tenantId } },
+  );
+  return data.GeographyLocks ?? [];
 }
