@@ -13,7 +13,7 @@ describe("searchVendorOrganisations", () => {
     vi.mocked(apiClient.post).mockResolvedValue({
       data: {
         organisations: [
-          { id: "org-1", name: "Vendor One", orgSubType: "INSTALLATION_VENDOR", orgStatus: "ACTIVE" },
+          { id: "org-1", name: "Vendor One" },
         ],
       },
     });
@@ -23,26 +23,22 @@ describe("searchVendorOrganisations", () => {
     expect(result).toEqual([{ code: "org-1", name: "Vendor One" }]);
   });
 
-  it("filters out organisations that aren't an active installation vendor", async () => {
-    vi.mocked(apiClient.post).mockResolvedValue({
-      data: {
-        organisations: [
-          { id: "org-1", orgSubType: "OTHER", orgStatus: "ACTIVE" },
-          { id: "org-2", orgSubType: "INSTALLATION_VENDOR", orgStatus: "INACTIVE" },
-          { id: "org-3", orgSubType: "INSTALLATION_VENDOR", orgStatus: "ACTIVE" },
-        ],
-      },
-    });
+  it("asks the server for active VENDOR organisations only", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ data: { organisations: [] } });
 
-    const result = await searchVendorOrganisations("tenant-1", "token-1");
+    await searchVendorOrganisations("tenant-1", "token-1");
 
-    expect(result).toEqual([{ code: "org-3", name: "org-3" }]);
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/vendor/organisation/v1/_search",
+      expect.objectContaining({
+        SearchCriteria: { tenantId: "tenant-1", orgType: "VENDOR", orgStatus: "ACTIVE" },
+      }),
+      expect.anything(),
+    );
   });
 
-  it("filters out organisations with no id", async () => {
-    vi.mocked(apiClient.post).mockResolvedValue({
-      data: { organisations: [{ orgSubType: "INSTALLATION_VENDOR", orgStatus: "ACTIVE" }] },
-    });
+  it("returns an empty list when the response has no organisations key", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ data: {} });
 
     const result = await searchVendorOrganisations("tenant-1", "token-1");
 
@@ -51,7 +47,7 @@ describe("searchVendorOrganisations", () => {
 
   it("falls back to id as the display name when name is absent", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({
-      data: { organisations: [{ id: "org-1", orgSubType: "INSTALLATION_VENDOR", orgStatus: "ACTIVE" }] },
+      data: { organisations: [{ id: "org-1" }] },
     });
 
     const result = await searchVendorOrganisations("tenant-1", "token-1");
