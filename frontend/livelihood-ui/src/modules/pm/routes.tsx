@@ -8,7 +8,7 @@ import {
   useTranslate,
 } from "@/shared";
 import type { AnyRoute } from "@tanstack/react-router";
-import { createRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createRoute, notFound, Outlet, redirect } from "@tanstack/react-router";
 import { FolderKanban } from "lucide-react";
 import { PmKpis } from "./components/PmKpis";
 import { PmOverview } from "./components/PmOverview";
@@ -84,7 +84,14 @@ function createPmRoutes(employeeLayoutRoute: AnyRoute) {
   const pmIndexRoute = createRoute({
     getParentRoute: () => pmParentRoute,
     path: pmRootPath,
-    beforeLoad: () => {
+    // TanStack Router's fuzzy matching runs this beforeLoad for any
+    // unmatched path under pmRootPath too, not just the exact path — without
+    // this guard it would hijack those into the projects list instead of
+    // letting the app's not-found handling (redirect to Overview) take over.
+    beforeLoad: ({ location }) => {
+      if (location.pathname !== pmRootPath) {
+        throw notFound();
+      }
       throw redirect({ to: myProjectsPath });
     },
   });

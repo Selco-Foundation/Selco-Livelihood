@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { createRootRoute } from "@tanstack/react-router";
+import { createRootRoute, isNotFound } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ImDetails, ImKpis, ImOverviewActions } from "./components/ImOverview";
@@ -41,6 +41,17 @@ function captureRedirect(fn: () => unknown): { options?: { to?: string } } {
   }
 }
 
+function captureNotFound(fn: () => unknown): unknown {
+  try {
+    fn();
+    throw new Error("expected notFound() to be thrown");
+  } catch (thrown) {
+    return thrown;
+  }
+}
+
+type BeforeLoad = (ctx: { location: { pathname: string } }) => void;
+
 describe("createImRoutes", () => {
   it("builds the im-root, inbox, create-incident, and complaint-details paths", () => {
     expect(pathOf(imIndexRoute)).toBe(imRootPath);
@@ -50,9 +61,20 @@ describe("createImRoutes", () => {
   });
 
   describe("imIndexRoute", () => {
-    it("always redirects to the inbox path", () => {
-      const redirected = captureRedirect(() => (imIndexRoute.options.beforeLoad as () => void)());
+    it("redirects to the inbox path for an exact match", () => {
+      const redirected = captureRedirect(() =>
+        (imIndexRoute.options.beforeLoad as BeforeLoad)({ location: { pathname: imRootPath } }),
+      );
       expect(redirected.options?.to).toBe(inboxPath);
+    });
+
+    it("falls through to not-found instead of redirecting for an unmatched sub-path", () => {
+      const thrown = captureNotFound(() =>
+        (imIndexRoute.options.beforeLoad as BeforeLoad)({
+          location: { pathname: `${imRootPath}/does-not-exist` },
+        }),
+      );
+      expect(isNotFound(thrown)).toBe(true);
     });
   });
 

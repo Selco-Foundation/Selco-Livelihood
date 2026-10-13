@@ -1,6 +1,6 @@
 import { contextPath, translateOr, useModuleI18n, useTranslate } from "@/shared";
 import type { AnyRoute } from "@tanstack/react-router";
-import { createRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createRoute, notFound, Outlet, redirect } from "@tanstack/react-router";
 import { ClipboardCheck } from "lucide-react";
 import { IrKpis } from "./components/IrOverview";
 import { IR_ROUTES } from "./constants/routes";
@@ -46,7 +46,15 @@ export function createIrRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
   const irIndexRoute = createRoute({
     getParentRoute: () => irParentRoute,
     path: irRootPath,
-    beforeLoad: () => {
+    // TanStack Router's fuzzy matching runs this beforeLoad for any
+    // unmatched path under irRootPath too, not just the exact path — without
+    // this guard it would hijack those into the installation-plans list
+    // instead of letting the app's not-found handling (redirect to Overview)
+    // take over.
+    beforeLoad: ({ location }) => {
+      if (location.pathname !== irRootPath) {
+        throw notFound();
+      }
       throw redirect({ to: installationPlansPath });
     },
   });

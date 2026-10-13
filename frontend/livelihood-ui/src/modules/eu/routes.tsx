@@ -1,6 +1,6 @@
 import { contextPath, translateOr, useModuleI18n, useTranslate } from "@/shared";
 import type { AnyRoute } from "@tanstack/react-router";
-import { createRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createRoute, notFound, Outlet, redirect } from "@tanstack/react-router";
 import { Building2, MapPinned } from "lucide-react";
 import { EuKpis } from "./components/EuOverview";
 import { EU_ROUTES } from "./constants/routes";
@@ -50,7 +50,15 @@ export function createEuRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
   const euIndexRoute = createRoute({
     getParentRoute: () => euParentRoute,
     path: euRootPath,
-    beforeLoad: () => {
+    // TanStack Router's fuzzy matching runs this beforeLoad for any
+    // unmatched path under euRootPath too (e.g. `/eu/does-not-exist`), not
+    // just the exact path — without this guard it would hijack those into
+    // the facilities list instead of letting the app's not-found handling
+    // (redirect to Overview) take over.
+    beforeLoad: ({ location }) => {
+      if (location.pathname !== euRootPath) {
+        throw notFound();
+      }
       throw redirect({ to: facilitiesPath });
     },
   });

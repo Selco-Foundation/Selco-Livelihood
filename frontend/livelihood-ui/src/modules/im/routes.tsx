@@ -1,6 +1,6 @@
 import { contextPath, translateOr, useModuleI18n, useTranslate } from "@/shared";
 import type { AnyRoute } from "@tanstack/react-router";
-import { createRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createRoute, notFound, Outlet, redirect } from "@tanstack/react-router";
 import { Inbox } from "lucide-react";
 import { ImDetails, ImKpis, ImOverviewActions } from "./components/ImOverview";
 import { IM_ROUTES } from "./constants/routes";
@@ -59,7 +59,14 @@ export function createImRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
   const imIndexRoute = createRoute({
     getParentRoute: () => imParentRoute,
     path: imRoot,
-    beforeLoad: () => {
+    // TanStack Router's fuzzy matching runs this beforeLoad for any
+    // unmatched path under imRoot too, not just the exact path — without
+    // this guard it would hijack those into the inbox instead of letting
+    // the app's not-found handling (redirect to Overview) take over.
+    beforeLoad: ({ location }) => {
+      if (location.pathname !== imRoot) {
+        throw notFound();
+      }
       throw redirect({ to: inboxPath });
     },
   });
