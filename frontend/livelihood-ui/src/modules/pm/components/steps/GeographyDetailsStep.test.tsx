@@ -7,6 +7,7 @@ import type { GeographyDetails } from "../../types/project";
 import { GeographyDetailsStep, isGeographyDetailsValid } from "./GeographyDetailsStep";
 
 vi.mock("../../hooks/use-boundary-tree", () => ({ useBoundaryTree: vi.fn() }));
+vi.mock("../../hooks/use-geography-locks", () => ({ useGeographyLocks: () => ({ data: undefined }) }));
 
 vi.mock("@/ui", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/ui")>();

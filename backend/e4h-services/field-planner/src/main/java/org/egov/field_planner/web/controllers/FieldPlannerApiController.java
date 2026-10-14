@@ -15,6 +15,7 @@ import org.egov.common.utils.ResponseInfoFactory;
 import org.egov.field_planner.config.FieldPlannerConfiguration;
 import org.egov.field_planner.service.FieldPlannerFacilityService;
 import org.egov.field_planner.service.FieldPlannerService;
+import org.egov.field_planner.service.GeographyLockService;
 import org.egov.field_planner.web.models.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -43,17 +44,21 @@ public class FieldPlannerApiController {
 
     private final FieldPlannerFacilityService fieldPlannerFacilityService;
 
+    private final GeographyLockService geographyLockService;
+
     @Autowired
     public FieldPlannerApiController(ObjectMapper objectMapper, HttpServletRequest httpServletRequest,
                                      Producer producer,
                                      FieldPlannerConfiguration fieldPlannerConfiguration,
-                                     FieldPlannerService fieldPlannerService, FieldPlannerFacilityService fieldPlannerFacilityService) {
+                                     FieldPlannerService fieldPlannerService, FieldPlannerFacilityService fieldPlannerFacilityService,
+                                     GeographyLockService geographyLockService) {
         this.objectMapper = objectMapper;
         this.httpServletRequest = httpServletRequest;
         this.producer = producer;
         this.fieldPlannerConfiguration = fieldPlannerConfiguration;
         this.fieldPlannerService = fieldPlannerService;
         this.fieldPlannerFacilityService = fieldPlannerFacilityService;
+        this.geographyLockService = geographyLockService;
     }
 
     @RequestMapping(value = "/_create", method = RequestMethod.POST)
@@ -95,6 +100,16 @@ public class FieldPlannerApiController {
         Integer count = fieldPlannerService.countAllFieldPlans(request, urlParams.getTenantId(), urlParams.getLastChangedSince(), urlParams.getIncludeDeleted());
         FieldPlanResponse fieldPlanResponse = FieldPlanResponse.builder().responseInfo(responseInfo).fieldPlans(fieldPlans).totalCount(count).build();
         return new ResponseEntity<FieldPlanResponse>(fieldPlanResponse, HttpStatus.OK);
+    }
+
+    /** Geography codes that cannot be removed from a project ({@code projectId}) or a plan ({@code fieldPlanId}). */
+    @RequestMapping(value = "/geography/_locks", method = RequestMethod.POST)
+    public ResponseEntity<GeographyLockResponse> searchGeographyLocks(@Valid @RequestBody GeographyLockRequest request) {
+        GeographyLockResponse response = GeographyLockResponse.builder()
+                .responseInfo(ResponseInfoFactory.createResponseInfo(request.getRequestInfo(), true))
+                .geographyLocks(geographyLockService.search(request))
+                .build();
+        return ResponseEntity.ok(response);
     }
 
     @RequestMapping(value = "/facility/_create", method = RequestMethod.POST)

@@ -5,7 +5,7 @@ import type { ProjectStatusWrapper } from "../types/project";
 import { formatDate } from "../utils/format-date";
 import { resolveStateNames } from "../utils/geography";
 import { pmCreateProjectPath, pmProjectDetailsPath } from "../utils/paths";
-import { formatStatusLabel } from "../utils/status-label";
+import { formatStatusLabel, isDraftStatus } from "../utils/status-label";
 
 interface ProjectsTableProps {
   projects: ProjectStatusWrapper[];
@@ -57,7 +57,7 @@ export function ProjectsTable({ projects, isLoading }: Readonly<ProjectsTablePro
           </thead>
           <tbody>
             {projects.map(({ project, status }, index) => {
-              const isDraft = !status || status === "DRAFT";
+              const isDraft = isDraftStatus(status);
               // Anything past DRAFT has a real project record to open — the workflow's actual
               // states beyond "SCHEDULED" (e.g. ASSIGNED_TO_FIELD_STAFF, SUBMITTED_BY_FIELD_STAFF)
               // should all stay navigable too, so this isn't pinned to one exact status string.

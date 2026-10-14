@@ -131,6 +131,12 @@ public class ProjectConfiguration {
     @Value("${egov.v2.search.facility.url}")
     private String facilityServiceSearchUrlV2;
 
+    @Value("${egov.fieldplan.host}")
+    private String fieldPlanServiceHost;
+
+    @Value("${egov.fieldplan.geography.locks.url}")
+    private String fieldPlanGeographyLocksUrl;
+
     @Value("${search.api.limit:100}")
     private String searchApiLimit;
 
