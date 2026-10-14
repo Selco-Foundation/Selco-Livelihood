@@ -28,12 +28,15 @@ public class OrganisationEnrichmentService {
 
     private final Configuration config;
 
+    private final OrganisationPocService organisationPocService;
+
     @Autowired
-    public OrganisationEnrichmentService(OrganisationUtil organisationUtil, IdgenUtil idgenUtil, HRMSUtils hrmsUtils, Configuration config) {
+    public OrganisationEnrichmentService(OrganisationUtil organisationUtil, IdgenUtil idgenUtil, HRMSUtils hrmsUtils, Configuration config, OrganisationPocService organisationPocService) {
         this.organisationUtil = organisationUtil;
         this.idgenUtil = idgenUtil;
         this.hrmsUtils = hrmsUtils;
         this.config = config;
+        this.organisationPocService = organisationPocService;
     }
 
 
@@ -80,6 +83,8 @@ public class OrganisationEnrichmentService {
         int funcAppNumIdFormatIndex = 0;
         int orgCodeIdFormatIndex = 0;
         for (Organisation organisation : organisationList) {
+            // HRMS needs the plain number, so keep it before the stored one is encrypted
+            String plainPocMobileNumber = organisation.getOrgPocPhone();
             //Encrypt poc mobile number
             String encryptedPocMobileNumber = organisationUtil.encryptMobileNumber(organisation.getOrgPocPhone());
             if(encryptedPocMobileNumber!=null && !encryptedPocMobileNumber.isBlank()){
@@ -123,6 +128,15 @@ public class OrganisationEnrichmentService {
 
             //jurisdiction
             enrichJurisdiction(jurisdictionList);
+
+            // Last step of the iteration, so nothing that can still fail has run after the HRMS user is created
+            try {
+                if (OrganisationPocService.shouldCreatePocUser(organisation)) {
+                    organisationPocService.createPocUser(requestInfo, organisation, plainPocMobileNumber);
+                }
+            } finally {
+                organisation.setOrgPocPassword(null);
+            }
 
             orgAppNumIdFormatIndex++;
             orgCodeIdFormatIndex++;

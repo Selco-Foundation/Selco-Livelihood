@@ -41,8 +41,42 @@ public class OrganisationUserQueryBuilder {
     public String getOrganisationUserSearchQuery(OrgUserSearchRequest orgSearchRequest, URLParams urlParams, List<Object> preparedStmtList, Boolean isCountQuery) {
         String query = Boolean.TRUE.equals(isCountQuery) ? ORGANISATIONS_USERS_COUNT_QUERY : FETCH_ORGANISATION_USER_QUERY;
         StringBuilder queryBuilder = new StringBuilder(query);
-        OrgUserSearchCriteria searchCriteria = orgSearchRequest.getCriteria();
+        appendSearchClauses(queryBuilder, orgSearchRequest.getCriteria(), urlParams, preparedStmtList);
 
+        if (Boolean.TRUE.equals(isCountQuery)) {
+            return queryBuilder.toString();
+        }
+
+        Pagination pagination = Pagination.builder().limit(Double.valueOf(urlParams.getLimit()+"")).offset(Double.valueOf(urlParams.getOffset()+"")).build();
+        addOrderByClause(queryBuilder, pagination);
+        return addPaginationWrapper(queryBuilder.toString(), preparedStmtList, pagination);
+    }
+
+    /**
+     * Same filters as {@link #getOrganisationUserSearchQuery} but returns every match, ordered like the
+     * paginated query (last modified first). Used when name/role filters, which live in HRMS rather than in
+     * eg_org_user, have to be applied after the rows are loaded.
+     */
+    public String getOrganisationUserSearchQueryWithoutPagination(OrgUserSearchRequest orgSearchRequest, URLParams urlParams, List<Object> preparedStmtList) {
+        StringBuilder queryBuilder = new StringBuilder(FETCH_ORGANISATION_USER_QUERY);
+        appendSearchClauses(queryBuilder, orgSearchRequest.getCriteria(), urlParams, preparedStmtList);
+        return queryBuilder.append(" ORDER BY ou.lastmodifiedtime DESC, ou.id").toString();
+    }
+
+    /** {limit, offset} exactly as {@link #addPaginationWrapper} resolves them. */
+    public int[] resolveLimitAndOffset(URLParams urlParams) {
+        double limit = config.getDefaultLimit();
+        double offset = config.getDefaultOffset();
+        if (urlParams != null && urlParams.getLimit() != null) {
+            limit = Math.min(urlParams.getLimit(), config.getMaxLimit());
+        }
+        if (urlParams != null && urlParams.getOffset() != null) {
+            offset = urlParams.getOffset();
+        }
+        return new int[]{(int) limit, (int) offset};
+    }
+
+    private void appendSearchClauses(StringBuilder queryBuilder, OrgUserSearchCriteria searchCriteria, URLParams urlParams, List<Object> preparedStmtList) {
         if (!CollectionUtils.isEmpty(searchCriteria.getId())) {
             addClauseIfRequired(preparedStmtList, queryBuilder);
             queryBuilder.append(" ou.id IN (").append(createQuery(searchCriteria.getId())).append(")");
@@ -63,14 +97,6 @@ public class OrganisationUserQueryBuilder {
 
         //Add clause if includeDeleted is true in request parameter
         addIsDeletedCondition(preparedStmtList, queryBuilder, urlParams.getIncludeDeleted());
-
-        if (Boolean.TRUE.equals(isCountQuery)) {
-            return queryBuilder.toString();
-        }
-
-        Pagination pagination = Pagination.builder().limit(Double.valueOf(urlParams.getLimit()+"")).offset(Double.valueOf(urlParams.getOffset()+"")).build();
-        addOrderByClause(queryBuilder, pagination);
-        return addPaginationWrapper(queryBuilder.toString(), preparedStmtList, pagination);
     }
 
     private void addIsDeletedCondition(List<Object> preparedStmtList, StringBuilder queryBuilder, Boolean includeDeleted) {
