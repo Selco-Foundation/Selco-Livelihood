@@ -81,10 +81,10 @@ export function BoundaryFormDialog({ open, onOpenChange }: BoundaryFormDialogPro
         <BoundaryForm form={form} />
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
             {translateOr(t, "CORE_COMMON_CANCEL", "Cancel")}
           </Button>
-          <Button type="button" disabled={createBoundary.isPending} onClick={handleSubmit}>
+          <Button type="button" size="sm" disabled={createBoundary.isPending} onClick={handleSubmit}>
             {translateOr(t, "CORE_COMMON_SAVE", "Save")}
           </Button>
         </DialogFooter>

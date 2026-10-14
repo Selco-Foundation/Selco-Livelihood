@@ -1,5 +1,5 @@
 import { employeeHomePath, extractApiErrorMessage, translateOr, useAuthStore, useTranslate } from "@/shared";
-import { Button, Card, CardContent, Checkbox, TopBar, toast } from "@/ui";
+import { Button, Card, CardContent, TopBar, toast } from "@/ui";
 import { Download } from "lucide-react";
 import { useState } from "react";
 import { FileUploadZone } from "../../components/upload/FileUploadZone";
@@ -13,10 +13,11 @@ export function BulkAddFacilitiesPage() {
   const { t } = useTranslate();
   const user = useAuthStore((state) => state.user);
 
-  const [areFacilitiesOnmReady, setAreFacilitiesOnmReady] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState<string>();
   const [result, setResult] = useState<
-    { status: "success" } | { status: "error"; errorCount: number; downloadResult: () => void } | null
+    | { status: "success"; downloadResult: () => void }
+    | { status: "error"; errorCount: number; downloadResult: () => void }
+    | null
   >(null);
 
   const downloadTemplate = useDownloadFacilityTemplate();
@@ -41,27 +42,27 @@ export function BulkAddFacilitiesPage() {
     setSelectedFileName(file.name);
     setResult(null);
     bulkAddFacilities.mutate(
-      { file, areFacilitiesOnmReady },
+      { file },
       {
         onSuccess: (uploadResult) => {
+          const downloadResult = () => downloadBlob(uploadResult.resultFile.blob, uploadResult.resultFile.filename);
+
           if (uploadResult.status === "success") {
-            setResult({ status: "success" });
-            toast.success(translateOr(t, "FACILITY_DATA_UPLOAD_SUCCESS", "Facility data uploaded successfully"));
+            setResult({ status: "success", downloadResult });
+            toast.success(
+              translateOr(t, "FACILITY_END_USER_DATA_UPLOAD_SUCCESS", "End User data uploaded successfully"),
+            );
             return;
           }
 
-          setResult({
-            status: "error",
-            errorCount: uploadResult.errorCount,
-            downloadResult: () => downloadBlob(uploadResult.resultFile.blob, uploadResult.resultFile.filename),
-          });
+          setResult({ status: "error", errorCount: uploadResult.errorCount, downloadResult });
           toast.error(translateOr(t, "HEALTH_FACILITIES_VALIDATION_FAILED", "Some rows failed validation"));
         },
         onError: (error) => {
           setResult(null);
           toast.error(
             extractApiErrorMessage(error) ??
-              translateOr(t, "FACILITY_DATA_UPLOAD_ERROR", "Failed to upload facility data"),
+              translateOr(t, "FACILITY_END_USER_DATA_UPLOAD_ERROR", "Failed to upload end user data"),
           );
         },
       },
@@ -98,6 +99,7 @@ export function BulkAddFacilitiesPage() {
           <Button
             type="button"
             variant="outline"
+            size="sm"
             disabled={downloadTemplate.isPending}
             onClick={handleDownloadTemplate}
             className="gap-2"
@@ -109,21 +111,9 @@ export function BulkAddFacilitiesPage() {
       </Card>
 
       <Card>
-        <CardContent>
-          <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-foreground">
-            <Checkbox
-              checked={areFacilitiesOnmReady}
-              onCheckedChange={(checked) => setAreFacilitiesOnmReady(checked === true)}
-            />
-            {translateOr(t, "FACILITY_IS_ONM_READY", "Mark uploaded end user sites as ONM Ready")}
-          </label>
-        </CardContent>
-      </Card>
-
-      <Card>
         <CardContent className="space-y-3">
           <h3 className="text-sm font-semibold text-foreground">
-            {translateOr(t, "PM_CREATE_PROJECT_HEAD_UPLOAD_FACILITY_DATA", "Upload Facility Data")}
+            {translateOr(t, "FACILITY_UPLOAD_END_USER_DATA", "Upload End User Data")}
           </h3>
           <p className="text-sm text-muted-foreground">
             {translateOr(
@@ -133,13 +123,27 @@ export function BulkAddFacilitiesPage() {
             )}
           </p>
           <FileUploadZone
-            label={translateOr(t, "PM_CREATE_PROJECT_HEAD_UPLOAD_FACILITY_DATA", "Upload Facility Data")}
+            label={translateOr(t, "FACILITY_UPLOAD_END_USER_DATA", "Upload End User Data")}
             hint={translateOr(t, "CS_COMMON_TAP_TO_UPLOAD", "Tap to upload a file")}
             accept=".xls,.xlsx"
             uploading={bulkAddFacilities.isPending}
             selectedFileName={selectedFileName}
             onSelect={handleFileSelect}
           />
+          {result?.status === "success" ? (
+            <div className="rounded-md border border-border bg-muted/30 px-4 py-3 text-sm text-foreground">
+              <p>
+                {translateOr(t, "FACILITY_END_USER_DATA_UPLOAD_SUCCESS", "End User data uploaded successfully")}
+              </p>
+              <button
+                type="button"
+                onClick={result.downloadResult}
+                className="mt-1 cursor-pointer font-semibold underline"
+              >
+                {translateOr(t, "CORE_COMMON_DOWNLOAD", "Download")}
+              </button>
+            </div>
+          ) : null}
           {result?.status === "error" ? (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
               <p>

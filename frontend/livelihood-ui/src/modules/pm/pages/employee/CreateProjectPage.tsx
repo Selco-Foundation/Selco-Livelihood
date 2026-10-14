@@ -295,7 +295,7 @@ export function CreateProjectPage() {
           </Button>
         ) : null}
         {currentStep < 3 ? (
-          <Button type="button" size="sm" className="px-5" onClick={() => void handleNext()} disabled={!canGoNext || isNavigationBusy}>
+          <Button type="button" size="sm" onClick={() => void handleNext()} disabled={!canGoNext || isNavigationBusy}>
             {translateOr(t, "CORE_COMMON_NEXT", "Next")}
           </Button>
         ) : null}

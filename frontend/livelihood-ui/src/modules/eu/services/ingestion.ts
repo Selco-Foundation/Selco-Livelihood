@@ -1,5 +1,7 @@
 import { apiClient, type AuthUser } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
+import type { IngestUploadResult } from "../types/boundary";
+import { multipartAuthConfig } from "../utils/ingestion-request";
 
 /**
  * axios hands a failed request's JSON error body back as a `Blob` whenever `responseType: "blob"`
@@ -56,21 +58,12 @@ export async function downloadBoundaryTemplate(accessToken: string, user?: AuthU
   downloadBlob(response.data as Blob, filename);
 }
 
-export interface IngestUploadResult {
-  /** `true` when the backend accepted the file and ingested it. */
-  success: boolean;
-  /** Present when the backend rejected rows in the file — `errorFile` is the annotated workbook to download and fix. */
-  errorCount?: number;
-  errorFile?: { blob: Blob; filename: string };
-}
-
 const DEFAULT_BOUNDARY_SHEET_NAME = "Boundary Data";
 
 /**
- * This endpoint's response is polymorphic: a JSON ack on full success, or an
- * annotated spreadsheet (with an `x-error-count` header) when some rows
- * failed validation. Content-type decides which one came back — more
- * reliable than sniffing the response bytes.
+ * Always answers with the annotated workbook (never a bare JSON ack) plus
+ * `x-error-count`/`x-duplicate-count` headers, whether or not any rows
+ * failed or already existed.
  */
 export async function uploadBoundaryData(
   file: File,
@@ -84,38 +77,33 @@ export async function uploadBoundaryData(
 
   const response = await apiClient
     .post("/ingestion-service/ingest/boundaries", formData, {
-      headers: { "Content-Type": undefined },
+      ...multipartAuthConfig(accessToken),
       responseType: "blob",
     })
     .catch(resolveBlobErrorBody);
 
-  const contentType = String(response.headers["content-type"] ?? "");
   const errorCount = Number.parseInt(String(response.headers["x-error-count"] ?? "0"), 10);
-  const blob = response.data as Blob;
-
-  if (contentType.includes("application/json")) {
-    // A JSON ack can still report failed rows via the header alone, with no annotated workbook —
-    // surface the count so the UI doesn't show a "View errors" button that has nothing to open.
-    return errorCount > 0 ? { success: false, errorCount } : { success: true };
-  }
-
+  const duplicateCount = Number.parseInt(String(response.headers["x-duplicate-count"] ?? "0"), 10);
   const disposition = String(response.headers["content-disposition"] ?? "");
   const filename = parseFilenameFromDisposition(disposition) ?? "boundary-upload-result.xlsx";
 
-  if (errorCount > 0) {
-    return { success: false, errorCount, errorFile: { blob, filename } };
-  }
-
-  return { success: true };
+  return {
+    success: errorCount === 0,
+    errorCount,
+    duplicateCount,
+    resultFile: { blob: response.data as Blob, filename },
+  };
 }
 
 export async function downloadFacilityTemplate(accessToken: string, user?: AuthUser | null): Promise<void> {
+  const formData = new FormData();
+  formData.append("request_info", JSON.stringify(createRequestInfo(accessToken, user)));
+
   const response = await apiClient
-    .post(
-      "/ingestion-service/template/facilityIngestion",
-      { RequestInfo: createRequestInfo(accessToken, user) },
-      { responseType: "blob" },
-    )
+    .post("/ingestion-service/template/facilityIngestion", formData, {
+      ...multipartAuthConfig(accessToken),
+      responseType: "blob",
+    })
     .catch(resolveBlobErrorBody);
 
   const disposition = response.headers["content-disposition"] ?? "";
@@ -144,7 +132,7 @@ export async function validateFacilityData(
 
   const response = await apiClient
     .post("/ingestion-service/ingest/addFacilitiesValidateData", formData, {
-      headers: { "Content-Type": undefined },
+      ...multipartAuthConfig(accessToken),
       responseType: "blob",
     })
     .catch(resolveBlobErrorBody);
@@ -174,7 +162,7 @@ export async function uploadFacilityData(
 
   const response = await apiClient
     .post("/ingestion-service/ingest/facilities", formData, {
-      headers: { "Content-Type": undefined },
+      ...multipartAuthConfig(accessToken),
       responseType: "blob",
     })
     .catch(resolveBlobErrorBody);

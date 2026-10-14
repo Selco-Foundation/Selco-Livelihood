@@ -1,5 +1,5 @@
 import { translateOr, useTranslate } from "@/shared";
-import { Input } from "@/ui";
+import { Input } from "@/ui/components/ui/input";
 import { Eye, EyeOff, Info } from "lucide-react";
 import { useState } from "react";
 

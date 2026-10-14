@@ -410,7 +410,7 @@ export function CreateInstallationPlanPage() {
   function renderFooterButtons() {
     if (currentStep < 4) {
       return (
-        <Button type="button" size="sm" className="px-5" onClick={handleNext} disabled={!canGoNext || isNavigationBusy}>
+        <Button type="button" size="sm" onClick={handleNext} disabled={!canGoNext || isNavigationBusy}>
           {translateOr(t, "CORE_COMMON_NEXT", "Next")}
         </Button>
       );

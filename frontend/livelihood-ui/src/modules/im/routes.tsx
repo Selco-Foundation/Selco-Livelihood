@@ -1,6 +1,6 @@
-import { contextPath, translateOr, useModuleI18n, useTranslate } from "@/shared";
+import { contextPath, employeeHomePath, translateOr, useAuthStore, useModuleI18n, useTranslate } from "@/shared";
 import type { AnyRoute } from "@tanstack/react-router";
-import { createRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createRoute, notFound, Outlet, redirect } from "@tanstack/react-router";
 import { Inbox } from "lucide-react";
 import { ImDetails, ImKpis, ImOverviewActions } from "./components/ImOverview";
 import { IM_ROUTES } from "./constants/routes";
@@ -8,7 +8,7 @@ import { ComplaintDetailsPage } from "./pages/employee/ComplaintDetailsPage";
 import { CreateIncidentPage } from "./pages/employee/CreateIncidentPage";
 import { InboxPage } from "./pages/employee/InboxPage";
 import type { ImInboxFilters } from "./types/inbox";
-import { IM_ROLES } from "./utils/access";
+import { hasImAccess, IM_ROLES } from "./utils/access";
 
 export interface InboxRouteSearch {
   filter?: ImInboxFilters;
@@ -49,17 +49,35 @@ export function createImRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
   const createPath = `/${basePath}${IM_ROUTES.createIncident}`;
   const complaintDetailsPath = `/${basePath}${IM_ROUTES.complaintDetails}/$incidentId/$tenantId`;
 
-  // Parent route — loads rainmaker-im translations before any IM page renders
+  // Parent route — loads rainmaker-im translations and gates the whole IM
+  // subtree behind IM_ROLES before any IM page renders. Without this, a
+  // user who lacks access (e.g. after a login redirect straight into an IM
+  // page) would reach the page component itself, which does no access
+  // check of its own — a fully working page instead of landing back on
+  // Overview.
   const imParentRoute = createRoute({
     getParentRoute: () => employeeLayoutRoute,
     id: "im-module",
     component: ImModuleWrapper,
+    beforeLoad: () => {
+      const user = useAuthStore.getState().user;
+      if (!hasImAccess(user?.roles)) {
+        throw redirect({ to: employeeHomePath() });
+      }
+    },
   });
 
   const imIndexRoute = createRoute({
     getParentRoute: () => imParentRoute,
     path: imRoot,
-    beforeLoad: () => {
+    // TanStack Router's fuzzy matching runs this beforeLoad for any
+    // unmatched path under imRoot too, not just the exact path — without
+    // this guard it would hijack those into the inbox instead of letting
+    // the app's not-found handling (redirect to Overview) take over.
+    beforeLoad: ({ location }) => {
+      if (location.pathname !== imRoot) {
+        throw notFound();
+      }
       throw redirect({ to: inboxPath });
     },
   });
