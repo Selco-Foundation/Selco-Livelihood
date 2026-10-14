@@ -52,9 +52,9 @@ def build_project_lock_map(
     but the upload called this same helper, so one outage silently disabled the rule on both sides.
     """
     try:
-        plans = fieldplan_client.search_fieldplans_by_project(request_info, project_id)
+        plans, links = _project_plans_and_scope_links(fieldplan_client, request_info, project_id)
     except Exception as e:
-        logger.error(f"Could not list plans for project {project_id}: {e}", exc_info=True)
+        logger.error(f"Could not list plans or their sites for project {project_id}: {e}", exc_info=True)
         if strict:
             raise
         return {}
@@ -67,27 +67,9 @@ def build_project_lock_map(
     if not plan_names:
         return {}
 
-    try:
-        links = fieldplan_client.search_facilities_for_plans(request_info, list(plan_names))
-    except Exception as e:
-        logger.error(f"Could not list facility links for project {project_id}: {e}", exc_info=True)
-        if strict:
-            raise
-        return {}
-
     lock_map: Dict[str, SiteLock] = {}
     for link in links:
         facility_id = link.get("facilityId")
-        if not facility_id:
-            continue
-        # A removed site is not spoken for. A site is reserved (lock_status = LOCKED) the moment
-        # it joins a plan's scope, so without this a site removed from scope would stay barred
-        # from the whole project for good -- its row still says LOCKED and no UI lists a deleted
-        # row to unlock it. FieldPlannerFacilityService.releaseScopeLock also writes UNLOCKED on
-        # unassign; this guard keeps the rule right even if that write is ever lost.
-        if link.get("isdeleted") or link.get("isDeleted"):
-            continue
-
         plan_id = link.get("fieldPlanId")
         # Published plans only. A site sitting in a sibling DRAFT plan stays selectable: two
         # drafts may both hold it, and whichever publishes first wins -- the second is refused at
@@ -95,9 +77,10 @@ def build_project_lock_map(
         # download, the upload and the publish check agree on one definition of "taken".
         #
         # `lockStatus` is deliberately not consulted. Nothing anywhere calls /facility/_update-lock,
-        # unassign already marks the row isdeleted (handled above), and the column's migration
-        # default is 'UNLOCKED' -- so a persister config that predates the column is
-        # indistinguishable from a genuine release, and silently unlocks every site in the project.
+        # unassign already marks the row isdeleted (dropped by _project_plans_and_scope_links),
+        # and the column's migration default is 'UNLOCKED' -- so a persister config that predates
+        # the column is indistinguishable from a genuine release, and silently unlocks every site
+        # in the project.
         if plan_id not in published_plan_ids:
             continue
 
@@ -127,6 +110,48 @@ def build_project_lock_map(
             f"Project {project_id} has {len(plan_names)} plans but no site is held by any of "
             f"them; {len(published_plan_ids)} plan(s) matched status '{PLAN_STATUS_PUBLISHED}'")
     return lock_map
+
+
+def _project_plans_and_scope_links(fieldplan_client, request_info, project_id: str):
+    """(every plan of the project, every live scope link across them), in two calls.
+
+    A removed site is not part of any scope. A site is reserved (lock_status = LOCKED) the moment it
+    joins a plan's scope, so without dropping deleted links a site removed from scope would stay
+    barred from the whole project for good -- its row still says LOCKED and no UI lists a deleted
+    row to unlock it. FieldPlannerFacilityService.releaseScopeLock also writes UNLOCKED on unassign;
+    this filter keeps the rule right even if that write is ever lost. Raises on lookup failure.
+    """
+    plans = fieldplan_client.search_fieldplans_by_project(request_info, project_id)
+    plan_ids = [p.get("id") for p in plans if p.get("id")]
+    links = fieldplan_client.search_facilities_for_plans(request_info, plan_ids) if plan_ids else []
+    live_links = [
+        link for link in links
+        if link.get("facilityId") and not (link.get("isdeleted") or link.get("isDeleted"))
+    ]
+    return plans, live_links
+
+
+def scoped_site_plans(fieldplan_client, request_info, project_id: str) -> Dict[str, List[str]]:
+    """facility_id -> names of the project's plans (any status) whose scope holds the site.
+
+    Used to stop the project's end-user re-upload unlinking a site an installation plan still
+    covers. Raises on lookup failure: the caller is about to unlink, so an unknown answer must not
+    read as "no plan holds it".
+    """
+    plans, links = _project_plans_and_scope_links(fieldplan_client, request_info, project_id)
+    plan_names = {p.get("id"): p.get("name") or p.get("id") for p in plans if p.get("id")}
+    holders: Dict[str, List[str]] = {}
+    for link in links:
+        name = plan_names.get(link.get("fieldPlanId"))
+        if name and name not in holders.setdefault(link["facilityId"], []):
+            holders[link["facilityId"]].append(name)
+    return holders
+
+
+def scoped_site_message(plan_names: List[str]) -> str:
+    """Why an end-user site cannot be dropped from the project."""
+    return (f"This end user site is in the scope of installation plan {', '.join(plan_names)}. "
+            f"Remove it from that plan's scope before removing it from the project.")
 
 
 def site_bar_message(lock: SiteLock) -> str:

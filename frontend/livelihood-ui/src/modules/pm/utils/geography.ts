@@ -19,3 +19,16 @@ export function resolveStates(geography: GeographyDetails | undefined): Geograph
 export function resolveStateNames(geography: GeographyDetails | undefined, t: (key: string) => string): string[] {
   return resolveStates(geography).map((state) => translateOr(t, `BOUNDARY_${state.code}`, state.name ?? state.code));
 }
+
+/** Order-independent identity of every code in a geography, for "has it changed?" checks. Codes
+ *  only: a plan read back from field-planner carries no names or parent codes, so comparing whole
+ *  objects would call an untouched plan changed. */
+export function geographyCodesKey(geography: GeographyDetails | undefined): string {
+  return [
+    ...resolveStates(geography).map((state) => state.code),
+    ...(geography?.districts ?? []).map((district) => district.code),
+    ...(geography?.blocks ?? []).map((block) => block.code),
+  ]
+    .sort((a, b) => a.localeCompare(b))
+    .join(",");
+}

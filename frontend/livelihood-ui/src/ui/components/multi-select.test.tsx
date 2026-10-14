@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MultiSelect, type MultiSelectOption } from "./multi-select";
+import { TooltipProvider } from "./ui/tooltip";
 
 beforeEach(() => {
   Element.prototype.hasPointerCapture = Element.prototype.hasPointerCapture ?? (() => false);
@@ -25,7 +26,8 @@ function renderMultiSelect(overrides: Partial<React.ComponentProps<typeof MultiS
     onChange,
     ...overrides,
   };
-  const result = render(<MultiSelect {...props} />);
+  // The App supplies TooltipProvider; a locked chip's tooltip needs it here too.
+  const result = render(<MultiSelect {...props} />, { wrapper: TooltipProvider });
   return { ...result, onChange };
 }
 
@@ -219,5 +221,37 @@ describe("MultiSelect", () => {
   it("renders no error message when none is provided", () => {
     renderMultiSelect();
     expect(screen.queryByText("Select at least one district")).not.toBeInTheDocument();
+  });
+});
+
+describe("MultiSelect locked codes", () => {
+  const locked = new Map([["DIST_A", "Used by plan P1"]]);
+
+  it("does not deselect a locked option", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderMultiSelect({ selected: ["DIST_A", "DIST_B"], locked });
+    const popover = await openPopover(user);
+
+    await user.click(popover.getByRole("button", { name: /Alpha/ }));
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("keeps locked codes when Select All clears the selection", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderMultiSelect({ selected: ["DIST_A", "DIST_B", "DIST_C"], locked });
+    const popover = await openPopover(user);
+
+    await user.click(popover.getByRole("button", { name: /Select All/ }));
+
+    expect(onChange).toHaveBeenCalledWith(["DIST_A"]);
+  });
+
+  it("shows the lock reason instead of a remove button on a locked chip", () => {
+    renderMultiSelect({ selected: ["DIST_A", "DIST_B"], locked });
+
+    expect(screen.getByRole("button", { name: "Used by plan P1" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Remove Alpha/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Remove Beta/ })).toBeInTheDocument();
   });
 });

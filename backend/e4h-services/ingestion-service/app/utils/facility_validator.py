@@ -5,7 +5,7 @@ import pandas as pd
 from fastapi import HTTPException
 
 from app.core.tenant import LIVELIHOOD_TENANT_ID
-from app.utils.field_plan_locks import site_bar_message
+from app.utils.field_plan_locks import scoped_site_message, site_bar_message
 from app.utils.solution_eligibility import eligible_solution_names
 
 # Same wording everywhere: MDMS pre-validation, API import, and Excel client hints.
@@ -161,6 +161,21 @@ def project_facility_validation(
     validate_hfr_nin(new_rows, lambda i, m: add_err(new_rows.loc[i, "index"], m), facility_client)
 
     return errors
+
+
+def validate_scoped_sites_kept(df, scoped_sites: Dict[str, List[str]], add_err: Callable[[int, str], None]) -> None:
+    """A project's end-user upload must not drop (Include in Project != Yes) a site that an
+    installation plan of the project still has in scope -- the create step would unlink it from
+    the project underneath the plan. `scoped_sites` is field_plan_locks.scoped_site_plans()."""
+    # Matched by substring, like the create step's own lookup: the schema's header text varies.
+    include_column = next((c for c in df.columns if "include in project" in str(c).lower()), None)
+    id_column = find_site_id_column(df)
+    if not include_column or not id_column or not scoped_sites:
+        return
+    for position, (_, row) in enumerate(df.iterrows()):
+        plan_names = scoped_sites.get(_cell(row, id_column))
+        if plan_names and _cell(row, include_column).lower() != "yes":
+            add_err(position, scoped_site_message(plan_names))
 
 
 def _find_header(df, base_name: str) -> Optional[str]:
