@@ -1,5 +1,7 @@
-import { apiClient, tenantId as getTenantId, type AuthUser } from "@/shared";
+import { apiClient, type AuthUser } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
+import type { IngestUploadResult } from "../types/boundary";
+import { multipartAuthConfig } from "../utils/ingestion-request";
 
 /**
  * axios hands a failed request's JSON error body back as a `Blob` whenever `responseType: "blob"`
@@ -19,24 +21,6 @@ async function resolveBlobErrorBody(error: unknown): Promise<never> {
     }
   }
   throw error;
-}
-
-/**
- * ingestion-service's gateway reads a JSON request's auth token out of `RequestInfo.authToken` in
- * the body, but a multipart body isn't one JSON blob, so that lookup finds nothing and the gateway
- * rejects the request even though `request_info` really does carry the token. Every multipart call
- * in this file needs the token and tenant as real headers instead — plus `tenantId` as a query
- * param too, checked separately by the gateway before the request is even forwarded — so they're
- * found regardless of body shape. Same gateway workaround `pm/utils/ingestion-request.ts`
- * documents and applies for its own multipart calls (not reused directly — `eu` can't import from
- * `pm` across the module boundary).
- */
-function multipartAuthConfig(accessToken: string) {
-  const tenant = getTenantId();
-  return {
-    headers: { "Content-Type": undefined, "auth-token": accessToken, tenantId: tenant },
-    params: { tenantId: tenant },
-  };
 }
 
 function parseFilenameFromDisposition(disposition: string): string | undefined {
@@ -72,16 +56,6 @@ export async function downloadBoundaryTemplate(accessToken: string, user?: AuthU
   const disposition = response.headers["content-disposition"] ?? "";
   const filename = parseFilenameFromDisposition(disposition) ?? "boundary-ingestion-template.xlsx";
   downloadBlob(response.data as Blob, filename);
-}
-
-export interface IngestUploadResult {
-  /** `true` when no row failed (`errorCount === 0`) — rows already existing don't count as a failure. */
-  success: boolean;
-  errorCount: number;
-  /** Rows that were already fully present (boundary + relationship) and needed no action — not a failure. */
-  duplicateCount: number;
-  /** The backend always returns this annotated workbook, success or not — per-row status/error detail. */
-  resultFile: { blob: Blob; filename: string };
 }
 
 const DEFAULT_BOUNDARY_SHEET_NAME = "Boundary Data";
