@@ -21,6 +21,8 @@ export const pmKeys = {
   projectList: (name: string | undefined, filters: ProjectListFilters | undefined, limit: number, offset: number) =>
     [...pmKeys.projects(), "list", name, filters, limit, offset] as const,
   project: (projectId: string | undefined) => [...pmKeys.projects(), projectId] as const,
+  projectGeographyLocks: (projectId: string | undefined) =>
+    [...pmKeys.project(projectId), "geography-locks"] as const,
 
   plans: () => [...pmKeys.all, "plan"] as const,
   planList: (projectId: string | undefined, limit: number, offset: number) =>
@@ -31,6 +33,7 @@ export const pmKeys = {
   planReviewer: (planId: string | undefined) => [...pmKeys.plan(planId), "reviewer"] as const,
   planAssignments: (planId: string | undefined) => [...pmKeys.plan(planId), "assignments"] as const,
   planVendorAssignment: (planId: string | undefined) => [...pmKeys.plan(planId), "vendor-assignment"] as const,
+  planGeographyLocks: (planId: string | undefined) => [...pmKeys.plan(planId), "geography-locks"] as const,
   planFacilityCounts: (planIds: string[]) => [...pmKeys.plans(), "facility-counts", planIds] as const,
 
   // Reference data — tenant-wide, not scoped to one project or plan.

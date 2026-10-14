@@ -68,3 +68,21 @@ export interface InstallationPlanSearchResult {
   plans: InstallationPlanStatusWrapper[];
   totalCount: number;
 }
+
+/** One plan holding a geography code, as `field-plans/geography/_locks` reports it. */
+export interface GeographyLockUsage {
+  fieldPlanId: string;
+  fieldPlanName?: string;
+  /** Set for a plan's own lock: how many of its scoped sites sit under the code. */
+  siteCount?: number;
+}
+
+/** A geography code that cannot be removed, and what holds it. */
+export interface GeographyLock {
+  code: string;
+  usedBy: GeographyLockUsage[];
+}
+
+/** Whose geography to check: a project's (codes its plans use) or a plan's (codes holding a
+ *  scoped end-user site). */
+export type GeographyLockTarget = { projectId: string } | { fieldPlanId: string };

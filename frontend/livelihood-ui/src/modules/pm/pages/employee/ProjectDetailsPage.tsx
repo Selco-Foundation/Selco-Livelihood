@@ -1,14 +1,14 @@
 import { employeeHomePath, translateOr, useTranslate } from "@/shared";
 import { Button, TopBar } from "@/ui";
 import { Link, useSearch } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
+import { MapPin, Plus } from "lucide-react";
 import { InstallationPlansTable } from "../../components/InstallationPlansTable";
 import { useInstallationPlansSearch } from "../../hooks/use-installation-plans-search";
 import { useProjectById } from "../../hooks/use-project-by-id";
 import type { ProjectDetailsRouteSearch } from "../../routes";
 import { formatDate } from "../../utils/format-date";
 import { resolveStateNames } from "../../utils/geography";
-import { pmCreateInstallationPlanPath, pmMyProjectsPath } from "../../utils/paths";
+import { pmCreateInstallationPlanPath, pmCreateProjectPath, pmMyProjectsPath } from "../../utils/paths";
 import { formatStatusLabel } from "../../utils/status-label";
 
 export function ProjectDetailsPage() {
@@ -35,9 +35,21 @@ export function ProjectDetailsPage() {
       />
 
       <div className="livelihood-card p-6">
-        <h2 className="mb-6 text-lg font-semibold text-primary">
-          {translateOr(t, "ES_PM_PROJECT_DETAILS", "Project Details")}
-        </h2>
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <h2 className="text-lg font-semibold text-primary">
+            {translateOr(t, "ES_PM_PROJECT_DETAILS", "Project Details")}
+          </h2>
+          {/* Reopens the project wizard on its geography step; places used by an installation
+              plan stay locked there, and new blocks get their end-user sites on the next step. */}
+          {projectId ? (
+            <Button asChild variant="outline" size="sm">
+              <Link to={pmCreateProjectPath()} search={{ projectId, step: 2 }}>
+                <MapPin className="size-4" />
+                {translateOr(t, "ES_PM_EDIT_GEOGRAPHY", "Edit Geography")}
+              </Link>
+            </Button>
+          ) : null}
+        </div>
         <div className="grid gap-6 sm:grid-cols-2">
           <div className="space-y-4">
             <div>

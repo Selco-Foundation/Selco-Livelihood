@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { resolveStateNames, resolveStates } from "./geography";
+import { geographyCodesKey, resolveStateNames, resolveStates } from "./geography";
 import type { GeographyDetails } from "../types/project";
 
 describe("resolveStates", () => {
@@ -55,5 +55,28 @@ describe("resolveStateNames", () => {
     const geography: GeographyDetails = { states: [{ code: "KA" }, { code: "AS" }, { code: "ML" }] };
 
     expect(resolveStateNames(geography, t)).toEqual(["KA", "AS", "ML"]);
+  });
+});
+
+describe("geographyCodesKey", () => {
+  it("ignores order, names and parent codes", () => {
+    const stored: GeographyDetails = {
+      states: [{ code: "KA" }],
+      districts: [{ code: "D1", stateCode: "" }],
+      blocks: [{ code: "B2", districtCode: "", stateCode: "" }, { code: "B1", districtCode: "", stateCode: "" }],
+    };
+    const edited: GeographyDetails = {
+      states: [{ code: "KA", name: "Karnataka" }],
+      districts: [{ code: "D1", stateCode: "KA" }],
+      blocks: [{ code: "B1", districtCode: "D1", stateCode: "KA" }, { code: "B2", districtCode: "D1", stateCode: "KA" }],
+    };
+
+    expect(geographyCodesKey(stored)).toBe(geographyCodesKey(edited));
+  });
+
+  it("changes when a block is removed", () => {
+    const before: GeographyDetails = { states: [{ code: "KA" }], blocks: [{ code: "B1", districtCode: "D1", stateCode: "KA" }] };
+
+    expect(geographyCodesKey(before)).not.toBe(geographyCodesKey({ states: [{ code: "KA" }] }));
   });
 });

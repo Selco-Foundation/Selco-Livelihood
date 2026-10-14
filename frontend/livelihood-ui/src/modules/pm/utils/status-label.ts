@@ -24,3 +24,8 @@ export function formatStatusLabel(t: (key: string) => string, code: string = "DR
   const key = STATUS_KEY_OVERRIDES[code] ?? `ES_PM_STATUS_${code}`;
   return translateOr(t, key, humanize(code));
 }
+
+/** A project or plan is a draft until it gets a real status: missing and "DRAFT" both mean draft. */
+export function isDraftStatus(status: string | undefined): boolean {
+  return !status || status === "DRAFT";
+}
