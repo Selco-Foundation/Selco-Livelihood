@@ -139,7 +139,7 @@ export function useFacilityForm(editingFacilityId?: string) {
       errors.endUserEmail = translateOr(t, "CS_PROFILE_EMAIL_ERRORMSG", "Enter a valid email address");
     }
 
-    if (values.password.trim() && values.password !== values.confirmPassword) {
+    if (values.password.trim() && values.password.trim() !== values.confirmPassword.trim()) {
       errors.confirmPassword = translateOr(t, "FACILITY_PASSWORD_MISMATCH", "Passwords do not match");
     }
 
