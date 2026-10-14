@@ -2,6 +2,7 @@ package org.egov.activity.web.models;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
+import org.egov.common.contract.request.Role;
 import org.springframework.validation.annotation.Validated;
 
 import javax.validation.Valid;
@@ -157,6 +158,11 @@ public class User {
     @Size(max=256)
     @JsonProperty("tenantId")
     private String tenantId;
+
+    /** HRMS roles, carried on vendor-registry's enriched org users. Vendor Assignment reads these
+     *  to accept only Field Staff; without the field Jackson silently dropped them. */
+    @JsonProperty("roles")
+    private List<Role> roles;
     
 
 }
