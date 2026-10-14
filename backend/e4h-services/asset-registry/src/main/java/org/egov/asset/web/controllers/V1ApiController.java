@@ -35,6 +35,13 @@ public class V1ApiController {
 
     private static final String ROLE_COMPLAINANT = "COMPLAINANT";
     private static final Set<String> END_USER_ROLES = Set.of(ROLE_COMPLAINANT, "EMPLOYEE", "CITIZEN");
+    /**
+     * Ticket-side staff who should see assets the way an end user does - the Solar parent
+     * and Machines, never the individual Solar units: Program POC (raises tickets on an end
+     * user's behalf) and vendor users (Vendor POC and ticket resolvers).
+     */
+    private static final Set<String> TOP_LEVEL_ONLY_STAFF_ROLES =
+            Set.of("LIVELIHOOD_POC", "VENDOR_ADMIN", "LIVELIHOOD_VENDOR", "COMPLAINT_RESOLVER");
 
     private final ObjectMapper objectMapper;
 
@@ -192,11 +199,12 @@ public class V1ApiController {
                 .parentId(criteria.getParentId())
                 .build();
         livelihoodPocScopeService.applyAssetSearchScope(searchRequest, asset);
-        // End users see the Solar parent and their Machines, never the individual Solar units. With
-        // includeChildren the units are returned nested under their parent, so they must not also be
-        // listed as top-level rows (unless the caller is asking for one parent's units via parentId).
+        // End users, Program POCs and vendors see the Solar parent and Machines, never the individual
+        // Solar units. With includeChildren the units are returned nested under their parent, so they
+        // must not also be listed as top-level rows (unless the caller is asking for one parent's units
+        // via parentId).
         boolean includeChildren = Boolean.TRUE.equals(criteria.getIncludeChildren());
-        boolean excludeUnits = isEndUserOnly(searchRequest.getRequestInfo())
+        boolean excludeUnits = isTopLevelOnlyCaller(searchRequest.getRequestInfo())
                 || (includeChildren && (criteria.getParentId() == null || criteria.getParentId().isBlank()));
         List<Asset> searchResponse = assetService.fetchAssetsWithDocuments(asset, limit, offset, excludeUnits);
         if (includeChildren) {
@@ -279,10 +287,12 @@ public class V1ApiController {
     }
 
     /**
-     * True for an end user (COMPLAINANT) holding no staff role - every role is one of
-     * END_USER_ROLES. An allow-list, so any vendor/POC/reviewer/system role keeps full results.
+     * True when the caller should only see top-level assets: every role is an end-user role
+     * (END_USER_ROLES) or a ticket-side staff role (TOP_LEVEL_ONLY_STAFF_ROLES), and they hold at
+     * least one of COMPLAINANT or those staff roles. An allow-list, so anyone who also holds another
+     * role (field staff, reviewer, admin, system) keeps full results, units included.
      */
-    private static boolean isEndUserOnly(RequestInfo requestInfo) {
+    private static boolean isTopLevelOnlyCaller(RequestInfo requestInfo) {
         if (requestInfo == null || requestInfo.getUserInfo() == null || requestInfo.getUserInfo().getRoles() == null) {
             return false;
         }
@@ -291,7 +301,11 @@ public class V1ApiController {
                 .filter(code -> code != null && !code.isBlank())
                 .map(code -> code.toUpperCase(Locale.ROOT))
                 .toList();
-        return roleCodes.contains(ROLE_COMPLAINANT) && END_USER_ROLES.containsAll(roleCodes);
+        boolean holdsQualifyingRole = roleCodes.contains(ROLE_COMPLAINANT)
+                || roleCodes.stream().anyMatch(TOP_LEVEL_ONLY_STAFF_ROLES::contains);
+        boolean onlyAllowedRoles = roleCodes.stream()
+                .allMatch(code -> END_USER_ROLES.contains(code) || TOP_LEVEL_ONLY_STAFF_ROLES.contains(code));
+        return holdsQualifyingRole && onlyAllowedRoles;
     }
 
 }
