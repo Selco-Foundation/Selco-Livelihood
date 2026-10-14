@@ -1,3 +1,4 @@
+import '../utils/submission_payload.dart';
 import 'installation_progress.dart';
 import 'solar_installation_draft.dart';
 import '../repositories/installation_cache_repo.dart';
@@ -20,6 +21,9 @@ enum FacilityAssetCategory { solar, machine }
 extension FacilityReportPresentation on ActivityFacilityWorkflow {
   String get facilityTitle =>
       activityFacility.facility?.facilityName?.trim() ?? '';
+
+  String get facilityCardTitle =>
+      '$facilityTitle - ${resolvedAssetCategory == FacilityAssetCategory.solar ? 'Solar' : resolveMachineAssetName(this)}';
 
   String get activityFacilityCacheKey =>
       activityFacility.id ??

@@ -185,6 +185,7 @@ class _StubActivityFacilityRemoteRepository
         status: FacilityInstallationStatus.assignedToFieldStaff,
         scheduledAt: DateTime(2026, 2, 12).millisecondsSinceEpoch,
         componentType: 'MACHINE',
+        billOfMaterial: const BillOfMaterial(name: 'Rice Huller'),
         facility: const Facility(
           facilityName: 'Sunita Sharma',
           boundaryCode: 'INDIA_MEGHALAYA_WESTKHASIHILLS_MAWTHADRAISHAN',
@@ -1348,7 +1349,7 @@ void main() {
           find.byKey(const ValueKey('facility-component-type')), findsNothing);
       expect(find.text('Type'), findsNothing);
       expect(find.text('Rajesh Kumar - Solar'), findsOneWidget);
-      expect(find.text('Sunita Sharma - Machine'), findsOneWidget);
+      expect(find.text('Sunita Sharma - Rice Huller'), findsOneWidget);
     }
 
     Future<void> pumpPage(Widget page) async {
@@ -1397,7 +1398,8 @@ void main() {
     expectComponentTypes();
   });
 
-  testWidgets('facility card displays a dash for a missing component type', (
+  testWidgets(
+      'facility card follows solar routing for a missing component type', (
     tester,
   ) async {
     setMobileViewport(tester, const Size(390, 844));
@@ -1424,7 +1426,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Facility without type - —'), findsOneWidget);
+    expect(find.text('Facility without type - Solar'), findsOneWidget);
   });
 
   testWidgets('facility cards use E4H date sources for every report mode', (
@@ -1464,7 +1466,7 @@ void main() {
       );
 
       final heading = find.text(
-          'Dated facility with a long end-user name that wraps - Machine');
+          'Dated facility with a long end-user name that wraps - MACHINE');
       expect(heading, findsOneWidget);
       final headingStyle = tester.widget<Text>(heading).style!;
       expect(tester.getSize(heading).height,
@@ -1556,7 +1558,7 @@ void main() {
 
     expect(find.byType(FacilityReportCard), findsNWidgets(3));
     expect(
-      tester.getTopLeft(find.text('Local Failed Machine - Machine')).dy,
+      tester.getTopLeft(find.text('Local Failed Machine - MACHINE')).dy,
       lessThan(tester.getTopLeft(find.text('Rajesh Kumar - Solar')).dy),
     );
     final sync = tester.widget<DigitButton>(
@@ -1581,7 +1583,7 @@ void main() {
     await pumpAuthenticatedRoute(tester, const NewReportFacilitiesRoute());
     await tester.pumpAndSettle();
     expect(find.text('Rajesh Kumar - Solar'), findsNothing);
-    expect(find.text('Sunita Sharma - Machine'), findsOneWidget);
+    expect(find.text('Sunita Sharma - Rice Huller'), findsOneWidget);
   });
 
   testWidgets('solar and machine facilities open their separate flows', (

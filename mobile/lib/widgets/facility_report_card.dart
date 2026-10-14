@@ -26,13 +26,6 @@ class FacilityReportCard extends StatelessWidget {
   final String? statusLabel;
   final String? actionLabel;
 
-  String get _componentType =>
-      switch (workflow.activityFacility.componentType?.trim().toUpperCase()) {
-        'MACHINE' => 'Machine',
-        'SOLAR' => 'Solar',
-        _ => '—',
-      };
-
   String _status(BuildContext context) => switch (mode) {
         FacilityReportMode.newReport =>
           context.translate(i18.installationReportHome.pendingInstallation),
@@ -57,7 +50,7 @@ class FacilityReportCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${workflow.facilityTitle} - $_componentType',
+              workflow.facilityCardTitle,
               style: (isNew ? textTheme.headingL : textTheme.headingM).copyWith(
                 color: isNew
                     ? theme.colorTheme.text.primary

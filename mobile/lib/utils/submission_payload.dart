@@ -107,6 +107,31 @@ Map<String, dynamic> buildSolarSubmissionPayload(SolarInstallationDraft draft) {
   };
 }
 
+/// Resolves the same machine name for report cards and Asset Registry writes.
+String resolveMachineAssetName(ActivityFacilityWorkflow workflow) {
+  final activityFacility = workflow.activityFacility;
+  final templateBom = activityFacility.billOfMaterial?.data ??
+      activityFacility.additionalDetails?.bom ??
+      const <String, dynamic>{};
+  final components = templateBom['components'];
+  final firstComponent =
+      components is List && components.isNotEmpty && components.first is Map
+          ? Map<String, dynamic>.from(components.first as Map)
+          : const <String, dynamic>{};
+  return _firstNonBlank([
+        activityFacility.billOfMaterial?.name,
+        activityFacility.billOfMaterial?.additionalDetails['assetName'],
+        templateBom['name'],
+        templateBom['machine_1_product'],
+        firstComponent['product'],
+        firstComponent['name'],
+        firstComponent['itemCode'],
+        firstComponent['item_code'],
+        templateBom['itemCode'],
+      ]) ??
+      'MACHINE';
+}
+
 Map<String, dynamic> buildMachineSubmissionPayload({
   required ActivityFacilityWorkflow workflow,
   required Map<String, dynamic> values,
@@ -149,18 +174,7 @@ Map<String, dynamic> buildMachineSubmissionPayload({
         activityFacility.facility?.systemType,
       ]) ??
       'LIVELIHOOD';
-  final machineName = _firstNonBlank([
-        activityFacility.billOfMaterial?.name,
-        activityFacility.billOfMaterial?.additionalDetails['assetName'],
-        templateBom['name'],
-        templateBom['machine_1_product'],
-        firstComponent['product'],
-        firstComponent['name'],
-        firstComponent['itemCode'],
-        firstComponent['item_code'],
-        templateBom['itemCode'],
-      ]) ??
-      'MACHINE';
+  final machineName = resolveMachineAssetName(workflow);
   final serialNumber = (values['serialNumber'] ?? '').toString();
   final years =
       parseWarrantyYears((values['warrantyDuration'] ?? '').toString());
