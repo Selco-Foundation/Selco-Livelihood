@@ -1,3 +1,4 @@
+import '../utils/submission_media_reconciliation.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -77,8 +78,8 @@ class InstallationCacheRepository {
 
   void clearSubmissionPayloadsForTests() => _testSubmissionPayloads.clear();
 
-  /// Keeps an uploaded/checkpointed payload intact on retry. A fresh payload
-  /// is written only when no valid resumable snapshot exists.
+  /// Refreshes edited media on retry while retaining uploaded documents and
+  /// server checkpoints. Persistence must finish before dispatching the job.
   Future<Map<String, dynamic>> ensureSubmissionPayload(
     String activityFacilityId,
     Map<String, dynamic> Function() buildPayload, {
@@ -87,7 +88,9 @@ class InstallationCacheRepository {
     if (preserveExisting) {
       final existing = await getSubmissionPayload(activityFacilityId);
       if (existing != null && _isCurrentSubmissionPayload(existing)) {
-        return existing;
+        if (existing['workflowSubmitted'] == true) return existing;
+        final reconciled = reconcileSubmissionMedia(existing, buildPayload());
+        return putSubmissionPayload(activityFacilityId, reconciled);
       }
     }
     return putSubmissionPayload(activityFacilityId, buildPayload());

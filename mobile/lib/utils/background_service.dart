@@ -249,6 +249,10 @@ Future<void> _performSubmission({
         'No submission data found for this report. Please reopen and submit again.');
   }
   var payload = Map<String, dynamic>.from(raw);
+  if (payload['workflowSubmitted'] == true) {
+    await _completeSubmission(activityFacilityId, payload, service);
+    return;
+  }
   if (normalizeSolarSubmissionPayload(payload)) {
     await _saveSubmissionPayload(activityFacilityId, payload);
   }
@@ -524,6 +528,11 @@ Future<void> _performSubmission({
     await _saveSubmissionPayload(activityFacilityId, payload);
   }
 
+  await _completeSubmission(activityFacilityId, payload, service);
+}
+
+Future<void> _completeSubmission(String activityFacilityId,
+    Map<String, dynamic> payload, ServiceInstance service) async {
   await _reportStage(
     activityFacilityId: activityFacilityId,
     stageKey: 'cleaning_up_local_cache',

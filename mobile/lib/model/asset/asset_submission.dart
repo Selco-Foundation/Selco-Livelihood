@@ -174,15 +174,24 @@ AssetSubmission reconcileSolarSubmission(
   final existing = AssetSubmission.fromCheckpoint(remote);
   List<SubmissionDocument> mergeDocuments(
       List<SubmissionDocument> desired, List<SubmissionDocument> saved) {
-    final result = [...saved];
-    for (final document in desired) {
-      if (!result.any((other) =>
-          document.fileStore != null &&
-          other.fileStore == document.fileStore)) {
-        result.add(document);
-      }
-    }
-    return result;
+    // The current payload owns the selected document list. Reintroducing all
+    // backend documents here would undo removals/replacements made on Retry.
+    return desired.map((document) {
+      final match = saved
+          .where((other) =>
+              (document.fileStore != null &&
+                  other.fileStore == document.fileStore) ||
+              (document.documentUid?.trim().isNotEmpty == true &&
+                  document.documentUid == other.documentUid &&
+                  document.documentType == other.documentType))
+          .firstOrNull;
+      if (match == null) return document;
+      return SubmissionDocument.fromJson({
+        ...document.toCacheJson(),
+        if (match.id != null) 'id': match.id,
+        if (match.fileStore != null) 'fileStore': match.fileStore,
+      });
+    }).toList();
   }
 
   return submission.copyWith(

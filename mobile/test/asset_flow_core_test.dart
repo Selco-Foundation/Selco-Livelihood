@@ -2733,7 +2733,7 @@ void main() {
     );
     expect(preserved['uploaded'], isTrue);
     expect(preserved['completedStep'], 2);
-    expect(builds, 1);
+    expect(builds, 2);
 
     final refreshed = await installationCacheRepository.ensureSubmissionPayload(
       activityFacilityId,
@@ -2744,7 +2744,7 @@ void main() {
       preserveExisting: false,
     );
     expect(refreshed['uploaded'], isFalse);
-    expect(builds, 2);
+    expect(builds, 3);
   });
 
   test('strict payload validation requires BOM only for Solar', () async {
