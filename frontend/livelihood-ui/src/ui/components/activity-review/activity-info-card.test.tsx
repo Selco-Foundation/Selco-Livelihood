@@ -44,24 +44,27 @@ describe("ActivityInfoCard", () => {
     expect(screen.getByText("Resolved D1")).toBeInTheDocument();
   });
 
-  it("shows Machine as the type label for a MACHINE activity", () => {
+  it("shows the component type for a MACHINE activity", () => {
+    // Falls back to the raw code (not a hardcoded "Machine") since the
+    // real translation key isn't resolvable without i18next configured —
+    // see @/shared's componentTypeLabel.
     render(
       <ActivityInfoCard
         activity={makeActivity({ componentType: "MACHINE" })}
         resolveBoundaryName={resolveBoundaryName}
       />,
     );
-    expect(screen.getByText("Machine")).toBeInTheDocument();
+    expect(screen.getByText("MACHINE")).toBeInTheDocument();
   });
 
-  it("shows Solar as the type label for a SOLAR activity", () => {
+  it("shows the component type for a SOLAR activity", () => {
     render(
       <ActivityInfoCard
         activity={makeActivity({ componentType: "SOLAR" })}
         resolveBoundaryName={resolveBoundaryName}
       />,
     );
-    expect(screen.getByText("Solar")).toBeInTheDocument();
+    expect(screen.getByText("SOLAR")).toBeInTheDocument();
   });
 
   it("shows the translated status label for the activity's status", () => {

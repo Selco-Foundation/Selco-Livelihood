@@ -18,6 +18,7 @@ interface ActivityFacilityResponseRow {
   activityFacility?: {
     id?: string;
     activityType?: string;
+    componentType?: string;
     activatedAt?: number;
     completedAt?: number;
     fieldPlan?: {
@@ -57,6 +58,7 @@ function toFacilityActivity(row: ActivityFacilityResponseRow): FacilityActivity 
   return {
     id: activityFacility?.id ?? "",
     activityType: activityFacility?.activityType,
+    componentType: activityFacility?.componentType,
     projectCode: activityFacility?.fieldPlan?.project?.name,
     fieldPlanCode: activityFacility?.fieldPlan?.name,
     activityStartDate: formatDate(activityFacility?.activatedAt),

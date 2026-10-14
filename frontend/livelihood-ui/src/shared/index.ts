@@ -153,6 +153,7 @@ export {
   type ActivityStatus,
   type ActivityStatusBadgeVariant,
 } from "./utils/activity-review/activity-status";
+export { componentTypeLabel } from "./utils/activity-review/component-type";
 export {
   mapInstallationImageCriteria,
   type InstallationImageCriterion,

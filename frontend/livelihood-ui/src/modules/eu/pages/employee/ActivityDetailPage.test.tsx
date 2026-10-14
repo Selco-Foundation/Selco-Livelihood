@@ -118,7 +118,10 @@ describe("ActivityDetailPage", () => {
 
     renderPage();
 
-    expect(screen.getByText("Solar")).toBeInTheDocument();
+    // Falls back to the raw code (not a hardcoded "Solar") since the real
+    // translation key isn't resolvable without i18next configured — see
+    // @/shared's componentTypeLabel.
+    expect(screen.getByText("SOLAR")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /approve/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /reject/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /add rejection reason/i })).not.toBeInTheDocument();

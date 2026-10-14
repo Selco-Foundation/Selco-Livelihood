@@ -1,4 +1,4 @@
-import { ACTIVITY_STATUS_LABELS, translateOr, useTranslate } from "@/shared";
+import { ACTIVITY_STATUS_LABELS, componentTypeLabel, translateOr, useTranslate } from "@/shared";
 import type { ActivityInfoCardFields } from "./types";
 
 interface ActivityInfoCardProps {
@@ -24,10 +24,7 @@ export function ActivityInfoCard({ activity, resolveBoundaryName }: ActivityInfo
     },
     {
       label: translateOr(t, "ES_IR_COMPONENT_TYPE", "Type"),
-      value:
-        activity.componentType === "MACHINE"
-          ? translateOr(t, "ES_IR_COMPONENT_TYPE_MACHINE", "Machine")
-          : translateOr(t, "ES_IR_COMPONENT_TYPE_SOLAR", "Solar"),
+      value: componentTypeLabel(activity.componentType, t),
     },
     { label: translateOr(t, "ES_IR_STATUS", "Status"), value: translateOr(t, status.key, status.fallback) },
   ];
