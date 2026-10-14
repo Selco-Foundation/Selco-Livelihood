@@ -61,9 +61,15 @@ describe("searchVendorOrgUsers", () => {
     vi.mocked(apiClient.post).mockReset();
   });
 
+  const fieldStaffRoles = [{ code: "INSTALLATION_REPORT_PART_A_EDITOR" }];
+
   it("reads name/email off the nested HRMS-enriched user object, not the top level", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({
-      data: { OrgUsers: [{ userId: "u1", user: { name: "Tech One", emailId: "tech@example.com" } }] },
+      data: {
+        OrgUsers: [
+          { userId: "u1", user: { name: "Tech One", emailId: "tech@example.com", roles: fieldStaffRoles } },
+        ],
+      },
     });
 
     const result = await searchVendorOrgUsers("tenant-1", "org-1", "token-1");
@@ -71,8 +77,8 @@ describe("searchVendorOrgUsers", () => {
     expect(result).toEqual([{ code: "u1", name: "Tech One", email: "tech@example.com" }]);
   });
 
-  it("falls back to the raw uuid as the name and leaves email undefined when user is missing", async () => {
-    vi.mocked(apiClient.post).mockResolvedValue({ data: { OrgUsers: [{ userId: "u1" }] } });
+  it("falls back to the raw uuid as the name and leaves email undefined when HRMS has neither", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ data: { OrgUsers: [{ userId: "u1", user: { roles: fieldStaffRoles } }] } });
 
     const result = await searchVendorOrgUsers("tenant-1", "org-1", "token-1");
 
@@ -80,11 +86,28 @@ describe("searchVendorOrgUsers", () => {
   });
 
   it("falls back to id when userId is absent", async () => {
-    vi.mocked(apiClient.post).mockResolvedValue({ data: { OrgUsers: [{ id: "u2" }] } });
+    vi.mocked(apiClient.post).mockResolvedValue({ data: { OrgUsers: [{ id: "u2", user: { roles: fieldStaffRoles } }] } });
 
     const result = await searchVendorOrgUsers("tenant-1", "org-1", "token-1");
 
     expect(result).toEqual([{ code: "u2", name: "u2", email: undefined }]);
+  });
+
+  it("only returns Field Staff (INSTALLATION_REPORT_PART_A_EDITOR)", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({
+      data: {
+        OrgUsers: [
+          { userId: "staff", user: { name: "Staff", roles: [{ code: "EMPLOYEE" }, ...fieldStaffRoles] } },
+          { userId: "admin", user: { name: "Admin", roles: [{ code: "ORG_ADMIN" }] } },
+          { userId: "no-roles", user: { name: "No Roles" } },
+          { userId: "no-user" },
+        ],
+      },
+    });
+
+    const result = await searchVendorOrgUsers("tenant-1", "org-1", "token-1");
+
+    expect(result.map((user) => user.code)).toEqual(["staff"]);
   });
 
   it("filters out rows with neither userId nor id", async () => {
