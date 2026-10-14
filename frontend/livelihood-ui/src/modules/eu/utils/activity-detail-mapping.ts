@@ -258,6 +258,7 @@ export function buildActivityDetail(
   }
 
   return {
+    facilityName: activityFacility?.facility?.facility_name,
     info: buildActivityInfo(row),
     sections,
     auditTrail: buildAuditTrail(row.workflow, row.transactions, reasonOptions),

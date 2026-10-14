@@ -465,6 +465,22 @@ describe("buildActivityDetail — info", () => {
     });
   });
 
+  it("carries the facility's own name through separately from the info card fields", () => {
+    const result = buildActivityDetail(row(), [], [], [], emptyMachineAssetData);
+    expect(result.facilityName).toBe("Facility A");
+  });
+
+  it("leaves facilityName undefined when the row has no facility", () => {
+    const result = buildActivityDetail(
+      { activityFacility: { id: "act-1" } },
+      [],
+      [],
+      [],
+      emptyMachineAssetData,
+    );
+    expect(result.facilityName).toBeUndefined();
+  });
+
   it("defaults componentType to SOLAR and status to SCHEDULED when missing", () => {
     const result = buildActivityDetail(
       { activityFacility: { id: "act-1" } },

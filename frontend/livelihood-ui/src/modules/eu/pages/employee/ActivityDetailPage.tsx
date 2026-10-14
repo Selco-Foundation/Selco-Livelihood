@@ -27,7 +27,7 @@ export function ActivityDetailPage() {
   const { facilityId, activityId } = useRouteParams();
 
   const { data: detail, isLoading, isError, error } = useActivityDetails(activityId);
-  const loadSectionMedia = useLoadSectionMedia(activityId, facilityId);
+  const loadSectionMedia = useLoadSectionMedia(activityId, detail?.facilityName ?? facilityId);
 
   if (!hasEuAccess(user?.roles)) {
     return null;
