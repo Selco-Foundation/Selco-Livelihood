@@ -58,7 +58,7 @@ function TimelineCaption({
       {reasonText ? (
         <div>
           <p className="font-medium text-foreground">{reasonLabel}</p>
-          <p>{reasonText}</p>
+          <p className="wrap-anywhere">{reasonText}</p>
         </div>
       ) : null}
 
