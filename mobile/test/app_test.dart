@@ -1,3 +1,4 @@
+import 'package:livelihood/pages/dynamic_bom_form.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -1657,6 +1658,74 @@ void main() {
     );
     expect(secondButton.top - firstButton.bottom, spacer4);
     expect(find.text('View Associated Machines'), findsOneWidget);
+  });
+
+  testWidgets(
+      'summary starts associated loading and machine form waits for loaded values',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 3000));
+    final previous = assetMdmsRepository.current;
+    await assetMdmsRepository.store(const AssetRegistryMdmsResponse(
+        livelihood: LivelihoodModule(bomFormSchema: [
+      {
+        'name': 'AssetForm.LIVELIHOOD_202526PASF0000141_BOM_machines',
+        'pages': [
+          {
+            'page': 'machines',
+            'type': 'object',
+            'label': 'Machines',
+            'order': 1,
+            'properties': [
+              {
+                'fieldName': 'machine_1_product',
+                'type': 'string',
+                'format': 'text',
+                'label': 'Product',
+                'order': 1,
+                'includeInForm': true,
+              }
+            ]
+          }
+        ],
+      }
+    ])));
+    addTearDown(() async {
+      await assetMdmsRepository
+          .store(previous ?? const AssetRegistryMdmsResponse());
+    });
+    final draft = _filledSolarDraft(SolarWorkflowMode.newReport);
+    final ready = Completer<void>();
+    var hydrations = 0;
+    final router = await pumpAuthenticatedRoute(
+        tester,
+        OverallAssetSummaryRoute(
+            draft: draft,
+            hydrateDraft: (value) async {
+              hydrations++;
+              value.associatedMachinesLoading = ready.future;
+              await ready.future;
+              value.associatedMachineValues['machine_1_product'] =
+                  'Silk Spinning';
+              value.associatedMachinesAvailable = true;
+              value.associatedMachinesLoading = null;
+            }));
+    expect(hydrations, 1);
+    await tester.tap(find.text('View Associated Machines'));
+    await tester.pump();
+    expect(find.byType(DynamicBomFormPage), findsNothing);
+    ready.complete();
+    await tester.pumpAndSettle();
+    expect(find.byType(DynamicBomFormPage), findsOneWidget);
+    expect(find.text('Silk Spinning'), findsOneWidget);
+    expect(
+        tester
+            .widget<DynamicBomFormPage>(find.byType(DynamicBomFormPage))
+            .readOnly,
+        true);
+    expect(hydrations, 1);
+    expect(draft.mergedBom.containsKey('machine_1_product'), false);
+    await router.maybePop();
+    await tester.pumpAndSettle();
   });
 
   testWidgets('Associated Machines is always labelled as view-only',

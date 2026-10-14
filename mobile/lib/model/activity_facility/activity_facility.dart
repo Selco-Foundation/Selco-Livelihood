@@ -14,6 +14,7 @@ class ActivityFacility with _$ActivityFacility {
     String? id,
     String? tenantId,
     String? activityId,
+    String? fieldPlanId,
     String? facilityId,
     String? status,
     int? scheduledAt,

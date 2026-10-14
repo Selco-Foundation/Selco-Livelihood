@@ -285,6 +285,11 @@ class SolarInstallationDraft {
   final List<String> bomFormNames = [];
   final Map<String, Map<String, dynamic>> dynamicFormAnswers = {};
   final Map<String, dynamic> mergedBom = {};
+  // Display-only sibling data; never included in saveSolar or submission.
+  final Map<String, dynamic> associatedMachineValues = {};
+  Future<void>? associatedMachinesLoading;
+  bool associatedMachinesAvailable = false;
+  bool associatedMachinesFailed = false;
   final List<Map<String, dynamic>> backendDocuments = [];
   final List<WorkflowComment> rejectionComments = [];
 

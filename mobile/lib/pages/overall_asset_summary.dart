@@ -1,3 +1,4 @@
+import '../repositories/associated_machine_bom_repository.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -47,11 +48,13 @@ class OverallAssetSummaryPage extends StatefulWidget {
     required this.draft,
     this.pickMedia,
     this.pickFiles,
+    this.hydrateDraft,
   });
 
   final SolarInstallationDraft draft;
   final SolarPickMedia? pickMedia;
   final SolarPickFiles? pickFiles;
+  final Future<void> Function(SolarInstallationDraft)? hydrateDraft;
 
   @override
   State<OverallAssetSummaryPage> createState() =>
@@ -63,13 +66,16 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
   bool _otpRequested = false;
   bool _submissionStartInFlight = false;
   final _invoiceNumberController = TextEditingController();
+  Future<void>? _summaryHydration;
 
   @override
   void initState() {
     super.initState();
     _invoiceNumberController.text = widget.draft.invoiceNumber ?? '';
-    if (!Platform.environment.containsKey('FLUTTER_TEST')) {
-      unawaited(_resync());
+    if (widget.hydrateDraft != null ||
+        !Platform.environment.containsKey('FLUTTER_TEST')) {
+      _summaryHydration = _resync();
+      unawaited(_summaryHydration!);
     }
     unawaited(_restorePendingState());
   }
@@ -140,7 +146,8 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
   /// backend snapshot.
   Future<void> _resync() async {
     try {
-      await installationDraftRepository.hydrateSolar(widget.draft);
+      await (widget.hydrateDraft ??
+          installationDraftRepository.hydrateSolar)(widget.draft);
     } catch (_) {
       // Keep showing whatever's already in the draft if the resync fails.
     }
@@ -272,6 +279,29 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
   }
 
   Future<void> _openDynamicForm(String name) async {
+    if (_isAssociatedMachinesForm(name)) {
+      final draft = widget.draft;
+      await _summaryHydration;
+      if (!mounted) return;
+      if (draft.associatedMachinesLoading != null) {
+        await draft.associatedMachinesLoading;
+      }
+      if (!mounted) return;
+      if (!draft.associatedMachinesAvailable) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('Associated machine data is unavailable.'),
+          action: SnackBarAction(
+              label: context.translate(i18.common.retry),
+              onPressed: () async {
+                await associatedMachineBomRepository.load(draft);
+                if (mounted && draft.associatedMachinesAvailable) {
+                  await _openDynamicForm(name);
+                }
+              }),
+        ));
+        return;
+      }
+    }
     final schema = assetMdmsRepository.schemaFor(name);
     final pageName =
         schema == null || schema.pages.isEmpty ? null : schema.pages.first.code;

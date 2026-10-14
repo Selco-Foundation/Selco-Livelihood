@@ -1,3 +1,4 @@
+import 'associated_machine_bom_repository.dart';
 import 'dart:async';
 
 import '../model/activity_facility_workflow/activity_facility_workflow.dart';
@@ -81,6 +82,7 @@ class InstallationDraftRepository {
     if (id != null && id.isNotEmpty) {
       // Start independent sources together, then apply them in deterministic
       // template -> backend -> asset snapshot -> local draft order.
+      final associatedFuture = associatedMachineBomRepository.load(draft);
       final backendFuture = _safeBomSearch(id);
       final assetsFuture = _safeAssetSearch(id);
       final localFuture = _safeLocalDraft(id);
@@ -97,6 +99,7 @@ class InstallationDraftRepository {
       // count remains authoritative and is synchronized back into the BOM by
       // `_configureFromBom`.
       applyFreshBomDerivedValues(draft, backend);
+      await associatedFuture;
     }
     _configureFromBom(draft);
   }

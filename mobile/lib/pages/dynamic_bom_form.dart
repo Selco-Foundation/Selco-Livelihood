@@ -48,10 +48,15 @@ class _DynamicBomFormPageState extends State<DynamicBomFormPage> {
   String get _schemaKey => '${widget.draft.cacheKey}::${widget.schemaName}';
   String get _pageName => _resolvedPageName ?? widget.pageName;
 
-  Map<String, dynamic> get _initialValues => <String, dynamic>{
-        ...widget.draft.mergedBom,
-        ...?widget.draft.dynamicFormAnswers[widget.schemaName],
-      };
+  bool get _isAssociatedMachines =>
+      widget.schemaName.toLowerCase().endsWith('_bom_machines');
+
+  Map<String, dynamic> get _initialValues => _isAssociatedMachines
+      ? Map<String, dynamic>.from(widget.draft.associatedMachineValues)
+      : <String, dynamic>{
+          ...widget.draft.mergedBom,
+          ...?widget.draft.dynamicFormAnswers[widget.schemaName],
+        };
 
   @override
   void didChangeDependencies() {
@@ -67,10 +72,13 @@ class _DynamicBomFormPageState extends State<DynamicBomFormPage> {
     try {
       await Future.wait<void>([
         assetMdmsRepository.load(),
-        installationDraftRepository.hydrateSolar(widget.draft).catchError((_) {
-          // Template and cached in-memory values can still render when a
-          // backend snapshot is temporarily unavailable.
-        }),
+        if (!_isAssociatedMachines)
+          installationDraftRepository
+              .hydrateSolar(widget.draft)
+              .catchError((_) {
+            // Template and cached in-memory values can still render when a
+            // backend snapshot is temporarily unavailable.
+          }),
       ]);
       if (!mounted) return;
 

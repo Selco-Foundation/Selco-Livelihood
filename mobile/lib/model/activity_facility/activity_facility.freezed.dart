@@ -23,6 +23,7 @@ mixin _$ActivityFacility {
   String? get id => throw _privateConstructorUsedError;
   String? get tenantId => throw _privateConstructorUsedError;
   String? get activityId => throw _privateConstructorUsedError;
+  String? get fieldPlanId => throw _privateConstructorUsedError;
   String? get facilityId => throw _privateConstructorUsedError;
   String? get status => throw _privateConstructorUsedError;
   int? get scheduledAt => throw _privateConstructorUsedError;
@@ -52,6 +53,7 @@ abstract class $ActivityFacilityCopyWith<$Res> {
       {String? id,
       String? tenantId,
       String? activityId,
+      String? fieldPlanId,
       String? facilityId,
       String? status,
       int? scheduledAt,
@@ -84,6 +86,7 @@ class _$ActivityFacilityCopyWithImpl<$Res, $Val extends ActivityFacility>
     Object? id = freezed,
     Object? tenantId = freezed,
     Object? activityId = freezed,
+    Object? fieldPlanId = freezed,
     Object? facilityId = freezed,
     Object? status = freezed,
     Object? scheduledAt = freezed,
@@ -108,6 +111,10 @@ class _$ActivityFacilityCopyWithImpl<$Res, $Val extends ActivityFacility>
       activityId: freezed == activityId
           ? _value.activityId
           : activityId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      fieldPlanId: freezed == fieldPlanId
+          ? _value.fieldPlanId
+          : fieldPlanId // ignore: cast_nullable_to_non_nullable
               as String?,
       facilityId: freezed == facilityId
           ? _value.facilityId
@@ -194,6 +201,7 @@ abstract class _$$ActivityFacilityImplCopyWith<$Res>
       {String? id,
       String? tenantId,
       String? activityId,
+      String? fieldPlanId,
       String? facilityId,
       String? status,
       int? scheduledAt,
@@ -226,6 +234,7 @@ class __$$ActivityFacilityImplCopyWithImpl<$Res>
     Object? id = freezed,
     Object? tenantId = freezed,
     Object? activityId = freezed,
+    Object? fieldPlanId = freezed,
     Object? facilityId = freezed,
     Object? status = freezed,
     Object? scheduledAt = freezed,
@@ -250,6 +259,10 @@ class __$$ActivityFacilityImplCopyWithImpl<$Res>
       activityId: freezed == activityId
           ? _value.activityId
           : activityId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      fieldPlanId: freezed == fieldPlanId
+          ? _value.fieldPlanId
+          : fieldPlanId // ignore: cast_nullable_to_non_nullable
               as String?,
       facilityId: freezed == facilityId
           ? _value.facilityId
@@ -306,6 +319,7 @@ class _$ActivityFacilityImpl implements _ActivityFacility {
       {this.id,
       this.tenantId,
       this.activityId,
+      this.fieldPlanId,
       this.facilityId,
       this.status,
       this.scheduledAt,
@@ -327,6 +341,8 @@ class _$ActivityFacilityImpl implements _ActivityFacility {
   final String? tenantId;
   @override
   final String? activityId;
+  @override
+  final String? fieldPlanId;
   @override
   final String? facilityId;
   @override
@@ -352,7 +368,7 @@ class _$ActivityFacilityImpl implements _ActivityFacility {
 
   @override
   String toString() {
-    return 'ActivityFacility(id: $id, tenantId: $tenantId, activityId: $activityId, facilityId: $facilityId, status: $status, scheduledAt: $scheduledAt, activatedAt: $activatedAt, completedAt: $completedAt, componentType: $componentType, componentSequence: $componentSequence, solutionId: $solutionId, billOfMaterial: $billOfMaterial, facility: $facility, additionalDetails: $additionalDetails)';
+    return 'ActivityFacility(id: $id, tenantId: $tenantId, activityId: $activityId, fieldPlanId: $fieldPlanId, facilityId: $facilityId, status: $status, scheduledAt: $scheduledAt, activatedAt: $activatedAt, completedAt: $completedAt, componentType: $componentType, componentSequence: $componentSequence, solutionId: $solutionId, billOfMaterial: $billOfMaterial, facility: $facility, additionalDetails: $additionalDetails)';
   }
 
   @override
@@ -365,6 +381,8 @@ class _$ActivityFacilityImpl implements _ActivityFacility {
                 other.tenantId == tenantId) &&
             (identical(other.activityId, activityId) ||
                 other.activityId == activityId) &&
+            (identical(other.fieldPlanId, fieldPlanId) ||
+                other.fieldPlanId == fieldPlanId) &&
             (identical(other.facilityId, facilityId) ||
                 other.facilityId == facilityId) &&
             (identical(other.status, status) || other.status == status) &&
@@ -395,6 +413,7 @@ class _$ActivityFacilityImpl implements _ActivityFacility {
       id,
       tenantId,
       activityId,
+      fieldPlanId,
       facilityId,
       status,
       scheduledAt,
@@ -427,6 +446,7 @@ abstract class _ActivityFacility implements ActivityFacility {
           {final String? id,
           final String? tenantId,
           final String? activityId,
+          final String? fieldPlanId,
           final String? facilityId,
           final String? status,
           final int? scheduledAt,
@@ -449,6 +469,8 @@ abstract class _ActivityFacility implements ActivityFacility {
   String? get tenantId;
   @override
   String? get activityId;
+  @override
+  String? get fieldPlanId;
   @override
   String? get facilityId;
   @override

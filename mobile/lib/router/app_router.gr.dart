@@ -206,6 +206,7 @@ abstract class _$AppRouter extends RootStackRouter {
           draft: args.draft,
           pickMedia: args.pickMedia,
           pickFiles: args.pickFiles,
+          hydrateDraft: args.hydrateDraft,
         ),
       );
     },
@@ -1007,6 +1008,7 @@ class OverallAssetSummaryRoute
       ImageSource,
     )? pickMedia,
     Future<List<PlatformFile>> Function()? pickFiles,
+    Future<void> Function(SolarInstallationDraft)? hydrateDraft,
     List<PageRouteInfo>? children,
   }) : super(
           OverallAssetSummaryRoute.name,
@@ -1015,6 +1017,7 @@ class OverallAssetSummaryRoute
             draft: draft,
             pickMedia: pickMedia,
             pickFiles: pickFiles,
+            hydrateDraft: hydrateDraft,
           ),
           initialChildren: children,
         );
@@ -1031,6 +1034,7 @@ class OverallAssetSummaryRouteArgs {
     required this.draft,
     this.pickMedia,
     this.pickFiles,
+    this.hydrateDraft,
   });
 
   final Key? key;
@@ -1044,9 +1048,11 @@ class OverallAssetSummaryRouteArgs {
 
   final Future<List<PlatformFile>> Function()? pickFiles;
 
+  final Future<void> Function(SolarInstallationDraft)? hydrateDraft;
+
   @override
   String toString() {
-    return 'OverallAssetSummaryRouteArgs{key: $key, draft: $draft, pickMedia: $pickMedia, pickFiles: $pickFiles}';
+    return 'OverallAssetSummaryRouteArgs{key: $key, draft: $draft, pickMedia: $pickMedia, pickFiles: $pickFiles, hydrateDraft: $hydrateDraft}';
   }
 }
 
