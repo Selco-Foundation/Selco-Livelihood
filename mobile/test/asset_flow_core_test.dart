@@ -1,3 +1,5 @@
+import 'package:livelihood/data/remote_client.dart';
+import 'package:livelihood/repositories/asset_repository.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -1197,6 +1199,56 @@ void main() {
           ]
         }).missingRequiredFields,
         contains('PANEL : serial number'));
+  });
+
+  test('asset searches request nested children and retain optional filters',
+      () async {
+    final dio = DioClient().dio;
+    final original = dio.interceptors.toList();
+    final requests = <RequestOptions>[];
+    dio.interceptors.clear();
+    dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
+      requests.add(options);
+      handler.resolve(Response(requestOptions: options, statusCode: 200, data: [
+        {
+          'assetId': 'parent',
+          'assetTypeID': 'SOLAR',
+          'children': [
+            {
+              'assetId': 'child',
+              'assetTypeID': 'PANEL',
+              'documents': [
+                {'fileStore': 'photo'}
+              ]
+            },
+          ]
+        },
+      ]));
+    }));
+    addTearDown(() {
+      dio.interceptors
+        ..clear()
+        ..addAll(original);
+    });
+    final repository = AssetRepository();
+    for (final filtered in [false, true]) {
+      final assets = await repository.searchRemote(
+          activityFacilityId: 'af-1',
+          assetId: filtered ? ' parent ' : null,
+          serialNumber: filtered ? ' SN-1 ' : null);
+      final criteria = (requests.last.data as Map)['criteria'] as Map;
+      expect(criteria['includeChildren'], true);
+      expect(criteria['activityFacilityID'], 'af-1');
+      expect(criteria['tenantId'], envConfig.variables.tenantId);
+      expect(criteria.containsKey('assetID'), filtered);
+      expect(criteria.containsKey('serialNumber'), filtered);
+      if (filtered) {
+        expect(criteria['assetID'], 'parent');
+        expect(criteria['serialNumber'], ['SN-1']);
+      }
+      expect(
+          assets.single['children'][0]['documents'][0]['fileStore'], 'photo');
+    }
   });
 
   test('solar retry reconciles IDs and photos and verifies every child', () {

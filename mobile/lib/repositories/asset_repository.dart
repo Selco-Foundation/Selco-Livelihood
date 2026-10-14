@@ -38,6 +38,7 @@ class AssetRepository {
         'criteria': {
           'tenantId': envConfig.variables.tenantId,
           'activityFacilityID': activityFacilityId,
+          'includeChildren': true,
           if (serialNumber?.trim().isNotEmpty == true)
             'serialNumber': [serialNumber!.trim()],
           if (assetId?.trim().isNotEmpty == true) 'assetID': assetId!.trim(),
