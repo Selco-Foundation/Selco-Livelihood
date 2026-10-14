@@ -191,10 +191,16 @@ class FieldPlanServiceClient:
 
     def search_fieldplans_by_project(self, request_info: RequestInfo, project_id: str) -> list:
         """Every field plan under a project. Needed to find sites locked by a sibling plan,
-        since the lock is scoped to the project rather than to one plan."""
+        since the lock is scoped to the project rather than to one plan.
+
+        The criteria key is `projectIds`, plural and a list -- field-planner binds it as
+        `@JsonProperty("projectIds") List<String> projectId`. A scalar `projectId` is simply an
+        unknown property: Jackson drops it, the query builder adds no `project_id IN (...)`
+        clause, and the search silently returns every plan in the tenant.
+        """
         return self._search_paginated(
             request_info, "/field-planner/v1/field-plans/_search", "FieldPlans",
-            {"projectId": project_id, "tenantId": LIVELIHOOD_TENANT_ID}, "FieldPlans",
+            {"projectIds": [project_id], "tenantId": LIVELIHOOD_TENANT_ID}, "FieldPlans",
         )
 
     def search_facilities_for_plans(self, request_info: RequestInfo, fieldplan_ids: list) -> list:

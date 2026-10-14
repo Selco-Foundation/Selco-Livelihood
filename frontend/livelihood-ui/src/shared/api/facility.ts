@@ -7,6 +7,7 @@ export interface FacilitySummary {
   facilityId: string;
   facilityStatus?: string;
   facilityName?: string;
+  facilityType?: string;
 }
 
 interface FacilitySearchResponse {
@@ -15,6 +16,7 @@ interface FacilitySearchResponse {
     facility_id?: string;
     facility_status?: string;
     facility_name?: string;
+    facility_type?: string;
   }>;
   totalCount?: number;
 }
@@ -44,6 +46,7 @@ export async function fetchFacilities(
       facilityId: facility.facility_id ?? "",
       facilityStatus: facility.facility_status,
       facilityName: facility.facility_name,
+      facilityType: facility.facility_type,
     })) ?? [];
 
   return {

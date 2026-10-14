@@ -84,6 +84,7 @@ public class LivelihoodEmailNotificationService {
         email.put("subject", subject);
         email.put("body", body);
         email.put("tenantId", tenantId);
+        email.put("isHTML", true);
 
         Map<String, Object> emailRequest = new HashMap<>();
         emailRequest.put("requestInfo", new HashMap<>());

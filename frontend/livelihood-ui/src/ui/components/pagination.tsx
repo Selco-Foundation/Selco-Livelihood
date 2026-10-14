@@ -40,6 +40,16 @@ export function Pagination({
 }: PaginationProps) {
   const { t } = useTranslate();
   const totalPages = Math.max(1, Math.ceil(totalRecords / pageSizeLimit));
+
+  // Only the page-number navigation is meaningless for a single page — the page-size selector is
+  // not, and hiding it with the rest was a trap: raising the size to 20 on 15 records collapses
+  // the list to one page and takes away the only control that could put it back to 10.
+  const showPageNavigation = totalPages > 1;
+
+  if (totalRecords === 0) {
+    return null;
+  }
+
   const canGoPrev = currentPage > 0;
   const canGoNext = (currentPage + 1) * pageSizeLimit < totalRecords;
   const pageNumbers = buildPageNumbers(currentPage, totalPages);
@@ -66,50 +76,52 @@ export function Pagination({
           <ChevronDown className="pointer-events-none absolute top-1/2 right-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
         </div>
       </div>
-      <div className="flex min-w-0 items-center gap-2">
-        <button
-          type="button"
-          disabled={!canGoPrev}
-          onClick={onPrevPage}
-          className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-lg px-3 py-1 text-base font-medium text-ink-950 transition-colors disabled:pointer-events-none disabled:opacity-40"
-        >
-          <ArrowLeft className="size-6" strokeWidth={1.5} />
-          {translateOr(t, "CS_COMMON_PREVIOUS", "Previous")}
-        </button>
+      {showPageNavigation ? (
+        <div className="flex min-w-0 items-center gap-2">
+          <button
+            type="button"
+            disabled={!canGoPrev}
+            onClick={onPrevPage}
+            className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-lg px-3 py-1 text-base font-medium text-ink-950 transition-colors disabled:pointer-events-none disabled:opacity-40"
+          >
+            <ArrowLeft className="size-6" strokeWidth={1.5} />
+            {translateOr(t, "CS_COMMON_PREVIOUS", "Previous")}
+          </button>
 
-        <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
-          {pageNumbers.map((page) => typeof page === "string" ? (
-            <span key={page} className="flex h-8 w-7 shrink-0 items-center justify-center text-sm text-muted-foreground">
-              …
-            </span>
-          ) : (
-            <button
-              key={page}
-              type="button"
-              onClick={() => onPageChange(page)}
-              aria-current={page === currentPage ? "page" : undefined}
-              className={cn(
-                "flex h-8 w-[34px] shrink-0 cursor-pointer items-center justify-center rounded-lg text-base font-medium transition-colors",
-                page === currentPage
-                  ? "bg-primary-700 text-neutral-25"
-                  : "border border-neutral-300 bg-neutral-100 text-neutral-700 hover:border-primary-200 hover:bg-primary-100",
-              )}
-            >
-              {page + 1}
-            </button>
-          ))}
+          <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
+            {pageNumbers.map((page) => typeof page === "string" ? (
+              <span key={page} className="flex h-8 w-7 shrink-0 items-center justify-center text-sm text-muted-foreground">
+                …
+              </span>
+            ) : (
+              <button
+                key={page}
+                type="button"
+                onClick={() => onPageChange(page)}
+                aria-current={page === currentPage ? "page" : undefined}
+                className={cn(
+                  "flex h-8 w-[34px] shrink-0 cursor-pointer items-center justify-center rounded-lg text-base font-medium transition-colors",
+                  page === currentPage
+                    ? "bg-primary-700 text-neutral-25"
+                    : "border border-neutral-300 bg-neutral-100 text-neutral-700 hover:border-primary-200 hover:bg-primary-100",
+                )}
+              >
+                {page + 1}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            disabled={!canGoNext}
+            onClick={onNextPage}
+            className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-lg px-3 py-1 text-base font-medium text-ink-950 transition-colors disabled:pointer-events-none disabled:opacity-40"
+          >
+            {translateOr(t, "CS_COMMON_NEXT", "Next")}
+            <ArrowRight className="size-6" strokeWidth={1.5} />
+          </button>
         </div>
-
-        <button
-          type="button"
-          disabled={!canGoNext}
-          onClick={onNextPage}
-          className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-lg px-3 py-1 text-base font-medium text-ink-950 transition-colors disabled:pointer-events-none disabled:opacity-40"
-        >
-          {translateOr(t, "CS_COMMON_NEXT", "Next")}
-          <ArrowRight className="size-6" strokeWidth={1.5} />
-        </button>
-      </div>
+      ) : null}
     </div>
   );
 }

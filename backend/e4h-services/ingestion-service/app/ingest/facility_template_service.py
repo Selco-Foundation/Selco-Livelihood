@@ -74,7 +74,8 @@ class FacilityTemplateService:
                                per_row_column_values: Dict[str, Dict[int, str]] = None,
                                freeze_columns: List[str] = None,
                                freeze_row_positions: List[int] = None,
-                               boundary_localization_map: Dict[str, str] = None
+                               boundary_localization_map: Dict[str, str] = None,
+                               allow_insert_rows: bool = True
                                ) -> None:
         """
             Generates FacilityIngestionTemplate.xlsx with:
@@ -95,6 +96,9 @@ class FacilityTemplateService:
             boundary_localization_map: pass one in when the caller has already resolved
             boundary names (to key something else off the same values); otherwise it is
             fetched here.
+            allow_insert_rows: when False, blocks Excel's native "insert row" action on
+            the protected sheet (in addition to extra_append_rows=0), so no additional
+            rows can be added at all -- only the pre-filled rows can be edited.
             """
         try:
             create_empty_excel_file(output_path)
@@ -273,7 +277,8 @@ class FacilityTemplateService:
                 total_rows=len(formatted_facilities),
                 total_columns=len(output_list),
                 always_locked_columns=always_locked_columns,
-                extra_append_rows=extra_append_rows
+                extra_append_rows=extra_append_rows,
+                allow_insert_rows=allow_insert_rows
             )
 
             # Must run after the column-level pass above, which unlocks editable columns

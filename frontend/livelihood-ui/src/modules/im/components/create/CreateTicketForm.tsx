@@ -1,4 +1,4 @@
-import { Button } from "@/ui";
+import { Button, SearchableSelect } from "@/ui";
 import {
   Camera,
   Factory,
@@ -13,7 +13,6 @@ import { createPortal } from "react-dom";
 import { useCreateIncidentForm } from "../../hooks/use-create-incident-form";
 import { DuplicateTicketsDialog } from "./DuplicateTicketsDialog";
 import { FormSectionCard } from "./FormSectionCard";
-import { FormSelectField } from "./FormSelectField";
 import { MediaUploadZone } from "./MediaUploadZone";
 import { TicketSubmittedDialog } from "./TicketSubmittedDialog";
 
@@ -117,7 +116,7 @@ export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
         >
           <div className="grid gap-4 md:grid-cols-2">
             {showEndUserDropdown ? (
-              <FormSelectField
+              <SearchableSelect
                 label={translateOr(t, "INCIDENT_END_USER", "End User")}
                 required
                 value={form.endUser?.facilityId ?? ""}
@@ -141,7 +140,7 @@ export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
               </div>
             ) : null}
 
-            <FormSelectField
+            <SearchableSelect
               label={translateOr(t, "INCIDENT_ASSET", "Asset")}
               required
               value={form.asset?.assetId ?? ""}
@@ -165,7 +164,7 @@ export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
           )}
         >
           <div className="grid gap-4 md:grid-cols-2">
-            <FormSelectField
+            <SearchableSelect
               label={translateOr(t, "TICKET_TYPE", "Issue Type")}
               required
               value={form.complaintType?.code ?? ""}
