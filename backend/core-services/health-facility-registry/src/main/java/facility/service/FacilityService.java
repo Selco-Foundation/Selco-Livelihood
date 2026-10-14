@@ -18,7 +18,6 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static facility.config.ServiceConstants.FACILITY_ADMIN;
 import static facility.config.ServiceConstants.SYSTEM_USER;
 
 @Service
@@ -186,8 +185,10 @@ public class FacilityService {
                         .facilityDetails(facilityCreate.getFacilityDetails())
                         .wfStatus(facilityCreate.getWfStatus())
                         .additionalDetails(facilityCreate.getAdditionalDetails())
-                        .isActive(true)
+                        .isActive(facilityCreate.getIsActive())
                         .isOnmReady(facilityCreate.getIsOnmReady())
+                        .endUserType(facilityCreate.getEndUserType())
+                        .endUserPassword(facilityCreate.getEndUserPassword())
                         .solarInstallationDate(facilityCreate.getSolarInstallationDate())
                         .rmsInstallationDate(facilityCreate.getRmsInstallationDate())
                         .solarSystemCapacityKwp(facilityCreate.getSolarSystemCapacityKwp())
@@ -687,6 +688,7 @@ public class FacilityService {
         facility.setFacilityPocPhone(update.getPocContact());
         facility.setFacilityPocEmail(update.getPocEmail());
         facility.setFacilityPocUsername(firstNonBlank(update.getFacilityPocUsername(), existingFacility.getFacilityPocUsername()));
+        facility.setEndUserType(firstNonBlank(update.getEndUserType(), existingFacility.getEndUserType()));
         facility.setHfrId(update.getHfrId());
         facility.setNinId(update.getNinId());
         facility.setFacilityStatus(update.getStatus());
@@ -725,6 +727,11 @@ public class FacilityService {
         validateFacilityPocUsernameUnique(
                 effectiveCategory, facility.getFacilityPocUsername(), update.getTenantId(), update.getFacilityId()
         );
+
+        if (CATEGORY_LIVELIHOOD.equalsIgnoreCase(effectiveCategory)) {
+            enrichAddressFromBlockBoundaryCode(facility.getAddress(),
+                    firstNonBlank(update.getBoundaryCode(), existingFacility.getBoundaryCode()));
+        }
 
         // Validate with MDMS and boundary APIs
         log.info("Validating facility update against MDMS and boundaries");
@@ -1009,7 +1016,7 @@ public class FacilityService {
     public List<Facility> searchFacilities(FacilitySearchRequest request) {
         log.trace("Entering searchFacilities method");
         log.info("Searching facilities with limit={}, offset={}", request.getLimit(), request.getOffset());
-        QueryBuilderResult result = QueryBuilderUtil.buildWhereClause(request);
+        QueryBuilderResult result = QueryBuilderUtil.buildWhereClause(request, this::encryptMobileNumber);
         log.debug("Built query with {} parameters", result.getParams().size());
 
         StringBuilder query = new StringBuilder(
@@ -1104,7 +1111,8 @@ public class FacilityService {
         FacilityBulkSearchCriteria criteria = request.getFacilityBulkSearchCriteria();
 
         QueryBuilderResult result = QueryBuilderUtil.buildBulkWhereClause(
-                request.getFacilityBulkSearchCriteria(), request.getRequestInfo(), configs.getOnmNonReadyAllowedRoles()
+                request.getFacilityBulkSearchCriteria(), request.getRequestInfo(), configs.getOnmNonReadyAllowedRoles(),
+                this::encryptMobileNumber
         );
 
         StringBuilder query = new StringBuilder(
@@ -1255,7 +1263,7 @@ public class FacilityService {
 
     public int countFacilities(FacilitySearchRequest request) {
         log.trace("Entering countFacilities method");
-        QueryBuilderResult result = QueryBuilderUtil.buildWhereClause(request);
+        QueryBuilderResult result = QueryBuilderUtil.buildWhereClause(request, this::encryptMobileNumber);
         String query = "SELECT COUNT(*) FROM facility" + result.getWhereClause();
         int count = jdbcTemplate.queryForObject(query, Integer.class, result.getParams().toArray());
         log.debug("Facility count: {}", count);
@@ -1269,7 +1277,8 @@ public class FacilityService {
             return 0;
         }
         QueryBuilderResult result = QueryBuilderUtil.buildBulkWhereClause(
-                request.getFacilityBulkSearchCriteria(), request.getRequestInfo(), configs.getOnmNonReadyAllowedRoles()
+                request.getFacilityBulkSearchCriteria(), request.getRequestInfo(), configs.getOnmNonReadyAllowedRoles(),
+                this::encryptMobileNumber
         );
         String query = "SELECT COUNT(*) FROM facility fac" + result.getWhereClause();
         int count = jdbcTemplate.queryForObject(query, Integer.class, result.getParams().toArray());
@@ -1675,18 +1684,31 @@ public class FacilityService {
         }
     }
 
+    /**
+     * Gates end user (facility) edits on {@code facility.edit.allowed.roles}.
+     *
+     * <p>Configured rather than hard-coded so the role set can change without a release -
+     * the same pattern as {@code onm-non-ready.allowed.roles}. That matters while the
+     * FACILITY_ADMIN -> END_USER_ADMIN rename is only half applied: MDMS already defines
+     * END_USER_ADMIN, the rest of the code still tests FACILITY_ADMIN.
+     *
+     * <p>ORG_PLATFORM_ADMIN (Super Admin) is included because PRD 7.8 and 8 require it to
+     * perform every End User Admin activity.
+     */
     private void validateFacilityEditAuthorization(RequestInfo requestInfo) {
         var userInfo = requestInfo != null ? requestInfo.getUserInfo() : null;
-        if (userInfo == null || userInfo.getRoles() == null) {
-            throw new IllegalArgumentException("Only FACILITY_ADMIN or SYSTEM_USER roles can edit facilities");
-        }
+        List<String> allowedRoles = configs.getFacilityEditAllowedRoles();
 
-        boolean isFacilityAdmin = userInfo.getRoles().stream()
-                .anyMatch(role -> FACILITY_ADMIN.equalsIgnoreCase(role.getCode()));
-        boolean isSystemUser = userInfo.getRoles().stream()
-                .anyMatch(role -> SYSTEM_USER.equalsIgnoreCase(role.getCode()));
-        if (!isFacilityAdmin && !isSystemUser) {
-            throw new IllegalArgumentException("Only FACILITY_ADMIN or SYSTEM_USER roles can edit facilities");
+        boolean allowed = userInfo != null
+                && userInfo.getRoles() != null
+                && userInfo.getRoles().stream()
+                        .map(role -> role.getCode())
+                        .filter(Objects::nonNull)
+                        .anyMatch(code -> allowedRoles.stream().anyMatch(code::equalsIgnoreCase));
+
+        if (!allowed) {
+            throw new IllegalArgumentException(
+                    "Only these roles can edit end users: " + String.join(", ", allowedRoles));
         }
     }
 
