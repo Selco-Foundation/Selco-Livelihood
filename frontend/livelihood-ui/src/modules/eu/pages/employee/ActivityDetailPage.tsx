@@ -1,12 +1,9 @@
 import { employeeHomePath, extractApiErrorMessage, translateOr, useAuthStore, useTranslate } from "@/shared";
-import { Skeleton, TopBar } from "@/ui";
+import { ActivityInfoCard, AuditTrailTimeline, ReviewSectionsAccordion, Skeleton, TopBar } from "@/ui";
 import { useMemo } from "react";
-import { ActivityAssetSections } from "../../components/activity/ActivityAssetSections";
-import { ActivityInfoCard } from "../../components/activity/ActivityInfoCard";
-import { ActivityReportSection } from "../../components/activity/ActivityReportSection";
-import { AuditTrailTimeline } from "../../components/activity/AuditTrailTimeline";
-import { useActivityDetails } from "../../hooks/use-activity-details";
+import { useActivityDetails, useLoadSectionMedia } from "../../hooks/use-activity-details";
 import { hasEuAccess } from "../../utils/access";
+import { boundaryDisplayName } from "../../utils/boundary";
 import { euFacilitiesPath, euFacilityDetailPath } from "../../utils/paths";
 
 // This route's path is computed at runtime via contextPath(), so there's no static
@@ -30,6 +27,7 @@ export function ActivityDetailPage() {
   const { facilityId, activityId } = useRouteParams();
 
   const { data: detail, isLoading, isError, error } = useActivityDetails(activityId);
+  const loadSectionMedia = useLoadSectionMedia(activityId, facilityId);
 
   if (!hasEuAccess(user?.roles)) {
     return null;
@@ -60,13 +58,15 @@ export function ActivityDetailPage() {
         </div>
       ) : (
         <>
-          <ActivityInfoCard info={detail.info} />
-          <AuditTrailTimeline auditTrail={detail.auditTrail} />
-          <ActivityAssetSections activityId={activityId} sections={detail.assetSections} />
-          <ActivityReportSection
-            activityId={activityId}
-            facilityName={detail.info.facilityName ?? facilityId}
-            reportSection={detail.reportSection}
+          <ActivityInfoCard
+            activity={detail.info}
+            resolveBoundaryName={(code) => boundaryDisplayName(code, t)}
+          />
+          <AuditTrailTimeline checkpoints={detail.auditTrail} />
+          <ReviewSectionsAccordion
+            sections={detail.sections}
+            sectionDocuments={detail.sectionDocuments}
+            loadSectionMedia={loadSectionMedia}
           />
         </>
       )}

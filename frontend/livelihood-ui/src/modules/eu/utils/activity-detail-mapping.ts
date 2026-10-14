@@ -1,29 +1,40 @@
-import type { ActivityFacilityRow, ActivityWorkflowEntry } from "../services/activity-detail";
-import type { AssetSearchResponseItem } from "../services/asset";
+import type { InstallationImageCriterion, RejectionReasonOption } from "@/shared";
 import type {
-  ActivityInfo,
+  ActivityAuditCheckpoint,
+  ActivityDocument,
+  ActivityInfoCardFields,
   AssetItem,
-  AssetSection,
-  AuditCheckpoint,
+  AssetSectionContent,
+  AuditSectionReasons,
+  ImageChecklistSectionContent,
   LabeledValue,
-  RawDocumentRef,
-  ReportSection,
-  ResolvedReportSection,
-} from "../types/activity-detail";
+  ReportSectionContent,
+  ReviewSectionContent,
+} from "@/ui";
+import { REVIEW_SECTION_LABELS } from "../constants/review";
+import type { MachineAssetData } from "./asset-mapping";
+import { classifyDocument, INSTALLATION_IMAGE_PREFIX, REPORT_DOCUMENT_TYPES } from "./facility-documents";
+import type {
+  ActivityBillOfMaterial,
+  ActivityBomComponent,
+  ActivityFacilityRow,
+  ActivityTransaction,
+  ActivityWorkflowEntry,
+} from "../services/activity-detail";
+import type { ActivityDetail } from "../types/activity-detail";
 
-/** Per-asset-item photo documents are tagged with this prefix — verified
- * against a real asset-registry response by the facility asset tab's own
- * filter/spec lookup. */
-const ASSET_PHOTO_DOCUMENT_TYPE_PREFIX = "ASSET_PHOTO";
+// Mirrors ir's utils/activity-review-mapping.ts — this is the eu analogue of
+// buildActivityReviewDetail, producing the same shared display shapes
+// (@/ui's ActivityInfoCardFields/ActivityAuditCheckpoint/ReviewSectionContent)
+// from the same backend data, minus anything review-action-only (no
+// ReviewActivity, no workflowDocuments — eu never submits a decision).
 
-/** The completion-report's whole-document types — the best-available
- * convention agreed on by every implementation of this report seen so far,
- * though not yet checked against a real populated sample. */
-const REPORT_DOCUMENT_TYPES = {
-  supportingReport: "INSTALLATION_REPORT",
-  completionCertificate: "INSTALLATION_COMPLETION_CERTIFICATE",
-  assetHandoverDocument: "ASSET_HANDOVER_DOCUMENT",
-} as const;
+export function humanize(id: string): string {
+  return id
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 function formatEpochDate(epochMs: number): string {
   const date = new Date(epochMs);
@@ -32,126 +43,224 @@ function formatEpochDate(epochMs: number): string {
   return `${month}/${day}/${date.getFullYear()}`;
 }
 
-export function buildActivityInfo(row: ActivityFacilityRow): ActivityInfo {
-  const activityFacility = row.activityFacility;
-  return {
-    facilityName: activityFacility?.facility?.facility_name,
-    activityType: activityFacility?.activityType,
-    projectCode: activityFacility?.fieldPlan?.project?.name,
-    fieldPlanCode: activityFacility?.fieldPlan?.name,
-  };
-}
-
-/** The workflow list already comes back newest-first, so the timeline renders in that same order without re-sorting. */
-export function buildAuditTrail(workflow: ActivityWorkflowEntry[] | undefined): AuditCheckpoint[] {
-  return (workflow ?? []).map((entry, index) => ({
-    id: entry.id ?? `checkpoint-${index}`,
-    status: entry.state?.applicationStatus ?? "-",
-    date: entry.auditDetails?.createdTime ? formatEpochDate(entry.auditDetails.createdTime) : "-",
-    actorName: entry.assigner?.name,
-    comment: entry.comment,
+function toAssetItems(components: ActivityBomComponent[]): AssetItem[] {
+  return components.map((component, index) => ({
+    itemNumber: component.slNo ?? index + 1,
+    label: component.product,
+    capacity: component.capacity,
+    quantity: component.quantity,
+    images: [],
   }));
 }
 
-function toDocumentRef(document: { documentType?: string; fileStore?: string }): RawDocumentRef | undefined {
-  return document.fileStore ? { fileStoreId: document.fileStore, documentType: document.documentType } : undefined;
+function documentsForKey(documents: ActivityDocument[], key: string): ActivityDocument[] {
+  return documents.filter((document) => classifyDocument(document).key === key);
 }
 
-/**
- * One section per asset type actually present (no fixed Panel/Battery/Inverter
- * slots) — an asset type with zero rows simply produces no section, and any
- * asset type the backend returns renders, not just a hardcoded solar set.
- */
-export function buildAssetSections(
-  assets: AssetSearchResponseItem[],
-  assetTypeNames: Map<string, string>,
-): AssetSection[] {
-  const grouped = new Map<string, AssetSearchResponseItem[]>();
-  for (const asset of assets) {
-    const assetType = asset.assetTypeID;
-    if (!assetType) continue;
-    grouped.set(assetType, [...(grouped.get(assetType) ?? []), asset]);
+export function buildActivityInfo(row: ActivityFacilityRow): ActivityInfoCardFields {
+  const activityFacility = row.activityFacility;
+  const boundary = activityFacility?.facility?.boundary;
+
+  return {
+    district: boundary?.district ? { code: boundary.district } : undefined,
+    block: boundary?.block ? { code: boundary.block } : undefined,
+    componentType: activityFacility?.componentType ?? "SOLAR",
+    status: activityFacility?.status ?? "SCHEDULED",
+  };
+}
+
+function buildMachineSection(
+  bom: ActivityBillOfMaterial | undefined,
+  machineAssetData: MachineAssetData,
+): AssetSectionContent {
+  const { labelKey, label } = REVIEW_SECTION_LABELS.MACHINE;
+  const specifications: LabeledValue[] = [];
+
+  if (bom?.additionalDetails?.vendorOrgName) {
+    specifications.push({
+      labelKey: "ES_IR_MACHINE_VENDOR_ORG",
+      label: "Vendor",
+      value: bom.additionalDetails.vendorOrgName,
+    });
+  }
+  if (bom?.additionalDetails?.vendorUserName) {
+    specifications.push({
+      labelKey: "ES_IR_MACHINE_INSTALLED_BY",
+      label: "Installed By",
+      value: bom.additionalDetails.vendorUserName,
+    });
+  }
+  if (bom?.reportNumber) {
+    specifications.push({
+      labelKey: "ES_IR_MACHINE_REPORT_NUMBER",
+      label: "Report Number",
+      value: bom.reportNumber,
+    });
   }
 
-  return Array.from(grouped.entries()).map(([assetType, rows]) => {
-    const first = rows[0];
-    const label = assetTypeNames.get(assetType) ?? assetType;
+  const items =
+    machineAssetData.items.length > 0
+      ? machineAssetData.items
+      : toAssetItems(bom?.data?.components ?? []);
 
-    const specifications: LabeledValue[] = [
-      { label: "System", value: first.system || "-" },
-      { label: "Capacity", value: first.assetDetails?.capacity || "-" },
-    ];
+  return {
+    kind: "ASSET",
+    id: "MACHINE",
+    labelKey,
+    label,
+    specifications,
+    specificationsHeading: {
+      labelKey: "ES_IR_MACHINE_INSTALLATION_DETAILS",
+      label: "Installation Details",
+    },
+    details: machineAssetData.details,
+    items,
+    images: [],
+    videos: [],
+    mediaGroups: machineAssetData.mediaGroups,
+  };
+}
 
-    const details: LabeledValue[] = [
-      { label: "Count", value: String(rows.length) },
-      {
-        label: "Warranty Start Date",
-        value: first.warrantyStartDate ? formatEpochDate(new Date(first.warrantyStartDate).getTime()) : "-",
-      },
-      { label: "Warranty Duration", value: first.warrantyDuration ? `${first.warrantyDuration} Years` : "-" },
-      { label: "Brand", value: first.brandID || "-" },
-    ];
+function buildReportSection(bom: ActivityBillOfMaterial | undefined): ReportSectionContent {
+  const { labelKey, label } = REVIEW_SECTION_LABELS.INSTALLATION_COMPLETION_REPORT;
+  const specifications: LabeledValue[] = [];
 
-    const items: AssetItem[] = rows.map((asset, index) => ({
-      itemNumber: index + 1,
-      serialNumber: asset.serialNumber || "-",
-      capacity: asset.assetDetails?.capacity || "-",
-      images: [],
-    }));
+  if (bom?.data?.purchaseOrderNumber) {
+    specifications.push({
+      labelKey: "ES_IR_PURCHASE_ORDER_NUMBER",
+      label: "Purchase Order Number",
+      value: bom.data.purchaseOrderNumber,
+    });
+  }
 
-    const photoDocuments: RawDocumentRef[][] = rows.map((asset) =>
-      (asset.documents ?? [])
-        .filter((document) => document.documentType?.toUpperCase().startsWith(ASSET_PHOTO_DOCUMENT_TYPE_PREFIX))
-        .map(toDocumentRef)
-        .filter((ref): ref is RawDocumentRef => Boolean(ref)),
-    );
+  return {
+    kind: "REPORT",
+    id: "INSTALLATION_COMPLETION_REPORT",
+    labelKey,
+    label,
+    specifications,
+    report: null,
+    supportingDocuments: [],
+  };
+}
 
-    return { id: assetType, label, count: rows.length, specifications, details, items, photoDocuments };
+function buildImageChecklistSections(
+  criteria: InstallationImageCriterion[],
+): ImageChecklistSectionContent[] {
+  return criteria.map((criterion) => ({
+    kind: "IMAGE_CHECKLIST",
+    id: `${INSTALLATION_IMAGE_PREFIX}_${criterion.code}`,
+    label: criterion.description,
+    images: [],
+  }));
+}
+
+function buildSectionReasons(
+  transaction: ActivityTransaction | undefined,
+  reasonOptions: RejectionReasonOption[],
+): AuditSectionReasons[] {
+  if (!transaction?.comments?.length) {
+    return [];
+  }
+
+  const bySection = new Map<string, { reasonLabel: string; comment: string }[]>();
+  for (const comment of transaction.comments) {
+    let parsed: { reasonCode?: string; comment?: string } = {};
+    try {
+      parsed = comment.commentMessage ? JSON.parse(comment.commentMessage) : {};
+    } catch {
+      parsed = { comment: comment.commentMessage };
+    }
+
+    const sectionId = comment.assetType ?? "OTHER";
+    const reasonLabel =
+      reasonOptions.find((option) => option.code === parsed.reasonCode)?.name ??
+      (parsed.reasonCode ? humanize(parsed.reasonCode) : sectionId);
+
+    bySection.set(sectionId, [
+      ...(bySection.get(sectionId) ?? []),
+      { reasonLabel, comment: parsed.comment ?? "" },
+    ]);
+  }
+
+  return Array.from(bySection.entries()).map(([sectionId, reasons]) => ({
+    sectionId,
+    sectionLabel: humanize(sectionId),
+    reasons,
+  }));
+}
+
+export function buildAuditTrail(
+  workflow: ActivityWorkflowEntry[] | undefined,
+  transactions: ActivityTransaction[] | undefined,
+  reasonOptions: RejectionReasonOption[],
+): ActivityAuditCheckpoint[] {
+  const transactionByProcessInstanceId = new Map(
+    (transactions ?? [])
+      .filter((transaction) => transaction.processInstanceId)
+      .map((transaction) => [transaction.processInstanceId as string, transaction]),
+  );
+
+  return (workflow ?? []).map((entry, index) => {
+    const transaction = entry.id ? transactionByProcessInstanceId.get(entry.id) : undefined;
+    const sectionReasons = buildSectionReasons(transaction, reasonOptions);
+
+    return {
+      id: entry.id ?? `checkpoint-${index}`,
+      status: entry.state?.applicationStatus ?? "SCHEDULED",
+      date: entry.auditDetails?.createdTime ? formatEpochDate(entry.auditDetails.createdTime) : "-",
+      actorName: entry.assigner?.name,
+      comment: entry.comment,
+      sectionReasons: sectionReasons.length > 0 ? sectionReasons : undefined,
+    };
   });
 }
 
-export function buildReportSection(latestWorkflowDocuments: ActivityWorkflowEntry["documents"]): ReportSection {
-  const documents = (latestWorkflowDocuments ?? [])
-    .map((document) => toDocumentRef({ documentType: document.documentType, fileStore: document.fileStoreId }))
-    .filter((ref): ref is RawDocumentRef => Boolean(ref))
-    .filter((ref) => (Object.values(REPORT_DOCUMENT_TYPES) as string[]).includes(ref.documentType?.toUpperCase() ?? ""));
+export function buildActivityDetail(
+  row: ActivityFacilityRow,
+  installationImageCriteria: InstallationImageCriterion[],
+  // Real Panel/Battery/Inverter sections sourced from the asset-registry
+  // search (see hooks/use-activity-details.ts + utils/asset-mapping.ts) —
+  // empty for a Machine entry since it doesn't use it (machineAssetData is
+  // its equivalent below).
+  solarAssetSections: AssetSectionContent[],
+  reasonOptions: RejectionReasonOption[],
+  machineAssetData: MachineAssetData,
+): ActivityDetail {
+  const activityFacility = row.activityFacility;
+  const latestWorkflow = row.workflow?.[0];
+  const latestDocuments = (latestWorkflow?.documents ?? []) as ActivityDocument[];
 
-  return { documents };
-}
-
-/** Resolves one asset section's item photos once its file-store ids have been turned into URLs — kept separate from `buildAssetSections` since resolution only happens lazily, on expand. */
-export function resolveAssetItemImages(items: AssetItem[], photoDocuments: RawDocumentRef[][], urlByFileStoreId: Map<string, string>): AssetItem[] {
-  return items.map((item, index) => ({
-    ...item,
-    images: (photoDocuments[index] ?? [])
-      .map((ref) => urlByFileStoreId.get(ref.fileStoreId))
-      .filter((url): url is string => Boolean(url))
-      .map((url) => ({ url })),
-  }));
-}
-
-export function resolveReportSection(
-  section: ReportSection,
-  urlByFileStoreId: Map<string, string>,
-  facilityName: string,
-): ResolvedReportSection {
-  function findDocument(type: string) {
-    const match = section.documents.find((document) => document.documentType?.toUpperCase() === type);
-    const url = match ? urlByFileStoreId.get(match.fileStoreId) : undefined;
-    return url ? { name: `${facilityName}.pdf`, url } : null;
+  const isSolar = activityFacility?.componentType !== "MACHINE";
+  const sections: ReviewSectionContent[] = isSolar
+    ? solarAssetSections
+    : [buildMachineSection(activityFacility?.billOfMaterial, machineAssetData)];
+  sections.push(buildReportSection(activityFacility?.billOfMaterial));
+  if (isSolar) {
+    sections.push(...buildImageChecklistSections(installationImageCriteria));
   }
 
-  const supportingDocuments = section.documents
-    .filter((document) => document.documentType?.toUpperCase() === REPORT_DOCUMENT_TYPES.supportingReport)
-    .map((document) => urlByFileStoreId.get(document.fileStoreId))
-    .filter((url): url is string => Boolean(url))
-    .map((url) => ({ name: `${facilityName}.pdf`, url }));
+  const sectionDocuments: Partial<Record<string, ActivityDocument[]>> = {};
+  for (const section of sections) {
+    if (section.kind === "ASSET") {
+      sectionDocuments[section.id] = documentsForKey(latestDocuments, section.id);
+    } else if (section.kind === "REPORT") {
+      sectionDocuments[section.id] = latestDocuments.filter((document) =>
+        (REPORT_DOCUMENT_TYPES as readonly string[]).includes(document.documentType?.toUpperCase() ?? ""),
+      );
+    } else {
+      const code = section.id.slice(`${INSTALLATION_IMAGE_PREFIX}_`.length).toUpperCase();
+      sectionDocuments[section.id] = latestDocuments.filter((document) => {
+        const classified = classifyDocument(document);
+        return classified.key === INSTALLATION_IMAGE_PREFIX && classified.suffix === code;
+      });
+    }
+  }
 
   return {
-    installationCompletionCertificate: findDocument(REPORT_DOCUMENT_TYPES.completionCertificate),
-    assetHandoverDocument: findDocument(REPORT_DOCUMENT_TYPES.assetHandoverDocument),
-    supportingDocuments,
+    info: buildActivityInfo(row),
+    sections,
+    auditTrail: buildAuditTrail(row.workflow, row.transactions, reasonOptions),
+    sectionDocuments,
   };
 }
-
-export { REPORT_DOCUMENT_TYPES };
