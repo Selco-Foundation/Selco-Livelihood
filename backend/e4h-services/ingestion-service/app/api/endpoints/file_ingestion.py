@@ -2099,7 +2099,8 @@ def process_update_incident_data_response(response, df, idx):
 
 @router.post('/facilitiesValidateData',
              summary='Validate facility Excel file before processing',
-             response_description='Returns validation report Excel with PASSED/FAILED rows')
+             response_description='Returns validation report Excel with PASSED/FAILED rows',
+             responses={502: {"description": "A dependent service could not be reached"}})
 async def validate_facilities_excel_sheet(
         background_tasks: BackgroundTasks,
         facility_file: UploadFile = File(..., description="Excel file containing facility data"),
