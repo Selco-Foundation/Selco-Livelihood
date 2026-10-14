@@ -16,7 +16,7 @@ vi.mock("@/shared", async (importOriginal) => {
   };
 });
 
-import { useModuleI18n } from "@/shared";
+import { employeeHomePath, useAuthStore, useModuleI18n } from "@/shared";
 
 const rootRoute = createRootRoute();
 const { routes, navItems } = createImRoutes(rootRoute, rootRoute);
@@ -75,6 +75,26 @@ describe("createImRoutes", () => {
         }),
       );
       expect(isNotFound(thrown)).toBe(true);
+    });
+  });
+
+  describe("imParentRoute.beforeLoad", () => {
+    it("redirects to Overview when the signed-in user lacks IM access", () => {
+      useAuthStore.setState({ user: { roles: [{ code: "OTHER" }] } });
+
+      const redirected = captureRedirect(() => (imParentRoute.options.beforeLoad as () => void)());
+
+      expect(redirected.options?.to).toBe(employeeHomePath());
+
+      useAuthStore.setState({ user: null });
+    });
+
+    it("does not redirect a user with IM access", () => {
+      useAuthStore.setState({ user: { roles: [{ code: IM_ROLES[0] }] } });
+
+      expect(() => (imParentRoute.options.beforeLoad as () => void)()).not.toThrow();
+
+      useAuthStore.setState({ user: null });
     });
   });
 

@@ -25,6 +25,11 @@ export function hasOrgPocAccess(roles: Roles): boolean {
   return hasAnyRole(roles, ORG_POC_ROLES);
 }
 
+/** Whether the user holds any org-related role at all (super admin or POC). */
+export function hasOrgAccess(roles: Roles): boolean {
+  return hasOrgSuperAdminAccess(roles) || hasOrgPocAccess(roles);
+}
+
 /** Sidebar role lists — an item is shown only to users holding one of these roles. */
 export function superAdminNavRoles(): string[] {
   return [...ORG_SUPER_ADMIN_ROLES];
