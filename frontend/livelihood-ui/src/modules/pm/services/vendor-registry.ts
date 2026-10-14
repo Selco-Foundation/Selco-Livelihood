@@ -1,7 +1,8 @@
+import { postSearch } from "@/shared";
 import type { AuthUser } from "@/shared/stores/auth-store";
-import { BULK_PAGE_SIZE, postSearch } from "../utils/url-params";
+import { BULK_PAGE_SIZE } from "../utils/url-params";
 
-const INSTALLATION_VENDOR_SUB_TYPE = "INSTALLATION_VENDOR";
+const VENDOR_ORG_TYPE = "VENDOR";
 const ACTIVE_ORG_STATUS = "ACTIVE";
 
 export interface VendorOrganisation {
@@ -16,10 +17,8 @@ export interface VendorOrgUser {
 }
 
 interface RawOrganisation {
-  id?: string;
+  id: string;
   name?: string;
-  orgSubType?: string;
-  orgStatus?: string;
 }
 
 interface RawOrgUser {
@@ -29,8 +28,10 @@ interface RawOrgUser {
 }
 
 /**
- * `POST /vendor/organisation/v1/_search` — no boolean `active` field exists on this criteria, only
- * a string `orgStatus`; confirmed live it's `"ACTIVE"`. The response array key is the lowercase
+ * `POST /vendor/organisation/v1/_search` — filtered server-side by `orgType: "VENDOR"` (excludes
+ * PLATFORM orgs) and `orgStatus: "ACTIVE"` (no boolean `active` field exists on this criteria).
+ * `orgSubType` is deprecated and null on every org, so it is neither sent nor read. The response
+ * array key is the lowercase
  * `organisations` (not `Organisations`) — proven live: reading the capitalized key silently
  * returned undefined, so the Vendor Organization dropdown was always empty regardless of data.
  */
@@ -42,13 +43,11 @@ export async function searchVendorOrganisations(
   const data = await postSearch<{ organisations?: RawOrganisation[] }>(
     "/vendor/organisation/v1/_search",
     "SearchCriteria",
-    { tenantId },
+    { tenantId, orgType: VENDOR_ORG_TYPE, orgStatus: ACTIVE_ORG_STATUS },
     { accessToken, user, limit: BULK_PAGE_SIZE },
   );
 
-  return (data.organisations ?? [])
-    .filter((org) => org.id && org.orgSubType === INSTALLATION_VENDOR_SUB_TYPE && org.orgStatus === ACTIVE_ORG_STATUS)
-    .map((org) => ({ code: org.id!, name: org.name ?? org.id! }));
+  return (data.organisations ?? []).map((org) => ({ code: org.id, name: org.name ?? org.id }));
 }
 
 /**

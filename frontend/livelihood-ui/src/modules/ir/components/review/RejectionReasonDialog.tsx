@@ -140,14 +140,14 @@ export function RejectionReasonDialog({
         </div>
         <DialogFooter>
           {isEditing ? (
-            <Button variant="destructive" onClick={handleDelete} className="sm:mr-auto">
+            <Button variant="destructive" size="sm" onClick={handleDelete} className="sm:mr-auto">
               {translateOr(t, "ES_COMMON_DELETE", "Delete")}
             </Button>
           ) : null}
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
             {translateOr(t, "CORE_COMMON_CANCEL", "Cancel")}
           </Button>
-          <Button disabled={!reasonCode} onClick={handleSubmit}>
+          <Button size="sm" disabled={!reasonCode} onClick={handleSubmit}>
             {isEditing
               ? translateOr(t, "ES_COMMON_SAVE", "Save")
               : translateOr(t, "ES_COMMON_ADD", "Add")}

@@ -30,7 +30,7 @@ export function PasswordChangedDialog({ onConfirm }: PasswordChangedDialogProps)
         </p>
 
         <div className="mt-8 flex justify-center">
-          <Button size="lg" onClick={onConfirm}>
+          <Button size="sm" onClick={onConfirm}>
             {translateOr(t, "CORE_COMMON_OK", "OK")}
           </Button>
         </div>

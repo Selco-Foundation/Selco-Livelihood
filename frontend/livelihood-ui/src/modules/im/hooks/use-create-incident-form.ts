@@ -171,11 +171,18 @@ export function useCreateIncidentForm(inboxPath: string) {
 
   const endUserOptions = useMemo(
     () =>
-      facilities.map((facility) => ({
-        code: facility.facilityId,
-        name: facility.facilityPocName,
-      })),
-    [facilities],
+      facilities.map((facility) => {
+        const endUserName = translateOr(
+          t,
+          `BOUNDARY_${facility.boundaryCode}`,
+          facility.facilityPocName
+        );
+        return {
+          code: facility.facilityId,
+          name: endUserName,
+        };
+      }),
+    [facilities, t],
   );
 
   const assetOptions = useMemo(
@@ -183,7 +190,7 @@ export function useCreateIncidentForm(inboxPath: string) {
       assets.map((asset) => {
         const assetName = translateOr(
           t,
-          `ASSETTYPE_${asset.assetTypeId}`,
+          `BOUNDARY_${asset.boundaryCode}`,
           asset.name,
         );
         return {

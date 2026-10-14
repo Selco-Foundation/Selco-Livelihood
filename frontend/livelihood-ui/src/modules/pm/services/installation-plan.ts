@@ -1,4 +1,4 @@
-import { apiClient } from "@/shared";
+import { apiClient, postSearch } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
 import type { AuthUser } from "@/shared/stores/auth-store";
 import type { GeographyDetails } from "../types/project";
@@ -8,7 +8,6 @@ import type {
   InstallationPlanSearchResult,
 } from "../types/installation-plan";
 import { resolveStates } from "../utils/geography";
-import { postSearch } from "../utils/url-params";
 
 const INSTALLATION_ACTIVITY_CODE = "INS";
 const INSTALLATION_REVIEWER_ROLE = "INSTALLATION_REPORT_APPROVER_QC_TEAM";

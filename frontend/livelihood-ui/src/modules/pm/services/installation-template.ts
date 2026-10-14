@@ -1,4 +1,4 @@
-import { extractApiErrorMessage, i18n, translateOr } from "@/shared";
+import { extractApiErrorMessage, i18n, postSearch, translateOr } from "@/shared";
 import type { AuthUser } from "@/shared/stores/auth-store";
 import {
   extractBlobApiErrorMessage,
@@ -9,7 +9,7 @@ import {
   postMultipartExpectingJson,
 } from "../utils/ingestion-request";
 import type { DownloadedFile } from "../utils/file-download";
-import { BULK_PAGE_SIZE, postSearch } from "../utils/url-params";
+import { BULK_PAGE_SIZE } from "../utils/url-params";
 
 /** Carries the server's HTTP status so the UI can tell guidance (4xx) from a fault. */
 export class InstallationTemplateApiError extends IngestionRequestError {}
