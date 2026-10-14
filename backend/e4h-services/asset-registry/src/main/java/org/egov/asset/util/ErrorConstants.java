@@ -18,6 +18,16 @@ public class ErrorConstants {
     public static final String FACILITY_SEARCH_REQUIRED_PARAMS_CODE = "ERR_FACILITY_SEARCH_PARAMS";
     public static final String FACILITY_SEARCH_REQUIRED_PARAMS_MSG = "TenantId and facility is mandatory for facility search.";
 
+    public static final String VENDOR_SERVICE_ERROR_CODE = "ERR_VENDOR_SERVICE";
+    public static final String VENDOR_SERVICE_ERROR_MSG = "Error while fetching the data from vendor registry.";
+
+    public static final String VENDOR_ORG_NOT_FOUND_CODE = "ERR_VENDOR_ORG_NOT_FOUND";
+    public static final String VENDOR_ORG_NOT_VENDOR_CODE = "ERR_NOT_VENDOR_ORG";
+    public static final String VENDOR_ORG_NOT_ACTIVE_CODE = "ERR_VENDOR_ORG_NOT_ACTIVE";
+    public static final String VENDOR_USER_NOT_IN_ORG_CODE = "ERR_VENDOR_USER_NOT_IN_ORG";
+
+    public static final String ASSET_VENDOR_UPDATE_INVALID_CODE = "ERR_ASSET_VENDOR_UPDATE_INVALID";
+
     public static final String KAFKA_PUSH_ERROR_CODE = "ERR_KAFKA_PUSH";
     public static final String KAFKA_PUSH_ERROR_MSG = "Failed to push asset creation event";
 

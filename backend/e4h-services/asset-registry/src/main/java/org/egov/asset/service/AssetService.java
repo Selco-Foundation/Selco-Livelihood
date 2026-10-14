@@ -8,10 +8,15 @@ import org.egov.asset.mapper.DocumentRowMapper;
 import org.egov.asset.repository.AssetRepository;
 import org.egov.asset.util.ErrorConstants;
 import org.egov.asset.util.IdgenUtil;
+import org.egov.asset.util.OrganisationUtil;
 import org.egov.asset.util.ResponseInfoFactory;
 import org.egov.asset.web.models.Asset;
 import org.egov.asset.web.models.AssetCreateRequest;
 import org.egov.asset.web.models.AssetCreateResponse;
+import org.egov.asset.web.models.AssetVendorUpdate;
+import org.egov.asset.web.models.AssetVendorUpdateRequest;
+import org.egov.asset.web.models.AssetVendorUpdateResponse;
+import org.egov.asset.web.models.AssetVendorUpdateResult;
 import org.egov.asset.web.models.Document;
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.tracer.model.CustomException;
@@ -28,6 +33,9 @@ import java.util.stream.IntStream;
 @Slf4j
 public class AssetService {
 
+    /** Upper bound when fetching a group's units; a group is a handful of rows, never a page. */
+    private static final int MAX_UNITS_PER_GROUP = 500;
+
     private final JdbcTemplate jdbcTemplate;
     private final AssetRowMapper assetRowMapper;
     private final DocumentRowMapper documentRowMapper;
@@ -36,6 +44,7 @@ public class AssetService {
     private final ResponseInfoFactory responseInfoFactory;
     private final LivelihoodAssetBoundaryEnricher livelihoodAssetBoundaryEnricher;
     private final AssetLocalizationService assetLocalizationService;
+    private final OrganisationUtil organisationUtil;
 
     @Autowired
     public AssetService(
@@ -46,7 +55,8 @@ public class AssetService {
             AssetRepository assetRepository,
             ResponseInfoFactory responseInfoFactory,
             LivelihoodAssetBoundaryEnricher livelihoodAssetBoundaryEnricher,
-            AssetLocalizationService assetLocalizationService
+            AssetLocalizationService assetLocalizationService,
+            OrganisationUtil organisationUtil
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.assetRowMapper = assetRowMapper;
@@ -56,6 +66,7 @@ public class AssetService {
         this.responseInfoFactory = responseInfoFactory;
         this.livelihoodAssetBoundaryEnricher = livelihoodAssetBoundaryEnricher;
         this.assetLocalizationService = assetLocalizationService;
+        this.organisationUtil = organisationUtil;
     }
 
     /**
@@ -525,6 +536,116 @@ public class AssetService {
 
     private static boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    /**
+     * Repoints one or more asset groups at a new vendor, in a single save.
+     *
+     * <p>Each entry names a group parent; the new vendor is applied to that asset and
+     * to every unit beneath it, because a unit is serviced by whoever services its
+     * parent.
+     *
+     * <p>Everything is validated before anything is written, so one bad vendor cannot
+     * leave another group half-remapped. Note this is not a transaction: each write
+     * is a Kafka message, so a broker failure part-way can still apply some of them.
+     * Re-running the same request is harmless.
+     *
+     * <p>The vendor stored is the vendor <b>user</b> uuid, matching what ingestion
+     * writes, so im-services can assign new tickets straight to that person. Tickets
+     * raised before the change keep their original vendor and are not touched.
+     */
+    public AssetVendorUpdateResponse updateAssetVendors(AssetVendorUpdateRequest request) {
+        List<AssetVendorUpdate> updates = request.getAssetVendorUpdates();
+        if (CollectionUtils.isEmpty(updates)) {
+            throw new CustomException(ErrorConstants.ASSET_VENDOR_UPDATE_INVALID_CODE,
+                    "At least one asset vendor update is required");
+        }
+
+        Set<String> seenAssetIds = new LinkedHashSet<>();
+        for (AssetVendorUpdate update : updates) {
+            if (!seenAssetIds.add(update.getAssetId())) {
+                throw new CustomException(ErrorConstants.ASSET_VENDOR_UPDATE_INVALID_CODE,
+                        "Asset " + update.getAssetId() + " appears more than once in the request");
+            }
+        }
+
+        RequestInfo requestInfo = request.getRequestInfo();
+        String tenantId = request.getTenantId();
+
+        // --- validate everything first -------------------------------------------
+        Map<String, List<Asset>> groupsByAssetId = new LinkedHashMap<>();
+        Set<String> validatedVendors = new HashSet<>();
+
+        for (AssetVendorUpdate update : updates) {
+            Asset parent = getAssetById(tenantId, update.getAssetId());
+            String resolvedTenantId = tenantId != null && !tenantId.isBlank()
+                    ? tenantId : parent.getTenantId();
+
+            // One validation per distinct vendor, not per group.
+            String vendorKey = update.getOrganisationId() + "|" + update.getVendorId();
+            if (validatedVendors.add(vendorKey)) {
+                organisationUtil.validateVendorUser(requestInfo, resolvedTenantId,
+                        update.getOrganisationId(), update.getVendorId());
+            }
+
+            List<Asset> group = new ArrayList<>();
+            group.add(parent);
+            group.addAll(findUnits(resolvedTenantId, parent.getAssetId()));
+            groupsByAssetId.put(update.getAssetId(), group);
+        }
+
+        // --- then write ------------------------------------------------------------
+        String updatedBy = requestInfo != null && requestInfo.getUserInfo() != null
+                ? requestInfo.getUserInfo().getUserName() : null;
+        long updatedAt = System.currentTimeMillis();
+
+        List<AssetVendorUpdateResult> results = new ArrayList<>();
+        for (AssetVendorUpdate update : updates) {
+            List<Asset> group = groupsByAssetId.get(update.getAssetId());
+            List<String> updatedAssetIds = new ArrayList<>();
+
+            for (Asset asset : group) {
+                asset.setVendorId(update.getVendorId());
+                applyAudit(asset, updatedBy, updatedAt);
+                // children is request/response only; leave it off the persisted payload
+                asset.setChildren(null);
+                assetRepository.pushUpdateAsset(asset);
+                updatedAssetIds.add(asset.getAssetId());
+            }
+
+            log.info("Remapped asset group {} to vendor user {} (org {}), {} asset(s) updated",
+                    update.getAssetId(), update.getVendorId(), update.getOrganisationId(),
+                    updatedAssetIds.size());
+
+            results.add(AssetVendorUpdateResult.builder()
+                    .assetId(update.getAssetId())
+                    .vendorId(update.getVendorId())
+                    .organisationId(update.getOrganisationId())
+                    .updatedAssetIds(updatedAssetIds)
+                    .build());
+        }
+
+        return AssetVendorUpdateResponse.builder()
+                .responseInfo(responseInfoFactory.createResponseInfoFromRequestInfo(requestInfo, true))
+                .assetVendorUpdates(results)
+                .build();
+    }
+
+    /** The units of a group. Empty for a standalone asset, which is not an error. */
+    private List<Asset> findUnits(String tenantId, String parentAssetId) {
+        Asset criteria = Asset.builder().tenantId(tenantId).parentId(parentAssetId).build();
+        List<Asset> units = searchAssets(criteria, MAX_UNITS_PER_GROUP, 0);
+        return units == null ? List.of() : units;
+    }
+
+    private void applyAudit(Asset asset, String updatedBy, long updatedAt) {
+        AuditDetails auditDetails = asset.getAuditDetails();
+        if (auditDetails == null) {
+            auditDetails = AuditDetails.builder().build();
+            asset.setAuditDetails(auditDetails);
+        }
+        auditDetails.setLastModifiedBy(updatedBy);
+        auditDetails.setLastModifiedTime(updatedAt);
     }
 
     private String createQuery(Collection<String> ids) {

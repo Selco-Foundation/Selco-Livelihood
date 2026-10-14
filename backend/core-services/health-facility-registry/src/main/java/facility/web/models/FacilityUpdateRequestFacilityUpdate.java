@@ -130,6 +130,10 @@ public class FacilityUpdateRequestFacilityUpdate {
     @JsonProperty("isOnmReady")
     private Boolean isOnmReady;
 
+    @Schema(name = "endUserType", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @JsonProperty("endUserType")
+    private String endUserType;
+
 //    @Schema(name = "user_id", accessMode = Schema.AccessMode.READ_ONLY, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     @JsonProperty("user_id")
     private String userId;

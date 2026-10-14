@@ -124,4 +124,13 @@ public class Configuration {
 
     @Value("${egov.localization.tenant.id:livelihood}")
     private String localizationTenantId;
+
+    @Value("${egov.organisation.host}")
+    private String organisationHost;
+
+    @Value("${egov.organisation.search.path:/vendor/organisation/v1/_search}")
+    private String organisationSearchPath;
+
+    @Value("${egov.organisation.user.search.path:/vendor/organisation/v1/user/_search}")
+    private String organisationUserSearchPath;
 }
