@@ -1,3 +1,4 @@
+import '../model/installation_progress.dart';
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:digit_ui_components/widgets/atoms/digit_divider.dart';
@@ -141,13 +142,15 @@ class _NewReportActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<double>(
-      future: workflow.installationProgress(),
+    return FutureBuilder<InstallationProgress>(
+      future: workflow.installationState(),
       builder: (context, snapshot) {
         // Defaults to 0 while loading — never shows a stale/full bar before
         // the local cache-derived fraction resolves.
         return _NewReportProgress(
-          progress: snapshot.data ?? 0.0,
+          progress: snapshot.data ??
+              const InstallationProgress(
+                  hasStarted: false, fraction: 0, canSubmit: false),
           onAction: onAction,
         );
       },
@@ -158,14 +161,14 @@ class _NewReportActions extends StatelessWidget {
 class _NewReportProgress extends StatelessWidget {
   const _NewReportProgress({required this.progress, required this.onAction});
 
-  final double progress;
+  final InstallationProgress progress;
   final VoidCallback onAction;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final textTheme = theme.digitTextTheme(context);
-    final percent = (progress * 100).round();
+    final percent = (progress.fraction * 100).round();
 
     return Column(
       children: [
@@ -182,7 +185,7 @@ class _NewReportProgress extends StatelessWidget {
                   valueColor: AlwaysStoppedAnimation<Color>(
                     theme.colorTheme.alert.success,
                   ),
-                  value: progress,
+                  value: progress.fraction,
                   minHeight: spacer3,
                 ),
               ),
@@ -199,7 +202,7 @@ class _NewReportProgress extends StatelessWidget {
         DigitButton(
           key: const ValueKey('start-resume-report-button'),
           mainAxisSize: MainAxisSize.max,
-          label: percent > 0
+          label: progress.hasStarted
               ? context.translate(
                   i18.installationReportHome.resumeInstallationReport)
               : context.translate(
@@ -215,7 +218,7 @@ class _NewReportProgress extends StatelessWidget {
           label:
               context.translate(i18.installationReportHome.submitForApproval),
           onPressed: onAction,
-          isDisabled: percent < 100,
+          isDisabled: !progress.canSubmit,
           type: DigitButtonType.secondary,
           size: DigitButtonSize.large,
         ),

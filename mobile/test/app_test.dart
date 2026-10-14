@@ -1344,8 +1344,8 @@ void main() {
     setMobileViewport(tester, const Size(390, 844));
 
     void expectComponentTypes() {
-      expect(find.byKey(const ValueKey('facility-component-type')),
-          findsNothing);
+      expect(
+          find.byKey(const ValueKey('facility-component-type')), findsNothing);
       expect(find.text('Type'), findsNothing);
       expect(find.text('Rajesh Kumar - Solar'), findsOneWidget);
       expect(find.text('Sunita Sharma - Machine'), findsOneWidget);
@@ -3188,6 +3188,38 @@ void main() {
       find.byKey(const ValueKey('solar-footer-submit')),
     );
     expect(submit.isDisabled, isFalse);
+  });
+
+  testWidgets(
+      'machine edits return to the list through header and Android Back',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 844));
+    for (final systemBack in [false, true]) {
+      await pumpAuthenticatedRoute(tester, const NewReportFacilitiesRoute());
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -900));
+      await tester.pumpAndSettle();
+      await tester
+          .tap(find.byKey(const ValueKey('start-resume-report-button')).last);
+      await tester.pumpAndSettle();
+      final serial = find.byKey(const ValueKey('machine-serial-field'));
+      await tester.ensureVisible(serial);
+      await tester.enterText(serial, 'SN-1');
+      await tester.enterText(serial, 'SN-2');
+      if (systemBack) {
+        await tester.binding.handlePopRoute();
+      } else {
+        await tester.drag(find.byType(CustomScrollView), const Offset(0, 1000));
+        await tester.pumpAndSettle();
+        final back = find.byKey(const ValueKey('report-back-button'));
+        await tester.ensureVisible(back);
+        await tester.tap(back);
+      }
+      await tester.pumpAndSettle();
+      expect(find.byType(MachineFormPage), findsNothing);
+      expect(find.byKey(const ValueKey('facility-list-newReport')),
+          findsOneWidget);
+      await tester.pump(const Duration(seconds: 3));
+    }
   });
 
   testWidgets('machine form renders its DIGIT fields and fixed actions', (

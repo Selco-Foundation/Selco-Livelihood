@@ -465,17 +465,18 @@ class _FacilityListPageState extends State<_FacilityListPage> {
     });
   }
 
-  void _handleFacilityAction(
-      BuildContext context, ActivityFacilityWorkflow workflow) {
+  Future<void> _handleFacilityAction(
+      BuildContext context, ActivityFacilityWorkflow workflow) async {
     final mode = widget.mode;
     final category = workflow.resolvedAssetCategory;
 
     if (category == FacilityAssetCategory.machine) {
-      context.router.push(MachineFormRoute(
+      await context.router.push(MachineFormRoute(
         workflow: workflow,
         readOnly: mode == FacilityReportMode.pendingApproval ||
             mode == FacilityReportMode.approved,
       ));
+      if (mounted) setState(() {});
       return;
     }
     final solarMode = switch (mode) {

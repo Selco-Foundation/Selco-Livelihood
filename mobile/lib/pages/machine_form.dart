@@ -1,3 +1,4 @@
+import '../model/installation_progress.dart';
 import 'dart:async';
 
 import 'package:digit_ui_components/digit_components.dart';
@@ -119,17 +120,35 @@ class _MachineFormPageState extends State<MachineFormPage> {
     if (mounted) setState(() => _schemaLoaded = true);
   }
 
-  bool get _formComplete {
-    final schema = _schema;
-    if (schema == null) return false;
-    return schema.fields.every((field) {
-      if (field.isMedia) {
-        final media = _mediaFor(field.fieldName);
-        return field.mediaCountComplete(media.length) && documentsReady(media);
+  bool get _formComplete => machineInstallationProgress(
+        schema: _schema,
+        values: _formValues,
+        media: _formMedia,
+      ).canSubmit;
+
+  Future<void> _pendingSave = Future.value();
+  bool _allowPop = false;
+  bool _leaving = false;
+
+  Future<void> _leave() async {
+    if (_leaving) return;
+    _leaving = true;
+    // Edits may enqueue another snapshot while an earlier write is pending.
+    Future<void> saving;
+    do {
+      saving = _pendingSave;
+      await saving;
+    } while (!identical(saving, _pendingSave));
+    if (!mounted) return;
+    setState(() => _allowPop = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (mounted) await context.router.maybePop();
+      if (mounted) {
+        setState(() {
+          _allowPop = false;
+          _leaving = false;
+        });
       }
-      if (!field.requiredField) return true;
-      if (field.type == 'boolean') return true;
-      return _textValue(field.fieldName).trim().isNotEmpty;
     });
   }
 
@@ -302,7 +321,8 @@ class _MachineFormPageState extends State<MachineFormPage> {
       };
 
   Future<void> _loadDraft() async {
-    final shouldHydrateAsset = widget.readOnly || _workflowMode == 'resubmission';
+    final shouldHydrateAsset =
+        widget.readOnly || _workflowMode == 'resubmission';
     if (shouldHydrateAsset && _cacheKey.isNotEmpty) {
       final assets = await assetRepository.search(_cacheKey);
       if (assets.isNotEmpty) {
@@ -341,26 +361,24 @@ class _MachineFormPageState extends State<MachineFormPage> {
         // fileStoreId) so an unmodified/replaced photo still round-trips its
         // id instead of silently going out as a brand-new document.
         final backendMedia = _mediaByField[field.fieldName] ?? const [];
-        _mediaByField[field.fieldName] = (media[field.fieldName] as List)
-            .whereType<Map>()
-            .map((value) {
-              var file = SolarFileRef.fromJson(
-                Map<String, dynamic>.from(value),
-              ).copyWith(displayTitle: field.title);
-              if (file.id?.trim().isNotEmpty != true) {
-                final match = backendMedia.cast<SolarFileRef?>().firstWhere(
-                      (item) =>
-                          item?.remoteId?.isNotEmpty == true &&
-                          item?.remoteId == file.remoteId,
-                      orElse: () => null,
-                    );
-                if (match?.id?.trim().isNotEmpty == true) {
-                  file = file.copyWith(id: match!.id);
-                }
-              }
-              return file;
-            })
-            .toList();
+        _mediaByField[field.fieldName] =
+            (media[field.fieldName] as List).whereType<Map>().map((value) {
+          var file = SolarFileRef.fromJson(
+            Map<String, dynamic>.from(value),
+          ).copyWith(displayTitle: field.title);
+          if (file.id?.trim().isNotEmpty != true) {
+            final match = backendMedia.cast<SolarFileRef?>().firstWhere(
+                  (item) =>
+                      item?.remoteId?.isNotEmpty == true &&
+                      item?.remoteId == file.remoteId,
+                  orElse: () => null,
+                );
+            if (match?.id?.trim().isNotEmpty == true) {
+              file = file.copyWith(id: match!.id);
+            }
+          }
+          return file;
+        }).toList();
       }
     }
     if (mounted) setState(() {});
@@ -418,14 +436,17 @@ class _MachineFormPageState extends State<MachineFormPage> {
 
   Future<void> _save() {
     if (_cacheKey.isEmpty) return Future.value();
-    return installationCacheRepository.putJson('machine-draft', _cacheKey, {
+    final snapshot = <String, dynamic>{
       ..._formValues,
       if (_assetId?.trim().isNotEmpty == true) 'assetId': _assetId,
       'media': {
         for (final entry in _formMedia.entries)
           entry.key: entry.value.map((media) => media.toJson()).toList(),
       },
-    });
+    };
+    _pendingSave = _pendingSave.then((_) => installationCacheRepository.putJson(
+        'machine-draft', _cacheKey, snapshot));
+    return _pendingSave;
   }
 
   void _saveSoon() {
@@ -713,29 +734,35 @@ class _MachineFormPageState extends State<MachineFormPage> {
     final theme = Theme.of(context);
     final textTheme = theme.digitTextTheme(context);
 
-    return BlocConsumer<AssetSubmissionBloc, AssetSubmissionState>(
-      listener: (context, state) {
-        if (state is AssetSubmissionSuccess) {
-          context.read<AssetSubmissionBloc>().add(const DismissSubmission());
-          context.router.push(MachineReportSuccessRoute(
-              mode: MachineReportSuccessMode.submitted));
-        }
+    return PopScope(
+      canPop: _allowPop,
+      onPopInvoked: (didPop) {
+        if (!didPop) unawaited(_leave());
       },
-      builder: (context, state) => Stack(
-        children: [
-          _buildScaffold(context, theme, textTheme),
-          OperationProgressOverlay(
-            progress: switch (state) {
-              AssetSubmissionInProgress(:final progress) => progress,
-              AssetSubmissionFailure(:final progress) => progress,
-              _ => null,
-            },
-            onRetry: _onRetrySubmit,
-            onClose: () => context
-                .read<AssetSubmissionBloc>()
-                .add(const DismissSubmission()),
-          ),
-        ],
+      child: BlocConsumer<AssetSubmissionBloc, AssetSubmissionState>(
+        listener: (context, state) {
+          if (state is AssetSubmissionSuccess) {
+            context.read<AssetSubmissionBloc>().add(const DismissSubmission());
+            context.router.push(MachineReportSuccessRoute(
+                mode: MachineReportSuccessMode.submitted));
+          }
+        },
+        builder: (context, state) => Stack(
+          children: [
+            _buildScaffold(context, theme, textTheme),
+            OperationProgressOverlay(
+              progress: switch (state) {
+                AssetSubmissionInProgress(:final progress) => progress,
+                AssetSubmissionFailure(:final progress) => progress,
+                _ => null,
+              },
+              onRetry: _onRetrySubmit,
+              onClose: () => context
+                  .read<AssetSubmissionBloc>()
+                  .add(const DismissSubmission()),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -762,7 +789,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
           enableFixedDigitButton: !widget.readOnly,
           backgroundColor: theme.colorTheme.generic.background,
           header: ReportNavigationHeader(
-            onBackPressed: () => context.router.maybePop(),
+            onBackPressed: _leave,
           ),
           footer: widget.readOnly
               ? null

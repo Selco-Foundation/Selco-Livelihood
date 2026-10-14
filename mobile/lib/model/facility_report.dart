@@ -1,3 +1,7 @@
+import 'installation_progress.dart';
+import 'solar_installation_draft.dart';
+import '../repositories/installation_cache_repo.dart';
+import '../repositories/asset_mdms_repository.dart';
 import '../repositories/asset_progress_repo.dart';
 import '../utils/boundary_code.dart';
 import 'activity_facility_workflow/activity_facility_workflow.dart';
@@ -50,6 +54,49 @@ extension FacilityReportPresentation on ActivityFacilityWorkflow {
     final id = activityFacility.id;
     if (id == null) return Future.value(0.0);
     return assetProgressRepository.fractionFor(id);
+  }
+
+  Future<InstallationProgress> installationState() async {
+    if (resolvedAssetCategory == FacilityAssetCategory.solar) {
+      final fraction = await installationProgress();
+      return InstallationProgress(
+          hasStarted: fraction > 0,
+          fraction: fraction,
+          canSubmit: fraction >= 1);
+    }
+    dynamic raw;
+    try {
+      raw = await installationCacheRepository
+          .getJson('machine-draft', activityFacilityCacheKey)
+          .timeout(const Duration(seconds: 2));
+    } catch (_) {
+      return const InstallationProgress(
+          hasStarted: false, fraction: 0, canSubmit: false);
+    }
+    final values = raw is Map ? Map<String, dynamic>.from(raw) : null;
+    try {
+      await assetMdmsRepository.load().timeout(const Duration(seconds: 2));
+    } catch (_) {
+      return InstallationProgress(
+          hasStarted: values != null, fraction: 0, canSubmit: false);
+    }
+    final rawMedia = values?['media'];
+    final media = <String, List<SolarFileRef>>{};
+    if (rawMedia is Map) {
+      for (final entry in rawMedia.entries) {
+        if (entry.value is List) {
+          media[entry.key.toString()] = (entry.value as List)
+              .whereType<Map>()
+              .map((item) =>
+                  SolarFileRef.fromJson(Map<String, dynamic>.from(item)))
+              .toList();
+        }
+      }
+    }
+    return machineInstallationProgress(
+        schema: assetMdmsRepository.machineFormSchema,
+        values: values,
+        media: media);
   }
 
   FacilityAssetCategory get resolvedAssetCategory =>
