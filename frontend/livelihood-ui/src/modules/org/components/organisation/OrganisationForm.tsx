@@ -1,8 +1,8 @@
 import { translateOr, useTranslate } from "@/shared";
+import { PasswordField } from "@/ui";
 import { useOrganisationForm } from "../../hooks/use-organisation-form";
 import { ORG_STATUSES, type OrgType } from "../../types/organisation";
 import { FormSelectField, type SelectOption } from "../form/FormSelectField";
-import { PasswordField } from "../form/PasswordField";
 import { TextField } from "../form/TextField";
 import { orgStatusLabel } from "../OrgStatusBadge";
 

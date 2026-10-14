@@ -92,7 +92,7 @@ export function OrgUserTable({ users, isLoading, groupsForRoleCodes, onAdd, onEd
                               <Button
                                 type="button"
                                 variant="ghost"
-                                size="icon"
+                                size="icon-sm"
                                 aria-label={translateOr(t, "CORE_COMMON_EDIT", "Edit")}
                                 onClick={() => onEdit(user)}
                               >
@@ -106,7 +106,7 @@ export function OrgUserTable({ users, isLoading, groupsForRoleCodes, onAdd, onEd
                               <Button
                                 type="button"
                                 variant="ghost"
-                                size="icon"
+                                size="icon-sm"
                                 aria-label={translateOr(t, "CORE_COMMON_DELETE", "Delete")}
                                 className="text-destructive hover:text-destructive"
                                 onClick={() => onDelete(user)}
@@ -127,7 +127,8 @@ export function OrgUserTable({ users, isLoading, groupsForRoleCodes, onAdd, onEd
         </div>
       )}
 
-      {users.length > pageSize || safeOffset > 0 ? (
+      {/* Always shown once there are users — same as the organisation list. */}
+      {users.length > 0 ? (
         <Pagination
           currentPage={Math.floor(safeOffset / pageSize)}
           totalRecords={users.length}

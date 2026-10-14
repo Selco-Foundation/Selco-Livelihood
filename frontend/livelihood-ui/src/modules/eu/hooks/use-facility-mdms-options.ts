@@ -13,7 +13,7 @@ function sortByName(options: FacilityMasterOption[]): FacilityMasterOption[] {
 }
 
 /**
- * The `facility.FacilityCategory` / `facility.FacilityType` / `facility.SolarSolutionDesignType`
+ * The `facility.FacilityCategory` / `facility.FacilityType` / `facility.EndUserType`
  * MDMS masters used for the create/edit form's dropdowns. The master key stays
  * `FacilityType` — only its UI label changes (to "Sector") in this module's form.
  */
@@ -28,7 +28,7 @@ export function useFacilityMdmsOptions() {
       fetchMdmsMasters(
         tenantId(),
         "facility",
-        ["FacilityCategory", "FacilityType", "SolarSolutionDesignType"],
+        ["FacilityCategory", "FacilityType", "EndUserType"],
         accessToken ?? undefined,
         user,
       ),
@@ -38,8 +38,6 @@ export function useFacilityMdmsOptions() {
     isLoading,
     facilityCategories: sortByName((data?.FacilityCategory as FacilityMasterOption[]) ?? []),
     facilityTypes: sortByName((data?.FacilityType as FacilityMasterOption[]) ?? []),
-    solarSolutionDesignTypes: sortByName(
-      (data?.SolarSolutionDesignType as FacilityMasterOption[]) ?? [],
-    ),
+    endUserTypes: sortByName((data?.EndUserType as FacilityMasterOption[]) ?? []),
   };
 }

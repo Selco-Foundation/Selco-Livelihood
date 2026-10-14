@@ -41,7 +41,7 @@ export function InboxSearch({ onSearch, initialApplicationNumber = "" }: InboxSe
           />
         </div>
         <div className="flex items-center gap-3">
-          <Button type="submit" size="lg">
+          <Button type="submit" size="sm">
             {translateOr(t, "ES_COMMON_SEARCH", "Search")}
           </Button>
           <button

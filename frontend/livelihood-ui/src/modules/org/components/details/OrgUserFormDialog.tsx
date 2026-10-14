@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogScrim,
   DialogTitle,
+  PasswordField,
   toast,
   useBodyScrollLock,
 } from "@/ui";
@@ -15,7 +16,6 @@ import { useOrgRoleGroups } from "../../hooks/use-org-role-groups";
 import { useOrgUserForm } from "../../hooks/use-org-user-form";
 import { useCreateOrgUser, useUpdateOrgUser } from "../../hooks/use-org-users";
 import { roleGroupId, type Organisation, type OrgUser } from "../../types/organisation";
-import { PasswordField } from "../form/PasswordField";
 import { RoleMultiSelect } from "../form/RoleMultiSelect";
 import { TextField } from "../form/TextField";
 import { JurisdictionSection } from "./JurisdictionSection";
@@ -207,10 +207,10 @@ export function OrgUserFormDialog({
         <JurisdictionSection jurisdictions={form.jurisdictions} />
 
         <DialogFooter>
-          <Button type="button" variant="outline" size="lg" disabled={isPending} onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" size="sm" disabled={isPending} onClick={() => onOpenChange(false)}>
             {translateOr(t, "CORE_COMMON_CANCEL", "Cancel")}
           </Button>
-          <Button type="button" size="lg" disabled={isPending} onClick={handleSubmit}>
+          <Button type="button" size="sm" disabled={isPending} onClick={handleSubmit}>
             {isPending ? translateOr(t, "CORE_COMMON_SAVING", "Saving...") : translateOr(t, "CORE_COMMON_SAVE", "Save")}
           </Button>
         </DialogFooter>

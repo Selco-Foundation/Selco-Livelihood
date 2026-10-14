@@ -1,7 +1,4 @@
-// Temporary: LIVELIHOOD_POC is included alongside END_USER_ADMIN while the
-// backend role addition is pending. Remove LIVELIHOOD_POC once END_USER_ADMIN
-// is live server-side (tracked outside this module).
-export const EU_ROLES = ["END_USER_ADMIN", "LIVELIHOOD_POC"] as const;
+export const EU_ROLES = ["END_USER_ADMIN", "ORG_PLATFORM_ADMIN"] as const;
 
 export function hasEuAccess(roles: Array<{ code?: string }> | undefined): boolean {
   if (!roles?.length) {

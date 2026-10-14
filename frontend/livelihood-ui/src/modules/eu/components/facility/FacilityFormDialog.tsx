@@ -103,10 +103,10 @@ export function FacilityFormDialog({ open, onOpenChange, facility }: FacilityFor
         <FacilityForm form={form} />
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
             {translateOr(t, "CORE_COMMON_CANCEL", "Cancel")}
           </Button>
-          <Button type="button" disabled={isPending} onClick={handleSubmit}>
+          <Button type="button" size="sm" disabled={isPending} onClick={handleSubmit}>
             {translateOr(t, "CORE_COMMON_SAVE", "Save")}
           </Button>
         </DialogFooter>

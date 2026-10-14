@@ -23,11 +23,12 @@ export function ReviewActionBar({
 
   return (
     <div className="flex items-center justify-end gap-3 border-t border-border pt-4">
-      <Button variant="outline" disabled={hasAnyReason || isSubmitting} onClick={onApprove}>
+      <Button variant="outline" size="sm" disabled={hasAnyReason || isSubmitting} onClick={onApprove}>
         {translateOr(t, "ES_IR_APPROVE", "Approve")}
       </Button>
       <Button
         variant="destructive"
+        size="sm"
         disabled={!hasAnyReason || isSubmitting}
         onClick={onReject}
       >

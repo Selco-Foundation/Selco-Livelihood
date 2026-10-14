@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { createRootRoute } from "@tanstack/react-router";
+import { createRootRoute, isNotFound } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { IrKpis } from "./components/IrOverview";
@@ -22,7 +22,7 @@ vi.mock("@/shared", async (importOriginal) => {
   };
 });
 
-import { useModuleI18n } from "@/shared";
+import { employeeHomePath, useAuthStore, useModuleI18n } from "@/shared";
 
 const rootRoute = createRootRoute();
 const { routes, navItems } = createIrRoutes(rootRoute, rootRoute);
@@ -49,6 +49,17 @@ function captureRedirect(fn: () => unknown): { options?: { to?: string } } {
   }
 }
 
+function captureNotFound(fn: () => unknown): unknown {
+  try {
+    fn();
+    throw new Error("expected notFound() to be thrown");
+  } catch (thrown) {
+    return thrown;
+  }
+}
+
+type BeforeLoad = (ctx: { location: { pathname: string } }) => void;
+
 describe("createIrRoutes", () => {
   it("builds the installation-plans, activities, and activity-review paths", () => {
     expect(pathOf(irIndexRoute)).toBe(irRootPath);
@@ -58,9 +69,40 @@ describe("createIrRoutes", () => {
   });
 
   describe("irIndexRoute", () => {
-    it("always redirects to the installation-plans path", () => {
-      const redirected = captureRedirect(() => (irIndexRoute.options.beforeLoad as () => void)());
+    it("redirects to the installation-plans path for an exact match", () => {
+      const redirected = captureRedirect(() =>
+        (irIndexRoute.options.beforeLoad as BeforeLoad)({ location: { pathname: irRootPath } }),
+      );
       expect(redirected.options?.to).toBe(installationPlansPath);
+    });
+
+    it("falls through to not-found instead of redirecting for an unmatched sub-path", () => {
+      const thrown = captureNotFound(() =>
+        (irIndexRoute.options.beforeLoad as BeforeLoad)({
+          location: { pathname: `${irRootPath}/does-not-exist` },
+        }),
+      );
+      expect(isNotFound(thrown)).toBe(true);
+    });
+  });
+
+  describe("irParentRoute.beforeLoad", () => {
+    it("redirects to Overview when the signed-in user lacks IR access", () => {
+      useAuthStore.setState({ user: { roles: [{ code: "OTHER" }] } });
+
+      const redirected = captureRedirect(() => (irParentRoute.options.beforeLoad as () => void)());
+
+      expect(redirected.options?.to).toBe(employeeHomePath());
+
+      useAuthStore.setState({ user: null });
+    });
+
+    it("does not redirect a user with IR access", () => {
+      useAuthStore.setState({ user: { roles: [{ code: IR_ROLES[0] }] } });
+
+      expect(() => (irParentRoute.options.beforeLoad as () => void)()).not.toThrow();
+
+      useAuthStore.setState({ user: null });
     });
   });
 

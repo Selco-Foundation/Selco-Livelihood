@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { createRootRoute } from "@tanstack/react-router";
+import { createRootRoute, isNotFound } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PM_ROUTES } from "./constants/routes";
@@ -43,6 +43,17 @@ function captureRedirect(fn: () => unknown): { options?: { to?: string } } {
   }
 }
 
+function captureNotFound(fn: () => unknown): unknown {
+  try {
+    fn();
+    throw new Error("expected notFound() to be thrown");
+  } catch (thrown) {
+    return thrown;
+  }
+}
+
+type BeforeLoad = (ctx: { location: { pathname: string } }) => void;
+
 describe("createPmModule routes", () => {
   it("builds every PM path under the configured context path", () => {
     expect(pathOf(pmIndexRoute)).toBe(pmRootPath);
@@ -53,9 +64,20 @@ describe("createPmModule routes", () => {
   });
 
   describe("pmIndexRoute", () => {
-    it("always redirects to My Projects", () => {
-      const redirected = captureRedirect(() => (pmIndexRoute.options.beforeLoad as () => void)());
+    it("redirects to My Projects for an exact match", () => {
+      const redirected = captureRedirect(() =>
+        (pmIndexRoute.options.beforeLoad as BeforeLoad)({ location: { pathname: pmRootPath } }),
+      );
       expect(redirected.options?.to).toBe(myProjectsPath);
+    });
+
+    it("falls through to not-found instead of redirecting for an unmatched sub-path", () => {
+      const thrown = captureNotFound(() =>
+        (pmIndexRoute.options.beforeLoad as BeforeLoad)({
+          location: { pathname: `${pmRootPath}/does-not-exist` },
+        }),
+      );
+      expect(isNotFound(thrown)).toBe(true);
     });
   });
 

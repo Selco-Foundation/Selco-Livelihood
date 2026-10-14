@@ -1,6 +1,6 @@
-import { contextPath, translateOr, useModuleI18n, useTranslate } from "@/shared";
+import { contextPath, employeeHomePath, translateOr, useAuthStore, useModuleI18n, useTranslate } from "@/shared";
 import type { AnyRoute } from "@tanstack/react-router";
-import { createRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createRoute, notFound, Outlet, redirect } from "@tanstack/react-router";
 import { Building2, MapPinned } from "lucide-react";
 import { EuKpis } from "./components/EuOverview";
 import { EU_ROUTES } from "./constants/routes";
@@ -10,7 +10,7 @@ import { BulkAddFacilitiesPage } from "./pages/employee/BulkAddFacilitiesPage";
 import { FacilityDetailPage } from "./pages/employee/FacilityDetailPage";
 import { FacilityListPage } from "./pages/employee/FacilityListPage";
 import { UploadBoundaryPage } from "./pages/employee/UploadBoundaryPage";
-import { EU_ROLES } from "./utils/access";
+import { EU_ROLES, hasEuAccess } from "./utils/access";
 
 /**
  * Parent route component for all EU pages. Blocks rendering until the
@@ -40,17 +40,35 @@ export function createEuRoutes(rootRoute: AnyRoute, employeeLayoutRoute: AnyRout
   const boundariesPath = `/${basePath}${EU_ROUTES.boundaries}`;
   const boundaryUploadPath = `/${basePath}${EU_ROUTES.boundaryUpload}`;
 
-  // Parent route — loads rainmaker-eu translations before any EU page renders
+  // Parent route — loads rainmaker-eu translations and gates the whole EU
+  // subtree behind EU_ROLES before any EU page renders. Without this, a
+  // user who lacks access (e.g. after a login redirect straight into an EU
+  // page) would reach the page component itself, which just returns null —
+  // a blank page with no way out, instead of landing back on Overview.
   const euParentRoute = createRoute({
     getParentRoute: () => employeeLayoutRoute,
     id: "eu-module",
     component: EuModuleWrapper,
+    beforeLoad: () => {
+      const user = useAuthStore.getState().user;
+      if (!hasEuAccess(user?.roles)) {
+        throw redirect({ to: employeeHomePath() });
+      }
+    },
   });
 
   const euIndexRoute = createRoute({
     getParentRoute: () => euParentRoute,
     path: euRootPath,
-    beforeLoad: () => {
+    // TanStack Router's fuzzy matching runs this beforeLoad for any
+    // unmatched path under euRootPath too (e.g. `/eu/does-not-exist`), not
+    // just the exact path — without this guard it would hijack those into
+    // the facilities list instead of letting the app's not-found handling
+    // (redirect to Overview) take over.
+    beforeLoad: ({ location }) => {
+      if (location.pathname !== euRootPath) {
+        throw notFound();
+      }
       throw redirect({ to: facilitiesPath });
     },
   });

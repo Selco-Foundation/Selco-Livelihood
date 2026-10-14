@@ -41,12 +41,12 @@ export function TicketSubmittedDialog({
         </p>
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
-          <Button asChild variant="outline" size="lg">
+          <Button asChild variant="outline" size="sm">
             <Link to={inboxPath}>
               {translateOr(t, "ES_IM_VIEW_INBOX", "View inbox")}
             </Link>
           </Button>
-          <Button asChild size="lg">
+          <Button asChild size="sm">
             <Link to={homePath}>
               {translateOr(t, "CORE_COMMON_GO_TO_HOME", "Go to home")}
             </Link>

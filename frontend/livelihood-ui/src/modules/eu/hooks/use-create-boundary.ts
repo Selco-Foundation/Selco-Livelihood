@@ -16,7 +16,8 @@ export interface CreateBoundaryInput {
  * Compute codes for whichever tiers were typed as free text, create each new
  * tier (boundary + relationship + a localized display name), then create the
  * block (always, since it's never picked from an existing list), and finally
- * bust the cached `rainmaker-in` bundle so the new names render immediately.
+ * bust the cached `rainmaker-livelihood` bundle so the new names render
+ * immediately — boundary data lives in that module, not `rainmaker-eu`.
  */
 export function useCreateBoundary() {
   const accessToken = useAuthStore((state) => state.accessToken);
@@ -49,7 +50,7 @@ export function useCreateBoundary() {
               {
                 code: `BOUNDARY_${code}`,
                 message: name.trim().replace(/\s+/g, " "),
-                module: "rainmaker-in",
+                module: "rainmaker-livelihood",
                 locale: "en_IN",
               },
             ],
@@ -67,7 +68,7 @@ export function useCreateBoundary() {
       }
       await createTier(input.block, codes.block, "Block", codes.district);
 
-      await reloadModule("in");
+      await reloadModule("livelihood");
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [BOUNDARIES_QUERY_KEY] });

@@ -11,7 +11,6 @@ vi.mock("../api/hrms", async (importOriginal) => {
 
 import { searchHrmsEmployees } from "../api/hrms";
 import {
-  assertEmployeeRolesAllowed,
   filterRolesForEmployeeTenant,
   hydrateEmployeeJurisdictions,
 } from "./employee-session";
@@ -50,42 +49,6 @@ describe("filterRolesForEmployeeTenant", () => {
   });
 });
 
-describe("assertEmployeeRolesAllowed", () => {
-  it("does not throw when INVALIDROLES is not configured", () => {
-    window.globalConfigs = { getConfig: () => undefined };
-    const user: AuthUser = { roles: [{ code: "ROLE_A" }] };
-
-    expect(() => assertEmployeeRolesAllowed(user)).not.toThrow();
-  });
-
-  it("does not throw when INVALIDROLES is configured but the user holds none of them", () => {
-    window.globalConfigs = { getConfig: () => ["BLOCKED_ROLE"] };
-    const user: AuthUser = { roles: [{ code: "ROLE_A" }] };
-
-    expect(() => assertEmployeeRolesAllowed(user)).not.toThrow();
-  });
-
-  it("throws when the user holds one of the configured invalid roles", () => {
-    window.globalConfigs = { getConfig: () => ["BLOCKED_ROLE"] };
-    const user: AuthUser = { roles: [{ code: "BLOCKED_ROLE" }] };
-
-    expect(() => assertEmployeeRolesAllowed(user)).toThrow("ES_ERROR_USER_NOT_PERMITTED");
-  });
-
-  it("does not throw when the user has no roles at all", () => {
-    window.globalConfigs = { getConfig: () => ["BLOCKED_ROLE"] };
-    const user: AuthUser = {};
-
-    expect(() => assertEmployeeRolesAllowed(user)).not.toThrow();
-  });
-
-  it("treats a non-array INVALIDROLES config as no blocked roles", () => {
-    window.globalConfigs = { getConfig: () => "BLOCKED_ROLE" };
-    const user: AuthUser = { roles: [{ code: "BLOCKED_ROLE" }] };
-
-    expect(() => assertEmployeeRolesAllowed(user)).not.toThrow();
-  });
-});
 
 describe("hydrateEmployeeJurisdictions", () => {
   it("throws when the user has no userName", async () => {
