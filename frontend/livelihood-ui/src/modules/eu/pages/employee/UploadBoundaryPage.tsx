@@ -15,8 +15,8 @@ export function UploadBoundaryPage() {
 
   const [selectedFileName, setSelectedFileName] = useState<string>();
   const [result, setResult] = useState<
-    | { status: "success" }
-    | { status: "error"; errorCount: number; hasErrorFile: boolean; downloadResult: () => void }
+    | { status: "success"; duplicateCount: number; downloadResult: () => void }
+    | { status: "error"; errorCount: number; duplicateCount: number; downloadResult: () => void }
     | null
   >(null);
 
@@ -43,8 +43,10 @@ export function UploadBoundaryPage() {
     setResult(null);
     uploadBoundary.mutate(file, {
       onSuccess: (uploadResult) => {
+        const downloadResult = () => downloadBlob(uploadResult.resultFile.blob, uploadResult.resultFile.filename);
+
         if (uploadResult.success) {
-          setResult({ status: "success" });
+          setResult({ status: "success", duplicateCount: uploadResult.duplicateCount, downloadResult });
           toast.success(
             translateOr(t, "FA_TOAST_BOUNDARY_DATA_UPLOAD_SUCCESS", "Boundary data uploaded successfully"),
           );
@@ -53,13 +55,9 @@ export function UploadBoundaryPage() {
 
         setResult({
           status: "error",
-          errorCount: uploadResult.errorCount ?? 0,
-          hasErrorFile: Boolean(uploadResult.errorFile),
-          downloadResult: () => {
-            if (uploadResult.errorFile) {
-              downloadBlob(uploadResult.errorFile.blob, uploadResult.errorFile.filename);
-            }
-          },
+          errorCount: uploadResult.errorCount,
+          duplicateCount: uploadResult.duplicateCount,
+          downloadResult,
         });
         toast.error(
           translateOr(t, "FA_TOAST_BOUNDARY_DATA_UPLOAD_DATA_ERROR", "Some rows failed validation"),
@@ -101,6 +99,7 @@ export function UploadBoundaryPage() {
           <Button
             type="button"
             variant="outline"
+            size="sm"
             disabled={downloadTemplate.isPending}
             onClick={handleDownloadTemplate}
             className="gap-2"
@@ -131,20 +130,42 @@ export function UploadBoundaryPage() {
             selectedFileName={selectedFileName}
             onSelect={handleFileSelect}
           />
+          {result?.status === "success" ? (
+            <div className="rounded-md border border-border bg-muted/30 px-4 py-3 text-sm text-foreground">
+              <p>{translateOr(t, "FA_TOAST_BOUNDARY_DATA_UPLOAD_SUCCESS", "Boundary data uploaded successfully")}</p>
+              {result.duplicateCount > 0 ? (
+                <p className="mt-1 text-muted-foreground">
+                  {result.duplicateCount}{" "}
+                  {translateOr(t, "FA_BOUNDARY_DUPLICATE_SKIPPED", "boundaries already existed and were skipped")}
+                </p>
+              ) : null}
+              <button
+                type="button"
+                onClick={result.downloadResult}
+                className="mt-1 cursor-pointer font-semibold underline"
+              >
+                {translateOr(t, "CORE_COMMON_DOWNLOAD", "Download")}
+              </button>
+            </div>
+          ) : null}
           {result?.status === "error" ? (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
               <p>
                 {result.errorCount} {translateOr(t, "FA_BOUNDARY_VALIDATION_FAILED", "rows failed validation")}
               </p>
-              {result.hasErrorFile ? (
-                <button
-                  type="button"
-                  onClick={result.downloadResult}
-                  className="mt-1 cursor-pointer font-semibold underline"
-                >
-                  {translateOr(t, "CORE_COMMON_VIEW_ERRORS", "View errors")}
-                </button>
+              {result.duplicateCount > 0 ? (
+                <p className="mt-1">
+                  {result.duplicateCount}{" "}
+                  {translateOr(t, "FA_BOUNDARY_DUPLICATE_SKIPPED", "boundaries already existed and were skipped")}
+                </p>
               ) : null}
+              <button
+                type="button"
+                onClick={result.downloadResult}
+                className="mt-1 cursor-pointer font-semibold underline"
+              >
+                {translateOr(t, "CORE_COMMON_VIEW_ERRORS", "View errors")}
+              </button>
             </div>
           ) : null}
         </CardContent>

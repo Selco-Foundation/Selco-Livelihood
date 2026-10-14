@@ -221,7 +221,7 @@ export function ProfilePage() {
 
             <Button
               type="submit"
-              size="lg"
+              size="sm"
               disabled={isSubmitting || !hasProfileChanges}
               className="w-fit"
             >

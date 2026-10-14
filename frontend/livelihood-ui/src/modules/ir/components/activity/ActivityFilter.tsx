@@ -274,6 +274,7 @@ export function ActivityFilter({
                   <Button
                     type="button"
                     variant="outline"
+                    size="sm"
                     className="flex-1"
                     disabled={!hasActiveFilters}
                     onClick={() => {
@@ -285,6 +286,7 @@ export function ActivityFilter({
                   </Button>
                   <Button
                     type="button"
+                    size="sm"
                     className="flex-1"
                     onClick={() => setMobileFiltersOpen(false)}
                   >

@@ -1,7 +1,8 @@
 const DEFAULT_COUNTRY = "India";
 
+/** Upper-cases free-text user input and turns spaces into `/` before it's joined into a boundary code. */
 function normalizePart(value: string): string {
-  return (value || "").trim().replace(/\s+/g, "");
+  return (value || "").trim().toUpperCase().replace(/\s+/g, "/");
 }
 
 export interface ComputeGeographyCodesInput {
@@ -33,7 +34,7 @@ export function computeGeographyCodes({
   isStateTextMode,
   isDistrictTextMode,
 }: ComputeGeographyCodesInput): GeographyCodes {
-  const countryCode = normalizePart(country) || DEFAULT_COUNTRY;
+  const countryCode = normalizePart(country) || normalizePart(DEFAULT_COUNTRY);
 
   let stateCode: string;
   let districtCode: string;

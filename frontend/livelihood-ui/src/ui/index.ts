@@ -166,6 +166,7 @@ export { TopBar } from "./components/top-bar";
 export { LanguageSwitcher } from "./components/language-switcher";
 export { SplitButton } from "./components/split-button";
 export type { SplitButtonProps } from "./components/split-button";
+export { PasswordField } from "./components/password-field";
 export { Pagination } from "./components/pagination";
 export type { PaginationProps } from "./components/pagination";
 export { SearchableSelect } from "./components/searchable-select";

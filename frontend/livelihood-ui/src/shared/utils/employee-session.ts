@@ -1,4 +1,3 @@
-import { getConfig } from "../config/global-config";
 import { searchHrmsEmployees } from "../api/hrms";
 import type { AuthUser } from "../stores/auth-store";
 import { buildJurisdictionBoundaries } from "./boundary-util";
@@ -10,18 +9,6 @@ export function filterRolesForEmployeeTenant(user: AuthUser, employeeTenantId: s
     ...user,
     roles,
   };
-}
-
-export function assertEmployeeRolesAllowed(user: AuthUser): void {
-  const invalidRoles = getConfig("INVALIDROLES");
-  const blockedRoles = Array.isArray(invalidRoles) ? invalidRoles : [];
-
-  if (
-    blockedRoles.length > 0 &&
-    user.roles?.some((role) => role.code && blockedRoles.includes(role.code))
-  ) {
-    throw new Error("ES_ERROR_USER_NOT_PERMITTED");
-  }
 }
 
 export async function hydrateEmployeeJurisdictions(

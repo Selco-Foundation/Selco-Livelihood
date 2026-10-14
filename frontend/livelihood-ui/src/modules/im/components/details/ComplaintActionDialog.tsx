@@ -502,12 +502,12 @@ export function ComplaintActionDialog({
         </div>
 
         <div className="mt-6 flex justify-center gap-3">
-          <Button type="button" variant="outline" size="lg" onClick={onClose}>
+          <Button type="button" variant="outline" size="sm" onClick={onClose}>
             {translateOr(t, "TL_COMMON_CANCEL", "Cancel")}
           </Button>
           <Button
             type="button"
-            size="lg"
+            size="sm"
             disabled={mutation.isPending || isUploading}
             onClick={() => {
               setError(null);

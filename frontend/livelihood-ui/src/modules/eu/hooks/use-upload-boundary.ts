@@ -16,7 +16,7 @@ export function useUploadBoundary() {
       }
       void queryClient.invalidateQueries({ queryKey: [BOUNDARIES_QUERY_KEY] });
       void queryClient.invalidateQueries({ queryKey: ["boundary-hierarchy"] });
-      await reloadModule("in");
+      await reloadModule("livelihood");
     },
   });
 }

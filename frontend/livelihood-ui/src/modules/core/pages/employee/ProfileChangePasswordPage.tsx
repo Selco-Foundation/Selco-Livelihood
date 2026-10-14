@@ -126,7 +126,7 @@ export function ProfileChangePasswordPage() {
             />
 
             <div className="flex items-center gap-4">
-              <Button type="submit" size="lg" disabled={isSubmitting || !canSave} className="w-fit">
+              <Button type="submit" size="sm" disabled={isSubmitting || !canSave} className="w-fit">
                 {isSubmitting
                   ? translateOr(t, "CORE_CHANGE_PASSWORD_BUTTON_LOADING", "Changing password...")
                   : translateOr(t, "CORE_CHANGE_PASSWORD_BUTTON", "Change Password")}

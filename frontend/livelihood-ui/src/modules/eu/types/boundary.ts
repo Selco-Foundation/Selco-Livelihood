@@ -24,3 +24,13 @@ export interface BoundaryFormValues {
   district: string;
   block: string;
 }
+
+export interface IngestUploadResult {
+  /** `true` when no row failed (`errorCount === 0`) — rows already existing don't count as a failure. */
+  success: boolean;
+  errorCount: number;
+  /** Rows that were already fully present (boundary + relationship) and needed no action — not a failure. */
+  duplicateCount: number;
+  /** The backend always returns this annotated workbook, success or not — per-row status/error detail. */
+  resultFile: { blob: Blob; filename: string };
+}
