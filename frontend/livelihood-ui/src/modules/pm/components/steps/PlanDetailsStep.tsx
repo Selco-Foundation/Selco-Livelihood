@@ -81,14 +81,16 @@ export function PlanDetailsStep({
   projectStartDate,
   projectEndDate,
   locked = false,
-  geographyEditable = !locked,
+  geographyEditable: canEditGeography = !locked,
   lockTarget,
   reviewerLocked = locked,
 }: Readonly<PlanDetailsStepProps>) {
   const { t } = useTranslate();
   const { data: sectorOptions = [] } = useSectors();
   const { data: reviewerOptions = [] } = useReviewerOptions();
-  const { data: lockedGeography } = useGeographyLocks(lockTarget);
+  const { data: lockedGeography, isLoading: isLocksLoading } = useGeographyLocks(lockTarget);
+  // Until the locks load, nothing may be removed: a locked place would otherwise look removable.
+  const geographyEditable = canEditGeography && !isLocksLoading;
   const { states, districts, blocks } = useGeographySelection({
     value: value.geographyDetails,
     onChange: (geographyDetails) => onChange({ ...value, geographyDetails }),

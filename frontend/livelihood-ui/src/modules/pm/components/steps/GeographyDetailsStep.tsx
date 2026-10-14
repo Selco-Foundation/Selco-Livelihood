@@ -32,7 +32,8 @@ export function GeographyDetailsStep({
   lockTarget,
 }: Readonly<GeographyDetailsStepProps>) {
   const { t } = useTranslate();
-  const { data: locked } = useGeographyLocks(lockTarget);
+  // Until the locks load, nothing may be removed: a locked place would otherwise look removable.
+  const { data: locked, isLoading: isLocksLoading } = useGeographyLocks(lockTarget);
   const { isLoading, states, districts, blocks } = useGeographySelection({
     value,
     onChange,
@@ -67,7 +68,7 @@ export function GeographyDetailsStep({
             options={states.options}
             selected={states.selectedCodes}
             onChange={states.onChange}
-            disabled={isLoading}
+            disabled={isLoading || isLocksLoading}
             locked={locked}
             hideChips
           />
@@ -76,7 +77,7 @@ export function GeographyDetailsStep({
             options={districts.options}
             selected={districts.selectedCodes}
             onChange={districts.onChange}
-            disabled={isLoading || states.selectedCodes.length === 0}
+            disabled={isLoading || isLocksLoading || states.selectedCodes.length === 0}
             locked={locked}
             hideChips
           />
@@ -86,7 +87,7 @@ export function GeographyDetailsStep({
             options={blocks.options}
             selected={blocks.selectedCodes}
             onChange={blocks.onChange}
-            disabled={isLoading || districts.selectedCodes.length === 0}
+            disabled={isLoading || isLocksLoading || districts.selectedCodes.length === 0}
             locked={locked}
             hideChips
           />
@@ -103,6 +104,7 @@ export function GeographyDetailsStep({
               items={states.selectedItems}
               onRemove={(code) => states.onChange(states.selectedCodes.filter((existing) => existing !== code))}
               locked={locked}
+              disabled={isLocksLoading}
             />
             <SelectedGroup
               title={translateOr(t, "ES_PM_DISTRICTS", "District(s)")}
@@ -112,6 +114,7 @@ export function GeographyDetailsStep({
                 districts.onChange(districts.selectedCodes.filter((existing) => existing !== code))
               }
               locked={locked}
+              disabled={isLocksLoading}
             />
             <SelectedGroup
               title={translateOr(t, "ES_PM_BLOCKS", "Block(s)")}
@@ -119,6 +122,7 @@ export function GeographyDetailsStep({
               items={blocks.selectedItems}
               onRemove={(code) => blocks.onChange(blocks.selectedCodes.filter((existing) => existing !== code))}
               locked={locked}
+              disabled={isLocksLoading}
             />
           </div>
         </div>

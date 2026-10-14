@@ -2,12 +2,13 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useBoundaryTree } from "../../hooks/use-boundary-tree";
+import { useGeographyLocks } from "../../hooks/use-geography-locks";
 import { useReviewerOptions } from "../../hooks/use-reviewer-options";
 import { useSectors } from "../../hooks/use-sectors";
 import { isPlanDetailsValid, PlanDetailsStep, type PlanDetailsValue } from "./PlanDetailsStep";
 
 vi.mock("../../hooks/use-boundary-tree", () => ({ useBoundaryTree: vi.fn() }));
-vi.mock("../../hooks/use-geography-locks", () => ({ useGeographyLocks: () => ({ data: undefined }) }));
+vi.mock("../../hooks/use-geography-locks", () => ({ useGeographyLocks: vi.fn() }));
 vi.mock("../../hooks/use-sectors", () => ({ useSectors: vi.fn() }));
 vi.mock("../../hooks/use-reviewer-options", () => ({ useReviewerOptions: vi.fn() }));
 
@@ -23,6 +24,7 @@ beforeEach(() => {
   Element.prototype.releasePointerCapture = Element.prototype.releasePointerCapture ?? (() => {});
   Element.prototype.scrollIntoView = Element.prototype.scrollIntoView ?? (() => {});
   vi.mocked(useBoundaryTree).mockReturnValue({ data: hierarchy } as never);
+  vi.mocked(useGeographyLocks).mockReturnValue({ data: undefined, isLoading: false } as never);
   vi.mocked(useSectors).mockReturnValue({ data: [{ code: "SOLAR", name: "SOLAR" }] } as never);
   vi.mocked(useReviewerOptions).mockReturnValue({ data: [{ code: "rev-1", name: "Reviewer One" }] } as never);
 });
@@ -131,6 +133,22 @@ describe("PlanDetailsStep", () => {
 
     expect(screen.getByRole("button", { name: /^State/i })).toBeEnabled();
     expect(screen.getByRole("button", { name: /^Sector/i })).toBeDisabled();
+  });
+
+  it("keeps the geography read-only until the plan's locks have loaded", () => {
+    vi.mocked(useGeographyLocks).mockReturnValue({ data: undefined, isLoading: true } as never);
+    render(
+      <PlanDetailsStep
+        value={baseValue}
+        onChange={vi.fn()}
+        allowedGeography={projectGeography}
+        locked
+        geographyEditable
+        lockTarget={{ fieldPlanId: "plan-1" }}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /^State/i })).toBeDisabled();
   });
 
   it("keeps the reviewer field editable when reviewerLocked is explicitly false, even if locked", () => {
