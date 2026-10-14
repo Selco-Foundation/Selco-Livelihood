@@ -6,6 +6,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.config.Configuration;
 import org.egov.repository.OrganisationRepository;
+import org.egov.service.OrganisationPocService;
 import org.egov.tracer.model.CustomException;
 import org.egov.util.BoundaryUtil;
 import org.egov.util.MDMSUtil;
@@ -63,6 +64,8 @@ public class OrganisationServiceValidator {
         validateOrganisationDetails(organisationList);
         log.debug("Organisation details validation completed");
 
+        validatePocDetails(organisationList);
+
         //validate organisation details against MDMS
         validateMDMSData(organisationList, requestInfo, organisationList.get(0).getTenantId(), errorMap);
         log.debug("MDMS data validation completed");
@@ -89,7 +92,9 @@ public class OrganisationServiceValidator {
         Map<String, List<String>> boundariesMap = new HashMap<>();
         List<Address> orgAddressFinalList = new ArrayList<>();
         for (Organisation organisation : organisationList) {
-            orgAddressFinalList.addAll(organisation.getOrgAddress());
+            if (organisation.getOrgAddress() != null) {
+                orgAddressFinalList.addAll(organisation.getOrgAddress());
+            }
         }
         if (!CollectionUtils.isEmpty(orgAddressFinalList)) {
             for (Address orgAddress : orgAddressFinalList) {
@@ -122,14 +127,13 @@ public class OrganisationServiceValidator {
         Object mdmsData = mdmsUtil.mDMSCall(requestInfo, tenantId);
 
         Set<String> orgTypeReqSet = new HashSet<>();
-        Map<String, Set<String>> orgSubTypeReqMap = new HashMap<>();
         Set<String> orgStatusReqSet = new HashSet<>();
 //        Set<String> orgFuncCategoryReqSet = new HashSet<>();
 //        Set<String> orgFuncClassReqSet = new HashSet<>();
         Set<String> orgIdentifierReqSet = new HashSet<>();
 
         for (Organisation organisation : organisationList) {
-            enrichOrgTypeAndOrgSubTypeAndOrgStatus(organisation, orgTypeReqSet, orgSubTypeReqMap, orgStatusReqSet);
+            enrichOrgTypeAndOrgStatus(organisation, orgTypeReqSet, orgStatusReqSet);
 
 //            if (!CollectionUtils.isEmpty(organisation.getFunctions())) {
 //                enrichOrgTypeAndFuncCategory(organisation, orgTypeReqSet, orgFuncCategoryReqSet, orgFuncClassReqSet);
@@ -145,17 +149,14 @@ public class OrganisationServiceValidator {
         log.debug("MDMS validation - org types: {}, identifiers: {}", orgTypeReqSet.size(), orgIdentifierReqSet.size());
 
         final String jsonPathForOrgType = MDMS_RES + MDMS_ORGANIZATION_MODULE_NAME + "." + MASTER_ORG_TYPE + ".*";
-        final String jsonPathForOrgSubType = MDMS_RES + MDMS_ORGANIZATION_MODULE_NAME + "." + MASTER_ORG_SUB_TYPE + ".*";
         final String jsonPathForOrgStatus = MDMS_RES + MDMS_ORGANIZATION_MODULE_NAME + "." + MASTER_ORG_STATUS + ".*";
         final String jsonPathForOrgIdentifier = MDMS_RES + MDMS_COMMON_MASTERS_MODULE_NAME + "." + MASTER_ORG_TAX_IDENTIFIER + ".*";
 
         List<Object> orgTypeRes = null;
-        List<Object> orgSubTypeRes = null;
         List<Object> orgStatusRes = null;
         List<Object> orgIdentifierRes = null;
         try {
             orgTypeRes = JsonPath.read(mdmsData, jsonPathForOrgType);
-            orgSubTypeRes = JsonPath.read(mdmsData, jsonPathForOrgSubType);
             orgStatusRes = JsonPath.read(mdmsData, jsonPathForOrgStatus);
             orgIdentifierRes = JsonPath.read(mdmsData, jsonPathForOrgIdentifier);
         } catch (Exception e) {
@@ -165,8 +166,6 @@ public class OrganisationServiceValidator {
 
         //org type
         validateOrgType(orgTypeReqSet, orgTypeRes, errorMap);
-        //org sub type
-        validateOrgSubType(orgSubTypeReqMap, orgSubTypeRes, errorMap);
         //org status
         validateOrgStatus(orgStatusReqSet, orgStatusRes, errorMap);
 
@@ -176,21 +175,9 @@ public class OrganisationServiceValidator {
 
     }
 
-    private void enrichOrgTypeAndOrgSubTypeAndOrgStatus(Organisation organisation, Set<String> orgTypeReqSet, Map<String, Set<String>> orgSubTypeReqMap, Set<String> orgStatusReqSet) {
+    private void enrichOrgTypeAndOrgStatus(Organisation organisation, Set<String> orgTypeReqSet, Set<String> orgStatusReqSet) {
         if (organisation.getOrgType()!=null && StringUtils.isNotBlank(organisation.getOrgType())) {
             orgTypeReqSet.add(organisation.getOrgType());
-            Set<String> orgSubTypeReqSet = orgSubTypeReqMap.get(organisation.getOrgType());
-            if(orgSubTypeReqSet==null){
-                orgSubTypeReqMap.put(organisation.getOrgType(), new HashSet<>());
-            }
-            else{
-                orgSubTypeReqMap.put(organisation.getOrgType(), orgSubTypeReqSet);
-            }
-        }
-        if (organisation.getOrgSubType()!=null && StringUtils.isNotBlank(organisation.getOrgSubType())) {
-            Set<String> orgSubTypeReqSet = orgSubTypeReqMap.get(organisation.getOrgType());
-            orgSubTypeReqSet.add(organisation.getOrgSubType());
-            orgSubTypeReqMap.put(organisation.getOrgType(), orgSubTypeReqSet);
         }
         if (organisation.getOrgStatus()!=null && StringUtils.isNotBlank(organisation.getOrgStatus().name())) {
             orgStatusReqSet.add(organisation.getOrgStatus().name());
@@ -263,24 +250,6 @@ public class OrganisationServiceValidator {
         }
     }
 
-    private void validateOrgSubType(Map<String, Set<String>> orgSubTypeReqMap, List<Object> orgSubTypeRes, Map<String, String> errorMap) {
-        for (Map.Entry<String, Set<String>> entry : orgSubTypeReqMap.entrySet()) {
-            String key = entry.getKey();
-            Set<String> orgSubTypeReqSet = entry.getValue();
-
-            if (key.equals("VENDOR") && CollectionUtils.isEmpty(orgSubTypeReqSet)) {
-                errorMap.put("INVALID_ORG_TYPE", "The org sub type is not configured in MDMS");
-            } else {
-                if (!CollectionUtils.isEmpty(orgSubTypeReqSet)) {
-                    orgSubTypeReqSet.removeAll(orgSubTypeRes);
-                    if (!CollectionUtils.isEmpty(orgSubTypeReqSet)) {
-                        errorMap.put("INVALID_ORG_TYPE", "The org sub types: " + orgSubTypeReqSet + NOT_PRESENT_IN_MDMS);
-                    }
-                }
-            }
-        }
-    }
-
     private void validateOrgStatus(Set<String> orgStatusReqSet, List<Object> orgStatusRes, Map<String, String> errorMap) {
         if (CollectionUtils.isEmpty(orgStatusRes)) {
             errorMap.put("INVALID_ORG_TYPE", "The org status is not configured in MDMS");
@@ -315,6 +284,27 @@ public class OrganisationServiceValidator {
             validateAddress(organisation);
         }
         log.debug("Organisation details validation completed for {} organisations", organisationList.size());
+    }
+
+    /** The POC of a PLATFORM / VENDOR organisation becomes an HRMS user, so it needs everything HRMS requires to log in. */
+    private void validatePocDetails(List<Organisation> organisationList) {
+        for (Organisation organisation : organisationList) {
+            if (!OrganisationPocService.shouldCreatePocUser(organisation)) {
+                continue;
+            }
+            if (StringUtils.isBlank(organisation.getOrgPocUsername())) {
+                throw new CustomException("ORG_POC_USERNAME", "PoC username is mandatory");
+            }
+            if (StringUtils.isBlank(organisation.getOrgPocName())) {
+                throw new CustomException("ORG_POC_NAME", "PoC name is mandatory");
+            }
+            if (StringUtils.isBlank(organisation.getOrgPocPhone())) {
+                throw new CustomException("ORG_POC_PHONE", "PoC phone number is mandatory");
+            }
+            if (StringUtils.isBlank(organisation.getOrgPocPassword())) {
+                throw new CustomException("ORG_POC_PASSWORD", "PoC password is mandatory");
+            }
+        }
     }
 
     private void validateAddress(Organisation organisation){
