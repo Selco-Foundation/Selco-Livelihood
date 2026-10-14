@@ -489,7 +489,7 @@ export function CreateInstallationPlanPage() {
       ) : null}
 
       {saveError ? (
-        <p className="text-sm whitespace-pre-line text-destructive" role="alert">
+        <p className="text-sm whitespace-pre-line text-destructive wrap-anywhere" role="alert">
           {saveError}
         </p>
       ) : null}
