@@ -85,9 +85,9 @@ export function useGeographySelection({
     const districts = tree.districts.filter(
       (district) => districtCodes.includes(district.code) && stateCodes.includes(district.stateCode),
     );
-    const keptDistrictCodes = districts.map((district) => district.code);
+    const keptDistrictCodes = new Set(districts.map((district) => district.code));
     const blocks = tree.blocks.filter(
-      (block) => blockCodes.includes(block.code) && keptDistrictCodes.includes(block.districtCode),
+      (block) => blockCodes.includes(block.code) && keptDistrictCodes.has(block.districtCode),
     );
     if (districts.length < districtCodes.length || blocks.length < blockCodes.length) onCascadeRemoval?.();
     onChange({
