@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchMdmsMasters } from "../api/mdms";
 import { tenantId as getTenantId } from "../config/global-config";
 import { useAuthStore, type AuthUser } from "../stores/auth-store";
-import { mapInstallationImageCriteria } from "../utils/installation-image-mapping";
+import { mapInstallationImageCriteria } from "../utils/activity-review/installation-image-mapping";
 
 const INSTALLATION_IMAGES_MODULE = "common-masters";
 const INSTALLATION_IMAGES_MASTER = "InstallationImages";

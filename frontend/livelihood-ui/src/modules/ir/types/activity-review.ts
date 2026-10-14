@@ -1,4 +1,9 @@
-import type { ActivityStatus } from "@/shared";
+import type {
+  ActivityBillOfMaterial,
+  ActivityStatus,
+  ActivityTransaction,
+  ActivityWorkflowEntry,
+} from "@/shared";
 import type { ActivityAuditCheckpoint, ActivityDocument, ReviewSectionContent } from "@/ui";
 
 export type ActivityComponentType = "MACHINE" | "SOLAR";
@@ -20,41 +25,9 @@ export interface ReviewActivity {
 // shared boundary service (see hooks/use-boundary), seeded by the field
 // plan's own state from the ActivityAssignment search (installation-plan.ts)
 // which this page already fetches for its breadcrumb/summary.
-
-export interface ActivityBomComponent {
-  slNo?: number;
-  product?: string;
-  capacity?: string;
-  category?: string;
-  quantity?: number;
-}
-
-export interface ActivityBillOfMaterial {
-  name?: string;
-  reportNumber?: string;
-  additionalDetails?: { vendorOrgName?: string; vendorUserName?: string };
-  data?: { components?: ActivityBomComponent[]; purchaseOrderNumber?: string };
-}
-
-export interface ActivityWorkflowEntry {
-  id?: string;
-  action?: string;
-  comment?: string;
-  documents?: ActivityDocument[] | null;
-  state?: { applicationStatus?: ActivityStatus };
-  assigner?: { name?: string; roles?: Array<{ name?: string }> };
-  auditDetails?: { createdTime?: number };
-}
-
-export interface ActivityTransactionComment {
-  commentMessage?: string;
-  assetType?: string;
-}
-
-export interface ActivityTransaction {
-  processInstanceId?: string;
-  comments?: ActivityTransactionComment[];
-}
+// ActivityBomComponent/ActivityBillOfMaterial/ActivityWorkflowEntry/
+// ActivityTransaction(Comment) live in @/shared — eu reads the same
+// /activity/v1/activities/_search response for the same activity.
 
 export interface ActivityFacilityRow {
   activityFacility: {
@@ -79,34 +52,16 @@ export interface ActivityFacilitySearchResponse {
 }
 
 // ---- Review sections ----
-// SOLAR mirrors qc's per-asset-type structure exactly: Panel/Battery/Inverter,
-// each independently reviewable, plus a separate Installation Completion
-// Report section. MACHINE has no separate report section — its one "Machine"
-// section IS the whole report, with the machine's media fields (Electric
-// Board / Demo Test / Photo with End User) as labeled sub-groups inside it,
-// per the mockup.
-export const SOLAR_SECTION_IDS = [
-  "PANEL",
-  "BATTERY",
-  "INVERTER",
-  "INSTALLATION_COMPLETION_REPORT",
-] as const;
-export const MACHINE_SECTION_IDS = ["MACHINE"] as const;
-
-export type SolarSectionId = (typeof SOLAR_SECTION_IDS)[number];
-export type MachineSectionId = (typeof MACHINE_SECTION_IDS)[number];
 // Installation-image sections are dynamic (one per MDMS checklist criterion),
 // so the overall id space is a plain string rather than a fixed literal union.
-export type ReviewSectionId = string;
-
-// LabeledValue, SectionImage, SectionVideo, AssetItem, MediaGroup,
-// AssetSectionContent, ReportDocument, ReportSectionContent,
+// SOLAR_SECTION_IDS/MACHINE_SECTION_IDS (the fixed Panel/Battery/Inverter/
+// Machine vocabulary) and LabeledValue, SectionImage, SectionVideo, AssetItem,
+// MediaGroup, AssetSectionContent, ReportDocument, ReportSectionContent,
 // ImageChecklistSectionContent, ReviewSectionContent, and the lazily-loaded
-// SectionMediaPatch family all live in @/ui (components/activity-review/
-// types.ts) — eu's read-only Activity Report page renders the same shared
-// display components over the same shapes. ir's own asset-mapping.ts still
-// uses SolarSectionId/MachineSectionId above as the concrete values it
-// assigns to @/ui's AssetSectionContent.id (typed there as plain `string`).
+// SectionMediaPatch family all live in @/shared/@/ui — eu's read-only
+// Activity Report page renders the same shared display components over the
+// same shapes, built from the same shared asset-mapping/review-sections.
+export type ReviewSectionId = string;
 
 // ---- Rejection reasons ----
 // Structured per top-level section, matching qc: each entry is a reason

@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchMdmsMasters } from "../api/mdms";
 import { tenantId as getTenantId } from "../config/global-config";
 import { useAuthStore, type AuthUser } from "../stores/auth-store";
-import { mapRejectionReasonOptions } from "../utils/rejection-reason-mapping";
+import { mapRejectionReasonOptions } from "../utils/activity-review/rejection-reason-mapping";
 
 const REJECTION_REASONS_MODULE = "Installation";
 const REJECTION_REASONS_MASTER = "RejectionReasons";

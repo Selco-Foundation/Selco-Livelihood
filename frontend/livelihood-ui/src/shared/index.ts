@@ -152,16 +152,61 @@ export {
   FACILITY_INSTALLATION_BUSINESS_SERVICE,
   type ActivityStatus,
   type ActivityStatusBadgeVariant,
-} from "./utils/activity-status";
+} from "./utils/activity-review/activity-status";
 export {
   mapInstallationImageCriteria,
   type InstallationImageCriterion,
   type RawInstallationImageCriterion,
-} from "./utils/installation-image-mapping";
+} from "./utils/activity-review/installation-image-mapping";
 export {
   isOtherReason,
   mapRejectionReasonOptions,
   type RawRejectionReasonOption,
   type RejectionReasonOption,
-} from "./utils/rejection-reason-mapping";
+} from "./utils/activity-review/rejection-reason-mapping";
+export { formatEpochDate } from "./utils/activity-review/date-format";
+export {
+  classifyDocument,
+  groupDocumentsByKey,
+  INSTALLATION_IMAGE_PREFIX,
+  REPORT_DOCUMENT_TYPES,
+  type ClassifiedDocument,
+} from "./utils/activity-review/facility-documents";
+export {
+  buildAssetSectionMedia,
+  buildImageChecklistMedia,
+  buildReportSectionMedia,
+} from "./utils/activity-review/facility-media";
+export {
+  MACHINE_MEDIA_GROUPS,
+  MACHINE_SECTION_IDS,
+  REVIEW_SECTION_LABELS,
+  SOLAR_SECTION_IDS,
+  type MachineSectionId,
+  type SolarSectionId,
+} from "./utils/activity-review/review-sections";
+export {
+  ASSET_PHOTO_DOCUMENT_TYPE,
+  buildMachineAssetData,
+  buildSolarAssetSections,
+  flattenAssetHierarchy,
+  isResolvableAssetDocument,
+  type AssetMappingDocument,
+  type AssetMappingRow,
+  type MachineAssetData,
+} from "./utils/activity-review/asset-mapping";
+export {
+  buildAuditTrail,
+  buildImageChecklistSections,
+  buildMachineSection,
+  buildReportSection,
+  buildReviewSections,
+  buildSectionDocuments,
+  humanize,
+  type ActivityBillOfMaterial,
+  type ActivityBomComponent,
+  type ActivityTransaction,
+  type ActivityTransactionComment,
+  type ActivityWorkflowEntry,
+} from "./utils/activity-review/activity-workflow-mapping";
 export type { ModuleDefinition, ModuleOverview, NavItem } from "./modules/types";

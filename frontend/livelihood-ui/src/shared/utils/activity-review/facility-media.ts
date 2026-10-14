@@ -1,4 +1,3 @@
-import type { FileStoreUrlResponse } from "@/shared";
 import type {
   ActivityDocument,
   AssetSectionMediaPatch,
@@ -8,7 +7,11 @@ import type {
   SectionImage,
   SectionVideo,
 } from "@/ui";
+import type { FileStoreUrlResponse } from "../../api/filestore";
 import { classifyDocument, REPORT_DOCUMENT_TYPES } from "./facility-documents";
+
+// Shared by `ir` (reviewer) and `eu` (end user) — both resolve the same
+// classified documents into the same media shapes for the same activity.
 
 function buildUrlMap(response: FileStoreUrlResponse): Map<string, string> {
   return new Map(

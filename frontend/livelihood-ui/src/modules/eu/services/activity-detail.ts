@@ -1,44 +1,16 @@
-import { apiClient, type ActivityStatus, type AuthUser } from "@/shared";
+import {
+  apiClient,
+  type ActivityBillOfMaterial,
+  type ActivityStatus,
+  type ActivityTransaction,
+  type ActivityWorkflowEntry,
+  type AuthUser,
+} from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
 
-export interface ActivityWorkflowDocument {
-  documentType?: string;
-  fileStoreId?: string;
-}
-
-export interface ActivityWorkflowEntry {
-  id?: string;
-  comment?: string;
-  documents?: ActivityWorkflowDocument[] | null;
-  state?: { applicationStatus?: ActivityStatus };
-  assigner?: { name?: string };
-  auditDetails?: { createdTime?: number };
-}
-
-export interface ActivityBomComponent {
-  slNo?: number;
-  product?: string;
-  capacity?: string;
-  category?: string;
-  quantity?: number;
-}
-
-export interface ActivityBillOfMaterial {
-  name?: string;
-  reportNumber?: string;
-  additionalDetails?: { vendorOrgName?: string; vendorUserName?: string };
-  data?: { components?: ActivityBomComponent[]; purchaseOrderNumber?: string };
-}
-
-export interface ActivityTransactionComment {
-  commentMessage?: string;
-  assetType?: string;
-}
-
-export interface ActivityTransaction {
-  processInstanceId?: string;
-  comments?: ActivityTransactionComment[];
-}
+// ActivityBomComponent/ActivityBillOfMaterial/ActivityTransaction(Comment)/
+// ActivityWorkflowEntry live in @/shared — ir reads the same
+// /activity/v1/activities/_search response for the same activity.
 
 export interface ActivityFacilityRow {
   activityFacility?: {

@@ -1,4 +1,23 @@
-import type { MachineSectionId, SolarSectionId } from "../types/activity-review";
+// Shared by `ir` (reviewer) and `eu` (end user) — both render the same
+// fixed Panel/Battery/Inverter/Machine section breakdown for the same
+// underlying FACILITY_INSTALLATION activity.
+
+// SOLAR mirrors qc's per-asset-type structure exactly: Panel/Battery/Inverter,
+// each independently reviewable, plus a separate Installation Completion
+// Report section. MACHINE has no separate report section — its one "Machine"
+// section IS the whole report, with the machine's media fields (Electric
+// Board / Demo Test / Photo with End User) as labeled sub-groups inside it,
+// per the mockup.
+export const SOLAR_SECTION_IDS = [
+  "PANEL",
+  "BATTERY",
+  "INVERTER",
+  "INSTALLATION_COMPLETION_REPORT",
+] as const;
+export const MACHINE_SECTION_IDS = ["MACHINE"] as const;
+
+export type SolarSectionId = (typeof SOLAR_SECTION_IDS)[number];
+export type MachineSectionId = (typeof MACHINE_SECTION_IDS)[number];
 
 export const REVIEW_SECTION_LABELS: Record<
   SolarSectionId | MachineSectionId,

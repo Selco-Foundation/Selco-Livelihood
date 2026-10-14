@@ -1,26 +1,52 @@
 import type { AssetItem, AssetSectionContent, LabeledValue, MediaGroup, SectionImage, SectionVideo } from "@/ui";
-import { MACHINE_MEDIA_GROUPS, REVIEW_SECTION_LABELS } from "../constants/review";
-import type { AssetSearchDocument, AssetSearchResponseItem } from "../services/asset";
-import type { SolarSectionId } from "../types/activity-review";
+import { MACHINE_MEDIA_GROUPS, REVIEW_SECTION_LABELS, type SolarSectionId } from "./review-sections";
+
+// Shared by `ir` (reviewer) and `eu` (end user) — both map the same
+// `/asset-registry/v1/asset/_search` response rows into the same
+// Panel/Battery/Inverter/Machine review sections for the same activity.
+// Deliberately narrower than either module's own richer
+// `AssetSearchResponseItem` (declared in each module's own services/asset.ts,
+// which also covers unrelated concerns like vendor mapping) — only the
+// fields this mapping actually reads.
+
+export interface AssetMappingDocument {
+  documentType?: string;
+  fileStore?: string;
+}
+
+export interface AssetMappingRow {
+  assetId?: string;
+  assetTypeID?: string;
+  boundaryCode?: string;
+  name?: string;
+  serialNumber?: string;
+  brandID?: string;
+  system?: string;
+  warrantyStartDate?: string;
+  warrantyDuration?: number;
+  assetDetails?: Record<string, unknown>;
+  documents?: AssetMappingDocument[] | null;
+  parentId?: string | null;
+  children?: AssetMappingRow[] | null;
+}
 
 const BLANK = "-";
 const SOLAR_ASSET_TYPE_IDS: SolarSectionId[] = ["PANEL", "BATTERY", "INVERTER"];
-// Every per-item asset photo (Solar's Panel/Battery/Inverter and Machine's
-// own item photos) is tagged with the exact documentType `ASSET` — verified
-// against a real asset-registry response; the asset's own assetTypeID (not
-// documentType) is what distinguishes which physical unit a photo belongs
-// to. Exported so hooks/use-activity-review.ts's fileStoreId collection uses
-// the same check as this file's own item-image filter.
+/** Every per-item asset photo (Solar's Panel/Battery/Inverter and Machine's
+ * own item photos) is tagged with the exact documentType `ASSET` — verified
+ * against a real asset-registry response; the asset's own assetTypeID (not
+ * documentType) is what distinguishes which physical unit a photo belongs
+ * to. */
 export const ASSET_PHOTO_DOCUMENT_TYPE = "ASSET";
 
 const MACHINE_MEDIA_DOCUMENT_TYPE_IDS = new Set<string>(MACHINE_MEDIA_GROUPS.map((group) => group.id));
 
 /** Every asset-registry document type this module resolves to a filestore
  * URL — Solar's/Machine's per-item photos (`ASSET`) and Machine's four media
- * groups (`MACHINE_ELECTRIC_BOARD` etc). Exported so
- * hooks/use-activity-review.ts's fileStoreId collection requests exactly
- * what buildSolarAssetSections/buildMachineAssetData actually consume —
- * otherwise a resolvable document's URL never gets fetched at all. */
+ * groups (`MACHINE_ELECTRIC_BOARD` etc). Exported so each module's
+ * fileStoreId-collection step requests exactly what buildSolarAssetSections/
+ * buildMachineAssetData actually consume — otherwise a resolvable
+ * document's URL never gets fetched at all. */
 export function isResolvableAssetDocument(documentType: string | undefined): boolean {
   const type = documentType?.toUpperCase();
   if (!type) {
@@ -41,9 +67,7 @@ export function isResolvableAssetDocument(documentType: string | undefined): boo
  * dropped exactly as an unrecognized row always was, and a standalone
  * Machine asset (no children) passes through as a no-op.
  */
-export function flattenAssetHierarchy(
-  assets: AssetSearchResponseItem[],
-): AssetSearchResponseItem[] {
+export function flattenAssetHierarchy<T extends { children?: T[] | null }>(assets: T[]): T[] {
   return assets.flatMap((asset) => [asset, ...flattenAssetHierarchy(asset.children ?? [])]);
 }
 
@@ -90,7 +114,7 @@ function stringFromDetails(
 /** Every physical unit's own asset-registry photos — shared by Solar's
  * per-panel/battery/inverter items and Machine's per-component items. */
 function assetPhotoImages(
-  documents: AssetSearchDocument[] | null | undefined,
+  documents: AssetMappingDocument[] | null | undefined,
   imageUrlByFileStoreId: Map<string, string>,
 ): SectionImage[] {
   return (documents ?? [])
@@ -111,10 +135,10 @@ function assetPhotoImages(
  * only ever renders a Summary for asset types actually present).
  */
 export function buildSolarAssetSections(
-  assets: AssetSearchResponseItem[],
+  assets: AssetMappingRow[],
   imageUrlByFileStoreId: Map<string, string>,
 ): AssetSectionContent[] {
-  const grouped = new Map<SolarSectionId, AssetSearchResponseItem[]>();
+  const grouped = new Map<SolarSectionId, AssetMappingRow[]>();
   for (const asset of assets) {
     const assetTypeId = asset.assetTypeID?.toUpperCase();
     if ((SOLAR_ASSET_TYPE_IDS as string[]).includes(assetTypeId ?? "")) {
@@ -196,7 +220,7 @@ export interface MachineAssetData {
  * returns all four groups (even with empty images/videos) so the accordion
  * shows every expected sub-section before anything's been uploaded. */
 function buildMachineMediaGroups(
-  assets: AssetSearchResponseItem[],
+  assets: AssetMappingRow[],
   imageUrlByFileStoreId: Map<string, string>,
 ): MediaGroup[] {
   const allDocuments = assets.flatMap((asset) => asset.documents ?? []);
@@ -218,7 +242,7 @@ function buildMachineMediaGroups(
 }
 
 export function buildMachineAssetData(
-  assets: AssetSearchResponseItem[],
+  assets: AssetMappingRow[],
   imageUrlByFileStoreId: Map<string, string>,
 ): MachineAssetData {
   const mediaGroups = buildMachineMediaGroups(assets, imageUrlByFileStoreId);

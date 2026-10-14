@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { AssetSearchResponseItem } from "../services/asset";
 import {
   ASSET_PHOTO_DOCUMENT_TYPE,
   buildMachineAssetData,
   buildSolarAssetSections,
   flattenAssetHierarchy,
   isResolvableAssetDocument,
+  type AssetMappingRow,
 } from "./asset-mapping";
 
 describe("ASSET_PHOTO_DOCUMENT_TYPE", () => {
@@ -39,7 +39,7 @@ describe("isResolvableAssetDocument", () => {
   });
 });
 
-function panel(overrides: Partial<AssetSearchResponseItem> = {}): AssetSearchResponseItem {
+function panel(overrides: Partial<AssetMappingRow> = {}): AssetMappingRow {
   return {
     assetId: "panel-1",
     assetTypeID: "PANEL",
@@ -63,28 +63,28 @@ describe("flattenAssetHierarchy", () => {
   it("flattens a top-level asset's children in after it", () => {
     const child1 = panel({ assetId: "panel-1" });
     const child2 = panel({ assetId: "panel-2", assetTypeID: "BATTERY" });
-    const family = { assetId: "family-1", assetTypeID: "SOLAR", children: [child1, child2] };
+    const family: AssetMappingRow = { assetId: "family-1", assetTypeID: "SOLAR", children: [child1, child2] };
 
     expect(flattenAssetHierarchy([family])).toEqual([family, child1, child2]);
   });
 
   it("flattens nested (grandchild) depth", () => {
     const grandchild = panel({ assetId: "panel-1" });
-    const child = { assetId: "child-1", assetTypeID: "GROUP", children: [grandchild] };
-    const family = { assetId: "family-1", assetTypeID: "SOLAR", children: [child] };
+    const child: AssetMappingRow = { assetId: "child-1", assetTypeID: "GROUP", children: [grandchild] };
+    const family: AssetMappingRow = { assetId: "family-1", assetTypeID: "SOLAR", children: [child] };
 
     expect(flattenAssetHierarchy([family])).toEqual([family, child, grandchild]);
   });
 
   it("treats null children the same as no children", () => {
-    const asset = { assetId: "a1", assetTypeID: "MACHINE", children: null };
+    const asset: AssetMappingRow = { assetId: "a1", assetTypeID: "MACHINE", children: null };
     expect(flattenAssetHierarchy([asset])).toEqual([asset]);
   });
 
   it("flattens a mixed array of family assets and standalone assets", () => {
     const child = panel({ assetId: "panel-1" });
-    const family = { assetId: "family-1", assetTypeID: "SOLAR", children: [child] };
-    const standalone = { assetId: "machine-1", assetTypeID: "MACHINE", children: null };
+    const family: AssetMappingRow = { assetId: "family-1", assetTypeID: "SOLAR", children: [child] };
+    const standalone: AssetMappingRow = { assetId: "machine-1", assetTypeID: "MACHINE", children: null };
 
     expect(flattenAssetHierarchy([family, standalone])).toEqual([family, child, standalone]);
   });
@@ -92,7 +92,7 @@ describe("flattenAssetHierarchy", () => {
   it("lets buildSolarAssetSections run against a flattened hierarchy exactly as it would against an already-flat list", () => {
     const panelChild = panel({ assetId: "panel-1" });
     const batteryChild = panel({ assetId: "battery-1", assetTypeID: "BATTERY" });
-    const family = { assetId: "family-1", assetTypeID: "SOLAR", children: [panelChild, batteryChild] };
+    const family: AssetMappingRow = { assetId: "family-1", assetTypeID: "SOLAR", children: [panelChild, batteryChild] };
 
     const fromHierarchy = buildSolarAssetSections(flattenAssetHierarchy([family]), new Map());
     const fromFlatList = buildSolarAssetSections([panelChild, batteryChild], new Map());
@@ -209,7 +209,7 @@ describe("buildSolarAssetSections", () => {
   });
 });
 
-function machineAsset(overrides: Partial<AssetSearchResponseItem> = {}): AssetSearchResponseItem {
+function machineAsset(overrides: Partial<AssetMappingRow> = {}): AssetMappingRow {
   return {
     assetId: "machine-1",
     assetTypeID: "RICE HULLER",

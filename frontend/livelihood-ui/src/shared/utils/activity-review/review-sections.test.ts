@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { MACHINE_MEDIA_GROUPS, REVIEW_SECTION_LABELS, SOLAR_SECTION_IDS } from "./review";
+import { MACHINE_MEDIA_GROUPS, MACHINE_SECTION_IDS, REVIEW_SECTION_LABELS, SOLAR_SECTION_IDS } from "./review-sections";
 
 describe("REVIEW_SECTION_LABELS", () => {
   it("has a non-empty labelKey and label for every solar and machine section id", () => {
-    for (const id of [...SOLAR_SECTION_IDS, "MACHINE" as const]) {
+    for (const id of [...SOLAR_SECTION_IDS, ...MACHINE_SECTION_IDS]) {
       const entry = REVIEW_SECTION_LABELS[id];
       expect(entry.labelKey).toBeTruthy();
       expect(entry.label).toBeTruthy();
@@ -27,6 +27,13 @@ describe("MACHINE_MEDIA_GROUPS", () => {
   it("only uses kinds that asset-mapping's IMAGE/VIDEO branch understands", () => {
     for (const group of MACHINE_MEDIA_GROUPS) {
       expect(["IMAGE", "VIDEO"]).toContain(group.kind);
+    }
+  });
+
+  it("has a non-empty labelKey and label for every group", () => {
+    for (const group of MACHINE_MEDIA_GROUPS) {
+      expect(group.labelKey).toBeTruthy();
+      expect(group.label).toBeTruthy();
     }
   });
 });

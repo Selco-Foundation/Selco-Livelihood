@@ -1,28 +1,24 @@
 import {
+  buildAssetSectionMedia,
+  buildImageChecklistMedia,
+  buildMachineAssetData,
+  buildReportSectionMedia,
+  buildSolarAssetSections,
   fetchFileUrls,
   fetchInstallationImageCriteriaQuery,
   fetchRejectionReasonOptionsQuery,
+  flattenAssetHierarchy,
   installationImageCriteriaQueryKey,
+  isResolvableAssetDocument,
   rejectionReasonOptionsQueryKey,
   useAuthStore,
+  type MachineAssetData,
 } from "@/shared";
 import type { ActivityDocument, AssetSectionContent, ReviewSectionContent, SectionMediaPatch } from "@/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { searchAssetsForActivityFacility } from "../services/asset";
 import { ACTIVITY_CODE_INSTALLATION, searchActivityFacilities } from "../services/facility";
 import { submitFacilityReview } from "../services/review";
-import {
-  buildMachineAssetData,
-  buildSolarAssetSections,
-  flattenAssetHierarchy,
-  isResolvableAssetDocument,
-  type MachineAssetData,
-} from "../utils/asset-mapping";
-import {
-  buildAssetSectionMedia,
-  buildImageChecklistMedia,
-  buildReportSectionMedia,
-} from "../utils/facility-media";
 import { buildActivityReviewDetail } from "../utils/activity-review-mapping";
 import { hasIrAccess } from "../utils/access";
 import type { ActivityReviewDetail, SubmitActivityReviewInput } from "../types/activity-review";

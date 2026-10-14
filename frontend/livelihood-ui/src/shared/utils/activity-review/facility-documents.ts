@@ -1,8 +1,5 @@
 import type { ActivityDocument } from "@/ui";
 
-// Mirrors ir's utils/facility-documents.ts exactly — both modules classify
-// the same workflow documents the same way for the same activity.
-
 // Installation Completion Certificate / Asset Handover Document were
 // dropped — verified against real workflow documents across every
 // submitted facility that INSTALLATION_REPORT_BOM is the only report-type
@@ -11,6 +8,16 @@ export const REPORT_DOCUMENT_TYPES = ["INSTALLATION_REPORT", "INSTALLATION_REPOR
 
 export const INSTALLATION_IMAGE_PREFIX = "INSTALLATION_IMAGE";
 
+/**
+ * Workflow document tagging convention — mirrors qc's own `documentType`
+ * scheme (`getAssetAggregation`/`shouldLoadDocument` in useFacilityDetails.js):
+ * `<KEY>-IMAGE-<suffix>` / `<KEY>-VIDEO-<suffix>` for asset/media galleries
+ * (`<KEY>` is the asset section id for Solar, or `MACHINE` for Machine media
+ * groups), `INSTALLATION_IMAGE-<code>` for the checklist, and a handful of
+ * fixed whole-document types for the completion report. Shared by `ir`
+ * (reviewer) and `eu` (end user) — both classify the same workflow
+ * documents for the same activity.
+ */
 export interface ClassifiedDocument {
   document: ActivityDocument;
   key: string;
