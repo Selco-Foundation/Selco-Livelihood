@@ -1,5 +1,5 @@
 import { translateOr, useTranslate } from "@/shared";
-import { Input, Skeleton } from "@/ui";
+import { Input, PasswordField, Skeleton } from "@/ui";
 import { boundaryDisplayName } from "../../utils/boundary";
 import { useFacilityForm } from "../../hooks/use-facility-form";
 import { FormSelectField, type SelectOption } from "./FormSelectField";
@@ -221,31 +221,17 @@ export function FacilityForm({ form }: FacilityFormProps) {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">
-            {translateOr(t, "FACILITY_PASSWORD", "Password")}
-          </label>
-          <Input
-            type="password"
-            autoComplete="new-password"
-            value={values.password}
-            onChange={(event) => updateField("password", event.target.value)}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">
-            {translateOr(t, "FACILITY_CONFIRM_PASSWORD", "Confirm Password")}
-          </label>
-          <Input
-            type="password"
-            autoComplete="new-password"
-            value={values.confirmPassword}
-            onChange={(event) => updateField("confirmPassword", event.target.value)}
-          />
-          {fieldErrors.confirmPassword ? (
-            <p className="text-xs text-destructive">{fieldErrors.confirmPassword}</p>
-          ) : null}
-        </div>
+        <PasswordField
+          label={translateOr(t, "FACILITY_PASSWORD", "Password")}
+          value={values.password}
+          onChange={(value) => updateField("password", value)}
+        />
+        <PasswordField
+          label={translateOr(t, "FACILITY_CONFIRM_PASSWORD", "Confirm Password")}
+          value={values.confirmPassword}
+          error={fieldErrors.confirmPassword}
+          onChange={(value) => updateField("confirmPassword", value)}
+        />
       </div>
     </div>
   );

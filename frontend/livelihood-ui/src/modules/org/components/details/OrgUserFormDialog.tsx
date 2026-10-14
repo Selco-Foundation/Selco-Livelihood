@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogScrim,
   DialogTitle,
+  PasswordField,
   toast,
   useBodyScrollLock,
 } from "@/ui";
@@ -15,7 +16,6 @@ import { useOrgRoleGroups } from "../../hooks/use-org-role-groups";
 import { useOrgUserForm } from "../../hooks/use-org-user-form";
 import { useCreateOrgUser, useUpdateOrgUser } from "../../hooks/use-org-users";
 import { roleGroupId, type Organisation, type OrgUser } from "../../types/organisation";
-import { PasswordField } from "../form/PasswordField";
 import { RoleMultiSelect } from "../form/RoleMultiSelect";
 import { TextField } from "../form/TextField";
 import { JurisdictionSection } from "./JurisdictionSection";
