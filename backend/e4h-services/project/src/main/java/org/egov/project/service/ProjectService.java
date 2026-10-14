@@ -1132,7 +1132,8 @@ public class ProjectService {
     }
 
     /**
-     * Gets all facilities currently linked to a project
+     * Gets all facilities currently linked to a project, page by page -- a single search would
+     * silently stop at its limit and leave the rest linked.
      */
     private List<ProjectFacility> getFacilitiesLinkedToProject(String projectId, String tenantId, RequestInfo requestInfo) throws Exception {
         List<String> projectIds = new ArrayList<>();
@@ -1148,18 +1149,17 @@ public class ProjectService {
                 .requestInfo(requestInfo)
                 .build();
 
-        SearchResponse<ProjectFacility> searchResponse = projectFacilityService.search(
-                projectFacilitySearchRequest,
-                1000, // Large limit to get all facilities
-                0,
-                tenantId,
-                null,
-                false
-        );
-
-        return (searchResponse != null && searchResponse.getResponse() != null)
-                ? searchResponse.getResponse()
-                : new ArrayList<>();
+        List<ProjectFacility> linked = new ArrayList<>();
+        for (int offset = 0; ; offset += FACILITY_SEARCH_PAGE_SIZE) {
+            SearchResponse<ProjectFacility> searchResponse = projectFacilityService.search(
+                    projectFacilitySearchRequest, FACILITY_SEARCH_PAGE_SIZE, offset, tenantId, null, false);
+            List<ProjectFacility> page = searchResponse == null || searchResponse.getResponse() == null
+                    ? List.of() : searchResponse.getResponse();
+            linked.addAll(page);
+            if (page.size() < FACILITY_SEARCH_PAGE_SIZE) {
+                return linked;
+            }
+        }
     }
 
     /**
