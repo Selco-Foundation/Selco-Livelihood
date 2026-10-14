@@ -127,7 +127,7 @@ export function JurisdictionSection({ jurisdictions }: JurisdictionSectionProps)
           {draftErrors[draft.key] ? (
             <p className="flex items-center gap-1 text-xs text-destructive">
               <Info className="size-3.5 shrink-0" />
-              {draftErrors[draft.key]}
+              <span className="min-w-0 wrap-anywhere">{draftErrors[draft.key]}</span>
             </p>
           ) : null}
         </div>

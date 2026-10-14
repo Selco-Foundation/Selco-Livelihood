@@ -5,6 +5,7 @@ import org.egov.activity.config.ActivityConfiguration;
 import org.egov.activity.repository.VendorAssignmentRepository;
 import org.egov.activity.util.VendorDirectory;
 import static org.egov.activity.util.ActivityConstants.INSTALLATION_REPORT_APPROVER_QC_TEAM;
+import static org.egov.activity.util.ActivityConstants.INSTALLATION_REPORT_PART_A_EDITOR;
 import org.egov.activity.web.models.OrgUserEnriched;
 import org.egov.activity.web.models.ProcessInstance;
 import org.egov.activity.web.models.VendorAssignmentAsset;
@@ -376,6 +377,12 @@ public class VendorAssignmentService {
                 errors.add(assetError(submission, "VENDOR_MISMATCH",
                         "The selected vendor does not belong to the selected vendor organisation, "
                                 + "or is no longer active in it. Reload the screen and pick again."));
+            } else if (!isFieldStaff(member)) {
+                // Only Field Staff fill IC Reports, so only they can be dispatched. The dropdown
+                // already hides everyone else; this catches a stale screen or hand-built payload.
+                errors.add(assetError(submission, "VENDOR_NOT_FIELD_STAFF",
+                        "The selected vendor is not Field Staff (Installation Report Part A Editor) "
+                                + "and cannot be assigned. Pick another vendor."));
             } else {
                 resolvedVendors.put(submission.assetKey(), member);
             }
@@ -421,6 +428,14 @@ public class VendorAssignmentService {
         }
 
         return new ValidationOutcome(errors, resolvedVendors);
+    }
+
+    /** Whether the org user's HRMS record holds the Field Staff role (INSTALLATION_REPORT_PART_A_EDITOR). */
+    private static boolean isFieldStaff(OrgUserEnriched member) {
+        return member.getUser() != null
+                && member.getUser().getRoles() != null
+                && member.getUser().getRoles().stream()
+                        .anyMatch(role -> role != null && INSTALLATION_REPORT_PART_A_EDITOR.equals(role.getCode()));
     }
 
     /**

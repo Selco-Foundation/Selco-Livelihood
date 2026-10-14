@@ -122,7 +122,7 @@ export function FormSelectField({
       {error ? (
         <p className="flex items-center gap-1 text-xs text-destructive">
           <Info className="size-3.5 shrink-0" />
-          {error}
+          <span className="min-w-0 wrap-anywhere">{error}</span>
         </p>
       ) : null}
     </div>

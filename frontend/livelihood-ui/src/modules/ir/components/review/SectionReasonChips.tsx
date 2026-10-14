@@ -25,15 +25,15 @@ export function SectionReasonChips({
       {reasons.map((reason) => (
         <span
           key={reason.id}
-          className="inline-flex items-center gap-1.5 rounded-full bg-destructive/10 px-3 py-1 text-xs font-medium text-destructive"
+          className="inline-flex max-w-full items-center gap-1.5 rounded-2xl bg-destructive/10 px-3 py-1 text-xs font-medium text-destructive"
         >
           {readOnly ? (
-            <span>
+            <span className="min-w-0 wrap-anywhere">
               {reason.reasonLabel}
               {reason.comment ? ` — ${reason.comment}` : ""}
             </span>
           ) : (
-            <button type="button" onClick={() => onEdit(reason)} className="cursor-pointer">
+            <button type="button" onClick={() => onEdit(reason)} className="min-w-0 cursor-pointer text-left wrap-anywhere">
               {reason.reasonLabel}
               {reason.comment ? ` — ${reason.comment}` : ""}
             </button>
@@ -43,7 +43,7 @@ export function SectionReasonChips({
               type="button"
               onClick={() => onRemove(reason.id)}
               aria-label="Remove reason"
-              className="cursor-pointer"
+              className="shrink-0 cursor-pointer"
             >
               <X className="size-3.5" />
             </button>

@@ -264,7 +264,7 @@ export function CreateProjectPage() {
         />
       ) : null}
 
-      {navError ? <p className="text-sm text-destructive">{navError}</p> : null}
+      {navError ? <p className="text-sm text-destructive wrap-anywhere">{navError}</p> : null}
 
       <WizardActionFooter>
         {currentStep > 1 ? (
