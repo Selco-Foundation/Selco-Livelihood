@@ -38,6 +38,7 @@ class FacilityServiceClient:
         boundary_code: Optional[str] = None,
         hfr_id: Optional[str] = None,
         nin_id: Optional[str] = None,
+        facility_poc_username: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Search facilities with two optimized paths:
@@ -49,7 +50,7 @@ class FacilityServiceClient:
 
         try:
             # Fast path for identifier-based lookups used by ingestion templates
-            if facility_id or hfr_id or nin_id:
+            if facility_id or hfr_id or nin_id or facility_poc_username:
                 params: Dict[str, Any] = {
                     "tenantId": tenant_id,
                     "limit": 200,  # more than enough for single-id lookups
@@ -61,6 +62,8 @@ class FacilityServiceClient:
                     params["hfrId"] = hfr_id
                 if nin_id:
                     params["ninId"] = nin_id
+                if facility_poc_username:
+                    params["facilityPocUsername"] = facility_poc_username
 
                 response = requests.get(url, headers=headers, params=params, timeout=30)
                 response.raise_for_status()
