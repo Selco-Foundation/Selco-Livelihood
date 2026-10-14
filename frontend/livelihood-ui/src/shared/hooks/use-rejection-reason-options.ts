@@ -1,5 +1,7 @@
-import { fetchMdmsMasters, tenantId as getTenantId, useAuthStore, type AuthUser } from "@/shared";
 import { useQuery } from "@tanstack/react-query";
+import { fetchMdmsMasters } from "../api/mdms";
+import { tenantId as getTenantId } from "../config/global-config";
+import { useAuthStore, type AuthUser } from "../stores/auth-store";
 import { mapRejectionReasonOptions } from "../utils/rejection-reason-mapping";
 
 const REJECTION_REASONS_MODULE = "Installation";
@@ -9,10 +11,10 @@ export function rejectionReasonOptionsQueryKey(tenantId: string) {
   return ["ir-rejection-reason-options", tenantId];
 }
 
-/** Shared by useFacilityReview (via queryClient.fetchQuery, same key) so the
- * master is only actually fetched once and cached across every review page
- * visit, not re-fetched per entry — same pattern as the installation-image
- * checklist criteria. */
+/** Shared by ir's useActivityReview and eu's useActivityDetails (via
+ * queryClient.fetchQuery, same key) so the master is only actually fetched
+ * once and cached across every review/detail page visit, not re-fetched per
+ * entry — same pattern as the installation-image checklist criteria. */
 export function fetchRejectionReasonOptionsQuery(
   tenantId: string,
   accessToken: string,

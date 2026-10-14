@@ -1,18 +1,7 @@
+import type { ActivityStatus } from "@/shared";
+import type { ActivityAuditCheckpoint, ActivityDocument, ReviewSectionContent } from "@/ui";
+
 export type ActivityComponentType = "MACHINE" | "SOLAR";
-
-// Real states of the `FACILITY_INSTALLATION` business service
-// (business `field-planner-activity`): SCHEDULED -> ASSIGNED_TO_FIELD_STAFF ->
-// SUBMITTED_BY_FIELD_STAFF -> {APPROVED_BY_QC_SPOC | REJECTED_BY_QC_SPOC},
-// with REJECTED_BY_QC_SPOC looping back to SUBMITTED_BY_FIELD_STAFF.
-export const ACTIVITY_STATUS = {
-  SCHEDULED: "SCHEDULED",
-  ASSIGNED_TO_FIELD_STAFF: "ASSIGNED_TO_FIELD_STAFF",
-  SUBMITTED_BY_FIELD_STAFF: "SUBMITTED_BY_FIELD_STAFF",
-  APPROVED_BY_QC_SPOC: "APPROVED_BY_QC_SPOC",
-  REJECTED_BY_QC_SPOC: "REJECTED_BY_QC_SPOC",
-} as const;
-
-export type ActivityStatus = (typeof ACTIVITY_STATUS)[keyof typeof ACTIVITY_STATUS];
 
 export interface ReviewActivity {
   activityId: string;
@@ -31,11 +20,6 @@ export interface ReviewActivity {
 // shared boundary service (see hooks/use-boundary), seeded by the field
 // plan's own state from the ActivityAssignment search (installation-plan.ts)
 // which this page already fetches for its breadcrumb/summary.
-
-export interface ActivityDocument {
-  documentType?: string;
-  fileStoreId?: string;
-}
 
 export interface ActivityBomComponent {
   slNo?: number;
@@ -115,138 +99,20 @@ export type MachineSectionId = (typeof MACHINE_SECTION_IDS)[number];
 // so the overall id space is a plain string rather than a fixed literal union.
 export type ReviewSectionId = string;
 
-export interface LabeledValue {
-  labelKey: string;
-  label: string;
-  value: string;
-  /** When set, the value itself is a localization key (falling back to
-   * `value` untranslated) — e.g. a boundary code's `BOUNDARY_<code>` name,
-   * same convention as `labelKey`/`label`. */
-  valueKey?: string;
-}
-
-export interface SectionImage {
-  url: string;
-}
-
-export interface SectionVideo {
-  url: string;
-  size?: number;
-}
-
-/** One physical unit within an asset section — e.g. "Panel 1", "Panel 2". */
-export interface AssetItem {
-  itemNumber: number;
-  /** Overrides the default "{section label} {itemNumber}" heading — used for
-   * BOM components that aren't interchangeable units of the same product
-   * (e.g. a Machine's distinct parts), where the product name is the heading. */
-  label?: string;
-  serialNumber?: string;
-  capacity?: string;
-  quantity?: number;
-  images: SectionImage[];
-}
-
-/** A labeled media sub-group within a section — used by Machine's Electric
- * Board / Demo Test with Raw Material / Photo with End User fields, which
- * need their own titles rather than sitting in one anonymous gallery. */
-export interface MediaGroup {
-  id: string;
-  labelKey: string;
-  label: string;
-  images: SectionImage[];
-  videos: SectionVideo[];
-}
-
-export interface AssetSectionContent {
-  kind: "ASSET";
-  id: SolarSectionId | MachineSectionId;
-  labelKey: string;
-  label: string;
-  count?: number;
-  specifications: LabeledValue[];
-  /** Overrides the default "Specifications" heading — Machine's
-   * specifications block covers the installation (vendor/installed-by/
-   * report number), not the machine itself, so it reads "Installation
-   * Details" instead. */
-  specificationsHeading?: { labelKey: string; label: string };
-  /** Battery-only, matching qc's one hardcoded special case: an extra titled
-   * sub-block (Capacity/Voltage) alongside the regular specifications. */
-  extraSpecifications?: { labelKey: string; label: string; fields: LabeledValue[] };
-  details?: LabeledValue[];
-  items?: AssetItem[];
-  images: SectionImage[];
-  videos: SectionVideo[];
-  mediaGroups?: MediaGroup[];
-}
-
-export interface ReportDocument {
-  name: string;
-  url: string;
-  size?: number;
-}
-
-export interface ReportSectionContent {
-  kind: "REPORT";
-  id: "INSTALLATION_COMPLETION_REPORT";
-  labelKey: string;
-  label: string;
-  specifications?: LabeledValue[];
-  /** The completion report document itself (workflow documentType
-   * `INSTALLATION_REPORT_BOM`) — verified as the only report-type document
-   * real submissions actually carry, for both Solar and Machine. Matches
-   * qc's `bomCompletionReport`/`report`. */
-  report: ReportDocument | null;
-  supportingDocuments: ReportDocument[];
-}
-
-/** One installation-image checklist entry (e.g. "Site overview photo"),
- * rendered as its own top-level section — sibling to Panel/Battery/Inverter,
- * not nested inside the report section. */
-export interface ImageChecklistSectionContent {
-  kind: "IMAGE_CHECKLIST";
-  id: string;
-  label: string;
-  images: SectionImage[];
-}
-
-export type ReviewSectionContent =
-  | AssetSectionContent
-  | ReportSectionContent
-  | ImageChecklistSectionContent;
-
-// ---- Lazily-loaded section media ----
-// One of these is fetched per section, on expand — see
-// hooks/use-activity-review.ts's useLoadSectionMedia.
-
-export interface AssetSectionMediaPatch {
-  images: SectionImage[];
-  videos: SectionVideo[];
-  mediaGroups?: Record<string, { images: SectionImage[]; videos: SectionVideo[] }>;
-}
-
-export interface ReportSectionMediaPatch {
-  report: ReportDocument | null;
-  supportingDocuments: ReportDocument[];
-}
-
-export interface ImageChecklistMediaPatch {
-  images: SectionImage[];
-}
-
-export type SectionMediaPatch =
-  | AssetSectionMediaPatch
-  | ReportSectionMediaPatch
-  | ImageChecklistMediaPatch;
+// LabeledValue, SectionImage, SectionVideo, AssetItem, MediaGroup,
+// AssetSectionContent, ReportDocument, ReportSectionContent,
+// ImageChecklistSectionContent, ReviewSectionContent, and the lazily-loaded
+// SectionMediaPatch family all live in @/ui (components/activity-review/
+// types.ts) — eu's read-only Activity Report page renders the same shared
+// display components over the same shapes. ir's own asset-mapping.ts still
+// uses SolarSectionId/MachineSectionId above as the concrete values it
+// assigns to @/ui's AssetSectionContent.id (typed there as plain `string`).
 
 // ---- Rejection reasons ----
 // Structured per top-level section, matching qc: each entry is a reason
 // picked from an MDMS-sourced master plus a free-text comment.
-
-export interface RejectionReasonOption {
-  code: string;
-  name: string;
-}
+// RejectionReasonOption (the MDMS master's option shape) lives in @/shared —
+// eu's audit trail needs it too, to resolve a historical reason code.
 
 export interface RejectionReasonEntry {
   id: string;
@@ -257,22 +123,8 @@ export interface RejectionReasonEntry {
 
 export type SectionRejectionReasons = Partial<Record<ReviewSectionId, RejectionReasonEntry[]>>;
 
-// ---- Audit trail ----
-
-export interface AuditSectionReasons {
-  sectionId: ReviewSectionId;
-  sectionLabel: string;
-  reasons: { reasonLabel: string; comment: string }[];
-}
-
-export interface ActivityAuditCheckpoint {
-  id: string;
-  status: ActivityStatus;
-  date: string;
-  actorName?: string;
-  comment?: string;
-  sectionReasons?: AuditSectionReasons[];
-}
+// AuditSectionReasons/ActivityAuditCheckpoint (the audit-trail shapes) also
+// live in @/ui — see the note above ReviewSectionContent's old location.
 
 export interface ActivityReviewDetail {
   activity: ReviewActivity;

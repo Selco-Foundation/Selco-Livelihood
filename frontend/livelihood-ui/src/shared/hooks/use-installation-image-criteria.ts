@@ -1,5 +1,7 @@
-import { fetchMdmsMasters, tenantId as getTenantId, useAuthStore, type AuthUser } from "@/shared";
 import { useQuery } from "@tanstack/react-query";
+import { fetchMdmsMasters } from "../api/mdms";
+import { tenantId as getTenantId } from "../config/global-config";
+import { useAuthStore, type AuthUser } from "../stores/auth-store";
 import { mapInstallationImageCriteria } from "../utils/installation-image-mapping";
 
 const INSTALLATION_IMAGES_MODULE = "common-masters";
@@ -9,9 +11,10 @@ export function installationImageCriteriaQueryKey(tenantId: string) {
   return ["ir-installation-image-criteria", tenantId];
 }
 
-/** Shared by useFacilityReview (via queryClient.fetchQuery, same key) so the
- * master is only actually fetched once and cached across every review page
- * visit, not re-fetched per entry. */
+/** Shared by ir's useActivityReview and eu's useActivityDetails (via
+ * queryClient.fetchQuery, same key) so the master is only actually fetched
+ * once and cached across every review/detail page visit, not re-fetched per
+ * entry. */
 export function fetchInstallationImageCriteriaQuery(
   tenantId: string,
   accessToken: string,

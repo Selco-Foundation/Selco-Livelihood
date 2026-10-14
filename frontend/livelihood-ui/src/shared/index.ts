@@ -82,6 +82,16 @@ export { useDebouncedValue } from "./hooks/use-debounced-value";
 export { useFacility } from "./hooks/use-facility";
 export { useLanguages } from "./hooks/use-languages";
 export { useLoginBannerImages } from "./hooks/use-login-banner-images";
+export {
+  fetchInstallationImageCriteriaQuery,
+  installationImageCriteriaQueryKey,
+  useInstallationImageCriteria,
+} from "./hooks/use-installation-image-criteria";
+export {
+  fetchRejectionReasonOptionsQuery,
+  rejectionReasonOptionsQueryKey,
+  useRejectionReasonOptions,
+} from "./hooks/use-rejection-reason-options";
 export { useAuthStore, type AuthUser } from "./stores/auth-store";
 export { useJurisdictionStore } from "./stores/jurisdiction-store";
 export { useLocaleStore } from "./stores/locale-store";
@@ -134,4 +144,24 @@ export {
   PROJECT_MANAGER_ROLE,
   type RoleLike,
 } from "./utils/roles";
+export {
+  ACTIVITY_STATUS,
+  ACTIVITY_STATUS_LABELS,
+  ACTIVITY_STATUS_ORDER,
+  activityStatusBadgeVariant,
+  FACILITY_INSTALLATION_BUSINESS_SERVICE,
+  type ActivityStatus,
+  type ActivityStatusBadgeVariant,
+} from "./utils/activity-status";
+export {
+  mapInstallationImageCriteria,
+  type InstallationImageCriterion,
+  type RawInstallationImageCriterion,
+} from "./utils/installation-image-mapping";
+export {
+  isOtherReason,
+  mapRejectionReasonOptions,
+  type RawRejectionReasonOption,
+  type RejectionReasonOption,
+} from "./utils/rejection-reason-mapping";
 export type { ModuleDefinition, ModuleOverview, NavItem } from "./modules/types";

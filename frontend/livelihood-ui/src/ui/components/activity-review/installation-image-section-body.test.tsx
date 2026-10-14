@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import type { ImageChecklistSectionContent } from "../../types/activity-review";
-import { InstallationImageSectionBody } from "./InstallationImageSectionBody";
+import { InstallationImageSectionBody } from "./installation-image-section-body";
+import type { ImageChecklistSectionContent } from "./types";
 
 function makeSection(overrides: Partial<ImageChecklistSectionContent> = {}): ImageChecklistSectionContent {
   return {

@@ -1,4 +1,4 @@
-import type { ActivityDocument } from "../types/activity-review";
+import type { ActivityDocument } from "@/ui";
 
 // Installation Completion Certificate / Asset Handover Document were
 // dropped — verified against real workflow documents across every

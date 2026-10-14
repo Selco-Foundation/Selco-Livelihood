@@ -1,19 +1,24 @@
-import type { RejectionReasonOption } from "../types/activity-review";
-
 // MDMS `Installation.RejectionReasons` — matches qc's own module/master
 // exactly (Digit.Hooks.useCustomMDMS(tenantId, "Installation",
 // [{name: "RejectionReasons"}])). Verified against the real master: raw
 // entries are exactly `{ code, name }`, one of them `{ code: "OTHER",
 // name: "Other" }` — no `active` flag, no asset-type/section association,
 // no i18n key; qc uses `name` as the plain display label (not translated)
-// and always sorts the "Other" entry last.
+// and always sorts the "Other" entry last. Shared by `ir` (picking a reason
+// while reviewing) and `eu` (resolving a historical reason code to its
+// display name in the audit trail).
 export interface RawRejectionReasonOption {
   code?: string;
   name?: string;
 }
 
+export interface RejectionReasonOption {
+  code: string;
+  name: string;
+}
+
 /** Mirrors qc's `isOtherReason` — an "Other"/"Others" reason requires a
- * comment before it can be saved (see RejectionReasonDialog.tsx). */
+ * comment before it can be saved (see ir's RejectionReasonDialog.tsx). */
 export function isOtherReason(option: RejectionReasonOption): boolean {
   const normalize = (value: string) => value.trim().toLowerCase();
   return ["other", "others"].includes(normalize(option.code)) || ["other", "others"].includes(normalize(option.name));

@@ -1,4 +1,18 @@
-import type { ActivityStatus } from "../types/activity-review";
+// Real states of the `FACILITY_INSTALLATION` business service
+// (business `field-planner-activity`): SCHEDULED -> ASSIGNED_TO_FIELD_STAFF ->
+// SUBMITTED_BY_FIELD_STAFF -> {APPROVED_BY_QC_SPOC | REJECTED_BY_QC_SPOC},
+// with REJECTED_BY_QC_SPOC looping back to SUBMITTED_BY_FIELD_STAFF. Shared
+// by `ir` (reviewer) and `eu` (end user) — both read the same workflow's
+// `applicationStatus` off the same `/activity/v1/activities/_search` endpoint.
+export const ACTIVITY_STATUS = {
+  SCHEDULED: "SCHEDULED",
+  ASSIGNED_TO_FIELD_STAFF: "ASSIGNED_TO_FIELD_STAFF",
+  SUBMITTED_BY_FIELD_STAFF: "SUBMITTED_BY_FIELD_STAFF",
+  APPROVED_BY_QC_SPOC: "APPROVED_BY_QC_SPOC",
+  REJECTED_BY_QC_SPOC: "REJECTED_BY_QC_SPOC",
+} as const;
+
+export type ActivityStatus = (typeof ACTIVITY_STATUS)[keyof typeof ACTIVITY_STATUS];
 
 export const FACILITY_INSTALLATION_BUSINESS_SERVICE = "FACILITY_INSTALLATION";
 

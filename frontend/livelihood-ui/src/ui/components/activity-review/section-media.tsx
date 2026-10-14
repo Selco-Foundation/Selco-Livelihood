@@ -1,6 +1,6 @@
 import { translateOr, useTranslate } from "@/shared";
 import { Download } from "lucide-react";
-import type { SectionImage, SectionVideo } from "../../types/activity-review";
+import type { SectionImage, SectionVideo } from "./types";
 
 function formatFileSize(bytes?: number): string {
   if (!bytes) {

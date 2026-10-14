@@ -1,14 +1,7 @@
+import type { AssetItem, AssetSectionContent, LabeledValue, MediaGroup, SectionImage, SectionVideo } from "@/ui";
 import { MACHINE_MEDIA_GROUPS, REVIEW_SECTION_LABELS } from "../constants/review";
 import type { AssetSearchDocument, AssetSearchResponseItem } from "../services/asset";
-import type {
-  AssetItem,
-  AssetSectionContent,
-  LabeledValue,
-  MediaGroup,
-  SectionImage,
-  SectionVideo,
-  SolarSectionId,
-} from "../types/activity-review";
+import type { SolarSectionId } from "../types/activity-review";
 
 const BLANK = "-";
 const SOLAR_ASSET_TYPE_IDS: SolarSectionId[] = ["PANEL", "BATTERY", "INVERTER"];

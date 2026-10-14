@@ -1,5 +1,5 @@
 import { translateOr, useTranslate } from "@/shared";
-import type { LabeledValue } from "../../types/activity-review";
+import type { LabeledValue } from "./types";
 
 interface LabeledValueRowsProps {
   items: LabeledValue[];

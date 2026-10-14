@@ -1,27 +1,27 @@
-import { REVIEW_SECTION_LABELS } from "../constants/review";
-import type { MachineAssetData } from "./asset-mapping";
-import { formatEpochDate } from "./date-format";
-import { toReviewActivity } from "./review-activity-mapping";
-import { classifyDocument, INSTALLATION_IMAGE_PREFIX, REPORT_DOCUMENT_TYPES } from "./facility-documents";
-import type { InstallationImageCriterion } from "./installation-image-mapping";
+import type { ActivityStatus, InstallationImageCriterion, RejectionReasonOption } from "@/shared";
 import type {
   ActivityAuditCheckpoint,
-  ActivityBillOfMaterial,
-  ActivityBomComponent,
   ActivityDocument,
-  ActivityFacilityRow,
-  ActivityReviewDetail,
-  ActivityStatus,
-  ActivityTransaction,
-  ActivityWorkflowEntry,
   AssetItem,
   AssetSectionContent,
   AuditSectionReasons,
   ImageChecklistSectionContent,
   LabeledValue,
-  RejectionReasonOption,
   ReportSectionContent,
   ReviewSectionContent,
+} from "@/ui";
+import { REVIEW_SECTION_LABELS } from "../constants/review";
+import type { MachineAssetData } from "./asset-mapping";
+import { formatEpochDate } from "./date-format";
+import { toReviewActivity } from "./review-activity-mapping";
+import { classifyDocument, INSTALLATION_IMAGE_PREFIX, REPORT_DOCUMENT_TYPES } from "./facility-documents";
+import type {
+  ActivityBillOfMaterial,
+  ActivityBomComponent,
+  ActivityFacilityRow,
+  ActivityReviewDetail,
+  ActivityTransaction,
+  ActivityWorkflowEntry,
   ReviewSectionId,
 } from "../types/activity-review";
 
@@ -212,7 +212,7 @@ export function buildActivityReviewDetail(
   // since it doesn't use it (machineAssetData is its equivalent below).
   solarAssetSections: AssetSectionContent[],
   // MDMS `Installation.RejectionReasons` options (see
-  // hooks/use-rejection-reason-options.ts) — used here only to resolve a
+  // @/shared's useRejectionReasonOptions) — used here only to resolve a
   // historical audit-trail comment's reasonCode back to its display name.
   reasonOptions: RejectionReasonOption[],
   // Machine's asset-sourced PO/invoice/warranty/serial-number/spec data —

@@ -1,4 +1,4 @@
-import { classifyDocument, REPORT_DOCUMENT_TYPES } from "./facility-documents";
+import type { FileStoreUrlResponse } from "@/shared";
 import type {
   ActivityDocument,
   AssetSectionMediaPatch,
@@ -7,8 +7,8 @@ import type {
   ReportSectionMediaPatch,
   SectionImage,
   SectionVideo,
-} from "../types/activity-review";
-import type { FileStoreUrlResponse } from "@/shared";
+} from "@/ui";
+import { classifyDocument, REPORT_DOCUMENT_TYPES } from "./facility-documents";
 
 function buildUrlMap(response: FileStoreUrlResponse): Map<string, string> {
   return new Map(

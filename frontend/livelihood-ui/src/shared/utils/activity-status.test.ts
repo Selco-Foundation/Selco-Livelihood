@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ACTIVITY_STATUS,
   ACTIVITY_STATUS_LABELS,
   ACTIVITY_STATUS_ORDER,
   activityStatusBadgeVariant,
+  type ActivityStatus,
 } from "./activity-status";
-import { ACTIVITY_STATUS, type ActivityStatus } from "../types/activity-review";
 
 const ALL_STATUSES = Object.values(ACTIVITY_STATUS) as ActivityStatus[];
 

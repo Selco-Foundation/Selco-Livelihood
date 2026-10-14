@@ -1,13 +1,13 @@
-import { fetchFileUrls, useAuthStore } from "@/shared";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  fetchFileUrls,
   fetchInstallationImageCriteriaQuery,
-  installationImageCriteriaQueryKey,
-} from "./use-installation-image-criteria";
-import {
   fetchRejectionReasonOptionsQuery,
+  installationImageCriteriaQueryKey,
   rejectionReasonOptionsQueryKey,
-} from "./use-rejection-reason-options";
+  useAuthStore,
+} from "@/shared";
+import type { ActivityDocument, AssetSectionContent, ReviewSectionContent, SectionMediaPatch } from "@/ui";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { searchAssetsForActivityFacility } from "../services/asset";
 import { ACTIVITY_CODE_INSTALLATION, searchActivityFacilities } from "../services/facility";
 import { submitFacilityReview } from "../services/review";
@@ -25,14 +25,7 @@ import {
 } from "../utils/facility-media";
 import { buildActivityReviewDetail } from "../utils/activity-review-mapping";
 import { hasIrAccess } from "../utils/access";
-import type {
-  ActivityDocument,
-  ActivityReviewDetail,
-  AssetSectionContent,
-  ReviewSectionContent,
-  SectionMediaPatch,
-  SubmitActivityReviewInput,
-} from "../types/activity-review";
+import type { ActivityReviewDetail, SubmitActivityReviewInput } from "../types/activity-review";
 
 export function useActivityReview(activityId: string) {
   const accessToken = useAuthStore((state) => state.accessToken);

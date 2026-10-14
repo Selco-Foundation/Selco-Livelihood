@@ -2,7 +2,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ActivityReviewDetail, AssetSectionContent, ReviewActivity } from "../../types/activity-review";
+import type { AssetSectionContent } from "@/ui";
+import type { ActivityReviewDetail, ReviewActivity } from "../../types/activity-review";
 import { irActivitiesPath } from "../../utils/paths";
 
 const mockNavigate = vi.fn();
@@ -27,7 +28,11 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@/shared", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/shared")>();
-  return { ...actual, reloadModule: vi.fn().mockResolvedValue(undefined) };
+  return {
+    ...actual,
+    reloadModule: vi.fn().mockResolvedValue(undefined),
+    useRejectionReasonOptions: vi.fn(),
+  };
 });
 
 vi.mock("@/ui", async (importOriginal) => {
@@ -41,9 +46,8 @@ vi.mock("../../hooks/use-activity-review", () => ({
   useSubmitActivityReview: vi.fn(),
 }));
 vi.mock("../../hooks/use-installation-plans", () => ({ useInstallationPlans: vi.fn() }));
-vi.mock("../../hooks/use-rejection-reason-options", () => ({ useRejectionReasonOptions: vi.fn() }));
 
-import { useAuthStore } from "@/shared";
+import { useAuthStore, useRejectionReasonOptions } from "@/shared";
 import { toast } from "@/ui";
 import {
   useActivityReview,
@@ -51,7 +55,6 @@ import {
   useSubmitActivityReview,
 } from "../../hooks/use-activity-review";
 import { useInstallationPlans } from "../../hooks/use-installation-plans";
-import { useRejectionReasonOptions } from "../../hooks/use-rejection-reason-options";
 import { ActivityReview } from "./ActivityReview";
 
 const IR_USER = { roles: [{ code: "INSTALLATION_REPORT_APPROVER_QC_TEAM" }] };

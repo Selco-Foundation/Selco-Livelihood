@@ -2,19 +2,25 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useAuthStore } from "@/shared";
+import { useAuthStore } from "../stores/auth-store";
 import {
   fetchInstallationImageCriteriaQuery,
   installationImageCriteriaQueryKey,
   useInstallationImageCriteria,
 } from "./use-installation-image-criteria";
 
-vi.mock("@/shared", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/shared")>();
-  return { ...actual, fetchMdmsMasters: vi.fn(), tenantId: vi.fn(() => "fallback-tenant") };
+vi.mock("../api/mdms", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/mdms")>();
+  return { ...actual, fetchMdmsMasters: vi.fn() };
 });
 
-import { fetchMdmsMasters, tenantId } from "@/shared";
+vi.mock("../config/global-config", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../config/global-config")>();
+  return { ...actual, tenantId: vi.fn(() => "fallback-tenant") };
+});
+
+import { fetchMdmsMasters } from "../api/mdms";
+import { tenantId } from "../config/global-config";
 
 function createWrapper() {
   const queryClient = new QueryClient({

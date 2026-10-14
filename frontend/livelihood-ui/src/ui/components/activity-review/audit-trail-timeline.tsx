@@ -1,12 +1,8 @@
-import { translateOr, useTranslate } from "@/shared";
-import { cn } from "@/ui";
-import { ACTIVITY_STATUS_LABELS } from "../../constants/activity-status";
-import type { ActivityAuditCheckpoint, ActivityStatus } from "../../types/activity-review";
+import { ACTIVITY_STATUS_LABELS, translateOr, useTranslate } from "@/shared";
+import { cn } from "@/ui/lib/utils";
+import type { ActivityAuditCheckpoint, ActivityStatus } from "./types";
 
-function statusLabel(
-  status: ActivityStatus,
-  t: ReturnType<typeof useTranslate>["t"],
-): string {
+function statusLabel(status: ActivityStatus, t: ReturnType<typeof useTranslate>["t"]): string {
   const label = ACTIVITY_STATUS_LABELS[status];
   return translateOr(t, label.key, label.fallback);
 }

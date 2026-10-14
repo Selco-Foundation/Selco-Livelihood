@@ -1,12 +1,9 @@
 import { describe, expect, it } from "vitest";
+import type { InstallationImageCriterion, RejectionReasonOption } from "@/shared";
+import type { AssetSectionContent } from "@/ui";
 import type { MachineAssetData } from "./asset-mapping";
-import type { InstallationImageCriterion } from "./installation-image-mapping";
 import { buildActivityReviewDetail, humanize } from "./activity-review-mapping";
-import type {
-  ActivityFacilityRow,
-  AssetSectionContent,
-  RejectionReasonOption,
-} from "../types/activity-review";
+import type { ActivityFacilityRow } from "../types/activity-review";
 
 describe("humanize", () => {
   it("replaces underscores with spaces and title-cases each word", () => {

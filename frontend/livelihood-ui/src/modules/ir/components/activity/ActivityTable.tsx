@@ -1,10 +1,6 @@
-import { translateOr, useTranslate } from "@/shared";
+import { ACTIVITY_STATUS_LABELS, activityStatusBadgeVariant, translateOr, useTranslate } from "@/shared";
 import { Checkbox, Pagination, Skeleton, cn } from "@/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
-import {
-  ACTIVITY_STATUS_LABELS,
-  activityStatusBadgeVariant,
-} from "../../constants/activity-status";
 import type { ReviewActivity } from "../../types/activity-review";
 import { boundaryDisplayName } from "../../utils/boundary";
 import { irActivityReviewPath } from "../../utils/paths";

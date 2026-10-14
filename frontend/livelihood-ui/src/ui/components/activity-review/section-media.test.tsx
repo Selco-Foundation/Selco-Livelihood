@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import type { SectionImage, SectionVideo } from "../../types/activity-review";
-import { SectionImageGrid, SectionVideoList } from "./SectionMedia";
+import { SectionImageGrid, SectionVideoList } from "./section-media";
+import type { SectionImage, SectionVideo } from "./types";
 
 describe("SectionImageGrid", () => {
   it("renders nothing when images is empty", () => {

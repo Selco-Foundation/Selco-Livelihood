@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import type { ReportSectionContent } from "../../types/activity-review";
-import { ReportSectionBody } from "./ReportSectionBody";
+import { ReportSectionBody } from "./report-section-body";
+import type { ReportSectionContent } from "./types";
 
 function makeSection(overrides: Partial<ReportSectionContent> = {}): ReportSectionContent {
   return {

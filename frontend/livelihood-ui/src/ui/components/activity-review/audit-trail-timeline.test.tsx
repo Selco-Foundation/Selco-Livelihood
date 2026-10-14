@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import type { ActivityAuditCheckpoint } from "../../types/activity-review";
-import { AuditTrailTimeline } from "./AuditTrailTimeline";
+import { AuditTrailTimeline } from "./audit-trail-timeline";
+import type { ActivityAuditCheckpoint } from "./types";
 
 const checkpoints: ActivityAuditCheckpoint[] = [
   {

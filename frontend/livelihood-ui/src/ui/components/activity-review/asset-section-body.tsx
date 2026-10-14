@@ -1,7 +1,7 @@
 import { translateOr, useTranslate } from "@/shared";
-import type { AssetSectionContent } from "../../types/activity-review";
-import { LabeledValueList, LabeledValueRows } from "./LabeledValueList";
-import { SectionImageGrid, SectionVideoList } from "./SectionMedia";
+import { LabeledValueList, LabeledValueRows } from "./labeled-value-list";
+import { SectionImageGrid, SectionVideoList } from "./section-media";
+import type { AssetSectionContent } from "./types";
 
 interface AssetSectionBodyProps {
   section: AssetSectionContent;

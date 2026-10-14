@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import type { LabeledValue } from "../../types/activity-review";
-import { LabeledValueList, LabeledValueRows } from "./LabeledValueList";
+import { LabeledValueList, LabeledValueRows } from "./labeled-value-list";
+import type { LabeledValue } from "./types";
 
 const items: LabeledValue[] = [
   { labelKey: "ES_IR_SERIAL_NUMBER", label: "Serial Number", value: "SN-1" },
