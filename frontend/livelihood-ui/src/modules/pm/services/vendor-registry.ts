@@ -4,6 +4,8 @@ import { BULK_PAGE_SIZE } from "../utils/url-params";
 
 const VENDOR_ORG_TYPE = "VENDOR";
 const ACTIVE_ORG_STATUS = "ACTIVE";
+/** Field Staff -- the only org users who fill IC Reports, so the only ones assignable as a vendor. */
+const FIELD_STAFF_ROLE = "INSTALLATION_REPORT_PART_A_EDITOR";
 
 export interface VendorOrganisation {
   code: string;
@@ -24,7 +26,7 @@ interface RawOrganisation {
 interface RawOrgUser {
   id?: string;
   userId?: string;
-  user?: { name?: string; emailId?: string };
+  user?: { name?: string; emailId?: string; roles?: { code?: string }[] };
 }
 
 /**
@@ -52,9 +54,11 @@ export async function searchVendorOrganisations(
 
 /**
  * `POST /vendor/organisation/v1/user/_search` — no filter fields exist beyond `organizationId`, so
- * every returned user is shown. Omitting `RequestInfo.userInfo.type` causes an opaque 400 NPE
- * (vendor-registry forwards to HRMS for enrichment) — `createRequestInfo` always includes it when
- * `user` is passed.
+ * the role filter is applied here: only Field Staff (`INSTALLATION_REPORT_PART_A_EDITOR`, read from
+ * the HRMS-enriched `user.roles`) are returned. field-planner-activity re-checks the role on submit
+ * (`VENDOR_NOT_FIELD_STAFF`), so this is the dropdown's view of the same rule. Omitting
+ * `RequestInfo.userInfo.type` causes an opaque 400 NPE (vendor-registry forwards to HRMS for
+ * enrichment) — `createRequestInfo` always includes it when `user` is passed.
  */
 export async function searchVendorOrgUsers(
   tenantId: string,
@@ -71,6 +75,7 @@ export async function searchVendorOrgUsers(
 
   return (data.OrgUsers ?? [])
     .filter((orgUser) => orgUser.userId || orgUser.id)
+    .filter((orgUser) => orgUser.user?.roles?.some((role) => role.code === FIELD_STAFF_ROLE))
     .map((orgUser) => ({
       code: (orgUser.userId ?? orgUser.id)!,
       // name/email aren't top-level on OrgUser -- they're on the nested HRMS-enriched `user`

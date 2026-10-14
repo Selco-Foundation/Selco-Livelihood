@@ -50,7 +50,7 @@ export function ActivityDetailPage() {
       {isLoading ? (
         <Skeleton className="h-64 w-full" />
       ) : isError ? (
-        <div className="livelihood-card px-6 py-16 text-center text-sm text-destructive">
+        <div className="livelihood-card px-6 py-16 text-center text-sm text-destructive wrap-anywhere">
           {extractApiErrorMessage(error) ??
             translateOr(t, "CS_ACTIVITY_FETCH_FAILED", "Failed to load this activity's report")}
         </div>

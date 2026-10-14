@@ -41,23 +41,23 @@ export function AuditTrailTimeline({ checkpoints }: AuditTrailTimelineProps) {
                 <span className="w-px flex-1 bg-border" />
               ) : null}
             </div>
-            <div className="flex-1 space-y-2 pb-4">
+            <div className="min-w-0 flex-1 space-y-2 pb-4">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-medium text-ink-950">
+                <p className="min-w-0 text-sm font-medium text-ink-950 wrap-anywhere">
                   {statusLabel(checkpoint.status, t)}
                   {checkpoint.actorName ? (
                     <span className="font-normal text-ink-600"> — {checkpoint.actorName}</span>
                   ) : null}
                 </p>
-                <p className="text-xs text-ink-600">{checkpoint.date}</p>
+                <p className="shrink-0 text-xs text-ink-600">{checkpoint.date}</p>
               </div>
               {checkpoint.comment ? (
-                <p className="text-sm text-ink-600">{checkpoint.comment}</p>
+                <p className="text-sm text-ink-600 wrap-anywhere">{checkpoint.comment}</p>
               ) : null}
               {checkpoint.sectionReasons?.map((section) => (
                 <div key={section.sectionId} className="space-y-1">
                   <p className="text-xs font-semibold text-ink-600">{section.sectionLabel}</p>
-                  <ul className="list-disc space-y-0.5 pl-4 text-sm text-ink-950">
+                  <ul className="list-disc space-y-0.5 pl-4 text-sm text-ink-950 wrap-anywhere">
                     {section.reasons.map((reason, reasonIndex) => (
                       <li key={reasonIndex}>
                         {reason.reasonLabel}

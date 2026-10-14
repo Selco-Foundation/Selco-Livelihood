@@ -36,7 +36,7 @@ public class ActivityConstants {
     public static final String NUMBER_OF_SESSIONS = "numberOfSessions";
     public static final String OR = " OR ";
     public static final String PROJECT_MANAGER = "PROJECT_MANAGER";
-    public static final String FACILITY_ADMIN = "FACILITY_ADMIN";
+    public static final String END_USER_ADMIN = "END_USER_ADMIN";
     public static final String INSTALLATION_REPORT_APPROVER_QC_TEAM = "INSTALLATION_REPORT_APPROVER_QC_TEAM";
     public static final String INSTALLATION_REPORT_PART_A_EDITOR = "INSTALLATION_REPORT_PART_A_EDITOR";
     /** Pending-review status after Field Staff submit (Livelihood two-role model; replaces SUBMITTED_BY_SUPERVISOR). */

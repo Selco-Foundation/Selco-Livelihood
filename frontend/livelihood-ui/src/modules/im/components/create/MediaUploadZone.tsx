@@ -172,7 +172,7 @@ export function MediaUploadZone({
       {error ? (
         <p className="flex items-center gap-1 text-xs text-destructive">
           <Info className="size-3.5 shrink-0" />
-          {error}
+          <span className="min-w-0 wrap-anywhere">{error}</span>
         </p>
       ) : helperText ? (
         <p className="text-xs text-muted-foreground">{helperText}</p>

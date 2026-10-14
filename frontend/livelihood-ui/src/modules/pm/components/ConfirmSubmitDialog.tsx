@@ -47,7 +47,7 @@ export function ConfirmSubmitDialog({
         </AlertDialogHeader>
         {/* whitespace-pre-line so the newline-joined per-row messages from the pre-publish
             vendor-assignment validation render as separate lines, not one run-on string. */}
-        {errorMessage ? <p className="text-sm whitespace-pre-line text-destructive">{errorMessage}</p> : null}
+        {errorMessage ? <p className="text-sm whitespace-pre-line text-destructive wrap-anywhere">{errorMessage}</p> : null}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isSubmitting} onClick={onCancel}>
             {translateOr(t, "CORE_COMMON_CANCEL", "Cancel")}
