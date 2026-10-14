@@ -285,7 +285,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
     if (mounted) setState(() {});
   }
 
-  void _openAssetDetails(SolarAssetType type) {
+  Future<void> _openAssetDetails(SolarAssetType type) async {
     final activityFacilityId = widget.draft.workflow.activityFacility.id;
     if (activityFacilityId != null) {
       unawaited(assetProgressRepository.recordStep(
@@ -294,13 +294,14 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
         step: 1,
       ));
     }
-    context.router.push(
+    await context.router.push(
       AssetTypeDetailRoute(
         draft: widget.draft,
         assetType: type,
         pickMedia: widget.pickMedia,
       ),
     );
+    if (mounted) setState(() {});
   }
 
   Future<void> _openAssetSummary(SolarAssetType type) async {
@@ -308,13 +309,14 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
       await installationDraftRepository.hydrateSolar(widget.draft);
       if (!mounted) return;
     }
-    context.router.push(
+    await context.router.push(
       AssetSummaryRoute(
         draft: widget.draft,
         assetType: type,
         readOnly: widget.draft.isReadOnly,
       ),
     );
+    if (mounted) setState(() {});
   }
 
   /// Awaits the cache writes **sequentially** before dispatching submit —
@@ -654,7 +656,8 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                 child: DigitTextFormInput(
                   key: const ValueKey('solar-invoice-number-field'),
                   controller: _invoiceNumberController,
-                innerLabel: context.translate(i18.installationReport.invoiceNumber),
+                  innerLabel:
+                      context.translate(i18.installationReport.invoiceNumber),
                   isDisabled: draft.isReadOnly,
                   readOnly: draft.isReadOnly,
                   onChange: (value) {
@@ -674,6 +677,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                 OtpVerificationWidget(
                   key: const ValueKey('solar-otp-widget'),
                   keyPrefix: 'solar',
+                  isEnabled: draft.canSubmit,
                   activityFacilityId: draft.workflow.activityFacility.id ?? '',
                   initiallyRequested: _otpRequested,
                   initiallyVerified: _otpVerified,

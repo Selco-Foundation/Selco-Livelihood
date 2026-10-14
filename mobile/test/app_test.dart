@@ -1914,7 +1914,8 @@ void main() {
   ) async {
     setMobileViewport(tester, const Size(390, 844));
     final originalOtpRepository = otpRepository;
-    otpRepository = _FakeOtpRepository();
+    final fakeRepo = _FakeOtpRepository();
+    otpRepository = fakeRepo;
     addTearDown(() => otpRepository = originalOtpRepository);
 
     final incomplete = _filledSolarDraft(SolarWorkflowMode.newReport);
@@ -1954,8 +1955,10 @@ void main() {
       Offset(0, 600 - requestCenter.dy),
     );
     await tester.pumpAndSettle();
+    expect(tester.widget<DigitButton>(requestButton).isDisabled, isTrue);
     await tester.tap(requestButton);
     await tester.pump();
+    expect(fakeRepo.generateCalls, 0);
 
     await tester.enterText(
       find.descendant(
@@ -1971,8 +1974,10 @@ void main() {
       Offset(0, 600 - verifyCenter.dy),
     );
     await tester.pumpAndSettle();
+    expect(tester.widget<DigitButton>(verifyButton).isDisabled, isTrue);
     await tester.tap(verifyButton);
     await tester.pump();
+    expect(fakeRepo.validateCalls, 0);
     final submit = tester.widget<DigitButton>(
       find.byKey(const ValueKey('solar-footer-submit')),
     );
@@ -1987,6 +1992,56 @@ void main() {
     );
     expect(find.byKey(const ValueKey('solar-otp-widget')), findsNothing);
     expect(find.byKey(const ValueKey('solar-fixed-footer')), findsNothing);
+  });
+
+  testWidgets('solar OTP gate follows required fields and installation media',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 1600));
+    final draft = _filledSolarDraft(SolarWorkflowMode.newReport);
+    late StateSetter refresh;
+    await tester.pumpWidget(MaterialApp(
+      theme: DigitTheme.instance.mobileTheme,
+      home: StatefulBuilder(builder: (context, setState) {
+        refresh = setState;
+        return withAssetSubmissionBloc(OverallAssetSummaryPage(draft: draft));
+      }),
+    ));
+    await tester.pumpAndSettle();
+    bool enabled() => tester
+        .widget<OtpVerificationWidget>(
+            find.byKey(const ValueKey('solar-otp-widget')))
+        .isEnabled;
+    expect(enabled(), false);
+    refresh(() {
+      draft.installationMedia['SOLAR_ARRAY'] = [
+        const SolarFileRef(
+          name: 'array.jpg',
+          path: 'array-id',
+          remoteId: 'array-id',
+          kind: SolarFileKind.image,
+        )
+      ];
+    });
+    await tester.pump();
+    expect(draft.canSubmit, true);
+    expect(enabled(), true);
+    final unit = draft.assets[SolarAssetType.inverter]!.assets.single;
+    final serial = unit.serialNumber;
+    refresh(() {
+      unit.serialNumber = '';
+    });
+    await tester.pump();
+    expect(enabled(), false);
+    refresh(() {
+      unit.serialNumber = serial;
+    });
+    await tester.pump();
+    expect(enabled(), true);
+    refresh(() {
+      draft.installationMedia['SOLAR_ARRAY']!.clear();
+    });
+    await tester.pump();
+    expect(enabled(), false);
   });
 
   testWidgets('solar Save as Draft persists a Pending OTP Approval record',
@@ -2835,6 +2890,57 @@ void main() {
       find.descendant(of: pdf, matching: find.byType(InkWell)),
       findsWidgets,
     );
+  });
+
+  testWidgets(
+      'OTP generation, resend and verification follow changing validity',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 844));
+    final repo = _FakeOtpRepository();
+    Future<void> show(bool valid) => tester.pumpWidget(MaterialApp(
+          theme: DigitTheme.instance.mobileTheme,
+          home: Scaffold(
+              body: OtpVerificationWidget(
+            keyPrefix: 'gate',
+            activityFacilityId: 'af',
+            repository: repo,
+            isEnabled: valid,
+            onVerificationChanged: (_) {},
+          )),
+        ));
+    final request =
+        find.byKey(const ValueKey('gate-otp-request-resend-button'));
+    final verify = find.byKey(const ValueKey('gate-verify-otp-button'));
+    await show(false);
+    expect(tester.widget<DigitButton>(request).isDisabled, true);
+    await tester.tap(request);
+    expect(repo.generateCalls, 0);
+    await show(true);
+    expect(tester.widget<DigitButton>(request).isDisabled, false);
+    await tester.tap(request);
+    await tester.pump();
+    expect(repo.generateCalls, 1);
+    await tester.enterText(
+        find.descendant(
+            of: find.byKey(const ValueKey('gate-otp-field')),
+            matching: find.byType(EditableText)),
+        '1234');
+    await tester.pump();
+    expect(tester.widget<DigitButton>(verify).isDisabled, false);
+    await show(false);
+    expect(tester.widget<DigitButton>(request).isDisabled, true);
+    expect(tester.widget<DigitButton>(verify).isDisabled, true);
+    await tester.tap(request);
+    await tester.tap(verify);
+    expect(repo.resendCalls, 0);
+    expect(repo.validateCalls, 0);
+    await show(true);
+    expect(tester.widget<DigitButton>(request).isDisabled, false);
+    expect(tester.widget<DigitButton>(verify).isDisabled, false);
+    await tester.tap(request);
+    await tester.pump();
+    expect(repo.resendCalls, 1);
+    expect(repo.generateCalls, 1);
   });
 
   testWidgets('shared OTP widget requests, resends, verifies and then locks', (
@@ -3855,6 +3961,10 @@ void main() {
     await pumpForm();
     await fillRequiredFields();
     expect(tester.widget<DigitButton>(saveDraft).isDisabled, isFalse);
+    expect(tester.widget<DigitButton>(requestOtp).isDisabled, isFalse);
+    await enter('machine-serial-field', '');
+    expect(tester.widget<DigitButton>(requestOtp).isDisabled, isTrue);
+    await enter('machine-serial-field', 'SERIAL-100');
     expect(tester.widget<DigitButton>(requestOtp).isDisabled, isFalse);
 
     await scrollIntoView(find.byKey(const ValueKey('trained-no')));
