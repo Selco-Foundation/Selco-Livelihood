@@ -276,10 +276,8 @@ export function MultiSelect<TOption extends MultiSelectOption>({
 export function LockedMark({ reason }: Readonly<{ reason?: string }>) {
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <span role="img" tabIndex={0} aria-label={reason} className="inline-flex rounded-full text-muted-foreground">
-          <Lock className="size-3" />
-        </span>
+      <TooltipTrigger type="button" aria-label={reason} className="inline-flex rounded-full text-muted-foreground">
+        <Lock className="size-3" />
       </TooltipTrigger>
       {/* Grows sideways rather than down: a place used by many plans lists them all, and the
           default balanced wrapping would stack that into a tall, narrow column. */}

@@ -75,7 +75,7 @@ describe("SelectedGroup locked items", () => {
       { wrapper: TooltipProvider },
     );
 
-    expect(screen.getByRole("img", { name: "2 end-user site(s) in scope" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "2 end-user site(s) in scope" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Block One/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Block Two/ })).toBeInTheDocument();
   });

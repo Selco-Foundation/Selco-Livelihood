@@ -250,7 +250,7 @@ describe("MultiSelect locked codes", () => {
   it("shows the lock reason instead of a remove button on a locked chip", () => {
     renderMultiSelect({ selected: ["DIST_A", "DIST_B"], locked });
 
-    expect(screen.getByRole("img", { name: "Used by plan P1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Used by plan P1" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Remove Alpha/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Remove Beta/ })).toBeInTheDocument();
   });
