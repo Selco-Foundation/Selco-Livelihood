@@ -84,21 +84,21 @@ public class ActivityQueryBuilder {
         var userInfo = request.getRequestInfo().getUserInfo();
         String userUuid = userInfo.getUuid();
         boolean isProjectManager = false;
-        boolean isFacilityAdmin = false;
+        boolean isEndUserAdmin = false;
         boolean isInstallationQcApprover = false;
         if (userInfo.getRoles() != null) {
             isProjectManager = userInfo.getRoles().stream().anyMatch(role -> PROJECT_MANAGER.equalsIgnoreCase(role.getCode()));
-            isFacilityAdmin = userInfo.getRoles().stream().anyMatch(role -> FACILITY_ADMIN.equalsIgnoreCase(role.getCode()));
+            isEndUserAdmin = userInfo.getRoles().stream().anyMatch(role -> END_USER_ADMIN.equalsIgnoreCase(role.getCode()));
             isInstallationQcApprover = userInfo.getRoles().stream().anyMatch(role -> INSTALLATION_REPORT_APPROVER_QC_TEAM.equalsIgnoreCase(role.getCode()));
         }
 
-        if (!isProjectManager && !isFacilityAdmin && !isInstallationQcApprover) {
+        if (!isProjectManager && !isEndUserAdmin && !isInstallationQcApprover) {
             queryBuilder.append(" JOIN activity_facility_users fu ON fu.activityfacilityid = fa.id ");
         }
 
         addClause(criteria.getTenantId(), preparedStmtList, queryBuilder);
 
-        extracted(urlParams.getLastChangedSince(), preparedStmtList, criteria, queryBuilder, userUuid, isProjectManager, isFacilityAdmin, isInstallationQcApprover);
+        extracted(urlParams.getLastChangedSince(), preparedStmtList, criteria, queryBuilder, userUuid, isProjectManager, isEndUserAdmin, isInstallationQcApprover);
 
         // Add clause if includeDeleted is true in request parameter
         addIsDeletedCondition(preparedStmtList, queryBuilder, urlParams.getIncludeDeleted());
@@ -111,7 +111,7 @@ public class ActivityQueryBuilder {
         return addPaginationWrapper(queryBuilder.toString(), preparedStmtList, urlParams.getLimit(), urlParams.getOffset(), criteria.getSortDirection());
     }
 
-    private void extracted(Long lastChangedSince, List<Object> preparedStmtList, ActivityFacilitySearchCriteria activityFacility, StringBuilder queryBuilder, String userUuid, boolean isProjectManager, boolean isFacilityAdmin, boolean isInstallationQcApprover) {
+    private void extracted(Long lastChangedSince, List<Object> preparedStmtList, ActivityFacilitySearchCriteria activityFacility, StringBuilder queryBuilder, String userUuid, boolean isProjectManager, boolean isEndUserAdmin, boolean isInstallationQcApprover) {
 
         if (!CollectionUtils.isEmpty(activityFacility.getIds())) {
             addClauseIfRequired(preparedStmtList, queryBuilder);
@@ -175,7 +175,7 @@ public class ActivityQueryBuilder {
         }
 
         // Check if not project manager or facility admin role
-        if (!isProjectManager && !isFacilityAdmin && !isInstallationQcApprover && StringUtils.isNotBlank(userUuid)) {
+        if (!isProjectManager && !isEndUserAdmin && !isInstallationQcApprover && StringUtils.isNotBlank(userUuid)) {
             addClauseIfRequired(preparedStmtList, queryBuilder);
             queryBuilder.append(" fu.userid = ? ");
             preparedStmtList.add(userUuid);
