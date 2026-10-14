@@ -1,4 +1,4 @@
-import { apiClient, type AuthUser } from "@/shared";
+import { apiClient, type ActivityStatus, type AuthUser } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
 
 export interface ActivityWorkflowDocument {
@@ -10,19 +10,48 @@ export interface ActivityWorkflowEntry {
   id?: string;
   comment?: string;
   documents?: ActivityWorkflowDocument[] | null;
-  state?: { applicationStatus?: string };
+  state?: { applicationStatus?: ActivityStatus };
   assigner?: { name?: string };
   auditDetails?: { createdTime?: number };
+}
+
+export interface ActivityBomComponent {
+  slNo?: number;
+  product?: string;
+  capacity?: string;
+  category?: string;
+  quantity?: number;
+}
+
+export interface ActivityBillOfMaterial {
+  name?: string;
+  reportNumber?: string;
+  additionalDetails?: { vendorOrgName?: string; vendorUserName?: string };
+  data?: { components?: ActivityBomComponent[]; purchaseOrderNumber?: string };
+}
+
+export interface ActivityTransactionComment {
+  commentMessage?: string;
+  assetType?: string;
+}
+
+export interface ActivityTransaction {
+  processInstanceId?: string;
+  comments?: ActivityTransactionComment[];
 }
 
 export interface ActivityFacilityRow {
   activityFacility?: {
     id?: string;
     activityType?: string;
+    componentType?: "MACHINE" | "SOLAR";
+    status?: ActivityStatus;
     fieldPlan?: { name?: string; project?: { name?: string } };
-    facility?: { facility_name?: string };
+    facility?: { facility_name?: string; boundary?: { district?: string; block?: string } };
+    billOfMaterial?: ActivityBillOfMaterial;
   };
   workflow?: ActivityWorkflowEntry[];
+  transactions?: ActivityTransaction[];
 }
 
 interface ActivityFacilitySearchResponse {
