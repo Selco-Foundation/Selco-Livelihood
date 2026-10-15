@@ -45,8 +45,21 @@ describe("useFacility", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(fetchFacilities).toHaveBeenCalledWith(["B2", "B1"], "tenant-1", "token-1", authedUser);
+    expect(fetchFacilities).toHaveBeenCalledWith(["B2", "B1"], "tenant-1", "token-1", authedUser, {
+      onmReadyOnly: true,
+    });
     expect(result.current.data).toEqual({ facilities: [], total: 0 });
+  });
+
+  it("passes onmReadyOnly: false through when the caller asks for every site", async () => {
+    useAuthStore.setState({ accessToken: "token-1", employeeTenantId: "tenant-1", user: authedUser });
+    vi.mocked(fetchFacilities).mockResolvedValue({ facilities: [], total: 0 });
+    const { wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useFacility(["B1"], { onmReadyOnly: false }), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(fetchFacilities).toHaveBeenCalledWith(["B1"], "tenant-1", "token-1", authedUser, { onmReadyOnly: false });
   });
 
   it.each([

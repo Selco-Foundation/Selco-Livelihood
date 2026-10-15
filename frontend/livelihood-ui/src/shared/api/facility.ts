@@ -26,6 +26,7 @@ export async function fetchFacilities(
   employeeTenantId: string,
   accessToken: string,
   user?: AuthUser | null,
+  { onmReadyOnly = true }: { onmReadyOnly?: boolean } = {},
 ): Promise<{ facilities: FacilitySummary[]; total: number }> {
   const response = await apiClient.post<FacilitySearchResponse>(
     "/facility-service/v2/facility/_bulk-search",
@@ -34,7 +35,7 @@ export async function fetchFacilities(
       Facility: {
         tenantId: [employeeTenantId],
         boundaryCodes,
-        isOnmReady: true,
+        ...(onmReadyOnly ? { isOnmReady: true } : {}),
         sendNonPaginatedResponse: true,
       },
     },
