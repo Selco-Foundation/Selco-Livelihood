@@ -270,7 +270,10 @@ export function TemplateStep({
   // `downloadScopeTemplate` uses to decide which facilities belong to the plan at all. These are
   // real data, not localization keys, so there is nothing to translate them against; the id is
   // kept as the fallback for anything the lookup doesn't cover.
-  const { data: facilityData } = useFacility((projectGeography.blocks ?? []).map((block) => block.code));
+  const { data: facilityData } = useFacility(
+    (projectGeography.blocks ?? []).map((block) => block.code),
+    { onmReadyOnly: false },
+  );
   const siteNameById = useMemo(() => {
     const names = new Map<string, string>();
     for (const facility of facilityData?.facilities ?? []) {
