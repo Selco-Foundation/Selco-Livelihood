@@ -100,6 +100,22 @@ describe("downloadScopeTemplate", () => {
     expect(leafBlocks).toEqual([expect.objectContaining({ boundaryCode: "B1_f1" })]);
   });
 
+  it("does not limit the candidate sites to O&M-ready ones", async () => {
+    vi.mocked(searchProjectFacilities).mockResolvedValue([]);
+    vi.mocked(fetchFacilities).mockResolvedValue({ facilities: [], total: 0 });
+    vi.mocked(apiClient.post).mockResolvedValue({ data: new Blob(["workbook"]) });
+
+    await downloadScopeTemplate("plan-1", "project-1", ["SOLAR"], geography, "token-1");
+
+    expect(fetchFacilities).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.any(String),
+      "token-1",
+      undefined,
+      { onmReadyOnly: false },
+    );
+  });
+
   it("returns the downloaded blob under an installation-scope filename", async () => {
     vi.mocked(searchProjectFacilities).mockResolvedValue([]);
     vi.mocked(fetchFacilities).mockResolvedValue({ facilities: [], total: 0 });

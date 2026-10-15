@@ -82,11 +82,14 @@ export async function downloadScopeTemplate(
 ): Promise<DownloadedFile> {
   const [linkedFacilities, { facilities: candidateFacilities }] = await Promise.all([
     searchProjectFacilities(projectId, accessToken, user),
+    // Sites are scoped for installation before they are O&M ready, and Step 1's preflight counts
+    // them regardless of O&M status -- filtering here left the sheet empty for a plan Step 1 allowed.
     fetchFacilities(
       (projectGeography.blocks ?? []).map((block) => block.code),
       user?.tenantId ?? "",
       accessToken,
       user,
+      { onmReadyOnly: false },
     ),
   ]);
 
