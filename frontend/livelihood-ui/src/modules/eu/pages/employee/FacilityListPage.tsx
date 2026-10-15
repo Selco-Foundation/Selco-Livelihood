@@ -63,7 +63,7 @@ export function FacilityListPage() {
       />
 
       {isError ? (
-        <div className="livelihood-card px-6 py-16 text-center text-sm text-destructive">
+        <div className="livelihood-card px-6 py-16 text-center text-sm text-destructive wrap-anywhere">
           {extractApiErrorMessage(error) ?? translateOr(t, "CS_FACILITIES_FETCH_FAILED", "Failed to load end user sites")}
         </div>
       ) : (

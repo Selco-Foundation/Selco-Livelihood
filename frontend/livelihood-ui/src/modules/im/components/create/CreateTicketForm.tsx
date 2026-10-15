@@ -204,7 +204,7 @@ export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
               />
               <div className="flex items-center justify-between gap-2">
                 {fieldErrors.comments ? (
-                  <p className="text-xs text-destructive">{fieldErrors.comments}</p>
+                  <p className="min-w-0 text-xs text-destructive wrap-anywhere">{fieldErrors.comments}</p>
                 ) : (
                   <span />
                 )}
@@ -257,7 +257,7 @@ export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
         </FormSectionCard>
 
         {submitError ? (
-          <p className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <p className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive wrap-anywhere">
             {submitError}
           </p>
         ) : null}
