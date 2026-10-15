@@ -1,3 +1,4 @@
+import math
 import os
 import time
 from typing import List, Dict, Set, Tuple, Optional, Any
@@ -31,6 +32,41 @@ logger = AppLogger().get_logger()
 # actually queryable — retry PARENT_NOT_FOUND with incremental backoff (1+2+3+4s,
 # 10s max) before giving up on a child relationship.
 PARENT_NOT_FOUND_RETRY_DELAYS_SECONDS = [1, 2, 3, 4]
+
+# Optional LGD identity columns. A sheet without them ingests exactly as before; when
+# present, the codes are stored on the boundary so a later LGD extract can be matched on
+# code rather than name. A rename then updates the localization label while the boundary
+# code - which facility and asset codes are built from - stays put.
+LGD_STATE_CODE_COLUMN = "LGD State Code"
+LGD_DISTRICT_CODE_COLUMN = "LGD District Code"
+LGD_BLOCK_CODE_COLUMN = "LGD Block Code"
+# Which LGD tier the block code came from. In LGD a Development Block and a
+# Sub-district both hang directly off District, and our Block slot holds a mix of
+# the two, so the code alone would be ambiguous to reconcile against.
+LGD_BLOCK_TIER_COLUMN = "LGD Block Tier"
+
+
+def _read_identity_cell(row, column):
+    """Read an optional code cell as a string.
+
+    Excel hands these back as floats (29.0) once pandas infers the column as numeric,
+    so integral values are rendered without the trailing '.0'.
+    """
+    value = row.get(column)
+    if value is None:
+        return ""
+    if isinstance(value, float):
+        if math.isnan(value):
+            return ""
+        if value.is_integer():
+            return str(int(value))
+    text = str(value).strip()
+    return "" if text.lower() in ("nan", "none") else text
+
+
+def _lgd_details(**codes):
+    """Drop empty codes so a partially filled sheet doesn't store blank identity fields."""
+    return {key: value for key, value in codes.items() if value}
 
 
 class BoundaryDataProcessor:
@@ -118,7 +154,12 @@ class BoundaryDataProcessor:
             })
 
     def _organize_boundary_data(self, boundary_df):
-        """Organize boundary data into hierarchical structure with full codes"""
+        """Organize boundary data into hierarchical structure with full codes.
+
+        Keyed by full code, never by the bare leaf name: block and district names repeat
+        across the country ("Sadar", "Bilaspur"), and keying by name would silently drop
+        every repeat after the first - and attach the first one's LGD codes to it.
+        """
         for _, row in boundary_df.iterrows():
             country = normalize_boundary_segment(str(row.get('Country', '')).strip())
             state = normalize_boundary_segment(str(row.get('State', '')).strip())
@@ -130,52 +171,66 @@ class BoundaryDataProcessor:
             district_label = preserve_boundary_label(row.get("District"))
             block_label = preserve_boundary_label(row.get("Block"))
 
+            # Optional LGD identity columns. Absent for hand-made sheets, in which case
+            # the boundary is created without additionalDetails exactly as before.
+            lgd_state = _read_identity_cell(row, LGD_STATE_CODE_COLUMN)
+            lgd_district = _read_identity_cell(row, LGD_DISTRICT_CODE_COLUMN)
+            lgd_block = _read_identity_cell(row, LGD_BLOCK_CODE_COLUMN)
+            lgd_tier = _read_identity_cell(row, LGD_BLOCK_TIER_COLUMN)
+
             # Country level
             if country:
                 full_code = country
                 self.all_boundary_full_codes.add(full_code)
-                if country not in self.boundary_data["Country"]:
-                    self.boundary_data["Country"][country] = {
+                if full_code not in self.boundary_data["Country"]:
+                    self.boundary_data["Country"][full_code] = {
                         "name": country,
                         "localization_label": country_label or country,
                         "parent": None,
-                        "full_code": full_code
+                        "full_code": full_code,
+                        "lgd": {},
                     }
 
             # State level
             if state and country:
                 full_code = build_boundary_full_code(country, state)
                 self.all_boundary_full_codes.add(full_code)
-                if state not in self.boundary_data["State"]:
-                    self.boundary_data["State"][state] = {
+                if full_code not in self.boundary_data["State"]:
+                    self.boundary_data["State"][full_code] = {
                         "name": state,
                         "localization_label": state_label or state,
                         "parent": country,
-                        "full_code": full_code
+                        "full_code": full_code,
+                        "lgd": _lgd_details(stateCode=lgd_state),
                     }
 
             # District level
             if district and state and country:
                 full_code = build_boundary_full_code(country, state, district)
                 self.all_boundary_full_codes.add(full_code)
-                if district not in self.boundary_data["District"]:
-                    self.boundary_data["District"][district] = {
+                if full_code not in self.boundary_data["District"]:
+                    self.boundary_data["District"][full_code] = {
                         "name": district,
                         "localization_label": district_label or district,
                         "parent": build_boundary_full_code(country, state),
-                        "full_code": full_code
+                        "full_code": full_code,
+                        "lgd": _lgd_details(stateCode=lgd_state, districtCode=lgd_district),
                     }
 
             # Block level
             if block and district and state and country:
                 full_code = build_boundary_full_code(country, state, district, block)
                 self.all_boundary_full_codes.add(full_code)
-                if block not in self.boundary_data["Block"]:
-                    self.boundary_data["Block"][block] = {
+                if full_code not in self.boundary_data["Block"]:
+                    self.boundary_data["Block"][full_code] = {
                         "name": block,
                         "localization_label": block_label or block,
                         "parent": build_boundary_full_code(country, state, district),
-                        "full_code": full_code
+                        "full_code": full_code,
+                        "lgd": _lgd_details(stateCode=lgd_state,
+                                            districtCode=lgd_district,
+                                            blockCode=lgd_block,
+                                            blockTier=lgd_tier),
                     }
 
         # Log summary
@@ -300,11 +355,25 @@ class BoundaryDataProcessor:
                 parent_full_code = data.get("parent")
                 if not self._should_create_boundary(full_code, parent_full_code):
                     continue
-                boundaries_to_create.append({
+                boundary = {
                     "tenantId": LIVELIHOOD_TENANT_ID,
                     "code": full_code,
                     "geometry": None
-                })
+                }
+                # LGD identity goes into the boundary's own lgd_* columns, denormalised
+                # down the hierarchy: a State carries only its state code, a District its
+                # state and district, a Block all three. These are what a later import
+                # reconciles on, since a boundary code is derived from the name and so
+                # changes when the name does.
+                lgd = data.get("lgd") or {}
+                if lgd.get("stateCode"):
+                    boundary["lgdStateCode"] = lgd["stateCode"]
+                if lgd.get("districtCode"):
+                    boundary["lgdDistrictCode"] = lgd["districtCode"]
+                if lgd.get("blockCode"):
+                    boundary["lgdBlockCode"] = lgd["blockCode"]
+                    boundary["lgdBlockTier"] = lgd.get("blockTier") or "Block"
+                boundaries_to_create.append(boundary)
 
         if not boundaries_to_create:
             logger.info("No new boundaries to create")
