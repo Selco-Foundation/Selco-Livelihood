@@ -35,6 +35,16 @@ describe("fetchFacilities", () => {
     );
   });
 
+  it("leaves out the isOnmReady filter when onmReadyOnly is false", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ data: { facilities: [], totalCount: 0 } });
+
+    await fetchFacilities(["B1"], "tenant-1", "token-1", undefined, { onmReadyOnly: false });
+
+    const body = vi.mocked(apiClient.post).mock.calls[0][1] as { Facility: Record<string, unknown> };
+    expect(body.Facility).not.toHaveProperty("isOnmReady");
+    expect(body.Facility).toMatchObject({ boundaryCodes: ["B1"], sendNonPaginatedResponse: true });
+  });
+
   it("maps snake_case facility fields to camelCase, defaulting missing boundaryCode/facilityId to empty strings", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({
       data: {
