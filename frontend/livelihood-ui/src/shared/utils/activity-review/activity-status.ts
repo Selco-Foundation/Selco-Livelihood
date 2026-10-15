@@ -1,0 +1,56 @@
+// Real states of the `FACILITY_INSTALLATION` business service
+// (business `field-planner-activity`): SCHEDULED -> ASSIGNED_TO_FIELD_STAFF ->
+// SUBMITTED_BY_FIELD_STAFF -> {APPROVED_BY_QC_SPOC | REJECTED_BY_QC_SPOC},
+// with REJECTED_BY_QC_SPOC looping back to SUBMITTED_BY_FIELD_STAFF. Shared
+// by `ir` (reviewer) and `eu` (end user) — both read the same workflow's
+// `applicationStatus` off the same `/activity/v1/activities/_search` endpoint.
+export const ACTIVITY_STATUS = {
+  SCHEDULED: "SCHEDULED",
+  ASSIGNED_TO_FIELD_STAFF: "ASSIGNED_TO_FIELD_STAFF",
+  SUBMITTED_BY_FIELD_STAFF: "SUBMITTED_BY_FIELD_STAFF",
+  APPROVED_BY_QC_SPOC: "APPROVED_BY_QC_SPOC",
+  REJECTED_BY_QC_SPOC: "REJECTED_BY_QC_SPOC",
+} as const;
+
+export type ActivityStatus = (typeof ACTIVITY_STATUS)[keyof typeof ACTIVITY_STATUS];
+
+export const FACILITY_INSTALLATION_BUSINESS_SERVICE = "FACILITY_INSTALLATION";
+
+interface StatusLabel {
+  key: string;
+  fallback: string;
+}
+
+// Fixed display order for status filter options and any listing of "all
+// known statuses" — independent of whatever order the business service
+// returns its states in.
+export const ACTIVITY_STATUS_ORDER: ActivityStatus[] = [
+  "SCHEDULED",
+  "ASSIGNED_TO_FIELD_STAFF",
+  "SUBMITTED_BY_FIELD_STAFF",
+  "REJECTED_BY_QC_SPOC",
+  "APPROVED_BY_QC_SPOC",
+];
+
+export const ACTIVITY_STATUS_LABELS: Record<ActivityStatus, StatusLabel> = {
+  SCHEDULED: { key: "ES_IR_STATUS_SCHEDULED", fallback: "Scheduled" },
+  ASSIGNED_TO_FIELD_STAFF: { key: "ES_IR_STATUS_ASSIGNED", fallback: "Assigned" },
+  SUBMITTED_BY_FIELD_STAFF: { key: "ES_IR_STATUS_PENDING", fallback: "Pending Review" },
+  REJECTED_BY_QC_SPOC: { key: "ES_IR_STATUS_REJECTED", fallback: "Rejected" },
+  APPROVED_BY_QC_SPOC: { key: "ES_IR_STATUS_APPROVED", fallback: "Approved" },
+};
+
+export type ActivityStatusBadgeVariant = "neutral" | "pending" | "rejected" | "approved";
+
+export function activityStatusBadgeVariant(status: ActivityStatus): ActivityStatusBadgeVariant {
+  switch (status) {
+    case "SUBMITTED_BY_FIELD_STAFF":
+      return "pending";
+    case "REJECTED_BY_QC_SPOC":
+      return "rejected";
+    case "APPROVED_BY_QC_SPOC":
+      return "approved";
+    default:
+      return "neutral";
+  }
+}
