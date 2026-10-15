@@ -42,7 +42,7 @@ export function IngestionStatusBlocks({
   return (
     <div className={cn("flex items-center gap-2", tone.box, box)} role={isGuidance ? "status" : "alert"}>
       <Icon className={cn("size-4 shrink-0", tone.icon)} />
-      <p className={cn(text, tone.text)}>
+      <p className={cn("min-w-0 wrap-anywhere", text, tone.text)}>
         {errorMessage ?? translateOr(t, "ES_PM_ACTION_FAILED", "Something went wrong. Please try again.")}
       </p>
     </div>
