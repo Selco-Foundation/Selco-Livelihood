@@ -131,41 +131,35 @@ export function UploadBoundaryPage() {
             onSelect={handleFileSelect}
           />
           {result?.status === "success" ? (
-            <div className="rounded-md border border-border bg-muted/30 px-4 py-3 text-sm text-foreground">
+            <div className="space-y-2 rounded-md border border-border bg-muted/30 px-4 py-3 text-sm text-foreground">
               <p>{translateOr(t, "FA_TOAST_BOUNDARY_DATA_UPLOAD_SUCCESS", "Boundary data uploaded successfully")}</p>
               {result.duplicateCount > 0 ? (
-                <p className="mt-1 text-muted-foreground">
+                <p className="text-muted-foreground">
                   {result.duplicateCount}{" "}
                   {translateOr(t, "FA_BOUNDARY_DUPLICATE_SKIPPED", "boundaries already existed and were skipped")}
                 </p>
               ) : null}
-              <button
-                type="button"
-                onClick={result.downloadResult}
-                className="mt-1 cursor-pointer font-semibold underline"
-              >
+              <Button type="button" variant="outline" size="sm" onClick={result.downloadResult}>
+                <Download className="size-4" />
                 {translateOr(t, "CORE_COMMON_DOWNLOAD", "Download")}
-              </button>
+              </Button>
             </div>
           ) : null}
           {result?.status === "error" ? (
-            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
               <p>
                 {result.errorCount} {translateOr(t, "FA_BOUNDARY_VALIDATION_FAILED", "rows failed validation")}
               </p>
               {result.duplicateCount > 0 ? (
-                <p className="mt-1">
+                <p>
                   {result.duplicateCount}{" "}
                   {translateOr(t, "FA_BOUNDARY_DUPLICATE_SKIPPED", "boundaries already existed and were skipped")}
                 </p>
               ) : null}
-              <button
-                type="button"
-                onClick={result.downloadResult}
-                className="mt-1 cursor-pointer font-semibold underline"
-              >
+              <Button type="button" variant="destructive" size="sm" onClick={result.downloadResult}>
+                <Download className="size-4" />
                 {translateOr(t, "CORE_COMMON_VIEW_ERRORS", "View errors")}
-              </button>
+              </Button>
             </div>
           ) : null}
         </CardContent>
