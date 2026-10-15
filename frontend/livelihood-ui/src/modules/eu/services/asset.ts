@@ -27,6 +27,9 @@ export interface AssetSearchCriteria {
  */
 interface AssetDetails {
   capacity?: string;
+  /** Freeform per-asset-type fields beyond `capacity` — verified real keys
+   * include `poNumber`/`invoiceNumber`/`trainedEndUser` (Machine). */
+  [key: string]: unknown;
 }
 
 export interface AssetSearchDocument {
@@ -37,6 +40,13 @@ export interface AssetSearchDocument {
 export interface AssetSearchResponseItem {
   assetId?: string;
   assetTypeID?: string;
+  /** The asset's own leaf boundary code — a `BOUNDARY_<boundaryCode>` lookup
+   * gives its human-readable name, same convention as district/block codes
+   * (see utils/boundary.ts's boundaryDisplayName). */
+  boundaryCode?: string;
+  /** The asset's product name — a Machine's assetTypeID isn't a fixed enum
+   * like Solar's PANEL/BATTERY/INVERTER, so `name` is what identifies it. */
+  name?: string;
   serialNumber?: string;
   modelNumber?: string;
   brandID?: string;
@@ -128,7 +138,7 @@ export async function searchAssetsForActivity(
     "/asset-registry/v1/asset/_search",
     {
       RequestInfo: createRequestInfo(accessToken, user),
-      criteria: { tenantId, activityFacilityID: activityFacilityId },
+      criteria: { tenantId, activityFacilityID: activityFacilityId, includeChildren: true },
     },
     { params: { limit: 1000, offset: 0 } },
   );

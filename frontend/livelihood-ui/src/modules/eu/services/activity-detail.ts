@@ -1,28 +1,29 @@
-import { apiClient, type AuthUser } from "@/shared";
+import {
+  apiClient,
+  type ActivityBillOfMaterial,
+  type ActivityStatus,
+  type ActivityTransaction,
+  type ActivityWorkflowEntry,
+  type AuthUser,
+} from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
 
-export interface ActivityWorkflowDocument {
-  documentType?: string;
-  fileStoreId?: string;
-}
-
-export interface ActivityWorkflowEntry {
-  id?: string;
-  comment?: string;
-  documents?: ActivityWorkflowDocument[] | null;
-  state?: { applicationStatus?: string };
-  assigner?: { name?: string };
-  auditDetails?: { createdTime?: number };
-}
+// ActivityBomComponent/ActivityBillOfMaterial/ActivityTransaction(Comment)/
+// ActivityWorkflowEntry live in @/shared — ir reads the same
+// /activity/v1/activities/_search response for the same activity.
 
 export interface ActivityFacilityRow {
   activityFacility?: {
     id?: string;
     activityType?: string;
+    componentType?: "MACHINE" | "SOLAR";
+    status?: ActivityStatus;
     fieldPlan?: { name?: string; project?: { name?: string } };
-    facility?: { facility_name?: string };
+    facility?: { facility_name?: string; boundary?: { district?: string; block?: string } };
+    billOfMaterial?: ActivityBillOfMaterial;
   };
   workflow?: ActivityWorkflowEntry[];
+  transactions?: ActivityTransaction[];
 }
 
 interface ActivityFacilitySearchResponse {
