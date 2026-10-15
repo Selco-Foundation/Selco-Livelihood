@@ -121,6 +121,7 @@ export {
   AccordionItem,
   AccordionTrigger,
 } from "./components/ui/accordion";
+export { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 export {
   Select,
   SelectContent,
@@ -133,9 +134,29 @@ export {
   SelectTrigger,
   SelectValue,
 } from "./components/ui/select";
-export { MultiSelect } from "./components/ui/multi-select";
-export type { MultiSelectOption, MultiSelectProps } from "./components/ui/multi-select";
+export { MultiSelect } from "./components/multi-select";
+export type { MultiSelectOption, MultiSelectProps } from "./components/multi-select";
 export { Calendar } from "./components/ui/calendar";
+export {
+  Stepper,
+  StepperContent,
+  StepperDescription,
+  StepperIndicator,
+  StepperItem,
+  StepperNav,
+  StepperPanel,
+  StepperSeparator,
+  StepperTitle,
+  StepperTrigger,
+  useStepItem,
+  useStepper,
+} from "./components/reui/stepper";
+export type {
+  StepperContentProps,
+  StepperItemProps,
+  StepperProps,
+  StepperTriggerProps,
+} from "./components/reui/stepper";
 export { DataTable } from "./components/data-table";
 export { StatTile } from "./components/stat-tile";
 export type { StatTileProps } from "./components/stat-tile";
@@ -145,7 +166,10 @@ export { TopBar } from "./components/top-bar";
 export { LanguageSwitcher } from "./components/language-switcher";
 export { SplitButton } from "./components/split-button";
 export type { SplitButtonProps } from "./components/split-button";
+export { PasswordField } from "./components/password-field";
 export { Pagination } from "./components/pagination";
 export type { PaginationProps } from "./components/pagination";
 export { SearchableSelect } from "./components/searchable-select";
 export type { SearchableSelectOption, SearchableSelectProps } from "./components/searchable-select";
+export { useBodyScrollLock } from "./hooks/use-body-scroll-lock";
+export { DialogScrim } from "./components/dialog-scrim";

@@ -135,7 +135,7 @@ export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
                   {translateOr(t, "INCIDENT_END_USER", "End User")}
                 </p>
                 <p className="rounded-md border border-input bg-muted/30 px-3 py-2 text-sm text-foreground">
-                  {form.endUser.facilityPocName}
+                  {translateOr(t, `BOUNDARY_${form.endUser.boundaryCode}`, form.endUser.facilityPocName)}
                 </p>
               </div>
             ) : null}
@@ -265,7 +265,7 @@ export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
         <div className="flex justify-end">
           <Button
             type="submit"
-            size="lg"
+            size="sm"
             className="gap-2"
             disabled={!canSubmit || createMutation.isPending}
           >

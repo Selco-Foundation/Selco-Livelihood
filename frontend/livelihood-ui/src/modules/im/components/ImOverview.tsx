@@ -58,7 +58,7 @@ export function ImOverviewActions() {
   }
 
   return (
-    <Button asChild size="sm" className="gap-1.5 rounded-md px-4 text-sm font-semibold">
+    <Button asChild size="sm" className="gap-1.5 rounded-md text-sm font-semibold">
       <Link to={`${basePath}/incident/create`}>
         <Plus className="size-4" />
         <span className="lg:hidden">{translateOr(t, "ES_IM_RAISE_TICKET_SHORT", "Raise Ticket")}</span>

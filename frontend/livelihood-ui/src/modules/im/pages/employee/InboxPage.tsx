@@ -97,7 +97,7 @@ export function InboxPage() {
         breadcrumbs={breadcrumbItems}
         actions={
           canCreateTicket ? (
-            <Button asChild size="sm" className="gap-1.5 rounded-md px-3">
+            <Button asChild size="sm" className="gap-1.5 rounded-md">
               <Link to={`${basePath}/incident/create`}>
                 <Plus className="size-4" />
                 {translateOr(t, "ES_IM_RAISE_NEW_TICKET", "Raise New Ticket")}

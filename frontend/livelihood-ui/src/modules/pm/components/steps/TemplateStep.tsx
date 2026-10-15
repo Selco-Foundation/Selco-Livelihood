@@ -1,5 +1,5 @@
 import { translateOr, useTranslate } from "@/shared";
-import { Button } from "@/ui";
+import { Button, Pagination } from "@/ui";
 import { CheckCircle2, Download, FileSpreadsheet, Info, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useFacility } from "@/shared/hooks/use-facility";
@@ -12,6 +12,8 @@ import { IngestionStatusBlocks } from "../IngestionStatusBlocks";
 import { StepSectionCard } from "../StepSectionCard";
 
 export type TemplateValue = InstallationPlanTemplateEntry[];
+
+const DEFAULT_PAGE_SIZE = 10;
 
 export function isTemplateStepValid(value: TemplateValue, uniqueSolutionCodes: string[]): boolean {
   if (uniqueSolutionCodes.length === 0) return false;
@@ -110,7 +112,7 @@ function SolutionTemplateCard({
           <p className="mt-1 text-xs font-medium text-muted-foreground">
             {translateOr(t, "ES_PM_ASSIGNED_SITES", "Assigned Sites")} ({assignedSites.length})
           </p>
-          <ul className="mt-1 space-y-0.5 text-sm text-foreground">
+          <ul className="mt-1 h-30 space-y-0.5 overflow-y-auto pr-1 text-sm text-foreground">
             {assignedSites.map((site) => (
               <li key={site.id}>{site.name}</li>
             ))}
@@ -229,7 +231,11 @@ export function TemplateStep({
   locked = false,
 }: Readonly<TemplateStepProps>) {
   const { t } = useTranslate();
-  const busySolutionsRef = useRef(new Set<string>());
+  // State, not a ref: pagination below must re-render and disable itself while any card is
+  // mid-upload, since paging away unmounts that card and strands its in-flight validate/create
+  // chain with no effect left to ever clear this.
+  const [busySolutionCodes, setBusySolutionCodes] = useState<Set<string>>(new Set());
+  const isAnyUploadBusy = busySolutionCodes.size > 0;
   const { data: solutions = [] } = useInstallationSolutions();
 
   const solutionsInScope = useMemo(() => {
@@ -239,6 +245,25 @@ export function TemplateStep({
       name: solutions.find((solution) => solution.code === code)?.name ?? code,
     }));
   }, [scope, solutions]);
+
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSizeLimit, setPageSizeLimit] = useState(DEFAULT_PAGE_SIZE);
+  const totalRecords = solutionsInScope.length;
+  const pagedSolutions = useMemo(
+    () => solutionsInScope.slice(currentPage * pageSizeLimit, (currentPage + 1) * pageSizeLimit),
+    [solutionsInScope, currentPage, pageSizeLimit],
+  );
+
+  function handlePageChange(page: number) {
+    if (isAnyUploadBusy) return;
+    setCurrentPage(page);
+  }
+
+  function handlePageSizeChange(size: number) {
+    if (isAnyUploadBusy) return;
+    setPageSizeLimit(size);
+    setCurrentPage(0);
+  }
 
   // A plan's scope stores only facility ids, so the readable site name has to come from
   // facility-service. It is looked up over the project's own blocks — the same search
@@ -268,10 +293,18 @@ export function TemplateStep({
   }
 
   function handleCardBusyChange(solutionCode: string, isBusy: boolean) {
-    if (isBusy) busySolutionsRef.current.add(solutionCode);
-    else busySolutionsRef.current.delete(solutionCode);
-    onBusyChange?.(busySolutionsRef.current.size > 0);
+    setBusySolutionCodes((previous) => {
+      if (previous.has(solutionCode) === isBusy) return previous;
+      const next = new Set(previous);
+      if (isBusy) next.add(solutionCode);
+      else next.delete(solutionCode);
+      return next;
+    });
   }
+
+  useEffect(() => {
+    onBusyChange?.(isAnyUploadBusy);
+  }, [isAnyUploadBusy, onBusyChange]);
 
   return (
     <StepSectionCard
@@ -297,7 +330,7 @@ export function TemplateStep({
             {translateOr(t, "ES_PM_NO_SOLUTIONS_IN_SCOPE", "No solutions in scope yet — go back and include a site")}
           </p>
         ) : (
-          solutionsInScope.map((solution) => (
+          pagedSolutions.map((solution) => (
             <SolutionTemplateCard
               key={solution.code}
               planId={planId}
@@ -311,6 +344,25 @@ export function TemplateStep({
             />
           ))
         )}
+        {totalRecords > 0 ? (
+          // Disabled while any card is mid-upload -- paging away would unmount it and strand its
+          // in-flight validate/create chain with nothing left to ever report it done (see
+          // handleCardBusyChange above).
+          <div
+            className={isAnyUploadBusy ? "pointer-events-none opacity-50" : undefined}
+            aria-disabled={isAnyUploadBusy}
+          >
+            <Pagination
+              currentPage={currentPage}
+              totalRecords={totalRecords}
+              pageSizeLimit={pageSizeLimit}
+              onNextPage={() => handlePageChange(currentPage + 1)}
+              onPrevPage={() => handlePageChange(Math.max(0, currentPage - 1))}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+            />
+          </div>
+        ) : null}
       </div>
     </StepSectionCard>
   );
