@@ -1,4 +1,4 @@
-import { translateOr, useTranslate } from "@/shared";
+import { isOtherReason, translateOr, useTranslate, type RejectionReasonOption } from "@/shared";
 import {
   Button,
   Dialog,
@@ -14,8 +14,6 @@ import {
   SelectValue,
 } from "@/ui";
 import { useEffect, useState } from "react";
-import type { RejectionReasonOption } from "../../types/activity-review";
-import { isOtherReason } from "../../utils/rejection-reason-mapping";
 
 export interface RejectionReasonDraft {
   reasonCode: string;
