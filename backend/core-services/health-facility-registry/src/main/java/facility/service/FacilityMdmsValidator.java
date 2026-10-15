@@ -70,7 +70,7 @@ public class FacilityMdmsValidator {
                 requestInfo,
                 tenantId,
                 "facility",
-                List.of("FacilityType", "FacilityCategory", "FacilityOwnership", "SolarSolutionDesignType", "PreferredLanguage")
+                List.of("FacilityType", "FacilityCategory", "FacilityOwnership", "PreferredLanguage", "EndUserType")
         ));
 
         List<Map<String, Object>> flattenedMdmsData = flattenMdmsData(mdmsData);
@@ -459,6 +459,19 @@ public class FacilityMdmsValidator {
         putIfNotBlank(map, "facility_poc_email", facility.getFacilityPocEmail());
         putIfNotBlank(map, "hfr_id", facility.getHfrId());
         putIfNotBlank(map, "nin_id", facility.getNinId());
+        // Scoped by schema, not by code: only the Livelihood schema
+        // (FacilityIngestionSchemaWithoutBoundaryCode) declares end_user_type required, so Health
+        // facilities are unaffected - the same way Sectors is handled.
+        putIfNotBlank(map, "end_user_type", facility.getEndUserType());
+
+        // The schema declares these as enum-yes-no, so present them the way the sheet does.
+        // Without them the required check on is_onm_ready fails even when a value was supplied.
+        if (facility.getIsOnmReady() != null) {
+            map.put("is_onm_ready", Boolean.TRUE.equals(facility.getIsOnmReady()) ? "Yes" : "No");
+        }
+        if (facility.getIsActive() != null) {
+            map.put("is_operational", Boolean.TRUE.equals(facility.getIsActive()) ? "Yes" : "No");
+        }
 
         if (facility.getBoundaryCode() != null) {
             map.put("boundary_code", facility.getBoundaryCode());
@@ -497,11 +510,6 @@ public class FacilityMdmsValidator {
 
         HealthFacilityDetails details = facility.getFacilityDetails();
         if (details != null) {
-            if (details.getSolarSolutionDesignType() != null) {
-                String solarType = details.getSolarSolutionDesignType().name();
-                map.put("solar_solution_design_type", solarType);
-                map.put("facility_details.solar_solution_design_type", solarType);
-            }
             putIfNotBlank(map, "vendor_code", details.getVendorCode());
             putIfNotBlank(map, "facility_poc_designation", details.getPocDesignation());
             putIfNotBlank(map, "poc_designation", details.getPocDesignation());

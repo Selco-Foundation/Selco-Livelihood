@@ -2,6 +2,7 @@ package facility.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import facility.util.FacilityMappedVendorHelper;
 import facility.web.models.Facility;
@@ -24,7 +25,8 @@ import java.util.Map;
 @Service
 public class FacilityRowMapper {
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = new ObjectMapper()
+            .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     private final JdbcTemplate jdbcTemplate;
 
     public FacilityRowMapper(JdbcTemplate jdbcTemplate) {
@@ -53,6 +55,7 @@ public class FacilityRowMapper {
         facility.setIsActive(rs.getBoolean("is_active"));
         facility.setFacilityRegion(rs.getString("facility_region"));
         facility.setIsOnmReady(rs.getBoolean("is_onm_ready"));
+        facility.setEndUserType(rs.getString("end_user_type"));
         facility.setRmsInactive(rs.getObject("rms_inactive") != null ? rs.getBoolean("rms_inactive") : null);
         facility.setSolarInstallationDate(toLocalDate(rs.getDate("solar_installation_date")));
         facility.setRmsInstallationDate(toLocalDate(rs.getDate("rms_installation_date")));

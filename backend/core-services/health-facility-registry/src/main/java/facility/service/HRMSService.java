@@ -411,8 +411,12 @@ public class HRMSService {
                 return;
             }
 
-            // Set password derived from the POC's name and mobile number
-            String plainPassword = generateDefaultPassword((String) user.get("name"), (String) user.get("mobileNumber"));
+            // Use the password supplied on bulk upload when there is one; otherwise derive it from
+            // the POC's name and mobile number.
+            String suppliedPassword = facility.getEndUserPassword();
+            String plainPassword = (suppliedPassword != null && !suppliedPassword.isBlank())
+                    ? suppliedPassword.trim()
+                    : generateDefaultPassword((String) user.get("name"), (String) user.get("mobileNumber"));
             user.put("password", plainPassword);
 
             // Build user update request
