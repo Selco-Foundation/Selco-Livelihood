@@ -286,10 +286,15 @@ public class OrganisationServiceValidator {
         log.debug("Organisation details validation completed for {} organisations", organisationList.size());
     }
 
-    /** The POC of a PLATFORM / VENDOR organisation becomes an HRMS user, so it needs everything HRMS requires to log in. */
+    /**
+     * The POC of a PLATFORM / VENDOR organisation becomes an HRMS user, so it needs everything HRMS requires to log in.
+     * A VENDOR organisation must always have a POC: it is its first VENDOR_ADMIN and its default vendor user needs the
+     * POC's phone and password.
+     */
     private void validatePocDetails(List<Organisation> organisationList) {
         for (Organisation organisation : organisationList) {
-            if (!OrganisationPocService.shouldCreatePocUser(organisation)) {
+            boolean isVendorOrg = ORG_TYPE_VENDOR.equalsIgnoreCase(StringUtils.trimToEmpty(organisation.getOrgType()));
+            if (!isVendorOrg && !OrganisationPocService.shouldCreatePocUser(organisation)) {
                 continue;
             }
             if (StringUtils.isBlank(organisation.getOrgPocUsername())) {
