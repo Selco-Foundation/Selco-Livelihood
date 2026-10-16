@@ -12,6 +12,10 @@ import org.egov.common.contract.request.RequestInfo;
 import org.egov.tracer.model.CustomException;
 import org.springframework.stereotype.Service;
 
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -46,6 +50,11 @@ public class BomPdfService {
 
     private static final String COMPONENT_TYPE_MACHINE = "MACHINE";
     private static final String VERIFICATION_STATUS_DEFAULT = "Success";
+
+    private static final String OTP_VERIFIED_AT_KEY = "otpVerifiedAt";
+    private static final String VERIFICATION_ID_PREFIX = "SF-UV-";
+    private static final int VERIFICATION_CODE_LENGTH = 6;
+    private static final BigInteger VERIFICATION_CODE_SPACE = BigInteger.valueOf(36).pow(VERIFICATION_CODE_LENGTH);
 
     private static final String DOCUMENTS_KEY = "documents";
     private static final String DOCUMENT_TYPE_KEY = "documentType";
@@ -197,7 +206,7 @@ public class BomPdfService {
         data.put("end_user_registered_mobile", facility != null ? facility.getFacilityPocPhone() : null);
         data.put("end_user_verified_at", nowFormatted);
         data.put("end_user_verification_status", VERIFICATION_STATUS_DEFAULT);
-        data.put("end_user_verification_id", "");
+        data.put("end_user_verification_id", buildEndUserVerificationId(activityFacility));
 
         String technicianName = requestInfo.getUserInfo() != null ? requestInfo.getUserInfo().getName() : null;
         String technicianMobile = requestInfo.getUserInfo() != null ? requestInfo.getUserInfo().getMobileNumber() : null;
@@ -211,6 +220,55 @@ public class BomPdfService {
         data.put("handover_trained_end_user", yesNo(assetDetails.get("trainedEndUser")));
 
         return data;
+    }
+
+    /**
+     * End-user verification id: SF-UV-YYYYMMDD-XXXXXX, where the date is the day the OTP was verified
+     * (additionalDetails.otpVerifiedAt, written by the OTP validation) and XXXXXX is 6 characters of A-Z / 0-9.
+     * Empty when the end user was never OTP-verified.
+     * <p>
+     * The report is regenerated on every (re)submission, so a fresh random code each time would give the same
+     * verification a different id on every version of the report. The code is therefore derived from the
+     * activity facility and the verification instant: it looks random and differs per verification, but stays
+     * identical across regenerations.
+     */
+    private String buildEndUserVerificationId(ActivityFacility activityFacility) {
+        Long verifiedAtMillis = readOtpVerifiedAt(activityFacility);
+        if (verifiedAtMillis == null) {
+            log.warn("otpVerifiedAt missing on activityFacility {} - end_user_verification_id left empty", activityFacility.getId());
+            return "";
+        }
+        String date = Instant.ofEpochMilli(verifiedAtMillis).atZone(ZoneId.systemDefault()).toLocalDate()
+                .format(DateTimeFormatter.BASIC_ISO_DATE);
+        return VERIFICATION_ID_PREFIX + date + "-" + verificationCode(activityFacility.getId(), verifiedAtMillis);
+    }
+
+    private Long readOtpVerifiedAt(ActivityFacility activityFacility) {
+        Object value = activityFacility.getAdditionalDetails() != null
+                ? activityFacility.getAdditionalDetails().get(OTP_VERIFIED_AT_KEY)
+                : null;
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        if (value instanceof String && !((String) value).isBlank()) {
+            try {
+                return Long.parseLong(((String) value).trim());
+            } catch (NumberFormatException e) {
+                log.warn("Unparseable otpVerifiedAt '{}' on activityFacility {}", value, activityFacility.getId());
+            }
+        }
+        return null;
+    }
+
+    private String verificationCode(String activityFacilityId, long verifiedAtMillis) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest((activityFacilityId + "|" + verifiedAtMillis).getBytes(StandardCharsets.UTF_8));
+            String code = new BigInteger(1, digest).mod(VERIFICATION_CODE_SPACE).toString(36).toUpperCase();
+            return "0".repeat(VERIFICATION_CODE_LENGTH - code.length()) + code;
+        } catch (NoSuchAlgorithmException e) {
+            throw new CustomException("BOM_PDF_GENERATION_FAILED", "SHA-256 is not available to build the verification id");
+        }
     }
 
     private String resolveSolutionName(RequestInfo requestInfo, ActivityFacility activityFacility) {
@@ -338,7 +396,7 @@ public class BomPdfService {
         data.put("end_user_registered_mobile", facility != null ? facility.getFacilityPocPhone() : null);
         data.put("end_user_verified_at", nowFormatted);
         data.put("end_user_verification_status", VERIFICATION_STATUS_DEFAULT);
-        data.put("end_user_verification_id", "");
+        data.put("end_user_verification_id", buildEndUserVerificationId(activityFacility));
 
         String technicianName = requestInfo.getUserInfo() != null ? requestInfo.getUserInfo().getName() : null;
         String technicianMobile = requestInfo.getUserInfo() != null ? requestInfo.getUserInfo().getMobileNumber() : null;
