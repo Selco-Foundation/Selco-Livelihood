@@ -24,6 +24,10 @@ public class OrganisationConstant {
     public static final String VENDOR_ADMIN_ROLE_NAME = "Vendor admin";
     public static final String EMPLOYEE_ROLE_CODE = "EMPLOYEE";
     public static final String EMPLOYEE_ROLE_NAME = "Employee";
+    public static final String COMPLAINT_RESOLVER_ROLE_CODE = "COMPLAINT_RESOLVER";
+    public static final String COMPLAINT_RESOLVER_ROLE_NAME = "Complaint Resolver";
+    public static final String LIVELIHOOD_VENDOR_ROLE_CODE = "LIVELIHOOD_VENDOR";
+    public static final String LIVELIHOOD_VENDOR_ROLE_NAME = "Livelihood Vendor";
 
     // Organisation types whose POC is auto-provisioned as an HRMS employee on creation
     public static final String ORG_TYPE_PLATFORM = "PLATFORM";
