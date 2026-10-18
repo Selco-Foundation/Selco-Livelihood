@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from typing import Optional, List
 import psycopg2
@@ -905,9 +906,22 @@ async def get_installation_template(
             response_description="Returns Excel template with facility schema and boundary codes")
 async def get_facility_ingestion_template(
         facility_service: FacilityTemplateService = Depends(),
-        request_info: str = Form(default="")
+        request_info: str = Form(default=""),
+        boundary_data: str = Form(default="")
 ):
+    """`boundary_data` is optional: the JSON country -> state -> district -> block tree the
+    geography step builds, the same shape facilityIngestionTemplateWithData takes. With it,
+    the template - its BlockBoundaryCodes sheet and its State/District/Block dropdowns -
+    holds only those blocks; without it, every block in the tenant."""
     request_info = request_info_from_json(request_info)
+    selected_boundaries: Optional[List[Boundary]] = None
+    if boundary_data.strip():
+        try:
+            selected_boundaries = flatten_boundaries(json.loads(boundary_data))
+        except (ValueError, TypeError, AttributeError) as e:
+            raise HTTPException(status_code=400, detail=f"boundary_data is not a valid boundary tree: {e}")
+        if not selected_boundaries:
+            raise HTTPException(status_code=400, detail="boundary_data has no blocks - select at least one block")
     mdms_client = MDMSClient(mdms_url)
     try:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -915,7 +929,8 @@ async def get_facility_ingestion_template(
         output_file_path = create_temp_file(suffix=".xlsx")
         try:
             facility_schema = mdms_client.get_column_definitions_with_metadata(request_info, 'data-ingestion.FacilityIngestionSchemaWithoutBoundaryCode')
-            boundary_data = facility_service.get_all_boundaries(request_info)
+            template_boundaries = (selected_boundaries if selected_boundaries is not None
+                                   else facility_service.get_all_boundaries(request_info))
         except Exception as e:
             logger.error(f"Error fetching data from external services: {e}")
             cleanup_temp_file(output_file_path)
@@ -925,7 +940,7 @@ async def get_facility_ingestion_template(
             facility_service.generate_template_file(
                 output_path=output_file_path,
                 facility_schema=facility_schema,
-                boundary_data=boundary_data
+                boundary_data=template_boundaries
             )
             logger.info(f"Successfully created facility ingestion template at {output_file_path}")
         except Exception as e:

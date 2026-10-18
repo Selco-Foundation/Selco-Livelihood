@@ -66,6 +66,22 @@ export async function searchBoundaries(
 export interface CreateBoundaryPayload {
   tenantId: string;
   code: string;
+  /** LGD identity, denormalised: a State sets only lgdStateCode, a District state + district,
+   *  a Block all three plus lgdBlockTier. Empty values are not sent. */
+  lgdStateCode?: string;
+  lgdDistrictCode?: string;
+  lgdBlockCode?: string;
+  lgdBlockTier?: string;
+}
+
+/** Drops empty LGD fields so a boundary created without codes stores NULL, not "". */
+function lgdFields(payload: CreateBoundaryPayload): Record<string, string> {
+  const fields: Record<string, string> = {};
+  for (const key of ["lgdStateCode", "lgdDistrictCode", "lgdBlockCode", "lgdBlockTier"] as const) {
+    const value = payload[key]?.trim();
+    if (value) fields[key] = value;
+  }
+  return fields;
 }
 
 /** Note: creating a state/district tier that already exists can return a
@@ -78,10 +94,33 @@ export async function createBoundary(
 ): Promise<unknown> {
   const { data } = await apiClient.post("/boundary-service/boundary/_create", {
     RequestInfo: createRequestInfo(accessToken, user),
-    Boundary: [{ tenantId: payload.tenantId, code: payload.code, geometry: null }],
+    Boundary: [{ tenantId: payload.tenantId, code: payload.code, geometry: null, ...lgdFields(payload) }],
   });
 
   return data;
+}
+
+export interface BoundaryLgdCodes {
+  lgdStateCode?: string;
+  lgdDistrictCode?: string;
+  lgdBlockCode?: string;
+  lgdBlockTier?: string;
+}
+
+/** The stored LGD codes of existing boundaries, by code (`/boundary/_search` returns them). */
+export async function fetchBoundaryLgdCodes(
+  codes: string[],
+  accessToken: string,
+  user?: AuthUser | null,
+): Promise<Map<string, BoundaryLgdCodes>> {
+  const wanted = codes.filter(Boolean);
+  if (wanted.length === 0) return new Map();
+  const { data } = await apiClient.post<{ Boundary?: Array<BoundaryLgdCodes & { code?: string }> }>(
+    "/boundary-service/boundary/_search",
+    { RequestInfo: createRequestInfo(accessToken, user) },
+    { params: { tenantId: getTenantId(), codes: wanted.join(",") } },
+  );
+  return new Map((data.Boundary ?? []).filter((row) => row.code).map((row) => [row.code!, row]));
 }
 
 export interface CreateBoundaryRelationshipPayload {

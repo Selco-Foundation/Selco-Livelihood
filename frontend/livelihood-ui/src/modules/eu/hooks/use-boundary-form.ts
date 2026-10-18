@@ -1,9 +1,17 @@
 import { translateOr, useBoundaryHierarchy, useTranslate } from "@/shared";
 import { useState } from "react";
 import { cascadeByParent } from "../utils/boundary";
-import type { BoundaryFormValues } from "../types/boundary";
+import type { BoundaryFormValues, LgdBlockTier } from "../types/boundary";
 
-const EMPTY_VALUES: BoundaryFormValues = { state: "", district: "", block: "" };
+const EMPTY_LGD = { lgdStateCode: "", lgdDistrictCode: "", lgdBlockCode: "", lgdBlockTier: "Block" as LgdBlockTier };
+const EMPTY_VALUES: BoundaryFormValues = { state: "", district: "", block: "", ...EMPTY_LGD };
+
+/** LGD codes are numeric, and boundary.lgd_* columns hold at most 16 characters. */
+export const LGD_CODE_MAX_LENGTH = 16;
+
+function toLgdCode(value: string): string {
+  return value.replace(/\D/g, "").slice(0, LGD_CODE_MAX_LENGTH);
+}
 
 export interface BoundaryFieldErrors {
   state?: string;
@@ -50,7 +58,7 @@ export function useBoundaryForm() {
   }
 
   function updateState(value: string) {
-    setValues({ state: value, district: "", block: "" });
+    setValues((prev) => ({ ...EMPTY_VALUES, state: value, lgdStateCode: prev.lgdStateCode }));
     setFieldErrors((prev) => ({ ...prev, state: undefined, district: undefined, block: undefined }));
   }
 
@@ -62,6 +70,15 @@ export function useBoundaryForm() {
   function updateBlock(value: string) {
     setValues((prev) => ({ ...prev, block: value }));
     setFieldErrors((prev) => ({ ...prev, block: undefined }));
+  }
+
+  /** Non-digits are dropped as they are typed, so the field can only ever hold a valid code. */
+  function updateLgdCode(field: "lgdStateCode" | "lgdDistrictCode" | "lgdBlockCode", value: string) {
+    setValues((prev) => ({ ...prev, [field]: toLgdCode(value) }));
+  }
+
+  function updateLgdBlockTier(value: LgdBlockTier) {
+    setValues((prev) => ({ ...prev, lgdBlockTier: value }));
   }
 
   function validate(): boolean {
@@ -94,6 +111,8 @@ export function useBoundaryForm() {
     updateState,
     updateDistrict,
     updateBlock,
+    updateLgdCode,
+    updateLgdBlockTier,
     validate,
     reset,
   };

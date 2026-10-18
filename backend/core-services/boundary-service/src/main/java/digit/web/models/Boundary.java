@@ -68,7 +68,10 @@ public class Boundary {
     @JsonProperty("lgdBlockCode")
     private String lgdBlockCode = null;
 
-    /** "Block", "Sub-district", or "Both" when the name exists at both tiers. */
+    /**
+     * "Block", "Sub-district", or "Both" when the name exists at both tiers; "Panchayat" or
+     * "Village" when the boundary sits below block level and lgdBlockCode is its container.
+     */
     @JsonProperty("lgdBlockTier")
     private String lgdBlockTier = null;
 }

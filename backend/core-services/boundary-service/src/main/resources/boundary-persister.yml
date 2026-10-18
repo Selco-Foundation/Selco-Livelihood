@@ -43,21 +43,16 @@ serviceMaps:
       fromTopic: update-boundary-entity
       isTransaction: true
       queryMaps:
-        - query: UPDATE boundary SET geometry = ? , additionalDetails = ? , lgd_state_code = ? , lgd_district_code = ? , lgd_block_code = ? , lgd_block_tier = ? , lastModifiedBy = ? , lastModifiedTime = ? WHERE code = ? AND tenantId = ?;
+        - query: UPDATE boundary SET geometry = ? , lgd_state_code = COALESCE(?, lgd_state_code) , lgd_district_code = COALESCE(?, lgd_district_code) , lgd_block_code = COALESCE(?, lgd_block_code) , lgd_block_tier = COALESCE(?, lgd_block_tier) , lastModifiedBy = ? , lastModifiedTime = ? WHERE code = ? AND tenantId = ?;
           basePath: $.Boundary.*
           jsonMaps:
             - jsonPath: $.Boundary.*.geometry
               type: JSON
               dbType: JSONB
 
-            # Without this the column can only ever be set by the INSERT above, so an
-            # existing boundary could never be given or corrected its additionalDetails.
-            # Note this UPDATE replaces rather than merges: send the boundary's current
-            # geometry and additionalDetails back, or they are overwritten with null.
-            - jsonPath: $.Boundary.*.additionalDetails
-              type: JSON
-              dbType: JSONB
-
+            # LGD codes can be given or corrected through _update. COALESCE keeps the stored
+            # value when a caller leaves a field out - a geometry-only update must not wipe
+            # a boundary's LGD identity.
             - jsonPath: $.Boundary.*.lgdStateCode
 
             - jsonPath: $.Boundary.*.lgdDistrictCode

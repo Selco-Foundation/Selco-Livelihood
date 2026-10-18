@@ -1,4 +1,4 @@
-import { apiClient, type AuthUser } from "@/shared";
+import { apiClient, type AuthUser, type BoundaryDataNode } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
 import type { IngestUploadResult } from "../types/boundary";
 import { multipartAuthConfig } from "../utils/ingestion-request";
@@ -95,9 +95,18 @@ export async function uploadBoundaryData(
   };
 }
 
-export async function downloadFacilityTemplate(accessToken: string, user?: AuthUser | null): Promise<void> {
+/** `boundaryData` (from the geography step) limits the template - its boundary sheet and its
+ *  State/District/Block dropdowns - to those blocks; without it the template covers every block. */
+export async function downloadFacilityTemplate(
+  accessToken: string,
+  user?: AuthUser | null,
+  boundaryData?: BoundaryDataNode,
+): Promise<void> {
   const formData = new FormData();
   formData.append("request_info", JSON.stringify(createRequestInfo(accessToken, user)));
+  if (boundaryData) {
+    formData.append("boundary_data", JSON.stringify(boundaryData));
+  }
 
   const response = await apiClient
     .post("/ingestion-service/template/facilityIngestion", formData, {
