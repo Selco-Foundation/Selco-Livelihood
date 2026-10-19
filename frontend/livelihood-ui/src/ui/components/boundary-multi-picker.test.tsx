@@ -35,6 +35,32 @@ function renderPicker(value = { states: [] as string[], districts: [] as string[
 }
 
 describe("BoundaryMultiPicker", () => {
+  it("lists the selection in the Selected panel, and removing a state there drops its children", async () => {
+    const user = userEvent.setup();
+    const onChange = renderPicker({
+      states: ["HP", "CG"],
+      districts: ["HP_BILASPUR", "CG_RAIPUR"],
+      blocks: ["HP_BILASPUR_GHUMARWIN", "CG_RAIPUR_ABHANPUR"],
+    });
+
+    expect(screen.getByText("State (2)")).toBeInTheDocument();
+    expect(screen.getByText("Block(s) (2)")).toBeInTheDocument();
+    expect(screen.getByText("HP_BILASPUR_GHUMARWIN")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Remove HP" }));
+    expect(onChange).toHaveBeenLastCalledWith({
+      states: ["CG"],
+      districts: ["CG_RAIPUR"],
+      blocks: ["CG_RAIPUR_ABHANPUR"],
+    });
+  });
+
+  it("shows the empty labels before anything is selected", () => {
+    renderPicker();
+    expect(screen.getByText("No state selected")).toBeInTheDocument();
+    expect(screen.getByText("No block selected")).toBeInTheDocument();
+  });
+
   it("disables District and Block until a parent is selected", () => {
     renderPicker();
     expect(screen.getByRole("button", { name: /District/ })).toBeDisabled();

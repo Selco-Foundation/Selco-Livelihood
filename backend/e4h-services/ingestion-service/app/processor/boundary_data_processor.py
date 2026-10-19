@@ -172,7 +172,7 @@ class BoundaryDataProcessor:
             block_label = preserve_boundary_label(row.get("Block"))
 
             # Optional LGD identity columns. Absent for hand-made sheets, in which case
-            # the boundary is created without additionalDetails exactly as before.
+            # the boundary is created without LGD codes exactly as before.
             lgd_state = _read_identity_cell(row, LGD_STATE_CODE_COLUMN)
             lgd_district = _read_identity_cell(row, LGD_DISTRICT_CODE_COLUMN)
             lgd_block = _read_identity_cell(row, LGD_BLOCK_CODE_COLUMN)
