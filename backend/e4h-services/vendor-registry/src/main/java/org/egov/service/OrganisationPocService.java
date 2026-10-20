@@ -19,10 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
-import java.util.stream.Collectors;
 
 import static org.egov.util.OrganisationConstant.COMPLAINT_RESOLVER_ROLE_CODE;
 import static org.egov.util.OrganisationConstant.COMPLAINT_RESOLVER_ROLE_NAME;
@@ -42,13 +39,16 @@ import static org.egov.util.OrganisationConstant.VENDOR_ADMIN_ROLE_NAME;
  * organisation is created: PLATFORM POC gets ORG_ADMIN + EMPLOYEE, VENDOR POC gets VENDOR_ADMIN + EMPLOYEE.
  * The POC is also linked to the organisation as an org user (eg_org_user).
  * A VENDOR organisation additionally gets a default vendor user (COMPLAINT_RESOLVER + LIVELIHOOD_VENDOR + EMPLOYEE)
- * named after the organisation, sharing the POC's phone, email and password.
+ * built from the organisation's defaultVendor* fields, with its own password.
  */
 @Service
 @Slf4j
 public class OrganisationPocService {
 
     private static final String EMPLOYEE_USER_TYPE = "EMPLOYEE";
+
+    /** HRMS details of the default vendor user, as sent on the create request. */
+    private record DefaultVendorUser(String name, String username, String phone, String email, String password) {}
 
     private final HRMSUtils hrmsUtils;
 
@@ -96,41 +96,46 @@ public class OrganisationPocService {
         return ORG_TYPE_VENDOR.equalsIgnoreCase(StringUtils.trimToEmpty(organisation.getOrgType()));
     }
 
-    /** Organisation name in lower case, words joined with underscores: "Green Energy Ltd" -> "green_energy_ltd". */
-    public static String defaultVendorUsername(Organisation organisation) {
-        return Arrays.stream(StringUtils.trimToEmpty(organisation.getName()).toLowerCase(Locale.ROOT).split("\\s+"))
-                .filter(StringUtils::isNotEmpty)
-                .collect(Collectors.joining("_"));
+    /** Mandatory fields are already checked by OrganisationServiceValidator. */
+    private static DefaultVendorUser resolveDefaultVendorUser(Organisation organisation) {
+        return new DefaultVendorUser(
+                organisation.getDefaultVendorName().trim(),
+                organisation.getDefaultVendorUsername().trim(),
+                organisation.getDefaultVendorPhone().trim(),
+                StringUtils.trimToNull(organisation.getDefaultVendorEmail()),
+                organisation.getDefaultVendorPassword());
     }
 
     /**
-     * Creates the POC user and, for a VENDOR organisation, its default vendor user. Every username is checked
-     * before anything is created, so a taken default vendor username does not leave a POC behind.
+     * Creates the POC user and, for a VENDOR organisation, its default vendor user. The default vendor user is
+     * checked before anything is created, so a taken username or phone does not leave a POC behind.
      *
      * @param pocPhone the plain (not yet encrypted) POC mobile number
      */
     public void createOrganisationUsers(RequestInfo requestInfo, Organisation organisation, String pocPhone) {
-        String vendorUsername = null;
+        DefaultVendorUser vendorUser = null;
         if (isVendorOrg(organisation)) {
-            vendorUsername = defaultVendorUsername(organisation);
-            if (StringUtils.isBlank(vendorUsername)) {
-                throw new CustomException("ORG_VENDOR_USERNAME", "Organisation name is mandatory to create the default vendor user");
-            }
-            if (vendorUsername.equalsIgnoreCase(StringUtils.trimToEmpty(organisation.getOrgPocUsername()))) {
-                throw new CustomException("ORG_VENDOR_USERNAME_EXISTS",
-                        "PoC username cannot be '" + vendorUsername + "': it is reserved for the default vendor user of the organisation");
-            }
-            RequestInfoWrapper requestInfoWrapper = RequestInfoWrapper.builder().requestInfo(requestInfo).build();
-            if (hrmsUtils.getUserByUsername(requestInfoWrapper, vendorUsername) != null) {
-                throw new CustomException("ORG_VENDOR_USERNAME_EXISTS",
-                        "A user with username '" + vendorUsername + "' already exists in HRMS");
-            }
+            vendorUser = resolveDefaultVendorUser(organisation);
+            validateDefaultVendorUser(requestInfo, organisation, vendorUser, pocPhone);
         }
 
         createPocUser(requestInfo, organisation, pocPhone);
 
-        if (vendorUsername != null) {
-            createDefaultVendorUser(requestInfo, organisation, pocPhone, vendorUsername);
+        if (vendorUser != null) {
+            createDefaultVendorUser(requestInfo, organisation, vendorUser);
+        }
+    }
+
+    private void validateDefaultVendorUser(RequestInfo requestInfo, Organisation organisation, DefaultVendorUser vendorUser, String pocPhone) {
+        RequestInfoWrapper requestInfoWrapper = RequestInfoWrapper.builder().requestInfo(requestInfo).build();
+        if (hrmsUtils.getUserByUsername(requestInfoWrapper, vendorUser.username()) != null) {
+            throw new CustomException("ORG_VENDOR_USERNAME_EXISTS",
+                    "A user with username '" + vendorUser.username() + "' already exists in HRMS");
+        }
+        // Sharing the POC's number is allowed; any other number must be free, like the POC's
+        if (!vendorUser.phone().equals(pocPhone) && hrmsUtils.getUserByPhoneNumber(requestInfoWrapper, vendorUser.phone()) != null) {
+            throw new CustomException("ORG_VENDOR_PHONE_EXISTS",
+                    "A user with the provided default vendor phone number already exists in HRMS");
         }
     }
 
@@ -160,21 +165,22 @@ public class OrganisationPocService {
                 .roles(buildPocRoles(organisation))
                 .build();
 
-        User hrmsUser = createHrmsUserWithPassword(requestInfo, organisation, user, "PoC");
+        User hrmsUser = createHrmsUserWithPassword(requestInfo, organisation, user, organisation.getOrgPocPassword(), "PoC");
         log.info("Organisation POC '{}' created in HRMS with uuid {}", username, hrmsUser.getUuid());
 
         linkUserToOrganisation(requestInfo, organisation, hrmsUser);
     }
 
-    /** The phone number is shared with the POC: HRMS does not enforce unique mobile numbers for employees. */
-    private void createDefaultVendorUser(RequestInfo requestInfo, Organisation organisation, String pocPhone, String username) {
+    /** The phone number may be the POC's: HRMS does not enforce unique mobile numbers for employees. */
+    private void createDefaultVendorUser(RequestInfo requestInfo, Organisation organisation, DefaultVendorUser vendorUser) {
+        String username = vendorUser.username();
         log.info("Creating default vendor user '{}' for organisation {}", username, organisation.getId());
         String roleTenantId = userUtil.getStateLevelTenant(organisation.getTenantId());
         User user = User.builder()
                 .userName(username)
-                .name(organisation.getName().trim())
-                .mobileNumber(pocPhone)
-                .emailId(organisation.getOrgPocEmail())
+                .name(vendorUser.name())
+                .mobileNumber(vendorUser.phone())
+                .emailId(vendorUser.email())
                 .active(true)
                 .type(EMPLOYEE_USER_TYPE)
                 .tenantId(organisation.getTenantId())
@@ -184,14 +190,13 @@ public class OrganisationPocService {
                         Role.builder().code(EMPLOYEE_ROLE_CODE).name(EMPLOYEE_ROLE_NAME).tenantId(roleTenantId).build())))
                 .build();
 
-        User hrmsUser = createHrmsUserWithPassword(requestInfo, organisation, user, "Default vendor");
+        User hrmsUser = createHrmsUserWithPassword(requestInfo, organisation, user, vendorUser.password(), "Default vendor");
         log.info("Default vendor user '{}' created in HRMS with uuid {}", username, hrmsUser.getUuid());
 
         linkUserToOrganisation(requestInfo, organisation, hrmsUser);
     }
 
-    /** Both users log in with the POC password given on the organisation create request. */
-    private User createHrmsUserWithPassword(RequestInfo requestInfo, Organisation organisation, User user, String userLabel) {
+    private User createHrmsUserWithPassword(RequestInfo requestInfo, Organisation organisation, User user, String password, String userLabel) {
         String username = user.getUserName();
         Employee employee = hrmsUtils.buildEmployee(user, organisation.getOrgType().trim().toUpperCase());
         EmployeeRequest employeeRequest = EmployeeRequest.builder()
@@ -207,7 +212,7 @@ public class OrganisationPocService {
         Employee createdEmployee = createdEmployees.get(0);
         try {
             User hrmsUser = hrmsUtils.resolveUserForPasswordUpdate(requestInfo, createdEmployee);
-            userUtil.updatePasswordWithHrmsUser(requestInfo, hrmsUser, organisation.getOrgPocPassword());
+            userUtil.updatePasswordWithHrmsUser(requestInfo, hrmsUser, password);
         } catch (Exception e) {
             log.error("HRMS user {} was created for organisation {} user '{}' but setting its password failed: {}",
                     createdEmployee.getUser().getUuid(), userLabel, username, e.getMessage());

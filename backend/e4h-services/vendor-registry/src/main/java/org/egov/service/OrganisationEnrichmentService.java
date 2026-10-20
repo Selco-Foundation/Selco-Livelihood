@@ -136,6 +136,7 @@ public class OrganisationEnrichmentService {
                 }
             } finally {
                 organisation.setOrgPocPassword(null);
+                organisation.setDefaultVendorPassword(null);
             }
 
             orgAppNumIdFormatIndex++;
