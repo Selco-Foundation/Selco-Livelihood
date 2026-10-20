@@ -7,6 +7,7 @@ import org.egov.asset.mapper.AssetRowMapper;
 import org.egov.asset.mapper.DocumentRowMapper;
 import org.egov.asset.repository.AssetRepository;
 import org.egov.asset.util.ErrorConstants;
+import org.egov.asset.util.HRMSUtil;
 import org.egov.asset.util.IdgenUtil;
 import org.egov.asset.util.OrganisationUtil;
 import org.egov.asset.util.ResponseInfoFactory;
@@ -45,6 +46,7 @@ public class AssetService {
     private final LivelihoodAssetBoundaryEnricher livelihoodAssetBoundaryEnricher;
     private final AssetLocalizationService assetLocalizationService;
     private final OrganisationUtil organisationUtil;
+    private final HRMSUtil hrmsUtil;
 
     @Autowired
     public AssetService(
@@ -56,7 +58,8 @@ public class AssetService {
             ResponseInfoFactory responseInfoFactory,
             LivelihoodAssetBoundaryEnricher livelihoodAssetBoundaryEnricher,
             AssetLocalizationService assetLocalizationService,
-            OrganisationUtil organisationUtil
+            OrganisationUtil organisationUtil,
+            HRMSUtil hrmsUtil
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.assetRowMapper = assetRowMapper;
@@ -67,6 +70,7 @@ public class AssetService {
         this.livelihoodAssetBoundaryEnricher = livelihoodAssetBoundaryEnricher;
         this.assetLocalizationService = assetLocalizationService;
         this.organisationUtil = organisationUtil;
+        this.hrmsUtil = hrmsUtil;
     }
 
     /**
@@ -575,6 +579,9 @@ public class AssetService {
         // --- validate everything first -------------------------------------------
         Map<String, List<Asset>> groupsByAssetId = new LinkedHashMap<>();
         Set<String> validatedVendors = new HashSet<>();
+        // vendor user -> tenant and the boundaries of the groups it is being mapped to
+        Map<String, String> tenantByVendor = new LinkedHashMap<>();
+        Map<String, Set<String>> assetBoundariesByVendor = new LinkedHashMap<>();
 
         for (AssetVendorUpdate update : updates) {
             Asset parent = getAssetById(tenantId, update.getAssetId());
@@ -592,7 +599,22 @@ public class AssetService {
             group.add(parent);
             group.addAll(findUnits(resolvedTenantId, parent.getAssetId()));
             groupsByAssetId.put(update.getAssetId(), group);
+
+            // Units share the parent's boundary code, so the parent's is enough
+            tenantByVendor.putIfAbsent(update.getVendorId(), resolvedTenantId);
+            if (parent.getBoundaryCode() != null && !parent.getBoundaryCode().isBlank()) {
+                assetBoundariesByVendor.computeIfAbsent(update.getVendorId(), k -> new LinkedHashSet<>())
+                        .add(parent.getBoundaryCode());
+            } else {
+                log.warn("Asset {} has no boundary code, vendor {} jurisdiction is not checked",
+                        parent.getAssetId(), update.getVendorId());
+            }
         }
+
+        // A vendor only sees tickets inside its jurisdictions, so give it the state of each asset it now services.
+        // Done before any asset is written: an HRMS failure leaves every mapping unchanged.
+        assetBoundariesByVendor.forEach((vendorId, boundaries) ->
+                hrmsUtil.addMissingStateJurisdictions(requestInfo, tenantByVendor.get(vendorId), vendorId, boundaries));
 
         // --- then write ------------------------------------------------------------
         String updatedBy = requestInfo != null && requestInfo.getUserInfo() != null

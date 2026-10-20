@@ -286,10 +286,15 @@ public class OrganisationServiceValidator {
         log.debug("Organisation details validation completed for {} organisations", organisationList.size());
     }
 
-    /** The POC of a PLATFORM / VENDOR organisation becomes an HRMS user, so it needs everything HRMS requires to log in. */
+    /**
+     * The POC of a PLATFORM / VENDOR organisation becomes an HRMS user, so it needs everything HRMS requires to log in.
+     * A VENDOR organisation must always have a POC (its first VENDOR_ADMIN) and a default vendor user (its first
+     * LIVELIHOOD_VENDOR), both sent by the frontend.
+     */
     private void validatePocDetails(List<Organisation> organisationList) {
         for (Organisation organisation : organisationList) {
-            if (!OrganisationPocService.shouldCreatePocUser(organisation)) {
+            boolean isVendorOrg = ORG_TYPE_VENDOR.equalsIgnoreCase(StringUtils.trimToEmpty(organisation.getOrgType()));
+            if (!isVendorOrg && !OrganisationPocService.shouldCreatePocUser(organisation)) {
                 continue;
             }
             if (StringUtils.isBlank(organisation.getOrgPocUsername())) {
@@ -304,6 +309,27 @@ public class OrganisationServiceValidator {
             if (StringUtils.isBlank(organisation.getOrgPocPassword())) {
                 throw new CustomException("ORG_POC_PASSWORD", "PoC password is mandatory");
             }
+            if (isVendorOrg) {
+                validateDefaultVendorDetails(organisation);
+            }
+        }
+    }
+
+    private void validateDefaultVendorDetails(Organisation organisation) {
+        if (StringUtils.isBlank(organisation.getDefaultVendorUsername())) {
+            throw new CustomException("ORG_VENDOR_USERNAME", "Default vendor username is mandatory");
+        }
+        if (StringUtils.isBlank(organisation.getDefaultVendorName())) {
+            throw new CustomException("ORG_VENDOR_NAME", "Default vendor name is mandatory");
+        }
+        if (StringUtils.isBlank(organisation.getDefaultVendorPhone())) {
+            throw new CustomException("ORG_VENDOR_PHONE", "Default vendor phone number is mandatory");
+        }
+        if (StringUtils.isBlank(organisation.getDefaultVendorPassword())) {
+            throw new CustomException("ORG_VENDOR_PASSWORD", "Default vendor password is mandatory");
+        }
+        if (organisation.getDefaultVendorUsername().trim().equalsIgnoreCase(StringUtils.trimToEmpty(organisation.getOrgPocUsername()))) {
+            throw new CustomException("ORG_VENDOR_USERNAME_EXISTS", "PoC and default vendor user cannot use the same username");
         }
     }
 

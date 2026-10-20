@@ -21,8 +21,12 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.egov.util.OrganisationConstant.COMPLAINT_RESOLVER_ROLE_CODE;
+import static org.egov.util.OrganisationConstant.COMPLAINT_RESOLVER_ROLE_NAME;
 import static org.egov.util.OrganisationConstant.EMPLOYEE_ROLE_CODE;
 import static org.egov.util.OrganisationConstant.EMPLOYEE_ROLE_NAME;
+import static org.egov.util.OrganisationConstant.LIVELIHOOD_VENDOR_ROLE_CODE;
+import static org.egov.util.OrganisationConstant.LIVELIHOOD_VENDOR_ROLE_NAME;
 import static org.egov.util.OrganisationConstant.ORG_ADMIN_ROLE_CODE;
 import static org.egov.util.OrganisationConstant.ORG_ADMIN_ROLE_NAME;
 import static org.egov.util.OrganisationConstant.ORG_TYPE_PLATFORM;
@@ -34,12 +38,17 @@ import static org.egov.util.OrganisationConstant.VENDOR_ADMIN_ROLE_NAME;
  * Provisions the Point of Contact of a PLATFORM or VENDOR organisation as an HRMS employee when the
  * organisation is created: PLATFORM POC gets ORG_ADMIN + EMPLOYEE, VENDOR POC gets VENDOR_ADMIN + EMPLOYEE.
  * The POC is also linked to the organisation as an org user (eg_org_user).
+ * A VENDOR organisation additionally gets a default vendor user (COMPLAINT_RESOLVER + LIVELIHOOD_VENDOR + EMPLOYEE)
+ * built from the organisation's defaultVendor* fields, with its own password.
  */
 @Service
 @Slf4j
 public class OrganisationPocService {
 
     private static final String EMPLOYEE_USER_TYPE = "EMPLOYEE";
+
+    /** HRMS details of the default vendor user, as sent on the create request. */
+    private record DefaultVendorUser(String name, String username, String phone, String email, String password) {}
 
     private final HRMSUtils hrmsUtils;
 
@@ -83,10 +92,54 @@ public class OrganisationPocService {
                 || StringUtils.isNotBlank(organisation.getOrgPocPassword());
     }
 
+    private static boolean isVendorOrg(Organisation organisation) {
+        return ORG_TYPE_VENDOR.equalsIgnoreCase(StringUtils.trimToEmpty(organisation.getOrgType()));
+    }
+
+    /** Mandatory fields are already checked by OrganisationServiceValidator. */
+    private static DefaultVendorUser resolveDefaultVendorUser(Organisation organisation) {
+        return new DefaultVendorUser(
+                organisation.getDefaultVendorName().trim(),
+                organisation.getDefaultVendorUsername().trim(),
+                organisation.getDefaultVendorPhone().trim(),
+                StringUtils.trimToNull(organisation.getDefaultVendorEmail()),
+                organisation.getDefaultVendorPassword());
+    }
+
     /**
+     * Creates the POC user and, for a VENDOR organisation, its default vendor user. The default vendor user is
+     * checked before anything is created, so a taken username or phone does not leave a POC behind.
+     *
      * @param pocPhone the plain (not yet encrypted) POC mobile number
      */
-    public void createPocUser(RequestInfo requestInfo, Organisation organisation, String pocPhone) {
+    public void createOrganisationUsers(RequestInfo requestInfo, Organisation organisation, String pocPhone) {
+        DefaultVendorUser vendorUser = null;
+        if (isVendorOrg(organisation)) {
+            vendorUser = resolveDefaultVendorUser(organisation);
+            validateDefaultVendorUser(requestInfo, organisation, vendorUser, pocPhone);
+        }
+
+        createPocUser(requestInfo, organisation, pocPhone);
+
+        if (vendorUser != null) {
+            createDefaultVendorUser(requestInfo, organisation, vendorUser);
+        }
+    }
+
+    private void validateDefaultVendorUser(RequestInfo requestInfo, Organisation organisation, DefaultVendorUser vendorUser, String pocPhone) {
+        RequestInfoWrapper requestInfoWrapper = RequestInfoWrapper.builder().requestInfo(requestInfo).build();
+        if (hrmsUtils.getUserByUsername(requestInfoWrapper, vendorUser.username()) != null) {
+            throw new CustomException("ORG_VENDOR_USERNAME_EXISTS",
+                    "A user with username '" + vendorUser.username() + "' already exists in HRMS");
+        }
+        // Sharing the POC's number is allowed; any other number must be free, like the POC's
+        if (!vendorUser.phone().equals(pocPhone) && hrmsUtils.getUserByPhoneNumber(requestInfoWrapper, vendorUser.phone()) != null) {
+            throw new CustomException("ORG_VENDOR_PHONE_EXISTS",
+                    "A user with the provided default vendor phone number already exists in HRMS");
+        }
+    }
+
+    private void createPocUser(RequestInfo requestInfo, Organisation organisation, String pocPhone) {
         String username = organisation.getOrgPocUsername().trim();
         log.info("Creating {} organisation POC '{}' in HRMS", organisation.getOrgType(), username);
 
@@ -112,6 +165,39 @@ public class OrganisationPocService {
                 .roles(buildPocRoles(organisation))
                 .build();
 
+        User hrmsUser = createHrmsUserWithPassword(requestInfo, organisation, user, organisation.getOrgPocPassword(), "PoC");
+        log.info("Organisation POC '{}' created in HRMS with uuid {}", username, hrmsUser.getUuid());
+
+        linkUserToOrganisation(requestInfo, organisation, hrmsUser);
+    }
+
+    /** The phone number may be the POC's: HRMS does not enforce unique mobile numbers for employees. */
+    private void createDefaultVendorUser(RequestInfo requestInfo, Organisation organisation, DefaultVendorUser vendorUser) {
+        String username = vendorUser.username();
+        log.info("Creating default vendor user '{}' for organisation {}", username, organisation.getId());
+        String roleTenantId = userUtil.getStateLevelTenant(organisation.getTenantId());
+        User user = User.builder()
+                .userName(username)
+                .name(vendorUser.name())
+                .mobileNumber(vendorUser.phone())
+                .emailId(vendorUser.email())
+                .active(true)
+                .type(EMPLOYEE_USER_TYPE)
+                .tenantId(organisation.getTenantId())
+                .roles(new ArrayList<>(List.of(
+                        Role.builder().code(COMPLAINT_RESOLVER_ROLE_CODE).name(COMPLAINT_RESOLVER_ROLE_NAME).tenantId(roleTenantId).build(),
+                        Role.builder().code(LIVELIHOOD_VENDOR_ROLE_CODE).name(LIVELIHOOD_VENDOR_ROLE_NAME).tenantId(roleTenantId).build(),
+                        Role.builder().code(EMPLOYEE_ROLE_CODE).name(EMPLOYEE_ROLE_NAME).tenantId(roleTenantId).build())))
+                .build();
+
+        User hrmsUser = createHrmsUserWithPassword(requestInfo, organisation, user, vendorUser.password(), "Default vendor");
+        log.info("Default vendor user '{}' created in HRMS with uuid {}", username, hrmsUser.getUuid());
+
+        linkUserToOrganisation(requestInfo, organisation, hrmsUser);
+    }
+
+    private User createHrmsUserWithPassword(RequestInfo requestInfo, Organisation organisation, User user, String password, String userLabel) {
+        String username = user.getUserName();
         Employee employee = hrmsUtils.buildEmployee(user, organisation.getOrgType().trim().toUpperCase());
         EmployeeRequest employeeRequest = EmployeeRequest.builder()
                 .requestInfo(requestInfo)
@@ -119,27 +205,25 @@ public class OrganisationPocService {
                 .build();
         List<Employee> createdEmployees = hrmsUtils.createHRMSUser(employeeRequest);
         if (createdEmployees == null || createdEmployees.isEmpty() || createdEmployees.get(0).getUser() == null) {
-            log.error("HRMS did not return a created employee for POC '{}'", username);
-            throw new CustomException("HRMS_CREATION", "Error occurred while creating the organisation PoC user in HRMS");
+            log.error("HRMS did not return a created employee for {} user '{}'", userLabel, username);
+            throw new CustomException("HRMS_CREATION", "Error occurred while creating the organisation " + userLabel + " user in HRMS");
         }
 
         Employee createdEmployee = createdEmployees.get(0);
         try {
             User hrmsUser = hrmsUtils.resolveUserForPasswordUpdate(requestInfo, createdEmployee);
-            userUtil.updatePasswordWithHrmsUser(requestInfo, hrmsUser, organisation.getOrgPocPassword());
+            userUtil.updatePasswordWithHrmsUser(requestInfo, hrmsUser, password);
         } catch (Exception e) {
-            log.error("HRMS user {} was created for organisation POC '{}' but setting its password failed: {}",
-                    createdEmployee.getUser().getUuid(), username, e.getMessage());
+            log.error("HRMS user {} was created for organisation {} user '{}' but setting its password failed: {}",
+                    createdEmployee.getUser().getUuid(), userLabel, username, e.getMessage());
             throw new CustomException("ORG_POC_PASSWORD_UPDATE_FAILED",
-                    "PoC user '" + username + "' was created in HRMS but its password could not be set");
+                    userLabel + " user '" + username + "' was created in HRMS but its password could not be set");
         }
-        log.info("Organisation POC '{}' created in HRMS with uuid {}", username, createdEmployee.getUser().getUuid());
-
-        linkPocToOrganisation(requestInfo, organisation, createdEmployee.getUser());
+        return createdEmployee.getUser();
     }
 
-    /** Same message /organisation/v1/user/_create publishes, so the POC shows up as a regular user of the organisation. */
-    private void linkPocToOrganisation(RequestInfo requestInfo, Organisation organisation, User hrmsUser) {
+    /** Same message /organisation/v1/user/_create publishes, so the user shows up as a regular user of the organisation. */
+    private void linkUserToOrganisation(RequestInfo requestInfo, Organisation organisation, User hrmsUser) {
         OrgUserRequest orgUserRequest = OrgUserRequest.builder()
                 .requestInfo(requestInfo)
                 .organizationId(organisation.getId())
@@ -148,7 +232,7 @@ public class OrganisationPocService {
                 .build();
         organisationUserEnrichmentService.enrichOrgUserRequestOnCreate(orgUserRequest, requestInfo);
         organizationProducer.push(configuration.getCreateOrgUserTopic(), orgUserRequest);
-        log.info("Organisation POC {} linked to organisation {} (org user {})",
+        log.info("User {} linked to organisation {} (org user {})",
                 hrmsUser.getUuid(), organisation.getId(), orgUserRequest.getId());
     }
 

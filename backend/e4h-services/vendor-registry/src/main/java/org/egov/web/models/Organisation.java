@@ -79,6 +79,25 @@ public class Organisation {
     @ToString.Exclude
     private String orgPocPassword = null;
 
+    // Default vendor user of a VENDOR organisation, sent by the frontend and created in HRMS on create only
+    // (not stored on the organisation). Name, username, phone and password are mandatory for a VENDOR organisation.
+    @JsonProperty("defaultVendorName")
+    private String defaultVendorName = null;
+
+    @JsonProperty("defaultVendorPhone")
+    private String defaultVendorPhone = null;
+
+    @JsonProperty("defaultVendorEmail")
+    private String defaultVendorEmail = null;
+
+    @JsonProperty("defaultVendorUsername")
+    private String defaultVendorUsername = null;
+
+    // Same handling as orgPocPassword: never serialized and kept out of toString().
+    @JsonProperty(value = "defaultVendorPassword", access = JsonProperty.Access.WRITE_ONLY)
+    @ToString.Exclude
+    private String defaultVendorPassword = null;
+
     @JsonProperty("externalRefNumber")
     @Size(min = 2, max = 64)
     private String externalRefNumber = null;
