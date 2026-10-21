@@ -25,6 +25,12 @@ export interface OrganisationFormValues {
   pocUsername: string;
   pocPassword: string;
   pocConfirmPassword: string;
+  defaultVendorName: string;
+  defaultVendorPhone: string;
+  defaultVendorEmail: string;
+  defaultVendorUsername: string;
+  defaultVendorPassword: string;
+  defaultVendorConfirmPassword: string;
 }
 
 export type OrganisationFieldErrors = Partial<Record<keyof OrganisationFormValues, string>>;
@@ -38,6 +44,12 @@ const EMPTY_VALUES: OrganisationFormValues = {
   pocUsername: "",
   pocPassword: "",
   pocConfirmPassword: "",
+  defaultVendorName: "",
+  defaultVendorPhone: "",
+  defaultVendorEmail: "",
+  defaultVendorUsername: "",
+  defaultVendorPassword: "",
+  defaultVendorConfirmPassword: "",
 };
 
 /**
@@ -74,6 +86,21 @@ export function useOrganisationForm(orgType: OrgType, editing?: Organisation) {
       const passwordErrors = validatePassword(values.pocPassword, values.pocConfirmPassword, t, true);
       errors.pocPassword = passwordErrors.password;
       errors.pocConfirmPassword = passwordErrors.confirmPassword;
+
+      if (orgType === "VENDOR") {
+        errors.defaultVendorName = validatePersonName(values.defaultVendorName, t);
+        errors.defaultVendorPhone = validatePhone(values.defaultVendorPhone, t);
+        errors.defaultVendorEmail = validateOptionalEmail(values.defaultVendorEmail, t);
+        errors.defaultVendorUsername = validateUsername(values.defaultVendorUsername, t);
+        const vendorPasswordErrors = validatePassword(
+          values.defaultVendorPassword,
+          values.defaultVendorConfirmPassword,
+          t,
+          true,
+        );
+        errors.defaultVendorPassword = vendorPasswordErrors.password;
+        errors.defaultVendorConfirmPassword = vendorPasswordErrors.confirmPassword;
+      }
     }
 
     setFieldErrors(errors);
@@ -90,6 +117,15 @@ export function useOrganisationForm(orgType: OrgType, editing?: Organisation) {
       pocEmail: values.pocEmail.trim() || undefined,
       pocUsername: values.pocUsername.trim(),
       pocPassword: values.pocPassword,
+      ...(orgType === "VENDOR"
+        ? {
+            defaultVendorName: values.defaultVendorName.trim(),
+            defaultVendorPhone: values.defaultVendorPhone.trim(),
+            defaultVendorEmail: values.defaultVendorEmail.trim() || undefined,
+            defaultVendorUsername: values.defaultVendorUsername.trim(),
+            defaultVendorPassword: values.defaultVendorPassword,
+          }
+        : {}),
     };
   }
 
@@ -115,6 +151,10 @@ export function useOrganisationForm(orgType: OrgType, editing?: Organisation) {
             pocPhone: editing.pocPhone ?? "",
             pocEmail: editing.pocEmail ?? "",
             pocUsername: editing.pocUsername ?? "",
+            defaultVendorName: editing.defaultVendorName ?? "",
+            defaultVendorPhone: editing.defaultVendorPhone ?? "",
+            defaultVendorEmail: editing.defaultVendorEmail ?? "",
+            defaultVendorUsername: editing.defaultVendorUsername ?? "",
           }
         : EMPTY_VALUES,
     );
