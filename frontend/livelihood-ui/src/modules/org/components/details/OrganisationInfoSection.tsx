@@ -25,6 +25,13 @@ interface OrganisationInfoSectionProps {
 
 export function OrganisationInfoSection({ organisation, onEdit }: OrganisationInfoSectionProps) {
   const { t } = useTranslate();
+  // Older organisations have no stored default vendor details — their vendor user is in the Users table.
+  const hasDefaultVendor = Boolean(
+    organisation.defaultVendorName ||
+      organisation.defaultVendorPhone ||
+      organisation.defaultVendorEmail ||
+      organisation.defaultVendorUsername,
+  );
 
   return (
     <Card>
@@ -69,6 +76,32 @@ export function OrganisationInfoSection({ organisation, onEdit }: OrganisationIn
             />
           </div>
         </div>
+
+        {organisation.orgType === "VENDOR" && hasDefaultVendor ? (
+          <div className="rounded-md border border-border bg-muted/30 p-4">
+            <h3 className="mb-2 text-base font-semibold text-foreground">
+              {translateOr(t, "ORG_DEFAULT_VENDOR_SECTION", "Default Vendor")}
+            </h3>
+            <div className="grid gap-2 md:grid-cols-2">
+              <InfoItem
+                label={translateOr(t, "ORG_DEFAULT_VENDOR_NAME", "Default Vendor Name")}
+                value={organisation.defaultVendorName}
+              />
+              <InfoItem
+                label={translateOr(t, "ORG_DEFAULT_VENDOR_PHONE", "Default Vendor Contact")}
+                value={organisation.defaultVendorPhone}
+              />
+              <InfoItem
+                label={translateOr(t, "ORG_DEFAULT_VENDOR_EMAIL", "Default Vendor Email")}
+                value={organisation.defaultVendorEmail}
+              />
+              <InfoItem
+                label={translateOr(t, "ORG_DEFAULT_VENDOR_USERNAME", "Default Vendor Username")}
+                value={organisation.defaultVendorUsername}
+              />
+            </div>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
