@@ -1075,6 +1075,9 @@ def build_localization_reverse_map(messages: List[Dict[str, Any]]) -> Dict[str, 
     return reverse_map
 
 
+LOCALIZATION_LOOKUP_BATCH = 500
+
+
 def build_boundary_localization_map(
     boundary_list: List[Boundary],
     localization_service_url: str,
@@ -1100,26 +1103,30 @@ def build_boundary_localization_map(
         if block_code:
             all_raw_codes.add(block_boundary_code(block_code, block_code))
 
-    loc_codes = [f"BOUNDARY_{code}" for code in all_raw_codes]
+    loc_codes = sorted(f"BOUNDARY_{code}" for code in all_raw_codes)
 
     localization_map: Dict[str, str] = {}
     if localization_service_url and loc_codes:
-        try:
-            from app.utils.localization_service_client import LocalizationServiceClient
-            loc_client = LocalizationServiceClient(localization_service_url)
-            loc_response = loc_client.search_messages(
-                tenant_id=LIVELIHOOD_TENANT_ID,
-                locale="en_IN",
-                module=LOCALIZATION_MODULE,
-                codes=loc_codes,
-            )
-            for m in loc_response.get("messages", []):
-                code = (m.get("code") or "").strip()
-                message = m.get("message", "")
-                if code and message:
-                    localization_map[code] = message
-        except Exception as e:
-            logger.error(f"Error fetching boundary localizations: {e}", exc_info=True)
+        from app.utils.localization_service_client import LocalizationServiceClient
+        loc_client = LocalizationServiceClient(localization_service_url)
+        # Batched: a template over the whole country carries ~10k codes, too many for one
+        # request body. A failed batch only leaves its own names unlocalized.
+        for start in range(0, len(loc_codes), LOCALIZATION_LOOKUP_BATCH):
+            batch = loc_codes[start:start + LOCALIZATION_LOOKUP_BATCH]
+            try:
+                loc_response = loc_client.search_messages(
+                    tenant_id=LIVELIHOOD_TENANT_ID,
+                    locale="en_IN",
+                    module=LOCALIZATION_MODULE,
+                    codes=batch,
+                )
+                for m in loc_response.get("messages", []):
+                    code = (m.get("code") or "").strip()
+                    message = m.get("message", "")
+                    if code and message:
+                        localization_map[code] = message
+            except Exception as e:
+                logger.error(f"Error fetching boundary localizations: {e}", exc_info=True)
 
     return localization_map
 

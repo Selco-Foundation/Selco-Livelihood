@@ -1,10 +1,9 @@
 import { translateOr, useTranslate } from "@/shared";
-import { MultiSelect, toast } from "@/ui";
+import { MultiSelect, SelectedGroup, toast } from "@/ui";
 import { MapPin } from "lucide-react";
 import { useMemo } from "react";
 import { useBoundaryTree } from "../../hooks/use-boundary-tree";
 import type { GeographyDetails } from "../../types/project";
-import { SelectedGroup } from "../SelectedGroup";
 import { StepSectionCard } from "../StepSectionCard";
 
 interface GeographyDetailsStepProps {

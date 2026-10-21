@@ -13,7 +13,7 @@ from app.schemas.vendor_ingestion_shema_response import IngestionSchemaResponse
 from app.utils.convertor import convert_json_to_boundary, format_facility_data_for_template, build_boundary_localization_map, localize_boundary_name
 from app.utils.excel_utils import add_dropdowns_to_excel, add_row_specific_dropdown_to_excel, lock_excel_columns, \
     lock_cells_in_excel, add_validations_to_excel, lock_prefilled_rows_in_excel, add_non_blank_validations_to_file, \
-    autofit_columns, add_facility_category_conditional_validations
+    autofit_columns, add_facility_category_conditional_validations, add_dependent_boundary_dropdowns
 from app.utils.file_utils import create_empty_excel_file, create_excel_data_writer, remove_default_empty_sheet
 
 logger = AppLogger().get_logger()
@@ -22,6 +22,9 @@ load_dotenv()
 mdms_url = os.getenv("MDMS_URL")
 boundary_service_url = os.getenv("BOUNDARY_SERVICE_URL")
 localization_service_url = os.getenv("LOCALIZATION_SERVICE_URL")
+
+# Main-sheet columns whose dropdowns come from the boundary hierarchy, not MDMS.
+BOUNDARY_COLUMNS = {"state", "district", "block"}
 
 class FacilityTemplateService:
 
@@ -350,6 +353,11 @@ class FacilityTemplateService:
 
                 allow_blank_map[header_name] = not col.get("required", False)
 
+                # State/District/Block get cascading lists from the boundaries below; a
+                # flat list here would stack a second validation on the same cells.
+                if str(col_name).strip().lower() in BOUNDARY_COLUMNS:
+                    continue
+
                 mdms_values = col.get("mdms_values")
                 if mdms_values:
                     dropdown_options = [item.get("name") for item in mdms_values if item.get("name")]
@@ -387,6 +395,15 @@ class FacilityTemplateService:
                 "BlockBoundaryCodes"
             )
             boundary_writer.write_data(df_boundary)
+
+            # Cascading State -> District -> Block lists built from the same rows, so the
+            # sheet offers exactly the boundaries in BlockBoundaryCodes (the geography the
+            # user picked, when they picked one) and uploads still resolve by display name.
+            add_dependent_boundary_dropdowns(
+                file_path=output_path,
+                sheet_name="EndUserIngestionTemplate",
+                boundary_records=boundary_records,
+            )
 
             # Livelihood: no Vendor Code column -> do not generate the VendorCodes sheet.
 
