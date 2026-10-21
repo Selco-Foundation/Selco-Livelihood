@@ -95,17 +95,19 @@ export async function uploadBoundaryData(
   };
 }
 
-/** `boundaryData` (from the geography step) limits the template - its boundary sheet and its
- *  State/District/Block dropdowns - to those blocks; without it the template covers every block. */
+/** `boundaryCodes` (from the geography step, see `buildBoundaryCodeSelection`) limits the
+ *  template - its boundary sheet and its State/District/Block dropdowns - to the blocks under
+ *  those state, district and block codes; without it the template covers every block. Codes,
+ *  not the whole tree, so selecting every state stays under the gateway's request-size limit. */
 export async function downloadFacilityTemplate(
   accessToken: string,
   user?: AuthUser | null,
-  boundaryData?: BoundaryDataNode,
+  boundaryCodes?: string[],
 ): Promise<void> {
   const formData = new FormData();
   formData.append("request_info", JSON.stringify(createRequestInfo(accessToken, user)));
-  if (boundaryData) {
-    formData.append("boundary_data", JSON.stringify(boundaryData));
+  if (boundaryCodes) {
+    formData.append("boundary_codes", JSON.stringify(boundaryCodes));
   }
 
   const response = await apiClient

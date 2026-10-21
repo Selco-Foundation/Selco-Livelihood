@@ -46,6 +46,46 @@ function childrenOf(nodes: BoundaryHierarchy["districts"], parentCode: string): 
 }
 
 /**
+ * The selection as the fewest boundary codes that cover the same blocks, for the template
+ * endpoint's `boundary_codes` field: a district whose every block is covered collapses to the
+ * district code, and a state whose every district is covered collapses to the state code. Same
+ * meaning as `buildBoundaryDataTree` - a level picked on its own means all of it - but the whole
+ * country is ~40 codes instead of a tree of every block, which the gateway's request-size limit
+ * rejects (HTTP 413).
+ */
+export function buildBoundaryCodeSelection(
+  selection: BoundarySelection,
+  hierarchy: BoundaryHierarchy | undefined,
+): string[] {
+  const tree = buildBoundaryDataTree(selection, hierarchy);
+  const codes: string[] = [];
+  for (const state of tree.children ?? []) {
+    const stateDistricts = childrenOf(hierarchy?.districts, state.boundaryCode);
+    const covered: string[] = [];
+    const partial: string[] = [];
+    for (const district of state.children ?? []) {
+      const blocks = (district.children ?? []).map((block) => block.boundaryCode);
+      if (blocks.length === 0) continue;
+      if (blocks.length === childrenOf(hierarchy?.blocks, district.boundaryCode).length) {
+        covered.push(district.boundaryCode);
+      } else {
+        partial.push(...blocks);
+      }
+    }
+    // Districts with no blocks never reach the template, so they don't stop a state collapsing.
+    const districtsWithBlocks = stateDistricts.filter(
+      (district) => childrenOf(hierarchy?.blocks, district).length > 0,
+    );
+    if (partial.length === 0 && covered.length > 0 && covered.length === districtsWithBlocks.length) {
+      codes.push(state.boundaryCode);
+    } else {
+      codes.push(...covered, ...partial);
+    }
+  }
+  return codes;
+}
+
+/**
  * The selection as the nested `boundary_data` tree. `name` carries the code: the server
  * resolves display names itself.
  *

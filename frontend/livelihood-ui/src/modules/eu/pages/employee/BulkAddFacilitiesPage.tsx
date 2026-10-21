@@ -1,5 +1,5 @@
 import {
-  buildBoundaryDataTree,
+  buildBoundaryCodeSelection,
   EMPTY_BOUNDARY_SELECTION,
   employeeHomePath,
   extractApiErrorMessage,
@@ -42,7 +42,7 @@ export function BulkAddFacilitiesPage() {
   }
 
   function handleDownloadTemplate() {
-    downloadTemplate.mutate(buildBoundaryDataTree(geography, hierarchy), {
+    downloadTemplate.mutate(buildBoundaryCodeSelection(geography, hierarchy), {
       onError: (error) => {
         toast.error(
           extractApiErrorMessage(error) ??

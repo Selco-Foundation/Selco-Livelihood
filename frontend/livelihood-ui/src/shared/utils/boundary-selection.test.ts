@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BoundaryHierarchy } from "../api/boundary";
-import { buildBoundaryDataTree, pruneBoundarySelection } from "./boundary-selection";
+import { buildBoundaryCodeSelection, buildBoundaryDataTree, pruneBoundarySelection } from "./boundary-selection";
 
 const hierarchy: BoundaryHierarchy = {
   states: [{ code: "HP", parentCode: "INDIA" }, { code: "CG", parentCode: "INDIA" }],
@@ -133,5 +133,49 @@ describe("buildBoundaryDataTree", () => {
 
   it("builds nothing when no state is selected", () => {
     expect(buildBoundaryDataTree({ states: [], districts: [], blocks: [] }, hierarchy).children).toEqual([]);
+  });
+});
+
+describe("buildBoundaryCodeSelection", () => {
+  const wide: BoundaryHierarchy = {
+    states: [{ code: "CG", parentCode: "INDIA" }, { code: "HP", parentCode: "INDIA" }],
+    districts: [
+      { code: "CG_RAIPUR", parentCode: "CG" },
+      { code: "CG_BILASPUR", parentCode: "CG" },
+      { code: "CG_EMPTY", parentCode: "CG" },
+      { code: "HP_BILASPUR", parentCode: "HP" },
+    ],
+    blocks: [
+      { code: "CG_RAIPUR_A", parentCode: "CG_RAIPUR" },
+      { code: "CG_RAIPUR_B", parentCode: "CG_RAIPUR" },
+      { code: "CG_BILASPUR_C", parentCode: "CG_BILASPUR" },
+      { code: "HP_BILASPUR_D", parentCode: "HP_BILASPUR" },
+    ],
+  };
+
+  it("collapses everything selected to the state codes", () => {
+    const everything = {
+      states: ["CG", "HP"],
+      districts: (wide.districts ?? []).map((d) => d.code),
+      blocks: (wide.blocks ?? []).map((b) => b.code),
+    };
+    expect(buildBoundaryCodeSelection(everything, wide)).toEqual(["CG", "HP"]);
+  });
+
+  it("keeps a state picked on its own as the state code", () => {
+    expect(buildBoundaryCodeSelection({ states: ["CG"], districts: [], blocks: [] }, wide)).toEqual(["CG"]);
+  });
+
+  it("sends a fully covered district as its code and a partly covered one as its blocks", () => {
+    const selection = {
+      states: ["CG"],
+      districts: ["CG_RAIPUR", "CG_BILASPUR"],
+      blocks: ["CG_RAIPUR_A", "CG_BILASPUR_C"],
+    };
+    expect(buildBoundaryCodeSelection(selection, wide)).toEqual(["CG_BILASPUR", "CG_RAIPUR_A"]);
+  });
+
+  it("sends nothing when no state is selected", () => {
+    expect(buildBoundaryCodeSelection({ states: [], districts: [], blocks: [] }, wide)).toEqual([]);
   });
 });

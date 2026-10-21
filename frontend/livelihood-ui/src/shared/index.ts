@@ -134,6 +134,7 @@ export {
   type JurisdictionBoundaries,
 } from "./utils/boundary-util";
 export {
+  buildBoundaryCodeSelection,
   buildBoundaryDataTree,
   EMPTY_BOUNDARY_SELECTION,
   pruneBoundarySelection,
