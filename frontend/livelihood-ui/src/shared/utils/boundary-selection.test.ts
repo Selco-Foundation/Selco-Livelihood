@@ -36,7 +36,7 @@ describe("pruneBoundarySelection", () => {
 });
 
 describe("buildBoundaryDataTree", () => {
-  it("nests the selected blocks under their district, state and the country", () => {
+  it("nests the selected blocks under their district, state and the country, expanding districts with none picked", () => {
     const tree = buildBoundaryDataTree(
       {
         states: ["HP", "CG"],
@@ -74,14 +74,64 @@ describe("buildBoundaryDataTree", () => {
               name: "CG_BILASPUR",
               children: [{ boundaryCode: "CG_BILASPUR_MASTURI", type: "block", name: "CG_BILASPUR_MASTURI" }],
             },
+            // Selected, but with no block picked under it, so it stands for all of its blocks.
+            {
+              boundaryCode: "CG_RAIPUR",
+              type: "district",
+              name: "CG_RAIPUR",
+              children: [{ boundaryCode: "CG_RAIPUR_ABHANPUR", type: "block", name: "CG_RAIPUR_ABHANPUR" }],
+            },
           ],
         },
       ],
     });
   });
 
-  it("leaves out states and districts with no selected block", () => {
+  it("expands a district with no selected block to every block in it", () => {
     const tree = buildBoundaryDataTree({ states: ["HP"], districts: ["HP_BILASPUR"], blocks: [] }, hierarchy);
-    expect(tree.children).toEqual([]);
+    expect(tree.children).toEqual([
+      {
+        boundaryCode: "HP",
+        type: "state",
+        name: "HP",
+        children: [
+          {
+            boundaryCode: "HP_BILASPUR",
+            type: "district",
+            name: "HP_BILASPUR",
+            children: [{ boundaryCode: "HP_BILASPUR_GHUMARWIN", type: "block", name: "HP_BILASPUR_GHUMARWIN" }],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("expands a state picked on its own to all its districts and blocks", () => {
+    const tree = buildBoundaryDataTree({ states: ["CG"], districts: [], blocks: [] }, hierarchy);
+    expect(tree.children).toEqual([
+      {
+        boundaryCode: "CG",
+        type: "state",
+        name: "CG",
+        children: [
+          {
+            boundaryCode: "CG_BILASPUR",
+            type: "district",
+            name: "CG_BILASPUR",
+            children: [{ boundaryCode: "CG_BILASPUR_MASTURI", type: "block", name: "CG_BILASPUR_MASTURI" }],
+          },
+          {
+            boundaryCode: "CG_RAIPUR",
+            type: "district",
+            name: "CG_RAIPUR",
+            children: [{ boundaryCode: "CG_RAIPUR_ABHANPUR", type: "block", name: "CG_RAIPUR_ABHANPUR" }],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("builds nothing when no state is selected", () => {
+    expect(buildBoundaryDataTree({ states: [], districts: [], blocks: [] }, hierarchy).children).toEqual([]);
   });
 });

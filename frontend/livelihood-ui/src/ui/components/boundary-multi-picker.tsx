@@ -61,35 +61,40 @@ export function BoundaryMultiPicker({ value, onChange, disabled = false }: Reado
   }
 
   const busy = disabled || isLoading;
-  const levels: { level: Level; label: string; empty: string; disabled: boolean }[] = [
+  // Only the state is required: leaving a level empty means "all of it"
+  // (`buildBoundaryDataTree`), so district and block narrow the selection rather than complete it.
+  const levels: { level: Level; label: string; empty: string; disabled: boolean; required: boolean }[] = [
     {
       level: "states",
       label: translateOr(t, "ES_PM_STATES", "State"),
       empty: translateOr(t, "ES_PM_NO_STATE_SELECTED", "No state selected"),
       disabled: busy,
+      required: true,
     },
     {
       level: "districts",
       label: translateOr(t, "ES_PM_DISTRICTS", "District(s)"),
-      empty: translateOr(t, "ES_PM_NO_DISTRICT_SELECTED", "No district selected"),
+      empty: translateOr(t, "ES_PM_NO_DISTRICT_SELECTED", "All districts"),
       disabled: busy || value.states.length === 0,
+      required: false,
     },
     {
       level: "blocks",
       label: translateOr(t, "ES_PM_BLOCKS", "Block(s)"),
-      empty: translateOr(t, "ES_PM_NO_BLOCK_SELECTED", "No block selected"),
+      empty: translateOr(t, "ES_PM_NO_BLOCK_SELECTED", "All blocks"),
       disabled: busy || value.districts.length === 0,
+      required: false,
     },
   ];
 
   return (
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-3">
-        {levels.map(({ level, label, disabled: levelDisabled }) => (
+        {levels.map(({ level, label, disabled: levelDisabled, required }) => (
           <MultiSelect
             key={level}
             label={label}
-            required
+            required={required}
             options={options[level]}
             selected={value[level]}
             onChange={(codes) => setLevel(level, codes)}

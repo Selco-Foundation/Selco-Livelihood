@@ -130,7 +130,7 @@ export function BulkAddFacilitiesPage() {
             type="button"
             variant="outline"
             size="sm"
-            disabled={downloadTemplate.isPending || geography.blocks.length === 0}
+            disabled={downloadTemplate.isPending || geography.states.length === 0}
             onClick={handleDownloadTemplate}
             className="gap-2"
           >

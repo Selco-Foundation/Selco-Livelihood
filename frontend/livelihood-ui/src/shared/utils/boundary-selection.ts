@@ -40,10 +40,20 @@ export function pruneBoundarySelection(
   return { states: selection.states, districts, blocks };
 }
 
+/** Codes of every node in `nodes` whose parent is `parentCode`. */
+function childrenOf(nodes: BoundaryHierarchy["districts"], parentCode: string): string[] {
+  return (nodes ?? []).filter((node) => node.parentCode === parentCode).map((node) => node.code);
+}
+
 /**
- * The selection as the nested `boundary_data` tree. Only branches that end in a selected block
- * are included - the template holds blocks, so a state or district with no block picked under it
- * adds nothing. `name` carries the code: the server resolves display names itself.
+ * The selection as the nested `boundary_data` tree. `name` carries the code: the server
+ * resolves display names itself.
+ *
+ * Picking a level means "all of it": a state with no district picked under it expands to every
+ * district in that state, and a district with no block picked expands to every block in it. So
+ * selecting only a state yields that whole state, which is what makes the template downloadable
+ * before any district or block is chosen. Narrowing by district or block is a refinement, not a
+ * requirement.
  */
 export function buildBoundaryDataTree(
   selection: BoundarySelection,
@@ -61,7 +71,6 @@ export function buildBoundaryDataTree(
   }
   const districtsByState = new Map<string, string[]>();
   for (const district of pruned.districts) {
-    if (!blocksByDistrict.has(district)) continue;
     const state = districtParent.get(district) ?? "";
     districtsByState.set(state, [...(districtsByState.get(state) ?? []), district]);
   }
@@ -70,22 +79,24 @@ export function buildBoundaryDataTree(
     boundaryCode: countryCode,
     type: "country",
     name: countryCode,
-    children: pruned.states
-      .filter((state) => districtsByState.has(state))
-      .map((state) => ({
-        boundaryCode: state,
-        type: "state" as const,
-        name: state,
-        children: (districtsByState.get(state) ?? []).map((district) => ({
+    children: pruned.states.map((state) => ({
+      boundaryCode: state,
+      type: "state" as const,
+      name: state,
+      children: (districtsByState.get(state) ?? childrenOf(hierarchy?.districts, state)).map(
+        (district) => ({
           boundaryCode: district,
           type: "district" as const,
           name: district,
-          children: (blocksByDistrict.get(district) ?? []).map((block) => ({
-            boundaryCode: block,
-            type: "block" as const,
-            name: block,
-          })),
-        })),
-      })),
+          children: (blocksByDistrict.get(district) ?? childrenOf(hierarchy?.blocks, district)).map(
+            (block) => ({
+              boundaryCode: block,
+              type: "block" as const,
+              name: block,
+            }),
+          ),
+        }),
+      ),
+    })),
   };
 }
