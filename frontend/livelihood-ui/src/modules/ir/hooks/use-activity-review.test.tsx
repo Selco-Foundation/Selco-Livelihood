@@ -3,8 +3,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuthStore } from "@/shared";
+import type { ReviewSectionContent } from "@/ui";
 import { useActivityReview, useLoadSectionMedia, useSubmitActivityReview } from "./use-activity-review";
-import type { ActivityFacilityRow, ReviewSectionContent } from "../types/activity-review";
+import type { ActivityFacilityRow } from "../types/activity-review";
 import type { AssetSearchResponseItem } from "../services/asset";
 
 vi.mock("../services/facility", async (importOriginal) => {
@@ -21,10 +22,15 @@ vi.mock("../services/review", async (importOriginal) => {
 });
 vi.mock("@/shared", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/shared")>();
-  return { ...actual, fetchFileUrls: vi.fn(), fetchMdmsMasters: vi.fn() };
+  return {
+    ...actual,
+    fetchFileUrls: vi.fn(),
+    fetchInstallationImageCriteriaQuery: vi.fn(),
+    fetchRejectionReasonOptionsQuery: vi.fn(),
+  };
 });
 
-import { fetchFileUrls, fetchMdmsMasters } from "@/shared";
+import { fetchFileUrls, fetchInstallationImageCriteriaQuery, fetchRejectionReasonOptionsQuery } from "@/shared";
 import { searchActivityFacilities } from "../services/facility";
 import { searchAssetsForActivityFacility } from "../services/asset";
 import { submitFacilityReview } from "../services/review";
@@ -63,16 +69,10 @@ const panelAsset: AssetSearchResponseItem = {
 const authedUser = { roles: [{ code: "INSTALLATION_REPORT_APPROVER_QC_TEAM" }] };
 
 function mockMdmsMasters() {
-  vi.mocked(fetchMdmsMasters).mockImplementation(async (_tenantId, moduleCode): Promise<Record<string, unknown[]>> => {
-    if (moduleCode === "common-masters") {
-      return {
-        InstallationImages: [
-          { InstallationImage: [{ code: "SITE_OVERVIEW", description: "Site overview photo" }] },
-        ],
-      };
-    }
-    return { RejectionReasons: [] };
-  });
+  vi.mocked(fetchInstallationImageCriteriaQuery).mockReturnValue(async () => [
+    { code: "SITE_OVERVIEW", description: "Site overview photo" },
+  ]);
+  vi.mocked(fetchRejectionReasonOptionsQuery).mockReturnValue(async () => []);
 }
 
 beforeEach(() => {
@@ -80,7 +80,8 @@ beforeEach(() => {
   vi.mocked(searchAssetsForActivityFacility).mockReset();
   vi.mocked(submitFacilityReview).mockReset();
   vi.mocked(fetchFileUrls).mockReset();
-  vi.mocked(fetchMdmsMasters).mockReset();
+  vi.mocked(fetchInstallationImageCriteriaQuery).mockReset();
+  vi.mocked(fetchRejectionReasonOptionsQuery).mockReset();
   mockMdmsMasters();
 });
 

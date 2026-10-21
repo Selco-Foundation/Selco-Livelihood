@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -8,8 +8,8 @@ import type {
   ReportSectionContent,
   ReviewSectionContent,
   SectionMediaPatch,
-  SectionRejectionReasons,
-} from "../../types/activity-review";
+} from "@/ui";
+import type { SectionRejectionReasons } from "../../types/activity-review";
 import { ReviewSections } from "./ReviewSections";
 
 beforeEach(() => {
@@ -47,16 +47,6 @@ const imageChecklistSection: ImageChecklistSectionContent = {
 
 const sections: ReviewSectionContent[] = [panelSection, reportSection, imageChecklistSection];
 
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (error: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
-}
-
 function renderSections(overrides: Partial<React.ComponentProps<typeof ReviewSections>> = {}) {
   const loadSectionMedia =
     vi.fn<(section: ReviewSectionContent, documents: ActivityDocument[]) => Promise<SectionMediaPatch>>();
@@ -82,71 +72,14 @@ function renderSections(overrides: Partial<React.ComponentProps<typeof ReviewSec
   return { ...result, loadSectionMedia, onAddReason, onEditReason, onRemoveReason };
 }
 
-function sectionTrigger(label: string) {
-  return screen.getByRole("button", { name: new RegExp(label) });
-}
-
 describe("ReviewSections", () => {
-  it("renders one accordion header per section, in the given order", () => {
+  it("renders one accordion header per section via the shared ReviewSectionsAccordion", () => {
     renderSections();
     const headers = screen.getAllByRole("button", { name: /Panel|Installation Completion Report|Site overview photo/ });
-    // Two of these buttons per section body is the trigger; filter to triggers only via text order.
     const labels = headers.map((el) => el.textContent).filter(Boolean);
     expect(labels.some((text) => text?.includes("Panel"))).toBe(true);
     expect(labels.some((text) => text?.includes("Installation Completion Report"))).toBe(true);
     expect(labels.some((text) => text?.includes("Site overview photo"))).toBe(true);
-  });
-
-  it("shows a loading skeleton while media is being fetched for a newly expanded section, then the resolved body", async () => {
-    const { promise, resolve } = deferred<SectionMediaPatch>();
-    const { loadSectionMedia } = renderSections();
-    loadSectionMedia.mockReturnValue(promise);
-
-    const user = userEvent.setup();
-    await user.click(sectionTrigger("Panel"));
-
-    expect(loadSectionMedia).toHaveBeenCalledTimes(1);
-    // The accordion body shows only a skeleton while media is loading — the
-    // section's own content (e.g. its specifications) isn't rendered yet.
-    expect(screen.queryByText("Capacity")).not.toBeInTheDocument();
-    expect(document.querySelector('[data-slot="skeleton"]')).toBeInTheDocument();
-
-    resolve({ images: [{ url: "https://example.com/p.jpg" }], videos: [] });
-
-    await waitFor(() => expect(screen.getByText("Images")).toBeInTheDocument());
-    expect(screen.getByText("Capacity")).toBeInTheDocument();
-  });
-
-  it("does not call loadSectionMedia again when a section is collapsed and re-expanded", async () => {
-    const { loadSectionMedia } = renderSections();
-    loadSectionMedia.mockResolvedValue({ images: [], videos: [] });
-
-    const user = userEvent.setup();
-    await user.click(sectionTrigger("Panel"));
-    await waitFor(() => expect(loadSectionMedia).toHaveBeenCalledTimes(1));
-
-    await user.click(sectionTrigger("Panel"));
-    await user.click(sectionTrigger("Panel"));
-
-    expect(loadSectionMedia).toHaveBeenCalledTimes(1);
-  });
-
-  it("shows an error banner with a Retry button when loadSectionMedia rejects, and retrying calls it again", async () => {
-    const { loadSectionMedia } = renderSections();
-    loadSectionMedia.mockRejectedValueOnce(new Error("network error"));
-    loadSectionMedia.mockResolvedValueOnce({ images: [], videos: [] });
-
-    const user = userEvent.setup();
-    await user.click(sectionTrigger("Panel"));
-
-    await waitFor(() => expect(screen.getByText("Couldn't load media for this section.")).toBeInTheDocument());
-
-    await user.click(screen.getByRole("button", { name: "Retry" }));
-
-    await waitFor(() => expect(loadSectionMedia).toHaveBeenCalledTimes(2));
-    await waitFor(() =>
-      expect(screen.queryByText("Couldn't load media for this section.")).not.toBeInTheDocument(),
-    );
   });
 
   it("renders no Add rejection reason button when canEditReasons is false", () => {

@@ -1,4 +1,4 @@
-import { formatEpochDate } from "./date-format";
+import { formatEpochDate } from "@/shared";
 import type { ActivityAssignment, InstallationPlan } from "../types/installation-plan";
 
 // Facility-level statuses as rolled up by the activity-assignment API's own

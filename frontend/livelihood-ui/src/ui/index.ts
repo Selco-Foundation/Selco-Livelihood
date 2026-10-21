@@ -175,3 +175,31 @@ export { SearchableSelect } from "./components/searchable-select";
 export type { SearchableSelectOption, SearchableSelectProps } from "./components/searchable-select";
 export { useBodyScrollLock } from "./hooks/use-body-scroll-lock";
 export { DialogScrim } from "./components/dialog-scrim";
+export { ActivityInfoCard } from "./components/activity-review/activity-info-card";
+export { AuditTrailTimeline } from "./components/activity-review/audit-trail-timeline";
+export { LabeledValueList, LabeledValueRows } from "./components/activity-review/labeled-value-list";
+export { SectionImageGrid, SectionVideoList } from "./components/activity-review/section-media";
+export { AssetSectionBody } from "./components/activity-review/asset-section-body";
+export { ReportSectionBody } from "./components/activity-review/report-section-body";
+export { InstallationImageSectionBody } from "./components/activity-review/installation-image-section-body";
+export { ReviewSectionsAccordion } from "./components/activity-review/review-sections-accordion";
+export type {
+  ActivityAuditCheckpoint,
+  ActivityDocument,
+  ActivityInfoCardFields,
+  AssetItem,
+  AssetSectionContent,
+  AssetSectionMediaPatch,
+  AuditSectionReasons,
+  ImageChecklistMediaPatch,
+  ImageChecklistSectionContent,
+  LabeledValue,
+  MediaGroup,
+  ReportDocument,
+  ReportSectionContent,
+  ReportSectionMediaPatch,
+  ReviewSectionContent,
+  SectionImage,
+  SectionMediaPatch,
+  SectionVideo,
+} from "./components/activity-review/types";
