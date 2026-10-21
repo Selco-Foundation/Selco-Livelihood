@@ -17,7 +17,12 @@ export interface BoundaryFieldErrors {
   state?: string;
   district?: string;
   block?: string;
+  lgdStateCode?: string;
+  lgdDistrictCode?: string;
+  lgdBlockCode?: string;
 }
+
+type LgdCodeField = "lgdStateCode" | "lgdDistrictCode" | "lgdBlockCode";
 
 /**
  * Form state for creating a boundary: State/District can either be picked
@@ -54,7 +59,7 @@ export function useBoundaryForm() {
     }
     setIsDistrictTextMode((prev) => !prev);
     setValues((prev) => ({ ...prev, district: "", block: "" }));
-    setFieldErrors((prev) => ({ ...prev, district: undefined, block: undefined }));
+    setFieldErrors((prev) => ({ ...prev, district: undefined, block: undefined, lgdDistrictCode: undefined }));
   }
 
   function updateState(value: string) {
@@ -73,8 +78,9 @@ export function useBoundaryForm() {
   }
 
   /** Non-digits are dropped as they are typed, so the field can only ever hold a valid code. */
-  function updateLgdCode(field: "lgdStateCode" | "lgdDistrictCode" | "lgdBlockCode", value: string) {
+  function updateLgdCode(field: LgdCodeField, value: string) {
     setValues((prev) => ({ ...prev, [field]: toLgdCode(value) }));
+    setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
   }
 
   function updateLgdBlockTier(value: LgdBlockTier) {
@@ -87,6 +93,11 @@ export function useBoundaryForm() {
     if (!values.state.trim()) errors.state = required;
     if (!values.district.trim()) errors.district = required;
     if (!values.block.trim()) errors.block = required;
+    // Every tier created here needs its LGD code; a state or district picked from the list
+    // already has its codes, which the new tiers under it inherit.
+    if (isStateTextMode && !values.lgdStateCode) errors.lgdStateCode = required;
+    if ((isStateTextMode || isDistrictTextMode) && !values.lgdDistrictCode) errors.lgdDistrictCode = required;
+    if (!values.lgdBlockCode) errors.lgdBlockCode = required;
     setFieldErrors(errors);
     return Object.values(errors).every((error) => !error);
   }
