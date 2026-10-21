@@ -1,11 +1,10 @@
 import { translateOr, useTranslate } from "@/shared";
-import { MultiSelect, toast } from "@/ui";
+import { MultiSelect, SelectedGroup, toast } from "@/ui";
 import { MapPin } from "lucide-react";
 import { useGeographyLocks } from "../../hooks/use-geography-locks";
 import { useGeographySelection } from "../../hooks/use-geography-selection";
 import type { GeographyLockTarget } from "../../types/installation-plan";
 import type { GeographyDetails } from "../../types/project";
-import { SelectedGroup } from "../SelectedGroup";
 import { StepSectionCard } from "../StepSectionCard";
 
 interface GeographyDetailsStepProps {

@@ -45,6 +45,10 @@ export function BoundaryFormDialog({ open, onOpenChange }: BoundaryFormDialogPro
         block: form.values.block,
         isStateTextMode: form.isStateTextMode,
         isDistrictTextMode: form.isDistrictTextMode,
+        lgdStateCode: form.values.lgdStateCode,
+        lgdDistrictCode: form.values.lgdDistrictCode,
+        lgdBlockCode: form.values.lgdBlockCode,
+        lgdBlockTier: form.values.lgdBlockTier,
       },
       {
         onSuccess: () => {

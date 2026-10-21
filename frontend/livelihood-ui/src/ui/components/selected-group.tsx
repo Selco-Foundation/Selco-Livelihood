@@ -1,11 +1,10 @@
 import { X } from "lucide-react";
 
 import { translateOr, useTranslate } from "@/shared";
-import { LockedMark } from "@/ui";
+import { LockedMark } from "./multi-select";
 
-/** Removable chip list used by both wizards' "Selected" summary panels. Lived inside
- *  GeographyDetailsStep and was imported out of it by PlanDetailsStep — a step reaching into
- *  a sibling step for a shared primitive. */
+/** Removable chip list for a "Selected" summary panel: the PM wizards' geography steps and the
+ *  shared BoundaryMultiPicker. Lives in @/ui because more than one module uses it. */
 interface SelectedGroupProps {
   title: string;
   emptyLabel: string;

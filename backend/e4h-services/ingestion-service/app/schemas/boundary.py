@@ -29,6 +29,14 @@ class Boundary:
         return attributes.get(key, default)
 
 
+def select_boundaries_by_codes(boundaries: List[Boundary], codes) -> List[Boundary]:
+    """The blocks lying under any of `codes` - each a state, district or block code, as the
+    geography step's `boundary_codes` sends them."""
+    wanted = {code for code in codes if code}
+    return [b for b in boundaries
+            if b.block_code in wanted or b.district_code in wanted or b.state_code in wanted]
+
+
 def flatten_boundaries(boundary_json: Dict) -> List[Boundary]:
     """Recursively flatten nested boundary JSON into Boundary dataclasses."""
     boundaries: List[Boundary] = []

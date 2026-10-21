@@ -1,5 +1,5 @@
 import { translateOr, useTranslate } from "@/shared";
-import { MultiSelect, SearchableSelect } from "@/ui";
+import { MultiSelect, SearchableSelect, SelectedGroup } from "@/ui";
 import { ClipboardList } from "lucide-react";
 import { useGeographyLocks } from "../../hooks/use-geography-locks";
 import { useGeographySelection } from "../../hooks/use-geography-selection";
@@ -9,7 +9,6 @@ import type { GeographyLockTarget } from "../../types/installation-plan";
 import type { GeographyDetails } from "../../types/project";
 import { DateField } from "../DateField";
 import { StepSectionCard } from "../StepSectionCard";
-import { SelectedGroup } from "../SelectedGroup";
 
 export interface PlanDetailsValue {
   geographyDetails: GeographyDetails;

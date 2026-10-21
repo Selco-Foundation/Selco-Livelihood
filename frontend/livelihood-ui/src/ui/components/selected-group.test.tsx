@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { TooltipProvider } from "@/ui";
-import { SelectedGroup } from "./SelectedGroup";
+import { SelectedGroup } from "./selected-group";
+import { TooltipProvider } from "./ui/tooltip";
 
 describe("SelectedGroup", () => {
   it("shows the empty label when there are no items", () => {
