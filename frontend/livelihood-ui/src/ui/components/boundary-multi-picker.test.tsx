@@ -58,7 +58,7 @@ describe("BoundaryMultiPicker", () => {
   it("shows the empty labels before anything is selected", () => {
     renderPicker();
     expect(screen.getByText("No state selected")).toBeInTheDocument();
-    expect(screen.getByText("No block selected")).toBeInTheDocument();
+    expect(screen.getByText("All blocks")).toBeInTheDocument();
   });
 
   it("disables District and Block until a parent is selected", () => {
