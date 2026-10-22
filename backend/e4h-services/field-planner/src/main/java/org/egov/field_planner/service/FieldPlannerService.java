@@ -13,7 +13,7 @@ import org.egov.common.producer.Producer;
 import org.egov.common.validator.Validator;
 import org.egov.field_planner.config.FieldPlannerConfiguration;
 import org.egov.field_planner.repository.FieldPlannerRepository;
-import org.egov.field_planner.repository.GeographyLockRepository;
+import org.egov.field_planner.repository.GeographyLockRepository.PlanGeography;
 import org.egov.field_planner.service.enrichment.FieldPlannerEnrichment;
 import org.egov.field_planner.util.FieldPlannerServiceUtil;
 import org.egov.field_planner.util.MDMSUtils;
@@ -405,54 +405,78 @@ public class FieldPlannerService {
             if (isCascadingFieldPlanDateUpdate) {
                 handleUpdateFieldPlan(request, fieldPlan, fielPlanFromDB);
             } else {
-                handleGeographyUpdate(request, fieldPlan, fielPlanFromDB);
+                handlePlanDetailsUpdate(request, fieldPlan, fielPlanFromDB);
             }
         }
     }
 
     /**
-     * The PM's geography edit: the only change the non-cascade update applies. A no-op when the
-     * geography is unchanged, as this path always was.
+     * The PM's plan-details edit -- geography and sectors -- the only change the non-cascade update
+     * applies. A no-op when neither changed, as this path always was.
      *
      * - DRAFT: add and remove freely. PUBLISHED: remove only -- a published plan takes no new
-     *   sites, so an added place could never be used. Any other status: locked.
+     *   sites, so an added place or sector could never be used. Any other status: locked.
      * - The geography must stay inside the project's.
-     * - A place with a scoped end-user site under it cannot be removed (GeographyLockService).
+     * - A place or sector with a scoped end-user site in it cannot be removed (GeographyLockService).
      *
-     * Everything but the geography and audit fields is taken from the stored plan before pushing:
-     * the update-fieldplan mapping writes every column from the message, so a partial request
-     * would otherwise blank the plan's status and name.
+     * Everything but the geography, sectors and audit fields is taken from the stored plan before
+     * pushing: the update-fieldplan mapping writes every column from the message, so a partial
+     * request would otherwise blank the plan's status and name.
      */
-    private void handleGeographyUpdate(FieldPlanRequest request, FieldPlan fieldPlan, FieldPlan fieldPlanFromDB) {
+    private void handlePlanDetailsUpdate(FieldPlanRequest request, FieldPlan fieldPlan, FieldPlan fieldPlanFromDB) {
         Set<String> storedCodes = GeographyLockService.geographyCodes(fieldPlanFromDB.getGeographyDetails());
         Set<String> requestedCodes = GeographyLockService.geographyCodes(fieldPlan.getGeographyDetails());
-        if (fieldPlan.getGeographyDetails() == null || storedCodes.equals(requestedCodes)) {
+        boolean geographyChanged = fieldPlan.getGeographyDetails() != null && !storedCodes.equals(requestedCodes);
+
+        Map<String, String> storedSectors = sectorsByKey(fieldPlanFromDB.getSectors());
+        Map<String, String> requestedSectors = sectorsByKey(fieldPlan.getSectors());
+        boolean sectorsChanged = fieldPlan.getSectors() != null && !storedSectors.keySet().equals(requestedSectors.keySet());
+
+        if (!geographyChanged && !sectorsChanged) {
             return;
         }
 
-        Set<String> addedCodes = difference(requestedCodes, storedCodes);
-        Set<String> removedCodes = difference(storedCodes, requestedCodes);
-        assertGeographyEditable(fieldPlanFromDB.getStatus(), addedCodes);
-        if (requestedCodes.isEmpty()) {
-            throw new CustomException("FIELDPLAN_GEOGRAPHY_EMPTY", "An installation plan needs at least one place");
+        PlanGeography storedPlan = new PlanGeography(fieldPlanFromDB.getId(), fieldPlanFromDB.getName(),
+                fieldPlanFromDB.getGeographyDetails(), fieldPlanFromDB.getSectors());
+        if (geographyChanged) {
+            Set<String> addedCodes = difference(requestedCodes, storedCodes);
+            Set<String> removedCodes = difference(storedCodes, requestedCodes);
+            assertGeographyEditable(fieldPlanFromDB.getStatus(), addedCodes);
+            if (requestedCodes.isEmpty()) {
+                throw new CustomException("FIELDPLAN_GEOGRAPHY_EMPTY", "An installation plan needs at least one place");
+            }
+            if (!addedCodes.isEmpty()) {
+                assertInsideProject(request, fieldPlanFromDB, addedCodes);
+            }
+            if (!removedCodes.isEmpty()) {
+                assertRemovable(storedPlan, removedCodes);
+            }
         }
-        if (!addedCodes.isEmpty()) {
-            assertInsideProject(request, fieldPlanFromDB, addedCodes);
-        }
-        if (!removedCodes.isEmpty()) {
-            assertRemovable(fieldPlanFromDB, removedCodes);
+        if (sectorsChanged) {
+            Set<String> addedSectors = difference(requestedSectors.keySet(), storedSectors.keySet());
+            Set<String> removedSectors = difference(storedSectors.keySet(), requestedSectors.keySet());
+            assertSectorsEditable(fieldPlanFromDB.getStatus(), addedSectors);
+            if (requestedSectors.isEmpty()) {
+                throw new CustomException("FIELDPLAN_SECTORS_EMPTY", "An installation plan needs at least one sector");
+            }
+            if (!removedSectors.isEmpty()) {
+                assertSectorsRemovable(storedPlan, removedSectors);
+            }
         }
 
-        Map<String, Object> requestedGeography = fieldPlan.getGeographyDetails();
+        Map<String, Object> requestedGeography = geographyChanged ? fieldPlan.getGeographyDetails() : fieldPlanFromDB.getGeographyDetails();
+        List<String> requestedSectorList = sectorsChanged ? fieldPlan.getSectors() : fieldPlanFromDB.getSectors();
         Map<String, Object> mergedAdditionalDetails = fieldPlan.getAdditionalDetails();
         copyStoredFields(fieldPlanFromDB, fieldPlan);
         fieldPlan.setGeographyDetails(requestedGeography);
+        fieldPlan.setSectors(requestedSectorList);
         fieldPlan.setAdditionalDetails(mergedAdditionalDetails);
         fieldPlannerEnrichment.enrichFieldPlanRequestOnUpdate(fieldPlan, fieldPlanFromDB, request.getRequestInfo());
 
         producer.push(fieldPlannerConfiguration.getUpdateFieldPlanTopic(),
                 FieldPlanRequest.builder().requestInfo(request.getRequestInfo()).fieldPlans(List.of(fieldPlan)).build());
-        log.info("Field plan {} geography updated: added {}, removed {}", fieldPlan.getId(), addedCodes, removedCodes);
+        log.info("Field plan {} details updated: geography changed {}, sectors {} -> {}",
+                fieldPlan.getId(), geographyChanged, fieldPlanFromDB.getSectors(), requestedSectorList);
     }
 
     private static void assertGeographyEditable(String status, Set<String> addedCodes) {
@@ -464,6 +488,18 @@ public class FieldPlannerService {
         } else if (!DRAFT_STATUS.equals(status)) {
             throw new CustomException("FIELDPLAN_GEOGRAPHY_LOCKED",
                     "The geography of an installation plan in status " + status + " cannot be changed");
+        }
+    }
+
+    private static void assertSectorsEditable(String status, Set<String> addedSectors) {
+        if (PUBLISHED_STATUS.equals(status)) {
+            if (!addedSectors.isEmpty()) {
+                throw new CustomException("FIELDPLAN_SECTOR_ADD_NOT_ALLOWED",
+                        "A published installation plan's sectors can only be reduced. Cannot add: " + addedSectors);
+            }
+        } else if (!DRAFT_STATUS.equals(status)) {
+            throw new CustomException("FIELDPLAN_SECTOR_LOCKED",
+                    "The sectors of an installation plan in status " + status + " cannot be changed");
         }
     }
 
@@ -479,16 +515,35 @@ public class FieldPlannerService {
         }
     }
 
-    private void assertRemovable(FieldPlan fieldPlanFromDB, Set<String> removedCodes) {
+    private void assertRemovable(PlanGeography storedPlan, Set<String> removedCodes) {
         List<GeographyLock> blocking = GeographyLockService.blocking(
-                geographyLockService.planLocks(new GeographyLockRepository.PlanGeography(
-                        fieldPlanFromDB.getId(), fieldPlanFromDB.getName(), fieldPlanFromDB.getGeographyDetails())),
-                removedCodes);
+                geographyLockService.planLocks(storedPlan), removedCodes);
         if (!blocking.isEmpty()) {
             throw new CustomException("FIELDPLAN_GEOGRAPHY_IN_USE",
                     "These places have end-user sites in the plan's scope and cannot be removed: "
                             + GeographyLockService.describe(blocking));
         }
+    }
+
+    private void assertSectorsRemovable(PlanGeography storedPlan, Set<String> removedSectorKeys) {
+        List<GeographyLock> blocking = geographyLockService.planSectorLocks(storedPlan).stream()
+                .filter(lock -> removedSectorKeys.contains(GeographyLockService.sectorKey(lock.getCode())))
+                .toList();
+        if (!blocking.isEmpty()) {
+            throw new CustomException("FIELDPLAN_SECTOR_IN_USE",
+                    "These sectors have end-user sites in the plan's scope and cannot be removed: "
+                            + GeographyLockService.describe(blocking));
+        }
+    }
+
+    /** Sector names keyed by how they compare (trimmed, case-insensitive), keeping the first spelling. */
+    private static Map<String, String> sectorsByKey(List<String> sectors) {
+        Map<String, String> byKey = new LinkedHashMap<>();
+        if (sectors != null) {
+            sectors.stream().filter(StringUtils::isNotBlank)
+                    .forEach(sector -> byKey.putIfAbsent(GeographyLockService.sectorKey(sector), sector));
+        }
+        return byKey;
     }
 
     private static void copyStoredFields(FieldPlan from, FieldPlan to) {
@@ -553,6 +608,10 @@ public class FieldPlannerService {
          * Update lastModifiedTime and lastModifiedBy for the fieldPlan
          */
         fieldPlannerEnrichment.enrichFieldPlanRequestOnUpdate(fieldPlan, fieldPlanFromDB, request.getRequestInfo());
+
+        // The update-fieldplan mapping writes sectors too; a cascade never changes them, so keep
+        // the stored ones rather than blank them when the caller left them out.
+        fieldPlan.setSectors(fieldPlanFromDB.getSectors());
 
         // If status equals to scheduled, so dont update the fieldplan name
         if(StringUtils.equals(fieldPlan.getStatus(), "SCHEDULED")){
