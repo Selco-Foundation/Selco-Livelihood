@@ -244,7 +244,7 @@ describe("ActivityTable", () => {
 
       // Click a plain cell (not the Link/checkbox cell, which stop
       // propagation) so it bubbles to the row's own onClick handler.
-      await user.click(screen.getByText("Pending Review"));
+      await user.click(screen.getByText("Installation Report Submitted - Review Pending"));
 
       expect(mockNavigate).toHaveBeenCalledWith({
         to: irActivityReviewPath("plan-1", "nav-row"),

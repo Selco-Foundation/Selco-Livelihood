@@ -35,7 +35,7 @@ export const ACTIVITY_STATUS_ORDER: ActivityStatus[] = [
 export const ACTIVITY_STATUS_LABELS: Record<ActivityStatus, StatusLabel> = {
   SCHEDULED: { key: "ES_IR_STATUS_SCHEDULED", fallback: "Scheduled" },
   ASSIGNED_TO_FIELD_STAFF: { key: "ES_IR_STATUS_ASSIGNED", fallback: "Assigned" },
-  SUBMITTED_BY_FIELD_STAFF: { key: "ES_IR_STATUS_PENDING", fallback: "Pending Review" },
+  SUBMITTED_BY_FIELD_STAFF: { key: "ES_IR_STATUS_PENDING", fallback: "Installation Report Submitted - Review Pending" },
   REJECTED_BY_QC_SPOC: { key: "ES_IR_STATUS_REJECTED", fallback: "Rejected" },
   APPROVED_BY_QC_SPOC: { key: "ES_IR_STATUS_APPROVED", fallback: "Approved" },
 };
