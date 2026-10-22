@@ -8,6 +8,7 @@ export function toReviewActivity(row: ActivityFacilityRow): ReviewActivity {
     activityId: activityFacility.id,
     facilityId: activityFacility.facilityId,
     facilityName: activityFacility.facility?.facility_name ?? "",
+    assetName: activityFacility.billOfMaterial?.name,
     componentType: activityFacility.componentType,
     planId: activityFacility.fieldPlanId,
     status: activityFacility.status,

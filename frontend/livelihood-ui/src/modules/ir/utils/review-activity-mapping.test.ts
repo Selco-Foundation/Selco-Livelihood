@@ -14,6 +14,7 @@ function row(overrides: Partial<ActivityFacilityRow["activityFacility"]> = {}): 
         facility_name: "Facility One",
         boundary: { district: "DISTRICT_1", block: "BLOCK_1" },
       },
+      billOfMaterial: { name: "Oil Mill-Cold Press-3-HP-AC-20-kgs/hr" },
       ...overrides,
     },
   };
@@ -25,6 +26,7 @@ describe("toReviewActivity", () => {
       activityId: "activity-1",
       facilityId: "facility-1",
       facilityName: "Facility One",
+      assetName: "Oil Mill-Cold Press-3-HP-AC-20-kgs/hr",
       componentType: "SOLAR",
       planId: "plan-1",
       status: "SUBMITTED_BY_FIELD_STAFF",
@@ -35,6 +37,10 @@ describe("toReviewActivity", () => {
 
   it("defaults facilityName to an empty string when facility is missing", () => {
     expect(toReviewActivity(row({ facility: undefined })).facilityName).toBe("");
+  });
+
+  it("leaves assetName undefined when the activity has no bill of material", () => {
+    expect(toReviewActivity(row({ billOfMaterial: undefined })).assetName).toBeUndefined();
   });
 
   it("leaves district/block undefined when boundary is missing", () => {

@@ -102,6 +102,17 @@ describe("ActivityTable", () => {
     expect(screen.getByText("Beta")).toBeInTheDocument();
   });
 
+  it("shows each row's asset name, with a dash when it has none", () => {
+    renderTable([
+      makeActivity({ activityId: "a1", componentType: "MACHINE", assetName: "Oil Mill-Cold Press-3-HP-AC-20-kgs/hr" }),
+      makeActivity({ activityId: "a2", componentType: "MACHINE", assetName: undefined }),
+    ]);
+    expect(screen.getByRole("columnheader", { name: "Asset Name" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Asset Type" })).toBeInTheDocument();
+    expect(screen.getByText("Oil Mill-Cold Press-3-HP-AC-20-kgs/hr")).toBeInTheDocument();
+    expect(screen.getAllByText("-").length).toBeGreaterThan(0);
+  });
+
   describe("row selectability", () => {
     it("renders no checkbox for a non-selectable row", () => {
       renderTable([

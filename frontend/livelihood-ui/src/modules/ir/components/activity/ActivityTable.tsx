@@ -111,7 +111,10 @@ export function ActivityTable({
                     {translateOr(t, "ES_IR_END_USER", "End User")}
                   </th>
                   <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
-                    {translateOr(t, "ES_IR_COMPONENT_TYPE", "Type")}
+                    {translateOr(t, "ES_IR_ASSET_NAME", "Asset Name")}
+                  </th>
+                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                    {translateOr(t, "ES_IR_ASSET_TYPE", "Asset Type")}
                   </th>
                   <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "ES_IR_DISTRICT", "District")}
@@ -158,6 +161,7 @@ export function ActivityTable({
                           {activity.facilityName}
                         </Link>
                       </td>
+                      <td className="px-5 py-4 text-foreground">{activity.assetName || "-"}</td>
                       <td className="px-5 py-4 text-foreground">
                         {componentTypeLabel(activity.componentType, t)}
                       </td>

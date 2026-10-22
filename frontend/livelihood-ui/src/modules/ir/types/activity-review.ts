@@ -12,6 +12,9 @@ export interface ReviewActivity {
   activityId: string;
   facilityId: string;
   facilityName: string;
+  // The activity's bill-of-material name — the machine's product name
+  // (e.g. "Oil Mill-Cold Press-3-HP-AC-20-kgs/hr"), or "Solar".
+  assetName?: string;
   componentType: ActivityComponentType;
   planId: string;
   status: ActivityStatus;
