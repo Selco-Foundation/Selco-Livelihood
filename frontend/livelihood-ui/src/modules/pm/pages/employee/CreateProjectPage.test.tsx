@@ -3,7 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useBoundaryTree } from "../../hooks/use-boundary-tree";
-import { useSaveProject } from "../../hooks/use-create-project";
+import { useSaveProject, useValidateJustificationCode } from "../../hooks/use-create-project";
 import { useFacilityIngestion } from "../../hooks/use-facility-ingestion";
 import { useProjectById } from "../../hooks/use-project-by-id";
 import { scheduleProject } from "../../services/project";
@@ -23,7 +23,8 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 vi.mock("../../hooks/use-project-by-id", () => ({ useProjectById: vi.fn() }));
-vi.mock("../../hooks/use-create-project", () => ({ useSaveProject: vi.fn() }));
+vi.mock("../../hooks/use-create-project", () => ({ useSaveProject: vi.fn(), useValidateJustificationCode: vi.fn() }));
+vi.mock("../../hooks/use-justification-code-prefix", () => ({ useJustificationCodePrefix: () => ({ data: "JUS" }) }));
 vi.mock("../../hooks/use-boundary-tree", () => ({ useBoundaryTree: vi.fn() }));
 vi.mock("../../hooks/use-facility-ingestion", () => ({ useFacilityIngestion: vi.fn() }));
 vi.mock("../../services/project", async (importOriginal) => {
@@ -73,7 +74,25 @@ beforeEach(() => {
     isPending: false,
   } as never);
   vi.mocked(scheduleProject).mockReset();
+  vi.mocked(useValidateJustificationCode).mockReturnValue({
+    mutateAsync: vi.fn().mockResolvedValue({}),
+    isPending: false,
+  } as never);
 });
+
+function isoDayThisMonth(day: number) {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+async function fillProjectDetails(user: ReturnType<typeof userEvent.setup>, justificationCode: string) {
+  await user.type(screen.getByLabelText(/Justification Code/i), justificationCode);
+  const [startPicker] = screen.getAllByRole("button", { name: /Select date/i });
+  await user.click(startPicker);
+  await user.click(document.querySelector(`[data-day="${isoDayThisMonth(10)}"] button`)!);
+  await user.click(screen.getByRole("button", { name: /Select date/i }));
+  await user.click(document.querySelector(`[data-day="${isoDayThisMonth(20)}"] button`)!);
+}
 
 describe("CreateProjectPage", () => {
   it("shows step 1 (Project Details) by default with Next disabled until valid", () => {
@@ -81,6 +100,36 @@ describe("CreateProjectPage", () => {
 
     expect(screen.getByLabelText(/Justification Code/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
+  });
+
+  it("checks the justification code before leaving step 1, and advances when it is free", async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({});
+    vi.mocked(useValidateJustificationCode).mockReturnValue({ mutateAsync, isPending: false } as never);
+    const user = userEvent.setup();
+    renderPage();
+
+    await fillProjectDetails(user, "98234");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ additionalDetails: { justificationCode: "98234" } }),
+    );
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalled());
+  });
+
+  it("stays on step 1 and shows the error when the justification code is a duplicate", async () => {
+    const mutateAsync = vi.fn().mockRejectedValue({
+      response: { data: { Errors: [{ message: "A project with this justification code already exists" }] } },
+    });
+    vi.mocked(useValidateJustificationCode).mockReturnValue({ mutateAsync, isPending: false } as never);
+    const user = userEvent.setup();
+    renderPage();
+
+    await fillProjectDetails(user, "98234");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(await screen.findByText(/already exists/i)).toBeInTheDocument();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it("bounces back from step 3 to step 2 when there is no projectId yet", () => {

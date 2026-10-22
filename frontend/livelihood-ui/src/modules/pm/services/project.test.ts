@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient, tenantId } from "@/shared";
-import { createProject, scheduleProject, searchProjectFacilities, searchProjects, updateProject } from "./project";
+import {
+  createProject,
+  scheduleProject,
+  searchProjectFacilities,
+  searchProjects,
+  updateProject,
+  validateJustificationCode,
+} from "./project";
 import type { Project } from "../types/project";
 
 vi.mock("@/shared", async (importOriginal) => {
@@ -55,6 +62,26 @@ describe("createProject", () => {
     const expectation = expect(promise).rejects.toThrow("PROJECT_NOT_CONFIRMED");
     await vi.runAllTimersAsync();
     await expectation;
+  });
+});
+
+describe("validateJustificationCode", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.post).mockReset();
+  });
+
+  it("posts the project under Projects[] to the validate endpoint and returns the response verbatim", async () => {
+    const response = { Project: [{ tenantId: "tenant-1", name: "JUS-98234-26-27" }] };
+    vi.mocked(apiClient.post).mockResolvedValue({ data: response });
+    const input = project({ additionalDetails: { justificationCode: "98234" } });
+
+    const result = await validateJustificationCode(input, "token-1");
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/project/v1/justification-code/_validate",
+      expect.objectContaining({ Projects: [input] }),
+    );
+    expect(result).toBe(response);
   });
 });
 
