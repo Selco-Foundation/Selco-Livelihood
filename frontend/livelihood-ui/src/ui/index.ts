@@ -134,8 +134,10 @@ export {
   SelectTrigger,
   SelectValue,
 } from "./components/ui/select";
-export { MultiSelect } from "./components/multi-select";
+export { LockedMark, MultiSelect } from "./components/multi-select";
 export type { MultiSelectOption, MultiSelectProps } from "./components/multi-select";
+export { BoundaryMultiPicker } from "./components/boundary-multi-picker";
+export { SelectedGroup } from "./components/selected-group";
 export { Calendar } from "./components/ui/calendar";
 export {
   Stepper,

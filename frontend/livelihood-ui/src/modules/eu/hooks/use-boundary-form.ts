@@ -1,15 +1,28 @@
 import { translateOr, useBoundaryHierarchy, useTranslate } from "@/shared";
 import { useState } from "react";
 import { cascadeByParent } from "../utils/boundary";
-import type { BoundaryFormValues } from "../types/boundary";
+import type { BoundaryFormValues, LgdBlockTier } from "../types/boundary";
 
-const EMPTY_VALUES: BoundaryFormValues = { state: "", district: "", block: "" };
+const EMPTY_LGD = { lgdStateCode: "", lgdDistrictCode: "", lgdBlockCode: "", lgdBlockTier: "Block" as LgdBlockTier };
+const EMPTY_VALUES: BoundaryFormValues = { state: "", district: "", block: "", ...EMPTY_LGD };
+
+/** LGD codes are numeric, and boundary.lgd_* columns hold at most 16 characters. */
+export const LGD_CODE_MAX_LENGTH = 16;
+
+function toLgdCode(value: string): string {
+  return value.replace(/\D/g, "").slice(0, LGD_CODE_MAX_LENGTH);
+}
 
 export interface BoundaryFieldErrors {
   state?: string;
   district?: string;
   block?: string;
+  lgdStateCode?: string;
+  lgdDistrictCode?: string;
+  lgdBlockCode?: string;
 }
+
+type LgdCodeField = "lgdStateCode" | "lgdDistrictCode" | "lgdBlockCode";
 
 /**
  * Form state for creating a boundary: State/District can either be picked
@@ -46,11 +59,11 @@ export function useBoundaryForm() {
     }
     setIsDistrictTextMode((prev) => !prev);
     setValues((prev) => ({ ...prev, district: "", block: "" }));
-    setFieldErrors((prev) => ({ ...prev, district: undefined, block: undefined }));
+    setFieldErrors((prev) => ({ ...prev, district: undefined, block: undefined, lgdDistrictCode: undefined }));
   }
 
   function updateState(value: string) {
-    setValues({ state: value, district: "", block: "" });
+    setValues((prev) => ({ ...EMPTY_VALUES, state: value, lgdStateCode: prev.lgdStateCode }));
     setFieldErrors((prev) => ({ ...prev, state: undefined, district: undefined, block: undefined }));
   }
 
@@ -64,12 +77,27 @@ export function useBoundaryForm() {
     setFieldErrors((prev) => ({ ...prev, block: undefined }));
   }
 
+  /** Non-digits are dropped as they are typed, so the field can only ever hold a valid code. */
+  function updateLgdCode(field: LgdCodeField, value: string) {
+    setValues((prev) => ({ ...prev, [field]: toLgdCode(value) }));
+    setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
+  }
+
+  function updateLgdBlockTier(value: LgdBlockTier) {
+    setValues((prev) => ({ ...prev, lgdBlockTier: value }));
+  }
+
   function validate(): boolean {
     const required = translateOr(t, "CORE_COMMON_REQUIRED", "Required");
     const errors: BoundaryFieldErrors = {};
     if (!values.state.trim()) errors.state = required;
     if (!values.district.trim()) errors.district = required;
     if (!values.block.trim()) errors.block = required;
+    // Every tier created here needs its LGD code; a state or district picked from the list
+    // already has its codes, which the new tiers under it inherit.
+    if (isStateTextMode && !values.lgdStateCode) errors.lgdStateCode = required;
+    if ((isStateTextMode || isDistrictTextMode) && !values.lgdDistrictCode) errors.lgdDistrictCode = required;
+    if (!values.lgdBlockCode) errors.lgdBlockCode = required;
     setFieldErrors(errors);
     return Object.values(errors).every((error) => !error);
   }
@@ -94,6 +122,8 @@ export function useBoundaryForm() {
     updateState,
     updateDistrict,
     updateBlock,
+    updateLgdCode,
+    updateLgdBlockTier,
     validate,
     reset,
   };

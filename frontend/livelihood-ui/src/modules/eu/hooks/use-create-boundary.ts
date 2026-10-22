@@ -1,6 +1,6 @@
 import { reloadModule, tenantId, upsertLocalization, useAuthStore } from "@/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createBoundary, createBoundaryRelationship } from "../services/boundary";
+import { createBoundary, createBoundaryRelationship, fetchBoundaryLgdCodes } from "../services/boundary";
 import { computeGeographyCodes } from "../utils/boundary-codes";
 import { BOUNDARIES_QUERY_KEY } from "./use-boundaries";
 
@@ -10,6 +10,10 @@ export interface CreateBoundaryInput {
   block: string;
   isStateTextMode: boolean;
   isDistrictTextMode: boolean;
+  lgdStateCode?: string;
+  lgdDistrictCode?: string;
+  lgdBlockCode?: string;
+  lgdBlockTier?: string;
 }
 
 /**
@@ -36,8 +40,35 @@ export function useCreateBoundary() {
         isDistrictTextMode: input.isDistrictTextMode,
       });
 
+      // A typed state means a typed district too (there is nothing to pick under it).
+      const newDistrict = input.isStateTextMode || input.isDistrictTextMode;
+      // LGD codes travel down the hierarchy: a state or district picked from the list keeps
+      // what it already stores, and the tiers created under it inherit that, so a new block
+      // under an onboarded district carries the district's LGD codes without retyping them.
+      const existing = await fetchBoundaryLgdCodes(
+        [input.isStateTextMode ? "" : codes.state, newDistrict ? "" : codes.district],
+        accessToken!,
+        user,
+      );
+      const lgdState = input.isStateTextMode
+        ? input.lgdStateCode
+        : existing.get(codes.state)?.lgdStateCode ?? existing.get(codes.district)?.lgdStateCode;
+      const lgdDistrict = newDistrict
+        ? input.lgdDistrictCode
+        : existing.get(codes.district)?.lgdDistrictCode;
+      const tierLgd = {
+        State: { lgdStateCode: lgdState },
+        District: { lgdStateCode: lgdState, lgdDistrictCode: lgdDistrict },
+        Block: {
+          lgdStateCode: lgdState,
+          lgdDistrictCode: lgdDistrict,
+          lgdBlockCode: input.lgdBlockCode,
+          lgdBlockTier: input.lgdBlockCode ? input.lgdBlockTier : undefined,
+        },
+      };
+
       async function createTier(name: string, code: string, boundaryType: "State" | "District" | "Block", parent: string) {
-        await createBoundary({ tenantId: stateTenantId, code }, accessToken!, user);
+        await createBoundary({ tenantId: stateTenantId, code, ...tierLgd[boundaryType] }, accessToken!, user);
         await createBoundaryRelationship(
           { tenantId: stateTenantId, code, boundaryType, parent },
           accessToken!,
