@@ -33,9 +33,11 @@ logger = AppLogger().get_logger()
 # 10s max) before giving up on a child relationship.
 PARENT_NOT_FOUND_RETRY_DELAYS_SECONDS = [1, 2, 3, 4]
 
-# Optional LGD identity columns. A sheet without them ingests exactly as before; when
-# present, the codes are stored on the boundary so a later LGD extract can be matched on
-# code rather than name. A rename then updates the localization label while the boundary
+# LGD identity columns - defined, and required, by data-ingestion.BoundaryIngestionSchema,
+# whose validators reject a row without them before it gets here. The codes are stored on
+# each boundary this upload creates, so a later LGD extract can be matched on code rather
+# than name; a level that already exists keeps the codes it has. Where rows disagree, the
+# first row for a level wins. A rename then updates the localization label while the boundary
 # code - which facility and asset codes are built from - stays put.
 LGD_STATE_CODE_COLUMN = "LGD State Code"
 LGD_DISTRICT_CODE_COLUMN = "LGD District Code"
@@ -96,6 +98,9 @@ class BoundaryDataProcessor:
         self.existing_boundaries: Set[str] = set()
         # casefold(code) -> canonical code from boundary service
         self.existing_boundaries_casefold: Dict[str, str] = {}
+        # code built from the sheet -> existing boundary's exact code, where they differ only
+        # in letter case (see _adopt_existing_codes)
+        self.code_renames: Dict[str, str] = {}
 
         # Track failed operations
         self.failed_boundaries: Dict[str, str] = {}  # {full_code: error_message}
@@ -132,6 +137,7 @@ class BoundaryDataProcessor:
         valid_boundaries_df = boundary_df[boundary_df["status"].isna()]
         self._organize_boundary_data(valid_boundaries_df)
         self._check_existing_boundaries()
+        self._adopt_existing_codes()
         self._check_existing_relationships()
         self.pre_existing_relationship_codes = set(self.successful_relationship_codes)
         self._create_new_boundaries()
@@ -171,8 +177,7 @@ class BoundaryDataProcessor:
             district_label = preserve_boundary_label(row.get("District"))
             block_label = preserve_boundary_label(row.get("Block"))
 
-            # Optional LGD identity columns. Absent for hand-made sheets, in which case
-            # the boundary is created without LGD codes exactly as before.
+            # LGD identity columns (required by the schema).
             lgd_state = _read_identity_cell(row, LGD_STATE_CODE_COLUMN)
             lgd_district = _read_identity_cell(row, LGD_DISTRICT_CODE_COLUMN)
             lgd_block = _read_identity_cell(row, LGD_BLOCK_CODE_COLUMN)
@@ -265,6 +270,33 @@ class BoundaryDataProcessor:
                 logger.error(f"Error checking existing boundaries: {e}")
 
         logger.info(f"Found {len(self.existing_boundaries)} existing boundaries in the system")
+
+    def _adopt_existing_codes(self) -> None:
+        """Use an existing boundary's exact code where this run's code matches it only in
+        letter case. boundary-service treats such codes as duplicates on create, but links a
+        relationship only to the exact code - so creating would be skipped and the link would
+        then fail ('Boundary entity does not exist'), taking every child below with it. A
+        renamed parent also renames the codes built under it."""
+        renamed: Dict[str, str] = {}
+        for level in self.hierarchy_levels:
+            adopted: Dict[str, Dict] = {}
+            for data in self.boundary_data[level].values():
+                old_code, old_parent = data["full_code"], data["parent"]
+                parent = renamed.get(old_parent, old_parent) if old_parent else old_parent
+                code = old_code
+                if parent != old_parent and old_code.startswith(old_parent + "_"):
+                    code = parent + old_code[len(old_parent):]
+                code = self.existing_boundaries_casefold.get(code.casefold(), code)
+                if code != old_code:
+                    renamed[old_code] = code
+                data["full_code"], data["parent"] = code, parent
+                adopted.setdefault(code, data)
+            self.boundary_data[level] = adopted
+        if renamed:
+            self.code_renames.update(renamed)
+            self.all_boundary_full_codes = {renamed.get(c, c) for c in self.all_boundary_full_codes}
+            logger.info(f"Using existing codes for {len(renamed)} boundaries that differ only in "
+                        f"letter case, e.g. {next(iter(renamed.items()))}")
 
     def _check_existing_relationships(self):
         """Load existing SELCO relationships for boundary codes in this ingestion."""
@@ -616,7 +648,7 @@ class BoundaryDataProcessor:
 
             # Check each level that exists in this row
             if country:
-                full_code = country
+                full_code = self.code_renames.get(country, country)
                 if full_code in self.failed_boundaries:
                     row_failed = True
                     row_errors.append(f"Failed to create Country '{country_label}': {self.failed_boundaries[full_code]}")
@@ -632,6 +664,7 @@ class BoundaryDataProcessor:
 
             if state and country:
                 full_code = build_boundary_full_code(country, state)
+                full_code = self.code_renames.get(full_code, full_code)
                 if full_code in self.failed_boundaries:
                     row_failed = True
                     row_errors.append(f"Failed to create State '{state_label}': {self.failed_boundaries[full_code]}")
@@ -647,6 +680,7 @@ class BoundaryDataProcessor:
 
             if district and state and country:
                 full_code = build_boundary_full_code(country, state, district)
+                full_code = self.code_renames.get(full_code, full_code)
                 if full_code in self.failed_boundaries:
                     row_failed = True
                     row_errors.append(
@@ -663,6 +697,7 @@ class BoundaryDataProcessor:
 
             if block and district and state and country:
                 full_code = build_boundary_full_code(country, state, district, block)
+                full_code = self.code_renames.get(full_code, full_code)
                 if full_code in self.failed_boundaries:
                     row_failed = True
                     row_errors.append(f"Failed to create Block '{block_label}': {self.failed_boundaries[full_code]}")
