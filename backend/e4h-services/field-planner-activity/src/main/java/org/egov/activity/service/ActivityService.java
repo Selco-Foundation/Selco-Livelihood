@@ -1165,6 +1165,7 @@ public class ActivityService {
          * Validate the update fieldplan request against the fieldplans fetched from the database
          */
         activityValidator.validateUpdateActivityAssignmentAgainstDB(request.getActivityAssignments(), activityAssignmentListFromDB);
+        assertReviewerChangeAllowed(request.getActivityAssignments(), activityAssignmentListFromDB);
 
         /*
          * Process each project in the update request
@@ -1174,6 +1175,29 @@ public class ActivityService {
         }
 
         return request;
+    }
+
+    /**
+     * An installation plan's reviewer can be replaced only while the plan is a draft. Publish copies
+     * the reviewer onto every asset's link rows, so a later swap would leave those stale.
+     * Updates that keep the same reviewer (e.g. a date cascade) are not affected.
+     */
+    private void assertReviewerChangeAllowed(List<ActivityAssignment> requested, List<ActivityAssignment> fromDB) {
+        for (ActivityAssignment assignment : requested) {
+            ActivityAssignment stored = findActivityAssignmentById(String.valueOf(assignment.getId()), fromDB);
+            Object roleCode = stored == null || stored.getRole() == null ? null : stored.getRole().get("code");
+            if (stored == null || !INSTALLATION_REPORT_APPROVER_QC_TEAM.equals(roleCode)
+                    || Objects.equals(stored.getAssignedTo(), assignment.getAssignedTo())) {
+                continue;
+            }
+            List<String> statuses = jdbcTemplate.queryForList(
+                    "SELECT status FROM field_plans WHERE id = ?", String.class, stored.getFieldPlanId());
+            String planStatus = statuses.isEmpty() ? null : statuses.get(0);
+            if (!activityConfiguration.getInstallationPlanDraftStatus().equals(planStatus)) {
+                throw new CustomException("REVIEWER_LOCKED_AFTER_PUBLISH",
+                        "The reviewer of a published installation plan cannot be changed.");
+            }
+        }
     }
 
     private ActivityFacilitySearchRequest getSearchActivityFacilityRequest(List<ActivityFacility> activityFacilities, RequestInfo requestInfo) {
