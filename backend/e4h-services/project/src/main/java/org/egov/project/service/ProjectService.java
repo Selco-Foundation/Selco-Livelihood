@@ -276,8 +276,7 @@ public class ProjectService {
         if (projectNameGenerationService.isNameInFlight(generatedName)
                 || projectRepository.isProjectNameExistsExcludingProject(generatedName, project.getTenantId(), project.getId())) {
             log.error("Duplicate justification code for project: {} (generated name {})", project.getId(), generatedName);
-            throw new CustomException("DUPLICATE_JUSTIFICATION_CODE",
-                    "A project with this justification code already exists for the selected financial year.");
+            throw duplicateJustificationCode();
         }
         projectNameGenerationService.markNameInFlight(generatedName);
         project.setName(generatedName);
@@ -288,6 +287,27 @@ public class ProjectService {
         );
         project.setAdditionalDetails(enrichedAdditionalDetails);
         log.info("Set project name to {} for project: {} (draft={})", generatedName, project.getId(), draft);
+    }
+
+    /**
+     * Runs the checks createProject would apply to a new project's justification code and dates,
+     * without creating anything; returns the project with the name it would be given.
+     */
+    public Project validateJustificationCode(ProjectRequest projectRequest) {
+        projectValidator.validateCreateProjectRequest(projectRequest);
+        Project project = projectRequest.getProjects().get(0);
+        String name = projectNameGenerationService
+                .generateProjectName(project, projectRequest.getRequestInfo(), true).getName();
+        if (projectRepository.isProjectNameExists(name, project.getTenantId())) {
+            throw duplicateJustificationCode();
+        }
+        project.setName(name);
+        return project;
+    }
+
+    private static CustomException duplicateJustificationCode() {
+        return new CustomException("DUPLICATE_JUSTIFICATION_CODE",
+                "A project with this justification code already exists for the selected financial year.");
     }
 
     /**

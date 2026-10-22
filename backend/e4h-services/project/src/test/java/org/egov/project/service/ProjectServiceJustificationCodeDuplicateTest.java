@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.common.helper.RequestInfoTestBuilder;
 import org.egov.common.models.project.Project;
+import org.egov.common.models.project.ProjectRequest;
 import org.egov.common.producer.Producer;
 import org.egov.project.config.ProjectConfiguration;
 import org.egov.project.repository.ProjectRepository;
@@ -19,6 +20,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -132,5 +135,37 @@ class ProjectServiceJustificationCodeDuplicateTest {
         applyGeneratedProjectName(project, false);
 
         verify(projectRepository).isProjectNameExistsExcludingProject("JUS-98234-26-27", "livelihood", "project-1");
+    }
+
+    private ProjectRequest validateRequest(Project project) {
+        return ProjectRequest.builder().requestInfo(requestInfo).projects(List.of(project)).build();
+    }
+
+    @Test
+    void validateReturnsTheNameTheProjectWouldGetWhenTheCodeIsFree() {
+        Project project = Project.builder().tenantId("livelihood").build();
+        ProjectRequest request = validateRequest(project);
+        when(projectNameGenerationService.generateProjectName(project, requestInfo, true))
+                .thenReturn(ProjectNameResult.builder().name("JUS-98234-26-27").isDuplicateName(false).build());
+        when(projectRepository.isProjectNameExists("JUS-98234-26-27", "livelihood")).thenReturn(false);
+
+        Project validated = projectService.validateJustificationCode(request);
+
+        verify(projectValidator).validateCreateProjectRequest(request);
+        assertEquals("JUS-98234-26-27", validated.getName());
+    }
+
+    @Test
+    void validateRejectsADuplicateJustificationCode() {
+        Project project = Project.builder().tenantId("livelihood").build();
+        ProjectRequest request = validateRequest(project);
+        when(projectNameGenerationService.generateProjectName(project, requestInfo, true))
+                .thenReturn(ProjectNameResult.builder().name("JUS-98234-26-27").isDuplicateName(false).build());
+        when(projectRepository.isProjectNameExists("JUS-98234-26-27", "livelihood")).thenReturn(true);
+
+        CustomException exception = assertThrows(CustomException.class,
+                () -> projectService.validateJustificationCode(request));
+
+        assertEquals("DUPLICATE_JUSTIFICATION_CODE", exception.getCode());
     }
 }
