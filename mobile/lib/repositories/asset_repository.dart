@@ -44,7 +44,7 @@ class AssetRepository {
           if (assetId?.trim().isNotEmpty == true) 'assetID': assetId!.trim(),
         },
       },
-    ).timeout(const Duration(seconds: 20));
+    );
     final body = response.data;
     final raw = body is List
         ? body
@@ -78,7 +78,7 @@ class AssetRepository {
       data: {
         'assetDetail': {'Asset': payload},
       },
-    ).timeout(const Duration(seconds: 30));
+    );
     final body = response.data;
     final responseAsset = body is Map ? (body['asset'] ?? body['Asset']) : null;
     if (responseAsset is! Map) {

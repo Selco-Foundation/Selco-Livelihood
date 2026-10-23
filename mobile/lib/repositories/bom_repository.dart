@@ -57,7 +57,7 @@ class BomRepository {
           'activityFacilityIds': [activityFacilityId],
         },
       },
-    ).timeout(const Duration(seconds: 20));
+    );
     final raw = response.data['bom'] as List<dynamic>? ?? const [];
     return raw
         .whereType<Map>()
@@ -79,7 +79,7 @@ class BomRepository {
       data: {
         'bom': [bom.toJson()],
       },
-    ).timeout(const Duration(seconds: 30));
+    );
     final raw = response.data['bom'] as List<dynamic>? ?? const [];
     if (raw.isEmpty) {
       throw Exception('BOM create response is missing BOM data.');
@@ -103,7 +103,7 @@ class BomRepository {
       data: {
         'bom': [bom.toJson()],
       },
-    ).timeout(const Duration(seconds: 30));
+    );
     final raw = response.data['bom'] as List<dynamic>? ?? const [];
     if (raw.isEmpty) {
       throw Exception('BOM update response is missing BOM data.');

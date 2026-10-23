@@ -132,7 +132,7 @@ class ActivityFacilityRemoteRepository {
                 documents.map((document) => document.toWorkflowJson()).toList(),
         },
       },
-    ).timeout(const Duration(seconds: 30));
+    );
   }
 }
 

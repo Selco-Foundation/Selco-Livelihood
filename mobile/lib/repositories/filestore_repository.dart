@@ -37,10 +37,8 @@ class FilestoreRepository {
       'module': module,
     });
 
-    final response = await DioClient()
-        .dio
-        .post(ApiPaths.fileStoreUpload, data: formData)
-        .timeout(const Duration(minutes: 20));
+    final response =
+        await DioClient().dio.post(ApiPaths.fileStoreUpload, data: formData);
 
     final files = response.data is Map ? response.data['files'] : null;
     if (files is! List || files.isEmpty) {

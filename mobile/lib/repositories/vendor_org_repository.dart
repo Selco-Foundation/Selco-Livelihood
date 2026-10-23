@@ -36,7 +36,7 @@ class VendorOrgRepository {
             'organizationIds': [organizationId],
           },
         },
-      ).timeout(const Duration(seconds: 20));
+      );
 
       final orgUsers = response.data['OrgUsers'] as List<dynamic>? ?? const [];
       for (final orgUser in orgUsers.whereType<Map>()) {
@@ -87,7 +87,7 @@ class VendorOrgRepository {
           'userIds': [uuid],
         },
       },
-    ).timeout(const Duration(seconds: 20));
+    );
 
     final orgUsers = response.data['OrgUsers'] as List<dynamic>? ?? const [];
     if (orgUsers.isEmpty) return null;

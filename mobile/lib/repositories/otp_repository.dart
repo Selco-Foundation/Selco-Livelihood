@@ -32,7 +32,7 @@ class OtpRepository {
       final response = await DioClient().dio.post(
         path,
         data: {'activityFacilityId': activityFacilityId},
-      ).timeout(const Duration(seconds: 20));
+      );
       final body = response.data;
       final errorMessage = _errorMessageFromBody(body);
       if (errorMessage != null) {
@@ -50,7 +50,7 @@ class OtpRepository {
       final response = await DioClient().dio.post(
         ApiPaths.otpValidate,
         data: {'activityFacilityId': activityFacilityId, 'otp': otp},
-      ).timeout(const Duration(seconds: 20));
+      );
       final body = response.data;
       final errorMessage = _errorMessageFromBody(body);
       if (errorMessage != null) {

@@ -64,7 +64,7 @@ class AssociatedMachineBomRepository {
             'componentTypes': ['MACHINE'],
           }
         },
-      ).timeout(const Duration(seconds: 20));
+      );
       final rows = (response.data['facility'] as List<dynamic>? ?? [])
           .whereType<Map>()
           .toList();
