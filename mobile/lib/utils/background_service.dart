@@ -268,12 +268,7 @@ Future<void> _performSubmission({
     completedSteps: 1,
     service: service,
   );
-  final resolvedVendorId = await vendorOrgRepository.currentUserOrgId();
-  if (resolvedVendorId == null || resolvedVendorId.trim().isEmpty) {
-    throw Exception(
-        'No vendor organization is linked to the signed-in user. Ask an administrator to configure the vendor user mapping.');
-  }
-  final vendorId = resolvedVendorId.trim();
+  final vendorId = await vendorOrgRepository.currentUserVendorId();
 
   await _reportStage(
     activityFacilityId: activityFacilityId,
