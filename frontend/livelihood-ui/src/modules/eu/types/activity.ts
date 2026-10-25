@@ -1,6 +1,10 @@
 export interface FacilityActivity {
   id: string;
   activityType?: string;
+  /** "MACHINE" or "SOLAR" — same activityFacility.componentType the
+   * installation reviewer's own activity table shows, resolved through the
+   * same @/shared componentTypeLabel. */
+  componentType?: string;
   projectCode?: string;
   fieldPlanCode?: string;
   activityStartDate?: string;

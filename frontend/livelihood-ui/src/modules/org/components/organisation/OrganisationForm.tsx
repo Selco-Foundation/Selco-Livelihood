@@ -143,6 +143,84 @@ export function OrganisationForm({ orgType, form }: OrganisationFormProps) {
           </p>
         ) : null}
       </section>
+
+      {orgType === "VENDOR" ? (
+        <section className="flex flex-col gap-4">
+          <h3 className="text-base font-semibold text-foreground">
+            {translateOr(t, "ORG_DEFAULT_VENDOR_SECTION", "Default Vendor")}
+          </h3>
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Created with the organisation and managed from the user table afterwards, so read-only on edit. */}
+            <TextField
+              label={translateOr(t, "ORG_DEFAULT_VENDOR_NAME", "Default Vendor Name")}
+              required={!isEditing}
+              disabled={isEditing}
+              value={values.defaultVendorName}
+              error={fieldErrors.defaultVendorName}
+              onChange={(value) => updateField("defaultVendorName", value)}
+            />
+            <TextField
+              label={translateOr(t, "ORG_DEFAULT_VENDOR_PHONE", "Default Vendor Contact")}
+              required={!isEditing}
+              disabled={isEditing}
+              inputMode="numeric"
+              maxLength={10}
+              value={values.defaultVendorPhone}
+              error={fieldErrors.defaultVendorPhone}
+              onChange={(value) => updateField("defaultVendorPhone", value.replace(/\D/g, ""))}
+            />
+            <TextField
+              label={translateOr(t, "ORG_DEFAULT_VENDOR_EMAIL", "Default Vendor Email")}
+              type="email"
+              disabled={isEditing}
+              value={values.defaultVendorEmail}
+              error={fieldErrors.defaultVendorEmail}
+              onChange={(value) => updateField("defaultVendorEmail", value)}
+            />
+            <TextField
+              label={translateOr(t, "ORG_DEFAULT_VENDOR_USERNAME", "Default Vendor Username")}
+              required={!isEditing}
+              disabled={isEditing}
+              autoComplete="off"
+              value={values.defaultVendorUsername}
+              error={fieldErrors.defaultVendorUsername}
+              onChange={(value) => updateField("defaultVendorUsername", value)}
+            />
+            {!isEditing ? (
+              <>
+                <PasswordField
+                  label={translateOr(t, "ORG_DEFAULT_VENDOR_PASSWORD", "Default Vendor Password")}
+                  required
+                  value={values.defaultVendorPassword}
+                  error={fieldErrors.defaultVendorPassword}
+                  hint={translateOr(
+                    t,
+                    "ORG_PASSWORD_POLICY_HINT",
+                    "8–15 characters, with upper-case, lower-case, a number and one of @ # $ %",
+                  )}
+                  onChange={(value) => updateField("defaultVendorPassword", value)}
+                />
+                <PasswordField
+                  label={translateOr(t, "ORG_CONFIRM_PASSWORD", "Confirm Password")}
+                  required
+                  value={values.defaultVendorConfirmPassword}
+                  error={fieldErrors.defaultVendorConfirmPassword}
+                  onChange={(value) => updateField("defaultVendorConfirmPassword", value)}
+                />
+              </>
+            ) : null}
+          </div>
+          {!isEditing ? (
+            <p className="text-xs text-muted-foreground">
+              {translateOr(
+                t,
+                "ORG_DEFAULT_VENDOR_AUTO_CREATE_NOTE",
+                "The default vendor will be created as a user of this organisation with the Complaint Resolver and Livelihood Vendor roles.",
+              )}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { extractApiErrorMessage, translateOr, useTranslate } from "@/shared";
+import { componentTypeLabel, extractApiErrorMessage, translateOr, useTranslate } from "@/shared";
 import { Pagination, Skeleton } from "@/ui";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
@@ -79,6 +79,9 @@ export function FacilityActivityTab({ facilityId, facilityBoundaryCode }: Facili
                     {translateOr(t, "CS_ACTIVITY_TYPE", "Activity Type")}
                   </th>
                   <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                    {translateOr(t, "ASSET_TYPE", "Asset Type")}
+                  </th>
+                  <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {translateOr(t, "PROJECT_ID", "Project ID")}
                   </th>
                   <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
@@ -105,6 +108,7 @@ export function FacilityActivityTab({ facilityId, facilityBoundaryCode }: Facili
                       className={index % 2 === 1 ? "border-b border-border/70 bg-accent" : "border-b border-border/70"}
                     >
                       <td className="px-5 py-4 text-foreground">{activity.activityType || "-"}</td>
+                      <td className="px-5 py-4 text-foreground">{componentTypeLabel(activity.componentType, t)}</td>
                       <td className="px-5 py-4 text-foreground">{activity.projectCode || "-"}</td>
                       <td className="px-5 py-4 text-foreground">{activity.fieldPlanCode || "-"}</td>
                       <td className="px-5 py-4 text-foreground">{activity.activityStartDate || "-"}</td>

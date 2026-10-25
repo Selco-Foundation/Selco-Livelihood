@@ -18,8 +18,22 @@ export const EMPTY_BOUNDARY_FILTERS: BoundarySearchFilters = {
   block: [],
 };
 
+/** Which LGD tier `lgdBlockCode` comes from - a Development Block, a Sub-district, or a name
+ *  that is both. Same values the LGD onboarding stores in `boundary.lgd_block_tier`. */
+export type LgdBlockTier = "Block" | "Sub-district" | "Both";
+
+export const LGD_BLOCK_TIERS: LgdBlockTier[] = ["Block", "Sub-district", "Both"];
+
+/** Local Government Directory codes. All optional; digits only. */
+export interface LgdCodes {
+  lgdStateCode: string;
+  lgdDistrictCode: string;
+  lgdBlockCode: string;
+  lgdBlockTier: LgdBlockTier;
+}
+
 /** Every field `BoundaryForm` collects. */
-export interface BoundaryFormValues {
+export interface BoundaryFormValues extends LgdCodes {
   state: string;
   district: string;
   block: string;

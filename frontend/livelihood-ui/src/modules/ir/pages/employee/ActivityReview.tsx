@@ -1,10 +1,8 @@
-import { employeeHomePath, reloadModule, translateOr, useAuthStore, useTranslate } from "@/shared";
-import { TopBar, toast } from "@/ui";
+import { employeeHomePath, reloadModule, translateOr, useAuthStore, useRejectionReasonOptions, useTranslate } from "@/shared";
+import { ActivityInfoCard, AuditTrailTimeline, TopBar, toast } from "@/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { AuditTrailTimeline } from "../../components/review/AuditTrailTimeline";
 import { ConfirmActionDialog } from "../../components/review/ConfirmActionDialog";
-import { ActivityInfoCard } from "../../components/review/ActivityInfoCard";
 import type { RejectionReasonDraft } from "../../components/review/RejectionReasonDialog";
 import { ReviewActionBar } from "../../components/review/ReviewActionBar";
 import { ReviewSections } from "../../components/review/ReviewSections";
@@ -14,7 +12,6 @@ import {
   useSubmitActivityReview,
 } from "../../hooks/use-activity-review";
 import { useInstallationPlans } from "../../hooks/use-installation-plans";
-import { useRejectionReasonOptions } from "../../hooks/use-rejection-reason-options";
 import type {
   RejectionReasonEntry,
   ReviewDecisionAction,
@@ -22,6 +19,7 @@ import type {
   SectionRejectionReasons,
 } from "../../types/activity-review";
 import { hasIrAccess } from "../../utils/access";
+import { boundaryDisplayName } from "../../utils/boundary";
 import { irActivitiesPath, irInstallationPlansPath } from "../../utils/paths";
 
 // The review route's path is computed at runtime via contextPath(), so
@@ -161,7 +159,10 @@ export function ActivityReview() {
           </p>
         ) : (
           <>
-            <ActivityInfoCard activity={detail.activity} />
+            <ActivityInfoCard
+              activity={detail.activity}
+              resolveBoundaryName={(code) => boundaryDisplayName(code, t)}
+            />
             <AuditTrailTimeline checkpoints={detail.auditTrail} />
             <ReviewSections
               sections={detail.sections}

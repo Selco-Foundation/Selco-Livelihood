@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { RejectionReasonOption } from "../../types/activity-review";
+import type { RejectionReasonOption } from "@/shared";
 import { RejectionReasonDialog, type RejectionReasonDraft } from "./RejectionReasonDialog";
 
 // Radix Select relies on pointer-capture and scroll APIs jsdom doesn't

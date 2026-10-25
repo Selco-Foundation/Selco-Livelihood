@@ -1,23 +1,17 @@
-import { translateOr, useTranslate } from "@/shared";
-import { Accordion, AccordionContent, AccordionItem, Button, Skeleton } from "@/ui";
-import { ChevronDown } from "lucide-react";
-import { Accordion as AccordionPrimitive } from "radix-ui";
+import { translateOr, useTranslate, type RejectionReasonOption } from "@/shared";
+import {
+  Button,
+  ReviewSectionsAccordion,
+  type ActivityDocument,
+  type ReviewSectionContent,
+  type SectionMediaPatch,
+} from "@/ui";
 import { useState } from "react";
 import type {
-  ActivityDocument,
-  AssetSectionMediaPatch,
-  ImageChecklistMediaPatch,
   RejectionReasonEntry,
-  RejectionReasonOption,
-  ReportSectionMediaPatch,
-  ReviewSectionContent,
   ReviewSectionId,
-  SectionMediaPatch,
   SectionRejectionReasons,
 } from "../../types/activity-review";
-import { AssetSectionBody } from "./AssetSectionBody";
-import { InstallationImageSectionBody } from "./InstallationImageSectionBody";
-import { ReportSectionBody } from "./ReportSectionBody";
 import { RejectionReasonDialog, type RejectionReasonDraft } from "./RejectionReasonDialog";
 import { SectionReasonChips } from "./SectionReasonChips";
 
@@ -44,35 +38,10 @@ interface DialogState {
   editing?: RejectionReasonEntry;
 }
 
-function mergeSectionMedia(
-  section: ReviewSectionContent,
-  media: SectionMediaPatch | undefined,
-): ReviewSectionContent {
-  if (!media) {
-    return section;
-  }
-
-  if (section.kind === "ASSET") {
-    const patch = media as AssetSectionMediaPatch;
-    return {
-      ...section,
-      images: patch.images,
-      videos: patch.videos,
-      mediaGroups: section.mediaGroups?.map((group) => ({
-        ...group,
-        images: patch.mediaGroups?.[group.id]?.images ?? group.images,
-        videos: patch.mediaGroups?.[group.id]?.videos ?? group.videos,
-      })),
-    };
-  }
-
-  if (section.kind === "REPORT") {
-    return { ...section, ...(media as ReportSectionMediaPatch) };
-  }
-
-  return { ...section, images: (media as ImageChecklistMediaPatch).images };
-}
-
+/** The review-specific layer on top of the shared `ReviewSectionsAccordion`:
+ * the "Add rejection reason" control, the reason chips, and the dialog that
+ * adds/edits/removes them. `eu`'s read-only Activity Report page renders
+ * `ReviewSectionsAccordion` directly, with neither render prop. */
 export function ReviewSections({
   sections,
   sectionDocuments,
@@ -86,10 +55,6 @@ export function ReviewSections({
 }: ReviewSectionsProps) {
   const { t } = useTranslate();
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
-  const [expandedIds, setExpandedIds] = useState<Set<ReviewSectionId>>(new Set());
-  const [loadingIds, setLoadingIds] = useState<Set<ReviewSectionId>>(new Set());
-  const [failedIds, setFailedIds] = useState<Set<ReviewSectionId>>(new Set());
-  const [resolvedMedia, setResolvedMedia] = useState<Partial<Record<ReviewSectionId, SectionMediaPatch>>>({});
 
   // A reason already used elsewhere in this section can't be picked again —
   // except the one currently being edited, which must stay selectable as itself.
@@ -101,130 +66,40 @@ export function ReviewSections({
   );
   const availableReasonOptions = reasonOptions.filter((option) => !usedReasonCodes.has(option.code));
 
-  function handleExpand(section: ReviewSectionContent) {
-    setExpandedIds((prev) => new Set(prev).add(section.id));
-
-    if (resolvedMedia[section.id] || loadingIds.has(section.id)) {
-      return;
-    }
-
-    setFailedIds((prev) => {
-      if (!prev.has(section.id)) {
-        return prev;
-      }
-      const next = new Set(prev);
-      next.delete(section.id);
-      return next;
-    });
-    setLoadingIds((prev) => new Set(prev).add(section.id));
-    loadSectionMedia(section, sectionDocuments[section.id] ?? [])
-      .then((media) => {
-        setResolvedMedia((prev) => ({ ...prev, [section.id]: media }));
-      })
-      .catch((error) => {
-        console.error(`Failed to load media for section ${section.id}:`, error);
-        setFailedIds((prev) => new Set(prev).add(section.id));
-      })
-      .finally(() => {
-        setLoadingIds((prev) => {
-          const next = new Set(prev);
-          next.delete(section.id);
-          return next;
-        });
-      });
-  }
-
   return (
     <>
-      <div className="space-y-4">
-        {sections.map((section) => {
-          const reasons = rejectionReasons[section.id] ?? [];
-          const isLoading = loadingIds.has(section.id);
-          const hasFailed = failedIds.has(section.id);
-          const mergedSection = mergeSectionMedia(section, resolvedMedia[section.id]);
-
-          return (
-            <Accordion
-              key={section.id}
-              type="multiple"
-              value={expandedIds.has(section.id) ? [section.id] : []}
-              onValueChange={(value) => {
-                if (value.includes(section.id)) {
-                  handleExpand(section);
-                } else {
-                  setExpandedIds((prev) => {
-                    const next = new Set(prev);
-                    next.delete(section.id);
-                    return next;
-                  });
-                }
-              }}
-              className="livelihood-card px-4"
+      <ReviewSectionsAccordion
+        sections={sections}
+        sectionDocuments={sectionDocuments}
+        loadSectionMedia={loadSectionMedia}
+        renderHeaderAction={(section) =>
+          canEditReasons ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-destructive text-destructive hover:border-destructive hover:bg-destructive/10 hover:text-destructive active:border-destructive active:bg-destructive/20 active:text-destructive"
+              onClick={() => setDialogState({ sectionId: section.id })}
             >
-              <AccordionItem value={section.id}>
-                <AccordionPrimitive.Header className="flex items-center justify-between gap-3 py-4">
-                  <AccordionPrimitive.Trigger className="flex flex-1 items-center gap-2 text-left text-sm font-semibold text-ink-950 outline-none [&[data-state=open]>svg]:rotate-180">
-                    {"labelKey" in section && section.labelKey
-                      ? translateOr(t, section.labelKey, section.label)
-                      : section.label}
-                    <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform" />
-                  </AccordionPrimitive.Trigger>
-                  {canEditReasons ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="border-destructive text-destructive hover:border-destructive hover:bg-destructive/10 hover:text-destructive active:border-destructive active:bg-destructive/20 active:text-destructive"
-                      onClick={() => setDialogState({ sectionId: section.id })}
-                    >
-                      {translateOr(t, "ES_IR_ADD_REJECTION_REASON", "Add rejection reason")}
-                    </Button>
-                  ) : null}
-                </AccordionPrimitive.Header>
-                {reasons.length > 0 ? (
-                  <div className="pb-4">
-                    <SectionReasonChips
-                      reasons={reasons}
-                      readOnly={!canEditReasons}
-                      onEdit={(reason) => setDialogState({ sectionId: section.id, editing: reason })}
-                      onRemove={(reasonId) => onRemoveReason(section.id, reasonId)}
-                    />
-                  </div>
-                ) : null}
-                <AccordionContent className="space-y-4 pb-4">
-                  {isLoading ? (
-                    <Skeleton className="h-24 w-full" />
-                  ) : hasFailed ? (
-                    <div className="flex items-center justify-between gap-3 rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-                      <span>
-                        {translateOr(
-                          t,
-                          "ES_IR_SECTION_MEDIA_LOAD_ERROR",
-                          "Couldn't load media for this section.",
-                        )}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleExpand(section)}
-                      >
-                        {translateOr(t, "ES_IR_RETRY", "Retry")}
-                      </Button>
-                    </div>
-                  ) : mergedSection.kind === "ASSET" ? (
-                    <AssetSectionBody section={mergedSection} />
-                  ) : mergedSection.kind === "REPORT" ? (
-                    <ReportSectionBody section={mergedSection} />
-                  ) : (
-                    <InstallationImageSectionBody section={mergedSection} />
-                  )}
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+              {translateOr(t, "ES_IR_ADD_REJECTION_REASON", "Add rejection reason")}
+            </Button>
+          ) : null
+        }
+        renderReasonChips={(section) => {
+          const reasons = rejectionReasons[section.id] ?? [];
+          if (reasons.length === 0) {
+            return null;
+          }
+          return (
+            <SectionReasonChips
+              reasons={reasons}
+              readOnly={!canEditReasons}
+              onEdit={(reason) => setDialogState({ sectionId: section.id, editing: reason })}
+              onRemove={(reasonId) => onRemoveReason(section.id, reasonId)}
+            />
           );
-        })}
-      </div>
+        }}
+      />
 
       <RejectionReasonDialog
         open={dialogState !== null}

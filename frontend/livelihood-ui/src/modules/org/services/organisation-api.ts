@@ -52,6 +52,10 @@ interface OrganisationRecord {
   orgPocPhone?: string;
   orgPocEmail?: string;
   orgPocUsername?: string;
+  defaultVendorName?: string;
+  defaultVendorPhone?: string;
+  defaultVendorEmail?: string;
+  defaultVendorUsername?: string;
 }
 
 interface OrganisationResponse {
@@ -100,6 +104,10 @@ function toOrganisation(record: OrganisationRecord): Organisation {
     pocPhone: readablePhone(record.orgPocPhone),
     pocEmail: record.orgPocEmail,
     pocUsername: record.orgPocUsername,
+    defaultVendorName: record.defaultVendorName,
+    defaultVendorPhone: readablePhone(record.defaultVendorPhone),
+    defaultVendorEmail: record.defaultVendorEmail,
+    defaultVendorUsername: record.defaultVendorUsername,
     raw: record as Record<string, unknown>,
   };
 }
@@ -190,6 +198,15 @@ async function createOrganisation(
         ...(input.pocEmail?.trim() ? { orgPocEmail: input.pocEmail.trim() } : {}),
         orgPocUsername: input.pocUsername.trim(),
         orgPocPassword: input.pocPassword,
+        ...(input.defaultVendorUsername
+          ? {
+              defaultVendorName: input.defaultVendorName?.trim(),
+              defaultVendorPhone: input.defaultVendorPhone?.trim(),
+              ...(input.defaultVendorEmail?.trim() ? { defaultVendorEmail: input.defaultVendorEmail.trim() } : {}),
+              defaultVendorUsername: input.defaultVendorUsername.trim(),
+              defaultVendorPassword: input.defaultVendorPassword,
+            }
+          : {}),
         isActive: true,
         orgAddress: [],
       },
