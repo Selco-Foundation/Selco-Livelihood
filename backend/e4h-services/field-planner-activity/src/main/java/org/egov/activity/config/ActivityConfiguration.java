@@ -131,6 +131,9 @@ public class ActivityConfiguration {
     @Value("${egov.iccreport.oilmill.key}")
     private String iccreportOilMill;
 
+    @Value("${egov.iccreport.milking.key}")
+    private String iccreportMilking;
+
     @Value("${egov.iccreport.paddyintegratedprocessing.key}")
     private String iccreportPaddyIntegratedProcessing;
 

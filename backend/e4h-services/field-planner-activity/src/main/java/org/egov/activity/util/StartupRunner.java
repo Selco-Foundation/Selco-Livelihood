@@ -37,6 +37,7 @@ public class StartupRunner implements CommandLineRunner {
         configMap.put("202526PASF0000317", activityConfiguration.getIccreportRoaster());
         configMap.put("202526PASF0000371", activityConfiguration.getIccreportRiceHuller());
         configMap.put("202526PASF0000390", activityConfiguration.getIccreportOilMill());
+        configMap.put("202526PASF0000110", activityConfiguration.getIccreportOilMill());
 
         // MACHINE-component installation reports use a fixed template, not a solution-specific one.
         configMap.put("MACHINE", activityConfiguration.getMachineInstallationReportKey());
