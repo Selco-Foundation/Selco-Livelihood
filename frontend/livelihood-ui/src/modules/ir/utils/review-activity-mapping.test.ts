@@ -22,12 +22,12 @@ function row(overrides: Partial<ActivityFacilityRow["activityFacility"]> = {}): 
 
 describe("toReviewActivity", () => {
   it("maps every field from a fully populated row", () => {
-    expect(toReviewActivity(row())).toEqual({
+    expect(toReviewActivity(row({ componentType: "MACHINE" }))).toEqual({
       activityId: "activity-1",
       facilityId: "facility-1",
       facilityName: "Facility One",
       assetName: "Oil Mill-Cold Press-3-HP-AC-20-kgs/hr",
-      componentType: "SOLAR",
+      componentType: "MACHINE",
       planId: "plan-1",
       status: "SUBMITTED_BY_FIELD_STAFF",
       district: { code: "DISTRICT_1" },
@@ -39,8 +39,12 @@ describe("toReviewActivity", () => {
     expect(toReviewActivity(row({ facility: undefined })).facilityName).toBe("");
   });
 
-  it("leaves assetName undefined when the activity has no bill of material", () => {
-    expect(toReviewActivity(row({ billOfMaterial: undefined })).assetName).toBeUndefined();
+  it("leaves assetName undefined when a machine has no bill of material", () => {
+    expect(toReviewActivity(row({ componentType: "MACHINE", billOfMaterial: undefined })).assetName).toBeUndefined();
+  });
+
+  it("does not pass on the bill of material name for a solar activity", () => {
+    expect(toReviewActivity(row({ componentType: "SOLAR" })).assetName).toBeUndefined();
   });
 
   it("leaves district/block undefined when boundary is missing", () => {

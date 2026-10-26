@@ -113,6 +113,13 @@ describe("ActivityTable", () => {
     expect(screen.getAllByText("-").length).toBeGreaterThan(0);
   });
 
+  it("shows the localized Solar label for a solar activity, ignoring any asset name", () => {
+    renderTable([makeActivity({ activityId: "a1", componentType: "SOLAR", assetName: "stale bom name" })]);
+
+    expect(screen.queryByText("stale bom name")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Solar").length).toBeGreaterThan(0);
+  });
+
   describe("row selectability", () => {
     it("renders no checkbox for a non-selectable row", () => {
       renderTable([

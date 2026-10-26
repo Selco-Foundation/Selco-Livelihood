@@ -161,7 +161,11 @@ export function ActivityTable({
                           {activity.facilityName}
                         </Link>
                       </td>
-                      <td className="px-5 py-4 text-foreground">{activity.assetName || "-"}</td>
+                      <td className="px-5 py-4 text-foreground">
+                        {activity.componentType === "SOLAR"
+                          ? translateOr(t, "ES_IR_COMPONENT_TYPE_SOLAR", "Solar")
+                          : activity.assetName || "-"}
+                      </td>
                       <td className="px-5 py-4 text-foreground">
                         {componentTypeLabel(activity.componentType, t)}
                       </td>
