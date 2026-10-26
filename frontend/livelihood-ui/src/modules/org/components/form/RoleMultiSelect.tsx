@@ -1,7 +1,7 @@
 import { translateOr, useTranslate } from "@/shared";
 import { Badge, Checkbox, cn, Popover, PopoverContent, PopoverTrigger } from "@/ui";
 import { ChevronDown, Info, X } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { roleGroupId, type OrgRoleGroup } from "../../types/organisation";
 
 interface RoleMultiSelectProps {
@@ -23,6 +23,11 @@ export function RoleMultiSelect({ label, groups, selected, isLoading, error, onC
   }
 
   const nameOf = (id: string) => groups.find((group) => roleGroupId(group) === id)?.name ?? id;
+
+  const sortedGroups = useMemo(
+    () => [...groups].sort((a, b) => a.name.localeCompare(b.name)),
+    [groups],
+  );
 
   return (
     <div className="min-w-0 space-y-1.5">
@@ -59,7 +64,7 @@ export function RoleMultiSelect({ label, groups, selected, isLoading, error, onC
             </p>
           ) : (
             <div className="flex max-h-56 flex-col gap-1 overflow-y-auto">
-              {groups.map((group) => (
+              {sortedGroups.map((group) => (
                 <label
                   key={roleGroupId(group)}
                   className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"

@@ -29,7 +29,7 @@ afterEach(() => {
 
 describe("useInstallationPlanReviewer", () => {
   it("returns the assigned reviewer's uuid", async () => {
-    vi.mocked(searchAssignedReviewer).mockResolvedValue("reviewer-1");
+    vi.mocked(searchAssignedReviewer).mockResolvedValue({ id: "assignment-1", assignedTo: "reviewer-1" });
 
     const { result } = renderHook(() => useInstallationPlanReviewer("plan-1"), { wrapper: createWrapper() });
 

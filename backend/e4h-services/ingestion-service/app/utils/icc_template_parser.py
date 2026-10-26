@@ -55,6 +55,7 @@ class LineItem(NamedTuple):
     make: str
     capacity: str
     quantity: Optional[Any]   # kept raw; validation decides whether it is acceptable
+    sl_no: Optional[int] = None
 
 
 class ParsedTemplate(NamedTuple):
@@ -67,6 +68,9 @@ class ParsedTemplate(NamedTuple):
     # positional construction of this tuple keeps working.
     tender_row: Optional[int] = None
     purchase_order_row: Optional[int] = None
+    # The SYSTEM FUNCTIONALITY PARAMETERS header, where the Project Manager's part of the sheet
+    # ends. None when the sheet has no such section.
+    technician_row: Optional[int] = None
 
 
 def _text(value: Any) -> str:
@@ -105,7 +109,7 @@ def parse_worksheet(sheet: Worksheet) -> ParsedTemplate:
     """
     line_items: List[LineItem] = []
     tender_number = purchase_order_number = bundle_code = None
-    tender_row = purchase_order_row = None
+    tender_row = purchase_order_row = technician_row = None
     section: Optional[str] = None
     category = ""
 
@@ -128,6 +132,7 @@ def parse_worksheet(sheet: Worksheet) -> ParsedTemplate:
         if label:
             found = _is_section_header(label)
             if found == "technician":
+                technician_row = row[0].row
                 break
             if found:
                 section, category = found, ""
@@ -146,6 +151,7 @@ def parse_worksheet(sheet: Worksheet) -> ParsedTemplate:
                 make=_text(row[COL_MAKE - 1].value) if len(row) >= COL_MAKE else "",
                 capacity=_text(row[COL_CAPACITY - 1].value) if len(row) >= COL_CAPACITY else "",
                 quantity=row[COL_QUANTITY - 1].value if len(row) >= COL_QUANTITY else None,
+                sl_no=raw_sl_no,
             ))
         elif label and not _text(second):
             category = label
@@ -154,7 +160,7 @@ def parse_worksheet(sheet: Worksheet) -> ParsedTemplate:
         f"Parsed template sheet {sheet.title!r}: {sum(1 for i in line_items if i.section == 'solar')} "
         f"solar and {sum(1 for i in line_items if i.section == 'machine')} machine line items")
     return ParsedTemplate(line_items, tender_number, purchase_order_number, bundle_code,
-                          tender_row, purchase_order_row)
+                          tender_row, purchase_order_row, technician_row)
 
 
 def _validate_quantity(raw: Any) -> Optional[str]:
@@ -269,6 +275,33 @@ def _annotation_columns(sheet: Worksheet) -> Tuple[int, int]:
             return column, column + 1
     status_col = sheet.max_column + 1
     return status_col, status_col + 1
+
+
+def read_only_errors(uploaded: ParsedTemplate, blank: ParsedTemplate) -> Dict[int, List[str]]:
+    """Row errors for line items whose read-only cells -- Sl. No. and Product -- differ from the
+    blank template's.
+
+    The Project Manager fills only Make, Capacity and Quantity. The served sheet locks the rest,
+    but protection is two clicks to remove, and a changed Product would flow straight into the
+    stored template and from there into every asset's bill of material. Items are matched by
+    position, the same way field names are assigned, so the caller must have rejected a
+    different item count first (`strict=True` raises ValueError otherwise).
+    """
+    row_errors: Dict[int, List[str]] = {}
+    for item, original in zip(uploaded.line_items, blank.line_items, strict=True):
+        if item.sl_no != original.sl_no:
+            row_errors.setdefault(item.row, []).append(
+                f"Sl. No. can't be changed - it must be {original.sl_no}. Download the template again.")
+        if _comparable(item.product) != _comparable(original.product):
+            row_errors.setdefault(item.row, []).append(
+                f"Product can't be changed - it must be '{original.product}'. "
+                f"Download the template again.")
+    return row_errors
+
+
+def _comparable(value: str) -> str:
+    """Whitespace-insensitive, so a cell Excel re-wrapped still matches."""
+    return " ".join(value.split())
 
 
 def annotate_worksheet(sheet: Worksheet, parsed: ParsedTemplate,

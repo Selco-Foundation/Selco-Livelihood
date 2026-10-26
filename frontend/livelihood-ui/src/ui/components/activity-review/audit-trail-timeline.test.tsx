@@ -50,14 +50,14 @@ describe("AuditTrailTimeline", () => {
   it("renders one entry per checkpoint, in the given order, with its status label and actor", () => {
     render(<AuditTrailTimeline checkpoints={checkpoints} />);
     expect(screen.getByText("Assigned")).toBeInTheDocument();
-    expect(screen.getByText("Pending Review")).toBeInTheDocument();
+    expect(screen.getByText("Installation Report Submitted - Review Pending")).toBeInTheDocument();
     expect(screen.getByText("Rejected")).toBeInTheDocument();
     expect(screen.getAllByText(/— Field Officer/)).toHaveLength(2);
     expect(screen.getByText(/— QC Reviewer/)).toBeInTheDocument();
 
-    const statusTexts = screen.getAllByText(/Assigned|Pending Review|Rejected/).map((el) => el.textContent);
+    const statusTexts = screen.getAllByText(/Assigned|Installation Report Submitted - Review Pending|Rejected/).map((el) => el.textContent);
     expect(statusTexts[0]).toContain("Assigned");
-    expect(statusTexts[1]).toContain("Pending Review");
+    expect(statusTexts[1]).toContain("Installation Report Submitted - Review Pending");
     expect(statusTexts[2]).toContain("Rejected");
   });
 

@@ -43,6 +43,20 @@ export async function createProject(
   return waitForProject(created.id, accessToken, user);
 }
 
+/** `POST /project/v1/justification-code/_validate` — runs create's checks on the justification
+ *  code and dates without creating anything; rejects a duplicate code for the financial year. */
+export async function validateJustificationCode(
+  project: Project,
+  accessToken?: string,
+  user?: AuthUser | null,
+): Promise<ProjectResponse> {
+  const { data } = await apiClient.post<ProjectResponse>("/project/v1/justification-code/_validate", {
+    RequestInfo: createRequestInfo(accessToken, user),
+    Projects: [project],
+  });
+  return data;
+}
+
 /** `POST /project/v1/_update` */
 export async function updateProject(
   project: Project,

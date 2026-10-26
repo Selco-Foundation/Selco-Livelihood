@@ -14,7 +14,7 @@ import {
   type ProjectDetailsValue,
 } from "../../components/steps/ProjectDetailsStep";
 import { WizardActionFooter } from "../../components/WizardActionFooter";
-import { useSaveProject } from "../../hooks/use-create-project";
+import { useSaveProject, useValidateJustificationCode } from "../../hooks/use-create-project";
 import { pmKeys } from "../../hooks/query-keys";
 import { useProjectById } from "../../hooks/use-project-by-id";
 import type { CreateProjectRouteSearch } from "../../routes";
@@ -59,6 +59,7 @@ export function CreateProjectPage() {
   // so the wizard ends by returning to the project instead of scheduling it again.
   const isSubmittedProject = Boolean(existingProject) && !isDraftStatus(existingProject?.additionalDetails?.status);
   const saveProject = useSaveProject();
+  const validateJustificationCode = useValidateJustificationCode();
   const queryClient = useQueryClient();
   const accessToken = useAuthStore((state) => state.accessToken);
   const authUser = useAuthStore((state) => state.user);
@@ -146,6 +147,24 @@ export function CreateProjectPage() {
     setNavError(undefined);
 
     if (currentStep === 1) {
+      // The project is only created on leaving step 2, so a duplicate justification code is
+      // checked here instead of surfacing only after the geography has been filled in.
+      if (!isEditingExisting) {
+        try {
+          await validateJustificationCode.mutateAsync({
+            tenantId: tenantId(),
+            startDate: projectDetails.startDate,
+            endDate: projectDetails.endDate,
+            additionalDetails: { justificationCode: projectDetails.justificationCode },
+          });
+        } catch (error) {
+          setNavError(
+            extractApiErrorMessage(error) ??
+              translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again."),
+          );
+          return;
+        }
+      }
       goToStep(2);
       return;
     }
@@ -200,13 +219,16 @@ export function CreateProjectPage() {
   }
 
   const canGoNext =
-    currentStep === 1 ? isProjectDetailsValid(projectDetails) : isGeographyDetailsValid(geographyDetails);
+    currentStep === 1
+      ? isProjectDetailsValid(projectDetails, isEditingExisting)
+      : isGeographyDetailsValid(geographyDetails);
 
   // A save-in-flight (leaving step 2) or an active upload/validate/create
   // call (step 3) should block further navigation until it settles, so two
   // saves can never race and a page you've navigated away from can't finish
   // silently underneath you.
-  const isNavigationBusy = saveProject.isPending || scheduleMutation.isPending || endUserDataBusy;
+  const isNavigationBusy =
+    saveProject.isPending || validateJustificationCode.isPending || scheduleMutation.isPending || endUserDataBusy;
 
   if (completedProject) {
     return (
@@ -256,7 +278,14 @@ export function CreateProjectPage() {
       />
 
       {currentStep === 1 ? (
-        <ProjectDetailsStep value={projectDetails} onChange={setProjectDetails} locked={isEditingExisting} />
+        <ProjectDetailsStep
+          value={projectDetails}
+          onChange={(value) => {
+            setProjectDetails(value);
+            setNavError(undefined);
+          }}
+          locked={isEditingExisting}
+        />
       ) : null}
       {currentStep === 2 ? (
         <GeographyDetailsStep

@@ -12,6 +12,7 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -27,6 +28,10 @@ import java.util.stream.Collectors;
  * plan's geography lists every level, and a site under a block is also under its district and
  * state. Served to the UI by {@code /geography/_locks} and enforced on save by the field-plan
  * update here and by the project service's update, so the rule lives in one place.
+ *
+ * A plan's sectors lock the same way: a sector with a scoped site in it cannot be removed. A site's
+ * sector is its facility_type, matched trimmed and case-insensitively, as ingestion-service does
+ * when it offers sites for a plan's sectors.
  */
 @Service
 public class GeographyLockService {
@@ -56,6 +61,14 @@ public class GeographyLockService {
         return planLocks(plan);
     }
 
+    /** The plan's sectors that cannot be removed; none for a project target. */
+    public List<GeographyLock> searchSectorLocks(GeographyLockRequest request) {
+        if (StringUtils.isBlank(request.getFieldPlanId())) {
+            return List.of();
+        }
+        return repository.findPlan(request.getFieldPlanId()).map(this::planSectorLocks).orElse(List.of());
+    }
+
     public List<GeographyLock> projectLocks(String projectId) {
         Map<String, GeographyLock> locks = new LinkedHashMap<>();
         for (PlanGeography plan : repository.findProjectPlans(projectId)) {
@@ -76,6 +89,25 @@ public class GeographyLockService {
             }
         }
         return List.copyOf(locks.values());
+    }
+
+    public List<GeographyLock> planSectorLocks(PlanGeography plan) {
+        List<String> siteSectors = repository.findScopedSiteSectors(plan.id()).stream()
+                .map(GeographyLockService::sectorKey)
+                .toList();
+        Map<String, GeographyLock> locks = new LinkedHashMap<>();
+        for (String sector : plan.sectors() == null ? List.<String>of() : plan.sectors()) {
+            int siteCount = (int) siteSectors.stream().filter(sectorKey(sector)::equals).count();
+            if (siteCount > 0) {
+                lockFor(locks, sector).getUsedBy().add(usage(plan, siteCount));
+            }
+        }
+        return List.copyOf(locks.values());
+    }
+
+    /** How two sector names are compared: trimmed and case-insensitive. */
+    public static String sectorKey(String sector) {
+        return sector == null ? "" : sector.trim().toLowerCase(Locale.ROOT);
     }
 
     /** The locks a removal would break: those whose code is among {@code removedCodes}. */

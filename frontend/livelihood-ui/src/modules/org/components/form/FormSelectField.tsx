@@ -38,15 +38,22 @@ export function FormSelectField({
   const { t } = useTranslate();
   const resolvedPlaceholder = placeholder ?? translateOr(t, "ES_COMMON_SELECT_PLACEHOLDER", "Select");
 
+  const sortedOptions = useMemo(
+    () => [...options].sort((a, b) => a.name.localeCompare(b.name)),
+    [options],
+  );
+
   const selectedOption = useMemo(
-    () => options.find((option) => option.code === value) ?? null,
-    [options, value],
+    () => sortedOptions.find((option) => option.code === value) ?? null,
+    [sortedOptions, value],
   );
 
   const visibleOptions = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return normalized ? options.filter((option) => option.name.toLowerCase().includes(normalized)) : options;
-  }, [options, query]);
+    return normalized
+      ? sortedOptions.filter((option) => option.name.toLowerCase().includes(normalized))
+      : sortedOptions;
+  }, [sortedOptions, query]);
 
   return (
     <div className="min-w-0 space-y-1.5">

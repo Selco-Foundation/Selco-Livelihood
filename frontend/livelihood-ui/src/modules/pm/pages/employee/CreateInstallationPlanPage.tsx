@@ -118,6 +118,11 @@ export function CreateInstallationPlanPage() {
   const isPlanGeographyDirty =
     Boolean(existingPlan) &&
     geographyCodesKey(planDetails.geographyDetails) !== geographyCodesKey(existingPlan?.geographyDetails);
+  const isPlanSectorsDirty =
+    Boolean(existingPlan) &&
+    sectorCodesKey(planDetails.sectorCodes) !== sectorCodesKey(existingPlan?.additionalDetails?.sectorCodes);
+  const isPlanReviewerDirty = Boolean(assignedReviewer) && planDetails.reviewerCode !== assignedReviewer;
+  const isPlanDetailsDirty = isPlanGeographyDirty || isPlanSectorsDirty || isPlanReviewerDirty;
 
   const uniqueSolutionCodes = useMemo(
     () =>
@@ -189,8 +194,8 @@ export function CreateInstallationPlanPage() {
 
   /**
    * Whether a brand-new plan with this selection would have any end user site to scope. Asked
-   * before creating it because the plan's geography and sectors lock the moment it exists: a plan
-   * created over a selection with no free site cannot be fixed, only abandoned. Fails closed --
+   * before creating it so a plan isn't created over a selection with no free site, which would
+   * leave the PM with an empty draft to fix or abandon. Fails closed --
    * if the check itself can't run, the plan isn't created either.
    */
   async function hasAddableSites(): Promise<boolean> {
@@ -277,7 +282,7 @@ export function CreateInstallationPlanPage() {
   }
 
   function reportSaveError(error: unknown) {
-    // A removed place may have gained a scoped site since the locks were read.
+    // A removed place or sector may have gained a scoped site since the locks were read.
     void queryClient.invalidateQueries({ queryKey: pmKeys.planGeographyLocks(planId) });
     setSaveError(
       extractApiErrorMessage(error) ??
@@ -285,12 +290,12 @@ export function CreateInstallationPlanPage() {
     );
   }
 
-  /** A published plan's only edit: dropping places that hold none of its scoped sites. */
-  async function handleSavePublishedGeography() {
+  /** A published plan's only edit: dropping places and sectors that hold none of its scoped sites. */
+  async function handleSavePublishedPlanDetails() {
     setSaveError(undefined);
     try {
       await persistPlan();
-      toast.success(translateOr(t, "ES_PM_PLAN_GEOGRAPHY_SAVED", "Installation plan geography updated"));
+      toast.success(translateOr(t, "ES_PM_PLAN_DETAILS_SAVED", "Installation plan updated"));
     } catch (error) {
       reportSaveError(error);
     }
@@ -300,11 +305,10 @@ export function CreateInstallationPlanPage() {
     setConfirmError(undefined);
     setIsPublishing(true);
     try {
-      // No persistPlan() here, deliberately: by step 4 there's a plan id already, and
-      // PlanDetailsStep renders locked={Boolean(planId)} from the moment the plan is first
-      // created, so sectors/dates cannot have changed since, and a geography edit was already
-      // saved by step 1's Next. That made the update a same-data round trip on the one action that's
-      // irreversible
+      // No persistPlan() here, deliberately: by step 4 there's a plan id already, the dates are
+      // locked from the moment the plan is first created, and geography/sector/reviewer edits are
+      // saved by step 1's Next (step 1 warns that leaving any other way drops them). That made the
+      // update a same-data round trip on the one action that's irreversible
       // — pure risk, no effect, since assignments themselves aren't even part of that payload
       // (they're written below, via vendor-assignment/_create).
       const validation = await validateVendorAssignment(planId!, assignments, accessToken ?? undefined, authUser);
@@ -355,10 +359,12 @@ export function CreateInstallationPlanPage() {
           locked={Boolean(planId)}
           geographyEditable
           lockTarget={planId ? { fieldPlanId: planId } : undefined}
-          // Kept locked while the lookup is still in flight, so the field doesn't flicker
-          // editable; unlocked only once we know this plan genuinely has no reviewer, which
-          // means the assignment failed after creation and needs to be redone.
-          reviewerLocked={Boolean(planId) && (isReviewerLoading || Boolean(assignedReviewer))}
+          // A published plan's sectors can only shrink, like its geography.
+          allowedSectorCodes={isPublished ? existingPlan?.additionalDetails?.sectorCodes ?? [] : undefined}
+          // Locked after publish (the backend refuses it too). On a draft it's kept locked only while
+          // the lookup is in flight, so the field doesn't flicker editable before it's filled.
+          reviewerLocked={isPublished || (Boolean(planId) && isReviewerLoading)}
+          showUnsavedWarning={!isPublished && isPlanDetailsDirty}
         />
       );
     }
@@ -469,7 +475,7 @@ export function CreateInstallationPlanPage() {
           {translateOr(
             t,
             "ES_PM_PLAN_PUBLISHED_GEOGRAPHY_ONLY",
-            "This installation plan has been published. Only places with no end-user site in its scope can still be removed from its geography.",
+            "This installation plan has been published. Only places and sectors with no end-user site in its scope can still be removed.",
           )}
         </div>
       ) : null}
@@ -500,8 +506,8 @@ export function CreateInstallationPlanPage() {
             type="button"
             size="sm"
             className="px-5"
-            onClick={() => void handleSavePublishedGeography()}
-            disabled={!isPlanGeographyDirty || !isPlanDetailsComplete || savePlan.isPending}
+            onClick={() => void handleSavePublishedPlanDetails()}
+            disabled={!(isPlanGeographyDirty || isPlanSectorsDirty) || !isPlanDetailsComplete || savePlan.isPending}
           >
             {translateOr(t, "CORE_COMMON_SAVE", "Save")}
           </Button>
@@ -680,4 +686,9 @@ function useStepGuard(
     if (!isPlanHydrated || currentStep <= maxAccessibleStep) return;
     void navigate({ search: (prev) => ({ ...prev, step: maxAccessibleStep }), replace: true });
   }, [currentStep, isPlanHydrated, maxAccessibleStep, navigate]);
+}
+
+/** Sectors compared as a set, ignoring order. */
+function sectorCodesKey(sectorCodes: string[] | undefined): string {
+  return [...(sectorCodes ?? [])].sort((a, b) => a.localeCompare(b)).join(",");
 }
