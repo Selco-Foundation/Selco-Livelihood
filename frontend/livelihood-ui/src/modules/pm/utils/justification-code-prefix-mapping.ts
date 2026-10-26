@@ -16,9 +16,15 @@ export const FALLBACK_JUSTIFICATION_CODE_PREFIX = "JUS";
 /** Pure — extracts the active prefix string from the MDMS master's raw
  * response. The caller (a hook) does the actual `fetchMdmsMasters` call. */
 export function mapJustificationCodePrefix(masters: Record<string, unknown[]>): string {
-  const raw = (masters.JustificationCodePrefix as RawJustificationCodePrefixOption[] | undefined) ?? [];
+  const raw: unknown[] = Array.isArray(masters.JustificationCodePrefix) ? masters.JustificationCodePrefix : [];
 
-  const active = raw.find((option) => option.active !== false && Boolean(option.prefix));
+  // The master's rows arrive untyped, so check each one: only a non-empty string prefix on an
+  // active row can be rendered before the code field.
+  const active = raw.find((option): option is RawJustificationCodePrefixOption => {
+    if (!option || typeof option !== "object") return false;
+    const candidate = option as RawJustificationCodePrefixOption;
+    return candidate.active !== false && typeof candidate.prefix === "string" && Boolean(candidate.prefix);
+  });
 
   return active?.prefix ?? FALLBACK_JUSTIFICATION_CODE_PREFIX;
 }

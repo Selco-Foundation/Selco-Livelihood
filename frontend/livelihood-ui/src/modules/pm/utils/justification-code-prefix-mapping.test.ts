@@ -24,4 +24,18 @@ describe("mapJustificationCodePrefix", () => {
   it("falls back to the default when the master is missing entirely", () => {
     expect(mapJustificationCodePrefix({})).toBe(FALLBACK_JUSTIFICATION_CODE_PREFIX);
   });
+
+  it("falls back to the default when the master isn't an array", () => {
+    expect(mapJustificationCodePrefix({ JustificationCodePrefix: "JUS" as never })).toBe(
+      FALLBACK_JUSTIFICATION_CODE_PREFIX,
+    );
+  });
+
+  it("skips null, non-object and non-string-prefix rows, taking the first renderable one", () => {
+    expect(
+      mapJustificationCodePrefix({
+        JustificationCodePrefix: [null, "JUS", { prefix: 42 }, { prefix: "" }, { prefix: "ABC", active: true }],
+      }),
+    ).toBe("ABC");
+  });
 });
