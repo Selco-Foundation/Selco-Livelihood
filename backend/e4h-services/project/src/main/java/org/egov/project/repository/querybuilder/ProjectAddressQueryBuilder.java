@@ -54,7 +54,6 @@ public class ProjectAddressQueryBuilder {
     // Project Name Generation Queries
     private static final String CHECK_PROJECT_NAME_EXISTS_QUERY = "SELECT COUNT(*) FROM project WHERE name = ? AND tenantid = ?";
     private static final String CHECK_PROJECT_NAME_EXISTS_EXCLUDING_PROJECT_QUERY = "SELECT COUNT(*) FROM project WHERE name = ? AND tenantid = ? AND id != ?";
-    private static final String FIND_HIGHEST_EXISTING_PROJECT_NAME_QUERY = "SELECT name FROM project WHERE name LIKE ? AND tenantid = ? ORDER BY name ASC";
 
     private final ProjectConfiguration config;
 
@@ -528,23 +527,4 @@ public class ProjectAddressQueryBuilder {
         return CHECK_PROJECT_NAME_EXISTS_EXCLUDING_PROJECT_QUERY;
     }
 
-    /**
-     * Builds the query to find the highest existing project name with pattern matching
-     * @return The SQL query string
-     */
-    public String getFindHighestExistingProjectNameQuery() {
-        return FIND_HIGHEST_EXISTING_PROJECT_NAME_QUERY;
-    }
-
-    /**
-     * Escapes LIKE wildcards in the base name to prevent SQL injection and incorrect matching
-     * @param baseName The base name to escape
-     * @return The escaped base name
-     */
-    public String escapeLikeWildcards(String baseName) {
-        if (baseName == null) {
-            return null;
-        }
-        return baseName.replace("%", "\\%").replace("_", "\\_");
-    }
 }

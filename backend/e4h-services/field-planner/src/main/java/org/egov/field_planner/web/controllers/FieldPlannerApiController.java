@@ -102,12 +102,14 @@ public class FieldPlannerApiController {
         return new ResponseEntity<FieldPlanResponse>(fieldPlanResponse, HttpStatus.OK);
     }
 
-    /** Geography codes that cannot be removed from a project ({@code projectId}) or a plan ({@code fieldPlanId}). */
+    /** Geography codes that cannot be removed from a project ({@code projectId}) or a plan ({@code fieldPlanId}),
+     *  and, for a plan, the sectors that cannot be removed from it. */
     @RequestMapping(value = "/geography/_locks", method = RequestMethod.POST)
     public ResponseEntity<GeographyLockResponse> searchGeographyLocks(@Valid @RequestBody GeographyLockRequest request) {
         GeographyLockResponse response = GeographyLockResponse.builder()
                 .responseInfo(ResponseInfoFactory.createResponseInfo(request.getRequestInfo(), true))
                 .geographyLocks(geographyLockService.search(request))
+                .sectorLocks(geographyLockService.searchSectorLocks(request))
                 .build();
         return ResponseEntity.ok(response);
     }

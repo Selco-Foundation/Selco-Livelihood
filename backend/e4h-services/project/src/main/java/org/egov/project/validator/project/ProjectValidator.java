@@ -71,7 +71,7 @@ public class ProjectValidator {
         validateRequestInfo(requestInfo);
         //Verify if project request and mandatory fields are present
         log.debug("Validating project request and mandatory fields");
-        validateProjectRequest(request.getProjects());
+        validateProjectRequest(request.getProjects(), true);
         //Verify if project request have multiple tenant Ids
         log.debug("Validating multiple tenant IDs");
         validateMultipleTenantIds(request);
@@ -205,7 +205,8 @@ public class ProjectValidator {
         //Verify if RequestInfo and UserInfo is present
         validateRequestInfo(requestInfo);
         //Verify Project request and if mandatory fields are present
-        validateProjectRequest(request.getProjects());
+        // Justification code format is checked in validateUpdateAgainstDB, only when it changes.
+        validateProjectRequest(request.getProjects(), false);
         //Verify if project request have multiple tenant Ids
         validateMultipleTenantIds(request);
 
@@ -264,7 +265,7 @@ public class ProjectValidator {
     }
 
     /* Validates Project request body for create and update apis */
-    private void validateProjectRequest(List<Project> projects) {
+    private void validateProjectRequest(List<Project> projects, boolean validateJustificationCode) {
         Map<String, String> errorMap = new HashMap<>();
 
         checkProjectIfEmpty(projects);
@@ -291,7 +292,9 @@ public class ProjectValidator {
                 log.error("Boundary Type is mandatory if boundary is present  in Project request body");
                 errorMap.put("BOUNDARY", "Boundary Type is mandatory if boundary is present in Project request body");
             }
-            validateJustificationCodeIfPresent(project, errorMap);
+            if (validateJustificationCode) {
+                validateJustificationCodeIfPresent(project, errorMap);
+            }
         }
 
         if (!errorMap.isEmpty())
@@ -547,7 +550,19 @@ public class ProjectValidator {
             validateUpdateDocumentAgainstDB(project, projectFromDB);
 
             validateUpdateAddressAgainstDB(project, projectFromDB);
+
+            validateChangedJustificationCode(project, projectFromDB);
         }
+    }
+
+    /* Codes stored before the 5-digit format stay valid; only a changed code must match it */
+    private void validateChangedJustificationCode(Project project, Project projectFromDB) {
+        String justificationCode = projectNameGenerationService.extractJustificationCode(project.getAdditionalDetails());
+        if (justificationCode == null || justificationCode.equals(
+                projectNameGenerationService.extractJustificationCode(projectFromDB.getAdditionalDetails()))) {
+            return;
+        }
+        projectNameGenerationService.validateJustificationCodeFormat(justificationCode);
     }
 
     /**

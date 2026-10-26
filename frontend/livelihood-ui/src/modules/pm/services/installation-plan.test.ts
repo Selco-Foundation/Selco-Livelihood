@@ -3,6 +3,7 @@ import { apiClient } from "@/shared/api/client";
 import {
   assignInstallationReviewer,
   createInstallationPlan,
+  fetchGeographyLocks,
   publishInstallationPlan,
   searchAssignedReviewer,
   searchInstallationPlans,
@@ -118,7 +119,7 @@ describe("searchAssignedReviewer", () => {
     vi.mocked(apiClient.post).mockReset();
   });
 
-  it("returns the assignedTo of the first non-deleted assignment", async () => {
+  it("returns the first non-deleted assignment", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({
       data: {
         ActivityAssignment: [
@@ -128,7 +129,10 @@ describe("searchAssignedReviewer", () => {
       },
     });
 
-    await expect(searchAssignedReviewer("plan-1", "token-1")).resolves.toBe("reviewer-1");
+    await expect(searchAssignedReviewer("plan-1", "token-1")).resolves.toEqual({
+      assignedTo: "reviewer-1",
+      isDeleted: false,
+    });
   });
 
   it("returns undefined when no active assignment exists", async () => {
@@ -141,6 +145,19 @@ describe("searchAssignedReviewer", () => {
 describe("updateInstallationPlan", () => {
   beforeEach(() => {
     vi.mocked(apiClient.post).mockReset();
+  });
+
+  it("sends the chosen sectors with the update", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: { FieldPlans: [{ id: "plan-1", tenantId: "tenant-1", projectId: "project-1" }] },
+    });
+
+    await updateInstallationPlan(plan({ id: "plan-1", additionalDetails: { sectorCodes: ["Agriculture"] } }), "token-1");
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/field-planner/v1/field-plans/_update",
+      expect.objectContaining({ FieldPlans: [expect.objectContaining({ sectors: ["Agriculture"] })] }),
+    );
   });
 
   it("updates the plan and repairs a missing reviewer assignment", async () => {
@@ -156,6 +173,27 @@ describe("updateInstallationPlan", () => {
 
     expect(apiClient.post).toHaveBeenCalledTimes(3);
     expect(result.plan.id).toBe("plan-1");
+    expect(result.reviewerError).toBeUndefined();
+  });
+
+  it("replaces the assigned reviewer in place when a different one is chosen", async () => {
+    const stored = { id: "assignment-1", tenantId: "tenant-1", fieldPlanId: "plan-1", assignedTo: "reviewer-1", isDeleted: false };
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ data: { FieldPlans: [{ id: "plan-1", tenantId: "tenant-1", projectId: "project-1" }] } })
+      .mockResolvedValueOnce({ data: { ActivityAssignment: [stored] } })
+      .mockResolvedValueOnce({ data: {} });
+
+    const result = await updateInstallationPlan(
+      plan({ id: "plan-1", additionalDetails: { reviewerCode: "reviewer-2" } }),
+      "token-1",
+    );
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      3,
+      "/activity/v1/activities/assignment/_update",
+      expect.objectContaining({ ActivityAssignment: [{ ...stored, assignedTo: "reviewer-2" }] }),
+      { params: { tenantId: "tenant-1" } },
+    );
     expect(result.reviewerError).toBeUndefined();
   });
 
@@ -239,5 +277,25 @@ describe("publishInstallationPlan", () => {
     await publishInstallationPlan("plan-1", [], "token-1");
 
     expect(apiClient.post).toHaveBeenCalledWith(expect.any(String), expect.anything(), { timeout: 20_000 });
+  });
+});
+
+describe("fetchGeographyLocks", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.post).mockReset();
+  });
+
+  it("posts the target and returns the response verbatim", async () => {
+    const response = { GeographyLocks: [], SectorLocks: [{ code: "Agriculture", usedBy: [] }] };
+    vi.mocked(apiClient.post).mockResolvedValue({ data: response });
+
+    const result = await fetchGeographyLocks({ fieldPlanId: "plan-1" }, "token-1", { tenantId: "tenant-1" } as never);
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/field-planner/v1/field-plans/geography/_locks",
+      expect.objectContaining({ fieldPlanId: "plan-1" }),
+      { params: { tenantId: "tenant-1" } },
+    );
+    expect(result).toBe(response);
   });
 });

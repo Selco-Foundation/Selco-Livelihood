@@ -35,7 +35,8 @@ from app.utils.field_plan_geography import is_under_any_boundary, plan_boundary_
 from app.utils.field_plan_locks import build_project_lock_map, solution_codes_by_name, \
     solution_names_by_code, scoped_site_plans, scoped_site_message, PLAN_STATUS_PUBLISHED
 from app.utils.icc_template_parser import annotate_worksheet, first_data_sheet, parse_worksheet, \
-    to_sections, validate_line_items
+    read_only_errors, to_sections, validate_line_items
+from app.ingest.icc_template_service import fetch_blank_template
 from app.ingest.bom_form_catalog import BomFormError, load_solution_forms, structural_errors
 from app.ingest.bom_field_mapper import build_field_map
 from fastapi import APIRouter, File, Form, UploadFile, HTTPException, BackgroundTasks, Depends
@@ -3457,6 +3458,34 @@ def _check_template_upload(request_info, fieldplan_id: str, solution_code: str, 
         raise HTTPException(status_code=502 if e.retryable else 400, detail=e.message)
 
 
+def _read_only_row_errors(request_info, solution_code: str, parsed):
+    """Row errors for line items whose Sl. No. or Product no longer match the blank template.
+
+    Shared by validate and create, so both fail for the same reasons. Rejects an upload whose
+    line-item count differs from the blank's, so the two lists line up position for position.
+    """
+    workbook_bytes = fetch_blank_template(
+        FieldPlanServiceClient(fieldPlan_service_url), request_info, solution_code)
+    blank = parse_worksheet(first_data_sheet(load_workbook(io.BytesIO(workbook_bytes))))
+    # Items are compared by position, so a different count would leave the extra uploaded items
+    # unchecked -- free to carry an edited Product into the stored template.
+    if len(blank.line_items) != len(parsed.line_items):
+        raise HTTPException(
+            status_code=400,
+            detail=f"This IC Report has {len(parsed.line_items)} line item(s), but the blank "
+                   f"template for this Solution has {len(blank.line_items)}. Download the "
+                   f"template again, or ask an administrator to regenerate it.")
+    return read_only_errors(parsed, blank)
+
+
+def _merge_row_errors(*error_maps):
+    merged = {}
+    for errors in error_maps:
+        for row, messages in errors.items():
+            merged.setdefault(row, []).extend(messages)
+    return merged
+
+
 @router.post('/installationTemplateValidateData',
              summary='Validate a filled IC Report template before creating it',
              response_description='Returns the workbook with status/error columns per line item')
@@ -3490,6 +3519,8 @@ async def validate_installation_template(
         sheet_errors = sheet_errors + structural_errors(parsed, forms)
         if sheet_errors:
             raise HTTPException(status_code=400, detail=" ".join(sheet_errors))
+        row_errors = _merge_row_errors(
+            row_errors, _read_only_row_errors(request_info_obj, solution_code, parsed))
 
         error_count = annotate_worksheet(sheet, parsed, row_errors)
 
@@ -3548,6 +3579,8 @@ async def create_installation_template(
         sheet_errors = sheet_errors + structural_errors(parsed, forms)
         if sheet_errors:
             raise HTTPException(status_code=400, detail=" ".join(sheet_errors))
+        row_errors = _merge_row_errors(
+            row_errors, _read_only_row_errors(request_info_obj, solution_code, parsed))
         if row_errors:
             rows = ", ".join(str(r) for r in sorted(row_errors)[:10])
             raise HTTPException(

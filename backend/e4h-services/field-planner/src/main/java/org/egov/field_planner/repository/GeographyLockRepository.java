@@ -16,10 +16,10 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Read-only lookups behind the geography locks: the geography of a project's plans, and the
- * boundary of every site in one plan's scope. Deleted plans and deleted scope rows never lock
- * anything -- removing a site from scope soft-deletes its row, which is exactly what frees its
- * geography again.
+ * Read-only lookups behind the geography and sector locks: the geography and sectors of a
+ * project's plans, and the boundary and sector of every site in one plan's scope. Deleted plans and
+ * deleted scope rows never lock anything -- removing a site from scope soft-deletes its row, which
+ * is exactly what frees its geography and sector again.
  *
  * Joins facility directly, the same way FieldPlannerQueryBuilder already joins project: all
  * Livelihood services share one database. Plans and projects are keyed by UUID, so no tenant
@@ -29,7 +29,7 @@ import java.util.Optional;
 public class GeographyLockRepository {
 
     private static final String PLAN_GEOGRAPHY =
-            "SELECT fp.id, fp.name, fp.geography_scope FROM field_plans fp "
+            "SELECT fp.id, fp.name, fp.geography_scope, fp.sectors FROM field_plans fp "
                     + "WHERE COALESCE(fp.isdeleted, false) = false ";
 
     private static final String SCOPED_SITES =
@@ -38,7 +38,14 @@ public class GeographyLockRepository {
                     + "WHERE fpf.field_plan_id = ? AND COALESCE(fpf.isdeleted, false) = false "
                     + "AND f.boundary_code IS NOT NULL";
 
-    public record PlanGeography(String id, String name, Map<String, Object> geography) {}
+    /** A site's sector is its facility_type, set at facility ingestion. */
+    private static final String SCOPED_SITE_SECTORS =
+            "SELECT f.facility_type FROM field_plan_facilities fpf "
+                    + "JOIN facility f ON f.id = fpf.facility_id "
+                    + "WHERE fpf.field_plan_id = ? AND COALESCE(fpf.isdeleted, false) = false "
+                    + "AND f.facility_type IS NOT NULL";
+
+    public record PlanGeography(String id, String name, Map<String, Object> geography, List<String> sectors) {}
 
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper mapper;
@@ -64,6 +71,11 @@ public class GeographyLockRepository {
         return jdbcTemplate.queryForList(SCOPED_SITES, String.class, fieldPlanId);
     }
 
+    /** The sector of every live site in the plan's scope. */
+    public List<String> findScopedSiteSectors(String fieldPlanId) {
+        return jdbcTemplate.queryForList(SCOPED_SITE_SECTORS, String.class, fieldPlanId);
+    }
+
     private PlanGeography toPlanGeography(ResultSet rs) throws SQLException {
         String json = rs.getString("geography_scope");
         Map<String, Object> geography = Collections.emptyMap();
@@ -75,6 +87,16 @@ public class GeographyLockRepository {
                         "Could not read the geography of field plan " + rs.getString("id"));
             }
         }
-        return new PlanGeography(rs.getString("id"), rs.getString("name"), geography);
+        List<String> sectors = Collections.emptyList();
+        String sectorsJson = rs.getString("sectors");
+        if (StringUtils.isNotBlank(sectorsJson)) {
+            try {
+                sectors = mapper.readValue(sectorsJson, new TypeReference<List<String>>() {});
+            } catch (Exception e) {
+                throw new CustomException("FIELDPLAN_SECTORS_PARSE_ERROR",
+                        "Could not read the sectors of field plan " + rs.getString("id"));
+            }
+        }
+        return new PlanGeography(rs.getString("id"), rs.getString("name"), geography, sectors);
     }
 }

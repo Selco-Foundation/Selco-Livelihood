@@ -180,6 +180,12 @@ public class ProjectService {
                 log.info("Skipping name refresh for draft project {} (status={})", projectId, projectStatus);
                 return;
             }
+            // The name no longer depends on facilities, so regenerating would only strip a
+            // legacy -NNN suffix from an already-scheduled project's name.
+            if (projectNameGenerationService.isRevisedProjectIdFormat(projectFromDB.getName())) {
+                log.debug("Skipping name refresh for project {} with an already-generated name", projectId);
+                return;
+            }
             int dbFacilityCount = projectRepository.countProjectFacilitiesByProjectId(projectId, tenantId);
             int effectiveFacilityCount = facilityCountOverride != null
                     ? Math.max(0, facilityCountOverride)
@@ -259,20 +265,49 @@ public class ProjectService {
                 .build();
     }
 
+    // The name (e.g. JUS-<code>-<FY>) is the uniqueness key, so a clash means a duplicate justification code.
     private void applyGeneratedProjectName(Project project, RequestInfo requestInfo, boolean draft) {
         ProjectNameResult nameResult = projectNameGenerationService.generateProjectName(project, requestInfo, draft);
         if (nameResult == null || StringUtils.isBlank(nameResult.getName())) {
             throw new CustomException("PROJECT_NAME_NULL_OR_EMPTY",
                     "Generated project name is null or empty for project: " + project.getId());
         }
-        project.setName(nameResult.getName());
+        String generatedName = nameResult.getName();
+        if (projectNameGenerationService.isNameInFlight(generatedName)
+                || projectRepository.isProjectNameExistsExcludingProject(generatedName, project.getTenantId(), project.getId())) {
+            log.error("Duplicate justification code for project: {} (generated name {})", project.getId(), generatedName);
+            throw duplicateJustificationCode();
+        }
+        projectNameGenerationService.markNameInFlight(generatedName);
+        project.setName(generatedName);
         Object enrichedAdditionalDetails = mergeIntoAdditionalDetails(
                 project.getAdditionalDetails(),
                 "isDuplicateName",
                 false
         );
         project.setAdditionalDetails(enrichedAdditionalDetails);
-        log.info("Set project name to {} for project: {} (draft={})", nameResult.getName(), project.getId(), draft);
+        log.info("Set project name to {} for project: {} (draft={})", generatedName, project.getId(), draft);
+    }
+
+    /**
+     * Runs the checks createProject would apply to a new project's justification code and dates,
+     * without creating anything; returns the project with the name it would be given.
+     */
+    public Project validateJustificationCode(ProjectRequest projectRequest) {
+        projectValidator.validateCreateProjectRequest(projectRequest);
+        Project project = projectRequest.getProjects().get(0);
+        String name = projectNameGenerationService
+                .generateProjectName(project, projectRequest.getRequestInfo(), true).getName();
+        if (projectRepository.isProjectNameExists(name, project.getTenantId())) {
+            throw duplicateJustificationCode();
+        }
+        project.setName(name);
+        return project;
+    }
+
+    private static CustomException duplicateJustificationCode() {
+        return new CustomException("DUPLICATE_JUSTIFICATION_CODE",
+                "A project with this justification code already exists for the selected financial year.");
     }
 
     /**
