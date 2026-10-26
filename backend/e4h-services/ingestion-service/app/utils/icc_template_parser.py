@@ -284,11 +284,11 @@ def read_only_errors(uploaded: ParsedTemplate, blank: ParsedTemplate) -> Dict[in
     The Project Manager fills only Make, Capacity and Quantity. The served sheet locks the rest,
     but protection is two clicks to remove, and a changed Product would flow straight into the
     stored template and from there into every asset's bill of material. Items are matched by
-    position, the same way field names are assigned; a different item count is a structural
-    problem the caller has already rejected.
+    position, the same way field names are assigned, so the caller must have rejected a
+    different item count first (`strict=True` raises ValueError otherwise).
     """
     row_errors: Dict[int, List[str]] = {}
-    for item, original in zip(uploaded.line_items, blank.line_items):
+    for item, original in zip(uploaded.line_items, blank.line_items, strict=True):
         if item.sl_no != original.sl_no:
             row_errors.setdefault(item.row, []).append(
                 f"Sl. No. can't be changed - it must be {original.sl_no}. Download the template again.")

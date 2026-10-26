@@ -3461,12 +3461,20 @@ def _check_template_upload(request_info, fieldplan_id: str, solution_code: str, 
 def _read_only_row_errors(request_info, solution_code: str, parsed):
     """Row errors for line items whose Sl. No. or Product no longer match the blank template.
 
-    Shared by validate and create, so both fail for the same reasons. Only called once the
-    structure has passed, so the two templates' line items line up position for position.
+    Shared by validate and create, so both fail for the same reasons. Rejects an upload whose
+    line-item count differs from the blank's, so the two lists line up position for position.
     """
     workbook_bytes = fetch_blank_template(
         FieldPlanServiceClient(fieldPlan_service_url), request_info, solution_code)
     blank = parse_worksheet(first_data_sheet(load_workbook(io.BytesIO(workbook_bytes))))
+    # Items are compared by position, so a different count would leave the extra uploaded items
+    # unchecked -- free to carry an edited Product into the stored template.
+    if len(blank.line_items) != len(parsed.line_items):
+        raise HTTPException(
+            status_code=400,
+            detail=f"This IC Report has {len(parsed.line_items)} line item(s), but the blank "
+                   f"template for this Solution has {len(blank.line_items)}. Download the "
+                   f"template again, or ask an administrator to regenerate it.")
     return read_only_errors(parsed, blank)
 
 
