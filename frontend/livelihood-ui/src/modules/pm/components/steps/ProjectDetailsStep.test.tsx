@@ -16,6 +16,19 @@ beforeEach(() => {
   mockUseJustificationCodePrefix.mockReturnValue({ data: "JUS" } as ReturnType<typeof useJustificationCodePrefix>);
 });
 
+describe("isProjectDetailsValid for an existing project", () => {
+  it("accepts a legacy code that doesn't match the new format, but still needs the dates", () => {
+    expect(isProjectDetailsValid({ justificationCode: "SLKA", startDate: 1, endDate: 2 }, true)).toBe(true);
+    expect(isProjectDetailsValid({ justificationCode: "SLKA", startDate: 1, endDate: 2 })).toBe(false);
+    expect(isProjectDetailsValid({ justificationCode: "SLKA", endDate: 2 }, true)).toBe(false);
+    expect(isProjectDetailsValid({ justificationCode: "SLKA", startDate: 3, endDate: 2 }, true)).toBe(false);
+  });
+
+  it("still requires a code", () => {
+    expect(isProjectDetailsValid({ justificationCode: "", startDate: 1, endDate: 2 }, true)).toBe(false);
+  });
+});
+
 describe("isProjectDetailsValid", () => {
   it("requires exactly 5 digits with an optional 1-2 digit suffix for the justification code", () => {
     expect(isProjectDetailsValid({ justificationCode: "98234", startDate: 1, endDate: 2 })).toBe(true);
@@ -64,6 +77,12 @@ describe("ProjectDetailsStep", () => {
     );
 
     expect(screen.getByText(/Enter a valid code/i)).toBeInTheDocument();
+  });
+
+  it("shows no inline error for a locked legacy code", () => {
+    render(<ProjectDetailsStep value={{ justificationCode: "SLKAB" }} onChange={vi.fn()} locked />);
+
+    expect(screen.queryByText(/Enter a valid code/i)).not.toBeInTheDocument();
   });
 
   it("shows no inline error while fewer than 5 digits have been typed", () => {

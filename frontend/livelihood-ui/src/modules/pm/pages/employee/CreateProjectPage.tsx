@@ -219,7 +219,9 @@ export function CreateProjectPage() {
   }
 
   const canGoNext =
-    currentStep === 1 ? isProjectDetailsValid(projectDetails) : isGeographyDetailsValid(geographyDetails);
+    currentStep === 1
+      ? isProjectDetailsValid(projectDetails, isEditingExisting)
+      : isGeographyDetailsValid(geographyDetails);
 
   // A save-in-flight (leaving step 2) or an active upload/validate/create
   // call (step 3) should block further navigation until it settles, so two

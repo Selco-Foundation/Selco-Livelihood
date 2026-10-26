@@ -28,9 +28,16 @@ interface ProjectDetailsStepProps {
  * non-editable UI prefix (see `useJustificationCodePrefix`). */
 const JUSTIFICATION_CODE_PATTERN = /^\d{5}(-\d{1,2})?$/;
 
-export function isProjectDetailsValid(value: ProjectDetailsValue): boolean {
+/** `allowLegacyCode` is for an existing project, whose code is locked: one saved before the
+ *  5-digit format (e.g. "SLKA") stays valid, so only a non-empty code is required -- the dates
+ *  are still checked. */
+export function isProjectDetailsValid(value: ProjectDetailsValue, allowLegacyCode = false): boolean {
+  const codeIsValid = allowLegacyCode
+    ? Boolean(value.justificationCode)
+    : JUSTIFICATION_CODE_PATTERN.test(value.justificationCode);
+
   return (
-    JUSTIFICATION_CODE_PATTERN.test(value.justificationCode) &&
+    codeIsValid &&
     Boolean(value.startDate) &&
     Boolean(value.endDate) &&
     (!value.startDate || !value.endDate || value.startDate <= value.endDate)
@@ -43,10 +50,11 @@ export function ProjectDetailsStep({ value, onChange, errors, locked = false }: 
 
   // Only flags a format error once enough has been typed to judge it (the
   // mandatory 5 digits) — otherwise every keystroke while typing the first
-  // few digits would flash red. An externally-supplied error (e.g. a
-  // duplicate-code rejection from the backend) always takes priority.
+  // few digits would flash red. A locked code is never flagged -- it can't be edited, and a legacy
+  // one is valid as it stands. An externally-supplied error (e.g. a duplicate-code rejection
+  // from the backend) always takes priority.
   const formatError =
-    value.justificationCode.length >= 5 && !JUSTIFICATION_CODE_PATTERN.test(value.justificationCode)
+    !locked && value.justificationCode.length >= 5 && !JUSTIFICATION_CODE_PATTERN.test(value.justificationCode)
       ? translateOr(
           t,
           "ES_PM_JUSTIFICATION_CODE_INVALID",
