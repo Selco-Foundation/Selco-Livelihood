@@ -197,6 +197,12 @@ public class ActivityService {
 
         activityValidator.validateCreateActivityAssignmentRequest(request);
         List<ActivityAssignment> activityAssignments = request.getActivityAssignments();
+        // Outside the try below, which logs and swallows: a rejected reviewer must reach the caller.
+        for (ActivityAssignment activityAssignment : activityAssignments) {
+            if (isInstallationReviewerRole(activityAssignment.getRole())) {
+                assertInstallationPlanIsDraft(activityAssignment.getFieldPlanId());
+            }
+        }
         try {
             for (ActivityAssignment activityAssignment : activityAssignments) {
                 log.info("processing {} valid entities", activityAssignment);
@@ -216,6 +222,17 @@ public class ActivityService {
 
         activityValidator.validateDeleteActivityAssignmentRequest(request);
         List<ActivityAssignment> activityAssignments = request.getActivityAssignments();
+        // The request names rows by id and may not carry their role, so read the stored rows.
+        // Outside the try below, which logs and swallows: a rejected removal must reach the caller.
+        List<ActivityAssignment> storedAssignments = searchAssignedActivity(
+                getSearchActivityAssignmentRequest(activityAssignments, request.getRequestInfo()),
+                activityConfiguration.getMaxLimit(), activityConfiguration.getDefaultOffset(),
+                activityAssignments.get(0).getTenantId(), false, null);
+        for (ActivityAssignment stored : storedAssignments) {
+            if (isInstallationReviewerRole(stored.getRole())) {
+                assertInstallationPlanIsDraft(stored.getFieldPlanId());
+            }
+        }
         try {
             for (ActivityAssignment activityAssignment : activityAssignments) {
                 log.info("processing {} valid entities", activityAssignment);
@@ -1178,25 +1195,41 @@ public class ActivityService {
     }
 
     /**
-     * An installation plan's reviewer can be replaced only while the plan is a draft. Publish copies
-     * the reviewer onto every asset's link rows, so a later swap would leave those stale.
-     * Updates that keep the same reviewer (e.g. a date cascade) are not affected.
+     * An installation plan's reviewer can be changed -- replaced, re-roled, added or removed -- only
+     * while the plan is a draft. Publish copies the reviewer onto every asset's link rows, so a
+     * later change would leave those stale. An update that keeps both the assignee and the role
+     * (e.g. a date cascade) is not affected. Create and unassign apply the same rule through
+     * {@link #assertInstallationPlanIsDraft}.
      */
     private void assertReviewerChangeAllowed(List<ActivityAssignment> requested, List<ActivityAssignment> fromDB) {
         for (ActivityAssignment assignment : requested) {
             ActivityAssignment stored = findActivityAssignmentById(String.valueOf(assignment.getId()), fromDB);
-            Object roleCode = stored == null || stored.getRole() == null ? null : stored.getRole().get("code");
-            if (stored == null || !INSTALLATION_REPORT_APPROVER_QC_TEAM.equals(roleCode)
-                    || Objects.equals(stored.getAssignedTo(), assignment.getAssignedTo())) {
+            if (stored == null || !isInstallationReviewerRole(stored.getRole())) {
                 continue;
             }
-            List<String> statuses = jdbcTemplate.queryForList(
-                    "SELECT status FROM field_plans WHERE id = ?", String.class, stored.getFieldPlanId());
-            String planStatus = statuses.isEmpty() ? null : statuses.get(0);
-            if (!activityConfiguration.getInstallationPlanDraftStatus().equals(planStatus)) {
-                throw new CustomException("REVIEWER_LOCKED_AFTER_PUBLISH",
-                        "The reviewer of a published installation plan cannot be changed.");
+            boolean unchanged = Objects.equals(stored.getAssignedTo(), assignment.getAssignedTo())
+                    && Objects.equals(roleCode(stored.getRole()), roleCode(assignment.getRole()));
+            if (!unchanged) {
+                assertInstallationPlanIsDraft(stored.getFieldPlanId());
             }
+        }
+    }
+
+    private static Object roleCode(Map<String, Object> role) {
+        return role == null ? null : role.get("code");
+    }
+
+    private static boolean isInstallationReviewerRole(Map<String, Object> role) {
+        return INSTALLATION_REPORT_APPROVER_QC_TEAM.equals(roleCode(role));
+    }
+
+    private void assertInstallationPlanIsDraft(String fieldPlanId) {
+        List<String> statuses = jdbcTemplate.queryForList(
+                "SELECT status FROM field_plans WHERE id = ?", String.class, fieldPlanId);
+        String planStatus = statuses.isEmpty() ? null : statuses.get(0);
+        if (!activityConfiguration.getInstallationPlanDraftStatus().equals(planStatus)) {
+            throw new CustomException("REVIEWER_LOCKED_AFTER_PUBLISH",
+                    "The reviewer of a published installation plan cannot be changed.");
         }
     }
 
