@@ -13,6 +13,7 @@ public class ProjectConstants {
     //location
     public static final String MASTER_NATUREOFWORK = "NatureOfWork";
     public static final String MASTER_ATTENDANCE_SESSION = "AttendanceSessions";
+    public static final String MASTER_JUSTIFICATION_CODE_PREFIX = "JustificationCodePrefix";
     public static final String CODE = "code";
     public static final String PROJECT_TYPE_FIELDPLAN = "FieldPlan";
     public static final String PROJECT_TYPE_FACILITY = "Facility";

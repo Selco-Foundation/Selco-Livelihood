@@ -3,9 +3,12 @@ import { createRequestInfo } from "@/shared/api/request-info";
 import type { AuthUser } from "@/shared/stores/auth-store";
 import type { GeographyDetails } from "../types/project";
 import type {
+  GeographyLocksResponse,
+  GeographyLockTarget,
   InstallationPlan,
   InstallationPlanSearchCriteria,
   InstallationPlanSearchResult,
+  ReviewerAssignment,
 } from "../types/installation-plan";
 import { resolveStates } from "../utils/geography";
 
@@ -189,15 +192,37 @@ export async function searchAssignedReviewer(
   fieldPlanId: string,
   accessToken?: string,
   user?: AuthUser | null,
-): Promise<string | undefined> {
-  const data = await postSearch<{ ActivityAssignment?: Array<{ assignedTo?: string; isDeleted?: boolean }> }>(
+): Promise<ReviewerAssignment | undefined> {
+  const data = await postSearch<{ ActivityAssignment?: ReviewerAssignment[] }>(
     "/activity/v1/activities/assignment/_search",
     "ActivityAssignment",
     { fieldPlanIds: [fieldPlanId], roles: [INSTALLATION_REVIEWER_ROLE], tenantId: user?.tenantId },
     { accessToken, user },
   );
 
-  return data.ActivityAssignment?.find((assignment) => !assignment.isDeleted && assignment.assignedTo)?.assignedTo;
+  return data.ActivityAssignment?.find((assignment) => !assignment.isDeleted && assignment.assignedTo);
+}
+
+/**
+ * `POST /activity/v1/activities/assignment/_update` — hands a plan's existing reviewer assignment
+ * to another reviewer. Sends the stored row back whole with only `assignedTo` changed: the
+ * update persister writes every column, and the backend rejects a changed id/tenant/activity/plan.
+ * The backend also refuses it once the plan is published (`REVIEWER_LOCKED_AFTER_PUBLISH`).
+ */
+export async function updateReviewerAssignment(
+  assignment: ReviewerAssignment,
+  reviewerUuid: string,
+  accessToken?: string,
+  user?: AuthUser | null,
+): Promise<void> {
+  await apiClient.post(
+    "/activity/v1/activities/assignment/_update",
+    {
+      RequestInfo: createRequestInfo(accessToken, user),
+      ActivityAssignment: [{ ...assignment, assignedTo: reviewerUuid }],
+    },
+    { params: { tenantId: assignment.tenantId ?? user?.tenantId } },
+  );
 }
 
 /** `POST /field-planner/v1/field-plans/_update` */
@@ -228,10 +253,10 @@ export async function updateInstallationPlan(
     },
   );
 
-  // Repairs a plan whose reviewer assignment failed at creation. Without this there is no path
-  // back: `_update` does not touch activity_assignments, so such a plan would stay reviewer-less
-  // forever. Only ever *adds* one — an assignment that already exists is left alone, so this is
-  // safe to run on every update.
+  // The reviewer lives in activity_assignments, which `_update` does not touch. With none assigned
+  // (the assignment failed at creation) one is added; a different one chosen on a draft plan
+  // replaces the existing assignment, so a plan only ever has one reviewer. The same reviewer is
+  // left alone, so this is safe to run on every update.
   let reviewerError: unknown;
   const reviewerCode = plan.additionalDetails?.reviewerCode;
   if (reviewerCode && plan.id) {
@@ -241,6 +266,8 @@ export async function updateInstallationPlan(
         await assignInstallationReviewer(
           plan.id, reviewerCode, plan.startDate, plan.endDate, accessToken, user,
         );
+      } else if (assigned.assignedTo !== reviewerCode) {
+        await updateReviewerAssignment(assigned, reviewerCode, accessToken, user);
       }
     } catch (error) {
       reviewerError = error;
@@ -333,4 +360,24 @@ export async function publishInstallationPlan(
     projectId: "",
     additionalDetails: { status: data.planStatus },
   };
+}
+
+/**
+ * `POST /field-planner/v1/field-plans/geography/_locks` -- the geography codes that cannot be
+ * removed: for a project, every code its installation plans use; for a plan, every code with an
+ * end-user site in its scope. field-planner owns the rule and enforces it again on save.
+ */
+export async function fetchGeographyLocks(
+  target: GeographyLockTarget,
+  accessToken?: string,
+  user?: AuthUser | null,
+): Promise<GeographyLocksResponse> {
+  // The gateway refuses a request carrying no tenantId at all ("Failed to parse request at API
+  // gateway", 401) -- this body has none of its own, so it goes on the query string.
+  const { data } = await apiClient.post<GeographyLocksResponse>(
+    "/field-planner/v1/field-plans/geography/_locks",
+    { RequestInfo: createRequestInfo(accessToken, user), ...target },
+    { params: { tenantId: user?.tenantId } },
+  );
+  return data;
 }

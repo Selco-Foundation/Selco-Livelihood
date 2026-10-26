@@ -67,7 +67,7 @@ describe("useActivityStatusOptions", () => {
     );
     expect(result.current.options).toEqual([
       { code: "SCHEDULED", name: "Scheduled" },
-      { code: "SUBMITTED_BY_FIELD_STAFF", name: "Pending Review" },
+      { code: "SUBMITTED_BY_FIELD_STAFF", name: "Installation Report Submitted - Review Pending" },
       { code: "APPROVED_BY_QC_SPOC", name: "Approved" },
     ]);
   });

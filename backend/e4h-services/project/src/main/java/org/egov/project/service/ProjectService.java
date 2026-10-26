@@ -69,8 +69,15 @@ public class ProjectService {
 
     private final ProjectNameGenerationService projectNameGenerationService;
 
+    private static final String GEOGRAPHY_BLOCKS = "blocks";
+    private static final List<String> GEOGRAPHY_LEVELS = List.of("states", "districts", GEOGRAPHY_BLOCKS);
+    private static final int FACILITY_SEARCH_PAGE_SIZE = 500;
+
     @Autowired
     BoundaryV2Util boundaryV2Util;
+
+    @Autowired
+    FieldPlanGeographyLockClient fieldPlanGeographyLockClient;
 
     @Autowired
     public ProjectService(
@@ -173,6 +180,12 @@ public class ProjectService {
                 log.info("Skipping name refresh for draft project {} (status={})", projectId, projectStatus);
                 return;
             }
+            // The name no longer depends on facilities, so regenerating would only strip a
+            // legacy -NNN suffix from an already-scheduled project's name.
+            if (projectNameGenerationService.isRevisedProjectIdFormat(projectFromDB.getName())) {
+                log.debug("Skipping name refresh for project {} with an already-generated name", projectId);
+                return;
+            }
             int dbFacilityCount = projectRepository.countProjectFacilitiesByProjectId(projectId, tenantId);
             int effectiveFacilityCount = facilityCountOverride != null
                     ? Math.max(0, facilityCountOverride)
@@ -252,20 +265,49 @@ public class ProjectService {
                 .build();
     }
 
+    // The name (e.g. JUS-<code>-<FY>) is the uniqueness key, so a clash means a duplicate justification code.
     private void applyGeneratedProjectName(Project project, RequestInfo requestInfo, boolean draft) {
         ProjectNameResult nameResult = projectNameGenerationService.generateProjectName(project, requestInfo, draft);
         if (nameResult == null || StringUtils.isBlank(nameResult.getName())) {
             throw new CustomException("PROJECT_NAME_NULL_OR_EMPTY",
                     "Generated project name is null or empty for project: " + project.getId());
         }
-        project.setName(nameResult.getName());
+        String generatedName = nameResult.getName();
+        if (projectNameGenerationService.isNameInFlight(generatedName)
+                || projectRepository.isProjectNameExistsExcludingProject(generatedName, project.getTenantId(), project.getId())) {
+            log.error("Duplicate justification code for project: {} (generated name {})", project.getId(), generatedName);
+            throw duplicateJustificationCode();
+        }
+        projectNameGenerationService.markNameInFlight(generatedName);
+        project.setName(generatedName);
         Object enrichedAdditionalDetails = mergeIntoAdditionalDetails(
                 project.getAdditionalDetails(),
                 "isDuplicateName",
                 false
         );
         project.setAdditionalDetails(enrichedAdditionalDetails);
-        log.info("Set project name to {} for project: {} (draft={})", nameResult.getName(), project.getId(), draft);
+        log.info("Set project name to {} for project: {} (draft={})", generatedName, project.getId(), draft);
+    }
+
+    /**
+     * Runs the checks createProject would apply to a new project's justification code and dates,
+     * without creating anything; returns the project with the name it would be given.
+     */
+    public Project validateJustificationCode(ProjectRequest projectRequest) {
+        projectValidator.validateCreateProjectRequest(projectRequest);
+        Project project = projectRequest.getProjects().get(0);
+        String name = projectNameGenerationService
+                .generateProjectName(project, projectRequest.getRequestInfo(), true).getName();
+        if (projectRepository.isProjectNameExists(name, project.getTenantId())) {
+            throw duplicateJustificationCode();
+        }
+        project.setName(name);
+        return project;
+    }
+
+    private static CustomException duplicateJustificationCode() {
+        return new CustomException("DUPLICATE_JUSTIFICATION_CODE",
+                "A project with this justification code already exists for the selected financial year.");
     }
 
     /**
@@ -566,8 +608,10 @@ public class ProjectService {
         if (projectFromDB != null) {
             log.debug("Found existing project in database, proceeding with update");
             /*
-             * Check if geography details (boundary codes) have changed and unlink facilities if needed
+             * Refuse to drop a place an installation plan uses, then unlink the end-user sites
+             * under any block that was dropped
              */
+            assertRemovedGeographyUnused(request, project, projectFromDB);
             handleFacilityUnlinkingOnGeographyChange(request, project, projectFromDB);
 
             /*
@@ -904,44 +948,50 @@ public class ProjectService {
     }
 
     /**
-     * Handles facility unlinking when geography details (boundary codes) are changed
-     * Only processes unlinking when geographyDetails is explicitly present in the request
-     * Only allows unlinking for Draft projects (status = null)
+     * Rejects a geography update that drops a place (state, district or block) any non-deleted
+     * installation plan of the project uses, whatever the project's or plan's status.
+     * field-planner owns the rule; see FieldPlanGeographyLockClient.
+     */
+    private void assertRemovedGeographyUnused(ProjectRequest request, Project project, Project projectFromDB) {
+        if (!hasGeographyDetailsInRequest(project.getAdditionalDetails())) {
+            return;
+        }
+        Set<String> removedCodes = removedGeographyCodes(projectFromDB, project, GEOGRAPHY_LEVELS);
+        if (removedCodes.isEmpty()) {
+            return;
+        }
+        String inUse = fieldPlanGeographyLockClient
+                .projectLocks(request.getRequestInfo(), project.getId()).stream()
+                .filter(lock -> removedCodes.contains(lock.code()))
+                .map(lock -> lock.code() + " (" + lock.usedBy().stream()
+                        .map(usage -> Objects.toString(usage.get("fieldPlanName"), String.valueOf(usage.get("fieldPlanId"))))
+                        .collect(Collectors.joining(", ")) + ")")
+                .collect(Collectors.joining(", "));
+        if (!inUse.isEmpty()) {
+            throw new CustomException("PROJECT_GEOGRAPHY_IN_USE",
+                    "These places are used by installation plans of this project and cannot be removed: " + inUse);
+        }
+    }
+
+    /**
+     * Unlinks the end-user sites under blocks the update dropped. Runs in any status: a dropped
+     * block is never used by an installation plan (assertRemovedGeographyUnused), so none of its
+     * sites can be in a plan's scope. Only processes requests that carry geographyDetails. A failure
+     * stops the update: saving the geography without unlinking would leave sites outside it.
      */
     private void handleFacilityUnlinkingOnGeographyChange(ProjectRequest request, Project project, Project projectFromDB) {
-        try {
-            // Guard: Only process unlinking if geographyDetails is explicitly present in the request
-            if (!hasGeographyDetailsInRequest(project.getAdditionalDetails())) {
-                log.debug("No geographyDetails in request for project: {} - skipping facility unlinking", project.getId());
-                return;
-            }
-
-            // STATUS CHECK: Only allow facility unlinking for Draft projects (status = null or missing)
-            String projectStatus = getProjectStatus(project);
-            if (!isDraftProject(projectStatus)) {
-                log.info("Project {} has status '{}' - facility unlinking not allowed. Only Draft projects (status=null or missing) can unlink facilities.",
-                        project.getId(), projectStatus);
-                return;
-            }
-
-            // Extract boundary codes from old and new geography details
-            Set<String> oldBoundaryCodes = extractBoundaryCodesFromGeographyDetails(projectFromDB.getAdditionalDetails());
-            Set<String> newBoundaryCodes = extractBoundaryCodesFromGeographyDetails(project.getAdditionalDetails());
-
-            // Check if boundary codes have changed
-            if (!oldBoundaryCodes.equals(newBoundaryCodes)) {
-                log.info("Geography details changed for project: {}. Old boundaries: {}, New boundaries: {}",
-                        project.getId(), oldBoundaryCodes, newBoundaryCodes);
-
-                // Unlink facilities that are no longer associated with the new boundary codes
-                unlinkProjectFacilities(project.getId(), project.getTenantId(), request.getRequestInfo(), newBoundaryCodes);
-            } else {
-                log.debug("Geography details unchanged for project: {} - no facility unlinking needed", project.getId());
-            }
-        } catch (Exception e) {
-            log.error("Error handling facility unlinking for project: {}", project.getId(), e);
-            // Don't throw exception - continue with update even if facility unlinking fails
+        if (!hasGeographyDetailsInRequest(project.getAdditionalDetails())) {
+            log.debug("No geographyDetails in request for project: {} - skipping facility unlinking", project.getId());
+            return;
         }
+
+        Set<String> removedBlockCodes = removedGeographyCodes(projectFromDB, project, List.of(GEOGRAPHY_BLOCKS));
+        if (removedBlockCodes.isEmpty()) {
+            log.debug("No blocks removed for project: {} - no facility unlinking needed", project.getId());
+            return;
+        }
+        log.info("Blocks removed from project {}: {}", project.getId(), removedBlockCodes);
+        unlinkProjectFacilities(project.getId(), project.getTenantId(), request.getRequestInfo(), removedBlockCodes);
     }
 
     /**
@@ -1002,10 +1052,23 @@ public class ProjectService {
         return projectStatus == null;
     }
 
+    /** A boundary code sits under an ancestor when it equals it or extends it past a "_". */
+    private static boolean isUnderBoundary(String code, String ancestor) {
+        return code != null && (code.equals(ancestor) || code.startsWith(ancestor + "_"));
+    }
+
+    /** Codes at {@code levels} in the stored geography that the requested geography no longer has. */
+    private Set<String> removedGeographyCodes(Project projectFromDB, Project project, List<String> levels) {
+        Set<String> removed = extractGeographyCodes(projectFromDB.getAdditionalDetails(), levels);
+        removed.removeAll(extractGeographyCodes(project.getAdditionalDetails(), levels));
+        return removed;
+    }
+
     /**
-     * Extracts boundary codes from geography details in additional details
+     * Extracts the boundary codes at the given levels ("states", "districts", "blocks") from the
+     * geography details in additional details; entries are {@code {code, ...}} objects.
      */
-    private Set<String> extractBoundaryCodesFromGeographyDetails(Object additionalDetails) {
+    private Set<String> extractGeographyCodes(Object additionalDetails, List<String> levels) {
         Set<String> boundaryCodes = new HashSet<>();
 
         if (additionalDetails == null) {
@@ -1015,16 +1078,18 @@ public class ProjectService {
         try {
             JsonNode additionalDetailsNode = mapper.valueToTree(additionalDetails);
             JsonNode geographyDetails = additionalDetailsNode.get("geographyDetails");
-
-            if (geographyDetails != null) {
-                // Extract boundary codes from blocks
-                JsonNode blocks = geographyDetails.get("blocks");
-                if (blocks != null && blocks.isArray()) {
-                    for (JsonNode block : blocks) {
-                        JsonNode code = block.get("code");
-                        if (code != null && !code.isNull()) {
-                            boundaryCodes.add(code.asText());
-                        }
+            if (geographyDetails == null) {
+                return boundaryCodes;
+            }
+            for (String level : levels) {
+                JsonNode entries = geographyDetails.get(level);
+                if (entries == null || !entries.isArray()) {
+                    continue;
+                }
+                for (JsonNode entry : entries) {
+                    JsonNode code = entry.get("code");
+                    if (code != null && !code.isNull()) {
+                        boundaryCodes.add(code.asText());
                     }
                 }
             }
@@ -1036,11 +1101,13 @@ public class ProjectService {
     }
 
     /**
-     * Unlinks facilities that are no longer associated with the project's new boundary codes
+     * Unlinks the project's facilities that sit under one of the removed blocks. Works from the
+     * removed blocks rather than the kept ones, so an incomplete facility lookup can only ever
+     * unlink too little, never a site the project still covers.
      */
-    private void unlinkProjectFacilities(String projectId, String tenantId, RequestInfo requestInfo, Set<String> newBoundaryCodes) {
+    private void unlinkProjectFacilities(String projectId, String tenantId, RequestInfo requestInfo, Set<String> removedBlockCodes) {
         try {
-            log.info("Starting selective facility unlinking for project: {} with new boundary codes: {}", projectId, newBoundaryCodes);
+            log.info("Starting selective facility unlinking for project: {} under removed blocks: {}", projectId, removedBlockCodes);
             
             // Step 1: Get all facilities currently linked to the project
             List<ProjectFacility> linkedProjectFacilities = getFacilitiesLinkedToProject(projectId, tenantId, requestInfo);
@@ -1050,19 +1117,12 @@ public class ProjectService {
                 return;
             }
             
-            // Step 2: Get all facilities associated with the new boundary codes
-            Set<String> facilitiesInNewBoundaries = getFacilitiesByBoundaryCodes(newBoundaryCodes, tenantId, requestInfo);
+            // Step 2: Get all facilities under the removed blocks
+            Set<String> facilitiesInRemovedBlocks = getFacilitiesByBoundaryCodes(removedBlockCodes, tenantId, requestInfo);
 
-            // Defensive guard: if boundaries are non-empty but lookup yielded zero, skip unlink to avoid data loss
-            if (!newBoundaryCodes.isEmpty() && facilitiesInNewBoundaries.isEmpty()) {
-                log.warn("Facility lookup returned 0 results for non-empty boundaries {}. Skipping unlink to avoid accidental data loss for project: {}",
-                        newBoundaryCodes, projectId);
-                return;
-            }
-
-            // Step 3: Find facilities to unlink (linked to project but not in new boundary codes)
+            // Step 3: Find facilities to unlink (linked to project and under a removed block)
             List<ProjectFacility> facilitiesToUnlink = linkedProjectFacilities.stream()
-                    .filter(projectFacility -> !facilitiesInNewBoundaries.contains(projectFacility.getFacilityId()))
+                    .filter(projectFacility -> facilitiesInRemovedBlocks.contains(projectFacility.getFacilityId()))
                     .collect(Collectors.toList());
             
             if (facilitiesToUnlink.isEmpty()) {
@@ -1107,39 +1167,33 @@ public class ProjectService {
     }
 
     /**
-     * Gets all facilities currently linked to a project
+     * Gets all facilities currently linked to a project, page by page -- a single search would
+     * silently stop at its limit and leave the rest linked.
      */
-    private List<ProjectFacility> getFacilitiesLinkedToProject(String projectId, String tenantId, RequestInfo requestInfo) {
-        try {
-            List<String> projectIds = new ArrayList<>();
-            projectIds.add(projectId);
+    private List<ProjectFacility> getFacilitiesLinkedToProject(String projectId, String tenantId, RequestInfo requestInfo) throws Exception {
+        List<String> projectIds = new ArrayList<>();
+        projectIds.add(projectId);
 
-            ProjectFacilitySearch projectFacilitySearch = ProjectFacilitySearch.builder()
-                    .projectId(projectIds)
-                    .facilityId(null)
-                    .build();
+        ProjectFacilitySearch projectFacilitySearch = ProjectFacilitySearch.builder()
+                .projectId(projectIds)
+                .facilityId(null)
+                .build();
 
-            ProjectFacilitySearchRequest projectFacilitySearchRequest = ProjectFacilitySearchRequest.builder()
-                    .projectFacility(projectFacilitySearch)
-                    .requestInfo(requestInfo)
-                    .build();
+        ProjectFacilitySearchRequest projectFacilitySearchRequest = ProjectFacilitySearchRequest.builder()
+                .projectFacility(projectFacilitySearch)
+                .requestInfo(requestInfo)
+                .build();
 
+        List<ProjectFacility> linked = new ArrayList<>();
+        for (int offset = 0; ; offset += FACILITY_SEARCH_PAGE_SIZE) {
             SearchResponse<ProjectFacility> searchResponse = projectFacilityService.search(
-                    projectFacilitySearchRequest,
-                    1000, // Large limit to get all facilities
-                    0,
-                    tenantId,
-                    null,
-                    false
-            );
-
-            return (searchResponse != null && searchResponse.getResponse() != null)
-                    ? searchResponse.getResponse()
-                    : new ArrayList<>();
-
-        } catch (Exception e) {
-            log.error("Error getting facilities linked to project: {}", projectId, e);
-            return new ArrayList<>();
+                    projectFacilitySearchRequest, FACILITY_SEARCH_PAGE_SIZE, offset, tenantId, null, false);
+            List<ProjectFacility> page = searchResponse == null || searchResponse.getResponse() == null
+                    ? List.of() : searchResponse.getResponse();
+            linked.addAll(page);
+            if (page.size() < FACILITY_SEARCH_PAGE_SIZE) {
+                return linked;
+            }
         }
     }
 
@@ -1153,60 +1207,50 @@ public class ProjectService {
             return facilityIds;
         }
 
-        try {
-            // Search facilities by boundary codes
-            for (String boundaryCode : boundaryCodes) {
-                Set<String> facilitiesForBoundary = searchFacilitiesByBoundaryCode(boundaryCode, tenantId, requestInfo);
-                facilityIds.addAll(facilitiesForBoundary);
-            }
-
-            log.info("Found {} unique facilities across {} boundary codes", facilityIds.size(), boundaryCodes.size());
-
-        } catch (Exception e) {
-            log.error("Error getting facilities by boundary codes: {}", boundaryCodes, e);
+        for (String boundaryCode : boundaryCodes) {
+            facilityIds.addAll(searchFacilitiesByBoundaryCode(boundaryCode, tenantId, requestInfo));
         }
+        log.info("Found {} unique facilities across {} boundary codes", facilityIds.size(), boundaryCodes.size());
 
         return facilityIds;
     }
 
     /**
-     * Searches facilities by a specific boundary code
+     * Pages through the facility search (it returns 10 rows unless told otherwise). The search is a
+     * plain prefix match, so a block "X_1" also returns block "X_10"'s sites -- only sites really
+     * under the block (its code, or its code plus "_") are kept.
      */
     private Set<String> searchFacilitiesByBoundaryCode(String boundaryCode, String tenantId, RequestInfo requestInfo) {
         Set<String> facilityIds = new HashSet<>();
 
-        try {
-            // Build facility search URL with boundary code filter
+        for (int offset = 0; ; offset += FACILITY_SEARCH_PAGE_SIZE) {
             StringBuilder facilitySearchUrl = new StringBuilder();
             facilitySearchUrl.append(projectConfiguration.getFacilityServiceHost())
                     .append(projectConfiguration.getFacilityServiceSearchUrlV2())
                     .append("?tenantId=")
                     .append(tenantId)
                     .append("&boundaryCode=")
-                    .append(boundaryCode);
+                    .append(boundaryCode)
+                    .append("&limit=")
+                    .append(FACILITY_SEARCH_PAGE_SIZE)
+                    .append("&offset=")
+                    .append(offset);
 
             log.debug("Searching facilities for boundary code: {} with URL: {}", boundaryCode, facilitySearchUrl);
 
-            // Call facility service
             Object response = serviceRequestRepository.fetchResult(facilitySearchUrl);
-
-            if (response != null) {
-                FacilitySearchResponse facilitySearchResponse = mapper.convertValue(response, FacilitySearchResponse.class);
-
-                if (facilitySearchResponse != null && facilitySearchResponse.getFacilities() != null) {
-                    facilityIds = facilitySearchResponse.getFacilities().stream()
-                            .map(Facility::getFacilityId)
-                            .filter(Objects::nonNull)
-                            .collect(Collectors.toSet());
-
-                    log.debug("Found {} facilities for boundary code: {}", facilityIds.size(), boundaryCode);
-                }
+            FacilitySearchResponse page = response == null ? null : mapper.convertValue(response, FacilitySearchResponse.class);
+            List<Facility> facilities = page == null || page.getFacilities() == null ? List.of() : page.getFacilities();
+            facilities.stream()
+                    .filter(facility -> isUnderBoundary(facility.getBoundaryCode(), boundaryCode))
+                    .map(Facility::getFacilityId)
+                    .filter(Objects::nonNull)
+                    .forEach(facilityIds::add);
+            if (facilities.size() < FACILITY_SEARCH_PAGE_SIZE) {
+                break;
             }
-
-        } catch (Exception e) {
-            log.error("Error searching facilities for boundary code: {}", boundaryCode, e);
         }
-
+        log.debug("Found {} facilities for boundary code: {}", facilityIds.size(), boundaryCode);
         return facilityIds;
     }
 

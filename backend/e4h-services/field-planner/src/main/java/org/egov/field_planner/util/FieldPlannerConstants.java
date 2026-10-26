@@ -11,6 +11,8 @@ public class FieldPlannerConstants {
     public static final String MASTER_ACTIVITIES = "Activities";
     //location
     public static final String DRAFT_STATUS = "DRAFT";
+    /** Set by field-planner-activity on publish (installation.plan.published.status). */
+    public static final String PUBLISHED_STATUS = "PUBLISHED";
     public static final String FIELD_STAFF_ROLE = "INSTALLATION_REPORT_PART_A_EDITOR";
     /** @deprecated Supervisor role retired in Livelihood two-role model. */
     @Deprecated

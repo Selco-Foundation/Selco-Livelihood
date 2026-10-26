@@ -68,3 +68,39 @@ export interface InstallationPlanSearchResult {
   plans: InstallationPlanStatusWrapper[];
   totalCount: number;
 }
+
+/** One plan holding a geography code, as `field-plans/geography/_locks` reports it. */
+export interface GeographyLockUsage {
+  fieldPlanId: string;
+  fieldPlanName?: string;
+  /** Set for a plan's own lock: how many of its scoped sites sit under the code. */
+  siteCount?: number;
+}
+
+/** A geography code that cannot be removed, and what holds it. */
+export interface GeographyLock {
+  code: string;
+  usedBy: GeographyLockUsage[];
+}
+
+/** Whose geography to check: a project's (codes its plans use) or a plan's (codes holding a
+ *  scoped end-user site). */
+export type GeographyLockTarget = { projectId: string } | { fieldPlanId: string };
+
+/** The raw `field-plans/geography/_locks` response. `SectorLocks` is filled for a plan only: its
+ *  sectors that hold a scoped end-user site, by the sector name as stored on the plan. */
+export interface GeographyLocksResponse {
+  GeographyLocks?: GeographyLock[];
+  SectorLocks?: GeographyLock[];
+}
+
+/** A plan's reviewer assignment row, as `activities/assignment/_search` returns it. Only the fields
+ *  read here are typed; the rest is carried through untouched when the row is sent back on update. */
+export interface ReviewerAssignment {
+  id?: string;
+  tenantId?: string;
+  fieldPlanId?: string;
+  assignedTo?: string;
+  isDeleted?: boolean;
+  [field: string]: unknown;
+}
