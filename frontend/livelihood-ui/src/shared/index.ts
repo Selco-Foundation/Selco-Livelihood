@@ -187,6 +187,7 @@ export {
   buildReportSectionMedia,
 } from "./utils/activity-review/facility-media";
 export {
+  MACHINE_END_USER_PHOTO_DOCUMENT_TYPE,
   MACHINE_MEDIA_GROUPS,
   MACHINE_SECTION_IDS,
   REVIEW_SECTION_LABELS,
