@@ -1,7 +1,7 @@
 import { translateOr, useTranslate } from "@/shared";
 import { MultiSelect, SearchableSelect, SelectedGroup } from "@/ui";
-import { ClipboardList } from "lucide-react";
-import { useGeographyLocks } from "../../hooks/use-geography-locks";
+import { ClipboardList, Info } from "lucide-react";
+import { useGeographyLocks, useSectorLocks } from "../../hooks/use-geography-locks";
 import { useGeographySelection } from "../../hooks/use-geography-selection";
 import { useReviewerOptions } from "../../hooks/use-reviewer-options";
 import { useSectors } from "../../hooks/use-sectors";
@@ -30,13 +30,19 @@ interface PlanDetailsStepProps {
   /** The parent project's end date — used as the latest selectable plan
    *  end date. */
   projectEndDate?: number;
-  /** Sectors and dates become immutable once the plan has been created. */
+  /** The dates become immutable once the plan has been created. */
   locked?: boolean;
   /** The geography alone: editable on a new or DRAFT plan, read-only otherwise. Defaults to
    *  `!locked`. What may be removed is narrowed separately, by `lockTarget`. */
   geographyEditable?: boolean;
-  /** An existing plan: the places holding a site in its scope are fetched and cannot be removed. */
+  /** An existing plan: the places and sectors holding a site in its scope are fetched and cannot be
+   *  removed. */
   lockTarget?: GeographyLockTarget;
+  /** The sectors that may be picked. Unset offers every sector; a published plan, which can only
+   *  shrink, passes its own current ones. */
+  allowedSectorCodes?: string[];
+  /** A draft plan with step-1 edits that only Next saves -- warn before they are lost. */
+  showUnsavedWarning?: boolean;
   /** The reviewer field alone, separately lockable. Defaults to `locked`. The caller unlocks it
    *  when the plan has no reviewer assigned -- which happens when the assignment failed after the
    *  plan was created -- because `locked` would otherwise leave the field empty *and* read-only,
@@ -83,11 +89,14 @@ export function PlanDetailsStep({
   geographyEditable: canEditGeography = !locked,
   lockTarget,
   reviewerLocked = locked,
+  allowedSectorCodes,
+  showUnsavedWarning = false,
 }: Readonly<PlanDetailsStepProps>) {
   const { t } = useTranslate();
   const { data: sectorOptions = [] } = useSectors();
   const { data: reviewerOptions = [] } = useReviewerOptions();
   const { data: lockedGeography, isLoading: isLocksLoading } = useGeographyLocks(lockTarget);
+  const { data: lockedSectors, isLoading: isSectorLocksLoading } = useSectorLocks(lockTarget);
   // Until the locks load, nothing may be removed: a locked place would otherwise look removable.
   const geographyEditable = canEditGeography && !isLocksLoading;
   const { states, districts, blocks } = useGeographySelection({
@@ -96,6 +105,11 @@ export function PlanDetailsStep({
     allowed: allowedGeography,
     locked: lockedGeography,
   });
+  // Until the locks load, no sector may be removed, same as the geography.
+  const sectorsEditable = !isSectorLocksLoading;
+  const pickableSectors = allowedSectorCodes
+    ? sectorOptions.filter((sector) => allowedSectorCodes.includes(sector.code))
+    : sectorOptions;
   const selectedSectors = sectorOptions.filter((sector) => value.sectorCodes.includes(sector.code));
 
   return (
@@ -108,6 +122,18 @@ export function PlanDetailsStep({
         "This installation plan is based on your selected end-user sites. You can add more sites to this plan as needed.",
       )}
     >
+      {showUnsavedWarning ? (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3" role="status">
+          <Info className="size-4 shrink-0 text-amber-600" />
+          <p className="text-sm font-medium text-amber-800">
+            {translateOr(
+              t,
+              "ES_PM_PLAN_UNSAVED_CHANGES",
+              "You have unsaved changes. Click Next to save them, or they will be lost.",
+            )}
+          </p>
+        </div>
+      ) : null}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
         <div className="space-y-4">
           <MultiSelect
@@ -143,11 +169,12 @@ export function PlanDetailsStep({
           <MultiSelect
             label={translateOr(t, "ES_PM_SECTOR", "Sector")}
             required
-            options={sectorOptions}
+            options={pickableSectors}
             selected={value.sectorCodes}
             placeholder={translateOr(t, "ES_PM_SELECT_SECTOR", "Select Sector")}
             onChange={(sectorCodes) => onChange({ ...value, sectorCodes })}
-            disabled={locked}
+            disabled={!sectorsEditable}
+            locked={lockedSectors}
             hideChips
           />
           <SearchableSelect
@@ -226,7 +253,8 @@ export function PlanDetailsStep({
               emptyLabel={translateOr(t, "ES_PM_NO_SECTOR_SELECTED", "No sector selected")}
               items={selectedSectors}
               onRemove={(code) => onChange({ ...value, sectorCodes: value.sectorCodes.filter((selected) => selected !== code) })}
-              disabled={locked}
+              disabled={!sectorsEditable}
+              locked={lockedSectors}
             />
           </div>
         </div>

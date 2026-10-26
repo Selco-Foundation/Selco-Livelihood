@@ -102,6 +102,24 @@ describe("ActivityTable", () => {
     expect(screen.getByText("Beta")).toBeInTheDocument();
   });
 
+  it("shows each row's asset name, with a dash when it has none", () => {
+    renderTable([
+      makeActivity({ activityId: "a1", componentType: "MACHINE", assetName: "Oil Mill-Cold Press-3-HP-AC-20-kgs/hr" }),
+      makeActivity({ activityId: "a2", componentType: "MACHINE", assetName: undefined }),
+    ]);
+    expect(screen.getByRole("columnheader", { name: "Asset Name" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Asset Type" })).toBeInTheDocument();
+    expect(screen.getByText("Oil Mill-Cold Press-3-HP-AC-20-kgs/hr")).toBeInTheDocument();
+    expect(screen.getAllByText("-").length).toBeGreaterThan(0);
+  });
+
+  it("shows the localized Solar label for a solar activity, ignoring any asset name", () => {
+    renderTable([makeActivity({ activityId: "a1", componentType: "SOLAR", assetName: "stale bom name" })]);
+
+    expect(screen.queryByText("stale bom name")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Solar").length).toBeGreaterThan(0);
+  });
+
   describe("row selectability", () => {
     it("renders no checkbox for a non-selectable row", () => {
       renderTable([
@@ -244,7 +262,7 @@ describe("ActivityTable", () => {
 
       // Click a plain cell (not the Link/checkbox cell, which stop
       // propagation) so it bubbles to the row's own onClick handler.
-      await user.click(screen.getByText("Pending Review"));
+      await user.click(screen.getByText("Installation Report Submitted - Review Pending"));
 
       expect(mockNavigate).toHaveBeenCalledWith({
         to: irActivityReviewPath("plan-1", "nav-row"),

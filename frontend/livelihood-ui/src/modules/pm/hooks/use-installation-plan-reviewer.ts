@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { searchAssignedReviewer } from "../services/installation-plan";
 import { pmKeys } from "./query-keys";
 
-/** The reviewer assigned to an existing plan — not part of `useInstallationPlanById`'s own
+/** The uuid of the reviewer assigned to an existing plan — not part of `useInstallationPlanById`'s own
  *  response, since the assignment lives in `field-planner-activity`, not `field-planner`. */
 export function useInstallationPlanReviewer(fieldPlanId: string | undefined) {
   const accessToken = useAuthStore((state) => state.accessToken);
@@ -13,5 +13,6 @@ export function useInstallationPlanReviewer(fieldPlanId: string | undefined) {
     queryKey: pmKeys.planReviewer(fieldPlanId),
     enabled: Boolean(fieldPlanId && accessToken),
     queryFn: () => searchAssignedReviewer(fieldPlanId!, accessToken!, user),
+    select: (assignment) => assignment?.assignedTo,
   });
 }

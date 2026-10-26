@@ -56,6 +56,23 @@ describe("SearchableSelect", () => {
     expect(screen.queryByText("Vendor One")).not.toBeInTheDocument();
   });
 
+  it("renders options sorted by name, ascending, regardless of the input order", async () => {
+    const user = userEvent.setup();
+    const unsorted: SearchableSelectOption[] = [
+      { code: "org-3", name: "Charlie" },
+      { code: "org-1", name: "Alpha" },
+      { code: "org-2", name: "Beta" },
+    ];
+    render(<SearchableSelect label="Vendor" value="" options={unsorted} onChange={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /^Vendor/ }));
+
+    const optionButtons = screen
+      .getAllByRole("button")
+      .filter((button) => unsorted.some((option) => button.textContent?.includes(option.name)));
+    expect(optionButtons.map((button) => button.textContent)).toEqual(["Alpha", "Beta", "Charlie"]);
+  });
+
   it("shows a no-options message when nothing matches the search", async () => {
     const user = userEvent.setup();
     render(<SearchableSelect label="Vendor" value="" options={options} onChange={vi.fn()} />);

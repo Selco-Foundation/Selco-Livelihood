@@ -21,4 +21,9 @@ public class GeographyLockResponse {
     @JsonProperty("GeographyLocks")
     @Builder.Default
     private List<GeographyLock> geographyLocks = new ArrayList<>();
+
+    /** A plan's sectors that cannot be removed; empty for a project. */
+    @JsonProperty("SectorLocks")
+    @Builder.Default
+    private List<GeographyLock> sectorLocks = new ArrayList<>();
 }
