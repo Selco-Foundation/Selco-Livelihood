@@ -35,11 +35,11 @@ interface AssetSearchResponseItem {
 function getEndUserPhotoFileStore(
   documents: AssetSearchResponseItem["documents"],
 ): string | undefined {
-  return (
-    documents?.find(
-      (document) => document.documentType?.toUpperCase() === MACHINE_END_USER_PHOTO_DOCUMENT_TYPE,
-    )?.fileStore || undefined
-  );
+  return documents?.find(
+    (document) =>
+      document.documentType?.toUpperCase() === MACHINE_END_USER_PHOTO_DOCUMENT_TYPE &&
+      Boolean(document.fileStore),
+  )?.fileStore;
 }
 
 function mapAsset(raw: AssetSearchResponseItem): LivelihoodAsset {
