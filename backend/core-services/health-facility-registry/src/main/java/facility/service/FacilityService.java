@@ -712,6 +712,8 @@ public class FacilityService {
         if (update.getSolarSystemCapacityKwp() == null) {
             update.setSolarSystemCapacityKwp(existingFacility.getSolarSystemCapacityKwp());
         }
+        // end_user_type is NOT NULL; callers that don't send it would otherwise persist NULL
+        update.setEndUserType(facility.getEndUserType());
 
         FacilityMappedVendorHelper.mergeMappedVendorFromUpdate(facility, update, existingFacility);
         FacilityMappedVendorHelper.syncToAdditionalDetails(facility);
