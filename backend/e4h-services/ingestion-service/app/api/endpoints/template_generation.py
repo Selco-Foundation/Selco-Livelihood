@@ -123,6 +123,8 @@ async def get_facility_ingestion_template_with_data(
                         boundary_codes=boundary_codes,
                         limit=max(len(boundary_codes) * 50, 50),
                         send_non_paginated_response=True,
+                        sort_by="created_at",
+                        sort_order="desc",
                     )
                     facilities = bulk_result.get("facilities", []) or []
                     all_facilities.extend(facilities)
