@@ -29,7 +29,10 @@ import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 import static org.egov.util.OrganisationConstant.MASTER_ORG_ROLES;
+import static org.egov.util.OrganisationConstant.LIVELIHOOD_VENDOR_ROLE_CODE;
 import static org.egov.util.OrganisationConstant.MDMS_ORGANIZATION_MODULE_NAME;
+import static org.egov.util.OrganisationConstant.ORG_TYPE_VENDOR;
+import static org.egov.util.OrganisationConstant.VENDOR_ADMIN_ROLE_CODE;
 
 @Component
 @Slf4j
@@ -392,6 +395,9 @@ public class OrganisationUserServiceValidator {
             }
         }
 
+        // Checked before the password or HRMS update so a rejected request changes nothing
+        validateVendorOrgKeepsRequiredUsers(request, existingOrgUser);
+
         // Get existing user with mobile number from hrms service
         List<Employee> employees = hrmsUtils.getUserByUsername(request, orgUser.getUserName());
         if (employees == null || employees.isEmpty()) {
@@ -609,6 +615,8 @@ public class OrganisationUserServiceValidator {
             request.setUserId(existingOrgUser.getUserId());
         }
 
+        validateVendorOrgKeepsRequiredUsers(request, existingOrgUser);
+
         //Check if user has any activity assignments
         List<ActivityAssignment> activityAssignmentList = organisationUtil.getFieldPlanActivityAssignment(request);
         //user has active assignments exist
@@ -623,6 +631,87 @@ public class OrganisationUserServiceValidator {
                 throw new CustomException("Organization", "User cannot be deleted because they have active or pending assignments.");
             }
         }
+    }
+
+    /** Deleting the user takes every role it holds away from its organisation. */
+    private void validateVendorOrgKeepsRequiredUsers(DeleteOrgUserRequest request, OrgUser orgUserToDelete) {
+        if (orgUserToDelete == null || orgUserToDelete.getUser() == null) {
+            return;
+        }
+        validateVendorOrgKeepsRequiredUsers(request.getRequestInfo(), orgUserToDelete,
+                upperCaseRoleCodes(orgUserToDelete.getUser().getRoles()));
+    }
+
+    /**
+     * On update, the existing organisation loses the user's roles that are no longer requested, or all of them
+     * when the user is moved to another organisation.
+     */
+    private void validateVendorOrgKeepsRequiredUsers(OrgUserRequest request, OrgUser existingOrgUser) {
+        if (existingOrgUser.getUser() == null) {
+            return;
+        }
+        Set<String> removedRoles = upperCaseRoleCodes(existingOrgUser.getUser().getRoles());
+        if (Objects.equals(existingOrgUser.getOrganizationId(), request.getOrganizationId())) {
+            removedRoles.removeAll(upperCaseRoleCodes(request.getUser().getRoles()));
+        }
+        validateVendorOrgKeepsRequiredUsers(request.getRequestInfo(), existingOrgUser, removedRoles);
+    }
+
+    /**
+     * A VENDOR organisation must always keep at least one active VENDOR POC (VENDOR_ADMIN) and one active
+     * vendor user (LIVELIHOOD_VENDOR), so the last active holder of either role cannot lose it.
+     */
+    private void validateVendorOrgKeepsRequiredUsers(RequestInfo requestInfo, OrgUser orgUser, Set<String> removedRoles) {
+        if (StringUtils.isBlank(orgUser.getOrganizationId())) {
+            return;
+        }
+        boolean losesVendorPoc = removedRoles.contains(VENDOR_ADMIN_ROLE_CODE);
+        boolean losesVendorUser = removedRoles.contains(LIVELIHOOD_VENDOR_ROLE_CODE);
+        if (!losesVendorPoc && !losesVendorUser) {
+            return;
+        }
+
+        OrgSearchCriteria orgCriteria = OrgSearchCriteria.builder()
+                .ids(List.of(orgUser.getOrganizationId()))
+                .tenantId(StringUtils.defaultIfBlank(orgUser.getTenantId(), configuration.getGlobalTenantId()))
+                .build();
+        List<Organisation> organisations = organisationRepository.getOrganisations(
+                OrgSearchRequest.builder().requestInfo(requestInfo).searchCriteria(orgCriteria).build());
+        if (organisations == null || organisations.isEmpty()
+                || !ORG_TYPE_VENDOR.equalsIgnoreCase(StringUtils.trimToEmpty(organisations.get(0).getOrgType()))) {
+            return;
+        }
+
+        if (losesVendorPoc && !hasOtherActiveOrgUserWithRole(requestInfo, orgUser, VENDOR_ADMIN_ROLE_CODE)) {
+            log.error("Org user {} is the last active VENDOR POC of organisation {}", orgUser.getId(), orgUser.getOrganizationId());
+            throw new CustomException("LAST_VENDOR_POC", "At least one VENDOR POC is needed for an organization");
+        }
+        if (losesVendorUser && !hasOtherActiveOrgUserWithRole(requestInfo, orgUser, LIVELIHOOD_VENDOR_ROLE_CODE)) {
+            log.error("Org user {} is the last active vendor user of organisation {}", orgUser.getId(), orgUser.getOrganizationId());
+            throw new CustomException("LAST_VENDOR_USER", "At least one VENDOR user is needed for an organization");
+        }
+    }
+
+    /** Active means the eg_org_user link is not deleted and the HRMS user is not deactivated. */
+    private boolean hasOtherActiveOrgUserWithRole(RequestInfo requestInfo, OrgUser orgUser, String roleCode) {
+        OrgUserSearchCriteria criteria = OrgUserSearchCriteria.builder()
+                .organizationId(List.of(orgUser.getOrganizationId()))
+                .tenantId(orgUser.getTenantId())
+                .roles(List.of(roleCode))
+                .build();
+        OrgUserSearchRequest searchRequest = OrgUserSearchRequest.builder().requestInfo(requestInfo).criteria(criteria).build();
+        List<OrgUser> holders = userRepository.getOrgUsers(searchRequest,
+                URLParams.builder().limit(configuration.getMaxLimit()).offset(0).build());
+        return holders != null && holders.stream()
+                .filter(holder -> !Objects.equals(holder.getId(), orgUser.getId()))
+                .filter(holder -> !Objects.equals(holder.getUserId(), orgUser.getUserId()))
+                .anyMatch(holder -> holder.getUser() != null && !Boolean.FALSE.equals(holder.getUser().getActive()));
+    }
+
+    private Set<String> upperCaseRoleCodes(List<Role> roles) {
+        return safeRoleSet(roles).stream()
+                .map(code -> code.toUpperCase(Locale.ROOT))
+                .collect(Collectors.toCollection(HashSet::new));
     }
 
     private void validateOrgRoles(Set<String> orgRolesReqSet, List<String> orgRolesCodesMDMS) {

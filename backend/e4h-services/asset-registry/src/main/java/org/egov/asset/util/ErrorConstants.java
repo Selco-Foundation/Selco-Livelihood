@@ -206,6 +206,9 @@ public class ErrorConstants {
     public static final String MOBILE_NOT_REGISTERED_MSG =
             "No phone number is registered for the end user. Contact support.";
 
+    public static final String VENDOR_JURISDICTION_UPDATE_ERROR_CODE = "VENDOR_JURISDICTION_UPDATE_ERROR";
+    public static final String VENDOR_JURISDICTION_UPDATE_ERROR_MSG =
+            "Failed to add the asset's state jurisdiction to the vendor user in HRMS";
     public static final String HRMS_COMPLAINANT_ERROR_CODE = "HRMS_COMPLAINANT_ERROR";
     public static final String HRMS_COMPLAINANT_ERROR_MSG =
             "Failed to resolve facility manager from HRMS";
