@@ -55,9 +55,24 @@ vi.mock("../../components/steps/PlanDetailsStep", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../components/steps/PlanDetailsStep")>();
   return {
     ...actual,
-    PlanDetailsStep: ({ value, onChange }: { value: PlanDetailsValue; onChange: (v: PlanDetailsValue) => void }) => (
+    PlanDetailsStep: ({
+      value,
+      onChange,
+      reviewerLocked,
+      allowedSectorCodes,
+      showUnsavedWarning,
+    }: {
+      value: PlanDetailsValue;
+      onChange: (v: PlanDetailsValue) => void;
+      reviewerLocked?: boolean;
+      allowedSectorCodes?: string[];
+      showUnsavedWarning?: boolean;
+    }) => (
       <div>
         <span>Plan Details Step</span>
+        <span data-testid="plan-details-props">
+          {JSON.stringify({ reviewerLocked, allowedSectorCodes, showUnsavedWarning: Boolean(showUnsavedWarning) })}
+        </span>
         <button
           type="button"
           onClick={() =>
@@ -239,7 +254,53 @@ describe("CreateInstallationPlanPage", () => {
     expect(screen.getByRole("tab", { name: /Technician Assignment/i })).toBeDisabled();
   });
 
-  it("shows the publish-readonly banner and hides the footer once the plan is published", () => {
+  function planDetailsProps() {
+    return JSON.parse(screen.getByTestId("plan-details-props").textContent ?? "{}");
+  }
+
+  it("on a draft plan, keeps the reviewer editable and warns once step 1 has unsaved edits", async () => {
+    const user = userEvent.setup();
+    mockSearchState = { projectId: "project-1", planId: "plan-1", step: 1 };
+    vi.mocked(useInstallationPlanById).mockReturnValue({
+      data: {
+        id: "plan-1",
+        tenantId: "tenant-1",
+        projectId: "project-1",
+        geographyDetails: { states: [{ code: "KA" }], blocks: [{ code: "B1", districtCode: "D1", stateCode: "KA" }] },
+        additionalDetails: { status: "DRAFT", sectorCodes: ["SOLAR"] },
+      },
+    } as never);
+    vi.mocked(useInstallationPlanReviewer).mockReturnValue({ data: "rev-0", isLoading: false } as never);
+    renderPage();
+
+    expect(planDetailsProps()).toMatchObject({ reviewerLocked: false, showUnsavedWarning: false });
+
+    await user.click(screen.getByRole("button", { name: "Fill Plan Details" }));
+
+    expect(planDetailsProps()).toMatchObject({ showUnsavedWarning: true });
+  });
+
+  it("on a published plan, locks the reviewer and offers only the plan's own sectors", () => {
+    mockSearchState = { projectId: "project-1", planId: "plan-1", step: 1 };
+    vi.mocked(useInstallationPlanById).mockReturnValue({
+      data: {
+        id: "plan-1",
+        tenantId: "tenant-1",
+        projectId: "project-1",
+        additionalDetails: { status: "PUBLISHED", sectorCodes: ["SOLAR", "Agriculture"] },
+      },
+    } as never);
+    vi.mocked(useInstallationPlanReviewer).mockReturnValue({ data: "rev-0", isLoading: false } as never);
+    renderPage();
+
+    expect(planDetailsProps()).toEqual({
+      reviewerLocked: true,
+      allowedSectorCodes: ["SOLAR", "Agriculture"],
+      showUnsavedWarning: false,
+    });
+  });
+
+  it("shows the published banner and hides the footer on later steps once the plan is published", () => {
     mockSearchState = { projectId: "project-1", planId: "plan-1", step: 4 };
     vi.mocked(useInstallationPlanById).mockReturnValue({
       data: { id: "plan-1", tenantId: "tenant-1", projectId: "project-1", additionalDetails: { status: "PUBLISHED" } },
@@ -254,7 +315,7 @@ describe("CreateInstallationPlanPage", () => {
     } as never);
     renderPage();
 
-    expect(screen.getByText(/published and can no longer be edited/i)).toBeInTheDocument();
+    expect(screen.getByText(/only places and sectors with no end-user site in its scope can still be removed/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument();
   });
 

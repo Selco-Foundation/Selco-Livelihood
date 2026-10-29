@@ -3,14 +3,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuthStore } from "@/shared";
-import { useSaveProject } from "./use-create-project";
-import { createProject, updateProject } from "../services/project";
+import { useSaveProject, useValidateJustificationCode } from "./use-create-project";
+import { createProject, updateProject, validateJustificationCode } from "../services/project";
 import { pmKeys } from "./query-keys";
 import type { Project } from "../types/project";
 
 vi.mock("../services/project", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/project")>();
-  return { ...actual, createProject: vi.fn(), updateProject: vi.fn() };
+  return { ...actual, createProject: vi.fn(), updateProject: vi.fn(), validateJustificationCode: vi.fn() };
 });
 
 function createWrapper() {
@@ -68,5 +68,19 @@ describe("useSaveProject", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: pmKeys.projects() });
+  });
+});
+
+describe("useValidateJustificationCode", () => {
+  it("validates the project with the signed-in user's token", async () => {
+    const project: Project = { tenantId: "tenant-1", additionalDetails: { justificationCode: "98234" } };
+    vi.mocked(validateJustificationCode).mockResolvedValue({ Project: [project] });
+    const { wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useValidateJustificationCode(), { wrapper });
+    result.current.mutate(project);
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(validateJustificationCode).toHaveBeenCalledWith(project, "token-1", { uuid: "u1" });
   });
 });

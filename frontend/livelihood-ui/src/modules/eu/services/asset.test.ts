@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { apiClient } from "@/shared";
-import { searchAssets, updateAssetVendorMapping } from "./asset";
+import { searchAssets, searchAssetsForActivity, updateAssetVendorMapping } from "./asset";
 
 vi.mock("@/shared", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/shared")>();
@@ -135,6 +135,43 @@ describe("searchAssets", () => {
       organisationId: "org-1",
       organisationName: "Test Installation Vendor",
     });
+  });
+});
+
+describe("searchAssetsForActivity", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.post).mockReset();
+  });
+
+  it("requests includeChildren so parent/child asset hierarchies flatten the same way ir's review page does", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ data: [] });
+
+    await searchAssetsForActivity("activity-1", "tenant-1", "token-1");
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/asset-registry/v1/asset/_search",
+      expect.objectContaining({
+        criteria: { tenantId: "tenant-1", activityFacilityID: "activity-1", includeChildren: true },
+      }),
+      { params: { limit: 1000, offset: 0 } },
+    );
+  });
+
+  it("returns the raw response rows verbatim, not mapped to FacilityAsset", async () => {
+    const rows = [{ assetId: "a1", assetTypeID: "PANEL", serialNumber: "SN-1" }];
+    vi.mocked(apiClient.post).mockResolvedValue({ data: rows });
+
+    const result = await searchAssetsForActivity("activity-1", "tenant-1", "token-1");
+
+    expect(result).toBe(rows);
+  });
+
+  it("returns an empty array when the response has no data", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ data: null });
+
+    const result = await searchAssetsForActivity("activity-1", "tenant-1", "token-1");
+
+    expect(result).toEqual([]);
   });
 });
 

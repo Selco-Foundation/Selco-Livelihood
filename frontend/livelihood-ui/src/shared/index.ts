@@ -82,6 +82,16 @@ export { useDebouncedValue } from "./hooks/use-debounced-value";
 export { useFacility } from "./hooks/use-facility";
 export { useLanguages } from "./hooks/use-languages";
 export { useLoginBannerImages } from "./hooks/use-login-banner-images";
+export {
+  fetchInstallationImageCriteriaQuery,
+  installationImageCriteriaQueryKey,
+  useInstallationImageCriteria,
+} from "./hooks/use-installation-image-criteria";
+export {
+  fetchRejectionReasonOptionsQuery,
+  rejectionReasonOptionsQueryKey,
+  useRejectionReasonOptions,
+} from "./hooks/use-rejection-reason-options";
 export { useAuthStore, type AuthUser } from "./stores/auth-store";
 export { useJurisdictionStore } from "./stores/jurisdiction-store";
 export { useLocaleStore } from "./stores/locale-store";
@@ -124,6 +134,14 @@ export {
   type JurisdictionBoundaries,
 } from "./utils/boundary-util";
 export {
+  buildBoundaryCodeSelection,
+  buildBoundaryDataTree,
+  EMPTY_BOUNDARY_SELECTION,
+  pruneBoundarySelection,
+  type BoundaryDataNode,
+  type BoundarySelection,
+} from "./utils/boundary-selection";
+export {
   filterRolesForEmployeeTenant,
   hydrateEmployeeJurisdictions,
 } from "./utils/employee-session";
@@ -134,4 +152,71 @@ export {
   PROJECT_MANAGER_ROLE,
   type RoleLike,
 } from "./utils/roles";
+export {
+  ACTIVITY_STATUS,
+  ACTIVITY_STATUS_LABELS,
+  ACTIVITY_STATUS_ORDER,
+  activityStatusBadgeVariant,
+  FACILITY_INSTALLATION_BUSINESS_SERVICE,
+  type ActivityStatus,
+  type ActivityStatusBadgeVariant,
+} from "./utils/activity-review/activity-status";
+export { componentTypeLabel } from "./utils/activity-review/component-type";
+export {
+  mapInstallationImageCriteria,
+  type InstallationImageCriterion,
+  type RawInstallationImageCriterion,
+} from "./utils/activity-review/installation-image-mapping";
+export {
+  isOtherReason,
+  mapRejectionReasonOptions,
+  type RawRejectionReasonOption,
+  type RejectionReasonOption,
+} from "./utils/activity-review/rejection-reason-mapping";
+export { formatEpochDate } from "./utils/activity-review/date-format";
+export {
+  classifyDocument,
+  groupDocumentsByKey,
+  INSTALLATION_IMAGE_PREFIX,
+  REPORT_DOCUMENT_TYPES,
+  type ClassifiedDocument,
+} from "./utils/activity-review/facility-documents";
+export {
+  buildAssetSectionMedia,
+  buildImageChecklistMedia,
+  buildReportSectionMedia,
+} from "./utils/activity-review/facility-media";
+export {
+  MACHINE_END_USER_PHOTO_DOCUMENT_TYPE,
+  MACHINE_MEDIA_GROUPS,
+  MACHINE_SECTION_IDS,
+  REVIEW_SECTION_LABELS,
+  SOLAR_SECTION_IDS,
+  type MachineSectionId,
+  type SolarSectionId,
+} from "./utils/activity-review/review-sections";
+export {
+  ASSET_PHOTO_DOCUMENT_TYPE,
+  buildMachineAssetData,
+  buildSolarAssetSections,
+  flattenAssetHierarchy,
+  isResolvableAssetDocument,
+  type AssetMappingDocument,
+  type AssetMappingRow,
+  type MachineAssetData,
+} from "./utils/activity-review/asset-mapping";
+export {
+  buildAuditTrail,
+  buildImageChecklistSections,
+  buildMachineSection,
+  buildReportSection,
+  buildReviewSections,
+  buildSectionDocuments,
+  humanize,
+  type ActivityBillOfMaterial,
+  type ActivityBomComponent,
+  type ActivityTransaction,
+  type ActivityTransactionComment,
+  type ActivityWorkflowEntry,
+} from "./utils/activity-review/activity-workflow-mapping";
 export type { ModuleDefinition, ModuleOverview, NavItem } from "./modules/types";

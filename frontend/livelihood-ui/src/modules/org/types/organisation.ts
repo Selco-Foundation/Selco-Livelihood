@@ -17,6 +17,11 @@ export interface Organisation {
   pocPhone?: string;
   pocEmail?: string;
   pocUsername?: string;
+  /** Default vendor (Complaint Resolver) user — Vendor organisations only; the password is write-only. */
+  defaultVendorName?: string;
+  defaultVendorPhone?: string;
+  defaultVendorEmail?: string;
+  defaultVendorUsername?: string;
   /** Untransformed backend record — spread back into the update payload so unedited fields survive. */
   raw?: Record<string, unknown>;
 }
@@ -42,6 +47,12 @@ export interface CreateOrganisationInput {
   pocEmail?: string;
   pocUsername: string;
   pocPassword: string;
+  /** Complaint Resolver user — sent for Vendor organisations only. */
+  defaultVendorName?: string;
+  defaultVendorPhone?: string;
+  defaultVendorEmail?: string;
+  defaultVendorUsername?: string;
+  defaultVendorPassword?: string;
 }
 
 export interface UpdateOrganisationInput {

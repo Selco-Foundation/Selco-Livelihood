@@ -1,5 +1,15 @@
-import { employeeHomePath, extractApiErrorMessage, translateOr, useAuthStore, useTranslate } from "@/shared";
-import { Button, Card, CardContent, TopBar, toast } from "@/ui";
+import {
+  buildBoundaryCodeSelection,
+  EMPTY_BOUNDARY_SELECTION,
+  employeeHomePath,
+  extractApiErrorMessage,
+  translateOr,
+  useAuthStore,
+  useBoundaryHierarchy,
+  useTranslate,
+  type BoundarySelection,
+} from "@/shared";
+import { BoundaryMultiPicker, Button, Card, CardContent, TopBar, toast } from "@/ui";
 import { Download } from "lucide-react";
 import { useState } from "react";
 import { FileUploadZone } from "../../components/upload/FileUploadZone";
@@ -14,6 +24,10 @@ export function BulkAddFacilitiesPage() {
   const user = useAuthStore((state) => state.user);
 
   const [selectedFileName, setSelectedFileName] = useState<string>();
+  // The geography the template is generated for: its boundary sheet and its State/District/Block
+  // dropdowns hold only these blocks, so a country-wide boundary list never lands in the sheet.
+  const [geography, setGeography] = useState<BoundarySelection>(EMPTY_BOUNDARY_SELECTION);
+  const { data: hierarchy } = useBoundaryHierarchy();
   const [result, setResult] = useState<
     | { status: "success"; downloadResult: () => void }
     | { status: "error"; errorCount: number; downloadResult: () => void }
@@ -28,7 +42,7 @@ export function BulkAddFacilitiesPage() {
   }
 
   function handleDownloadTemplate() {
-    downloadTemplate.mutate(undefined, {
+    downloadTemplate.mutate(buildBoundaryCodeSelection(geography, hierarchy), {
       onError: (error) => {
         toast.error(
           extractApiErrorMessage(error) ??
@@ -83,6 +97,22 @@ export function BulkAddFacilitiesPage() {
       <Card>
         <CardContent className="space-y-3">
           <h3 className="text-sm font-semibold text-foreground">
+            {translateOr(t, "ES_PM_GEOGRAPHY_DETAILS", "Geography Details")}
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            {translateOr(
+              t,
+              "EU_TEMPLATE_GEOGRAPHY_DESC",
+              "Select the states, districts and blocks to include. The template's State, District and Block columns will offer only these.",
+            )}
+          </p>
+          <BoundaryMultiPicker value={geography} onChange={setGeography} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="space-y-3">
+          <h3 className="text-sm font-semibold text-foreground">
             {translateOr(
               t,
               "PM_CREATE_PROJECT_HEAD_DOWNLOAD_FACILITY_TEMPLATE",
@@ -100,7 +130,7 @@ export function BulkAddFacilitiesPage() {
             type="button"
             variant="outline"
             size="sm"
-            disabled={downloadTemplate.isPending}
+            disabled={downloadTemplate.isPending || geography.states.length === 0}
             onClick={handleDownloadTemplate}
             className="gap-2"
           >
@@ -131,31 +161,25 @@ export function BulkAddFacilitiesPage() {
             onSelect={handleFileSelect}
           />
           {result?.status === "success" ? (
-            <div className="rounded-md border border-border bg-muted/30 px-4 py-3 text-sm text-foreground">
+            <div className="space-y-2 rounded-md border border-border bg-muted/30 px-4 py-3 text-sm text-foreground">
               <p>
                 {translateOr(t, "FACILITY_END_USER_DATA_UPLOAD_SUCCESS", "End User data uploaded successfully")}
               </p>
-              <button
-                type="button"
-                onClick={result.downloadResult}
-                className="mt-1 cursor-pointer font-semibold underline"
-              >
+              <Button type="button" variant="outline" size="sm" onClick={result.downloadResult}>
+                <Download className="size-4" />
                 {translateOr(t, "CORE_COMMON_DOWNLOAD", "Download")}
-              </button>
+              </Button>
             </div>
           ) : null}
           {result?.status === "error" ? (
-            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
               <p>
                 {result.errorCount} {translateOr(t, "HEALTH_FACILITIES_VALIDATION_FAILED", "rows failed validation")}
               </p>
-              <button
-                type="button"
-                onClick={result.downloadResult}
-                className="mt-1 cursor-pointer font-semibold underline"
-              >
+              <Button type="button" variant="destructive" size="sm" onClick={result.downloadResult}>
+                <Download className="size-4" />
                 {translateOr(t, "CORE_COMMON_VIEW_ERRORS", "View errors")}
-              </button>
+              </Button>
             </div>
           ) : null}
         </CardContent>

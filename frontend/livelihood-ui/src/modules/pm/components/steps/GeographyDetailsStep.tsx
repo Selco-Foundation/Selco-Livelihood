@@ -1,10 +1,10 @@
 import { translateOr, useTranslate } from "@/shared";
-import { MultiSelect, toast } from "@/ui";
+import { MultiSelect, SelectedGroup, toast } from "@/ui";
 import { MapPin } from "lucide-react";
-import { useMemo } from "react";
-import { useBoundaryTree } from "../../hooks/use-boundary-tree";
+import { useGeographyLocks } from "../../hooks/use-geography-locks";
+import { useGeographySelection } from "../../hooks/use-geography-selection";
+import type { GeographyLockTarget } from "../../types/installation-plan";
 import type { GeographyDetails } from "../../types/project";
-import { SelectedGroup } from "../SelectedGroup";
 import { StepSectionCard } from "../StepSectionCard";
 
 interface GeographyDetailsStepProps {
@@ -14,6 +14,9 @@ interface GeographyDetailsStepProps {
    *  geography — narrowing a selection here then removes any end-user
    *  sites that fell outside the new geography (backend-enforced). */
   hasEndUserData?: boolean;
+  /** An existing project: the places its installation plans use are fetched and cannot be
+   *  removed. */
+  lockTarget?: GeographyLockTarget;
 }
 
 export function isGeographyDetailsValid(value: GeographyDetails): boolean {
@@ -21,107 +24,30 @@ export function isGeographyDetailsValid(value: GeographyDetails): boolean {
 }
 
 
-export function GeographyDetailsStep({ value, onChange, hasEndUserData = false }: Readonly<GeographyDetailsStepProps>) {
+export function GeographyDetailsStep({
+  value,
+  onChange,
+  hasEndUserData = false,
+  lockTarget,
+}: Readonly<GeographyDetailsStepProps>) {
   const { t } = useTranslate();
-  const { data: hierarchy, isLoading } = useBoundaryTree();
-
-  const selectedStateCodes = useMemo(() => value.states?.map((state) => state.code) ?? [], [value.states]);
-  const selectedDistrictCodes = useMemo(
-    () => value.districts?.map((district) => district.code) ?? [],
-    [value.districts],
-  );
-  const selectedBlockCodes = useMemo(() => value.blocks?.map((block) => block.code) ?? [], [value.blocks]);
-
-  const stateOptions = useMemo(
-    () =>
-      (hierarchy?.states ?? []).map((state) => ({
-        ...state,
-        name: translateOr(t, `BOUNDARY_${state.code}`, state.name),
-      })),
-    [hierarchy, t],
-  );
-  const districtOptions = useMemo(
-    () =>
-      (hierarchy?.districts ?? [])
-        .filter((district) => selectedStateCodes.includes(district.stateCode))
-        .map((district) => ({ ...district, name: translateOr(t, `BOUNDARY_${district.code}`, district.name) })),
-    [hierarchy, selectedStateCodes, t],
-  );
-  const blockOptions = useMemo(
-    () =>
-      (hierarchy?.blocks ?? [])
-        .filter((block) => selectedDistrictCodes.includes(block.districtCode))
-        .map((block) => ({ ...block, name: translateOr(t, `BOUNDARY_${block.code}`, block.name) })),
-    [hierarchy, selectedDistrictCodes, t],
-  );
-
-  function warnIfNarrowing(removedAny: boolean) {
-    if (!removedAny) return;
-    toast.info(
-      hasEndUserData
-        ? translateOr(
-            t,
-            "ES_PM_GEOGRAPHY_NARROWED_WITH_DATA",
-            "Any end-user sites outside the updated geography will be removed automatically",
-          )
-        : translateOr(t, "ES_PM_GEOGRAPHY_STATE_REMOVED", "Removed districts/blocks belonging to the deselection"),
-    );
-  }
-
-  function handleStatesChange(codes: string[]) {
-    const removedStateCodes = new Set(selectedStateCodes.filter((code) => !codes.includes(code)));
-    const hasCascadingRemoval =
-      (value.districts ?? []).some((district) => removedStateCodes.has(district.stateCode)) ||
-      (value.blocks ?? []).some((block) => removedStateCodes.has(block.stateCode));
-    warnIfNarrowing(hasCascadingRemoval);
-    onChange({
-      states: codes.map((code) => ({ code })),
-      districts: (value.districts ?? []).filter((district) => codes.includes(district.stateCode)),
-      blocks: (value.blocks ?? []).filter((block) => codes.includes(block.stateCode)),
-    });
-  }
-
-  function handleDistrictsChange(codes: string[]) {
-    const removedDistrictCodes = new Set(selectedDistrictCodes.filter((code) => !codes.includes(code)));
-    const hasCascadingRemoval = (value.blocks ?? []).some((block) =>
-      removedDistrictCodes.has(block.districtCode),
-    );
-    warnIfNarrowing(hasCascadingRemoval);
-    const nextDistrictOptions = districtOptions.filter((district) => codes.includes(district.code));
-    onChange({
-      ...value,
-      districts: nextDistrictOptions.map((district) => ({ code: district.code, stateCode: district.stateCode })),
-      blocks: (value.blocks ?? []).filter((block) => codes.includes(block.districtCode)),
-    });
-  }
-
-  function handleBlocksChange(codes: string[]) {
-    const nextBlockOptions = blockOptions.filter((block) => codes.includes(block.code));
-    onChange({
-      ...value,
-      blocks: nextBlockOptions.map((block) => ({
-        code: block.code,
-        districtCode: block.districtCode,
-        stateCode: block.stateCode,
-      })),
-    });
-  }
-
-  const selectedStates = stateOptions.filter((state) => selectedStateCodes.includes(state.code));
-  const selectedDistricts = useMemo(
-    () =>
-      (hierarchy?.districts ?? [])
-        .filter((district) => selectedDistrictCodes.includes(district.code))
-        .map((district) => ({ ...district, name: translateOr(t, `BOUNDARY_${district.code}`, district.name) })),
-    [hierarchy, selectedDistrictCodes, t],
-  );
-  const selectedBlocks = useMemo(
-    () =>
-      (hierarchy?.blocks ?? [])
-        .filter((block) => selectedBlockCodes.includes(block.code))
-        .map((block) => ({ ...block, name: translateOr(t, `BOUNDARY_${block.code}`, block.name) })),
-    [hierarchy, selectedBlockCodes, t],
-  );
+  // Until the locks load, nothing may be removed: a locked place would otherwise look removable.
+  const { data: locked, isLoading: isLocksLoading } = useGeographyLocks(lockTarget);
+  const { isLoading, states, districts, blocks } = useGeographySelection({
+    value,
+    onChange,
+    locked,
+    onCascadeRemoval: () =>
+      toast.info(
+        hasEndUserData
+          ? translateOr(
+              t,
+              "ES_PM_GEOGRAPHY_NARROWED_WITH_DATA",
+              "Any end-user sites outside the updated geography will be removed automatically",
+            )
+          : translateOr(t, "ES_PM_GEOGRAPHY_STATE_REMOVED", "Removed districts/blocks belonging to the deselection"),
+      ),
+  });
 
   return (
     <StepSectionCard
@@ -138,27 +64,30 @@ export function GeographyDetailsStep({ value, onChange, hasEndUserData = false }
           <MultiSelect
             label={translateOr(t, "ES_PM_STATES", "State")}
             required
-            options={stateOptions}
-            selected={selectedStateCodes}
-            onChange={handleStatesChange}
-            disabled={isLoading}
+            options={states.options}
+            selected={states.selectedCodes}
+            onChange={states.onChange}
+            disabled={isLoading || isLocksLoading}
+            locked={locked}
             hideChips
           />
           <MultiSelect
             label={translateOr(t, "ES_PM_DISTRICTS", "District(s)")}
-            options={districtOptions}
-            selected={selectedDistrictCodes}
-            onChange={handleDistrictsChange}
-            disabled={isLoading || selectedStateCodes.length === 0}
+            options={districts.options}
+            selected={districts.selectedCodes}
+            onChange={districts.onChange}
+            disabled={isLoading || isLocksLoading || states.selectedCodes.length === 0}
+            locked={locked}
             hideChips
           />
           <MultiSelect
             label={translateOr(t, "ES_PM_BLOCKS", "Block(s)")}
             required
-            options={blockOptions}
-            selected={selectedBlockCodes}
-            onChange={handleBlocksChange}
-            disabled={isLoading || selectedDistrictCodes.length === 0}
+            options={blocks.options}
+            selected={blocks.selectedCodes}
+            onChange={blocks.onChange}
+            disabled={isLoading || isLocksLoading || districts.selectedCodes.length === 0}
+            locked={locked}
             hideChips
           />
         </div>
@@ -171,22 +100,28 @@ export function GeographyDetailsStep({ value, onChange, hasEndUserData = false }
             <SelectedGroup
               title={translateOr(t, "ES_PM_STATES", "State")}
               emptyLabel={translateOr(t, "ES_PM_NO_STATE_SELECTED", "No state selected")}
-              items={selectedStates}
-              onRemove={(code) => handleStatesChange(selectedStateCodes.filter((existing) => existing !== code))}
+              items={states.selectedItems}
+              onRemove={(code) => states.onChange(states.selectedCodes.filter((existing) => existing !== code))}
+              locked={locked}
+              disabled={isLocksLoading}
             />
             <SelectedGroup
               title={translateOr(t, "ES_PM_DISTRICTS", "District(s)")}
               emptyLabel={translateOr(t, "ES_PM_NO_DISTRICT_SELECTED", "No district selected")}
-              items={selectedDistricts}
+              items={districts.selectedItems}
               onRemove={(code) =>
-                handleDistrictsChange(selectedDistrictCodes.filter((existing) => existing !== code))
+                districts.onChange(districts.selectedCodes.filter((existing) => existing !== code))
               }
+              locked={locked}
+              disabled={isLocksLoading}
             />
             <SelectedGroup
               title={translateOr(t, "ES_PM_BLOCKS", "Block(s)")}
               emptyLabel={translateOr(t, "ES_PM_NO_BLOCK_SELECTED", "No block selected")}
-              items={selectedBlocks}
-              onRemove={(code) => handleBlocksChange(selectedBlockCodes.filter((existing) => existing !== code))}
+              items={blocks.selectedItems}
+              onRemove={(code) => blocks.onChange(blocks.selectedCodes.filter((existing) => existing !== code))}
+              locked={locked}
+              disabled={isLocksLoading}
             />
           </div>
         </div>

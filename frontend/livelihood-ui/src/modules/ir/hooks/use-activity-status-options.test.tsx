@@ -2,9 +2,8 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useAuthStore } from "@/shared";
+import { FACILITY_INSTALLATION_BUSINESS_SERVICE, useAuthStore } from "@/shared";
 import { useActivityStatusOptions } from "./use-activity-status-options";
-import { FACILITY_INSTALLATION_BUSINESS_SERVICE } from "../constants/activity-status";
 
 vi.mock("@/shared", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/shared")>();
@@ -68,7 +67,7 @@ describe("useActivityStatusOptions", () => {
     );
     expect(result.current.options).toEqual([
       { code: "SCHEDULED", name: "Scheduled" },
-      { code: "SUBMITTED_BY_FIELD_STAFF", name: "Pending Review" },
+      { code: "SUBMITTED_BY_FIELD_STAFF", name: "Installation Report Submitted - Review Pending" },
       { code: "APPROVED_BY_QC_SPOC", name: "Approved" },
     ]);
   });

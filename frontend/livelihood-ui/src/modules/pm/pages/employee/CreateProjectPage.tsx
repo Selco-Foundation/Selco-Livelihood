@@ -14,13 +14,14 @@ import {
   type ProjectDetailsValue,
 } from "../../components/steps/ProjectDetailsStep";
 import { WizardActionFooter } from "../../components/WizardActionFooter";
-import { useSaveProject } from "../../hooks/use-create-project";
+import { useSaveProject, useValidateJustificationCode } from "../../hooks/use-create-project";
 import { pmKeys } from "../../hooks/query-keys";
 import { useProjectById } from "../../hooks/use-project-by-id";
 import type { CreateProjectRouteSearch } from "../../routes";
 import { scheduleProject } from "../../services/project";
 import type { GeographyDetails, Project } from "../../types/project";
 import { pmMyProjectsPath, pmProjectDetailsPath } from "../../utils/paths";
+import { isDraftStatus } from "../../utils/status-label";
 import { tenantId } from "@/shared/config/global-config";
 
 export function CreateProjectPage() {
@@ -54,7 +55,11 @@ export function CreateProjectPage() {
   const isEditingExisting = Boolean(projectId);
 
   const { data: existingProject } = useProjectById(projectId);
+  // A submitted project is reopened only to edit its geography: there is nothing left to submit,
+  // so the wizard ends by returning to the project instead of scheduling it again.
+  const isSubmittedProject = Boolean(existingProject) && !isDraftStatus(existingProject?.additionalDetails?.status);
   const saveProject = useSaveProject();
+  const validateJustificationCode = useValidateJustificationCode();
   const queryClient = useQueryClient();
   const accessToken = useAuthStore((state) => state.accessToken);
   const authUser = useAuthStore((state) => state.user);
@@ -142,6 +147,24 @@ export function CreateProjectPage() {
     setNavError(undefined);
 
     if (currentStep === 1) {
+      // The project is only created on leaving step 2, so a duplicate justification code is
+      // checked here instead of surfacing only after the geography has been filled in.
+      if (!isEditingExisting) {
+        try {
+          await validateJustificationCode.mutateAsync({
+            tenantId: tenantId(),
+            startDate: projectDetails.startDate,
+            endDate: projectDetails.endDate,
+            additionalDetails: { justificationCode: projectDetails.justificationCode },
+          });
+        } catch (error) {
+          setNavError(
+            extractApiErrorMessage(error) ??
+              translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again."),
+          );
+          return;
+        }
+      }
       goToStep(2);
       return;
     }
@@ -165,12 +188,18 @@ export function CreateProjectPage() {
         setSavedGeographyDetails(saved.additionalDetails?.geographyDetails ?? geographyDetails);
         void navigate({ search: () => ({ projectId: saved.id, step: 3 }), replace: true });
       } catch (error) {
+        // A place may have been taken by an installation plan since the locks were read.
+        void queryClient.invalidateQueries({ queryKey: pmKeys.projectGeographyLocks(projectId) });
         setNavError(
           extractApiErrorMessage(error) ??
             translateOr(t, "ES_PM_PROJECT_SAVE_FAILED", "Couldn't save the project. Please try again."),
         );
       }
     }
+  }
+
+  function finishEditing() {
+    void rawNavigate({ to: pmProjectDetailsPath(), search: { projectId } });
   }
 
   const isGeographyDirty = JSON.stringify(geographyDetails) !== JSON.stringify(savedGeographyDetails);
@@ -190,13 +219,16 @@ export function CreateProjectPage() {
   }
 
   const canGoNext =
-    currentStep === 1 ? isProjectDetailsValid(projectDetails) : isGeographyDetailsValid(geographyDetails);
+    currentStep === 1
+      ? isProjectDetailsValid(projectDetails, isEditingExisting)
+      : isGeographyDetailsValid(geographyDetails);
 
   // A save-in-flight (leaving step 2) or an active upload/validate/create
   // call (step 3) should block further navigation until it settles, so two
   // saves can never race and a page you've navigated away from can't finish
   // silently underneath you.
-  const isNavigationBusy = saveProject.isPending || scheduleMutation.isPending || endUserDataBusy;
+  const isNavigationBusy =
+    saveProject.isPending || validateJustificationCode.isPending || scheduleMutation.isPending || endUserDataBusy;
 
   if (completedProject) {
     return (
@@ -221,14 +253,18 @@ export function CreateProjectPage() {
     );
   }
 
+  const pageTitle = isSubmittedProject
+    ? translateOr(t, "ES_PM_EDIT_PROJECT", "Edit Project")
+    : translateOr(t, "ES_PM_CREATE_PROJECT", "Create Project");
+
   return (
     <div className="w-full space-y-6 pb-20">
       <TopBar
-        title={translateOr(t, "ES_PM_CREATE_PROJECT", "Create Project")}
+        title={pageTitle}
         breadcrumbs={[
           { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: employeeHomePath() },
           { label: translateOr(t, "ES_PM_MY_PROJECTS", "My Projects"), to: pmMyProjectsPath() },
-          { label: translateOr(t, "ES_PM_CREATE_PROJECT", "Create Project") },
+          { label: pageTitle },
         ]}
       />
 
@@ -242,13 +278,21 @@ export function CreateProjectPage() {
       />
 
       {currentStep === 1 ? (
-        <ProjectDetailsStep value={projectDetails} onChange={setProjectDetails} locked={isEditingExisting} />
+        <ProjectDetailsStep
+          value={projectDetails}
+          onChange={(value) => {
+            setProjectDetails(value);
+            setNavError(undefined);
+          }}
+          locked={isEditingExisting}
+        />
       ) : null}
       {currentStep === 2 ? (
         <GeographyDetailsStep
           value={geographyDetails}
           onChange={setGeographyDetails}
           hasEndUserData={isEditingExisting}
+          lockTarget={projectId ? { projectId } : undefined}
         />
       ) : null}
       {currentStep === 3 ? (
@@ -257,7 +301,8 @@ export function CreateProjectPage() {
           projectId={projectId}
           geographyDetails={geographyDetails}
           onComplete={async () => {
-            setConfirmOpen(true);
+            if (isSubmittedProject) finishEditing();
+            else setConfirmOpen(true);
           }}
           onBusyChange={setEndUserDataBusy}
           onSubmitAvailabilityChange={handleEndUserSubmitAvailabilityChange}
@@ -281,6 +326,12 @@ export function CreateProjectPage() {
         {currentStep < 3 ? (
           <Button type="button" size="sm" onClick={() => void handleNext()} disabled={!canGoNext || isNavigationBusy}>
             {translateOr(t, "CORE_COMMON_NEXT", "Next")}
+          </Button>
+        ) : null}
+        {currentStep === 3 && isSubmittedProject ? (
+          // The geography is already saved; uploading end-user data is only needed for new blocks.
+          <Button type="button" variant="outline" size="sm" onClick={finishEditing} disabled={isNavigationBusy}>
+            {translateOr(t, "ES_PM_FINISH_EDITING", "Finish")}
           </Button>
         ) : null}
         {currentStep === 3 ? (

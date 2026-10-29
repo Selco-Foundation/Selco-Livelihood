@@ -63,6 +63,20 @@ describe("downloadFacilityTemplate", () => {
     );
     const formData = vi.mocked(apiClient.post).mock.calls[0][1] as FormData;
     expect(JSON.parse(formData.get("request_info") as string)).toMatchObject({ apiId: "Rainmaker" });
+    expect(formData.has("boundary_codes")).toBe(false);
+  });
+
+  it("sends the selected geography as the boundary_codes form field", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ headers: {}, data: new Blob() });
+
+    await downloadFacilityTemplate("token-1", null, ["INDIA_KARNATAKA", "INDIA_ASSAM_KAMRUP"]);
+
+    const formData = vi.mocked(apiClient.post).mock.calls[0][1] as FormData;
+    expect(JSON.parse(formData.get("boundary_codes") as string)).toEqual([
+      "INDIA_KARNATAKA",
+      "INDIA_ASSAM_KAMRUP",
+    ]);
+    expect(formData.has("boundary_data")).toBe(false);
   });
 });
 

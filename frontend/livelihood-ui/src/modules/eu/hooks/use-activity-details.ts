@@ -1,109 +1,144 @@
-import { fetchFileUrls, tenantId, useAuthStore } from "@/shared";
+import {
+  buildAssetSectionMedia,
+  buildImageChecklistMedia,
+  buildMachineAssetData,
+  buildReportSectionMedia,
+  buildSolarAssetSections,
+  fetchFileUrls,
+  fetchInstallationImageCriteriaQuery,
+  fetchRejectionReasonOptionsQuery,
+  flattenAssetHierarchy,
+  installationImageCriteriaQueryKey,
+  isResolvableAssetDocument,
+  rejectionReasonOptionsQueryKey,
+  tenantId,
+  useAuthStore,
+  type MachineAssetData,
+} from "@/shared";
+import type { ActivityDocument, AssetSectionContent, ReviewSectionContent, SectionMediaPatch } from "@/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchActivityFacilityById } from "../services/activity-detail";
 import { searchAssetsForActivity } from "../services/asset";
-import {
-  buildActivityInfo,
-  buildAssetSections,
-  buildAuditTrail,
-  buildReportSection,
-  resolveAssetItemImages,
-  resolveReportSection,
-} from "../utils/activity-detail-mapping";
-import { useAssetTypeOptions } from "./use-asset-type-options";
-import type { ActivityDetail, AssetItem, ResolvedReportSection } from "../types/activity-detail";
+import { buildActivityDetail } from "../utils/activity-detail-mapping";
+import type { ActivityDetail } from "../types/activity-detail";
 
 export function useActivityDetails(activityId: string) {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
-  const { assetTypes, isLoading: isAssetTypesLoading } = useAssetTypeOptions();
+  const stateTenantId = tenantId();
+  const queryClient = useQueryClient();
 
   return useQuery({
     queryKey: ["eu-activity-details", activityId],
-    // Waiting on assetTypes to finish loading (rather than adding it to the queryKey) avoids
-    // caching asset-section labels built while the MDMS options were still an empty array — the
-    // query would never refetch once assetTypes actually arrived.
-    enabled: Boolean(accessToken) && Boolean(activityId) && !isAssetTypesLoading,
-    queryFn: async (): Promise<ActivityDetail | undefined> => {
-      const stateTenantId = tenantId();
-      const row = await fetchActivityFacilityById(activityId, stateTenantId, accessToken!, user);
+    enabled: Boolean(accessToken) && Boolean(activityId),
+    queryFn: async (): Promise<ActivityDetail | null> => {
+      // The installation-image checklist master and the rejection-reason
+      // options master are both the same for every activity, so they're
+      // fetched through their own shared query keys (queryClient.fetchQuery
+      // reuses ir's useInstallationImageCriteria's/useRejectionReasonOptions'
+      // cache instead of re-fetching per visit) rather than being
+      // activity-scoped like the facility row.
+      const [row, installationImageCriteria, rejectionReasonOptions] = await Promise.all([
+        fetchActivityFacilityById(activityId, stateTenantId, accessToken!, user),
+        queryClient.fetchQuery({
+          queryKey: installationImageCriteriaQueryKey(stateTenantId),
+          queryFn: fetchInstallationImageCriteriaQuery(stateTenantId, accessToken!, user),
+          staleTime: 5 * 60_000,
+        }),
+        queryClient.fetchQuery({
+          queryKey: rejectionReasonOptionsQueryKey(stateTenantId),
+          queryFn: fetchRejectionReasonOptionsQuery(stateTenantId, accessToken!, user),
+          staleTime: 5 * 60_000,
+        }),
+      ]);
       if (!row) {
-        return undefined;
+        return null;
       }
 
-      const assets = await searchAssetsForActivity(activityId, stateTenantId, accessToken!, user).catch(
-        () => [],
-      );
-      const assetTypeNames = new Map(assetTypes.map((option) => [option.code, option.name]));
-      const latestWorkflow = row.workflow?.[0];
+      // Both Solar's Panel/Battery/Inverter sections and Machine's PO/
+      // invoice/warranty/serial-number details are sourced from the real
+      // asset-registry search (mirrors ir's useActivityReview). If the asset
+      // search comes back empty (nothing registered yet) or fails, the page
+      // still renders — Solar just shows no asset-type sections, and
+      // Machine falls back to its BOM-only presentation.
+      const isSolar = row.activityFacility?.componentType !== "MACHINE";
+      let solarAssetSections: AssetSectionContent[] = [];
+      let machineAssetData: MachineAssetData = { details: undefined, items: [], mediaGroups: [] };
+      try {
+        const rawAssets = await searchAssetsForActivity(activityId, stateTenantId, accessToken!, user);
+        const assets = flattenAssetHierarchy(rawAssets);
+        const assetImageFileStoreIds = assets
+          .flatMap((asset) => asset.documents ?? [])
+          .filter((document) => isResolvableAssetDocument(document.documentType))
+          .map((document) => document.fileStore)
+          .filter((id): id is string => Boolean(id));
 
-      return {
-        info: buildActivityInfo(row),
-        auditTrail: buildAuditTrail(row.workflow),
-        assetSections: buildAssetSections(assets, assetTypeNames),
-        reportSection: buildReportSection(latestWorkflow?.documents ?? undefined),
-      };
+        let assetImageUrlById = new Map<string, string>();
+        try {
+          const assetImageUrls = await fetchFileUrls(assetImageFileStoreIds, stateTenantId, accessToken!, user);
+          assetImageUrlById = new Map(
+            (assetImageUrls.fileStoreIds ?? [])
+              .filter((entry): entry is { id: string; url: string } => Boolean(entry.id && entry.url))
+              .map((entry) => [entry.id, entry.url]),
+          );
+        } catch (error) {
+          console.error("Failed to load asset media URLs for activity report:", error);
+        }
+
+        if (isSolar) {
+          solarAssetSections = buildSolarAssetSections(assets, assetImageUrlById);
+        } else {
+          machineAssetData = buildMachineAssetData(assets, assetImageUrlById);
+        }
+      } catch (error) {
+        console.error("Failed to load asset details for activity report:", error);
+      }
+
+      return buildActivityDetail(
+        row,
+        installationImageCriteria,
+        solarAssetSections,
+        rejectionReasonOptions,
+        machineAssetData,
+      );
     },
   });
 }
 
 /**
- * Resolves one asset section's item photos on expand, not upfront — cached
- * per section so re-expanding doesn't re-fetch, matching the same
- * lazy-per-section pattern used by the installation review page for the same
- * reason: a report can carry a lot of attachments.
+ * Lazily resolves one section's media on expand, not upfront — mirrors ir's
+ * useLoadSectionMedia. Cached per section so re-expanding doesn't re-fetch.
  */
-export function useLoadAssetSectionImages(activityId: string) {
+export function useLoadSectionMedia(activityId: string, facilityName: string) {
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
+  const stateTenantId = tenantId();
   const queryClient = useQueryClient();
 
-  return (sectionId: string, items: AssetItem[], photoDocuments: { fileStoreId: string }[][]) =>
+  return (section: ReviewSectionContent, documents: ActivityDocument[]) =>
     queryClient.fetchQuery({
       queryKey: [
-        "eu-activity-section-images",
+        "eu-section-media",
         activityId,
-        sectionId,
-        photoDocuments
-          .flat()
-          .map((ref) => ref.fileStoreId)
+        section.id,
+        documents
+          .map((document) => document.fileStoreId)
+          .filter((id): id is string => Boolean(id))
           .sort((a, b) => a.localeCompare(b)),
       ],
-      queryFn: async (): Promise<AssetItem[]> => {
-        const fileStoreIds = photoDocuments.flat().map((ref) => ref.fileStoreId);
-        const response = await fetchFileUrls(fileStoreIds, tenantId(), accessToken!, user);
-        const urlByFileStoreId = new Map(
-          (response.fileStoreIds ?? [])
-            .filter((entry): entry is { id: string; url: string } => Boolean(entry.id && entry.url))
-            .map((entry) => [entry.id, entry.url]),
-        );
-        return resolveAssetItemImages(items, photoDocuments, urlByFileStoreId);
-      },
-      staleTime: Infinity,
-    });
-}
+      queryFn: async (): Promise<SectionMediaPatch> => {
+        const fileStoreIds = documents
+          .map((document) => document.fileStoreId)
+          .filter((id): id is string => Boolean(id));
+        const response = await fetchFileUrls(fileStoreIds, stateTenantId, accessToken!, user);
 
-export function useLoadReportSection(activityId: string, facilityName: string) {
-  const accessToken = useAuthStore((state) => state.accessToken);
-  const user = useAuthStore((state) => state.user);
-  const queryClient = useQueryClient();
-
-  return (documents: { fileStoreId: string; documentType?: string }[]) =>
-    queryClient.fetchQuery({
-      queryKey: [
-        "eu-activity-report-section",
-        activityId,
-        documents.map((document) => document.fileStoreId).sort((a, b) => a.localeCompare(b)),
-      ],
-      queryFn: async (): Promise<ResolvedReportSection> => {
-        const fileStoreIds = documents.map((document) => document.fileStoreId);
-        const response = await fetchFileUrls(fileStoreIds, tenantId(), accessToken!, user);
-        const urlByFileStoreId = new Map(
-          (response.fileStoreIds ?? [])
-            .filter((entry): entry is { id: string; url: string } => Boolean(entry.id && entry.url))
-            .map((entry) => [entry.id, entry.url]),
-        );
-        return resolveReportSection({ documents }, urlByFileStoreId, facilityName);
+        if (section.kind === "REPORT") {
+          return buildReportSectionMedia(documents, response, facilityName);
+        }
+        if (section.kind === "IMAGE_CHECKLIST") {
+          return buildImageChecklistMedia(documents, response);
+        }
+        return buildAssetSectionMedia(documents, response);
       },
       staleTime: Infinity,
     });

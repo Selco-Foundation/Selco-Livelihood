@@ -27,14 +27,16 @@ from app.utils.facility_validator import (
     validate_installation_scope_solutions,
     duplicated_site_ids,
     find_site_id_column,
+    validate_scoped_sites_kept,
     SITE_ID_COLUMNS,
 )
 from app.utils.state_sunshine_hours_repository import fetch_state_sunshine_hours
 from app.utils.field_plan_geography import is_under_any_boundary, plan_boundary_codes
 from app.utils.field_plan_locks import build_project_lock_map, solution_codes_by_name, \
-    solution_names_by_code, PLAN_STATUS_PUBLISHED
+    solution_names_by_code, scoped_site_plans, scoped_site_message, PLAN_STATUS_PUBLISHED
 from app.utils.icc_template_parser import annotate_worksheet, first_data_sheet, parse_worksheet, \
-    to_sections, validate_line_items
+    read_only_errors, to_sections, validate_line_items
+from app.ingest.icc_template_service import fetch_blank_template
 from app.ingest.bom_form_catalog import BomFormError, load_solution_forms, structural_errors
 from app.ingest.bom_field_mapper import build_field_map
 from fastapi import APIRouter, File, Form, UploadFile, HTTPException, BackgroundTasks, Depends
@@ -2096,7 +2098,8 @@ def process_update_incident_data_response(response, df, idx):
 
 @router.post('/facilitiesValidateData',
              summary='Validate facility Excel file before processing',
-             response_description='Returns validation report Excel with PASSED/FAILED rows')
+             response_description='Returns validation report Excel with PASSED/FAILED rows',
+             responses={502: {"description": "A dependent service could not be reached"}})
 async def validate_facilities_excel_sheet(
         background_tasks: BackgroundTasks,
         facility_file: UploadFile = File(..., description="Excel file containing facility data"),
@@ -2193,6 +2196,10 @@ async def validate_facilities_excel_sheet(
             'data-ingestion.FacilityIngestionSchema',
             localization_service_url,
         )
+        validate_scoped_sites_kept(
+            df, _scoped_site_plans_or_502(request_info_obj, project_id),
+            lambda i, msg: validation_errors[i].append(msg),
+        )
 
         # Mark rows based on validation results
         error_count = 0
@@ -2267,6 +2274,19 @@ async def validate_facilities_excel_sheet(
     finally:
         if temp_input_file and os.path.exists(temp_input_file.name):
             os.unlink(temp_input_file.name)
+
+
+def _scoped_site_plans_or_502(request_info, project_id: str) -> Dict[str, List[str]]:
+    """field_plan_locks.scoped_site_plans, failing the request when it cannot be answered: both
+    callers guard an unlink, so an unknown answer must not read as "no plan holds the site"."""
+    try:
+        return scoped_site_plans(FieldPlanServiceClient(fieldPlan_service_url), request_info, project_id)
+    except Exception as e:
+        logger.error(f"Could not list scoped sites for project {project_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not check which end user sites are part of an installation plan in project "
+                   f"{project_id}, so this end user data cannot be processed safely: {e}")
 
 
 def _state_by_boundary_code(boundary_data_df) -> dict:
@@ -2761,6 +2781,8 @@ async def create_facilities_and_update_project(
             df['Project Linking Status'] = ''
 
         project_client = ProjectServiceClient(project_service_url)
+        # Re-checked here, not only at validate: an unlink under a plan's scope cannot be undone.
+        scoped_sites = _scoped_site_plans_or_502(request_info, project_id)
 
         # --- NEW: fetch already linked facilities once ---
         linked_facilities_resp = project_client.search_project_facility(request_info, project_id)
@@ -2799,6 +2821,9 @@ async def create_facilities_and_update_project(
                 if facility_id in linked_facility_ids:
                     if should_link:
                         df.at[index, 'Project Linking Status'] = "Already Linked"
+                    elif facility_id in scoped_sites:
+                        df.at[index, 'Project Linking Status'] = \
+                            f"Not Unlinked: {scoped_site_message(scoped_sites[facility_id])}"
                     else:
                         try:
                             project_facility_data = next((pf for pf in linked_facilities if pf.get("facilityId") == facility_id), None)
@@ -2879,6 +2904,9 @@ async def create_facilities_and_update_project(
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
+    except HTTPException:
+        # Keep explicit 400/502s (e.g. the scoped-site lookup) instead of flattening them to 500.
+        raise
     except Exception as e:
         logger.error(f"Error finalizing facility data: {e}")
         raise HTTPException(
@@ -3430,6 +3458,34 @@ def _check_template_upload(request_info, fieldplan_id: str, solution_code: str, 
         raise HTTPException(status_code=502 if e.retryable else 400, detail=e.message)
 
 
+def _read_only_row_errors(request_info, solution_code: str, parsed):
+    """Row errors for line items whose Sl. No. or Product no longer match the blank template.
+
+    Shared by validate and create, so both fail for the same reasons. Rejects an upload whose
+    line-item count differs from the blank's, so the two lists line up position for position.
+    """
+    workbook_bytes = fetch_blank_template(
+        FieldPlanServiceClient(fieldPlan_service_url), request_info, solution_code)
+    blank = parse_worksheet(first_data_sheet(load_workbook(io.BytesIO(workbook_bytes))))
+    # Items are compared by position, so a different count would leave the extra uploaded items
+    # unchecked -- free to carry an edited Product into the stored template.
+    if len(blank.line_items) != len(parsed.line_items):
+        raise HTTPException(
+            status_code=400,
+            detail=f"This IC Report has {len(parsed.line_items)} line item(s), but the blank "
+                   f"template for this Solution has {len(blank.line_items)}. Download the "
+                   f"template again, or ask an administrator to regenerate it.")
+    return read_only_errors(parsed, blank)
+
+
+def _merge_row_errors(*error_maps):
+    merged = {}
+    for errors in error_maps:
+        for row, messages in errors.items():
+            merged.setdefault(row, []).extend(messages)
+    return merged
+
+
 @router.post('/installationTemplateValidateData',
              summary='Validate a filled IC Report template before creating it',
              response_description='Returns the workbook with status/error columns per line item')
@@ -3463,6 +3519,8 @@ async def validate_installation_template(
         sheet_errors = sheet_errors + structural_errors(parsed, forms)
         if sheet_errors:
             raise HTTPException(status_code=400, detail=" ".join(sheet_errors))
+        row_errors = _merge_row_errors(
+            row_errors, _read_only_row_errors(request_info_obj, solution_code, parsed))
 
         error_count = annotate_worksheet(sheet, parsed, row_errors)
 
@@ -3521,6 +3579,8 @@ async def create_installation_template(
         sheet_errors = sheet_errors + structural_errors(parsed, forms)
         if sheet_errors:
             raise HTTPException(status_code=400, detail=" ".join(sheet_errors))
+        row_errors = _merge_row_errors(
+            row_errors, _read_only_row_errors(request_info_obj, solution_code, parsed))
         if row_errors:
             rows = ", ".join(str(r) for r in sorted(row_errors)[:10])
             raise HTTPException(

@@ -1,12 +1,16 @@
-import { fetchWorkflowBusinessService, tenantId as getTenantId, translateOr, useAuthStore, useTranslate } from "@/shared";
-import { useQuery } from "@tanstack/react-query";
 import {
   ACTIVITY_STATUS_LABELS,
   ACTIVITY_STATUS_ORDER,
   FACILITY_INSTALLATION_BUSINESS_SERVICE,
-} from "../constants/activity-status";
+  fetchWorkflowBusinessService,
+  tenantId as getTenantId,
+  translateOr,
+  useAuthStore,
+  useTranslate,
+  type ActivityStatus,
+} from "@/shared";
+import { useQuery } from "@tanstack/react-query";
 import type { ActivityFilterOption } from "../components/activity/ActivityFilter";
-import type { ActivityStatus } from "../types/activity-review";
 
 export function useActivityStatusOptions() {
   const { t } = useTranslate();
