@@ -2,6 +2,10 @@ package org.egov.inbox.util;
 
 import org.springframework.stereotype.Component;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
 @Component
 public class InboxConstants {
 
@@ -82,4 +86,14 @@ public class InboxConstants {
     public static final String ASSET_TYPE_PARAM = "assetType";
 
     public static final String NO_MAPPED_ASSETS_SENTINEL = "__NO_MAPPED_ASSETS__";
+
+    /**
+     * Roles whose tickets are pooled rather than assigned to a person: im-services leaves the states
+     * they own without an assignee, so the inbox has to reach them by role instead.
+     * <p>
+     * A pooled role held at or above the tenant the inbox is queried at still owns the ticket - see
+     * {@link org.egov.inbox.service.WorkflowService#getActionableStatusesForRole}.
+     */
+    public static final List<String> POOLED_ROLES = Collections.unmodifiableList(Arrays.asList(
+            "LIVELIHOOD_POC")); // Program POC
 }
