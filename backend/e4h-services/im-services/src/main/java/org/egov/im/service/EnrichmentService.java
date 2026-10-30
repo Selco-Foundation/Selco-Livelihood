@@ -535,6 +535,10 @@ public class EnrichmentService {
             } catch (Exception e) {
                 log.warn("Could not enrich vendor user for uuid={}", vendorUuid, e);
             }
+        } else if (LIVELIHOOD_OUT_OF_SCOPE_PENDING_POC.equals(incident.getApplicationStatus())) {
+            // Pooled on the Program POC role (WorkflowService.clearAssigneesForPooledState): there is no
+            // assignee to name, so say who the ticket is waiting on.
+            indexView.setMappedVendorName(PROGRAM_POC_OWNER_LABEL);
         }
 
         indexView.setAttachmentUrls(buildAttachmentUrls(incidentRequest));
