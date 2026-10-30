@@ -1,6 +1,8 @@
 import type { AuthUser } from "@/shared";
 import {
   BLANK_SLA_STATUSES,
+  POC_OWNED_STATUSES,
+  PROGRAM_POC_OWNER_MARKER,
   ROLE_STATUS_MAPPING,
   SLA_OVERDUE_MARKER,
 } from "../constants/workflow";
@@ -75,7 +77,9 @@ export function combineInboxResponses(
       incidentType: incident.incidentType,
       assetLabel: incident.boundaryCode ? `BOUNDARY_${incident.boundaryCode}` : "-",
       status: incident.applicationStatus,
-      taskOwner: assignee?.name || "-",
+      taskOwner: (POC_OWNED_STATUSES as readonly string[]).includes(incident.applicationStatus)
+        ? PROGRAM_POC_OWNER_MARKER
+        : assignee?.name || "-",
       sla: `${slaValue}`,
       slaUrgent: slaValue === SLA_OVERDUE_MARKER || (typeof slaValue === "number" && slaValue <= 1),
       endUser: incident.reporter?.name || "-",

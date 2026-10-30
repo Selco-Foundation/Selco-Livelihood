@@ -39,3 +39,11 @@ export function isAssigneeScopedUser(
 ): boolean {
   return hasRole(roles, "LIVELIHOOD_VENDOR") || hasRole(roles, "COMPLAINT_RESOLVER");
 }
+
+/**
+ * Program POC tickets carry no assignee, so "My Tickets" cannot match the user's uuid. These users
+ * ask the inbox for `assignedToMe` instead and the backend returns the tickets their role can act on.
+ */
+export function usesAssignedToMe(roles: Array<{ code?: string }> | undefined): boolean {
+  return hasRole(roles, "LIVELIHOOD_POC") && !isAssigneeScopedUser(roles);
+}

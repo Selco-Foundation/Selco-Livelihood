@@ -6,7 +6,7 @@ import {
 } from "../constants/workflow";
 import { searchInbox } from "../services/inbox";
 import type { ImInboxSearchParams } from "../types/inbox";
-import { hasImAccess } from "../utils/access";
+import { hasImAccess, usesAssignedToMe } from "../utils/access";
 import { flattenInboxFilters } from "../utils/inbox-filters";
 import {
   combineInboxResponses,
@@ -66,12 +66,18 @@ export function useImInboxData(searchParams: ImInboxSearchParams) {
   const employeeTenantId = useAuthStore((state) => state.employeeTenantId);
   const boundaries = useJurisdictionStore((state) => state.boundaries);
 
-  const filters = flattenInboxFilters(searchParams, {
+  const flattened = flattenInboxFilters(searchParams, {
     limit: searchParams.limit ?? 10,
     offset: searchParams.offset ?? 0,
     services: [LIVELIHOOD_INCIDENT_BUSINESS_SERVICE],
     sortOrder: "DESC",
   });
+  // "My Tickets" stores the user's uuid as the assignee. Program POC tickets carry no assignee, so
+  // for a POC that uuid becomes assignedToMe and the backend resolves the tickets their role owns.
+  const assignedToMe = Boolean(
+    usesAssignedToMe(user?.roles) && user?.uuid && flattened.assignee === user.uuid,
+  );
+  const filters = usesAssignedToMe(user?.roles) ? { ...flattened, assignee: undefined } : flattened;
 
   const enabled = Boolean(accessToken && employeeTenantId && hasImAccess(user?.roles));
   const jurisdiction = boundaries ?? { country: ["-"] };
@@ -83,6 +89,7 @@ export function useImInboxData(searchParams: ImInboxSearchParams) {
       searchParams,
       filters,
       jurisdiction,
+      assignedToMe,
     ],
     enabled,
     staleTime: 30_000,
@@ -93,6 +100,7 @@ export function useImInboxData(searchParams: ImInboxSearchParams) {
         filters,
         accessToken!,
         user,
+        assignedToMe,
       );
       const normalized = normalizeInboxResponse(data);
       const combinedRes = combineInboxResponses(normalized.items, user);

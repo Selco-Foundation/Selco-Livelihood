@@ -13,6 +13,24 @@ export const APPLICATION_STATUS = {
 /** Sentinel stored in InboxRow.sla for an overdue ticket; translated at render time. */
 export const SLA_OVERDUE_MARKER = "OVERDUE";
 
+/**
+ * Sentinel stored in InboxRow.taskOwner for a ticket waiting on the Program POC; translated at
+ * render time. The backend leaves these tickets unassigned so that every POC can pick them up.
+ */
+export const PROGRAM_POC_OWNER_MARKER = "PROGRAM_POC";
+
+/** Statuses owned by the pooled Program POC role rather than by a named user. */
+export const POC_OWNED_STATUSES = [APPLICATION_STATUS.OUT_OF_SCOPE_PENDING_POC] as const;
+
+/** English shown when a status has no localisation message; otherwise the raw code is shown. */
+const STATUS_FALLBACK_LABELS: Record<string, string> = {
+  [APPLICATION_STATUS.OUT_OF_SCOPE_PENDING_POC]: "Pending with Program POC",
+};
+
+export function statusFallbackLabel(status: string): string {
+  return STATUS_FALLBACK_LABELS[status] ?? status;
+}
+
 export const BLANK_SLA_STATUSES = [
   APPLICATION_STATUS.RESOLVED,
   APPLICATION_STATUS.CLOSED_AFTER_RESOLUTION,

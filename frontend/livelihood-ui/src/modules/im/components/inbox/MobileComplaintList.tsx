@@ -2,7 +2,11 @@ import { contextPath, translateOr, useAuthStore, useTranslate } from "@/shared";
 import { Card } from "@/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { Clock } from "lucide-react";
-import { SLA_OVERDUE_MARKER } from "../../constants/workflow";
+import {
+  PROGRAM_POC_OWNER_MARKER,
+  SLA_OVERDUE_MARKER,
+  statusFallbackLabel,
+} from "../../constants/workflow";
 import type { InboxRow } from "../../types/inbox";
 import { isEndUser } from "../../utils/access";
 import { translateDetailValue } from "../../utils/complaint-details";
@@ -28,6 +32,7 @@ export function MobileComplaintList({ data }: MobileComplaintListProps) {
     ? translateOr(t, "WF_INBOX_HEADER_DAYS_REMAINING", "Days Remaining")
     : translateOr(t, "WF_INBOX_HEADER_SLA_DAYS_REMAINING", "SLA Days Remaining");
   const overdueLabel = translateOr(t, "SLA_OVERDUE", "Overdue");
+  const programPocLabel = translateOr(t, "IM_PROGRAM_POC", "Program POC");
 
   return (
     <div className="space-y-3">
@@ -63,11 +68,11 @@ export function MobileComplaintList({ data }: MobileComplaintListProps) {
             />
             <DetailRow
               label={translateOr(t, "CS_TICKET_DETAILS_CURRENT_STATUS", "Current Status")}
-              value={translateOr(t, `CS_COMMON_${row.status}`, row.status)}
+              value={translateOr(t, `CS_COMMON_${row.status}`, statusFallbackLabel(row.status))}
             />
             <DetailRow
               label={translateOr(t, "WF_INBOX_HEADER_CURRENT_OWNER", "Current Owner")}
-              value={row.taskOwner}
+              value={row.taskOwner === PROGRAM_POC_OWNER_MARKER ? programPocLabel : row.taskOwner}
             />
             <p className="flex items-center gap-1.5 text-sm text-ink-600">
               <Clock className="size-4 shrink-0" />
