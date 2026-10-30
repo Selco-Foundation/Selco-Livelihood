@@ -14,6 +14,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -313,21 +314,35 @@ public class LivelihoodNotificationService {
         sendPocEmail(request, templateCode, Map.of());
     }
 
+    /**
+     * Emails every active Program POC of the ticket's state, not just the first one HRMS returns: the
+     * ticket is pooled on the role (WorkflowService.clearAssigneesForPooledState), so any of them may
+     * be the one to act. Each POC gets their own email, so one bad address does not stop the rest.
+     */
     private void sendPocEmail(IncidentRequest request, String templateCode, Map<String, String> extras) {
+        String incidentId = request.getIncident().getIncidentId();
+        List<String> pocEmails;
         try {
-            String pocEmail = fetchPocEmail(
+            pocEmails = fetchPocEmails(
                     request.getIncident().getTenantId(),
                     request.getIncident().getBoundaryCode(),
                     request.getRequestInfo()
             );
-            if (StringUtils.isBlank(pocEmail)) {
-                log.warn("POC email not found for incidentId={}", request.getIncident().getIncidentId());
-                return;
-            }
-            livelihoodEmailNotificationService.sendEmail(request, pocEmail, templateCode, extras);
         } catch (Exception e) {
-            log.error("Failed to send POC email template={} incidentId={}",
-                    templateCode, request.getIncident().getIncidentId(), e);
+            log.error("Failed to fetch POC emails template={} incidentId={}", templateCode, incidentId, e);
+            return;
+        }
+        if (CollectionUtils.isEmpty(pocEmails)) {
+            log.warn("POC email not found for incidentId={}", incidentId);
+            return;
+        }
+        for (String pocEmail : pocEmails) {
+            try {
+                livelihoodEmailNotificationService.sendEmail(request, pocEmail, templateCode, extras);
+            } catch (Exception e) {
+                log.error("Failed to send POC email template={} incidentId={} to={}",
+                        templateCode, incidentId, pocEmail, e);
+            }
         }
     }
 
@@ -417,9 +432,10 @@ public class LivelihoodNotificationService {
         return user != null ? user.getEmailId() : null;
     }
 
-    private String fetchPocEmail(String tenantId, String boundaryCode, RequestInfo requestInfo) {
+    /** Distinct emails of the active Program POCs of the ticket's state; empty when none are found. */
+    private List<String> fetchPocEmails(String tenantId, String boundaryCode, RequestInfo requestInfo) {
         if (StringUtils.isBlank(boundaryCode)) {
-            return null;
+            return List.of();
         }
         StringBuilder url = hrmsUtil.getHRMSURI(null, tenantId, ROLE_LIVELIHOOD_POC, boundaryCode);
         RequestInfoWrapper wrapper = RequestInfoWrapper.builder().requestInfo(requestInfo).build();
@@ -427,11 +443,18 @@ public class LivelihoodNotificationService {
         try {
             List<String> emails = JsonPath.read(response, "$.Employees.*.user.emailId");
             if (!CollectionUtils.isEmpty(emails)) {
-                return emails.stream().filter(StringUtils::isNotBlank).findFirst().orElse(null);
+                // Two POC records can share an address; send it one email, not two.
+                Map<String, String> byLowerCase = new LinkedHashMap<>();
+                for (String email : emails) {
+                    if (StringUtils.isNotBlank(email)) {
+                        byLowerCase.putIfAbsent(email.trim().toLowerCase(Locale.ROOT), email.trim());
+                    }
+                }
+                return List.copyOf(byLowerCase.values());
             }
         } catch (Exception e) {
             log.error("Failed to fetch POC email from HRMS for boundaryCode={}", boundaryCode, e);
         }
-        return null;
+        return List.of();
     }
 }
