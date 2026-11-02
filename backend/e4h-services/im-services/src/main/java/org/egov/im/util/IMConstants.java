@@ -82,6 +82,26 @@ public final class IMConstants {
 
     public static final String ROLE_LIVELIHOOD_POC = "LIVELIHOOD_POC";
 
+    /**
+     * Roles whose work is pooled rather than owned: a ticket waiting on one of them is left with no
+     * assignee, so that every holder of the role in the ticket's state sees it and can act on it.
+     *
+     * @see org.egov.im.service.WorkflowService#clearAssigneesForPooledState
+     */
+    public static final List<String> POOLED_ROLES = Collections.unmodifiableList(Arrays.asList(
+            ROLE_LIVELIHOOD_POC)); // Program POC
+
+    /**
+     * Workflow roles that no real user acts through. They appear on auto-escalation and system-close
+     * actions, so they say nothing about who a state is waiting on and are ignored when deciding
+     * whether a state is pooled.
+     */
+    public static final List<String> MACHINE_ROLES = Collections.unmodifiableList(Arrays.asList(
+            "SYSTEM", "SYSTEM_USER", "AUTO_ESCALATE", "COMPLAINT_CLOSER"));
+
+    /** What the index shows as the ticket's vendor while it waits, unassigned, on the Program POC. */
+    public static final String PROGRAM_POC_OWNER_LABEL = "Assigned to Program POC";
+
     public static final String LIVELIHOOD_LOCALIZATION_MODULE = "rainmaker-livelihood";
 
     public static final String LIVELIHOOD_URL_SMS_MESSAGE = "LIVELIHOOD_URL_SMS_MESSAGE";

@@ -27,6 +27,7 @@ import {
 import { ChevronDown, Filter } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ORDERED_INBOX_STATUSES } from "../../constants/inbox-statuses";
+import { statusFallbackLabel } from "../../constants/workflow";
 import { buildDefaultInboxRoleFilters } from "../../hooks/inbox-defaults";
 import { useImAssetTypes } from "../../hooks/use-im-inbox-summary";
 import type { ImInboxFilters, InboxDataResult } from "../../types/inbox";
@@ -150,7 +151,7 @@ export function InboxFilter({
     () =>
       ORDERED_INBOX_STATUSES.map((status) => ({
         code: status.code,
-        name: translateOr(t, `CS_COMMON_${status.code}`, status.code),
+        name: translateOr(t, `CS_COMMON_${status.code}`, statusFallbackLabel(status.code)),
       })),
     [t],
   );
