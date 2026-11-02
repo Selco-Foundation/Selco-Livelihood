@@ -253,6 +253,21 @@ describe("useImInboxData", () => {
     expect(vi.mocked(searchInbox).mock.calls[0][5]).toBe(false);
   });
 
+  it("keeps an assignee other than the POC's own uuid and does not send assignedToMe", async () => {
+    useAuthStore.setState({ accessToken: "token-1", employeeTenantId: "tenant-1", user: pocUser });
+    vi.mocked(searchInbox).mockResolvedValue({ items: [], totalCount: 0 });
+    const { wrapper } = createWrapper();
+
+    const searchParams = { limit: 10, offset: 0, filters: { wfQuery: { assignee: "someone-else" } } };
+    const { result } = renderHook(() => useImInboxData(searchParams), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const [, , filters, , , assignedToMe] = vi.mocked(searchInbox).mock.calls[0];
+    expect(filters.assignee).toBe("someone-else");
+    expect(assignedToMe).toBe(false);
+  });
+
   // flattenInboxFilters (utils/inbox-filters.ts) computes its `defaults.limit`/
   // `defaults.offset` with a `?? 10`/`?? 0` fallback, but then unconditionally
   // overwrites them again with the raw `searchParams.limit`/`searchParams.offset`

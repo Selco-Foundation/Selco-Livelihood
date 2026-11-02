@@ -77,7 +77,7 @@ export function useImInboxData(searchParams: ImInboxSearchParams) {
   const assignedToMe = Boolean(
     usesAssignedToMe(user?.roles) && user?.uuid && flattened.assignee === user.uuid,
   );
-  const filters = usesAssignedToMe(user?.roles) ? { ...flattened, assignee: undefined } : flattened;
+  const filters = assignedToMe ? { ...flattened, assignee: undefined } : flattened;
 
   const enabled = Boolean(accessToken && employeeTenantId && hasImAccess(user?.roles));
   const jurisdiction = boundaries ?? { country: ["-"] };
