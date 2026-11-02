@@ -88,6 +88,12 @@ public class InboxConstants {
     public static final String NO_MAPPED_ASSETS_SENTINEL = "__NO_MAPPED_ASSETS__";
 
     /**
+     * Status that no ticket carries. An empty status list means "no status filter" to the query
+     * builder, so an assignedToMe request with nothing actionable filters on this instead.
+     */
+    public static final String NO_ACTIONABLE_STATUS_SENTINEL = "__NO_ACTIONABLE_STATUS__";
+
+    /**
      * Roles whose tickets are pooled rather than assigned to a person: im-services leaves the states
      * they own without an assignee, so the inbox has to reach them by role instead.
      * <p>
