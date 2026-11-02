@@ -59,6 +59,16 @@ describe("ComplaintTable", () => {
     expect(screen.getByText("Days Remaining")).toBeInTheDocument();
   });
 
+  it("shows the Program POC role and the pending-with-POC status for a POC-owned ticket", () => {
+    render(
+      <ComplaintTable
+        data={[makeRow({ status: "OUT_OF_SCOPE_PENDING_POC", taskOwner: "PROGRAM_POC" })]}
+      />,
+    );
+    expect(screen.getByText("Program POC")).toBeInTheDocument();
+    expect(screen.getAllByText("Pending with Program POC").length).toBeGreaterThan(0);
+  });
+
   it("renders one row per item with its raw field values", () => {
     render(
       <ComplaintTable

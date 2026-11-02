@@ -48,8 +48,8 @@ public class LivelihoodEmailNotificationService {
             return;
         }
         publishEmail(emailId, subject, body, request.getIncident().getTenantId());
-        log.info("Livelihood email sent template={} incidentId={} to={}",
-                templateCode, request.getIncident().getIncidentId(), emailId);
+        log.info("Livelihood email sent template={} incidentId={}",
+                templateCode, request.getIncident().getIncidentId());
     }
 
     public String buildSubject(IncidentRequest request, String templateCode, Map<String, String> extraPlaceholders) {

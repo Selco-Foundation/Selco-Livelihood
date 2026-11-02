@@ -444,6 +444,10 @@ public class WorkflowService {
             processInstance.setRating(workflow.getRating());
         }
 
+        // The Program POC is a pooled role: OUT_OF_SCOPE is deliberately not reassigned to a named POC
+        // in applyLivelihoodWorkflowRules, and this drops whatever assignee a client still sends.
+        clearAssigneesForPooledState(request, action, businessService.getStates());
+
         if (!CollectionUtils.isEmpty(workflow.getAssignes())) {
             List<User> users = new ArrayList<>();
 
@@ -457,6 +461,106 @@ public class WorkflowService {
         }
 
         return processInstance;
+    }
+
+    /**
+     * Drops the assignees when the transition lands the ticket in a state owned by a pooled role, so
+     * that it belongs to the role rather than to a person.
+     * <p>
+     * egov-workflow-v2 authorises a state-changing action purely on the acting user's roles
+     * ({@code WorkflowValidator.validateAction}) and never requires them to be the assignee, so leaving
+     * the assignee empty is what opens the ticket up to every Program POC. The inbox then reaches it
+     * by role through {@code assignedToMe} instead of by assignee uuid.
+     * <p>
+     * The decision is read off the workflow config rather than a hardcoded list of transitions: the
+     * roles on the resultant state's actions are exactly the roles that state waits on, and if all of
+     * the human ones are in {@link org.egov.im.util.IMConstants#POOLED_ROLES} the ticket is pooled.
+     * <p>
+     * Best-effort: any failure to resolve the resultant state leaves the assignees untouched. An
+     * assignment must never fail because a lookup failed.
+     */
+    void clearAssigneesForPooledState(IncidentRequest request, String action, List<State> states) {
+        Workflow workflow = request.getWorkflow();
+        String incidentId = request.getIncident().getIncidentId();
+        try {
+            State resultantState = findResultantState(request.getIncident().getApplicationStatus(), action, states);
+            if (resultantState == null) {
+                log.debug("Pooling: resultant state of action {} on incident {} could not be resolved, "
+                        + "leaving assignees untouched", action, incidentId);
+                return;
+            }
+            if (!isPooledState(resultantState)) {
+                return;
+            }
+            if (!CollectionUtils.isEmpty(workflow.getAssignes())) {
+                log.info("Pooling: discarding assignees {} sent for incident {}, state {} is owned by a pooled role",
+                        workflow.getAssignes(), incidentId, resultantState.getState());
+            }
+            workflow.setAssignes(null);
+            log.info("Pooling: incident {} left unassigned in state {} so that every holder of the role can act",
+                    incidentId, resultantState.getState());
+        } catch (Exception e) {
+            log.error("Pooling: failed to decide on assignees for incident {}, leaving them untouched",
+                    incidentId, e);
+        }
+    }
+
+    /**
+     * The state the ticket is about to land in, resolved from the business service definition the same
+     * way egov-workflow-v2's TransitionService resolves it: the action on the current state names its
+     * next state by uuid.
+     *
+     * @return null when the current state, the action or the next state is not in the definition
+     */
+    private State findResultantState(String currentApplicationStatus, String action, List<State> states) {
+        if (CollectionUtils.isEmpty(states) || StringUtils.isBlank(currentApplicationStatus)
+                || StringUtils.isBlank(action)) {
+            return null;
+        }
+        String status = currentApplicationStatus.trim();
+        State currentState = states.stream()
+                // The config may expose the status either as the state name or as applicationStatus.
+                .filter(state -> status.equalsIgnoreCase(state.getState())
+                        || status.equalsIgnoreCase(state.getApplicationStatus()))
+                .findFirst()
+                .orElse(null);
+        if (currentState == null || CollectionUtils.isEmpty(currentState.getActions())) {
+            return null;
+        }
+        String nextStateUuid = currentState.getActions().stream()
+                .filter(a -> a != null && action.equalsIgnoreCase(a.getAction()))
+                .map(Action::getNextState)
+                .findFirst()
+                .orElse(null);
+        if (StringUtils.isBlank(nextStateUuid)) {
+            return null;
+        }
+        return states.stream()
+                .filter(state -> nextStateUuid.equals(state.getUuid()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * True when every human role that can move the ticket on from this state is a pooled one. A state
+     * that also waits on a vendor or the complainant is not pooled - those are real individuals and the
+     * ticket has to reach the right one.
+     * <p>
+     * Terminal states are excluded: the ticket has finished its lifecycle and waits on nobody.
+     */
+    private boolean isPooledState(State state) {
+        if (Boolean.TRUE.equals(state.getIsTerminateState()) || CollectionUtils.isEmpty(state.getActions())) {
+            return false;
+        }
+        List<String> humanRoles = state.getActions().stream()
+                .filter(a -> a != null && !CollectionUtils.isEmpty(a.getRoles()))
+                .flatMap(a -> a.getRoles().stream())
+                .filter(Objects::nonNull)
+                .distinct()
+                .filter(role -> MACHINE_ROLES.stream().noneMatch(role::equalsIgnoreCase))
+                .collect(Collectors.toList());
+        return !humanRoles.isEmpty()
+                && humanRoles.stream().allMatch(role -> POOLED_ROLES.stream().anyMatch(role::equalsIgnoreCase));
     }
 
     private void reassignWorkflow(Workflow workflow, IncidentRequest request, String role) {
@@ -476,8 +580,6 @@ public class WorkflowService {
         String normalized = action.trim().toUpperCase(Locale.ROOT);
         if (IM_WF_RESOLVE.equals(normalized) || REJECT.equals(normalized)) {
             assignComplainantForResolve(workflow, request);
-        } else if (LIVELIHOOD_WF_OUT_OF_SCOPE.equals(normalized)) {
-            reassignWorkflow(workflow, request, ROLE_LIVELIHOOD_POC);
         } else if (LIVELIHOOD_WF_DECLINE.equals(normalized)
                 || LIVELIHOOD_WF_DECLINE_POC.equals(normalized)) {
             clearAssigneesForTerminalAction(workflow);

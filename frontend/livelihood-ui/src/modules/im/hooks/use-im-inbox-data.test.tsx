@@ -192,6 +192,7 @@ describe("useImInboxData", () => {
       },
       "token-1",
       resolverUser,
+      false,
     );
     expect(result.current.data).toEqual({
       total: 1,
@@ -211,6 +212,60 @@ describe("useImInboxData", () => {
         },
       ],
     });
+  });
+
+  it("turns a POC's My Tickets uuid into assignedToMe and drops the assignee", async () => {
+    useAuthStore.setState({ accessToken: "token-1", employeeTenantId: "tenant-1", user: pocUser });
+    vi.mocked(searchInbox).mockResolvedValue({ items: [], totalCount: 0 });
+    const { wrapper } = createWrapper();
+
+    const searchParams = { limit: 10, offset: 0, filters: { wfQuery: { assignee: "user-2" } } };
+    const { result } = renderHook(() => useImInboxData(searchParams), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(searchInbox).toHaveBeenCalledWith(
+      "tenant-1",
+      { country: ["-"] },
+      {
+        limit: 10,
+        offset: 0,
+        nearingSLA: undefined,
+        services: ["LivelihoodIncident"],
+        sortOrder: "DESC",
+        assignee: undefined,
+      },
+      "token-1",
+      pocUser,
+      true,
+    );
+  });
+
+  it("does not send assignedToMe for a POC viewing All Tickets", async () => {
+    useAuthStore.setState({ accessToken: "token-1", employeeTenantId: "tenant-1", user: pocUser });
+    vi.mocked(searchInbox).mockResolvedValue({ items: [], totalCount: 0 });
+    const { wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useImInboxData({ limit: 10, offset: 0 }), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(vi.mocked(searchInbox).mock.calls[0][5]).toBe(false);
+  });
+
+  it("keeps an assignee other than the POC's own uuid and does not send assignedToMe", async () => {
+    useAuthStore.setState({ accessToken: "token-1", employeeTenantId: "tenant-1", user: pocUser });
+    vi.mocked(searchInbox).mockResolvedValue({ items: [], totalCount: 0 });
+    const { wrapper } = createWrapper();
+
+    const searchParams = { limit: 10, offset: 0, filters: { wfQuery: { assignee: "someone-else" } } };
+    const { result } = renderHook(() => useImInboxData(searchParams), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const [, , filters, , , assignedToMe] = vi.mocked(searchInbox).mock.calls[0];
+    expect(filters.assignee).toBe("someone-else");
+    expect(assignedToMe).toBe(false);
   });
 
   // flattenInboxFilters (utils/inbox-filters.ts) computes its `defaults.limit`/
@@ -240,6 +295,7 @@ describe("useImInboxData", () => {
       },
       "token-1",
       resolverUser,
+      false,
     );
   });
 });
