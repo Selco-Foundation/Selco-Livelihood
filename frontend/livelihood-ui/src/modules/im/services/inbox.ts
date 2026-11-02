@@ -15,6 +15,8 @@ export interface InboxSearchPayload {
     moduleSearchCriteria: Record<string, unknown>;
     limit?: number;
     offset?: number;
+    /** Tickets waiting on the caller's roles instead of a uuid match; see usesAssignedToMe. */
+    assignedToMe?: boolean;
   };
 }
 
@@ -24,6 +26,7 @@ export async function searchInbox(
   filters: IncidentFilterInput,
   accessToken: string,
   user: AuthUser | null | undefined,
+  assignedToMe = false,
 ): Promise<InboxSearchResponse> {
   const {
     searchFilters,
@@ -48,6 +51,7 @@ export async function searchInbox(
       },
       limit,
       offset,
+      ...(assignedToMe ? { assignedToMe } : {}),
     },
   };
 
