@@ -340,8 +340,7 @@ public class LivelihoodNotificationService {
             try {
                 livelihoodEmailNotificationService.sendEmail(request, pocEmail, templateCode, extras);
             } catch (Exception e) {
-                log.error("Failed to send POC email template={} incidentId={} to={}",
-                        templateCode, incidentId, pocEmail, e);
+                log.error("Failed to send POC email template={} incidentId={}", templateCode, incidentId, e);
             }
         }
     }
