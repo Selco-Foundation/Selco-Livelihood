@@ -63,7 +63,7 @@ public class LivelihoodPocScopeService {
                     throw new CustomException(POC_ACCESS_DENIED_CODE, POC_ACCESS_DENIED_MSG);
                 }
             }
-            criteria.setState(normalizeStateBoundaries(criteria.getState()));
+            criteria.setState(normalizeStateBoundaries(criteria.getState(), allowedStateBoundaries));
             return;
         }
 
@@ -145,10 +145,18 @@ public class LivelihoodPocScopeService {
         return configuration.getHrmsTenantId();
     }
 
+    /**
+     * Boundary codes encode the hierarchy (INDIA > INDIA_KARNATAKA > INDIA_KARNATAKA_MYSURU), so a requested
+     * state is allowed when it is the jurisdiction boundary itself or sits under it. The raw value is checked
+     * first so that a code already set by a previous pass (e.g. "INDIA" for a country-level POC) still matches.
+     */
     private boolean isStateBoundaryAllowed(String requestedState, List<String> allowedStateBoundaries) {
-        String normalized = toStateBoundaryCode(normalizeFacilityState(requestedState));
-        return allowedStateBoundaries.stream()
-                .anyMatch(allowed -> allowed.equalsIgnoreCase(normalized));
+        if (StringUtils.isBlank(requestedState)) {
+            return false;
+        }
+        return matchesAnyStateBoundary(requestedState, allowedStateBoundaries)
+                || matchesAnyStateBoundary(toStateBoundaryCode(normalizeFacilityState(requestedState)),
+                allowedStateBoundaries);
     }
 
     private boolean matchesAnyStateBoundary(String boundaryCode, List<String> allowedStateBoundaries) {
@@ -159,9 +167,11 @@ public class LivelihoodPocScopeService {
                         || normalizedBoundary.equals(stateBoundary));
     }
 
-    private List<String> normalizeStateBoundaries(List<String> states) {
+    private List<String> normalizeStateBoundaries(List<String> states, List<String> allowedStateBoundaries) {
         return states.stream()
-                .map(this::normalizeFacilityState)
+                .map(state -> matchesAnyStateBoundary(state, allowedStateBoundaries)
+                        ? state.trim()
+                        : normalizeFacilityState(state))
                 .map(this::toStateBoundaryCode)
                 .distinct()
                 .collect(Collectors.toList());
