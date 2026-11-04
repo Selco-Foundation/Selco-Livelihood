@@ -175,6 +175,22 @@ describe("combineInboxResponses", () => {
     expect(row.taskOwner).toBe("-");
   });
 
+  it("shows the Program POC role as taskOwner for a POC-owned status, even when a named POC is assigned", () => {
+    const item = makeItem({
+      businessObject: {
+        incident: {
+          incidentId: "INC-1",
+          incidentType: "solar_light",
+          applicationStatus: "OUT_OF_SCOPE_PENDING_POC",
+          tenantId: "tenant-1",
+        },
+      },
+      ProcessInstance: { assignes: [{ uuid: "poc-1", name: "POC One" }] },
+    });
+    const [row] = combineInboxResponses([item], undefined);
+    expect(row.taskOwner).toBe("PROGRAM_POC");
+  });
+
   it("falls back to a dash for endUser when there is no reporter name", () => {
     const [row] = combineInboxResponses([makeItem()], undefined);
     expect(row.endUser).toBe("-");

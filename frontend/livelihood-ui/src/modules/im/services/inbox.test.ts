@@ -58,6 +58,19 @@ describe("searchInbox", () => {
     );
   });
 
+  it("sends assignedToMe on the inbox only when asked to", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ data: { items: [] } });
+
+    await searchInbox("tenant-1", {}, {}, "token-1", { uuid: "u1" }, true);
+    await searchInbox("tenant-1", {}, {}, "token-1", { uuid: "u1" });
+
+    const [withFlag, withoutFlag] = vi.mocked(apiClient.post).mock.calls.map(
+      (call) => (call[1] as { inbox: Record<string, unknown> }).inbox,
+    );
+    expect(withFlag.assignedToMe).toBe(true);
+    expect(withoutFlag).not.toHaveProperty("assignedToMe");
+  });
+
   it("includes userInfo in RequestInfo when a user is provided, omits it otherwise", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ data: { items: [], totalCount: 0 } });
     const user = { uuid: "u1", name: "Reviewer" };
