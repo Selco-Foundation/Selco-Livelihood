@@ -132,10 +132,11 @@ public class OrganisationEnrichmentService {
             // Last step of the iteration, so nothing that can still fail has run after the HRMS user is created
             try {
                 if (OrganisationPocService.shouldCreatePocUser(organisation)) {
-                    organisationPocService.createPocUser(requestInfo, organisation, plainPocMobileNumber);
+                    organisationPocService.createOrganisationUsers(requestInfo, organisation, plainPocMobileNumber);
                 }
             } finally {
                 organisation.setOrgPocPassword(null);
+                organisation.setDefaultVendorPassword(null);
             }
 
             orgAppNumIdFormatIndex++;
