@@ -72,12 +72,15 @@ describe("searchAssetsForFacility", () => {
         tenantId: "tenant-1",
         facilityID: "facility-1",
         boundaryCode: "b1",
-        assetTypeID: "PANEL",
-        name: "Solar Panel",
+        assetTypeID: "MACHINE",
+        name: "Milking Machine",
         serialNumber: "SN1",
         modelNumber: "MN1",
         isOperational: true,
-        documents: [{ fileStore: "fs1" }, { fileStore: "fs2" }],
+        documents: [
+          { documentType: "MACHINE_ELECTRIC_BOARD", fileStore: "fs1" },
+          { documentType: "MACHINE_END_USER_PHOTO", fileStore: "fs2" },
+        ],
       },
     ];
     vi.mocked(apiClient.post).mockResolvedValue({ data: raw });
@@ -90,14 +93,25 @@ describe("searchAssetsForFacility", () => {
         tenantId: "tenant-1",
         facilityId: "facility-1",
         boundaryCode: "b1",
-        assetTypeId: "PANEL",
-        name: "Solar Panel",
+        assetTypeId: "MACHINE",
+        name: "Milking Machine",
         serialNumber: "SN1",
         modelNumber: "MN1",
         isOperational: true,
-        documentFileStoreId: "fs1",
+        documentFileStoreId: "fs2",
       },
     ]);
+  });
+
+  it("leaves documentFileStoreId undefined for an asset without an end-user photo", async () => {
+    const raw = [
+      { assetId: "a1", assetTypeID: "PANEL", documents: [{ documentType: "ASSET", fileStore: "fs1" }] },
+    ];
+    vi.mocked(apiClient.post).mockResolvedValue({ data: raw });
+
+    const result = await searchAssetsForFacility("facility-1", "tenant-1", "token-1");
+
+    expect(result[0].documentFileStoreId).toBeUndefined();
   });
 
   it("falls back name to assetTypeID and documentFileStoreId to undefined when missing", async () => {

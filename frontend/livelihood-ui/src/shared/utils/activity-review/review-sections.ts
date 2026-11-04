@@ -43,6 +43,8 @@ export const REVIEW_SECTION_LABELS: Record<
  * also verified against real file extensions: DEMO_VIDEO is .mp4, the
  * other three are .jpg).
  */
+export const MACHINE_END_USER_PHOTO_DOCUMENT_TYPE = "MACHINE_END_USER_PHOTO";
+
 export const MACHINE_MEDIA_GROUPS = [
   {
     id: "MACHINE_ELECTRIC_BOARD",
@@ -57,7 +59,7 @@ export const MACHINE_MEDIA_GROUPS = [
     kind: "VIDEO",
   },
   {
-    id: "MACHINE_END_USER_PHOTO",
+    id: MACHINE_END_USER_PHOTO_DOCUMENT_TYPE,
     labelKey: "ES_IR_MACHINE_PHOTO_WITH_END_USER",
     label: "Photo with End User",
     kind: "IMAGE",

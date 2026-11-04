@@ -515,7 +515,7 @@ public class ActivityService {
             if (activityFacilityId != null) {
                 updateAssetsForFacility(existingActivityFacitlity, request.getRequestInfo(), activityFacilityId);
                 triggerInstallationCompletionSideEffects(existingActivityFacitlity, request.getRequestInfo(), activityFacilityId);
-                // Do NOT mark whole facility ONM-ready — O&M is per-asset via is_onm_ready
+                markFacilityOnmReady(existingActivityFacitlity, request.getRequestInfo());
                 addFacilityToComplaintResolverJurisdiction(existingActivityFacitlity, request.getRequestInfo());
                 releaseSiteLockIfAllComponentsApproved(existingActivityFacitlity, request.getRequestInfo());
             }
@@ -907,6 +907,10 @@ public class ActivityService {
             Facility facility = activityValidator.getFacilityById(facilityId);
             if (facility == null) {
                 log.warn("Facility not found in facility-service for facilityId {}. Skipping ONM ready update.", facilityId);
+                return;
+            }
+            if (Boolean.TRUE.equals(facility.getIsOnmReady())) {
+                log.info("Facility {} already ONM ready, skipping update", facilityId);
                 return;
             }
 
