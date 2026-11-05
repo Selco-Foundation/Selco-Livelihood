@@ -80,7 +80,9 @@ public class LivelihoodUpdateService {
     }
 
     /**
-     * Remaps the incident asset to the vendor selected in {@code ASSIGN_VENDOR} before workflow transition.
+     * Remaps the incident asset's group (parent and all units) to the vendor user selected in
+     * {@code ASSIGN_VENDOR} before workflow transition, so later tickets on any asset in the group
+     * go to that vendor.
      */
     public void remapAssetForAssignVendor(IncidentRequest request, Incident existingIncident) {
         if (request == null || request.getWorkflow() == null || existingIncident == null) {
@@ -110,12 +112,13 @@ public class LivelihoodUpdateService {
                 currentVendorId != null ? currentVendorId.toString() : null
         );
 
-        String newAssetVendorId = resolveAssignVendorAssetVendorId(
-                previousVendorOrgId, newVendorOrgId, newVendorUserUuid);
+        Object parentId = asset.get("parentId");
+        String groupAssetId = parentId != null && StringUtils.isNotBlank(parentId.toString())
+                ? parentId.toString().trim() : assetId;
         String currentVendorKey = currentVendorId != null ? currentVendorId.toString().trim() : null;
-        assetRegistryUtil.updateAssetVendorId(requestInfo, tenantId, assetId, facilityId, newAssetVendorId);
-        log.info("ASSIGN_VENDOR updated asset {} vendorId from {} to {}",
-                assetId, currentVendorKey, newAssetVendorId);
+        assetRegistryUtil.updateAssetGroupVendor(requestInfo, tenantId, groupAssetId, newVendorUserUuid, newVendorOrgId);
+        log.info("ASSIGN_VENDOR remapped asset group {} (ticket asset {}) vendorId from {} to {}",
+                groupAssetId, assetId, currentVendorKey, newVendorUserUuid);
 
         Map<String, Object> details = toMutableMap(existingIncident.getAdditionalDetail());
         mergeRequestAdditionalDetail(details, request.getIncident().getAdditionalDetail());
@@ -237,16 +240,9 @@ public class LivelihoodUpdateService {
                 existingIncident.getFacilityId()
         );
         Object currentVendorId = asset.get("vendorId");
-        String currentVendorOrgId = vendorRegistryUtil.resolveOrganisationIdForVendorKey(
-                requestInfo,
-                tenantId,
-                currentVendorId != null ? currentVendorId.toString() : null
-        );
-        String newAssetVendorId = resolveAssignVendorAssetVendorId(
-                currentVendorOrgId, newVendorOrgId, newVendorUserUuid);
         String currentVendorKey = currentVendorId != null ? currentVendorId.toString().trim() : null;
         if (StringUtils.isNotBlank(currentVendorKey)
-                && currentVendorKey.equalsIgnoreCase(newAssetVendorId)) {
+                && currentVendorKey.equalsIgnoreCase(newVendorUserUuid)) {
             throw new CustomException(
                     "SAME_ASSIGNEE",
                     "Selected vendor is already mapped to this asset; use REASSIGN to return the ticket to the current vendor"
@@ -390,20 +386,6 @@ public class LivelihoodUpdateService {
             return new HashMap<>((Map<String, Object>) map);
         }
         return objectMapper.convertValue(additionalDetail, Map.class);
-    }
-
-    /**
-     * Organisation change maps the asset to the new vendor org; within the same org the asset
-     * points at the selected vendor user so the previous user is unmapped from this asset.
-     */
-    private String resolveAssignVendorAssetVendorId(
-            String currentVendorOrgId,
-            String newVendorOrgId,
-            String newVendorUserUuid
-    ) {
-        boolean vendorOrgChanged = StringUtils.isBlank(currentVendorOrgId)
-                || !currentVendorOrgId.equalsIgnoreCase(newVendorOrgId);
-        return vendorOrgChanged ? newVendorOrgId : newVendorUserUuid;
     }
 
     private String firstAssignee(Workflow workflow) {
