@@ -92,6 +92,12 @@ public class Configuration {
     @Value("${egov.hrms.search.endpoint}")
     private String hrmsEndPoint;
 
+    @Value("${egov.hrms.update.endpoint:/egov-hrms/employees/_update}")
+    private String hrmsUpdateEndPoint;
+
+    @Value("${egov.boundary.hierarchy.type:SELCO}")
+    private String boundaryHierarchyType;
+
 
     //URLShortening
     @Value("${egov.url.shortner.host}")
