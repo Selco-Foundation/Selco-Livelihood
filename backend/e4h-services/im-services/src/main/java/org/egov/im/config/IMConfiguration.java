@@ -339,6 +339,9 @@ public class IMConfiguration {
     @Value("${egov.asset.update.path:/asset-registry/v1/asset/_update}")
     private String assetRegistryUpdatePath;
 
+    @Value("${egov.asset.vendor.update.path:/asset-registry/v1/asset/vendor/_update}")
+    private String assetRegistryVendorUpdatePath;
+
     @Value("${egov.vendor.host:}")
     private String vendorHost;
 
