@@ -68,7 +68,6 @@ public class OrganisationFunctionRowMapper implements ResultSetExtractor<List<Or
         Long organisationCreatedTime = rs.getLong("organisation_createdTime");
         Long organisationLastModifiedTime = rs.getLong("organisation_lastModifiedTime");
         String organisationType = rs.getString("organisation_type");
-        String organisationSubType = rs.getString("organisation_sub_type");
         String organisationPocName = rs.getString("organisation_poc_name");
         String organisationPocPhone = rs.getString("organisation_poc_phone");
         String organisationPocEmail = rs.getString("organisation_poc_email");
@@ -91,7 +90,6 @@ public class OrganisationFunctionRowMapper implements ResultSetExtractor<List<Or
                 .code(organisationCode)
                 .orgNumber(organisationOrgNumber)
                 .orgType(organisationType)
-                .orgSubType(organisationSubType)
                 .orgPocName(organisationPocName)
                 .orgPocPhone(organisationPocPhone)
                 .orgPocEmail(organisationPocEmail)

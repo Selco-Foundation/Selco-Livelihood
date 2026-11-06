@@ -40,6 +40,14 @@ public class OrganisationUserRepository {
         String tenantId = urlParams != null ? urlParams.getTenantId() : "unknown";
         log.info("Starting organisation user search query for tenant: {}", tenantId);
 
+        if (orgSearchRequest.getCriteria().hasUserAttributeFilter()) {
+            List<OrgUser> matches = getOrgUsersMatchingUserFilters(orgSearchRequest, urlParams);
+            int[] limitAndOffset = queryBuilder.resolveLimitAndOffset(urlParams);
+            int from = Math.min(limitAndOffset[1], matches.size());
+            int to = Math.min(from + limitAndOffset[0], matches.size());
+            return new ArrayList<>(matches.subList(from, to));
+        }
+
         List<Object> preparedStmtListTarget = new ArrayList<>();
         String queryDocument = queryBuilder.getOrganisationUserSearchQuery(orgSearchRequest, urlParams, preparedStmtListTarget, false);
         List<OrgUser> orgUserList = jdbcTemplate.query(queryDocument, orgUserRowMapper, preparedStmtListTarget.toArray());
@@ -65,9 +73,71 @@ public class OrganisationUserRepository {
         return orgUserEnricheds;
     }
 
+    /**
+     * Name and role are HRMS attributes, not eg_org_user columns, so the organisation's users are loaded first
+     * (users are fetched from HRMS in batches) and filtered here, before pagination.
+     */
+    private List<OrgUser> getOrgUsersMatchingUserFilters(OrgUserSearchRequest orgSearchRequest, URLParams urlParams) {
+        List<Object> preparedStmtList = new ArrayList<>();
+        String query = queryBuilder.getOrganisationUserSearchQueryWithoutPagination(orgSearchRequest, urlParams, preparedStmtList);
+        List<OrgUser> rows = jdbcTemplate.query(query, orgUserRowMapper, preparedStmtList.toArray());
+
+        List<String> userIds = rows.stream().map(OrgUser::getUserId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        Map<String, Employee> employeesByUuid = hrmsUtils.getEmployeesByUuids(orgSearchRequest, userIds);
+
+        OrgUserSearchCriteria criteria = orgSearchRequest.getCriteria();
+        List<OrgUser> matches = new ArrayList<>();
+        for (OrgUser row : rows) {
+            Employee employee = employeesByUuid.get(row.getUserId());
+            if (employee == null || employee.getUser() == null || !matchesUserFilters(employee.getUser(), criteria)) {
+                continue;
+            }
+            matches.add(enrichWithHrmsUser(row, employee));
+        }
+        return matches;
+    }
+
+    private boolean matchesUserFilters(User user, OrgUserSearchCriteria criteria) {
+        if (StringUtils.isNotBlank(criteria.getName())) {
+            String userName = user.getName() == null ? "" : user.getName().toLowerCase(Locale.ROOT);
+            if (!userName.contains(criteria.getName().trim().toLowerCase(Locale.ROOT))) {
+                return false;
+            }
+        }
+        if (!org.springframework.util.CollectionUtils.isEmpty(criteria.getRoles())) {
+            boolean hasRole = user.getRoles() != null && user.getRoles().stream()
+                    .filter(Objects::nonNull)
+                    .map(Role::getCode)
+                    .filter(Objects::nonNull)
+                    .anyMatch(code -> criteria.getRoles().stream().anyMatch(code::equalsIgnoreCase));
+            if (!hasRole) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private OrgUser enrichWithHrmsUser(OrgUser orgUser, Employee employee) {
+        OrgUser enriched = OrgUser.builder()
+                .userId(orgUser.getUserId())
+                .tenantId(orgUser.getTenantId())
+                .organizationId(orgUser.getOrganizationId())
+                .id(orgUser.getId())
+                .auditDetails(orgUser.getAuditDetails())
+                .additionalDetails(orgUser.getAdditionalDetails())
+                .isDeleted(orgUser.getIsDeleted())
+                .build();
+        enriched.setUser(employee.getUser());
+        enriched.getUser().setJurisdictions(employee.getJurisdictions());
+        return enriched;
+    }
+
     public Integer getOrganisationsCount(OrgUserSearchRequest orgSearchRequest) {
         List<Object> preparedStatement = new ArrayList<>();
         URLParams urlParams = URLParams.builder().build();
+        if (orgSearchRequest.getCriteria().hasUserAttributeFilter()) {
+            return getOrgUsersMatchingUserFilters(orgSearchRequest, urlParams).size();
+        }
         String queryDocument = queryBuilder.getOrganisationUserSearchQuery(orgSearchRequest, urlParams, preparedStatement, true);
         if (queryDocument == null)
             return 0;

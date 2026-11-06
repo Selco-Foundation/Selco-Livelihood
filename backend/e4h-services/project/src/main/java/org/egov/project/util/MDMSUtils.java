@@ -1,5 +1,7 @@
 package org.egov.project.util;
 
+import com.jayway.jsonpath.JsonPath;
+import com.jayway.jsonpath.PathNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.exception.ExceptionUtils;
@@ -34,16 +36,40 @@ public class MDMSUtils {
     private final ProjectConfiguration config;
 
     public Object mDMSCall(ProjectRequest request, String tenantId) {
-        RequestInfo requestInfo = request.getRequestInfo();
-        MdmsCriteriaReq mdmsCriteriaReq = getMDMSRequest(requestInfo, tenantId, request);
-        Object result = null;
+        return fetchMdms(getMDMSRequest(request.getRequestInfo(), tenantId, request));
+    }
+
+    /* Returns the prefix of project names, e.g. "JUS" in JUS-98234-1-26-27 */
+    public String getJustificationCodePrefix(RequestInfo requestInfo, String tenantId) {
+        MasterDetail masterDetail = MasterDetail.builder().name(MASTER_JUSTIFICATION_CODE_PREFIX)
+                .filter(FILTER_ACTIVE_TRUE).build();
+        ModuleDetail moduleDetail = ModuleDetail.builder().masterDetails(List.of(masterDetail))
+                .moduleName(config.getMdmsModule()).build();
+        MdmsCriteria mdmsCriteria = MdmsCriteria.builder().moduleDetails(List.of(moduleDetail)).tenantId(tenantId)
+                .build();
+        Object mdmsData = fetchMdms(MdmsCriteriaReq.builder().mdmsCriteria(mdmsCriteria).requestInfo(requestInfo).build());
+
+        List<String> prefixes;
         try {
-            result = serviceRequestRepository.fetchResult(getMdmsSearchUrl(), mdmsCriteriaReq, LinkedHashMap.class);
+            prefixes = JsonPath.read(mdmsData,
+                    "$.MdmsRes." + config.getMdmsModule() + "." + MASTER_JUSTIFICATION_CODE_PREFIX + ".*.prefix");
+        } catch (PathNotFoundException e) {
+            prefixes = List.of();
+        }
+        if (prefixes.isEmpty()) {
+            throw new CustomException("JUSTIFICATION_CODE_PREFIX_NOT_FOUND",
+                    "No active justification code prefix configured in MDMS");
+        }
+        return prefixes.get(0);
+    }
+
+    private Object fetchMdms(MdmsCriteriaReq mdmsCriteriaReq) {
+        try {
+            return serviceRequestRepository.fetchResult(getMdmsSearchUrl(), mdmsCriteriaReq, LinkedHashMap.class);
         } catch (Exception e) {
             log.error("error while calling mdms", ExceptionUtils.getStackTrace(e));
             throw new CustomException("MDMS_ERROR", "error while calling mdms");
         }
-        return result;
     }
 
     public MdmsCriteriaReq getMDMSRequest(RequestInfo requestInfo, String tenantId, ProjectRequest request) {

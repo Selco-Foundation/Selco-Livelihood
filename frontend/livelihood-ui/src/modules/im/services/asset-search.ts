@@ -1,4 +1,4 @@
-import { apiClient, type AuthUser } from "@/shared";
+import { apiClient, MACHINE_END_USER_PHOTO_DOCUMENT_TYPE, type AuthUser } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
 import type { LivelihoodAsset } from "../types/facility-asset";
 
@@ -26,12 +26,20 @@ interface AssetSearchResponseItem {
   modelNumber?: string;
   isOperational?: boolean;
   documents?: AssetDocument[];
+  /** Null on a top-level asset — this module always searches with
+   * `includeChildren: false`, so a row with a non-null parentId is never
+   * returned here. */
+  parentId?: string | null;
 }
 
-function getFirstDocumentFileStore(
+function getEndUserPhotoFileStore(
   documents: AssetSearchResponseItem["documents"],
 ): string | undefined {
-  return documents?.[0]?.fileStore || undefined;
+  return documents?.find(
+    (document) =>
+      document.documentType?.toUpperCase() === MACHINE_END_USER_PHOTO_DOCUMENT_TYPE &&
+      Boolean(document.fileStore),
+  )?.fileStore;
 }
 
 function mapAsset(raw: AssetSearchResponseItem): LivelihoodAsset {
@@ -45,7 +53,7 @@ function mapAsset(raw: AssetSearchResponseItem): LivelihoodAsset {
     serialNumber: raw.serialNumber,
     modelNumber: raw.modelNumber,
     isOperational: raw.isOperational,
-    documentFileStoreId: getFirstDocumentFileStore(raw.documents),
+    documentFileStoreId: getEndUserPhotoFileStore(raw.documents),
   };
 }
 
@@ -64,6 +72,8 @@ export async function searchAssetsForFacility(
       criteria: {
         tenantId,
         facilityID: facilityId,
+        includeChildren: false,
+        isOnmReady: true,
       },
     },
     {

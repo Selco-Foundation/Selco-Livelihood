@@ -8,9 +8,12 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
+import org.egov.common.contract.request.RequestInfo;
+import org.egov.common.contract.request.Role;
 import org.egov.asset.service.AssetService;
 import org.egov.asset.service.QrResolveService;
 import org.egov.asset.util.LivelihoodPocScopeService;
+import org.egov.asset.util.VendorUtil;
 import org.egov.asset.web.models.*;
 import org.egov.asset.web.validator.AssetValidator;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,12 +24,24 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 @jakarta.annotation.Generated(value = "org.egov.codegen.SpringBootCodegen", date = "2025-05-05T14:19:51.673231117+05:30[Asia/Kolkata]")
 @Controller
 @Slf4j
 @RequestMapping("")
 public class V1ApiController {
+
+    private static final String ROLE_COMPLAINANT = "COMPLAINANT";
+    private static final Set<String> END_USER_ROLES = Set.of(ROLE_COMPLAINANT, "EMPLOYEE", "CITIZEN");
+    /**
+     * Ticket-side staff who should see assets the way an end user does - the Solar parent
+     * and Machines, never the individual Solar units: Program POC (raises tickets on an end
+     * user's behalf) and vendor users (Vendor POC and ticket resolvers).
+     */
+    private static final Set<String> TOP_LEVEL_ONLY_STAFF_ROLES =
+            Set.of("LIVELIHOOD_POC", "VENDOR_ADMIN", "LIVELIHOOD_VENDOR", "COMPLAINT_RESOLVER");
 
     private final ObjectMapper objectMapper;
 
@@ -40,16 +55,19 @@ public class V1ApiController {
 
     private final QrResolveService qrResolveService;
 
+    private final VendorUtil vendorUtil;
+
     @Autowired
     public V1ApiController(ObjectMapper objectMapper, HttpServletRequest request, AssetValidator validator,
                            AssetService assetService, LivelihoodPocScopeService livelihoodPocScopeService,
-                           QrResolveService qrResolveService) {
+                           QrResolveService qrResolveService, VendorUtil vendorUtil) {
         this.objectMapper = objectMapper;
         this.request = request;
         this.validator = validator;
         this.assetService = assetService;
         this.livelihoodPocScopeService = livelihoodPocScopeService;
         this.qrResolveService = qrResolveService;
+        this.vendorUtil = vendorUtil;
     }
 
     @RequestMapping(value = "/v1/asset/bulk/_create", method = RequestMethod.POST)
@@ -172,15 +190,29 @@ public class V1ApiController {
                 .assetTypeSearch(criteria.getAssetType())
                 .activityFacilityID(criteria.getActivityFacilityID())
                 .isOperational(criteria.getIsOperational())
+                .isOnmReady(criteria.getIsOnmReady())
                 .serialNumberSearch(criteria.getSerialNumber())
                 .modelNumber(criteria.getModelNumber())
                 .brandID(criteria.getBrandID())
                 .vendorId(criteria.getVendorId())
                 .itemCode(criteria.getItemCode())
+                .parentId(criteria.getParentId())
                 .build();
         livelihoodPocScopeService.applyAssetSearchScope(searchRequest, asset);
-        List<Asset> searchResponse = assetService.fetchAssetsWithDocuments(asset,limit, offset);
-        Integer count = assetService.getAssetsCount(asset);
+        // End users, Program POCs and vendors see the Solar parent and Machines, never the individual
+        // Solar units. With includeChildren the units are returned nested under their parent, so they
+        // must not also be listed as top-level rows (unless the caller is asking for one parent's units
+        // via parentId).
+        boolean includeChildren = Boolean.TRUE.equals(criteria.getIncludeChildren());
+        boolean excludeUnits = isTopLevelOnlyCaller(searchRequest.getRequestInfo())
+                || (includeChildren && (criteria.getParentId() == null || criteria.getParentId().isBlank()));
+        List<Asset> searchResponse = assetService.fetchAssetsWithDocuments(asset, limit, offset, excludeUnits);
+        if (includeChildren) {
+            assetService.attachChildren(criteria.getTenantId(), searchResponse);
+        }
+        // Every asset (and nested child) carries its mapped vendor for display.
+        vendorUtil.attachVendors(searchRequest.getRequestInfo(), criteria.getTenantId(), searchResponse);
+        Integer count = assetService.getAssetsCount(asset, excludeUnits);
         return new ResponseEntity<>(searchResponse, HttpStatus.OK);
     }
 
@@ -223,6 +255,23 @@ public class V1ApiController {
         }
     }
 
+    @RequestMapping(value = "/v1/asset/vendor/_update", method = RequestMethod.POST)
+    public ResponseEntity<AssetVendorUpdateResponse> updateAssetVendors(
+            @Parameter(in = ParameterIn.DEFAULT, description = "Asset groups and their new vendors", required = true, schema = @Schema())
+            @Valid @RequestBody AssetVendorUpdateRequest body) {
+        log.trace("V1ApiController::updateAssetVendors called");
+        log.info("Received asset vendor update request | groups={}",
+                body.getAssetVendorUpdates() == null ? 0 : body.getAssetVendorUpdates().size());
+        try {
+            AssetVendorUpdateResponse response = assetService.updateAssetVendors(body);
+            log.info("Asset vendor update completed | groups={}", response.getAssetVendorUpdates().size());
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("Error updating asset vendors | error={}", e.getMessage(), e);
+            throw e;
+        }
+    }
+
     @RequestMapping(value = "/v1/asset/amc/_update", method = RequestMethod.POST)
     public ResponseEntity<Void> updateAssetAMC(@Parameter(in = ParameterIn.DEFAULT, description = "Updated AMC contract or visit information", required = true, schema = @Schema()) @Valid @RequestBody AssetAMCRequest body, @Parameter(in = ParameterIn.PATH, description = "System-generated unique identifier for the AMC", required = true, schema = @Schema()) @PathVariable("amcId") Object amcId) {
         log.trace("V1ApiController::updateAssetAMC called");
@@ -235,6 +284,28 @@ public class V1ApiController {
         log.trace("V1ApiController::updateAssetWorkflow called");
         log.warn("Update asset workflow endpoint called but not implemented | assetID={}", assetID);
         return new ResponseEntity<Void>(HttpStatus.NOT_IMPLEMENTED);
+    }
+
+    /**
+     * True when the caller should only see top-level assets: every role is an end-user role
+     * (END_USER_ROLES) or a ticket-side staff role (TOP_LEVEL_ONLY_STAFF_ROLES), and they hold at
+     * least one of COMPLAINANT or those staff roles. An allow-list, so anyone who also holds another
+     * role (field staff, reviewer, admin, system) keeps full results, units included.
+     */
+    private static boolean isTopLevelOnlyCaller(RequestInfo requestInfo) {
+        if (requestInfo == null || requestInfo.getUserInfo() == null || requestInfo.getUserInfo().getRoles() == null) {
+            return false;
+        }
+        List<String> roleCodes = requestInfo.getUserInfo().getRoles().stream()
+                .map(Role::getCode)
+                .filter(code -> code != null && !code.isBlank())
+                .map(code -> code.toUpperCase(Locale.ROOT))
+                .toList();
+        boolean holdsQualifyingRole = roleCodes.contains(ROLE_COMPLAINANT)
+                || roleCodes.stream().anyMatch(TOP_LEVEL_ONLY_STAFF_ROLES::contains);
+        boolean onlyAllowedRoles = roleCodes.stream()
+                .allMatch(code -> END_USER_ROLES.contains(code) || TOP_LEVEL_ONLY_STAFF_ROLES.contains(code));
+        return holdsQualifyingRole && onlyAllowedRoles;
     }
 
 }

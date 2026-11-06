@@ -2,6 +2,7 @@ import io
 import json
 import os
 import tempfile
+import time
 from datetime import datetime, timedelta
 import uuid
 from typing import Optional, Dict, List, Set
@@ -23,7 +24,21 @@ from app.utils.facility_validator import (
     facility_validation,
     collect_hfr_nin_errors_for_row,
     collect_anganwadi_poc_username_errors_for_row,
+    validate_installation_scope_solutions,
+    duplicated_site_ids,
+    find_site_id_column,
+    validate_scoped_sites_kept,
+    SITE_ID_COLUMNS,
 )
+from app.utils.state_sunshine_hours_repository import fetch_state_sunshine_hours
+from app.utils.field_plan_geography import is_under_any_boundary, plan_boundary_codes
+from app.utils.field_plan_locks import build_project_lock_map, solution_codes_by_name, \
+    solution_names_by_code, scoped_site_plans, scoped_site_message, PLAN_STATUS_PUBLISHED
+from app.utils.icc_template_parser import annotate_worksheet, first_data_sheet, parse_worksheet, \
+    read_only_errors, to_sections, validate_line_items
+from app.ingest.icc_template_service import fetch_blank_template
+from app.ingest.bom_form_catalog import BomFormError, load_solution_forms, structural_errors
+from app.ingest.bom_field_mapper import build_field_map
 from fastapi import APIRouter, File, Form, UploadFile, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import FileResponse
 import psycopg2
@@ -50,7 +65,7 @@ from app.utils.boundary_service_client import BoundaryServiceClient
 from app.utils.facility_service_client import FacilityServiceClient
 from app.utils.fieldplan_activity_service_client import FieldPlanActivityServiceClient
 from app.utils.fieldplan_service_client import FieldPlanServiceClient
-from app.utils.file_utils import cleanup_temp_file
+from app.utils.file_utils import cleanup_temp_file, create_temp_file
 from app.utils.im_service_client import IMServiceClient
 from app.utils.mdms_client import MDMSClient
 from app.utils.organization_service_client import OrganizationServiceClient
@@ -99,7 +114,23 @@ localization_service_url = os.getenv("LOCALIZATION_SERVICE_URL")
 boundary_service_url = os.getenv("BOUNDARY_SERVICE_URL")
 DEFAULT_AMC_ASSET_TYPES = ["INVERTER", "PANEL", "BATTERY"]
 BULK_INGEST_CHUNK_SIZE = 200
+
+# The bulk link endpoint answers 202 as soon as the message is queued; the row is written
+# two async hops later (bulk topic -> consumer -> save-fieldplan-facility-topic ->
+# egov-persister). These bound how long we wait to confirm it before saying so. ~5s.
+SCOPE_LINK_CONFIRM_ATTEMPTS = 10
+SCOPE_LINK_CONFIRM_INTERVAL_SECONDS = 0.5
 AMC_CONFIGURATION_BULK_CHUNK_SIZE = 400
+# Result column the installation scope upload writes its per-row outcome into.
+LINKING_STATUS_COLUMN = "Installation Plan Linking Status"
+
+
+def _log_safe(value) -> str:
+    """Strip line breaks from a caller-supplied value before it goes into a log line, so a
+    crafted id cannot forge extra log entries."""
+    return str(value).replace("\r", "").replace("\n", "")
+
+
 ENVIRONMENT = os.getenv("ENVIRONMENT", "uat").lower()
 base_path = os.path.dirname(os.path.abspath(__file__))
 config_path = os.path.abspath(os.path.join(base_path, "..", "..", "config"))
@@ -458,8 +489,7 @@ async def upload_facilities_excel_sheet(
         facility_file: UploadFile = File(description="Excel file containing facility data"),
         facility_sheet_name: str = Form(default="EndUserIngestionTemplate",
                                         description="Name of the sheet containing facility data"),
-        request_info: str = Form(default=""),
-        are_facilities_onm_ready: bool = Form(description="FieldPlan ID")
+        request_info: str = Form(default="")
 ):
     input_temp_file = None
     output_temp_file = None
@@ -506,7 +536,6 @@ async def upload_facilities_excel_sheet(
                     facility_data_payload = create_facility_payload(
                         request_info,
                         row,
-                        are_facilities_onm_ready,
                         facility_schema,
                     )
                     response = facility_client.create_facility(facility_data_payload)
@@ -2069,7 +2098,8 @@ def process_update_incident_data_response(response, df, idx):
 
 @router.post('/facilitiesValidateData',
              summary='Validate facility Excel file before processing',
-             response_description='Returns validation report Excel with PASSED/FAILED rows')
+             response_description='Returns validation report Excel with PASSED/FAILED rows',
+             responses={502: {"description": "A dependent service could not be reached"}})
 async def validate_facilities_excel_sheet(
         background_tasks: BackgroundTasks,
         facility_file: UploadFile = File(..., description="Excel file containing facility data"),
@@ -2087,11 +2117,24 @@ async def validate_facilities_excel_sheet(
     project_client = ProjectServiceClient(project_service_url)
 
     try:
+        # ----------------- Reject non-Excel uploads early with a clear message ----------------- #
+        if not facility_file.filename or not facility_file.filename.lower().endswith((".xlsx", ".xlsm")):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file '{facility_file.filename}': Only Excel files (.xlsx) are accepted."
+            )
+
         # Save uploaded Excel to a temp file
         temp_input_file, _ = await _save_upload_to_temp_file(facility_file, suffix=".xlsx")
 
         # Load workbook to preserve everything
-        wb = load_workbook(temp_input_file.name)
+        try:
+            wb = load_workbook(temp_input_file.name)
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail=f"'{facility_file.filename}' is not a valid Excel file. Please upload a valid .xlsx file."
+            )
 
         # ----------------- Read Boundary Sheet ----------------- #
         if boundary_sheet_name not in wb.sheetnames:
@@ -2134,8 +2177,8 @@ async def validate_facilities_excel_sheet(
         df = df.loc[:, ~df.columns.str.startswith('Unnamed')]
 
         # ----------------- Read Facility Column ----------------- #
-        if 'Facility Id' not in df.columns:
-            raise HTTPException(status_code=400, detail=f"Facility Column in '{facility_sheet_name}' not found")
+        if 'End User Id' not in df.columns:
+            raise HTTPException(status_code=400, detail=f"'End User Id' column in '{facility_sheet_name}' not found")
 
         # Ensure status/error columns exist
         if 'status' not in df.columns:
@@ -2150,7 +2193,12 @@ async def validate_facilities_excel_sheet(
             request_info_obj,
             facility_client,
             boundary_data_df,
-            'data-ingestion.FacilityIngestionSchema'
+            'data-ingestion.FacilityIngestionSchema',
+            localization_service_url,
+        )
+        validate_scoped_sites_kept(
+            df, _scoped_site_plans_or_502(request_info_obj, project_id),
+            lambda i, msg: validation_errors[i].append(msg),
         )
 
         # Mark rows based on validation results
@@ -2217,6 +2265,10 @@ async def validate_facilities_excel_sheet(
 
         return response
 
+    except HTTPException:
+        # Preserve explicit status codes/messages raised above (e.g. the invalid-file check)
+        # instead of flattening them into a generic 500 below.
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
     finally:
@@ -2224,9 +2276,183 @@ async def validate_facilities_excel_sheet(
             os.unlink(temp_input_file.name)
 
 
+def _scoped_site_plans_or_502(request_info, project_id: str) -> Dict[str, List[str]]:
+    """field_plan_locks.scoped_site_plans, failing the request when it cannot be answered: both
+    callers guard an unlink, so an unknown answer must not read as "no plan holds the site"."""
+    try:
+        return scoped_site_plans(FieldPlanServiceClient(fieldPlan_service_url), request_info, project_id)
+    except Exception as e:
+        logger.error(f"Could not list scoped sites for project {project_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not check which end user sites are part of an installation plan in project "
+                   f"{project_id}, so this end user data cannot be processed safely: {e}")
+
+
+def _state_by_boundary_code(boundary_data_df) -> dict:
+    """{block boundary code: state name} from the workbook's BoundaryCodes sheet, which the
+    download wrote with the same localized names it put in the State column."""
+    if boundary_data_df is None:
+        return {}
+    columns = set(boundary_data_df.columns)
+    if not {"BoundaryCode", "State"} <= columns:
+        logger.warning("BoundaryCodes sheet has no BoundaryCode/State columns; cannot resolve states")
+        return {}
+    states = {}
+    for _, boundary_row in boundary_data_df.iterrows():
+        code = "" if pd.isna(boundary_row.get("BoundaryCode")) else str(boundary_row.get("BoundaryCode")).strip()
+        state = "" if pd.isna(boundary_row.get("State")) else str(boundary_row.get("State")).strip()
+        if code:
+            states[code] = state
+    return states
+
+
+def _scope_sites_offered_to_plan(
+    request_info,
+    project_id,
+    fieldplan_id,
+    field_plan,
+    plan_is_published: bool,
+    boundary_code_by_facility_id: dict,
+) -> tuple:
+    """(sites in this project, sites this plan's scope download would have offered).
+
+    Restricted to the ids the sheet actually names -- `boundary_code_by_facility_id` was resolved
+    from them -- so this costs one project lookup rather than re-deriving the whole geography.
+    The scope download starts from the same intersection (project membership, then the plan's
+    boundaries); it is reconstructed here rather than shared because that handler also writes,
+    unlinking sites that have left the project.
+
+    Returns (None, None) when the check cannot or need not run, which the validator reads as
+    "skip": with no plan there is nothing to check against, and on a published plan every row is
+    already refused by the lock rules or the no-new-sites rule, so the lookups would be wasted.
+    """
+    if not project_id or plan_is_published or not project_service_url:
+        return None, None
+
+    try:
+        project_facilities = ProjectServiceClient(project_service_url).search_project_facility(
+            request_info, project_id).get("ProjectFacilities", [])
+    except Exception as e:
+        # Fail closed. An empty project set would fail every row rather than none, but guessing
+        # the other way silently restores the hole this check exists to close.
+        logger.error(f"Could not read facilities for project {project_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not check which end user sites belong to project {project_id}, "
+                   f"so the uploaded scope cannot be validated: {e}")
+    project_site_ids = {pf.get("facilityId") for pf in project_facilities if pf.get("facilityId")}
+
+    # Sites this plan already holds stay acceptable even if they now fall outside its geography:
+    # a plan whose boundaries were narrowed afterwards must still be able to re-upload its own
+    # sheet. Project membership is not relaxed the same way -- the download unlinks a site that
+    # has left the project, so it would not be on offer either.
+    already_linked = set()
+    if fieldplan_id and fieldPlan_service_url:
+        try:
+            already_linked = {
+                pf.get("facilityId") for pf in FieldPlanServiceClient(fieldPlan_service_url)
+                .search_fieldplan_facility(request_info, fieldplan_id)
+                .get("FieldPlanFacilities", []) if pf.get("facilityId")
+            }
+        except Exception as e:
+            logger.error(f"Could not read current scope of plan {fieldplan_id}: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=502,
+                detail=f"Could not read the current scope of plan {fieldplan_id}, so the "
+                       f"uploaded scope cannot be validated: {e}")
+
+    plan_blocks = plan_boundary_codes(field_plan)
+    if not plan_blocks:
+        # Degrade rather than reject everything: with no usable geography on the record, keep the
+        # project check and let the existing state/Solution eligibility rules catch a site from
+        # elsewhere, as they do today. A worse message beats refusing every row.
+        logger.error(
+            f"Field plan {fieldplan_id} has no usable geography; checking project membership "
+            f"only for this scope upload")
+        return project_site_ids, set(project_site_ids)
+
+    allowed = {
+        facility_id for facility_id, boundary_code in boundary_code_by_facility_id.items()
+        if facility_id in project_site_ids
+        and (is_under_any_boundary(boundary_code, plan_blocks) or facility_id in already_linked)
+    }
+    return project_site_ids, allowed
+
+
+def _facility_states_and_sectors_from_sheet(df, boundary_data_df, facility_client, request_info) -> tuple:
+    """(facility_id -> state name, facility_id -> sector, facility_id -> boundary code).
+
+    All three for the sites listed in the sheet, from one bulk facility read. The boundary code
+    is the raw value the other two are derived from; the scope upload uses it to check each site
+    against the plan's own geography.
+
+    The sector is the site's own facility_type, set at ingestion; it is taken from the facility
+    record rather than the sheet's Sector column for the same reason as the state -- the cell is
+    editable once the sheet is unprotected.
+
+    A facility has no state of its own: FacilityAddress declares state/district/block but
+    facility_address has no such columns, so address.state is always null. The state lives
+    only in boundary_code, so it is resolved from the workbook's BoundaryCodes sheet -- the
+    same values the download used to fill the State column and to build the Solution
+    dropdown. Keying off anything else would reject rows whose Solution the dropdown had
+    just offered.
+
+    The state is taken from the facility record's boundary_code rather than the row's State
+    cell because the cell is editable once the sheet is unprotected. Returns {} on failure,
+    which makes eligibility fail closed rather than wave rows through.
+    """
+    site_id_column = find_site_id_column(df)
+    if not site_id_column or facility_client is None:
+        return {}, {}, {}
+    facility_ids = [
+        str(v).strip() for v in df[site_id_column] if pd.notna(v) and str(v).strip()
+    ]
+    if not facility_ids:
+        return {}, {}, {}
+    state_by_boundary_code = _state_by_boundary_code(boundary_data_df)
+    if not state_by_boundary_code:
+        return {}, {}, {}
+    try:
+        result = facility_client.bulk_search_facility(
+            request_info=request_info,
+            tenant_ids=[LIVELIHOOD_TENANT_ID],
+            facility_ids=facility_ids,
+            limit=max(len(facility_ids), 50),
+            send_non_paginated_response=True,
+        )
+    except Exception as e:
+        logger.error(f"Could not resolve facility states for eligibility: {e}", exc_info=True)
+        return {}, {}, {}
+
+    states = {}
+    sectors = {}
+    boundary_codes = {}
+    for facility in (result.get("facilities") or []):
+        facility_id = facility.get("facility_id")
+        if not facility_id:
+            continue
+        boundary_code = facility.get("boundary_code") or facility.get("boundaryCode") or ""
+        # A facility's code is its block's code, optionally suffixed with a facility-specific
+        # segment (e.g. INDIA_ASSAM_BAKSA_BORABARI_ED/2026/0093) -- the same match the
+        # download's resolve_boundary_names_for_code makes.
+        states[facility_id] = next(
+            (
+                state for code, state in state_by_boundary_code.items()
+                if boundary_code == code or boundary_code.startswith(code + "_")
+            ),
+            "",
+        )
+        sectors[facility_id] = facility.get("facility_type") or ""
+        boundary_codes[facility_id] = boundary_code
+    return states, sectors, boundary_codes
+
+
 @router.post('/fieldPlanfacilitiesValidateData',
              summary='Validate facility Excel file before processing',
-             response_description='Returns validation report Excel with PASSED/FAILED rows')
+             response_description='Returns validation report Excel with PASSED/FAILED rows',
+             responses={404: {"description": "Field plan not found"},
+                        502: {"description": "A dependent service could not be reached"}})
 async def validate_facilities_excel_sheet(
         background_tasks: BackgroundTasks,
         facility_file: UploadFile = File(..., description="Excel file containing facility data"),
@@ -2234,6 +2460,8 @@ async def validate_facilities_excel_sheet(
                                         description="Name of the sheet containing facility data"),
         boundary_sheet_name: str = Form(default="BoundaryCodes",
                                         description="Name of the sheet containing boundary data"),
+        fieldplan_id: str = Form(default="",
+                                 description="Field plan id; when given, its Sectors bound the plan's scope and its project's site locks are enforced"),
         request_info: str = Form(default="")
 ):
     temp_input_file = None
@@ -2263,8 +2491,12 @@ async def validate_facilities_excel_sheet(
         df = df.loc[:, ~df.columns.str.startswith('Unnamed')]
 
         # ----------------- Read Facility Column ----------------- #
-        if 'Facility Id' not in df.columns:
-            raise HTTPException(status_code=400, detail=f"Facility Column in '{facility_sheet_name}' not found")
+        if not find_site_id_column(df):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Sheet '{facility_sheet_name}' has no site id column "
+                       f"(expected one of {', '.join(SITE_ID_COLUMNS)}).",
+            )
 
         # Ensure status/error columns exist
         if 'status' not in df.columns:
@@ -2273,14 +2505,136 @@ async def validate_facilities_excel_sheet(
             df['error'] = ''
 
         # ----------------- Run Validation ----------------- #
+        # Every row here is an existing site being linked to a plan, so all rows are
+        # validated rather than only the id-less "new facility" rows.
         validation_errors = project_facility_validation(
             df,
             mdms_client,
             request_info_obj,
             facility_client,
             boundary_data_df,
-            'data-ingestion.FieldPlanFacilityIngestionSchema'
+            'data-ingestion.InstallationScopeIngestionSchema',
+            validate_all_rows=True
         )
+
+        # The plan is what makes the rest of this validation meaningful: it supplies the
+        # Sectors bounding its scope and the project whose locks are enforced below. Failing
+        # to read it must not be a warning -- with project_id unset the lock map comes back
+        # empty and every locked row silently validates as editable, so the sheet would be
+        # reported PASSED having skipped the check it most needed.
+        plan_sectors = []
+        project_id = None
+        plan_is_published = False
+        field_plan = None
+        if fieldplan_id and fieldPlan_service_url:
+            try:
+                field_plans = FieldPlanServiceClient(fieldPlan_service_url).search_fieldPlan(
+                    request_info_obj, fieldplan_id
+                ).get("FieldPlans", [])
+            except Exception as e:
+                logger.error(f"Error fetching field plan {fieldplan_id}: {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Could not read field plan {fieldplan_id} from field-planner, "
+                           f"so lock rules cannot be enforced: {e}",
+                )
+            if not field_plans:
+                raise HTTPException(status_code=404, detail=f"Field plan {fieldplan_id} not found")
+            field_plan = field_plans[0]
+            plan_sectors = field_plan.get("sectors") or []
+            project_id = field_plan.get("projectId")
+            plan_is_published = (
+                str(field_plan.get("status") or "").strip().upper() == PLAN_STATUS_PUBLISHED)
+
+        # Sites published in a sibling plan in this project cannot be re-scoped. strict=True:
+        # this is the check that refuses a double-booking, so a failed lookup must stop the
+        # upload rather than wave every row through as unlocked.
+        lock_map = {}
+        if project_id and fieldPlan_service_url:
+            try:
+                lock_map = build_project_lock_map(
+                    FieldPlanServiceClient(fieldPlan_service_url), request_info_obj, project_id,
+                    fieldplan_id, strict=True,
+                )
+            except Exception as e:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Could not check which end user sites are already part of a published "
+                           f"installation plan in project {project_id}, so this scope sheet cannot "
+                           f"be validated safely: {e}")
+
+        # Which of this plan's sites are already installed and signed off. Only published plans
+        # can have any, and it is only ever consulted to refuse a removal, so the call is
+        # skipped entirely for the ordinary DRAFT case.
+        completed_site_ids = set()
+        if plan_is_published and fieldPlan_activity_service_url:
+            site_id_column = find_site_id_column(df)
+            sheet_facility_ids = [
+                str(v).strip() for v in df[site_id_column].tolist() if str(v).strip()
+            ] if site_id_column else []
+            try:
+                completed_site_ids = FieldPlanActivityServiceClient(
+                    fieldPlan_activity_service_url
+                ).completed_facility_ids(request_info_obj, fieldplan_id, sheet_facility_ids)
+                logger.info(
+                    f"Plan {fieldplan_id} is published; {len(completed_site_ids)} of "
+                    f"{len(sheet_facility_ids)} site(s) already approved")
+            except Exception as e:
+                # Fail closed. An empty set would read as "nothing is installed yet" and let a
+                # removal through that strands approved work -- the one outcome this check exists
+                # to prevent.
+                logger.error(f"Could not read installation status for plan {_log_safe(fieldplan_id)}: {e}",
+                             exc_info=True)
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Could not check which installations are already complete for plan "
+                           f"{fieldplan_id}, so scope changes cannot be validated safely: {e}")
+
+        solutions = mdms_client.fetch_installation_solutions(request_info_obj)
+        state_by_facility_id, sector_by_facility_id, boundary_code_by_facility_id = (
+            _facility_states_and_sectors_from_sheet(
+                df, boundary_data_df, facility_client, request_info_obj
+            )
+        )
+        project_site_ids, allowed_site_ids = _scope_sites_offered_to_plan(
+            request_info=request_info_obj,
+            project_id=project_id,
+            fieldplan_id=fieldplan_id,
+            field_plan=field_plan,
+            plan_is_published=plan_is_published,
+            boundary_code_by_facility_id=boundary_code_by_facility_id,
+        )
+        linkable_rows = validate_installation_scope_solutions(
+            df,
+            solutions=solutions,
+            sunshine_hours_by_state=fetch_state_sunshine_hours(),
+            add_err=lambda i, msg: validation_errors[i].append(msg),
+            sector_by_facility_id=sector_by_facility_id,
+            allowed_sectors={str(s).strip().casefold() for s in plan_sectors if s},
+            state_by_facility_id=state_by_facility_id,
+            lock_map=lock_map,
+            solution_name_by_code=solution_names_by_code(solutions),
+            completed_site_ids=completed_site_ids,
+            plan_is_published=plan_is_published,
+            allowed_site_ids=allowed_site_ids,
+            project_site_ids=project_site_ids,
+        )
+
+        # A sheet that selects nothing is a mistake, not a no-op. Frozen rows carry
+        # Include=Yes for display, so they must not count towards "something was selected".
+        # A published plan is the exception: every one of its rows is frozen, so `linkable_rows`
+        # is legitimately empty even for a sheet that changes nothing, and the old message sent
+        # the PM looking for a checkbox to tick.
+        # `not any(validation_errors)` matters as much as the rest: a sheet whose every included
+        # row was rejected also has no linkable rows, and raising here would throw away the
+        # per-row messages written below -- leaving the PM a generic 400 and no annotated
+        # workbook to tell them which row is wrong.
+        if not linkable_rows and not plan_is_published and not any(validation_errors):
+            raise HTTPException(
+                status_code=400,
+                detail="No end user sites are selected for this installation plan. "
+                       "Mark at least one site as included and choose its Solution.",
+            )
 
         # Mark rows based on validation results
         error_count = 0
@@ -2346,7 +2700,12 @@ async def validate_facilities_excel_sheet(
 
         return response
 
+    except HTTPException:
+        # Deliberate 4xx (e.g. "no sites selected") must reach the caller unchanged --
+        # the generic handler below would otherwise relabel it as a 500.
+        raise
     except Exception as e:
+        logger.error(f"Unhandled error validating field plan facilities: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
     finally:
         if temp_input_file and os.path.exists(temp_input_file.name):
@@ -2368,7 +2727,6 @@ async def create_facilities_and_update_project(
 
     # parse
     request_info = request_info_from_json(request_info)
-    mdms_client = MDMSClient(mdms_url)
 
     try:
         # ---------- save uploaded file ----------
@@ -2413,7 +2771,7 @@ async def create_facilities_and_update_project(
             return None
 
         include_col = find_col("Include in Project")
-        facility_id_col = find_col("Facility Id") or "Facility Id"
+        facility_id_col = find_col("End User Id") or "End User Id"
         status_col = find_col("status") or "status"
 
         # add result columns if missing
@@ -2422,18 +2780,18 @@ async def create_facilities_and_update_project(
         if 'Project Linking Status' not in df.columns:
             df['Project Linking Status'] = ''
 
-        facility_client = FacilityServiceClient(facility_service_url)
         project_client = ProjectServiceClient(project_service_url)
-        facility_schema = mdms_client.get_column_definitions_with_metadata(
-            request_info, 'data-ingestion.FacilityIngestionSchema'
-        )
+        # Re-checked here, not only at validate: an unlink under a plan's scope cannot be undone.
+        scoped_sites = _scoped_site_plans_or_502(request_info, project_id)
 
         # --- NEW: fetch already linked facilities once ---
         linked_facilities_resp = project_client.search_project_facility(request_info, project_id)
         linked_facilities = linked_facilities_resp.get("ProjectFacilities", []) if linked_facilities_resp else []
         linked_facility_ids = {pf.get("facilityId") for pf in linked_facilities if pf.get("facilityId")}
 
-        creation_tasks = []
+        # This template only links existing facilities (selected via the facility ingestion
+        # template) to the project; it does not create new facilities. Rows without an
+        # End User Id are invalid and are skipped rather than creating a new facility.
         pending_bulk_links = []
         existing_or_skipped_indexes = []
         for index, row in df.iterrows():
@@ -2454,7 +2812,8 @@ async def create_facilities_and_update_project(
                 df.at[index, 'Facility Creation Status'] = "Skipped (Validation not PASSED)"
                 df.at[index, 'Project Linking Status'] = "Not Attempted"
             else:
-                creation_tasks.append((index, row.copy(), should_link))
+                df.at[index, 'Facility Creation Status'] = "Skipped (End User Id is required; new facility creation is not supported)"
+                df.at[index, 'Project Linking Status'] = "Not Attempted"
 
         for index, row, should_link, facility_id in existing_or_skipped_indexes:
             try:
@@ -2462,6 +2821,9 @@ async def create_facilities_and_update_project(
                 if facility_id in linked_facility_ids:
                     if should_link:
                         df.at[index, 'Project Linking Status'] = "Already Linked"
+                    elif facility_id in scoped_sites:
+                        df.at[index, 'Project Linking Status'] = \
+                            f"Not Unlinked: {scoped_site_message(scoped_sites[facility_id])}"
                     else:
                         try:
                             project_facility_data = next((pf for pf in linked_facilities if pf.get("facilityId") == facility_id), None)
@@ -2484,73 +2846,6 @@ async def create_facilities_and_update_project(
                 df.at[index, 'Facility Creation Status'] = f"Exception: {str(e)}"
                 df.at[index, 'Project Linking Status'] = "Not Attempted"
                 continue
-
-        if creation_tasks:
-            logger.info(f"Processing {len(creation_tasks)} new facilities using bulk create API")
-            bulk_payload = {
-                "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
-                "facilities": []
-            }
-            creation_meta = []
-
-            for idx, row_data, link_required in creation_tasks:
-                single_payload = create_facility_payload(request_info, row_data, False, facility_schema)
-                facilities = single_payload.get("facilities", [])
-                if facilities:
-                    bulk_payload["facilities"].append(facilities[0])
-                    creation_meta.append((idx, link_required))
-                else:
-                    df.at[idx, 'Facility Creation Status'] = "Failed: Invalid facility payload"
-                    df.at[idx, 'Project Linking Status'] = "Not Attempted"
-
-            create_resp = None
-            try:
-                if bulk_payload["facilities"]:
-                    create_resp = facility_client.create_facility(bulk_payload)
-            except Exception as exc:
-                for idx, _ in creation_meta:
-                    df.at[idx, 'Facility Creation Status'] = f"Exception during bulk create: {str(exc)}"
-                    df.at[idx, 'Project Linking Status'] = "Not Attempted"
-
-            if create_resp is not None:
-                if create_resp.status_code in (200, 201):
-                    created_facilities = []
-                    try:
-                        created_facilities = create_resp.json() or []
-                    except Exception as exc:
-                        logger.warning(f"Could not parse bulk create response JSON: {exc}")
-
-                    for result_idx, (row_idx, link_required) in enumerate(creation_meta):
-                        created_id = None
-                        if result_idx < len(created_facilities):
-                            created_id = created_facilities[result_idx].get("facility_id")
-
-                        creation_status = "Created" if created_id else "Created (id missing)"
-                        df.at[row_idx, 'Facility Creation Status'] = creation_status
-
-                        if created_id:
-                            df.at[row_idx, facility_id_col] = created_id
-                            linked_facility_ids.add(created_id)
-
-                        if link_required and created_id:
-                            pending_bulk_links.append((row_idx, created_id))
-                        elif link_required and not created_id:
-                            df.at[row_idx, 'Project Linking Status'] = "Skipped (no facility id after create)"
-                        else:
-                            df.at[row_idx, 'Project Linking Status'] = "Skipped (Include in Project != Yes)"
-                elif create_resp.status_code == 400:
-                    try:
-                        error_data = create_resp.json()
-                        error_message = error_data.get('Errors', [{}])[0].get('message', 'Unknown error')
-                    except Exception:
-                        error_message = create_resp.text
-                    for idx, _ in creation_meta:
-                        df.at[idx, 'Facility Creation Status'] = f"Failed: {error_message}"
-                        df.at[idx, 'Project Linking Status'] = "Not Attempted"
-                else:
-                    for idx, _ in creation_meta:
-                        df.at[idx, 'Facility Creation Status'] = f"Failed: {create_resp.status_code} {create_resp.text}"
-                        df.at[idx, 'Project Linking Status'] = "Not Attempted"
 
         # Bulk-link facilities to project (for include=yes rows not already linked)
         if pending_bulk_links:
@@ -2609,6 +2904,9 @@ async def create_facilities_and_update_project(
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
+    except HTTPException:
+        # Keep explicit 400/502s (e.g. the scoped-site lookup) instead of flattening them to 500.
+        raise
     except Exception as e:
         logger.error(f"Error finalizing facility data: {e}")
         raise HTTPException(
@@ -2622,7 +2920,9 @@ async def create_facilities_and_update_project(
 
 @router.post('/createFieldPlanFacility',
              summary='Create passed facility in Excel file and add them to project',
-             response_description='Created facilities from PASSED rows and added to the given project if selected')
+             response_description='Created facilities from PASSED rows and added to the given project if selected',
+             responses={400: {"description": "End user sites listed more than once"},
+                        502: {"description": "A dependent service could not be reached"}})
 async def create_fielplan_facilities(
         background_tasks: BackgroundTasks,
         facility_file: UploadFile = File(description="Validated Excel file with PASSED/FAILED status"),
@@ -2635,6 +2935,7 @@ async def create_fielplan_facilities(
 
     # parse
     request_info = request_info_from_json(request_info)
+    mdms_client = MDMSClient(mdms_url)
 
     try:
         # ---------- save uploaded file ----------
@@ -2678,13 +2979,35 @@ async def create_fielplan_facilities(
                     return c
             return None
 
-        include_col = find_col("Included in Field Plan")
-        facility_id_col = find_col("Facility Id") or "Facility Id"
-        status_col = find_col("status") or "status"
+        include_col = find_col("Include in Installation Plan")
+        facility_id_col = find_site_id_column(df)
+        if not facility_id_col:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Sheet '{facility_sheet_name}' has no site id column "
+                       f"(expected one of {', '.join(SITE_ID_COLUMNS)}).",
+            )
+        # No status_col lookup here on purpose: the PASSED gate above reads df['status']
+        # directly. A find_col("status") would substring-match "Lock Status" first and hand
+        # back the wrong column to anyone who later tried to use it.
+
+        # Re-checked here even though every row arrived PASSED, because a sheet validated before
+        # this rule existed still says PASSED, and because the damage is done by this endpoint:
+        # the loop below walks the rows in order, so one row links a duplicated site while the
+        # other unlinks it and hard-deletes its facility activities. Raised before the try block
+        # further down, which turns any exception into a 200 with a note in the sheet.
+        repeated = duplicated_site_ids(df)
+        if repeated:
+            raise HTTPException(
+                status_code=400,
+                detail=f"These end user sites are listed more than once in the sheet: "
+                       f"{', '.join(repeated)}. List each site once, then validate the sheet "
+                       f"again before submitting it.",
+            )
 
         # add result columns if missing
-        if 'Field Plan Linking Status' not in df.columns:
-            df['Field Plan Linking Status'] = ''
+        if LINKING_STATUS_COLUMN not in df.columns:
+            df[LINKING_STATUS_COLUMN] = ''
 
         fieldplan_client = FieldPlanServiceClient(fieldPlan_service_url)
         fieldplan_activity_client = FieldPlanActivityServiceClient(fieldPlan_activity_service_url)
@@ -2715,6 +3038,50 @@ async def create_fielplan_facilities(
                         if code:
                             role_to_ids[code].append(item.get("assignedTo"))
 
+                # The sheet shows Solution names; solution_id stores the MDMS code.
+                solution_col = find_col("Solution")
+                solution_code_by_name = solution_codes_by_name(
+                    mdms_client.fetch_installation_solutions(request_info)
+                )
+                # Sites under installation elsewhere in this project are shown for context
+                # only -- linking them here would put one site in two plans (FR-06).
+                project_id = fieldplan_data[0].get("projectId") if fieldplan_data else None
+                # strict=True for the same reason as the validate endpoint, and it matters more
+                # here: this call is what actually writes the scope.
+                lock_map = {}
+                if project_id:
+                    try:
+                        lock_map = build_project_lock_map(
+                            fieldplan_client, request_info, project_id, fieldplan_id, strict=True)
+                    except HTTPException:
+                        raise
+                    except Exception as e:
+                        raise HTTPException(
+                            status_code=502,
+                            detail=f"Could not check which end user sites are already part of a "
+                                   f"published installation plan in project {project_id}, so this "
+                                   f"scope cannot be saved safely: {e}")
+
+                # Withdrawing a site from a published plan deletes its activity rows outright
+                # (below), so the "is anything already installed?" check has to be re-run here
+                # and not merely trusted from validation -- this endpoint is reachable on its
+                # own, and the workflow can move between the two calls.
+                plan_is_published = bool(fieldplan_data) and str(
+                    fieldplan_data[0].get("status") or "").strip().upper() == PLAN_STATUS_PUBLISHED
+                completed_site_ids = set()
+                if plan_is_published and fieldPlan_activity_service_url:
+                    try:
+                        completed_site_ids = fieldplan_activity_client.completed_facility_ids(
+                            request_info, fieldplan_id, list(fieldplan_linked_facility_ids))
+                    except Exception as e:
+                        logger.error(
+                            f"Could not read installation status for plan {_log_safe(fieldplan_id)}: {e}",
+                            exc_info=True)
+                        raise HTTPException(
+                            status_code=502,
+                            detail=f"Could not check which installations are already complete for "
+                                   f"plan {fieldplan_id}, so its scope cannot be changed safely: {e}")
+
                 pending_bulk_fieldplan_links = []
                 # iterate all rows — handle existing facility ids (linking/unlinking)
                 for index, row in df.iterrows():
@@ -2729,9 +3096,39 @@ async def create_fielplan_facilities(
                         if include_col:
                             include_val = str(row.get(include_col, "")).strip().lower()
                         else:
-                            include_val = str(row.get("Included in Field Plan (Mandatory)", "")).strip().lower()
+                            include_val = str(row.get("Include in Installation Plan (Mandatory)", "")).strip().lower()
 
                         should_link = include_val == "yes"
+
+                        lock = lock_map.get(facility_id) if facility_id else None
+                        if lock is not None:
+                            # A published plan's own site may still be withdrawn while nothing
+                            # has been installed against it -- plans do legitimately shrink. Once
+                            # any of its assets is approved the row stays frozen, which is also
+                            # what stops the activity delete below from discarding signed-off work.
+                            withdrawing_uninstalled = (
+                                lock.is_this_plan
+                                and not should_link
+                                and facility_id not in completed_site_ids
+                            )
+                            if not withdrawing_uninstalled:
+                                if lock.is_this_plan and facility_id in completed_site_ids:
+                                    lock_status = "Locked (installation completed)"
+                                elif lock.is_this_plan:
+                                    lock_status = "Locked (this plan)"
+                                else:
+                                    lock_status = f"Locked by another plan ({lock.field_plan_name or lock.field_plan_id})"
+                                df.at[index, LINKING_STATUS_COLUMN] = lock_status
+                                continue
+
+                        solution_name = ""
+                        if solution_col:
+                            raw_solution = row.get(solution_col, "")
+                            solution_name = "" if pd.isna(raw_solution) else str(raw_solution).strip()
+                        solution_code = solution_code_by_name.get(solution_name) if solution_name else None
+                        if solution_name and not solution_code:
+                            df.at[index, LINKING_STATUS_COLUMN] = f"Unknown Solution '{solution_name}'"
+                            continue
 
                         # ---------- CASE A: existing facility_id present -> skip creation, attempt linking if requested ----------
                         if facility_id:
@@ -2740,7 +3137,7 @@ async def create_fielplan_facilities(
                             if facility_id in fieldplan_linked_facility_ids:
                                 if should_link:
                                     # already linked → skip API
-                                    df.at[index, 'Field Plan Linking Status'] = "Already Linked"
+                                    df.at[index, LINKING_STATUS_COLUMN] = "Already Linked"
                                 else:
                                     # linked but Excel says No → unlink
                                     try:
@@ -2760,43 +3157,55 @@ async def create_fielplan_facilities(
                                         facility_activity_ids = list({fa.get("activityFacility").get("id") for fa in facilities_activity if fa.get("activityFacility").get("id")})
                                         fieldplan_activity_client.delete_facility_activity(request_info=request_info, facility_activity_id=facility_activity_ids)
 
-                                        df.at[index, 'Field Plan Linking Status'] = "Unlinked"
+                                        df.at[index, LINKING_STATUS_COLUMN] = "Unlinked"
                                         fieldplan_linked_facility_ids.remove(facility_id)
                                     except Exception as e:
-                                        df.at[index, 'Field Plan Linking Status'] = f"Exception during unlink: {str(e)}"
+                                        df.at[index, LINKING_STATUS_COLUMN] = f"Exception during unlink: {str(e)}"
                             else:
                                 if should_link:
-                                    pending_bulk_fieldplan_links.append((index, facility_id))
+                                    pending_bulk_fieldplan_links.append((index, facility_id, solution_code))
                                 else:
-                                    df.at[index, 'Field Plan Linking Status'] = "Skipped (Include in Field Plan != Yes)"
+                                    df.at[index, LINKING_STATUS_COLUMN] = "Skipped (Include in Installation Plan != Yes)"
 
                                 # continue to next row
                                 continue
 
                     except Exception as e:
                         # any unexpected error per row
-                        df.at[index, 'Field Plan Linking Status'] = "Not Attempted"
+                        df.at[index, LINKING_STATUS_COLUMN] = "Not Attempted"
                         continue
 
                 if pending_bulk_fieldplan_links:
                     chunk_size = BULK_INGEST_CHUNK_SIZE
                     for i in range(0, len(pending_bulk_fieldplan_links), chunk_size):
                         chunk = pending_bulk_fieldplan_links[i:i + chunk_size]
-                        facility_ids_chunk = [facility_id for _, facility_id in chunk]
+                        solution_by_facility = {
+                            facility_id: solution_code for _, facility_id, solution_code in chunk
+                        }
                         try:
                             fieldplan_resp = fieldplan_client.create_fieldPlan_facility_bulk(
                                 request_info=request_info,
                                 fieldPlan_id=fieldplan_id,
-                                facility_ids=facility_ids_chunk
+                                facility_ids=list(solution_by_facility),
+                                solution_id_by_facility=solution_by_facility
                             )
 
                             if fieldplan_resp.status_code in (200, 201, 202):
-                                for row_idx, facility_id in chunk:
-                                    df.at[row_idx, 'Field Plan Linking Status'] = "Linked"
+                                for row_idx, facility_id, _solution_code in chunk:
+                                    df.at[row_idx, LINKING_STATUS_COLUMN] = "Linked"
                                     fieldplan_linked_facility_ids.add(facility_id)
 
                                     if fieldplan_data:
                                         fieldplan = fieldplan_data[0]
+                                        # Unreachable as written, and deliberately left that way.
+                                        # 'SCHEDULED' is an *activity* status (ActivityConstants
+                                        # .SCHEDULED_STATUS); a *plan* is DRAFT or PUBLISHED, so
+                                        # this never matches. Pointing it at PUBLISHED would not
+                                        # help either: a published plan can no longer take new
+                                        # sites at all, and a draft plan's activities are created
+                                        # at publish time by VendorAssignmentService, not here.
+                                        # Left in place rather than deleted because it is the only
+                                        # record of an intent worth settling before it is removed.
                                         if fieldplan.get("status") == 'SCHEDULED':
                                             try:
                                                 facility_activity_resp = fieldplan_activity_client.create_facility_activity(
@@ -2810,21 +3219,79 @@ async def create_fielplan_facilities(
                                             except Exception as activity_exc:
                                                 logger.error(f"Error creating facility activity for {facility_id}: {activity_exc}", exc_info=True)
                             else:
-                                for row_idx, _ in chunk:
-                                    df.at[row_idx, 'Field Plan Linking Status'] = f"Failed: {fieldplan_resp.status_code} {fieldplan_resp.text}"
+                                for row_idx, _facility_id, _solution_code in chunk:
+                                    df.at[row_idx, LINKING_STATUS_COLUMN] = f"Failed: {fieldplan_resp.status_code} {fieldplan_resp.text}"
                         except Exception as bulk_exc:
-                            for row_idx, _ in chunk:
-                                df.at[row_idx, 'Field Plan Linking Status'] = f"Exception: {str(bulk_exc)}"
+                            for row_idx, _facility_id, _solution_code in chunk:
+                                df.at[row_idx, LINKING_STATUS_COLUMN] = f"Exception: {str(bulk_exc)}"
 
+                    # Confirm the rows actually landed before telling the Project Manager they did.
+                    #
+                    # "Linked" above is set on an HTTP 202, which only means the message was
+                    # queued: /facility/bulk/_create pushes to a bulk topic, a consumer picks it
+                    # up and republishes to save-fieldplan-facility-topic, and egov-persister
+                    # finally writes the row. Nothing in that chain can report failure back here
+                    # -- the consumer catches and logs, and the persister runs in another pod.
+                    # This is exactly how the Installation Scope step once reported every site
+                    # "Linked" while field_plan_facilities stayed empty.
+                    expected_ids = {fid for _, fid, _ in pending_bulk_fieldplan_links}
+                    confirmed_ids = set()
+                    for attempt in range(SCOPE_LINK_CONFIRM_ATTEMPTS):
+                        try:
+                            stored = fieldplan_client.search_fieldplan_facility(
+                                request_info, fieldplan_id).get("FieldPlanFacilities", [])
+                            confirmed_ids = {
+                                link.get("facilityId") for link in stored
+                                if link.get("facilityId") and not link.get("isdeleted")
+                            }
+                        except Exception as confirm_exc:
+                            logger.warning(
+                                f"scope read-back attempt {attempt + 1} failed: {confirm_exc}")
+                        if expected_ids <= confirmed_ids:
+                            break
+                        time.sleep(SCOPE_LINK_CONFIRM_INTERVAL_SECONDS)
+
+                    unconfirmed = expected_ids - confirmed_ids
+                    if unconfirmed:
+                        logger.error(
+                            f"{len(unconfirmed)} of {len(expected_ids)} scope row(s) were not "
+                            f"visible for plan {fieldplan_id} after "
+                            f"{SCOPE_LINK_CONFIRM_ATTEMPTS} attempts: {sorted(unconfirmed)}")
+                        for row_idx, facility_id, _solution_code in pending_bulk_fieldplan_links:
+                            # Only downgrade rows we optimistically marked Linked -- a row that
+                            # already says Failed/Exception has a more specific cause.
+                            if (facility_id in unconfirmed
+                                    and df.at[row_idx, LINKING_STATUS_COLUMN] == "Linked"):
+                                df.at[row_idx, LINKING_STATUS_COLUMN] = (
+                                    "Pending: accepted but not yet saved. Re-upload this sheet "
+                                    "to confirm before moving to the Template step.")
+                                fieldplan_linked_facility_ids.discard(facility_id)
+                    else:
+                        logger.info(
+                            f"confirmed {len(expected_ids)} scope row(s) persisted for plan "
+                            f"{fieldplan_id}")
+
+            except HTTPException:
+                # Deliberate refusals raised inside this block -- the completed-installations
+                # lookup above fails closed with a 502 -- must reach the client. Without this
+                # they are caught below and turned into a 200 with a note in the sheet, which
+                # reads as success and defeats the point of failing closed.
+                raise
             except Exception as e:
-                logger.error(f"Error fetching fieldplan facilities: {e}")
-                # Continue without fieldplan facility data if there's an error
+                # This block does the linking, not just the fetch: swallowing it returns a
+                # 200 with an empty "Installation Plan Linking Status" column and nothing written,
+                # which reads as "no sites matched" rather than as a failure. Keep the
+                # response shape, but make the cause traceable and say so in the sheet.
+                logger.error(f"Field plan linking failed for {fieldplan_id}: {e}", exc_info=True)
+                df[LINKING_STATUS_COLUMN] = df[LINKING_STATUS_COLUMN].replace(
+                    "", f"Not attempted: {type(e).__name__}: {e}"
+                )
 
         # ---------- write results back into workbook preserving formatting ----------
         # Ensure headers exist in sheet (without wiping template)
         header_values = [cell.value for cell in ws[1]]
 
-        for col_name in ["Field Plan Linking Status"]:
+        for col_name in [LINKING_STATUS_COLUMN]:
             if col_name not in header_values:
                 cell = ws.cell(row=1, column=len(header_values) + 1, value=col_name)
                 cell.font = Font(bold=True)
@@ -2854,8 +3321,12 @@ async def create_fielplan_facilities(
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
+    except HTTPException:
+        # Deliberate 4xx (wrong sheet, unvalidated file, rows still FAILED) must reach the
+        # caller as itself -- the generic handler below would relabel it a 500.
+        raise
     except Exception as e:
-        logger.error(f"Error finalizing facility data: {e}")
+        logger.error(f"Error finalizing facility data: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to finalize facility data: {str(e)}"
@@ -2863,6 +3334,303 @@ async def create_fielplan_facilities(
     finally:
         if input_temp_file and os.path.exists(input_temp_file.name):
             os.unlink(input_temp_file.name)
+
+
+def _solution_label(request_info, solution_code: Optional[str]) -> str:
+    """A Solution's display name, for error messages only -- falls back to the raw code.
+
+    Deliberately lazy: every caller is already on a failure path, so the MDMS round trip costs
+    nothing on the happy path. The checks themselves always compare codes, which is what the
+    sheet, the plan's scope and MDMS all store.
+    """
+    if not solution_code:
+        return str(solution_code)
+    try:
+        names = solution_names_by_code(
+            MDMSClient(mdms_url).fetch_installation_solutions(request_info))
+    except Exception as e:
+        logger.warning(f"Could not fetch Solution names for an error message: {e}")
+        return str(solution_code)
+    # `or` rather than a dict default: a record with a null name would otherwise render "None".
+    return names.get(str(solution_code).strip()) or str(solution_code)
+
+
+def _load_and_parse_template(temp_path: str, request_info=None, solution_code: Optional[str] = None):
+    """Open an uploaded template and pull out its two BOM sections.
+
+    Returns (workbook, sheet, parsed). Raises HTTPException(400) when the file is not a
+    template at all, which is a sheet-level problem with no row to annotate. `solution_code` is
+    only used to name the Solution in those messages.
+    """
+    try:
+        workbook = load_workbook(temp_path)
+    except Exception as e:
+        # openpyxl's own text leaks implementation detail -- "File is not a zip file" is what a
+        # Project Manager saw after uploading a .csv, which tells them nothing about what to do.
+        logger.warning(f"Uploaded file could not be opened as a workbook: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail="This file could not be read as an Excel workbook. Please upload the .xlsx "
+                   "IC Report template downloaded for this Solution.")
+    try:
+        sheet = first_data_sheet(workbook)
+    except ValueError:
+        # No BOM section anywhere in the workbook: this is some other spreadsheet entirely.
+        raise HTTPException(
+            status_code=400,
+            detail=f"This is not the IC Report template for "
+                   f"{_solution_label(request_info, solution_code)}. Please upload the file "
+                   f"downloaded for this Solution.")
+    return workbook, sheet, parse_worksheet(sheet)
+
+
+def _check_template_upload(request_info, fieldplan_id: str, solution_code: str, parsed):
+    """Sheet-level checks shared by validate and create, and the Solution's MDMS forms.
+
+    These have no row to annotate, so each raises a 400 with a plain message rather than
+    coming back inside the workbook.
+
+    Returns the SolutionForms the caller needs to name the workbook's cells. Loading them here
+    rather than only in create is deliberate: validate must fail for exactly the same reasons
+    create would, or a Project Manager gets a green light followed by a red one.
+    """
+    if not fieldPlan_service_url:
+        raise HTTPException(status_code=500, detail="Field plan service is not configured")
+    fieldplan_client = FieldPlanServiceClient(fieldPlan_service_url)
+
+
+
+    try:
+        plans = fieldplan_client.search_fieldPlan(request_info, fieldplan_id).get("FieldPlans", [])
+    except Exception as e:
+        logger.error(f"Could not read field plan {fieldplan_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Could not read installation plan {fieldplan_id}: {e}")
+    if not plans:
+        raise HTTPException(status_code=404, detail=f"Installation plan {fieldplan_id} not found")
+
+    # Once a plan is published its tasks have been dispatched to vendors, so the template that
+    # seeded them must not move underneath them.
+    status = str(plans[0].get("status") or "").strip().upper()
+    if status == PLAN_STATUS_PUBLISHED:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Installation plan {fieldplan_id} has already been published, so its IC "
+                   f"Report templates can no longer be changed.")
+
+    try:
+        links = fieldplan_client.search_fieldplan_facility(
+            request_info, fieldplan_id).get("FieldPlanFacilities", [])
+    except Exception as e:
+        logger.error(f"Could not read scope for plan {fieldplan_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Could not read the plan's scope: {e}")
+
+    in_scope = any(
+        str(link.get("solutionId") or "").strip() == str(solution_code).strip()
+        and not link.get("isdeleted")
+        for link in links
+    )
+    if not in_scope:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No end user site in this installation plan is assigned Solution "
+                   f"{_solution_label(request_info, solution_code)}. Assign it in the Installation "
+                   f"Scope step first.")
+
+    # The workbook carries its own Bundle / Item Code, which is what makes uploading the wrong
+    # Solution's file detectable -- easy to do when a Plan has several similar templates open.
+    # Naming both Solutions is the point: "not the one you wanted" leaves the PM guessing which
+    # of the several templates they have open this actually is.
+    if parsed.bundle_code and str(parsed.bundle_code).strip() != str(solution_code).strip():
+        raise HTTPException(
+            status_code=400,
+            detail=f"This is the IC Report template for "
+                   f"{_solution_label(request_info, parsed.bundle_code)}, not for "
+                   f"{_solution_label(request_info, solution_code)}. Please upload the file "
+                   f"downloaded for this Solution.")
+
+    # Field names come from MDMS and are assigned by position, so without the forms there is
+    # nothing to name the cells against. Fail closed: a template stored unnamed yields a bom.data
+    # neither the mobile app nor the PDF generator can read, and nothing downstream would say why.
+    try:
+        return load_solution_forms(request_info, solution_code)
+    except BomFormError as e:
+        logger.error(f"BOM form lookup failed for {solution_code}: {e.message}", exc_info=True)
+        raise HTTPException(status_code=502 if e.retryable else 400, detail=e.message)
+
+
+def _read_only_row_errors(request_info, solution_code: str, parsed):
+    """Row errors for line items whose Sl. No. or Product no longer match the blank template.
+
+    Shared by validate and create, so both fail for the same reasons. Rejects an upload whose
+    line-item count differs from the blank's, so the two lists line up position for position.
+    """
+    workbook_bytes = fetch_blank_template(
+        FieldPlanServiceClient(fieldPlan_service_url), request_info, solution_code)
+    blank = parse_worksheet(first_data_sheet(load_workbook(io.BytesIO(workbook_bytes))))
+    # Items are compared by position, so a different count would leave the extra uploaded items
+    # unchecked -- free to carry an edited Product into the stored template.
+    if len(blank.line_items) != len(parsed.line_items):
+        raise HTTPException(
+            status_code=400,
+            detail=f"This IC Report has {len(parsed.line_items)} line item(s), but the blank "
+                   f"template for this Solution has {len(blank.line_items)}. Download the "
+                   f"template again, or ask an administrator to regenerate it.")
+    return read_only_errors(parsed, blank)
+
+
+def _merge_row_errors(*error_maps):
+    merged = {}
+    for errors in error_maps:
+        for row, messages in errors.items():
+            merged.setdefault(row, []).extend(messages)
+    return merged
+
+
+@router.post('/installationTemplateValidateData',
+             summary='Validate a filled IC Report template before creating it',
+             response_description='Returns the workbook with status/error columns per line item')
+async def validate_installation_template(
+        background_tasks: BackgroundTasks,
+        template_file: UploadFile = File(..., description="The filled IC Report template"),
+        fieldplan_id: str = Form(..., description="Field plan id"),
+        solution_code: str = Form(..., description="MDMS Installation.Solution code"),
+        request_info: str = Form(default="")
+):
+    """Validate only -- writes nothing.
+
+    Errors are annotated onto the line-item rows and the workbook is handed back, so the
+    Project Manager fixes the flagged rows in place and re-uploads. The frontend calls
+    createInstallationTemplate once this returns X-Error-Count: 0.
+    """
+    request_info_obj = request_info_from_json(request_info)
+    temp_file = None
+    output_path = None
+    try:
+        temp_file, _ = await _save_upload_to_temp_file(template_file, suffix=".xlsx")
+        workbook, sheet, parsed = _load_and_parse_template(
+            temp_file.name, request_info_obj, solution_code)
+        forms = _check_template_upload(request_info_obj, fieldplan_id, solution_code, parsed)
+
+        row_errors, sheet_errors = validate_line_items(parsed)
+        # A structural mismatch is not annotated and handed back: the status/error columns say
+        # "fix this row", whereas the answer here is either "undo your edit and re-download" or
+        # "an administrator must regenerate this Solution's form". A workbook that looked
+        # green apart from one red row would point at the wrong thing entirely.
+        sheet_errors = sheet_errors + structural_errors(parsed, forms)
+        if sheet_errors:
+            raise HTTPException(status_code=400, detail=" ".join(sheet_errors))
+        row_errors = _merge_row_errors(
+            row_errors, _read_only_row_errors(request_info_obj, solution_code, parsed))
+
+        error_count = annotate_worksheet(sheet, parsed, row_errors)
+
+        output_path = create_temp_file(suffix=".xlsx")
+        workbook.save(output_path)
+        background_tasks.add_task(cleanup_temp_file, output_path)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        response = FileResponse(
+            path=output_path,
+            filename=f"ic_report_template_validation_{timestamp}.xlsx",
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response.headers["X-Error-Count"] = str(error_count)
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error validating installation template: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
+    finally:
+        if temp_file and os.path.exists(temp_file.name):
+            os.unlink(temp_file.name)
+
+
+@router.post('/createInstallationTemplate',
+             summary='Store a validated IC Report template for one Solution',
+             response_description='Returns the saved template summary as JSON',
+             responses={400: {"description": "The template still has errors"},
+                        502: {"description": "A dependent service could not be reached"}})
+async def create_installation_template(
+        template_file: UploadFile = File(..., description="The filled IC Report template"),
+        fieldplan_id: str = Form(..., description="Field plan id"),
+        solution_code: str = Form(..., description="MDMS Installation.Solution code"),
+        request_info: str = Form(default="")
+):
+    """Parse the filled template and store it against (field plan, Solution).
+
+    Re-runs the same validation rather than trusting the status column the validate step
+    wrote: that cell is just data in a workbook the Project Manager holds, so it can be
+    edited. Validation is one call away, so checking properly costs nothing.
+
+    The uploaded file itself is not retained -- once parsed it has no consumer, and the
+    download only ever serves the blank template.
+    """
+    request_info_obj = request_info_from_json(request_info)
+    temp_file = None
+    try:
+        temp_file, _ = await _save_upload_to_temp_file(template_file, suffix=".xlsx")
+        _workbook, _sheet, parsed = _load_and_parse_template(
+            temp_file.name, request_info_obj, solution_code)
+        forms = _check_template_upload(request_info_obj, fieldplan_id, solution_code, parsed)
+
+        row_errors, sheet_errors = validate_line_items(parsed)
+        sheet_errors = sheet_errors + structural_errors(parsed, forms)
+        if sheet_errors:
+            raise HTTPException(status_code=400, detail=" ".join(sheet_errors))
+        row_errors = _merge_row_errors(
+            row_errors, _read_only_row_errors(request_info_obj, solution_code, parsed))
+        if row_errors:
+            rows = ", ".join(str(r) for r in sorted(row_errors)[:10])
+            raise HTTPException(
+                status_code=400,
+                detail=f"{len(row_errors)} line item(s) still have errors (rows {rows}). "
+                       f"Run the validation step and fix the flagged rows before saving.")
+
+        fields, machine_section, solar_section, form_meta = build_field_map(parsed, forms)
+
+        try:
+            FieldPlanServiceClient(fieldPlan_service_url).create_field_plan_template(
+                request_info=request_info_obj,
+                fieldplan_id=fieldplan_id,
+                solution_code=solution_code,
+                machine_section=machine_section,
+                solar_section=solar_section,
+                tender_number=parsed.tender_number,
+                purchase_order_number=parsed.purchase_order_number,
+                fields=fields,
+                form_meta=form_meta,
+            )
+        except Exception as e:
+            logger.error(f"Could not save field plan template: {e}", exc_info=True)
+            raise HTTPException(status_code=502, detail=f"Could not save the template: {e}")
+
+        logger.info(
+            f"Stored IC Report template: fieldplan={fieldplan_id} solution={solution_code} "
+            f"machines={len(machine_section)} solar={len(solar_section)} fields={len(fields)}")
+        return JSONResponse(content={
+            "fieldPlanId": fieldplan_id,
+            "solutionId": solution_code,
+            "machineCount": len(machine_section),
+            "solarLineItemCount": len(solar_section),
+            # The cheapest end-to-end proof that naming actually happened, without a DB query.
+            "fieldCount": len(fields),
+            "formIds": form_meta.get("forms", {}),
+            "tenderNumber": parsed.tender_number,
+            "purchaseOrderNumber": parsed.purchase_order_number,
+            "message": "IC Report template saved.",
+        })
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating installation template: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to save template: {str(e)}")
+    finally:
+        if temp_file and os.path.exists(temp_file.name):
+            os.unlink(temp_file.name)
+
 
 
 @router.post('/amcConfigurationValidateData',
@@ -3056,7 +3824,8 @@ def get_vendor_id_for_amc_field_staff(user_info_data: List[dict]) -> str:
 
 @router.post('/amcConfigurationBulkIngest',
              summary='Bulk ingest AMC configuration template data',
-             response_description="Returns processed Excel file with AMC configuration creation results")
+             response_description="Returns processed Excel file with AMC configuration creation results",
+             responses={400: {"description": "user_info_list does not identify a single AMC vendor"}})
 async def bulk_ingest_amc_configurations(
         background_tasks: BackgroundTasks,
         amc_file: UploadFile = File(..., description="Excel file containing AMC configuration data"),

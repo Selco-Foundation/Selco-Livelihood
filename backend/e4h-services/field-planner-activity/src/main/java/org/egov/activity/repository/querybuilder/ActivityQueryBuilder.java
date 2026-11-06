@@ -26,6 +26,7 @@ public class ActivityQueryBuilder {
     private static final String FETCH_ACTIVITY_QUERY = "SELECT fa.id as fa_facilityActivityId, fa.tenant_id as fa_tenantId, fa.facility_id as fa_facilityId, fa.activity_id as fa_activityId, " +
             "fa.field_plan_id as fa_fieldPlanId, fa.status as fa_status, fa.conditions_met as fa_conditionsMet, fa.assigned_user as fa_assignedUser, " +
             "fa.additional_details as fa_additionalDetails, fa.scheduled_at as fa_scheduledAt, fa.activated_at as fa_activatedAt, fa.completed_at as fa_completedAt, fa.created_time as fa_createdTime, " +
+            "fa.component_type as fa_componentType, fa.component_sequence as fa_componentSequence, fa.solution_id as fa_solutionId, " +
             "fa.last_modified_time as fa_lastModifiedTime, fac.id AS facilityId, fac.tenant_id AS fac_tenantId, fac.facility_category AS fac_facilityCategory, fac.facility_type AS fac_facilityType, " +
             "fac.facility_subtype AS fac_facilitySubtype, fac.facility_name AS fac_facilityName, fac.facility_ownership AS fac_facilityOwnership, fac.facility_region AS fac_facilityRegion, " +
             "fac.addressid, fac.facility_details AS fac_facilityDetails, fac.wf_status AS fac_status, fac.is_active AS fac_isActive, fac.additional_details AS fac_additionalDetails, fac.created_by AS fac_createdBy, " +
@@ -37,6 +38,8 @@ public class ActivityQueryBuilder {
 
     private static final String STATUS_COUNT_QUERY = "SELECT status, COUNT(*) AS occurrences " +
             "FROM facility_activities fa where fa.status is not null AND fa.isdeleted = false ";
+    private static final String FACILITY_ACTIVITY_COUNT_QUERY = "SELECT COUNT(*) " +
+            "FROM facility_activities fa where fa.isdeleted = false ";
     private static final String ACTIVITY_COUNT_QUERY = "SELECT COUNT(*) FROM facility_activities fa LEFT JOIN public.facility AS fac ON fa.facility_id = fac.id LEFT JOIN public.activities AS ac ON fa.activity_id = ac.id";
 
     private static final String PAGINATION_WRAPPER_TEMPLATE = "SELECT * FROM " +
@@ -81,21 +84,23 @@ public class ActivityQueryBuilder {
         var userInfo = request.getRequestInfo().getUserInfo();
         String userUuid = userInfo.getUuid();
         boolean isProjectManager = false;
-        boolean isFacilityAdmin = false;
+        boolean isEndUserAdmin = false;
+        boolean isOrgPlatformAdmin = false;
         boolean isInstallationQcApprover = false;
         if (userInfo.getRoles() != null) {
             isProjectManager = userInfo.getRoles().stream().anyMatch(role -> PROJECT_MANAGER.equalsIgnoreCase(role.getCode()));
-            isFacilityAdmin = userInfo.getRoles().stream().anyMatch(role -> FACILITY_ADMIN.equalsIgnoreCase(role.getCode()));
+            isEndUserAdmin = userInfo.getRoles().stream().anyMatch(role -> END_USER_ADMIN.equalsIgnoreCase(role.getCode()));
+            isOrgPlatformAdmin = userInfo.getRoles().stream().anyMatch(role -> ORG_PLATFORM_ADMIN.equalsIgnoreCase(role.getCode()));
             isInstallationQcApprover = userInfo.getRoles().stream().anyMatch(role -> INSTALLATION_REPORT_APPROVER_QC_TEAM.equalsIgnoreCase(role.getCode()));
         }
 
-        if (!isProjectManager && !isFacilityAdmin && !isInstallationQcApprover) {
+        if (!isProjectManager && !isEndUserAdmin && !isOrgPlatformAdmin && !isInstallationQcApprover) {
             queryBuilder.append(" JOIN activity_facility_users fu ON fu.activityfacilityid = fa.id ");
         }
 
         addClause(criteria.getTenantId(), preparedStmtList, queryBuilder);
 
-        extracted(urlParams.getLastChangedSince(), preparedStmtList, criteria, queryBuilder, userUuid, isProjectManager, isFacilityAdmin, isInstallationQcApprover);
+        extracted(urlParams.getLastChangedSince(), preparedStmtList, criteria, queryBuilder, userUuid, isProjectManager, isEndUserAdmin, isOrgPlatformAdmin, isInstallationQcApprover);
 
         // Add clause if includeDeleted is true in request parameter
         addIsDeletedCondition(preparedStmtList, queryBuilder, urlParams.getIncludeDeleted());
@@ -108,7 +113,7 @@ public class ActivityQueryBuilder {
         return addPaginationWrapper(queryBuilder.toString(), preparedStmtList, urlParams.getLimit(), urlParams.getOffset(), criteria.getSortDirection());
     }
 
-    private void extracted(Long lastChangedSince, List<Object> preparedStmtList, ActivityFacilitySearchCriteria activityFacility, StringBuilder queryBuilder, String userUuid, boolean isProjectManager, boolean isFacilityAdmin, boolean isInstallationQcApprover) {
+    private void extracted(Long lastChangedSince, List<Object> preparedStmtList, ActivityFacilitySearchCriteria activityFacility, StringBuilder queryBuilder, String userUuid, boolean isProjectManager, boolean isEndUserAdmin, boolean isOrgPlatformAdmin, boolean isInstallationQcApprover) {
 
         if (!CollectionUtils.isEmpty(activityFacility.getIds())) {
             addClauseIfRequired(preparedStmtList, queryBuilder);
@@ -146,6 +151,12 @@ public class ActivityQueryBuilder {
             preparedStmtList.addAll(activityFacility.getStatuses());
         }
 
+        if (!CollectionUtils.isEmpty(activityFacility.getComponentTypes())) {
+            addClauseIfRequired(preparedStmtList, queryBuilder);
+            queryBuilder.append(" fa.component_type IN (").append(createQuery(activityFacility.getComponentTypes())).append(")");
+            preparedStmtList.addAll(activityFacility.getComponentTypes());
+        }
+
         if (StringUtils.isNotBlank(activityFacility.getAssignedUserId())) {
             addClauseIfRequired(preparedStmtList, queryBuilder);
             queryBuilder.append(" fa.assigned_user =? ");
@@ -166,7 +177,7 @@ public class ActivityQueryBuilder {
         }
 
         // Check if not project manager or facility admin role
-        if (!isProjectManager && !isFacilityAdmin && !isInstallationQcApprover && StringUtils.isNotBlank(userUuid)) {
+        if (!isProjectManager && !isEndUserAdmin && !isOrgPlatformAdmin && !isInstallationQcApprover && StringUtils.isNotBlank(userUuid)) {
             addClauseIfRequired(preparedStmtList, queryBuilder);
             queryBuilder.append(" fu.userid = ? ");
             preparedStmtList.add(userUuid);
@@ -232,6 +243,17 @@ public class ActivityQueryBuilder {
             preparedStmtList.add(fieldPlanId);
         }
         queryBuilder.append("GROUP BY status ORDER BY occurrences DESC;");
+
+        return queryBuilder.toString();
+    }
+
+    /* Returns query to get the total number of facility activities of a field plan */
+    public String getFacilityActivitiesCountQuery(String fieldPlanId, List<Object> preparedStmtList) {
+        StringBuilder queryBuilder = new StringBuilder(FACILITY_ACTIVITY_COUNT_QUERY);
+        if (fieldPlanId != null && !fieldPlanId.isEmpty()) {
+            queryBuilder.append(" AND fa.field_plan_id =? ");
+            preparedStmtList.add(fieldPlanId);
+        }
 
         return queryBuilder.toString();
     }

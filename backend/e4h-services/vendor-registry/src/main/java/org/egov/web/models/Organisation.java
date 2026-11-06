@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 import org.egov.common.contract.models.AuditDetails;
 import org.springframework.validation.annotation.Validated;
 
@@ -60,9 +61,6 @@ public class Organisation {
     @JsonProperty("orgType")
     private String orgType = null;
 
-    @JsonProperty("orgSubType")
-    private String orgSubType = null;
-
     @JsonProperty("orgPocName")
     private String orgPocName = null;
 
@@ -74,6 +72,31 @@ public class Organisation {
 
     @JsonProperty("orgPocUsername")
     private String orgPocUsername = null;
+
+    // Accepted on create only, to set the POC's HRMS login password. Never serialized (not in the
+    // response, not in the Kafka message) and kept out of toString() so it cannot leak into logs.
+    @JsonProperty(value = "orgPocPassword", access = JsonProperty.Access.WRITE_ONLY)
+    @ToString.Exclude
+    private String orgPocPassword = null;
+
+    // Default vendor user of a VENDOR organisation, sent by the frontend and created in HRMS on create only
+    // (not stored on the organisation). Name, username, phone and password are mandatory for a VENDOR organisation.
+    @JsonProperty("defaultVendorName")
+    private String defaultVendorName = null;
+
+    @JsonProperty("defaultVendorPhone")
+    private String defaultVendorPhone = null;
+
+    @JsonProperty("defaultVendorEmail")
+    private String defaultVendorEmail = null;
+
+    @JsonProperty("defaultVendorUsername")
+    private String defaultVendorUsername = null;
+
+    // Same handling as orgPocPassword: never serialized and kept out of toString().
+    @JsonProperty(value = "defaultVendorPassword", access = JsonProperty.Access.WRITE_ONLY)
+    @ToString.Exclude
+    private String defaultVendorPassword = null;
 
     @JsonProperty("externalRefNumber")
     @Size(min = 2, max = 64)

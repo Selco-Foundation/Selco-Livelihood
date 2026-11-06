@@ -45,6 +45,15 @@ public class Asset {
     @JsonProperty("activityFacilityID")
     private String activityFacilityID = null;
 
+    /** Set on a unit (e.g. PANEL/BATTERY/INVERTER) that belongs to a parent asset (e.g. SOLAR). Null for top-level assets. */
+    @JsonProperty("parentId")
+    private String parentId = null;
+
+    /** Request/response only (not persisted): units created together with this parent in one _create call. */
+    @JsonProperty("children")
+    @Valid
+    private List<Asset> children = null;
+
     @JsonProperty("assetTypeID")
     @NotNull
     private String assetTypeID = null;
@@ -62,6 +71,9 @@ public class Asset {
 
     @JsonProperty("vendorId")
     private String vendorId = null;
+
+    @JsonProperty("vendor")
+    private AssetVendor vendor = null;
 
     @JsonProperty("itemCode")
     private String itemCode = null;
@@ -89,6 +101,12 @@ public class Asset {
 
     @JsonProperty("isOperational")
     private Boolean isOperational = null;
+
+    @JsonProperty("isOnmReady")
+    private Boolean isOnmReady = false;
+
+    @JsonProperty("sourceBomId")
+    private String sourceBomId = null;
 
     @JsonProperty("documents")
     private List<Document> documents = null;

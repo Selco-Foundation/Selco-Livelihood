@@ -11,7 +11,6 @@ public class OrganisationConstant {
     public static final String MASTER_TENANTS = "tenants";
 //    public static final String MASTER_ORG_TYPE = "OrgType";
     public static final String MASTER_ORG_TYPE = "OrgType";
-    public static final String MASTER_ORG_SUB_TYPE = "OrgSubType";
     public static final String MASTER_ORG_STATUS = "OrgStatus";
     public static final String MASTER_ORG_ROLES = "OrgRoles";
     public static final String MASTER_ORG_FUNC_CLASS = "OrgFunctionClass";
@@ -21,6 +20,18 @@ public class OrganisationConstant {
     public static final String ORG_ADMIN_ROLE_CODE = "ORG_ADMIN";
     public static final String ORG_ADMIN_ROLE_NAME = "Organization admin";
     public static final String ORG_CITIZEN_TYPE = "CITIZEN";
+    public static final String VENDOR_ADMIN_ROLE_CODE = "VENDOR_ADMIN";
+    public static final String VENDOR_ADMIN_ROLE_NAME = "Vendor admin";
+    public static final String EMPLOYEE_ROLE_CODE = "EMPLOYEE";
+    public static final String EMPLOYEE_ROLE_NAME = "Employee";
+    public static final String COMPLAINT_RESOLVER_ROLE_CODE = "COMPLAINT_RESOLVER";
+    public static final String COMPLAINT_RESOLVER_ROLE_NAME = "Complaint Resolver";
+    public static final String LIVELIHOOD_VENDOR_ROLE_CODE = "LIVELIHOOD_VENDOR";
+    public static final String LIVELIHOOD_VENDOR_ROLE_NAME = "Livelihood Vendor";
+
+    // Organisation types whose POC is auto-provisioned as an HRMS employee on creation
+    public static final String ORG_TYPE_PLATFORM = "PLATFORM";
+    public static final String ORG_TYPE_VENDOR = "VENDOR";
 
     // localization contants
     public static final String ORGANISATION_CREATE_LOCALIZATION_CODE="ORGANISATION_NOTIFICATION_ON_CREATE";

@@ -99,33 +99,31 @@ public class AssetRegistryUtil {
     }
 
     /**
-     * Updates {@code vendorId} on the asset before ASSIGN_VENDOR workflow transition.
+     * Repoints an asset group (the parent and every unit beneath it) at a new vendor user via
+     * asset-registry's vendor update, so tickets raised later on any asset in the group go to that user.
      */
-    public void updateAssetVendorId(
+    public void updateAssetGroupVendor(
             RequestInfo requestInfo,
             String tenantId,
-            String assetId,
-            String facilityId,
+            String groupAssetId,
+            String vendorUserUuid,
             String vendorOrgId
     ) {
-        if (vendorOrgId == null || vendorOrgId.isBlank()) {
-            throw new CustomException("VENDOR_ORG_REQUIRED", "Vendor organisation id is required to remap the asset");
+        if (vendorUserUuid == null || vendorUserUuid.isBlank() || vendorOrgId == null || vendorOrgId.isBlank()) {
+            throw new CustomException("VENDOR_REQUIRED", "Vendor user and organisation are required to remap the asset");
         }
 
-        Map<String, Object> asset = fetchAssetAsMap(requestInfo, tenantId, assetId, facilityId);
-        asset.put("vendorId", vendorOrgId.trim());
-
-        Map<String, Object> assetDetail = new HashMap<>();
-        assetDetail.put("Asset", asset);
+        Map<String, Object> update = new HashMap<>();
+        update.put("assetId", groupAssetId);
+        update.put("vendorId", vendorUserUuid.trim());
+        update.put("organisationId", vendorOrgId.trim());
 
         Map<String, Object> body = new HashMap<>();
         body.put("RequestInfo", requestInfo);
-        body.put("assetDetail", assetDetail);
+        body.put("tenantId", tenantId);
+        body.put("AssetVendorUpdates", List.of(update));
 
-        String url = UriComponentsBuilder
-                .fromHttpUrl(config.getAssetRegistryHost() + config.getAssetRegistryUpdatePath())
-                .queryParam("assetID", assetId)
-                .toUriString();
+        String url = config.getAssetRegistryHost() + config.getAssetRegistryVendorUpdatePath();
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -134,7 +132,8 @@ public class AssetRegistryUtil {
         try {
             restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
         } catch (Exception e) {
-            log.error("Failed to update asset vendorId assetId={} vendorOrgId={}", assetId, vendorOrgId, e);
+            log.error("Failed to remap asset group {} to vendor user {} (org {})",
+                    groupAssetId, vendorUserUuid, vendorOrgId, e);
             throw new CustomException("ASSET_VENDOR_UPDATE_FAILED", "Failed to remap asset to the new vendor");
         }
     }

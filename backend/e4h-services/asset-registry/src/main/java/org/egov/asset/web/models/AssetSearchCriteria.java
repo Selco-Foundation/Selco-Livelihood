@@ -41,6 +41,9 @@ public class AssetSearchCriteria {
     @JsonProperty("isOperational")
     private Boolean isOperational = null;
 
+    @JsonProperty("isOnmReady")
+    private Boolean isOnmReady = null;
+
     @JsonProperty("activityFacilityID")
     private String activityFacilityID = null;
 
@@ -61,5 +64,13 @@ public class AssetSearchCriteria {
 
     @JsonProperty("itemCode")
     private String itemCode = null;
+
+    /** Returns only the units of this parent asset. */
+    @JsonProperty("parentId")
+    private String parentId = null;
+
+    /** When true, each returned parent carries its units (e.g. a SOLAR's PANEL/BATTERY/INVERTER) in children. */
+    @JsonProperty("includeChildren")
+    private Boolean includeChildren = null;
 
 }

@@ -16,6 +16,7 @@ import org.egov.project.repository.rowmapper.*;
 import org.egov.project.web.models.ProjectSearchCriteria;
 import org.egov.project.web.models.ProjectSortCriteria;
 import org.egov.project.web.models.ProjectStatusAgregation;
+import org.egov.tracer.model.CustomException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -246,31 +247,6 @@ public class ProjectRepository extends GenericRepository<Project> {
      * @param excludeProjectId The project ID to exclude from the check
      * @return true if the project name exists (excluding the specified project), false otherwise
      */
-    public boolean isJustificationCodeUsed(String justificationCode, String tenantId) {
-        return isJustificationCodeUsed(justificationCode, tenantId, null);
-    }
-
-    public boolean isJustificationCodeUsed(String justificationCode, String tenantId, String excludeProjectId) {
-        log.trace("Entering isJustificationCodeUsed for tenantId: {}, excludeProjectId: {}", tenantId, excludeProjectId);
-        if (StringUtils.isBlank(justificationCode) || StringUtils.isBlank(tenantId)) {
-            return false;
-        }
-        try {
-            String sql = StringUtils.isBlank(excludeProjectId)
-                    ? queryBuilder.getCheckJustificationCodeExistsQuery()
-                    : queryBuilder.getCheckJustificationCodeExistsExcludingProjectQuery();
-            Integer count = StringUtils.isBlank(excludeProjectId)
-                    ? jdbcTemplate.queryForObject(sql, Integer.class, tenantId, justificationCode)
-                    : jdbcTemplate.queryForObject(sql, Integer.class, tenantId, justificationCode, excludeProjectId);
-            boolean exists = count != null && count > 0;
-            log.debug("Justification code exists check result: {} (count: {})", exists, count);
-            return exists;
-        } catch (Exception e) {
-            log.error("Error checking justification code usage for tenantId: {}", tenantId, e);
-            return true;
-        }
-    }
-
     public boolean isProjectNameExistsExcludingProject(String projectName, String tenantId, String excludeProjectId) {
         try {
             String sql = queryBuilder.getCheckProjectNameExistsExcludingProjectQuery();
@@ -280,57 +256,6 @@ public class ProjectRepository extends GenericRepository<Project> {
             log.error("Error checking for existing project name excluding project {}: {}", excludeProjectId, projectName, e);
             // If we can't check, assume it exists to be safe
             return true;
-        }
-    }
-
-    /**
-     * Finds the highest existing project name with the given base name pattern
-     * @param baseName The base name pattern to search for
-     * @param tenantId The tenant ID
-     * @return The highest existing name or null if none found
-     */
-    public String findHighestExistingProjectName(String baseName, String tenantId) {
-        try {
-            // Escape LIKE wildcards in baseName to prevent SQL injection and incorrect matching
-            String escapedBaseName = queryBuilder.escapeLikeWildcards(baseName);
-            
-            // Get all names that match the pattern to find the highest numeric suffix
-            String sql = queryBuilder.getFindHighestExistingProjectNameQuery();
-            List<String> existingNames = jdbcTemplate.queryForList(sql, String.class, escapedBaseName + "%", tenantId);
-            
-            if (existingNames.isEmpty()) {
-                return null;
-            }
-            
-            // Find the name with the highest numeric suffix
-            String highestName = baseName; // Start with base name
-            int highestSuffix = 0;
-            
-            for (String name : existingNames) {
-                if (name.equals(baseName)) {
-                    // Exact match - this is the base name
-                    highestName = name;
-                    highestSuffix = 0;
-                } else if (name.startsWith(baseName + "-")) {
-                    // Name with suffix like "Base-1", "Base-2", etc.
-                    try {
-                        String suffixPart = name.substring((baseName + "-").length());
-                        int suffix = Integer.parseInt(suffixPart);
-                        if (suffix > highestSuffix) {
-                            highestSuffix = suffix;
-                            highestName = name;
-                        }
-                    } catch (NumberFormatException e) {
-                        // Skip names with non-numeric suffixes
-                        log.debug("Skipping name with non-numeric suffix: {}", name);
-                    }
-                }
-            }
-            
-            return highestName;
-        } catch (Exception e) {
-            log.error("Error finding highest existing name for base: {}", baseName, e);
-            return null;
         }
     }
 

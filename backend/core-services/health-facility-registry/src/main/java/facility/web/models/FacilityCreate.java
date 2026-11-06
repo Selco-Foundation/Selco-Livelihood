@@ -86,6 +86,12 @@ public class FacilityCreate {
     @JsonProperty("isOnmReady")
     private Boolean isOnmReady = false;
 
+    @JsonProperty("endUserType")
+    private String endUserType = null;
+
+    @JsonProperty("endUserPassword")
+    private String endUserPassword = null;
+
     @JsonProperty("user_id")
     private String userId = null;
 

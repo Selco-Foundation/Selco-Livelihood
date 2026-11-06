@@ -173,7 +173,7 @@ public class NotificationService {
         String tenantId = request.getOrganisations().get(0).getTenantId();
         RequestInfo requestInfo = request.getRequestInfo();
         String locale = "en_IN";
-        if(requestInfo.getMsgId().split("\\|").length > 1)
+        if (requestInfo.getMsgId() != null && requestInfo.getMsgId().split("\\|").length > 1)
             locale = requestInfo.getMsgId().split("\\|")[1];
         Map<String, Map<String, String>> localizedMessageMap = getLocalisedMessages(requestInfo, tenantId,
                 locale, OrganisationConstant.ORGANISATION_MODULE_CODE);

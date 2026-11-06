@@ -21,8 +21,8 @@ public class GenerateBOMPdfRequest {
     @JsonProperty("RequestInfo")
     private @NotNull @Valid RequestInfo requestInfo = null;
 
-    @JsonProperty("system")
-    private String system = null;
+    @JsonProperty("solution")
+    private String solution = null;
 
     @JsonProperty("bom")
     private Map<String, Object> bomData = null;

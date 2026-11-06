@@ -55,9 +55,6 @@ public class OrgSearchCriteria {
     @JsonProperty("orgType")
     private String orgType = null;
 
-    @JsonProperty("orgSubType")
-    private String orgSubType = null;
-
     @JsonProperty("orgPocPhone")
     private String orgPocPhone = null;
 

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.egov.activity.repository.ActivityAssignmentRepository;
+import org.egov.activity.repository.BomRepository;
 import org.egov.activity.util.ActivityServiceUtil;
 import org.egov.activity.util.BoundaryUtil;
 import org.egov.common.contract.models.AuditDetails;
@@ -28,12 +29,20 @@ import java.sql.Array;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static org.egov.activity.util.ActivityConstants.SUBMITTED_BY_SUPERVISOR;
+import static org.egov.activity.util.ActivityConstants.ACTION_APPROVE;
+import static org.egov.activity.util.ActivityConstants.ACTION_REJECT_AND_ASSIGN_FOR_FIELD_QC;
+import static org.egov.activity.util.ActivityConstants.ACTION_SUBMIT_REPORT;
+import static org.egov.activity.util.ActivityConstants.APPROVED_BY_QC_SPOC;
+import static org.egov.activity.util.ActivityConstants.INSTALLATION_REPORT_APPROVER_QC_TEAM;
+import static org.egov.activity.util.ActivityConstants.LOCK_STATUS_UNLOCKED;
+import static org.egov.activity.util.ActivityConstants.SUBMITTED_BY_FIELD_STAFF;
 import static org.egov.common.utils.CommonUtils.populateErrorDetails;
 
 @Service
 @Slf4j
 public class ActivityService {
+
+    private static final String INSTALLATION_REPORT_BOM_DOCUMENT_TYPE = "INSTALLATION_REPORT_BOM";
 
     private final ActivityFacilityRepository activityFacilityRepository;
 
@@ -48,9 +57,13 @@ public class ActivityService {
     private final JdbcTemplate jdbcTemplate;
     private final ActivityFacilityUsersService facilityUsersService;
 
-    private BoundaryUtil boundaryUtil;
+    private final BoundaryUtil boundaryUtil;
 
     private final AmcSchedulerService amcSchedulerService;
+
+    private final BomRepository bomRepository;
+
+    private final BomPdfService bomPdfService;
 
     @Qualifier("objectMapper")
     private final ObjectMapper mapper;
@@ -58,7 +71,7 @@ public class ActivityService {
     @Autowired
     public ActivityService(
             ActivityFacilityRepository activityFacilityRepository, ActivityEnrichment activityEnrichment, ActivityConfiguration activityConfiguration, ActivityValidator activityValidator,
-            Producer producer, FacilityWorkflowService workflowService, ActivityServiceUtil activityServiceUtil, ServiceRequestRepository serviceRequest, JdbcTemplate jdbcTemplate, ActivityFacilityUsersService facilityUsersService, @Qualifier("objectMapper") ObjectMapper mapper, ActivityAssignmentRepository activityAssignmentRepository, BoundaryUtil boundaryUtil, AmcSchedulerService amcSchedulerService) {
+            Producer producer, FacilityWorkflowService workflowService, ActivityServiceUtil activityServiceUtil, ServiceRequestRepository serviceRequest, JdbcTemplate jdbcTemplate, ActivityFacilityUsersService facilityUsersService, @Qualifier("objectMapper") ObjectMapper mapper, ActivityAssignmentRepository activityAssignmentRepository, BoundaryUtil boundaryUtil, AmcSchedulerService amcSchedulerService, BomRepository bomRepository, BomPdfService bomPdfService) {
             this.producer = producer;
             this.activityConfiguration = activityConfiguration;
             this.activityFacilityRepository = activityFacilityRepository;
@@ -73,6 +86,8 @@ public class ActivityService {
             this.activityAssignmentRepository = activityAssignmentRepository;
             this.boundaryUtil = boundaryUtil;
             this.amcSchedulerService = amcSchedulerService;
+            this.bomRepository = bomRepository;
+            this.bomPdfService = bomPdfService;
     }
 
     public List<Activity> createActivity(ActivityBulkRequest request) {
@@ -160,9 +175,18 @@ public class ActivityService {
             }
 
             producer.push(activityConfiguration.getCreateActivityFacilityTopic(), request);
-            log.info("successfully created activity facility");
+            log.info("published {} activity facility row(s) to {}", activityFacilities.size(),
+                    activityConfiguration.getCreateActivityFacilityTopic());
         } catch (Exception exception) {
-            log.error("error occurred while creating Activity facility: {}", ExceptionUtils.getStackTrace(exception));
+            // Deliberately NOT swallowed. Returning normally here gave the caller a 200 whether
+            // or not anything was published, which is how this path's persister failure went
+            // unnoticed from 2026-08-27 to 08-31: field-planner's V20260827100200 replaced the
+            // unique index that activity-persister.yml's ON CONFLICT named, every message failed
+            // with Postgres 42P10 in the persister pod, and the API kept answering 200.
+            log.error("error occurred while creating Activity facility: {}",
+                    ExceptionUtils.getStackTrace(exception));
+            throw new CustomException("ACTIVITY_FACILITY_CREATE_FAILED",
+                    "Could not publish the activity facility rows: " + exception.getMessage());
         }
 
         return activityFacilities;
@@ -173,6 +197,12 @@ public class ActivityService {
 
         activityValidator.validateCreateActivityAssignmentRequest(request);
         List<ActivityAssignment> activityAssignments = request.getActivityAssignments();
+        // Outside the try below, which logs and swallows: a rejected reviewer must reach the caller.
+        for (ActivityAssignment activityAssignment : activityAssignments) {
+            if (isInstallationReviewerRole(activityAssignment.getRole())) {
+                assertInstallationPlanIsDraft(activityAssignment.getFieldPlanId());
+            }
+        }
         try {
             for (ActivityAssignment activityAssignment : activityAssignments) {
                 log.info("processing {} valid entities", activityAssignment);
@@ -192,6 +222,17 @@ public class ActivityService {
 
         activityValidator.validateDeleteActivityAssignmentRequest(request);
         List<ActivityAssignment> activityAssignments = request.getActivityAssignments();
+        // The request names rows by id and may not carry their role, so read the stored rows.
+        // Outside the try below, which logs and swallows: a rejected removal must reach the caller.
+        List<ActivityAssignment> storedAssignments = searchAssignedActivity(
+                getSearchActivityAssignmentRequest(activityAssignments, request.getRequestInfo()),
+                activityConfiguration.getMaxLimit(), activityConfiguration.getDefaultOffset(),
+                activityAssignments.get(0).getTenantId(), false, null);
+        for (ActivityAssignment stored : storedAssignments) {
+            if (isInstallationReviewerRole(stored.getRole())) {
+                assertInstallationPlanIsDraft(stored.getFieldPlanId());
+            }
+        }
         try {
             for (ActivityAssignment activityAssignment : activityAssignments) {
                 log.info("processing {} valid entities", activityAssignment);
@@ -214,6 +255,7 @@ public class ActivityService {
         for (ActivityFacility activityFacility : activityFacilities) {
             log.info("processing get activity code", activityFacility);
             activityEnrichment.enrichActivityFacilityOnSearch(request, activityFacility);
+            enrichBillOfMaterialOnSearch(request.getRequestInfo(), activityFacility, tenantId);
 
             if(activityFacility.getFacility() == null)
                 continue;
@@ -240,6 +282,34 @@ public class ActivityService {
         }
 
             return activityFacilities;
+    }
+
+    private void enrichBillOfMaterialOnSearch(RequestInfo requestInfo, ActivityFacility activityFacility, String tenantId) {
+        if (activityFacility == null || activityFacility.getId() == null) {
+            return;
+        }
+        try {
+            BomSearchCriteria criteria = BomSearchCriteria.builder()
+                    .activityFacilityId(List.of(activityFacility.getId()))
+                    .tenantId(tenantId != null ? tenantId : activityFacility.getTenantId())
+                    .build();
+            BomSearchRequest bomSearchRequest = BomSearchRequest.builder()
+                    .requestInfo(requestInfo)
+                    .criteria(criteria)
+                    .build();
+            List<BillOfMaterial> boms = bomRepository.getBillOfMaterials(
+                    bomSearchRequest,
+                    activityConfiguration.getMaxLimit(),
+                    activityConfiguration.getDefaultOffset(),
+                    criteria.getTenantId(),
+                    false,
+                    null);
+            if (boms != null && !boms.isEmpty()) {
+                activityFacility.setBillOfMaterial(boms.get(0));
+            }
+        } catch (Exception e) {
+            log.warn("Failed to enrich BOM for activityFacility {}: {}", activityFacility.getId(), e.getMessage());
+        }
     }
 
     public List<FacilityStatusAgregation> getStatusFacilityAssignmentsAgregation(String fieldPlanId) {
@@ -365,13 +435,31 @@ public class ActivityService {
         }
 
         ActivityFacility existingActivityFacitlity = activityFacilities.get(0);
+        String action = request.getWorkflow() != null ? request.getWorkflow().getAction() : null;
+        if (action == null || action.isBlank()) {
+            throw new CustomException("INVALID_WORKFLOW_ACTION", "Workflow action is required");
+        }
+
+        // Reject must include at least one section reason
+        if (ACTION_REJECT_AND_ASSIGN_FOR_FIELD_QC.equalsIgnoreCase(action)) {
+            validateRejectReasons(request);
+        }
+
+        // On every (re)submission, the BOM installation report PDF is regenerated and attached to
+        // the workflow's documents BEFORE the transition call - that call is the only place
+        // documents travel to workflow-v2. Regenerating every time (rather than skipping when one
+        // is already present) is required so project_date and any BOM/serial-number changes stay
+        // current across a reject-then-resubmit cycle.
+        if (ACTION_SUBMIT_REPORT.equalsIgnoreCase(action)) {
+            attachBomInstallationReportDocument(request, existingActivityFacitlity);
+        }
 
         // 2. Call workflow transition
         ProcessInstance updatedWorkflow;
         try {
             updatedWorkflow = workflowService.transitionWorkflow(
                     existingActivityFacitlity,
-                    request.getWorkflow().getAction(),
+                    action,
                     request.getWorkflow().getDocuments(),
                     request.getRequestInfo(),
                     request.getWorkflow().getComments()
@@ -390,6 +478,12 @@ public class ActivityService {
         // 3. Inject workflow status into activity facility
         existingActivityFacitlity.setStatus(updatedWorkflow.getState().getState());
 
+        boolean isApprove = ACTION_APPROVE.equalsIgnoreCase(action);
+        Long completedAt = existingActivityFacitlity.getCompletedAt();
+        if (isApprove) {
+            completedAt = System.currentTimeMillis();
+        }
+
         // 4. Create a new Activity Instance instance with enriched additionalDetails
         ActivityFacility updatedActivityFacility = ActivityFacility.builder()
                 .id(existingActivityFacitlity.getId())
@@ -400,9 +494,10 @@ public class ActivityService {
                 .status(existingActivityFacitlity.getStatus())
                 .assignedUser(existingActivityFacitlity.getAssignedUser())
                 .activatedAt(existingActivityFacitlity.getActivatedAt())
-                .completedAt(System.currentTimeMillis())
+                .completedAt(completedAt)
                 .scheduledAt(existingActivityFacitlity.getScheduledAt())
                 .additionalDetails(existingActivityFacitlity.getAdditionalDetails())
+                .billOfMaterial(existingActivityFacitlity.getBillOfMaterial())
                 .build();
 
         // 5. Create project request wrapper
@@ -414,22 +509,355 @@ public class ActivityService {
         // 6. Perform enriched update using standard handler
         handleUpdateActivityFacility(enrichedRequest, updatedActivityFacility, existingActivityFacitlity);
 
-        // Step 7: After successful workflow transition, if action is APPROVED_BY_QC_SPOC
-        if ("APPROVE".equalsIgnoreCase(request.getWorkflow().getAction())) {
-            // once facility is fetched we need to fetch assets for that facility
+        // 7. Side effects by action
+        if (isApprove) {
             String activityFacilityId = existingActivityFacitlity.getId();
             if (activityFacilityId != null) {
                 updateAssetsForFacility(existingActivityFacitlity, request.getRequestInfo(), activityFacilityId);
-                // Step 8: Trigger installation completion side effects (Asset AMC creation and visit generation)
                 triggerInstallationCompletionSideEffects(existingActivityFacitlity, request.getRequestInfo(), activityFacilityId);
-                // Step 9: Mark facility as ONM ready
                 markFacilityOnmReady(existingActivityFacitlity, request.getRequestInfo());
-                // Step 10: Add facility to jurisdiction of COMPLAINT_RESOLVER in the same organisation
                 addFacilityToComplaintResolverJurisdiction(existingActivityFacitlity, request.getRequestInfo());
+                releaseSiteLockIfAllComponentsApproved(existingActivityFacitlity, request.getRequestInfo());
             }
+        } else if (ACTION_REJECT_AND_ASSIGN_FOR_FIELD_QC.equalsIgnoreCase(action)) {
+            notifyVendorOnReject(existingActivityFacitlity, request.getRequestInfo());
+        } else if (ACTION_SUBMIT_REPORT.equalsIgnoreCase(action)) {
+            notifyReviewerOnSubmit(existingActivityFacitlity, request.getRequestInfo());
         }
 
         return new FacilityStatusWrapper(updatedActivityFacility, updatedWorkflow.getState().getState(), null, null);
+    }
+
+    /**
+     * Drops any INSTALLATION_REPORT_BOM document already on the workflow - carried over from an
+     * earlier submission - so a regenerated report never ends up duplicated alongside the stale one.
+     */
+    private void removeExistingBomInstallationReportDocument(Workflow workflow) {
+        List<Document> documents = workflow.getDocuments();
+        if (documents == null || documents.isEmpty()) {
+            return;
+        }
+        documents.removeIf(document -> document != null
+                && INSTALLATION_REPORT_BOM_DOCUMENT_TYPE.equalsIgnoreCase(document.getDocumentType()));
+    }
+
+    private void attachBomInstallationReportDocument(FacilityWorkflowRequest request, ActivityFacility activityFacility) {
+        log.trace("Entering attachBomInstallationReportDocument method for activityFacilityId: {}", activityFacility.getId());
+        // Regenerate on every (re)submission so project_date and any BOM/serial-number changes stay
+        // current - drop any stale BOM report document before generating the fresh one.
+        removeExistingBomInstallationReportDocument(request.getWorkflow());
+        // Read before addDocumentsItem below, so the report never carries its own previous output.
+        List<Document> workflowDocuments = request.getWorkflow().getDocuments();
+        String fileStoreId = bomPdfService.generateInstallationReportPdf(request.getRequestInfo(), activityFacility, workflowDocuments);
+        AuditDetails auditDetails = activityServiceUtil.getAuditDetails(request.getRequestInfo().getUserInfo().getUuid(), null, true);
+
+        Document pdfDocument = Document.builder()
+                .documentType(INSTALLATION_REPORT_BOM_DOCUMENT_TYPE)
+                .fileStoreId(fileStoreId)
+                .documentUid("BOM-" + activityFacility.getId() + "-" + System.currentTimeMillis())
+                .auditDetails(auditDetails)
+                .build();
+
+        request.getWorkflow().addDocumentsItem(pdfDocument);
+        log.info("BOM installation report document attached to workflow for activityFacilityId: {}", activityFacility.getId());
+    }
+
+    private void validateRejectReasons(FacilityWorkflowRequest request) {
+        boolean hasReason = false;
+        if (request.getTransactions() != null) {
+            for (Transaction transaction : request.getTransactions()) {
+                if (transaction.getComments() != null) {
+                    for (Comment comment : transaction.getComments()) {
+                        if (comment.getCmtMsg() != null && !comment.getCmtMsg().isBlank()) {
+                            hasReason = true;
+                            break;
+                        }
+                    }
+                }
+                if (hasReason) break;
+            }
+        }
+        if (!hasReason) {
+            throw new CustomException("REASON_REQUIRED",
+                    "A rejection reason is required for every section marked as rejected");
+        }
+    }
+
+    private void notifyReviewerOnSubmit(ActivityFacility activityFacility, RequestInfo requestInfo) {
+        try {
+            Map<String, String> reviewer = resolveReviewerContact(activityFacility, requestInfo);
+            String email = reviewer.get("email");
+            if (email == null || email.isBlank()) {
+                log.warn("No reviewer email for fieldPlanId={}", activityFacility.getFieldPlanId());
+                return;
+            }
+            ensureBomLoaded(activityFacility, requestInfo);
+            Map<String, String> ctx = buildIcReportNotificationContext(activityFacility, requestInfo, reviewer.get("name"));
+            String subject = applyIcReportPlaceholders(activityConfiguration.getIcReportSubmittedSubject(), ctx);
+            String body = applyIcReportPlaceholders(activityConfiguration.getIcReportSubmittedBody(), ctx);
+            activityServiceUtil.sendEmailViaKafka(email, subject, body, activityFacility.getTenantId());
+        } catch (Exception e) {
+            log.error("Failed to notify reviewer on submit for {}: {}", activityFacility.getId(), e.getMessage(), e);
+        }
+    }
+
+    private void notifyVendorOnReject(ActivityFacility activityFacility, RequestInfo requestInfo) {
+        try {
+            ensureBomLoaded(activityFacility, requestInfo);
+            BillOfMaterial bom = activityFacility.getBillOfMaterial();
+            if (bom == null) {
+                log.warn("No BOM for activityFacility {} — skip reject notification", activityFacility.getId());
+                return;
+            }
+            Map<String, String> ctx = buildIcReportNotificationContext(activityFacility, requestInfo, null);
+            String subject = applyIcReportPlaceholders(activityConfiguration.getIcReportRejectedSubject(), ctx);
+            String emailBody = applyIcReportPlaceholders(activityConfiguration.getIcReportRejectedBody(), ctx);
+            if (bom.getVendorEmail() != null && !bom.getVendorEmail().isBlank()) {
+                activityServiceUtil.sendEmailViaKafka(
+                        bom.getVendorEmail(),
+                        subject,
+                        emailBody,
+                        activityFacility.getTenantId());
+            }
+            if (bom.getVendorPhone() != null && !bom.getVendorPhone().isBlank()) {
+                String smsBody = applyIcReportPlaceholders(activityConfiguration.getIcReportRejectedSmsBody(), ctx);
+                activityServiceUtil.sendSmsViaKafka(bom.getVendorPhone(), smsBody, activityFacility.getTenantId());
+            }
+        } catch (Exception e) {
+            log.error("Failed to notify vendor on reject for {}: {}", activityFacility.getId(), e.getMessage(), e);
+        }
+    }
+
+    private void ensureBomLoaded(ActivityFacility activityFacility, RequestInfo requestInfo) {
+        if (activityFacility.getBillOfMaterial() == null) {
+            enrichBillOfMaterialOnSearch(requestInfo, activityFacility, activityFacility.getTenantId());
+        }
+    }
+
+    private Map<String, String> buildIcReportNotificationContext(ActivityFacility activityFacility,
+                                                                 RequestInfo requestInfo,
+                                                                 String reviewerName) {
+        Map<String, String> ctx = new HashMap<>();
+        String endUserName = activityFacility.getFacility() != null
+                ? activityFacility.getFacility().getFacilityName()
+                : activityFacility.getFacilityId();
+        ctx.put("reviewerName", blankToEmpty(reviewerName));
+        ctx.put("endUserName", blankToEmpty(endUserName));
+        ctx.put("assetType", blankToEmpty(resolveAssetType(activityFacility)));
+        ctx.put("vendorOrganisation", blankToEmpty(resolveVendorOrganisation(activityFacility)));
+        ctx.put("submissionDateTime", formatNotificationDateTime(System.currentTimeMillis()));
+        ctx.put("installationPlanId", blankToEmpty(activityFacility.getFieldPlanId()));
+        ctx.put("projectName", "");
+
+        if (activityFacility.getFieldPlanId() != null) {
+            try {
+                FieldPlan fieldPlan = activityValidator.getFieldPlanById(
+                        requestInfo,
+                        activityFacility.getFieldPlanId(),
+                        activityFacility.getTenantId());
+                if (fieldPlan != null) {
+                    if (fieldPlan.getName() != null && !fieldPlan.getName().isBlank()) {
+                        ctx.put("installationPlanId", fieldPlan.getName() + " (" + fieldPlan.getId() + ")");
+                    } else if (fieldPlan.getId() != null) {
+                        ctx.put("installationPlanId", fieldPlan.getId());
+                    }
+                    if (fieldPlan.getProject() != null && fieldPlan.getProject().getName() != null) {
+                        ctx.put("projectName", fieldPlan.getProject().getName());
+                    } else if (fieldPlan.getProjectId() != null) {
+                        ctx.put("projectName", fieldPlan.getProjectId());
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Could not load field plan for IC notification: {}", e.getMessage());
+            }
+        }
+        return ctx;
+    }
+
+    private String resolveAssetType(ActivityFacility activityFacility) {
+        // The real column, wired in 2026-08-29. The additionalDetails and bom fallbacks below are
+        // kept for rows written before that: nothing populated component_type until Vendor
+        // Assignment started writing it, so older rows still carry it (if at all) in JSON.
+        if (activityFacility.getComponentType() != null && !activityFacility.getComponentType().isBlank()) {
+            return activityFacility.getComponentType();
+        }
+        if (activityFacility.getActivityType() != null && !activityFacility.getActivityType().isBlank()) {
+            return activityFacility.getActivityType();
+        }
+        if (activityFacility.getAdditionalDetails() != null) {
+            Object componentType = activityFacility.getAdditionalDetails().get("componentType");
+            if (componentType == null) {
+                componentType = activityFacility.getAdditionalDetails().get("component_type");
+            }
+            if (componentType != null && !String.valueOf(componentType).isBlank()) {
+                return String.valueOf(componentType);
+            }
+        }
+        BillOfMaterial bom = activityFacility.getBillOfMaterial();
+        if (bom != null && bom.getAdditionalDetails() != null) {
+            Object assetType = bom.getAdditionalDetails().get("assetType");
+            if (assetType == null) {
+                assetType = bom.getAdditionalDetails().get("componentType");
+            }
+            if (assetType != null && !String.valueOf(assetType).isBlank()) {
+                return String.valueOf(assetType);
+            }
+        }
+        return "Machine / Solar";
+    }
+
+    private String resolveVendorOrganisation(ActivityFacility activityFacility) {
+        BillOfMaterial bom = activityFacility.getBillOfMaterial();
+        if (bom == null) {
+            return "";
+        }
+        if (bom.getAdditionalDetails() != null) {
+            Object orgName = bom.getAdditionalDetails().get("vendorOrgName");
+            if (orgName == null) {
+                orgName = bom.getAdditionalDetails().get("vendorOrganisation");
+            }
+            if (orgName != null && !String.valueOf(orgName).isBlank()) {
+                return String.valueOf(orgName);
+            }
+        }
+        if (bom.getVendorOrgId() != null && !bom.getVendorOrgId().isBlank()) {
+            return bom.getVendorOrgId();
+        }
+        return blankToEmpty(bom.getVendorEmail());
+    }
+
+    private String applyIcReportPlaceholders(String template, Map<String, String> ctx) {
+        if (template == null) {
+            return "";
+        }
+        String result = template;
+        for (Map.Entry<String, String> entry : ctx.entrySet()) {
+            result = result.replace(":" + entry.getKey(), entry.getValue() != null ? entry.getValue() : "");
+        }
+        return result;
+    }
+
+    private String blankToEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    private String formatNotificationDateTime(long epochMillis) {
+        try {
+            java.time.format.DateTimeFormatter formatter =
+                    java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm")
+                            .withZone(java.time.ZoneId.systemDefault());
+            return formatter.format(java.time.Instant.ofEpochMilli(epochMillis));
+        } catch (Exception e) {
+            return String.valueOf(epochMillis);
+        }
+    }
+
+    /**
+     * Resolves assigned Installation Reviewer email + display name from activity_assignments.
+     */
+    private Map<String, String> resolveReviewerContact(ActivityFacility activityFacility, RequestInfo requestInfo) {
+        Map<String, String> contact = new HashMap<>();
+        contact.put("email", null);
+        contact.put("name", "");
+        if (activityFacility.getFieldPlanId() == null) {
+            return contact;
+        }
+        ActivityAssignmentSearchCriteria criteria = ActivityAssignmentSearchCriteria.builder()
+                .fieldPlanId(List.of(activityFacility.getFieldPlanId()))
+                .tenantId(activityFacility.getTenantId())
+                .build();
+        ActivityAssignmentSearchRequest assignmentSearchRequest = ActivityAssignmentSearchRequest.builder()
+                .requestInfo(requestInfo)
+                .criteria(criteria)
+                .build();
+        List<ActivityAssignment> assignments = activityAssignmentRepository.getActivitiesAssignment(
+                assignmentSearchRequest,
+                activityConfiguration.getMaxLimit(),
+                activityConfiguration.getDefaultOffset(),
+                activityFacility.getTenantId(),
+                false,
+                null);
+        if (assignments == null || assignments.isEmpty()) {
+            return contact;
+        }
+        for (ActivityAssignment assignment : assignments) {
+            if (assignment.getRole() != null) {
+                Object code = assignment.getRole().get("code");
+                if (code != null && INSTALLATION_REPORT_APPROVER_QC_TEAM.equalsIgnoreCase(String.valueOf(code))) {
+                    Employee employee = activityValidator.getUserById(assignmentSearchRequest, assignment.getAssignedTo());
+                    if (employee != null && employee.getUser() != null) {
+                        contact.put("email", employee.getUser().getEmailId());
+                        contact.put("name", blankToEmpty(employee.getUser().getName()));
+                        return contact;
+                    }
+                }
+            }
+        }
+        ActivityAssignment first = assignments.get(0);
+        Employee employee = activityValidator.getUserById(assignmentSearchRequest, first.getAssignedTo());
+        if (employee != null && employee.getUser() != null) {
+            contact.put("email", employee.getUser().getEmailId());
+            contact.put("name", blankToEmpty(employee.getUser().getName()));
+        }
+        return contact;
+    }
+
+    private void releaseSiteLockIfAllComponentsApproved(ActivityFacility activityFacility, RequestInfo requestInfo) {
+        try {
+            if (activityFacility.getFacilityId() == null || activityFacility.getFieldPlanId() == null) {
+                return;
+            }
+            ActivityFacilitySearchCriteria siblingCriteria = ActivityFacilitySearchCriteria.builder()
+                    .facilityId(List.of(activityFacility.getFacilityId()))
+                    .fieldPlanId(List.of(activityFacility.getFieldPlanId()))
+                    .tenantId(activityFacility.getTenantId())
+                    .build();
+            ActivityFacilitySearchRequest siblingRequest = ActivityFacilitySearchRequest.builder()
+                    .criteria(siblingCriteria)
+                    .requestInfo(requestInfo)
+                    .build();
+            List<ActivityFacility> siblings = activityFacilityRepository.getActivitiesFacility(
+                    siblingRequest,
+                    activityConfiguration.getMaxLimit(),
+                    activityConfiguration.getDefaultOffset(),
+                    activityFacility.getTenantId(),
+                    false,
+                    null);
+            if (siblings == null || siblings.isEmpty()) {
+                return;
+            }
+            boolean allApproved = true;
+            for (ActivityFacility sibling : siblings) {
+                String status = sibling.getId().equals(activityFacility.getId())
+                        ? activityFacility.getStatus()
+                        : sibling.getStatus();
+                if (!APPROVED_BY_QC_SPOC.equalsIgnoreCase(status)) {
+                    allApproved = false;
+                    break;
+                }
+            }
+            if (!allApproved) {
+                log.info("Site remains locked — not all facility_activities approved for facilityId={} fieldPlanId={}",
+                        activityFacility.getFacilityId(), activityFacility.getFieldPlanId());
+                return;
+            }
+            Map<String, Object> lockRequest = new HashMap<>();
+            lockRequest.put("RequestInfo", requestInfo);
+            Map<String, Object> fieldPlanFacility = new HashMap<>();
+            fieldPlanFacility.put("tenantId", activityFacility.getTenantId());
+            fieldPlanFacility.put("fieldPlanId", activityFacility.getFieldPlanId());
+            fieldPlanFacility.put("facilityId", activityFacility.getFacilityId());
+            fieldPlanFacility.put("lockStatus", LOCK_STATUS_UNLOCKED);
+            lockRequest.put("FieldPlanFacility", fieldPlanFacility);
+
+            String url = activityConfiguration.getFieldPlanServiceHost()
+                    + activityConfiguration.getFieldPlanFacilityUpdateLockUrl();
+            log.info("Releasing site lock via {}", url);
+            serviceRequest.fetchResult(new StringBuilder(url), lockRequest);
+        } catch (Exception e) {
+            log.error("Failed to release site lock for activityFacility {}: {}",
+                    activityFacility.getId(), e.getMessage(), e);
+        }
     }
 
     private void handleTransactionsAndComment(FacilityWorkflowRequest request, ProcessInstance updatedWorkflow) {
@@ -481,6 +909,10 @@ public class ActivityService {
                 log.warn("Facility not found in facility-service for facilityId {}. Skipping ONM ready update.", facilityId);
                 return;
             }
+            if (Boolean.TRUE.equals(facility.getIsOnmReady())) {
+                log.info("Facility {} already ONM ready, skipping update", facilityId);
+                return;
+            }
 
             facility.setIsOnmReady(Boolean.TRUE);
 
@@ -497,7 +929,7 @@ public class ActivityService {
                         Role.builder()
                                 .name("System User")
                                 .code("SYSTEM_USER")
-                                .tenantId("in")
+                                .tenantId(activityConfiguration.getTenantId())
                                 .build()
                 );
             }
@@ -529,7 +961,9 @@ public class ActivityService {
                 .build();
 
         StringBuilder assetSearchUri = new StringBuilder(activityConfiguration.getAssetHost())
-                .append(activityConfiguration.getAssetSearchUrl());
+                .append(activityConfiguration.getAssetSearchUrl())
+                // asset _search defaults to limit=10; a Solar install can have more units (+ its parent)
+                .append("?offset=0&limit=").append(activityConfiguration.getAssetSearchLimit());
 
         try {
             List<Asset> assets = serviceRequest.fetchResult(assetSearchUri, assetSearchRequest, new TypeReference<List<Asset>>() {});
@@ -549,7 +983,11 @@ public class ActivityService {
 
     private void updateAssetOperationalStatus(Asset asset, RequestInfo requestInfo) {
         try {
-            asset.setIsOperational(true);
+            // Per-asset O&M eligibility — do not overload isOperational
+            asset.setIsOnmReady(true);
+            if (asset.getAdditionalDetails() == null) {
+                asset.setAdditionalDetails(new HashMap<>());
+            }
 
             String assetUpdateEndpoint = activityConfiguration.getAssetHost() +
                     activityConfiguration.getAssetUpdateUrl();
@@ -594,10 +1032,10 @@ public class ActivityService {
 
             List<ActivityFacility> activityFacilities = searchActivityFacility(searchRequest, activityConfiguration.getMaxLimit(), activityConfiguration.getDefaultOffset(),
                     activityConfiguration.getTenantId(), false, null);
-            totalActivityFacilities = countAllFacilityActivities(searchRequest, activityConfiguration.getTenantId(), null, null);
+            totalActivityFacilities = countAllFacilityActivities(searchRequest, activityConfiguration.getTenantId(), null, false);
 
-            // only those activity facilities whose status is SUBMITTED_BY_SUPERVISOR
-            List<ActivityFacility> activityFacilitiesList = activityFacilities.stream().filter(this::hasSubmittedBySupervisorStatus).toList();
+            // only those activity facilities whose status is SUBMITTED_BY_FIELD_STAFF
+            List<ActivityFacility> activityFacilitiesList = activityFacilities.stream().filter(this::hasSubmittedByFieldStaffStatus).toList();
 
             finalActivityFacilities = activityFacilitiesList.size();
             activityFacilityIds = activityFacilitiesList.stream().map(ActivityFacility::getId).collect(Collectors.toList());
@@ -628,7 +1066,7 @@ public class ActivityService {
                 FacilityWorkflowRequest workflowRequest = FacilityWorkflowRequest.builder()
                         .requestInfo(facilityBulkApproveRequest.getRequestInfo())
                         .activityFacilityId(activityFacilityId)
-                        .workflow(facilityBulkApproveRequest.getWorkflow())
+                        .workflow(buildBulkWorkflowForFacility(facilityBulkApproveRequest, activityFacilityId))
                         .build();
 
                 FacilityStatusWrapper updatedProject = updateFacilityWorkflow(workflowRequest);
@@ -650,9 +1088,43 @@ public class ActivityService {
         return result;
     }
 
-    private boolean hasSubmittedBySupervisorStatus(ActivityFacility activityFacility) {
+    /**
+     * Per-facility copy of the bulk request's shared workflow. workflow-v2 stores documents per
+     * transition, so - like the single-approve screen, which resends workflow[0].documents - each
+     * facility's latest process-instance documents (IC report PDF, photos) are carried forward onto
+     * its new transition; otherwise the approved instance would have none. A fresh copy per facility
+     * also keeps one facility's documents from leaking into the next.
+     */
+    private Workflow buildBulkWorkflowForFacility(FacilityBulkApproveRequest request, String activityFacilityId) {
+        Workflow shared = request.getWorkflow();
+        Workflow workflow = Workflow.builder()
+                .action(shared != null ? shared.getAction() : null)
+                .comments(shared != null ? shared.getComments() : null)
+                .assignes(shared != null ? shared.getAssignes() : null)
+                .rating(shared != null ? shared.getRating() : null)
+                .build();
+        if (shared != null) {
+            workflow.setAdditionalDetails(shared.getAdditionalDetails());
+        }
+
+        if (shared != null && shared.getDocuments() != null && !shared.getDocuments().isEmpty()) {
+            workflow.setDocuments(new ArrayList<>(shared.getDocuments()));
+            return workflow;
+        }
+
+        List<ProcessInstance> processInstances = workflowService.getProcessInstanceById(
+                activityFacilityId, activityConfiguration.getTenantId(), request.getRequestInfo());
+        // history=true search returns newest first; [0] is the latest transition.
+        if (processInstances != null && !processInstances.isEmpty()
+                && processInstances.get(0).getDocuments() != null) {
+            workflow.setDocuments(new ArrayList<>(processInstances.get(0).getDocuments()));
+        }
+        return workflow;
+    }
+
+    private boolean hasSubmittedByFieldStaffStatus(ActivityFacility activityFacility) {
         String activityFacilityStatus = activityFacility.getStatus();
-        return activityFacilityStatus != null && SUBMITTED_BY_SUPERVISOR.equals(activityFacilityStatus);
+        return activityFacilityStatus != null && SUBMITTED_BY_FIELD_STAFF.equals(activityFacilityStatus);
     }
 
     public Integer countAllFacilityActivities(ActivityFacilitySearchRequest request, String tenantId, Long lastChangedSince, Boolean includeDeleted) {
@@ -714,6 +1186,7 @@ public class ActivityService {
          * Validate the update fieldplan request against the fieldplans fetched from the database
          */
         activityValidator.validateUpdateActivityAssignmentAgainstDB(request.getActivityAssignments(), activityAssignmentListFromDB);
+        assertReviewerChangeAllowed(request.getActivityAssignments(), activityAssignmentListFromDB);
 
         /*
          * Process each project in the update request
@@ -723,6 +1196,45 @@ public class ActivityService {
         }
 
         return request;
+    }
+
+    /**
+     * An installation plan's reviewer can be changed -- replaced, re-roled, added or removed -- only
+     * while the plan is a draft. Publish copies the reviewer onto every asset's link rows, so a
+     * later change would leave those stale. An update that keeps both the assignee and the role
+     * (e.g. a date cascade) is not affected. Create and unassign apply the same rule through
+     * {@link #assertInstallationPlanIsDraft}.
+     */
+    private void assertReviewerChangeAllowed(List<ActivityAssignment> requested, List<ActivityAssignment> fromDB) {
+        for (ActivityAssignment assignment : requested) {
+            ActivityAssignment stored = findActivityAssignmentById(String.valueOf(assignment.getId()), fromDB);
+            if (stored == null || !isInstallationReviewerRole(stored.getRole())) {
+                continue;
+            }
+            boolean unchanged = Objects.equals(stored.getAssignedTo(), assignment.getAssignedTo())
+                    && Objects.equals(roleCode(stored.getRole()), roleCode(assignment.getRole()));
+            if (!unchanged) {
+                assertInstallationPlanIsDraft(stored.getFieldPlanId());
+            }
+        }
+    }
+
+    private static Object roleCode(Map<String, Object> role) {
+        return role == null ? null : role.get("code");
+    }
+
+    private static boolean isInstallationReviewerRole(Map<String, Object> role) {
+        return INSTALLATION_REPORT_APPROVER_QC_TEAM.equals(roleCode(role));
+    }
+
+    private void assertInstallationPlanIsDraft(String fieldPlanId) {
+        List<String> statuses = jdbcTemplate.queryForList(
+                "SELECT status FROM field_plans WHERE id = ?", String.class, fieldPlanId);
+        String planStatus = statuses.isEmpty() ? null : statuses.get(0);
+        if (!activityConfiguration.getInstallationPlanDraftStatus().equals(planStatus)) {
+            throw new CustomException("REVIEWER_LOCKED_AFTER_PUBLISH",
+                    "The reviewer of a published installation plan cannot be changed.");
+        }
     }
 
     private ActivityFacilitySearchRequest getSearchActivityFacilityRequest(List<ActivityFacility> activityFacilities, RequestInfo requestInfo) {
@@ -811,6 +1323,189 @@ public class ActivityService {
          * Check and enrich cascading project dates and push the update to the message broker
          */
         producer.push(activityConfiguration.getUpdateActivityFacilityTopic(), request);
+    }
+
+    /**
+     * Generates an OTP for the activity facility's POC phone (activityFacility.facility.facilityPocPhone),
+     * persists a reference to it in the activity facility's additionalDetails, and sends it by SMS.
+     */
+    public OtpResponse generateActivityFacilityOtp(ActivityFacilityOtpRequest request) {
+        return createAndSendActivityFacilityOtp(request.getRequestInfo(), request.getActivityFacilityId());
+    }
+
+    /** Regenerates a fresh OTP and re-sends it by SMS, exactly like {@link #generateActivityFacilityOtp}. */
+    public OtpResponse resendActivityFacilityOtp(ActivityFacilityOtpRequest request) {
+        return createAndSendActivityFacilityOtp(request.getRequestInfo(), request.getActivityFacilityId());
+    }
+
+    private OtpResponse createAndSendActivityFacilityOtp(RequestInfo requestInfo, String activityFacilityId) {
+        validateOtpRequestInfo(requestInfo);
+        if (activityFacilityId == null || activityFacilityId.trim().isEmpty()) {
+            throw new CustomException("GENERATE_TOKEN", "Activity Facility ID is mandatory for OTP generation");
+        }
+
+        String tenantId = requestInfo.getUserInfo().getTenantId();
+        log.info("OTP generation requested for activityFacilityId={} tenantId={}", activityFacilityId, tenantId);
+
+        ActivityFacility existingActivityFacility = fetchActivityFacilityById(activityFacilityId, tenantId, requestInfo);
+        String mobileNumber = resolveFacilityPocPhone(existingActivityFacility);
+
+        OtpResponse otpResponse = createOTP(mobileNumber, tenantId);
+        if (otpResponse.getOtp() == null) {
+            throw new CustomException("ERROR_OTP_GENERATION", "Error occurred while generating OTP");
+        }
+
+        Map<String, Object> otpDetails = new HashMap<>();
+        otpDetails.put("otpReference", otpResponse.getOtp().getOtp());
+        otpDetails.put("otpGeneratedAt", System.currentTimeMillis());
+        persistActivityFacilityAdditionalDetails(existingActivityFacility, requestInfo, otpDetails);
+
+        sendOtpSms(mobileNumber, otpResponse.getOtp().getOtp(), tenantId);
+        log.info("OTP generated and SMS queued for activityFacilityId={}", activityFacilityId);
+        return otpResponse;
+    }
+
+    /** Validates the OTP previously generated for this activity facility's POC phone. */
+    public OtpResponse validateActivityFacilityOtp(ActivityFacilityOtpValidateRequest request) {
+        validateOtpRequestInfo(request.getRequestInfo());
+        if (request.getActivityFacilityId() == null || request.getActivityFacilityId().trim().isEmpty()) {
+            throw new CustomException("VALIDATE_TOKEN", "Activity Facility ID is mandatory for OTP validation");
+        }
+        if (request.getOtp() == null || request.getOtp().trim().isEmpty()) {
+            throw new CustomException("VALIDATE_TOKEN", "OTP is mandatory for OTP validation");
+        }
+
+        String tenantId = request.getRequestInfo().getUserInfo().getTenantId();
+        log.info("OTP validation requested for activityFacilityId={} tenantId={}", request.getActivityFacilityId(), tenantId);
+
+        ActivityFacility existingActivityFacility = fetchActivityFacilityById(request.getActivityFacilityId(), tenantId, request.getRequestInfo());
+        String mobileNumber = resolveFacilityPocPhone(existingActivityFacility);
+
+        OtpResponse otpResponse;
+        if (activityConfiguration.isByPassValidation()) {
+            // Bypass the real egov_otp round trip so QA/testers can validate with a well-known code
+            // instead of reading the SMS that was actually sent when the OTP was generated.
+            String defaultOtp = activityConfiguration.getDefaultOtp();
+            if (defaultOtp == null || !defaultOtp.trim().equals(request.getOtp().trim())) {
+                throw new CustomException("ERROR_OTP_VALIDATION", "OTP validation unsuccessful");
+            }
+            log.info("OTP validation bypassed via default OTP for activityFacilityId={}", request.getActivityFacilityId());
+            otpResponse = OtpResponse.builder()
+                    .otp(Otp.builder()
+                            .tenantId(tenantId)
+                            .identity(mobileNumber)
+                            .otp(defaultOtp)
+                            .validationSuccessful(true)
+                            .build())
+                    .build();
+        } else {
+            otpResponse = validateOTP(mobileNumber, tenantId, request.getOtp());
+            if (otpResponse.getOtp() == null) {
+                throw new CustomException("ERROR_OTP_VALIDATION", "OTP validation unsuccessful");
+            }
+        }
+
+        Map<String, Object> otpDetails = new HashMap<>();
+        otpDetails.put("otpVerifiedAt", System.currentTimeMillis());
+        persistActivityFacilityAdditionalDetails(existingActivityFacility, request.getRequestInfo(), otpDetails);
+
+        log.info("OTP validated for activityFacilityId={}", request.getActivityFacilityId());
+        return otpResponse;
+    }
+
+    private void validateOtpRequestInfo(RequestInfo requestInfo) {
+        if (requestInfo == null || requestInfo.getUserInfo() == null
+                || requestInfo.getUserInfo().getTenantId() == null
+                || requestInfo.getUserInfo().getTenantId().trim().isEmpty()) {
+            throw new CustomException("GENERATE_TOKEN", "Tenant ID is not found in requestInfo");
+        }
+    }
+
+    private ActivityFacility fetchActivityFacilityById(String activityFacilityId, String tenantId, RequestInfo requestInfo) {
+        ActivityFacilitySearchCriteria searchCriteria = ActivityFacilitySearchCriteria.builder()
+                .ids(List.of(activityFacilityId))
+                .tenantId(tenantId)
+                .build();
+        ActivityFacilitySearchRequest searchRequest = ActivityFacilitySearchRequest.builder()
+                .criteria(searchCriteria)
+                .requestInfo(requestInfo)
+                .build();
+        List<ActivityFacility> activityFacilities = searchActivityFacility(searchRequest, activityConfiguration.getMaxLimit(),
+                activityConfiguration.getDefaultOffset(), tenantId, false, null);
+        if (activityFacilities == null || activityFacilities.isEmpty()) {
+            throw new CustomException("FACILITY_NOT_FOUND", "Activity Facility not found with ID: " + activityFacilityId);
+        }
+        return activityFacilities.get(0);
+    }
+
+    private String resolveFacilityPocPhone(ActivityFacility activityFacility) {
+        Facility facility = activityFacility.getFacility();
+        if (facility == null || facility.getFacilityPocPhone() == null || facility.getFacilityPocPhone().trim().isEmpty()) {
+            throw new CustomException("GENERATE_TOKEN",
+                    "Facility POC phone number not found for activity facility: " + activityFacility.getId());
+        }
+        return facility.getFacilityPocPhone();
+    }
+
+    /**
+     * Merges additionalDetailsUpdates into the activity facility's existing additionalDetails and pushes
+     * the update through the same validated update pipeline as {@link #updateFacilityWorkflow} (only
+     * assignedUser/status/conditionsMet/additionalDetails are allowed to differ from the DB row).
+     */
+    private void persistActivityFacilityAdditionalDetails(ActivityFacility existingActivityFacility, RequestInfo requestInfo,
+                                                          Map<String, Object> additionalDetailsUpdates) {
+        ActivityFacility updatedActivityFacility = ActivityFacility.builder()
+                .id(existingActivityFacility.getId())
+                .tenantId(existingActivityFacility.getTenantId())
+                .activityId(existingActivityFacility.getActivityId())
+                .facilityId(existingActivityFacility.getFacilityId())
+                .fieldPlanId(existingActivityFacility.getFieldPlanId())
+                .status(existingActivityFacility.getStatus())
+                .assignedUser(existingActivityFacility.getAssignedUser())
+                .activatedAt(existingActivityFacility.getActivatedAt())
+                .completedAt(existingActivityFacility.getCompletedAt())
+                .scheduledAt(existingActivityFacility.getScheduledAt())
+                .additionalDetails(additionalDetailsUpdates)
+                .billOfMaterial(existingActivityFacility.getBillOfMaterial())
+                .build();
+
+        activityServiceUtil.mergeAdditionalDetails(updatedActivityFacility, existingActivityFacility);
+
+        ActivityFacilityBulkRequest updateRequest = ActivityFacilityBulkRequest.builder()
+                .requestInfo(requestInfo)
+                .activityFacilities(List.of(updatedActivityFacility))
+                .build();
+
+        handleUpdateActivityFacility(updateRequest, updatedActivityFacility, existingActivityFacility);
+    }
+
+    private OtpResponse createOTP(String identity, String tenantId) {
+        String url = activityConfiguration.getOtpServiceHost() + activityConfiguration.getOtpServiceCreateUrl();
+        Otp otp = Otp.builder().tenantId(tenantId).identity(identity).build();
+        OtpRequest otpRequest = OtpRequest.builder().otp(otp).build();
+        Object response = serviceRequest.fetchResult(new StringBuilder(url), otpRequest);
+        OtpResponse otpResponse = mapper.convertValue(response, OtpResponse.class);
+        if (otpResponse == null) {
+            throw new CustomException("ERROR_OTP_GENERATION", "Error occurred while creating OTP");
+        }
+        return otpResponse;
+    }
+
+    private OtpResponse validateOTP(String identity, String tenantId, String otpCode) {
+        String url = activityConfiguration.getOtpServiceHost() + activityConfiguration.getOtpServiceValidateUrl();
+        Otp otp = Otp.builder().tenantId(tenantId).identity(identity).otp(otpCode).build();
+        OtpValidateRequest otpValidateRequest = OtpValidateRequest.builder().otp(otp).build();
+        Object response = serviceRequest.fetchResult(new StringBuilder(url), otpValidateRequest);
+        OtpResponse otpResponse = mapper.convertValue(response, OtpResponse.class);
+        if (otpResponse == null) {
+            throw new CustomException("ERROR_OTP_VALIDATION", "OTP validation unsuccessful");
+        }
+        return otpResponse;
+    }
+
+    private void sendOtpSms(String mobileNumber, String otpCode, String tenantId) {
+        String message = activityConfiguration.getOtpSmsTemplate().replace("{otp}", otpCode);
+        activityServiceUtil.sendSmsViaKafka(mobileNumber, message, tenantId);
     }
 
     private void handleUpdateActivityAssignment(ActivityAssignmentBulkRequest request, ActivityAssignment activityAssignment, ActivityAssignment activityAssignmentFromDB) {
@@ -1291,7 +1986,8 @@ public class ActivityService {
                     .build();
 
             StringBuilder assetSearchUri = new StringBuilder(activityConfiguration.getAssetHost())
-                    .append(activityConfiguration.getAssetSearchUrl());
+                    .append(activityConfiguration.getAssetSearchUrl())
+                    .append("?offset=0&limit=").append(activityConfiguration.getAssetSearchLimit());
 
             List<Asset> installedAssets = serviceRequest.fetchResult(
                     assetSearchUri,

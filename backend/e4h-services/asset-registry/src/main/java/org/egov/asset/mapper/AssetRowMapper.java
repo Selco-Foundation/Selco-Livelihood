@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Date;
 import java.util.Map;
+import java.sql.SQLException;
 
 @Component
 public class AssetRowMapper {
@@ -38,6 +39,22 @@ public class AssetRowMapper {
         asset.setWfStatus(rs.getString("wf_status"));
         asset.setIsActive(rs.getBoolean("is_active"));
         asset.setIsOperational(rs.getBoolean("is_operational"));
+        try {
+            asset.setIsOnmReady(rs.getBoolean("is_onm_ready"));
+        } catch (SQLException ignored) {
+            asset.setIsOnmReady(false);
+        }
+        try {
+            asset.setSourceBomId(rs.getString("source_bom_id"));
+        } catch (SQLException ignored) {
+            // column may not exist until migration runs
+        }
+        try {
+            asset.setParentId(rs.getString("parent_id"));
+            asset.setName(rs.getString("name"));
+        } catch (SQLException ignored) {
+            // columns may not exist until migration runs; name falls back to asset_details below
+        }
 
         AuditDetails details = new AuditDetails();
         details.setCreatedBy(rs.getString("created_by"));

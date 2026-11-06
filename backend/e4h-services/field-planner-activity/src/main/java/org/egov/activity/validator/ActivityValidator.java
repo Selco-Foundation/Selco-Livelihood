@@ -359,7 +359,8 @@ public class ActivityValidator {
             log.info("Validate Project type with MDMS");
             Map<String, Object> geographyDetails = fieldPlan.getGeographyDetails();
             List<Map<String, Object>> activities = fieldPlan.getActivities();
-            String state = (String)geographyDetails.get("state");
+            @SuppressWarnings("unchecked")
+            List<String> states = (List<String>) geographyDetails.get("states");
             String mdmsNotPresent = IS_NOT_PRESENT_IN_MDMS;
 //            if (!fieldPlan.getActivities().isEmpty() && !typeOfProjectRes.contains(fieldPlan.getActivities())) {
 //                log.error("The project type: " + fieldPlan.getActivities() + mdmsNotPresent);
@@ -371,9 +372,13 @@ public class ActivityValidator {
                 errorMap.put("INVALID_TENANT", "The tenant: " + fieldPlan.getTenantId() + mdmsNotPresent);
             }
             log.info("Validate stateInfos with MDMS");
-            if (!StringUtils.isBlank(state) && !stateInfoRes.contains(state)) {
-                log.error("The state code: " + state + mdmsNotPresent);
-                errorMap.put("INVALID_STATE_CODE", "The state code: " + state + mdmsNotPresent);
+            if (states != null) {
+                for (String state : states) {
+                    if (!StringUtils.isBlank(state) && !stateInfoRes.contains(state)) {
+                        log.error("The state code: " + state + mdmsNotPresent);
+                        errorMap.put("INVALID_STATE_CODE", "The state code: " + state + mdmsNotPresent);
+                    }
+                }
             }
         }
     }
@@ -735,7 +740,8 @@ public class ActivityValidator {
 
     public Employee getUserById(Object request, String userId) {
 
-        String url = config.getHrmsHost() + config.getHrmsSearchUrl()+ "?tenantId=in&uuids="+userId;
+        String url = config.getHrmsHost() + config.getHrmsSearchUrl()
+                + "?tenantId=" + config.getTenantId() + "&uuids=" + userId;
         Object response = serviceRequest.fetchResult(new StringBuilder(url), request);
 
         EmployeeResponse employeeResponse = mapper.convertValue(response, EmployeeResponse.class);

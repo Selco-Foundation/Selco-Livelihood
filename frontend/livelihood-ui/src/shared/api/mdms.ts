@@ -67,6 +67,43 @@ export async function fetchLanguages(
   }));
 }
 
+export interface InstallationSolution {
+  code: string;
+  name: string;
+  sectorName: string;
+  sunshineHrsMin?: number;
+}
+
+function isInstallationSolution(value: unknown): value is InstallationSolution {
+  const record = value as Partial<InstallationSolution> | null;
+  return Boolean(
+    record && typeof record.code === "string" && typeof record.sectorName === "string",
+  );
+}
+
+/**
+ * `Installation.Solution` is the live MDMS master proven in the backend test runs (14 seeded
+ * records, each carrying `sectorName`) — there is no separate `Installation.Sector` master, so
+ * the set of sectors is derived by callers as the distinct `sectorName` values here rather than
+ * fetched from its own schema.
+ */
+export async function fetchInstallationSolutions(
+  stateTenantId: string,
+  accessToken?: string,
+  user?: AuthUser | null,
+): Promise<InstallationSolution[]> {
+  const masters = await fetchMdmsMasters(
+    stateTenantId,
+    "Installation",
+    ["Solution"],
+    accessToken,
+    user,
+  );
+  const solutions = (masters.Solution as unknown[]) ?? [];
+
+  return solutions.filter(isInstallationSolution);
+}
+
 export interface LoginBannerImage {
   image: string;
   title: string;

@@ -1,7 +1,11 @@
 import { contextPath, translateOr, useAuthStore, useTranslate } from "@/shared";
 import { cn } from "@/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { SLA_OVERDUE_MARKER } from "../../constants/workflow";
+import {
+  PROGRAM_POC_OWNER_MARKER,
+  SLA_OVERDUE_MARKER,
+  statusFallbackLabel,
+} from "../../constants/workflow";
 import type { InboxRow } from "../../types/inbox";
 import { isEndUser } from "../../utils/access";
 import { translateDetailValue } from "../../utils/complaint-details";
@@ -29,6 +33,7 @@ export function ComplaintTable({ data }: ComplaintTableProps) {
     : translateOr(t, "WF_INBOX_HEADER_SLA_DAYS_REMAINING", "SLA Days Remaining");
   const basePath = `/${contextPath()}/employee/im`;
   const overdueLabel = translateOr(t, "SLA_OVERDUE", "Overdue");
+  const programPocLabel = translateOr(t, "IM_PROGRAM_POC", "Program POC");
 
   const columns = [
     { key: "ticket", label: translateOr(t, "CS_COMMON_TICKET_NO", "Ticket No.") },
@@ -101,12 +106,14 @@ export function ComplaintTable({ data }: ComplaintTableProps) {
                   <td className="px-5 py-4 text-foreground">
                     <span
                       className="block max-w-[180px] truncate"
-                      title={translateOr(t, `CS_COMMON_${row.status}`, row.status)}
+                      title={translateOr(t, `CS_COMMON_${row.status}`, statusFallbackLabel(row.status))}
                     >
-                      {translateOr(t, `CS_COMMON_${row.status}`, row.status)}
+                      {translateOr(t, `CS_COMMON_${row.status}`, statusFallbackLabel(row.status))}
                     </span>
                   </td>
-                  <td className="px-5 py-4 text-foreground">{row.taskOwner}</td>
+                  <td className="px-5 py-4 text-foreground">
+                    {row.taskOwner === PROGRAM_POC_OWNER_MARKER ? programPocLabel : row.taskOwner}
+                  </td>
                   <td className="px-5 py-4">
                     <SlaBadge value={row.sla} urgent={row.slaUrgent} overdueLabel={overdueLabel} />
                   </td>

@@ -173,7 +173,8 @@ public class FieldPlannerValidator {
             log.info("Validate Project type with MDMS");
             Map<String, Object> geographyDetails = fieldPlan.getGeographyDetails();
             List<Map<String, Object>> activities = fieldPlan.getActivities();
-            String state = (String)geographyDetails.get("state");
+            @SuppressWarnings("unchecked")
+            List<String> states = (List<String>) geographyDetails.get("states");
             String mdmsNotPresent = IS_NOT_PRESENT_IN_MDMS;
 //            if (!fieldPlan.getActivities().isEmpty() && !typeOfProjectRes.contains(fieldPlan.getActivities())) {
 //                log.error("The fieldPlan type: " + fieldPlan.getActivities() + mdmsNotPresent);
@@ -185,11 +186,15 @@ public class FieldPlannerValidator {
                 errorMap.put("INVALID_TENANT", "The tenant: " + fieldPlan.getTenantId() + mdmsNotPresent);
             }
             log.info("Validate stateInfos with MDMS");
-            if (!StringUtils.isBlank(state)) {
-                String stateExtracted = fieldPlanServiceUtil.extractStateName(state);
-                if (!stateInfoRes.contains(stateExtracted)){
-                    log.error("The state code: " + state + mdmsNotPresent);
+            if (states != null) {
+                for (String state : states) {
+                    if (!StringUtils.isBlank(state)) {
+                        String stateExtracted = fieldPlanServiceUtil.extractStateName(state);
+                        if (!stateInfoRes.contains(stateExtracted)) {
+                            log.error("The state code: " + state + mdmsNotPresent);
 //                    errorMap.put("INVALID_STATE_CODE", "The state code: " + state + mdmsNotPresent);
+                        }
+                    }
                 }
             }
         }

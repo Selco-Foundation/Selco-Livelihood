@@ -32,5 +32,15 @@ public class OrgUserSearchCriteria {
 
     @JsonProperty("tenantId")
     private String tenantId;
+    /** Case-insensitive "contains" match on the user's name. */
+    @JsonProperty("name")
+    private String name;
+    /** Role codes; a user matches when it holds at least one of them. */
+    @JsonProperty("roles")
+    private @Valid List<String> roles = null;
+
+    public boolean hasUserAttributeFilter() {
+        return (name != null && !name.isBlank()) || (roles != null && !roles.isEmpty());
+    }
 
 }
