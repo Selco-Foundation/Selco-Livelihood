@@ -65,6 +65,7 @@ beforeEach(() => {
   Element.prototype.releasePointerCapture = Element.prototype.releasePointerCapture ?? (() => {});
   Element.prototype.scrollIntoView = Element.prototype.scrollIntoView ?? (() => {});
   mockSearchState = {};
+  sessionStorage.clear();
   mockNavigate.mockReset();
   vi.mocked(useProjectById).mockReturnValue({ data: undefined } as never);
   vi.mocked(useBoundaryTree).mockReturnValue({ data: { states: [] } } as never);
@@ -100,6 +101,52 @@ describe("CreateProjectPage", () => {
 
     expect(screen.getByLabelText(/Justification Code/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
+  });
+
+  describe("draft across a reload", () => {
+    const DRAFT_KEY = "livelihood-pm-create-project-draft";
+    const draft = {
+      projectDetails: { justificationCode: "98234", startDate: 1_700_000_000_000, endDate: 1_710_000_000_000 },
+      geographyDetails: { states: [{ code: "KA" }] },
+    };
+
+    it("restores the justification code and dates a PM had entered before reloading", () => {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      renderPage();
+
+      expect(screen.getByLabelText(/Justification Code/i)).toHaveValue("98234");
+      expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
+    });
+
+    it("saves what the PM types so a reload can bring it back", async () => {
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.type(screen.getByLabelText(/Justification Code/i), "98234");
+
+      expect(JSON.parse(sessionStorage.getItem(DRAFT_KEY)!).projectDetails.justificationCode).toBe("98234");
+    });
+
+    it("discards the draft when the wizard is left, so the next Create Project starts empty", () => {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      const { unmount } = renderPage();
+
+      unmount();
+
+      expect(sessionStorage.getItem(DRAFT_KEY)).toBeNull();
+    });
+
+    it("ignores a stale draft for an existing project, and drops it", () => {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      mockSearchState = { projectId: "project-1" };
+      vi.mocked(useProjectById).mockReturnValue({
+        data: { id: "project-1", additionalDetails: { justificationCode: "SAVED", status: "DRAFT" } },
+      } as never);
+      renderPage();
+
+      expect(screen.getByLabelText(/Justification Code/i)).toHaveValue("SAVED");
+      expect(sessionStorage.getItem(DRAFT_KEY)).toBeNull();
+    });
   });
 
   it("checks the justification code before leaving step 1, and advances when it is free", async () => {
