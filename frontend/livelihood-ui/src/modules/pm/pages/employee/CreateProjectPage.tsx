@@ -16,6 +16,7 @@ import {
 import { WizardActionFooter } from "../../components/WizardActionFooter";
 import { useSaveProject, useValidateJustificationCode } from "../../hooks/use-create-project";
 import { pmKeys } from "../../hooks/query-keys";
+import { useBoundaryTree } from "../../hooks/use-boundary-tree";
 import { useProjectById } from "../../hooks/use-project-by-id";
 import type { CreateProjectRouteSearch } from "../../routes";
 import { scheduleProject } from "../../services/project";
@@ -53,6 +54,10 @@ export function CreateProjectPage() {
   // (end-user data) has nothing to attach to until the project exists, so
   // it's the one step that's unreachable before then (guarded below).
   const isEditingExisting = Boolean(projectId);
+
+  // Warms the boundary tree (a large response) while the PM is still on step 1, so the geography
+  // step's dropdowns are usable as soon as it opens. Same query key as the step's own read.
+  useBoundaryTree();
 
   const { data: existingProject } = useProjectById(projectId);
   // A submitted project is reopened only to edit its geography: there is nothing left to submit,
