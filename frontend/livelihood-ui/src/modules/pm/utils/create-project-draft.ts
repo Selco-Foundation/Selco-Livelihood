@@ -15,6 +15,7 @@ const STORAGE_KEY = "livelihood-pm-create-project-draft";
  * and gone when the tab closes -- so a reload resumes where the PM was. Every access is guarded:
  * storage can be unavailable (private mode, blocked site data) and the wizard must work without it.
  */
+/** The draft saved by this tab, or undefined when there is none or it is unreadable. */
 export function readCreateProjectDraft(): CreateProjectDraft | undefined {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
@@ -27,6 +28,7 @@ export function readCreateProjectDraft(): CreateProjectDraft | undefined {
   }
 }
 
+/** Saves the draft for this tab; silently skipped when storage is unavailable or full. */
 export function writeCreateProjectDraft(draft: CreateProjectDraft): void {
   try {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
@@ -35,6 +37,7 @@ export function writeCreateProjectDraft(draft: CreateProjectDraft): void {
   }
 }
 
+/** Removes this tab's saved draft. */
 export function clearCreateProjectDraft(): void {
   try {
     sessionStorage.removeItem(STORAGE_KEY);

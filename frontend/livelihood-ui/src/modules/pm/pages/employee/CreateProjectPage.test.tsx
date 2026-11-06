@@ -107,7 +107,11 @@ describe("CreateProjectPage", () => {
     const DRAFT_KEY = "livelihood-pm-create-project-draft";
     const draft = {
       projectDetails: { justificationCode: "98234", startDate: 1_700_000_000_000, endDate: 1_710_000_000_000 },
-      geographyDetails: { states: [{ code: "KA" }] },
+      geographyDetails: {
+        states: [{ code: "KA" }],
+        districts: [{ code: "D1", stateCode: "KA" }],
+        blocks: [{ code: "B1", districtCode: "D1", stateCode: "KA" }],
+      },
     };
 
     it("restores the justification code and dates a PM had entered before reloading", () => {
@@ -116,6 +120,32 @@ describe("CreateProjectPage", () => {
 
       expect(screen.getByLabelText(/Justification Code/i)).toHaveValue("98234");
       expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
+    });
+
+    it("saves the restored dates and geography when the PM continues after a reload", async () => {
+      const user = userEvent.setup();
+      const mutateAsync = vi.fn().mockResolvedValue({ id: "project-1", additionalDetails: { geographyDetails: {} } });
+      vi.mocked(useSaveProject).mockReturnValue({ mutateAsync, isPending: false } as never);
+      vi.mocked(useBoundaryTree).mockReturnValue({ data: geographyHierarchy } as never);
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      mockSearchState = { step: 2 };
+      renderPage();
+
+      expect(screen.getByText("Karnataka")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Next" }));
+
+      await waitFor(() =>
+        expect(mutateAsync).toHaveBeenCalledWith(
+          expect.objectContaining({
+            startDate: draft.projectDetails.startDate,
+            endDate: draft.projectDetails.endDate,
+            additionalDetails: expect.objectContaining({
+              justificationCode: "98234",
+              geographyDetails: draft.geographyDetails,
+            }),
+          }),
+        ),
+      );
     });
 
     it("saves what the PM types so a reload can bring it back", async () => {
