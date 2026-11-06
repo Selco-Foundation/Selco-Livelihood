@@ -23,6 +23,10 @@ export interface MultiSelectProps<TOption extends MultiSelectOption> {
   noOptionsLabel?: string;
   selectAllLabel?: string;
   disabled?: boolean;
+  /** Options are still being fetched: the trigger is disabled like `disabled`, but shows the
+   *  progress cursor and `aria-busy` instead of the not-allowed cursor -- "wait" rather than
+   *  "can't". */
+  loading?: boolean;
   error?: string;
   /** Suppress the inline removable-chip row — use when the caller renders
    *  its own selection summary elsewhere (e.g. a shared panel covering
@@ -59,6 +63,7 @@ export function MultiSelect<TOption extends MultiSelectOption>({
   noOptionsLabel,
   selectAllLabel,
   disabled = false,
+  loading = false,
   error,
   hideChips = false,
   single = false,
@@ -180,7 +185,8 @@ export function MultiSelect<TOption extends MultiSelectOption>({
           <button
             type="button"
             id={triggerId}
-            disabled={disabled}
+            disabled={disabled || loading}
+            aria-busy={loading || undefined}
             // No aria-required or aria-invalid here: neither is supported on role="button", and
             // asserting them is worse than leaving them off. The required state travels in the
             // label text instead, and the error stays linked through aria-describedby.
@@ -190,6 +196,7 @@ export function MultiSelect<TOption extends MultiSelectOption>({
               "livelihood-filter-select flex items-center justify-between gap-2 pr-3 text-left disabled:cursor-not-allowed disabled:opacity-50",
               selectedOptions.length === 0 && "text-muted-foreground",
               error && "border-destructive focus-visible:ring-destructive",
+              loading && "disabled:cursor-progress",
             )}
           >
             <span className="truncate">
