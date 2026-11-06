@@ -11,12 +11,16 @@ public class FieldPlannerConstants {
     public static final String MASTER_ACTIVITIES = "Activities";
     //location
     public static final String DRAFT_STATUS = "DRAFT";
+    /** Set by field-planner-activity on publish (installation.plan.published.status). */
+    public static final String PUBLISHED_STATUS = "PUBLISHED";
     public static final String FIELD_STAFF_ROLE = "INSTALLATION_REPORT_PART_A_EDITOR";
+    /** @deprecated Supervisor role retired in Livelihood two-role model. */
+    @Deprecated
     public static final String FIELD_SUPERVISOR_ROLE = "INSTALLATION_REPORT_PART_B_EDITOR";
     public static final String INSTALLATION_REVIEWER_ROLE = "INSTALLATION_REPORT_APPROVER_QC_TEAM";
     public static final String PROJECT_TYPE_FACILITY = "Facility";
     public static final String HIERARCHY_TYPE = "SELCO";
-    public static final String TENANTID = "in";
+    public static final String TENANTID = "livelihood";
     //General
     public static final String SEMICOLON = ":";
     public static final String DOT = ".";
@@ -27,7 +31,11 @@ public class FieldPlannerConstants {
     public static final String NUMBER_OF_SESSIONS = "numberOfSessions";
     public static final String OR = " OR ";
     public static final String PROJECT_MANAGER = "PROJECT_MANAGER";
-    public static final String SUBMITTED_BY_SUPERVISOR = "SUBMITTED_BY_SUPERVISOR";
+    public static final String SUBMITTED_BY_FIELD_STAFF = "SUBMITTED_BY_FIELD_STAFF";
+    /** @deprecated Use {@link #SUBMITTED_BY_FIELD_STAFF}. */
+    @Deprecated
+    public static final String SUBMITTED_BY_SUPERVISOR = SUBMITTED_BY_FIELD_STAFF;
 
-
+    public static final String LOCK_STATUS_LOCKED = "LOCKED";
+    public static final String LOCK_STATUS_UNLOCKED = "UNLOCKED";
 }

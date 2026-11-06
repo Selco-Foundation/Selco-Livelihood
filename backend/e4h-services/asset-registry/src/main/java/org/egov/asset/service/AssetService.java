@@ -7,12 +7,19 @@ import org.egov.asset.mapper.AssetRowMapper;
 import org.egov.asset.mapper.DocumentRowMapper;
 import org.egov.asset.repository.AssetRepository;
 import org.egov.asset.util.ErrorConstants;
+import org.egov.asset.util.HRMSUtil;
 import org.egov.asset.util.IdgenUtil;
+import org.egov.asset.util.OrganisationUtil;
 import org.egov.asset.util.ResponseInfoFactory;
 import org.egov.asset.web.models.Asset;
 import org.egov.asset.web.models.AssetCreateRequest;
 import org.egov.asset.web.models.AssetCreateResponse;
+import org.egov.asset.web.models.AssetVendorUpdate;
+import org.egov.asset.web.models.AssetVendorUpdateRequest;
+import org.egov.asset.web.models.AssetVendorUpdateResponse;
+import org.egov.asset.web.models.AssetVendorUpdateResult;
 import org.egov.asset.web.models.Document;
+import org.egov.common.contract.request.RequestInfo;
 import org.egov.tracer.model.CustomException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -27,6 +34,9 @@ import java.util.stream.IntStream;
 @Slf4j
 public class AssetService {
 
+    /** Upper bound when fetching a group's units; a group is a handful of rows, never a page. */
+    private static final int MAX_UNITS_PER_GROUP = 500;
+
     private final JdbcTemplate jdbcTemplate;
     private final AssetRowMapper assetRowMapper;
     private final DocumentRowMapper documentRowMapper;
@@ -35,6 +45,8 @@ public class AssetService {
     private final ResponseInfoFactory responseInfoFactory;
     private final LivelihoodAssetBoundaryEnricher livelihoodAssetBoundaryEnricher;
     private final AssetLocalizationService assetLocalizationService;
+    private final OrganisationUtil organisationUtil;
+    private final HRMSUtil hrmsUtil;
 
     @Autowired
     public AssetService(
@@ -45,7 +57,9 @@ public class AssetService {
             AssetRepository assetRepository,
             ResponseInfoFactory responseInfoFactory,
             LivelihoodAssetBoundaryEnricher livelihoodAssetBoundaryEnricher,
-            AssetLocalizationService assetLocalizationService
+            AssetLocalizationService assetLocalizationService,
+            OrganisationUtil organisationUtil,
+            HRMSUtil hrmsUtil
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.assetRowMapper = assetRowMapper;
@@ -55,43 +69,91 @@ public class AssetService {
         this.responseInfoFactory = responseInfoFactory;
         this.livelihoodAssetBoundaryEnricher = livelihoodAssetBoundaryEnricher;
         this.assetLocalizationService = assetLocalizationService;
+        this.organisationUtil = organisationUtil;
+        this.hrmsUtil = hrmsUtil;
     }
 
+    /**
+     * Creates one asset, or a parent together with its {@code children} (e.g. SOLAR + PANEL/BATTERY/INVERTER
+     * units). Only a top-level asset registers its own Asset boundary; units take the parent's boundary code
+     * and get no boundary/localization of their own. The request is already validated (AssetValidator).
+     */
     public AssetCreateResponse createAsset(AssetCreateRequest request) {
-        List<String> ids = idgenUtil.getIdList(request.getRequestInfo(), request.getAssetDetail().getAsset().getTenantId(),
-                "assetId", "", 1);
-        List<String> documentIds = idgenUtil.getIdList(request.getRequestInfo(), request.getAssetDetail().getAsset().getTenantId(),
-                "documentId", "DOCUMENT-[SEQ_DOCUMENT_ID]", request.getAssetDetail().getAsset().getDocuments().size());
-        if (!ids.isEmpty())
-            request.getAssetDetail().getAsset().setAssetId(ids.get(0));
-        else
+        RequestInfo requestInfo = request.getRequestInfo();
+        Asset root = request.getAssetDetail().getAsset();
+        List<Asset> children = root.getChildren() == null ? Collections.emptyList() : root.getChildren();
+
+        List<Asset> allAssets = new ArrayList<>();
+        allAssets.add(root);
+        allAssets.addAll(children);
+        List<String> ids = idgenUtil.getIdList(requestInfo, root.getTenantId(), "assetId", "", allAssets.size());
+        if (ids.size() < allAssets.size())
             throw new CustomException(ErrorConstants.ID_GEN_SERVICE_ERROR_CODE, ErrorConstants.ID_GEN_SERVICE_ERROR_MSG);
-        if (request.getAssetDetail().getAsset().getAuditDetails() == null) {
-            AuditDetails auditDetails = AuditDetails.builder()
-                    .createdBy(request.getRequestInfo().getUserInfo().getUserName())
-                    .createdTime(System.currentTimeMillis())
-                    .lastModifiedBy(request.getRequestInfo().getUserInfo().getUserName())
-                    .lastModifiedTime(System.currentTimeMillis())
-                    .build();
-            request.getAssetDetail().getAsset().setAuditDetails(auditDetails);
+        for (int i = 0; i < allAssets.size(); i++) {
+            Asset asset = allAssets.get(i);
+            asset.setAssetId(ids.get(i));
+            enrichNewAsset(asset, requestInfo);
         }
-        IntStream.range(0, documentIds.size())
-                .forEach(i -> request.getAssetDetail().getAsset().getDocuments().get(i).setId(documentIds.get(i)));
 
-        livelihoodAssetBoundaryEnricher.enrichAndRegister(
-                request.getAssetDetail().getAsset(),
-                request.getRequestInfo()
-        );
+        if (isBlank(root.getParentId())) {
+            livelihoodAssetBoundaryEnricher.enrichAndRegister(root, requestInfo);
+        } else {
+            // Single unit added to an existing parent (validated to exist): share the parent's boundary.
+            List<Asset> parents = searchAssets(Asset.builder().tenantId(root.getTenantId()).assetId(root.getParentId()).build(), 1, 0);
+            if (!parents.isEmpty()) {
+                root.setBoundaryCode(parents.get(0).getBoundaryCode());
+            }
+        }
+        for (Asset child : children) {
+            child.setParentId(root.getAssetId());
+            child.setBoundaryCode(root.getBoundaryCode());
+        }
 
-        assetRepository.pushCreateAsset(request.getAssetDetail().getAsset());
+        // Parent row first so a unit never references a parent that isn't persisted; children are not
+        // part of the parent's persisted payload.
+        root.setChildren(null);
+        assetRepository.pushCreateAsset(root);
+        children.forEach(assetRepository::pushCreateAsset);
+        root.setChildren(children.isEmpty() ? null : children);
+
         return AssetCreateResponse.builder()
-                .responseInfo(responseInfoFactory.createResponseInfoFromRequestInfo(request.getRequestInfo(), true))
-                .asset(request.getAssetDetail().getAsset())
+                .responseInfo(responseInfoFactory.createResponseInfoFromRequestInfo(requestInfo, true))
+                .asset(root)
                 .build();
     }
 
+    /** Audit details, document ids and the persisted name for a newly created asset. */
+    private void enrichNewAsset(Asset asset, RequestInfo requestInfo) {
+        if (asset.getAuditDetails() == null) {
+            AuditDetails auditDetails = AuditDetails.builder()
+                    .createdBy(requestInfo.getUserInfo().getUserName())
+                    .createdTime(System.currentTimeMillis())
+                    .lastModifiedBy(requestInfo.getUserInfo().getUserName())
+                    .lastModifiedTime(System.currentTimeMillis())
+                    .build();
+            asset.setAuditDetails(auditDetails);
+        }
+        if (asset.getDocuments() == null) {
+            asset.setDocuments(new ArrayList<>());
+        }
+        if (!asset.getDocuments().isEmpty()) {
+            List<String> documentIds = idgenUtil.getIdList(requestInfo, asset.getTenantId(),
+                    "documentId", "DOCUMENT-[SEQ_DOCUMENT_ID]", asset.getDocuments().size());
+            IntStream.range(0, documentIds.size())
+                    .forEach(i -> asset.getDocuments().get(i).setId(documentIds.get(i)));
+        }
+        if (isBlank(asset.getName()) && asset.getAssetDetails() != null && asset.getAssetDetails().get("name") != null) {
+            asset.setName(String.valueOf(asset.getAssetDetails().get("name")));
+        }
+    }
+
     public List<Asset> fetchAssetsWithDocuments(Asset request, int limit, int offset) {
-        List<Asset> assets = searchAssets(request, limit, offset);
+        return fetchAssetsWithDocuments(request, limit, offset, false);
+    }
+
+    /** @param excludeUnits true returns only top-level assets (parent_id IS NULL), e.g. for end users. */
+    public List<Asset> fetchAssetsWithDocuments(Asset request, int limit, int offset, boolean excludeUnits) {
+        List<Asset> assets = searchAssets(request, limit, offset, excludeUnits);
 
         if (!assets.isEmpty()) {
             List<String> assetIds = assets.stream().map(Asset::getAssetId).collect(Collectors.toList());
@@ -107,15 +169,23 @@ public class AssetService {
     }
 
     public Integer getAssetsCount(Asset request) {
+        return getAssetsCount(request, false);
+    }
+
+    public Integer getAssetsCount(Asset request, boolean excludeUnits) {
         log.info("AssetService::fetchAssetsWithDocuments called | tenantId={}",
                 request.getTenantId());
-         Integer count = countAssets(request);
+         Integer count = countAssets(request, excludeUnits);
         log.info("Total Assets count is : " + count);
 
         return count;
     }
 
     public List<Asset> searchAssets(Asset asset, int limit, int offset) {
+        return searchAssets(asset, limit, offset, false);
+    }
+
+    public List<Asset> searchAssets(Asset asset, int limit, int offset, boolean excludeUnits) {
         StringBuilder query = new StringBuilder("SELECT * FROM asset WHERE 1=1");
         List<Object> params = new ArrayList<>();
 
@@ -142,6 +212,11 @@ public class AssetService {
         if (asset.getIsOperational() != null) {
             query.append(" AND is_operational = ?");
             params.add(asset.getIsOperational());
+        }
+
+        if (asset.getIsOnmReady() != null) {
+            query.append(" AND is_onm_ready = ?");
+            params.add(asset.getIsOnmReady());
         }
 
         if (asset.getFacilityID() != null && !asset.getFacilityID().isBlank()) {
@@ -200,6 +275,8 @@ public class AssetService {
             params.add(asset.getItemCode());
         }
 
+        appendHierarchyFilters(asset, query, params, excludeUnits);
+
         query.append(" ORDER BY created_time DESC LIMIT ? OFFSET ?");
         params.add(limit);
         params.add(offset);
@@ -208,6 +285,10 @@ public class AssetService {
     }
 
     public Integer countAssets(Asset asset) {
+        return countAssets(asset, false);
+    }
+
+    public Integer countAssets(Asset asset, boolean excludeUnits) {
         log.info("AssetService::searchAssets called | tenantId={} assetId={}",
                 asset.getTenantId(), asset.getAssetId());
         StringBuilder query = new StringBuilder("SELECT COUNT(*) FROM asset WHERE 1=1");
@@ -231,6 +312,11 @@ public class AssetService {
         if (asset.getWfStatus() != null && !asset.getWfStatus().isBlank()) {
             query.append(" AND wf_status = ?");
             params.add(asset.getWfStatus());
+        }
+
+        if (asset.getIsOnmReady() != null) {
+            query.append(" AND is_onm_ready = ?");
+            params.add(asset.getIsOnmReady());
         }
 
         if (asset.getFacilityID() != null && !asset.getFacilityID().isBlank()) {
@@ -284,9 +370,47 @@ public class AssetService {
             params.add(asset.getItemCode());
         }
 
+        appendHierarchyFilters(asset, query, params, excludeUnits);
+
         log.debug("Executing asset search count={} with params={}", query, params);
 
         return jdbcTemplate.queryForObject(query.toString(), params.toArray(), Integer.class);
+    }
+
+    /**
+     * Nests each asset's units (rows whose parent_id is that asset) into its children, with their
+     * documents. One query for the whole page; assets without units keep children null.
+     */
+    public void attachChildren(String tenantId, List<Asset> assets) {
+        if (CollectionUtils.isEmpty(assets)) {
+            return;
+        }
+        List<String> parentIds = assets.stream().map(Asset::getAssetId).collect(Collectors.toList());
+        StringBuilder query = new StringBuilder("SELECT * FROM asset WHERE parent_id IN (")
+                .append(createQuery(parentIds)).append(")");
+        List<Object> params = new ArrayList<>(parentIds);
+        if (!isBlank(tenantId)) {
+            query.append(" AND tenant_id = ?");
+            params.add(tenantId);
+        }
+        query.append(" ORDER BY created_time ASC");
+        List<Asset> children = jdbcTemplate.query(query.toString(), params.toArray(), assetRowMapper.rowMapper);
+        if (children.isEmpty()) {
+            return;
+        }
+
+        Map<String, List<Document>> documentsMap = searchDocumentsByAssetIds(tenantId,
+                children.stream().map(Asset::getAssetId).collect(Collectors.toList()));
+        children.forEach(child -> child.setDocuments(documentsMap.getOrDefault(child.getAssetId(), new ArrayList<>())));
+
+        Map<String, List<Asset>> childrenByParent = children.stream()
+                .collect(Collectors.groupingBy(Asset::getParentId, LinkedHashMap::new, Collectors.toList()));
+        assets.forEach(asset -> {
+            List<Asset> units = childrenByParent.get(asset.getAssetId());
+            if (units != null) {
+                asset.setChildren(units);
+            }
+        });
     }
 
     public Map<String, List<Document>> searchDocumentsByAssetIds(String tenantId, List<String> assetIds) {
@@ -344,17 +468,206 @@ public class AssetService {
             throw new CustomException("ASSET_NOT_FOUND", "Asset with ID " + assetId + " does not exist");
         }
 
+        // Preserve fields not sent on partial updates (e.g. approve-time isOnmReady flip)
+        Asset existing = existingAssets.get(0);
+        mergeForUpdate(updated, existing);
+
         // Update audit details
         if (updated.getAuditDetails() != null) {
             updated.getAuditDetails().setLastModifiedBy(request.getRequestInfo().getUserInfo().getUserName());
             updated.getAuditDetails().setLastModifiedTime(System.currentTimeMillis());
         }
-        if (updated.getBoundaryCode() == null || updated.getBoundaryCode().isBlank()) {
-            updated.setBoundaryCode(existingAssets.get(0).getBoundaryCode());
+
+        // Assign IDs to newly-added documents (existing ones already carry their id from a prior save)
+        List<Document> newDocuments = CollectionUtils.isEmpty(updated.getDocuments())
+                ? Collections.emptyList()
+                : updated.getDocuments().stream()
+                        .filter(doc -> doc != null && (doc.getId() == null || doc.getId().isBlank()))
+                        .collect(Collectors.toList());
+        if (!newDocuments.isEmpty()) {
+            List<String> documentIds = idgenUtil.getIdList(request.getRequestInfo(), updated.getTenantId(),
+                    "documentId", "DOCUMENT-[SEQ_DOCUMENT_ID]", newDocuments.size());
+            IntStream.range(0, newDocuments.size())
+                    .forEach(i -> newDocuments.get(i).setId(documentIds.get(i)));
         }
+
         assetRepository.pushUpdateAsset(updated);
         assetLocalizationService.upsertAssetBoundaryLocalizations(updated, request.getRequestInfo());
         return updated;
+    }
+
+    /** Fill null/blank request fields from the persisted row so partial updates do not wipe data. */
+    private void mergeForUpdate(Asset updated, Asset existing) {
+        if (isBlank(updated.getSystem())) updated.setSystem(existing.getSystem());
+        if (isBlank(updated.getFacilityID())) updated.setFacilityID(existing.getFacilityID());
+        if (isBlank(updated.getBoundaryCode())) updated.setBoundaryCode(existing.getBoundaryCode());
+        if (isBlank(updated.getActivityFacilityID())) updated.setActivityFacilityID(existing.getActivityFacilityID());
+        if (isBlank(updated.getAssetTypeID())) updated.setAssetTypeID(existing.getAssetTypeID());
+        if (isBlank(updated.getSerialNumber())) updated.setSerialNumber(existing.getSerialNumber());
+        if (isBlank(updated.getModelNumber())) updated.setModelNumber(existing.getModelNumber());
+        if (isBlank(updated.getBrandID())) updated.setBrandID(existing.getBrandID());
+        if (isBlank(updated.getVendorId())) updated.setVendorId(existing.getVendorId());
+        if (isBlank(updated.getItemCode())) updated.setItemCode(existing.getItemCode());
+        if (updated.getWarrantyStartDate() == null) updated.setWarrantyStartDate(existing.getWarrantyStartDate());
+        if (updated.getWarrantyDuration() == null) updated.setWarrantyDuration(existing.getWarrantyDuration());
+        if (updated.getWarrantyEndDate() == null) updated.setWarrantyEndDate(existing.getWarrantyEndDate());
+        if (isBlank(updated.getWfStatus())) updated.setWfStatus(existing.getWfStatus());
+        if (updated.getIsActive() == null) updated.setIsActive(existing.getIsActive());
+        if (updated.getIsOperational() == null) updated.setIsOperational(existing.getIsOperational());
+        if (updated.getIsOnmReady() == null) updated.setIsOnmReady(existing.getIsOnmReady());
+        if (isBlank(updated.getSourceBomId())) updated.setSourceBomId(existing.getSourceBomId());
+        if (isBlank(updated.getParentId())) updated.setParentId(existing.getParentId());
+        if (isBlank(updated.getName())) {
+            Object detailsName = updated.getAssetDetails() != null ? updated.getAssetDetails().get("name") : null;
+            updated.setName(detailsName != null && !String.valueOf(detailsName).isBlank()
+                    ? String.valueOf(detailsName) : existing.getName());
+        }
+        if (updated.getAssetDetails() == null) updated.setAssetDetails(existing.getAssetDetails());
+        if (updated.getAdditionalDetails() == null) updated.setAdditionalDetails(existing.getAdditionalDetails());
+        if (updated.getAuditDetails() == null) updated.setAuditDetails(existing.getAuditDetails());
+    }
+
+    /** Parent/child filters shared by search and count: a parent's units, or (excludeUnits) top-level assets only. */
+    private void appendHierarchyFilters(Asset asset, StringBuilder query, List<Object> params, boolean excludeUnits) {
+        if (!isBlank(asset.getParentId())) {
+            query.append(" AND parent_id = ?");
+            params.add(asset.getParentId());
+        }
+        if (excludeUnits) {
+            query.append(" AND parent_id IS NULL");
+        }
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    /**
+     * Repoints one or more asset groups at a new vendor, in a single save.
+     *
+     * <p>Each entry names a group parent; the new vendor is applied to that asset and
+     * to every unit beneath it, because a unit is serviced by whoever services its
+     * parent.
+     *
+     * <p>Everything is validated before anything is written, so one bad vendor cannot
+     * leave another group half-remapped. Note this is not a transaction: each write
+     * is a Kafka message, so a broker failure part-way can still apply some of them.
+     * Re-running the same request is harmless.
+     *
+     * <p>The vendor stored is the vendor <b>user</b> uuid, matching what ingestion
+     * writes, so im-services can assign new tickets straight to that person. Tickets
+     * raised before the change keep their original vendor and are not touched.
+     */
+    public AssetVendorUpdateResponse updateAssetVendors(AssetVendorUpdateRequest request) {
+        List<AssetVendorUpdate> updates = request.getAssetVendorUpdates();
+        if (CollectionUtils.isEmpty(updates)) {
+            throw new CustomException(ErrorConstants.ASSET_VENDOR_UPDATE_INVALID_CODE,
+                    "At least one asset vendor update is required");
+        }
+
+        Set<String> seenAssetIds = new LinkedHashSet<>();
+        for (AssetVendorUpdate update : updates) {
+            if (!seenAssetIds.add(update.getAssetId())) {
+                throw new CustomException(ErrorConstants.ASSET_VENDOR_UPDATE_INVALID_CODE,
+                        "Asset " + update.getAssetId() + " appears more than once in the request");
+            }
+        }
+
+        RequestInfo requestInfo = request.getRequestInfo();
+        String tenantId = request.getTenantId();
+
+        // --- validate everything first -------------------------------------------
+        Map<String, List<Asset>> groupsByAssetId = new LinkedHashMap<>();
+        Set<String> validatedVendors = new HashSet<>();
+        // vendor user -> tenant and the boundaries of the groups it is being mapped to
+        Map<String, String> tenantByVendor = new LinkedHashMap<>();
+        Map<String, Set<String>> assetBoundariesByVendor = new LinkedHashMap<>();
+
+        for (AssetVendorUpdate update : updates) {
+            Asset parent = getAssetById(tenantId, update.getAssetId());
+            String resolvedTenantId = tenantId != null && !tenantId.isBlank()
+                    ? tenantId : parent.getTenantId();
+
+            // One validation per distinct vendor, not per group.
+            String vendorKey = update.getOrganisationId() + "|" + update.getVendorId();
+            if (validatedVendors.add(vendorKey)) {
+                organisationUtil.validateVendorUser(requestInfo, resolvedTenantId,
+                        update.getOrganisationId(), update.getVendorId());
+            }
+
+            List<Asset> group = new ArrayList<>();
+            group.add(parent);
+            group.addAll(findUnits(resolvedTenantId, parent.getAssetId()));
+            groupsByAssetId.put(update.getAssetId(), group);
+
+            // Units share the parent's boundary code, so the parent's is enough
+            tenantByVendor.putIfAbsent(update.getVendorId(), resolvedTenantId);
+            if (parent.getBoundaryCode() != null && !parent.getBoundaryCode().isBlank()) {
+                assetBoundariesByVendor.computeIfAbsent(update.getVendorId(), k -> new LinkedHashSet<>())
+                        .add(parent.getBoundaryCode());
+            } else {
+                log.warn("Asset {} has no boundary code, vendor {} jurisdiction is not checked",
+                        parent.getAssetId(), update.getVendorId());
+            }
+        }
+
+        // A vendor only sees tickets inside its jurisdictions, so give it the state of each asset it now services.
+        // Done before any asset is written: an HRMS failure leaves every mapping unchanged.
+        assetBoundariesByVendor.forEach((vendorId, boundaries) ->
+                hrmsUtil.addMissingStateJurisdictions(requestInfo, tenantByVendor.get(vendorId), vendorId, boundaries));
+
+        // --- then write ------------------------------------------------------------
+        String updatedBy = requestInfo != null && requestInfo.getUserInfo() != null
+                ? requestInfo.getUserInfo().getUserName() : null;
+        long updatedAt = System.currentTimeMillis();
+
+        List<AssetVendorUpdateResult> results = new ArrayList<>();
+        for (AssetVendorUpdate update : updates) {
+            List<Asset> group = groupsByAssetId.get(update.getAssetId());
+            List<String> updatedAssetIds = new ArrayList<>();
+
+            for (Asset asset : group) {
+                asset.setVendorId(update.getVendorId());
+                applyAudit(asset, updatedBy, updatedAt);
+                // children is request/response only; leave it off the persisted payload
+                asset.setChildren(null);
+                assetRepository.pushUpdateAsset(asset);
+                updatedAssetIds.add(asset.getAssetId());
+            }
+
+            log.info("Remapped asset group {} to vendor user {} (org {}), {} asset(s) updated",
+                    update.getAssetId(), update.getVendorId(), update.getOrganisationId(),
+                    updatedAssetIds.size());
+
+            results.add(AssetVendorUpdateResult.builder()
+                    .assetId(update.getAssetId())
+                    .vendorId(update.getVendorId())
+                    .organisationId(update.getOrganisationId())
+                    .updatedAssetIds(updatedAssetIds)
+                    .build());
+        }
+
+        return AssetVendorUpdateResponse.builder()
+                .responseInfo(responseInfoFactory.createResponseInfoFromRequestInfo(requestInfo, true))
+                .assetVendorUpdates(results)
+                .build();
+    }
+
+    /** The units of a group. Empty for a standalone asset, which is not an error. */
+    private List<Asset> findUnits(String tenantId, String parentAssetId) {
+        Asset criteria = Asset.builder().tenantId(tenantId).parentId(parentAssetId).build();
+        List<Asset> units = searchAssets(criteria, MAX_UNITS_PER_GROUP, 0);
+        return units == null ? List.of() : units;
+    }
+
+    private void applyAudit(Asset asset, String updatedBy, long updatedAt) {
+        AuditDetails auditDetails = asset.getAuditDetails();
+        if (auditDetails == null) {
+            auditDetails = AuditDetails.builder().build();
+            asset.setAuditDetails(auditDetails);
+        }
+        auditDetails.setLastModifiedBy(updatedBy);
+        auditDetails.setLastModifiedTime(updatedAt);
     }
 
     private String createQuery(Collection<String> ids) {

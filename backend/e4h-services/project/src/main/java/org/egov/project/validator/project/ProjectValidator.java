@@ -71,7 +71,7 @@ public class ProjectValidator {
         validateRequestInfo(requestInfo);
         //Verify if project request and mandatory fields are present
         log.debug("Validating project request and mandatory fields");
-        validateProjectRequest(request.getProjects());
+        validateProjectRequest(request.getProjects(), true);
         //Verify if project request have multiple tenant Ids
         log.debug("Validating multiple tenant IDs");
         validateMultipleTenantIds(request);
@@ -96,8 +96,6 @@ public class ProjectValidator {
         // Verify provided documentIds are valid.
         log.debug("Validating document IDs");
         validateDocumentIds(request);
-
-        validateJustificationCodeUniquenessOnCreate(request.getProjects(), errorMap);
 
         if (!errorMap.isEmpty()) {
             log.error("Validation failed with {} errors", errorMap.size());
@@ -207,7 +205,8 @@ public class ProjectValidator {
         //Verify if RequestInfo and UserInfo is present
         validateRequestInfo(requestInfo);
         //Verify Project request and if mandatory fields are present
-        validateProjectRequest(request.getProjects());
+        // Justification code format is checked in validateUpdateAgainstDB, only when it changes.
+        validateProjectRequest(request.getProjects(), false);
         //Verify if project request have multiple tenant Ids
         validateMultipleTenantIds(request);
 
@@ -266,7 +265,7 @@ public class ProjectValidator {
     }
 
     /* Validates Project request body for create and update apis */
-    private void validateProjectRequest(List<Project> projects) {
+    private void validateProjectRequest(List<Project> projects, boolean validateJustificationCode) {
         Map<String, String> errorMap = new HashMap<>();
 
         checkProjectIfEmpty(projects);
@@ -293,7 +292,9 @@ public class ProjectValidator {
                 log.error("Boundary Type is mandatory if boundary is present  in Project request body");
                 errorMap.put("BOUNDARY", "Boundary Type is mandatory if boundary is present in Project request body");
             }
-            validateJustificationCodeIfPresent(project, errorMap);
+            if (validateJustificationCode) {
+                validateJustificationCodeIfPresent(project, errorMap);
+            }
         }
 
         if (!errorMap.isEmpty())
@@ -308,48 +309,6 @@ public class ProjectValidator {
         if (!projectNameGenerationService.isValidJustificationCodeFormat(justificationCode)) {
             log.error("Invalid justification code for project: {}", justificationCode);
             errorMap.put("INVALID_JUSTIFICATION_CODE", INVALID_JUSTIFICATION_CODE_MESSAGE);
-        }
-    }
-
-    private void validateJustificationCodeUniquenessOnCreate(List<Project> projects, Map<String, String> errorMap) {
-        Set<String> seenInRequest = new HashSet<>();
-        for (Project project : projects) {
-            String justificationCode = projectNameGenerationService.extractJustificationCode(project.getAdditionalDetails());
-            if (justificationCode == null
-                    || !projectNameGenerationService.isValidJustificationCodeFormat(justificationCode)) {
-                continue;
-            }
-            String normalizedCode = projectNameGenerationService.normalizeJustificationCode(justificationCode);
-            if (!seenInRequest.add(normalizedCode)) {
-                log.error("Duplicate justification code in create request: {}", normalizedCode);
-                errorMap.put("DUPLICATE_JUSTIFICATION_CODE",
-                        ProjectNameGenerationService.duplicateJustificationCodeInRequestMessage(normalizedCode));
-                continue;
-            }
-            if (projectRepository.isJustificationCodeUsed(normalizedCode, project.getTenantId())) {
-                log.error("Justification code already used in tenant {}: {}", project.getTenantId(), normalizedCode);
-                errorMap.put("DUPLICATE_JUSTIFICATION_CODE",
-                        ProjectNameGenerationService.duplicateJustificationCodeMessage(normalizedCode));
-            }
-        }
-    }
-
-    private void validateJustificationCodeUniquenessOnUpdate(Project project, Project projectFromDB) {
-        String justificationCode = projectNameGenerationService.extractJustificationCode(project.getAdditionalDetails());
-        if (justificationCode == null
-                || !projectNameGenerationService.isValidJustificationCodeFormat(justificationCode)) {
-            return;
-        }
-        String normalizedCode = projectNameGenerationService.normalizeJustificationCode(justificationCode);
-        String existingCode = projectNameGenerationService.normalizeJustificationCode(
-                projectNameGenerationService.extractJustificationCode(projectFromDB.getAdditionalDetails()));
-        if (normalizedCode.equals(existingCode)) {
-            return;
-        }
-        if (projectRepository.isJustificationCodeUsed(normalizedCode, project.getTenantId(), project.getId())) {
-            log.error("Justification code already used in tenant {} on update: {}", project.getTenantId(), normalizedCode);
-            throw new CustomException("DUPLICATE_JUSTIFICATION_CODE",
-                    ProjectNameGenerationService.duplicateJustificationCodeMessage(normalizedCode));
         }
     }
 
@@ -592,8 +551,18 @@ public class ProjectValidator {
 
             validateUpdateAddressAgainstDB(project, projectFromDB);
 
-            validateJustificationCodeUniquenessOnUpdate(project, projectFromDB);
+            validateChangedJustificationCode(project, projectFromDB);
         }
+    }
+
+    /* Codes stored before the 5-digit format stay valid; only a changed code must match it */
+    private void validateChangedJustificationCode(Project project, Project projectFromDB) {
+        String justificationCode = projectNameGenerationService.extractJustificationCode(project.getAdditionalDetails());
+        if (justificationCode == null || justificationCode.equals(
+                projectNameGenerationService.extractJustificationCode(projectFromDB.getAdditionalDetails()))) {
+            return;
+        }
+        projectNameGenerationService.validateJustificationCodeFormat(justificationCode);
     }
 
     /**

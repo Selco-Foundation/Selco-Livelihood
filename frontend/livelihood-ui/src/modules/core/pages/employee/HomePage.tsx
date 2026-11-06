@@ -1,12 +1,43 @@
 import { getModuleOverviews } from "@/module-registry";
+import { isProjectManager, translateOr, useAuthStore, useTranslate } from "@/shared";
+import { TopBar } from "@/ui";
 
 export function HomePage() {
-  const overviews = getModuleOverviews();
+  const { t } = useTranslate();
+  const user = useAuthStore((state) => state.user);
+  const { kpis, details, actions } = getModuleOverviews();
+  const fullName = user?.name ?? user?.userName ?? "";
+  const displayName = fullName.trim().split(/\s+/)[0];
 
   return (
     <div className="space-y-6">
-      {overviews.map(({ Overview, moduleId }) => (
-        <Overview key={moduleId} />
+      <TopBar
+        title={
+          <>
+            {translateOr(t, "CORE_HOME_WELCOME", "Welcome")}
+            {displayName ? <span>, {displayName}</span> : null}
+          </>
+        }
+        description={
+          isProjectManager(user?.roles)
+            ? translateOr(t, "ES_PM_MANAGE_PROJECTS", "Manage Projects")
+            : undefined
+        }
+        actions={
+          actions.length > 0
+            ? actions.map(({ Component, moduleId }) => <Component key={moduleId} />)
+            : null
+        }
+      />
+      {kpis.length > 0 ? (
+        <div className="flex gap-3 lg:flex-wrap lg:gap-4">
+          {kpis.map(({ Component, moduleId }) => (
+            <Component key={moduleId} />
+          ))}
+        </div>
+      ) : null}
+      {details.map(({ Component, moduleId }) => (
+        <Component key={moduleId} />
       ))}
     </div>
   );

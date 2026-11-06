@@ -39,6 +39,10 @@ public class ActivityFacilitySearchCriteria {
     @JsonProperty("statuses")
     private @Valid List<String> statuses = null;
 
+    /** Asset type of the split component row, e.g. MACHINE / SOLAR (facility_activities.component_type). */
+    @JsonProperty("componentTypes")
+    private @Valid List<String> componentTypes = null;
+
     @JsonProperty("assignedToMe")
     private String assignedToMe = null;
 

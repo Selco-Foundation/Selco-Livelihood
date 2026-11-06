@@ -38,6 +38,7 @@ class FacilityServiceClient:
         boundary_code: Optional[str] = None,
         hfr_id: Optional[str] = None,
         nin_id: Optional[str] = None,
+        facility_poc_username: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Search facilities with two optimized paths:
@@ -49,7 +50,7 @@ class FacilityServiceClient:
 
         try:
             # Fast path for identifier-based lookups used by ingestion templates
-            if facility_id or hfr_id or nin_id:
+            if facility_id or hfr_id or nin_id or facility_poc_username:
                 params: Dict[str, Any] = {
                     "tenantId": tenant_id,
                     "limit": 200,  # more than enough for single-id lookups
@@ -61,6 +62,8 @@ class FacilityServiceClient:
                     params["hfrId"] = hfr_id
                 if nin_id:
                     params["ninId"] = nin_id
+                if facility_poc_username:
+                    params["facilityPocUsername"] = facility_poc_username
 
                 response = requests.get(url, headers=headers, params=params, timeout=30)
                 response.raise_for_status()
@@ -160,6 +163,8 @@ class FacilityServiceClient:
         limit: int = 10000,
         offset: int = 0,
         send_non_paginated_response: bool = True,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Bulk search using facility-service endpoint that returns facility + address
@@ -176,6 +181,8 @@ class FacilityServiceClient:
             limit=limit,
             offset=offset,
             send_non_paginated_response=send_non_paginated_response,
+            sort_by=sort_by,
+            sort_order=sort_order,
         )
 
     def _bulk_search_facility_by_path(
@@ -190,6 +197,8 @@ class FacilityServiceClient:
         limit: int = 10000,
         offset: int = 0,
         send_non_paginated_response: bool = True,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Dict[str, Any]:
         url = f"{self.facility_service_url}{endpoint_path}"
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
@@ -223,6 +232,11 @@ class FacilityServiceClient:
                 "isOnmReady": None,
             },
         }
+
+        if sort_by:
+            payload["Facility"]["sortBy"] = sort_by
+        if sort_order:
+            payload["Facility"]["sortOrder"] = sort_order
 
         try:
             response = requests.post(url, headers=headers, json=payload, timeout=60)

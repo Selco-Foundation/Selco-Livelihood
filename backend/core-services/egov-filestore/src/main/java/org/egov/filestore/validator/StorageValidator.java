@@ -13,6 +13,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Component
 public class StorageValidator {
 
@@ -54,6 +57,8 @@ public class StorageValidator {
 		}
 		
 		if (!fileStoreConfig.getAllowedFormatsMap().get(extension).contains(inputFormat)) {
+			log.info("File content does not match its extension: extension={}, detected format={}, allowed formats for this extension={}",
+					extension, inputFormat, fileStoreConfig.getAllowedFormatsMap().get(extension));
 			throw new CustomException("EG_FILESTORE_INVALID_INPUT", "Inalvid input provided for file, the extension does not match the file format. Please upload any of the allowed formats : "
 							+ fileStoreConfig.getAllowedKeySet());
 		}
@@ -67,6 +72,8 @@ public class StorageValidator {
 
 
 		if (!fileStoreConfig.getAllowedFormatsMap().get(extension).contains(contentType)) {
+			log.info("File content type does not match its extension: file={}, extension={}, content type={}, allowed formats for this extension={}",
+					file.getOriginalFilename(), extension, contentType, fileStoreConfig.getAllowedFormatsMap().get(extension));
 			throw new CustomException("EG_FILESTORE_INVALID_INPUT", "Invalid Content Type");
 		}
 	}

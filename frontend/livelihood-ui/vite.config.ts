@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
@@ -64,6 +65,32 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: "dist",
       sourcemap: true,
+    },
+    test: {
+      globals: true,
+      environment: "jsdom",
+      setupFiles: ["./src/test/setup.ts"],
+      css: false,
+      restoreMocks: true,
+      // Coverage instrumentation slows the suite enough under full-repo
+      // parallel load to trip the 5s default, causing flaky timeouts that
+      // don't reproduce running the same files in isolation.
+      testTimeout: 20000,
+      coverage: {
+        provider: "v8",
+        reporter: ["text", "html", "lcov"],
+        reportsDirectory: "./coverage",
+        include: ["src/**/*.{ts,tsx}"],
+        exclude: [
+          // Pure ambient global type-declaration file — no import/export
+          // statements at all, so it cannot be imported as a module and has
+          // no runtime code to exercise.
+          "src/vite-env.d.ts",
+          // Test infrastructure (setup/mocks/render helpers) — not
+          // application code, deliberately left untested.
+          "src/test/**",
+        ],
+      },
     },
   };
 });

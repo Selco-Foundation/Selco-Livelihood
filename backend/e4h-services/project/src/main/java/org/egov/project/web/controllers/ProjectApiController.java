@@ -451,6 +451,14 @@ public class ProjectApiController {
         return new ResponseEntity<ProjectResponse>(projectResponse, HttpStatus.OK);
     }
 
+    @RequestMapping(value = "/v1/justification-code/_validate", method = RequestMethod.POST)
+    public ResponseEntity<ProjectResponse> validateJustificationCode(@ApiParam(value = "Project whose justification code and dates to check.", required = true) @Valid @RequestBody ProjectRequest project) {
+        Project validated = projectService.validateJustificationCode(project);
+        ResponseInfo responseInfo = ResponseInfoFactory.createResponseInfo(project.getRequestInfo(), true);
+        ProjectResponse projectResponse = ProjectResponse.builder().responseInfo(responseInfo).project(List.of(validated)).build();
+        return new ResponseEntity<>(projectResponse, HttpStatus.OK);
+    }
+
     @RequestMapping(value = "/v1/_search", method = RequestMethod.POST)
     public ResponseEntity<ProjectResponse> searchProject(
             @ApiParam(value = "Details for the project.", required = true) @Valid @RequestBody ProjectRequest project,

@@ -535,6 +535,10 @@ public class EnrichmentService {
             } catch (Exception e) {
                 log.warn("Could not enrich vendor user for uuid={}", vendorUuid, e);
             }
+        } else if (LIVELIHOOD_OUT_OF_SCOPE_PENDING_POC.equals(incident.getApplicationStatus())) {
+            // Pooled on the Program POC role (WorkflowService.clearAssigneesForPooledState): there is no
+            // assignee to name, so say who the ticket is waiting on.
+            indexView.setMappedVendorName(PROGRAM_POC_OWNER_LABEL);
         }
 
         indexView.setAttachmentUrls(buildAttachmentUrls(incidentRequest));
@@ -545,7 +549,7 @@ public class EnrichmentService {
      * Maps an asset's assetTypeID to the coarse index-level group (Machine/Solar). Distinct from the
      * Incident.additionalDetail.assetCategory field, which holds finer-grained menu-path categories
      * used for issue-type validation.
-     * Solar component types (SOLAR PANEL, BATTERY, INVERTER, PANEL) map to Solar; everything else is Machine.
+     * Solar component types (SOLAR, legacy SOLAR PANEL, BATTERY, INVERTER, PANEL) map to Solar; everything else is Machine.
      */
     private String resolveIndexAssetGroup(String assetTypeID) {
         boolean isSolar = LIVELIHOOD_SOLAR_ASSET_TYPE_IDS.stream()

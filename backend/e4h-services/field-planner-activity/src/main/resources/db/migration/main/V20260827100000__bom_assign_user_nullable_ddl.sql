@@ -1,0 +1,15 @@
+-- A site's Solution is split into one row per installable asset (1 solar setup + 1 row per
+-- machine) at the vendor assignment step. That split lives on facility_activities, which
+-- gains component_type + component_sequence (see field-planner V20260827100200), because the
+-- FACILITY_INSTALLATION review workflow keys on facility_activities.id -- so each asset gets
+-- its own vendor, its own review and its own approval. bom stays 1:1 with its (now per-asset)
+-- parent row and carries that asset's vendor assignment and IC report content.
+--
+-- The vendor/OTP/report columns themselves are NOT added here: V20260825120000 already adds
+-- solution_id, vendor_org_id, vendor_email, vendor_phone, otp_uuid and report_number. Review
+-- state is likewise not duplicated onto bom -- facility_activities.status plus the workflow's
+-- own eg_wf_processinstance_v2 already hold it.
+--
+-- Only one change is genuinely new: bom rows are created at vendor assignment, before any
+-- field technician is assigned, so assign_user can no longer be NOT NULL.
+ALTER TABLE bom ALTER COLUMN assign_user DROP NOT NULL;

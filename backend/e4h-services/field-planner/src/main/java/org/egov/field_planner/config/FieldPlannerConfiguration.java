@@ -59,6 +59,9 @@ public class FieldPlannerConfiguration {
     @Value("${search.api.limit:100}")
     private String searchApiLimit;
 
+    @Value("${global.tenant.id:livelihood}")
+    private String tenantId;
+
     @Value("${egov.mdms.host}")
     private String mdmsHost;
     @Value("${egov.mdms.search.endpoint}")
@@ -72,6 +75,10 @@ public class FieldPlannerConfiguration {
 
     @Value("${fieldPlan.facility.kafka.create.topic}")
     private String createFieldPlanFacilityTopic;
+
+    /** Consumed by egov-persister's field-plan-persister.yml save-field-plan-template mapping. */
+    @Value("${fieldPlan.template.kafka.create.topic:save-field-plan-template}")
+    private String saveFieldPlanTemplateTopic;
 
     @Value("${fieldPlan.facility.kafka.unassign.topic}")
     private String deleteFieldPlanFacilityTopic;

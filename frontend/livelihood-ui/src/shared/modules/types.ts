@@ -18,6 +18,28 @@ export interface NavItem {
    * own route lives outside `to`'s own path tree.
    */
   matchPrefixes?: string[];
+  /**
+   * Role codes allowed to see this nav item. Omit to show it to every
+   * logged-in user (e.g. core's "Overview"). When set, the item is hidden
+   * unless the current user holds at least one of these roles — each module
+   * owns its own role list (see its `utils/access.ts`) rather than this type
+   * knowing about any module's specific roles.
+   */
+  roles?: string[];
+}
+
+export interface ModuleOverview {
+  /** Stat tiles rendered in the home page's shared KPIs row. */
+  kpis?: ComponentType;
+  /** Richer per-module content rendered in the home page's shared Details section. */
+  details?: ComponentType;
+  /**
+   * Action(s) rendered in the home page's top bar, after the language
+   * switcher — e.g. im's "Raise Ticket" button. Unlike the language switcher
+   * (baked into every page via `TopBar`), this is contextual to the home
+   * page specifically, not broadcast to every page in the module.
+   */
+  actions?: ComponentType;
 }
 
 export interface ModuleDefinition<TRoute = unknown> {
@@ -25,5 +47,5 @@ export interface ModuleDefinition<TRoute = unknown> {
   order?: number;
   routes: TRoute[];
   navItems: NavItem[];
-  overview?: ComponentType;
+  overview?: ModuleOverview;
 }

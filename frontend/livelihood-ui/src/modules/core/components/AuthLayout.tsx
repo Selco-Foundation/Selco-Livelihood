@@ -1,6 +1,6 @@
 import { getConfigString, translateOr, useLoginBannerImages, useTranslate } from "@/shared";
+import { LanguageSwitcher } from "@/ui";
 import type { ReactNode } from "react";
-import { LanguageSwitcher } from "./LanguageSwitcher";
 import { LoginCarousel } from "./LoginCarousel";
 
 interface AuthLayoutProps {

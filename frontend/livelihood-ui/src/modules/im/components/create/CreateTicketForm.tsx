@@ -1,4 +1,4 @@
-import { Button } from "@/ui";
+import { Button, SearchableSelect } from "@/ui";
 import {
   Camera,
   Factory,
@@ -13,7 +13,6 @@ import { createPortal } from "react-dom";
 import { useCreateIncidentForm } from "../../hooks/use-create-incident-form";
 import { DuplicateTicketsDialog } from "./DuplicateTicketsDialog";
 import { FormSectionCard } from "./FormSectionCard";
-import { FormSelectField } from "./FormSelectField";
 import { MediaUploadZone } from "./MediaUploadZone";
 import { TicketSubmittedDialog } from "./TicketSubmittedDialog";
 
@@ -117,7 +116,7 @@ export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
         >
           <div className="grid gap-4 md:grid-cols-2">
             {showEndUserDropdown ? (
-              <FormSelectField
+              <SearchableSelect
                 label={translateOr(t, "INCIDENT_END_USER", "End User")}
                 required
                 value={form.endUser?.facilityId ?? ""}
@@ -136,12 +135,12 @@ export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
                   {translateOr(t, "INCIDENT_END_USER", "End User")}
                 </p>
                 <p className="rounded-md border border-input bg-muted/30 px-3 py-2 text-sm text-foreground">
-                  {form.endUser.facilityPocName}
+                  {translateOr(t, `BOUNDARY_${form.endUser.boundaryCode}`, form.endUser.facilityPocName)}
                 </p>
               </div>
             ) : null}
 
-            <FormSelectField
+            <SearchableSelect
               label={translateOr(t, "INCIDENT_ASSET", "Asset")}
               required
               value={form.asset?.assetId ?? ""}
@@ -165,7 +164,7 @@ export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
           )}
         >
           <div className="grid gap-4 md:grid-cols-2">
-            <FormSelectField
+            <SearchableSelect
               label={translateOr(t, "TICKET_TYPE", "Issue Type")}
               required
               value={form.complaintType?.code ?? ""}
@@ -205,7 +204,7 @@ export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
               />
               <div className="flex items-center justify-between gap-2">
                 {fieldErrors.comments ? (
-                  <p className="text-xs text-destructive">{fieldErrors.comments}</p>
+                  <p className="min-w-0 text-xs text-destructive wrap-anywhere">{fieldErrors.comments}</p>
                 ) : (
                   <span />
                 )}
@@ -258,7 +257,7 @@ export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
         </FormSectionCard>
 
         {submitError ? (
-          <p className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <p className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive wrap-anywhere">
             {submitError}
           </p>
         ) : null}
@@ -266,7 +265,7 @@ export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
         <div className="flex justify-end">
           <Button
             type="submit"
-            size="lg"
+            size="sm"
             className="gap-2"
             disabled={!canSubmit || createMutation.isPending}
           >

@@ -88,7 +88,7 @@ export function ComplaintActionBar({
         {singleAction ? (
           <Button
             type="button"
-            size="lg"
+            size="sm"
             className="gap-2"
             onClick={() => setSelectedAction(singleAction.action)}
           >
@@ -105,7 +105,7 @@ export function ComplaintActionBar({
             <div className="relative w-full sm:w-auto" ref={menuRef}>
               <SplitButton
                 label={translateOr(t, "WF_TAKE_ACTION", "Take action")}
-                size="lg"
+                size="sm"
                 className="flex w-full sm:inline-flex sm:w-auto"
                 onLabelClick={() => setMenuOpen((open) => !open)}
                 triggerAriaExpanded={menuOpen}

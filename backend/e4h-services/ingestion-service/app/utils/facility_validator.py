@@ -1,10 +1,12 @@
 import re
-from typing import Any, Callable, Dict, List, MutableMapping, Optional
+from typing import Any, Callable, Dict, List, MutableMapping, Optional, Set
 
 import pandas as pd
 from fastapi import HTTPException
 
 from app.core.tenant import LIVELIHOOD_TENANT_ID
+from app.utils.field_plan_locks import scoped_site_message, site_bar_message
+from app.utils.solution_eligibility import eligible_solution_names
 
 # Same wording everywhere: MDMS pre-validation, API import, and Excel client hints.
 ERR_HFR_OR_NIN_REQUIRED_WHEN_HEALTH = (
@@ -79,10 +81,29 @@ def _is_legacy_mdms_hfr_nin_at_least_one_constraint(rc: Any) -> bool:
     return set(fields) == {"HFR ID", "NIN ID"}
 
 
+def select_unsaved_rows(df: pd.DataFrame, id_column: str = "End user Id") -> pd.DataFrame:
+    """Rows that don't yet exist in the registry, i.e. whose id cell is blank. Returns
+    every row when the id column isn't in the file at all, so a template without that
+    column is fully validated instead of raising."""
+    if id_column not in df.columns:
+        return df
+    return df[df[id_column].isna() | (df[id_column].astype(str).str.strip() == "")]
+
+
 def project_facility_validation(
-    df, mdms_client, request_info, facility_client, boundary_data, schemaName
+    df, mdms_client, request_info, facility_client, boundary_data, schemaName,
+    localization_service_url=None, validate_all_rows: bool = False,
 ):
-    """Main function that orchestrates all facility file validations."""
+    """Main function that orchestrates all facility file validations.
+
+    validate_all_rows: validate every row rather than only the id-less ones. Defaults to
+    False so the facility-ingestion callers keep their "only check new rows" behaviour.
+    The Installation Scope sheet needs it True: every row there is an existing site being
+    linked to a plan, so the id-less filter below would select nothing and the upload
+    would pass without a single check running. Please keep this parameter -- it has been
+    removed once already by an unrelated change, which left that endpoint silently
+    validating nothing.
+    """
 
     # Ensure boundary_data is provided
     if boundary_data is None or boundary_data.empty:
@@ -101,8 +122,20 @@ def project_facility_validation(
     errors = [[] for _ in range(len(df))]
     add_err = lambda i, msg: errors[i].append(msg)
 
+    # data-ingestion.FacilityIngestionSchema (Livelihood) rows always come from an existing
+    # facility selected via the facility ingestion template, so a blank id is invalid rather
+    # than a request to create a new facility. Older schemas (e.g. FieldPlanFacilityIngestionSchema)
+    # still key off "Facility Id" and continue to support creating new rows.
+    uses_end_user_id = "End User Id" in df.columns
+    id_column = "End User Id" if uses_end_user_id else "Facility Id"
+
+    if uses_end_user_id:
+        for i, val in enumerate(df[id_column]):
+            if pd.isna(val) or str(val).strip() == "":
+                add_err(i, "End User Id is required; this template only supports linking existing facilities.")
+
     # Only validate rows where Facility ID is empty
-    new_rows = df[df["End user Id"].isna() | (df["End user Id"].astype(str).str.strip() == "")]
+    new_rows = df[df[id_column].isna() | (df[id_column].astype(str).str.strip() == "")]
     if new_rows.empty:
         return errors  # No new rows to validate
 
@@ -115,13 +148,346 @@ def project_facility_validation(
 
     # Use positional index mapping to reference errors in original df
     validate_columns(new_rows, schema, lambda i, m: add_err(new_rows.loc[i, "index"], m))
-    validate_boundary_codes(new_rows, allowed_boundary_codes, lambda i, m: add_err(new_rows.loc[i, "index"], m))
+    if uses_end_user_id:
+        validate_state_district_block_boundary(
+            new_rows, allowed_boundary_codes, localization_service_url,
+            lambda i, m: add_err(new_rows.loc[i, "index"], m),
+        )
+    else:
+        validate_boundary_codes(new_rows, allowed_boundary_codes, lambda i, m: add_err(new_rows.loc[i, "index"], m))
     validate_unique_ids(df, schema, add_err)
     validate_row_constraints(new_rows, schema, lambda i, m: add_err(new_rows.loc[i, "index"], m))
     validate_anganwadi_poc_username(new_rows, schema, lambda i, m: add_err(new_rows.loc[i, "index"], m))
     validate_hfr_nin(new_rows, lambda i, m: add_err(new_rows.loc[i, "index"], m), facility_client)
 
     return errors
+
+
+def validate_scoped_sites_kept(df, scoped_sites: Dict[str, List[str]], add_err: Callable[[int, str], None]) -> None:
+    """A project's end-user upload must not drop (Include in Project != Yes) a site that an
+    installation plan of the project still has in scope -- the create step would unlink it from
+    the project underneath the plan. `scoped_sites` is field_plan_locks.scoped_site_plans()."""
+    # Matched by substring, like the create step's own lookup: the schema's header text varies.
+    include_column = next((c for c in df.columns if "include in project" in str(c).lower()), None)
+    id_column = find_site_id_column(df)
+    if not include_column or not id_column or not scoped_sites:
+        return
+    for position, (_, row) in enumerate(df.iterrows()):
+        plan_names = scoped_sites.get(_cell(row, id_column))
+        if plan_names and _cell(row, include_column).lower() != "yes":
+            add_err(position, scoped_site_message(plan_names))
+
+
+def _find_header(df, base_name: str) -> Optional[str]:
+    """Locate a column by its schema name, with or without the '(Mandatory)' suffix."""
+    for candidate in (base_name, f"{base_name} (Mandatory)"):
+        if candidate in df.columns:
+            return candidate
+    return None
+
+
+# Newer schemas (Installation Scope) name the existing site's id column "End User Id";
+# older ones (FieldPlanFacilityIngestionSchema) call it "Facility Id". Resolve it in one
+# place: a path that guesses the wrong name reads no id at all and then fails closed --
+# skipping every row -- which looks like "nothing matched" rather than a mismatch.
+SITE_ID_COLUMNS = ("End User Id", "Facility Id")
+
+
+def find_site_id_column(df) -> Optional[str]:
+    """The column holding an existing site's id, under whichever name this schema uses."""
+    for base_name in SITE_ID_COLUMNS:
+        header = _find_header(df, base_name)
+        if header:
+            return header
+    return None
+
+
+def _cell(row, column) -> str:
+    """Trimmed string value of a cell, treating NaN as empty."""
+    if not column:
+        return ""
+    value = row.get(column, "")
+    return "" if pd.isna(value) else str(value).strip()
+
+
+def _duplicate_site_rows(rows, include_column, facility_id_column) -> Dict[int, List[int]]:
+    """{row position: every position sharing its End User Id}, for ids listed more than once.
+
+    Groups are built over *every* row carrying an id, not only the included ones, because the
+    damaging case is a site listed twice with disagreeing Include values: `create_fielplan_facilities`
+    walks the sheet in order, so one row links the site while the other unlinks it and deletes
+    its facility activities. Only groups the PM actually asked to include are reported, though --
+    two untouched Include=No rows are redundant, not dangerous, and are not worth blocking an
+    upload over.
+    """
+    positions_by_id: Dict[str, List[int]] = {}
+    for i, row in enumerate(rows):
+        site_id = _cell(row, facility_id_column)
+        # Blank ids would otherwise all pair with each other; they get their own message from
+        # project_facility_validation.
+        if site_id:
+            positions_by_id.setdefault(site_id, []).append(i)
+
+    duplicates: Dict[int, List[int]] = {}
+    for positions in positions_by_id.values():
+        if len(positions) < 2:
+            continue
+        # Same test as the row loop's, character for character: if these two disagreed about
+        # what "included" means, a row could be flagged here and skipped there, or the reverse.
+        if not any(_cell(rows[p], include_column).lower() == "yes" for p in positions):
+            continue
+        for position in positions:
+            duplicates[position] = positions
+    return duplicates
+
+
+def duplicated_site_ids(df) -> List[str]:
+    """End User Ids listed on more than one row, where at least one of those rows says Yes.
+
+    The same rule `validate_installation_scope_solutions` applies per row, in the form the create
+    endpoint needs: it has no per-row error column, so it reports the ids and refuses the file.
+    """
+    include_column = _find_header(df, "Include in Installation Plan")
+    facility_id_column = find_site_id_column(df)
+    if not include_column or not facility_id_column:
+        return []
+    rows = df.to_dict("records")
+    duplicates = _duplicate_site_rows(rows, include_column, facility_id_column)
+    return sorted({_cell(rows[i], facility_id_column) for i in duplicates})
+
+
+def validate_installation_scope_solutions(
+    df,
+    solutions: List[Dict[str, Any]],
+    sunshine_hours_by_state: Dict[str, float],
+    add_err,
+    sector_by_facility_id: Optional[Dict[str, str]] = None,
+    allowed_sectors: Optional[Set[str]] = None,
+    state_by_facility_id: Optional[Dict[str, str]] = None,
+    lock_map: Optional[Dict[str, Any]] = None,
+    solution_name_by_code: Optional[Dict[str, str]] = None,
+    completed_site_ids: Optional[Set[str]] = None,
+    plan_is_published: bool = False,
+    allowed_site_ids: Optional[Set[str]] = None,
+    project_site_ids: Optional[Set[str]] = None,
+) -> List[int]:
+    """Installation-scope rules for the Include/Solution pair.
+
+    A site is assigned exactly one Solution: an included site must name it, an excluded one
+    must leave it blank, and the value has to be one this site is actually eligible for --
+    recomputed here rather than trusting the uploaded workbook.
+
+    sector_by_facility_id supplies each site's own sector (facility_type) rather than the
+    sheet's Sector column, which the Project Manager could otherwise edit. A plan may span
+    several Sectors, so the sector is per site, not per plan. allowed_sectors, when given, is
+    the plan's declared Sector set: a site outside it is not in this plan's scope at all, and
+    is rejected before its Solution is even considered.
+
+    state_by_facility_id keys eligibility off each site's boundary_code rather than the
+    sheet's State cell, which is editable once the sheet is unprotected. Both sides resolve
+    the state the same way -- a facility record has no state of its own, since address.state
+    has no column behind it and is always null -- so the value checked here is the one the
+    dropdown was built from.
+
+    lock_map (facility_id -> SiteLock) freezes rows that another plan has claimed, or that this
+    plan has already published. A row held by a sibling plan is display-only and skipped; one
+    held by this plan (which can only mean this plan is published -- its own unpublished scope
+    reservations are filtered out of the map) must come back unchanged. Excel protection alone
+    can't guarantee that -- the sheet can be unprotected -- so it is re-checked here.
+
+    allowed_site_ids, when given, is the set of sites the scope download would have offered
+    this plan -- in the project and inside its geography. A row naming anything else was typed
+    or pasted in, and is rejected before its Solution is considered. project_site_ids narrows
+    the diagnosis only: it separates "not in this project at all" from "in the project but
+    outside this plan's geography", which are different mistakes with different fixes. Pass
+    allowed_site_ids=None to disable the check entirely (no plan context, or a published plan,
+    where every row is already refused on other grounds).
+
+    A site listed on more than one row is rejected on every one of them, whenever any of those
+    rows asks to include it. Such a pair is not merely redundant: the create endpoint walks the
+    rows in order, so a Yes/No pair both links and unlinks the site, and unlinking hard-deletes
+    its facility activities.
+
+    Returns the 0-based positions of rows this plan may actually link.
+    """
+    include_column = _find_header(df, "Include in Installation Plan")
+    solution_column = _find_header(df, "Solution")
+    if not include_column or not solution_column:
+        return []
+
+    sector_column = _find_header(df, "Sector")
+    state_column = _find_header(df, "State")
+    facility_id_column = find_site_id_column(df)
+    site_name_column = _find_header(df, "End User Name")
+    lock_map = lock_map or {}
+    solution_name_by_code = solution_name_by_code or {}
+    completed_site_ids = completed_site_ids or set()
+
+    rows = df.to_dict("records")
+    duplicate_rows = _duplicate_site_rows(rows, include_column, facility_id_column)
+
+    linkable_rows: List[int] = []
+    for i, row in enumerate(rows):
+        include_value = _cell(row, include_column).lower()
+        solution_value = _cell(row, solution_column)
+        facility_id = _cell(row, facility_id_column)
+
+        # Checked ahead of the lock rules: a sheet listing one site twice is malformed whatever
+        # else is true of that site, and the lock branch below returns early either way.
+        if i in duplicate_rows:
+            other_rows = [other for other in duplicate_rows[i] if other != i]
+            # +2, not +1: the header occupies Excel row 1 and the data starts at row 2.
+            others = ", ".join(str(other + 2) for other in other_rows)
+            label = "row" if len(other_rows) == 1 else "rows"
+            add_err(
+                i,
+                f"End User Id '{facility_id}' appears more than once in this sheet "
+                f"(also on Excel {label} {others}). List each end user site once.",
+            )
+            continue
+
+        lock = lock_map.get(facility_id) if facility_id else None
+        if lock is not None:
+            if lock.is_this_plan:
+                # Held by this plan, which can only mean this plan is published -- its own
+                # unpublished scope reservations are excluded from the lock map so that it can
+                # keep editing them. Excel protection stops honest edits, but the sheet can be
+                # unprotected, so the values are re-checked here.
+                #
+                # The two edits a PM might make are not equally destructive, so they are judged
+                # separately. Re-pointing a published site at a different Solution is never
+                # allowed: vendors were dispatched against the one already chosen. Withdrawing
+                # the site is allowed while nothing has been installed yet -- plans do legitimately
+                # shrink -- and refused once any of its assets has been signed off, because that
+                # would strand approved work.
+                expected = solution_name_by_code.get(lock.solution_id, "")
+                site_label = _cell(row, site_name_column) or facility_id
+                if include_value != "yes":
+                    if facility_id in completed_site_ids:
+                        add_err(
+                            i,
+                            f"The installation for {site_label} has already been completed and "
+                            f"approved, so it can no longer be removed from this installation plan.",
+                        )
+                elif expected and solution_value != expected:
+                    add_err(
+                        i,
+                        f"This installation plan has already been submitted, so {site_label} "
+                        f"cannot be given a different Solution. It stays on {expected}.",
+                    )
+            elif include_value == "yes":
+                # Held by a sibling plan and the PM has asked to include it anyway. This is the
+                # double-booking FR-06 exists to stop -- two vendors dispatched to one end user
+                # -- so it is a hard error rather than a silently skipped row. The download
+                # hands these back as Include=No, so reaching here means the cell was changed.
+                add_err(i, site_bar_message(lock))
+            # Either way the row is never linked to this plan.
+            continue
+
+        if include_value != "yes":
+            if solution_value:
+                site_label = _cell(row, site_name_column) or facility_id
+                add_err(
+                    i,
+                    f"{site_label} has a Solution but 'Include in Installation Plan' is not Yes. "
+                    f"Set it to Yes to include the site, or clear the Solution.",
+                )
+            continue
+
+        if plan_is_published:
+            # No lock on this row means the site is in no plan at all, so it is a brand-new
+            # addition. A published plan has already dispatched its work; growing its scope
+            # here would create a site with no vendor and no activity behind it, which nothing
+            # downstream would flag. New sites belong in a new plan.
+            site_label = _cell(row, site_name_column) or facility_id
+            add_err(
+                i,
+                f"This installation plan has already been submitted, so {site_label} can no "
+                f"longer be added to it. Create a new installation plan for it instead.",
+            )
+            continue
+
+        # Every row above this point was offered by the download or refused on stronger grounds.
+        # A row that reaches here naming a site the download would never have listed was typed
+        # or pasted in. Without this the row is still rejected -- a site outside the plan's
+        # geography has no entry in the workbook's BoundaryCodes sheet, so its state resolves to
+        # "" and the eligibility check below finds no Solution valid -- but the PM is told the
+        # Solution is wrong when the site is.
+        # A blank id is a different mistake and already has its own message from
+        # project_facility_validation; saying it is "not one of this project's sites" on top of
+        # that would point the PM at the wrong fix.
+        if allowed_site_ids is not None and facility_id and facility_id not in allowed_site_ids:
+            site_label = _cell(row, site_name_column) or facility_id
+            if project_site_ids is not None and facility_id in project_site_ids:
+                add_err(
+                    i,
+                    f"{site_label} is outside the geography this installation plan covers, so "
+                    f"it cannot be included in it.",
+                )
+            else:
+                add_err(
+                    i,
+                    f"{site_label} is not one of this project's end user sites, so it cannot be "
+                    f"added to this installation plan.",
+                )
+            continue
+
+        if sector_by_facility_id:
+            # Only fall back to the sheet's Sector cell when the lookup produced nothing at all
+            # (its documented degraded mode). A populated map that simply has no entry for this
+            # id means the site did not resolve, and trusting the cell there would hand a
+            # hand-added row the sector it typed for itself.
+            row_sector = sector_by_facility_id.get(facility_id, "")
+        else:
+            row_sector = _cell(row, sector_column)
+        if state_by_facility_id is not None:
+            state_value = state_by_facility_id.get(facility_id, "")
+        else:
+            state_value = _cell(row, state_column)
+
+        # The download only ever offers sites in the plan's Sectors, so a row outside them was
+        # pasted or hand-added. Caught here explicitly: otherwise such a row could still pass by
+        # naming a Solution that is valid for its own sector.
+        if allowed_sectors and str(row_sector).strip().casefold() not in allowed_sectors:
+            add_err(
+                i,
+                f"This site's sector '{row_sector or ''}' is not one of the sectors this "
+                "installation plan covers, so it cannot be included in it.",
+            )
+            continue
+
+        # Checked after the sector so the Solution messages can name what the site may take: a
+        # blank cell and a wrong one have the same fix, pick from the dropdown -- unless there is
+        # nothing to pick, which needs a different fix altogether.
+        allowed = eligible_solution_names(solutions, row_sector, state_value, sunshine_hours_by_state)
+        site_label = _cell(row, site_name_column) or facility_id
+        if not allowed:
+            add_err(
+                i,
+                f"No Solution is available for {site_label} (sector '{row_sector or ''}', state "
+                f"'{state_value}'), so it cannot be included in this installation plan. Set "
+                f"'Include in Installation Plan' to No for this site.",
+            )
+            continue
+        if not solution_value:
+            add_err(
+                i,
+                f"Select a Solution for {site_label}. It is marked Yes in 'Include in "
+                f"Installation Plan', so it needs one. Choose from: {', '.join(sorted(allowed))}.",
+            )
+            continue
+        if solution_value not in allowed:
+            add_err(
+                i,
+                f"'{solution_value}' is not a Solution available for {site_label} (sector "
+                f"'{row_sector or ''}', state '{state_value}'). Choose from: "
+                f"{', '.join(sorted(allowed))}.",
+            )
+            continue
+
+        linkable_rows.append(i)
+
+    return linkable_rows
 
 
 def facility_validation(
@@ -151,6 +517,7 @@ def facility_validation(
     validate_columns(new_rows, schema, lambda i, m: add_err(new_rows.loc[i, "index"], m))
     validate_unique_ids(df, schema, add_err)
     validate_row_constraints(new_rows, schema, lambda i, m: add_err(new_rows.loc[i, "index"], m))
+    validate_poc_username_not_taken(new_rows, lambda i, m: add_err(new_rows.loc[i, "index"], m), facility_client)
 
     return errors
 
@@ -162,8 +529,11 @@ def validate_boundary_codes(df, allowed_boundary_codes, add_err):
     Validates that 'Boundary Code' column in df only contains values
     from allowed_boundary_codes set. Only validates rows in df passed here.
     """
+    boundary_column = "Boundary Code (Mandatory)"
+    if boundary_column not in df.columns:
+        return
 
-    for i, val in enumerate(df["Boundary Code (Mandatory)"]):
+    for i, val in enumerate(df[boundary_column]):
         if pd.isna(val) or str(val).strip() == "":
             add_err(i, "Boundary Code is mandatory")
             continue
@@ -171,6 +541,56 @@ def validate_boundary_codes(df, allowed_boundary_codes, add_err):
         str_val = str(val).strip()
         if str_val not in allowed_boundary_codes:
             add_err(i, f"Boundary Code '{str_val}' is invalid (not in boundary data)")
+
+
+def validate_state_district_block_boundary(df, allowed_boundary_codes, localization_service_url, add_err):
+    """
+    Resolves each row's State/District/Block to a boundary code (via the localization
+    reverse map) and validates it is one of the project's allowed boundary codes.
+    Used by schemas (e.g. data-ingestion.FacilityIngestionSchema) that replaced the single
+    'Boundary Code' column with State/District/Block columns.
+    """
+    # Deferred imports to avoid a circular import with app.utils.convertor, which itself
+    # imports format_col_name from this module.
+    from app.core.tenant import LOCALIZATION_MODULE
+    from app.utils.convertor import build_localization_reverse_map, resolve_boundary_code
+
+    reverse_map: Dict[str, List[str]] = {}
+    if localization_service_url:
+        try:
+            from app.utils.localization_service_client import LocalizationServiceClient
+            loc_client = LocalizationServiceClient(localization_service_url)
+            loc_response = loc_client.search_messages(
+                tenant_id=LIVELIHOOD_TENANT_ID,
+                locale="en_IN",
+                module=LOCALIZATION_MODULE,
+            )
+            reverse_map = build_localization_reverse_map(loc_response.get("messages", []))
+        except Exception:
+            reverse_map = {}
+
+    for i, row in df.iterrows():
+        state_val = str(row.get("State", "") or "").strip()
+        district_val = str(row.get("District", "") or "").strip()
+        block_val = str(row.get("Block", "") or "").strip()
+
+        if not (state_val or district_val or block_val):
+            add_err(i, "State/District/Block is required")
+            continue
+
+        if not reverse_map:
+            add_err(i, "Unable to validate location: localization service unavailable")
+            continue
+
+        boundary_code, error = resolve_boundary_code(state_val, district_val, block_val, reverse_map)
+        if error:
+            add_err(i, error)
+        elif boundary_code not in allowed_boundary_codes:
+            add_err(
+                i,
+                f"Location (State '{state_val}', District '{district_val}', Block '{block_val}') "
+                f"is not within this project's boundaries",
+            )
 
 
 def validate_columns(df, schema, add_err):
@@ -330,6 +750,40 @@ def validate_row_constraints(df, schema, add_err):
                 filled_count = sum(bool(v) for v in values)
                 if 0 < filled_count < len(values):
                     add_err(idx, rc.message)
+
+
+def validate_poc_username_not_taken(df, add_err, facility_client):
+    """Flags rows whose End user Username already belongs to an end user in the registry.
+
+    Without this the clash is only caught by FacilityService at create time - after validation
+    has reported the sheet clean and after earlier rows have already been created, which is the
+    partial upload PRD 8.4 forbids.
+    """
+    header = _find_header(df, "End user Username")
+    if not header:
+        return
+
+    checked: Dict[str, bool] = {}
+    for idx, row in df.iterrows():
+        raw = row.get(header, "")
+        username = str(raw).strip() if pd.notna(raw) else ""
+        if not username:
+            continue  # a missing username is the required-field check's business, not this one
+
+        if username not in checked:
+            try:
+                result = facility_client.search_facility(
+                    tenant_id=LIVELIHOOD_TENANT_ID,
+                    facility_poc_username=username,
+                )
+                checked[username] = (result.get("totalCount", 0) > 0)
+            except Exception as e:
+                # Flag rather than pass: an unchecked row would still fail at create.
+                add_err(idx, f"Could not check whether username '{username}' is already taken: {e}")
+                continue
+
+        if checked[username]:
+            add_err(idx, f"End user Username '{username}' already exists in the system")
 
 
 def validate_hfr_nin(df, add_err, facility_client):

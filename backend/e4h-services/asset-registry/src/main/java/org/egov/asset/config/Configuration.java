@@ -61,6 +61,15 @@ public class Configuration {
     @Value("${egov.facility.search.path}")
     private String facilitySearchPath;
 
+    @Value("${egov.vendor.host}")
+    private String vendorHost;
+
+    @Value("${egov.vendor.org.search.path}")
+    private String vendorOrgSearchPath;
+
+    @Value("${egov.vendor.org.user.search.path}")
+    private String vendorOrgUserSearchPath;
+
     //Activity Facility config
     @Value("${egov.activity.facility.host}")
     private String activityFacilityHost;
@@ -82,6 +91,12 @@ public class Configuration {
 
     @Value("${egov.hrms.search.endpoint}")
     private String hrmsEndPoint;
+
+    @Value("${egov.hrms.update.endpoint:/egov-hrms/employees/_update}")
+    private String hrmsUpdateEndPoint;
+
+    @Value("${egov.boundary.hierarchy.type:SELCO}")
+    private String boundaryHierarchyType;
 
 
     //URLShortening
@@ -115,4 +130,13 @@ public class Configuration {
 
     @Value("${egov.localization.tenant.id:livelihood}")
     private String localizationTenantId;
+
+    @Value("${egov.organisation.host}")
+    private String organisationHost;
+
+    @Value("${egov.organisation.search.path:/vendor/organisation/v1/_search}")
+    private String organisationSearchPath;
+
+    @Value("${egov.organisation.user.search.path:/vendor/organisation/v1/user/_search}")
+    private String organisationUserSearchPath;
 }

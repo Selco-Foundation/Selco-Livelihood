@@ -30,6 +30,8 @@ def format_facility_data_for_template(
     facility_schema: List[Dict[str, Any]],
     headers: List[str],
     type: str = None,
+    boundary_list: Optional[List[Boundary]] = None,
+    boundary_localization_map: Optional[Dict[str, str]] = None,
 ) -> List[Dict[str, Any]]:
     """
     Converts raw facility data into rows, aligned with `headers`
@@ -47,22 +49,36 @@ def format_facility_data_for_template(
             "code_to_name": code_to_name,
         })
 
+    boundary_list = boundary_list or []
+    boundary_localization_map = boundary_localization_map or {}
+
     formatted_rows: List[Dict[str, Any]] = []
     if type and type == "project":
         for facility in facility_data:
+            facility_boundary_code = facility.get("boundary_code") or facility.get("boundaryCode") or ""
+            state_name, district_name, block_name = resolve_boundary_names_for_code(
+                facility_boundary_code, boundary_list, boundary_localization_map
+            )
             row = {}
             for c in compiled_cols:
-                val = get_nested_value(facility, c["path"])
-                if c["code_to_name"] and isinstance(val, str):
-                    val = c["code_to_name"].get(val, val)
+                if c["path"] == "state":
+                    val = state_name
+                elif c["path"] == "district":
+                    val = district_name
+                elif c["path"] == "block":
+                    val = block_name
+                else:
+                    val = get_nested_value(facility, c["path"])
+                    if c["code_to_name"] and isinstance(val, str):
+                        val = c["code_to_name"].get(val, val)
 
-                if c["type"] in ("enum-yes-no", "boolean"):
-                    if isinstance(val, bool):
-                        val = "Yes" if val else "No"
-                    elif isinstance(val, str):
-                        val = "Yes" if val.strip().lower() in ("true", "yes", "1") else "No"
-                    else:
-                        val = ""
+                    if c["type"] in ("enum-yes-no", "boolean"):
+                        if isinstance(val, bool):
+                            val = "Yes" if val else "No"
+                        elif isinstance(val, str):
+                            val = "Yes" if val.strip().lower() in ("true", "yes", "1") else "No"
+                        else:
+                            val = ""
                 row[c["header"]] = val
 
             # Add "Include in Project" column value (find the actual column name)
@@ -84,25 +100,36 @@ def format_facility_data_for_template(
 
     elif type == "fieldplan":
         for facility in facility_data:
+            facility_boundary_code = facility.get("boundary_code") or facility.get("boundaryCode") or ""
+            state_name, district_name, block_name = resolve_boundary_names_for_code(
+                facility_boundary_code, boundary_list, boundary_localization_map
+            )
             row = {}
             for c in compiled_cols:
-                val = get_nested_value(facility, c["path"])
-                if c["code_to_name"] and isinstance(val, str):
-                    val = c["code_to_name"].get(val, val)
+                if c["path"] == "state":
+                    val = state_name
+                elif c["path"] == "district":
+                    val = district_name
+                elif c["path"] == "block":
+                    val = block_name
+                else:
+                    val = get_nested_value(facility, c["path"])
+                    if c["code_to_name"] and isinstance(val, str):
+                        val = c["code_to_name"].get(val, val)
 
-                if c["type"] in ("enum-yes-no", "boolean"):
-                    if isinstance(val, bool):
-                        val = "Yes" if val else "No"
-                    elif isinstance(val, str):
-                        val = "Yes" if val.strip().lower() in ("true", "yes", "1") else "No"
-                    else:
-                        val = ""
+                    if c["type"] in ("enum-yes-no", "boolean"):
+                        if isinstance(val, bool):
+                            val = "Yes" if val else "No"
+                        elif isinstance(val, str):
+                            val = "Yes" if val.strip().lower() in ("true", "yes", "1") else "No"
+                        else:
+                            val = ""
                 row[c["header"]] = val
 
             # Add "Include in Project" column value (find the actual column name)
             include_column_name = None
             for header in headers:
-                if "Included in Field Plan" in header:
+                if "Include in Installation Plan" in header:
                     include_column_name = header
                     break
 
@@ -248,8 +275,23 @@ def convert_json_to_object(json_str: str) -> Optional[IngestionSchemaResponse]:
 
 def convert_json_to_boundary(json_str: str) -> List[Boundary]:
     data = json.loads(json_str)
-    locations = [Boundary(**item) for item in data]
-    return locations
+    # /getAllBoundaries returns each level's own full hierarchical code (not its display
+    # name) in country/state/district/block, so those double as the *_code fields that
+    # the BOUNDARY_<code> localization lookup requires.
+    return [
+        Boundary(
+            country=item.get("country") or "",
+            state=item.get("state") or "",
+            district=item.get("district") or "",
+            block=item.get("block") or "",
+            code=item.get("code") or "",
+            country_code=item.get("country") or "",
+            state_code=item.get("state") or "",
+            district_code=item.get("district") or "",
+            block_code=item.get("block") or "",
+        )
+        for item in data
+    ]
 
 
 def create_vendor_request(request_info: RequestInfo, vendor: Vendor):
@@ -500,10 +542,18 @@ def safe_get(row, key, default=None):
     return default if pd.isna(val) else val
 
 
+def read_yes_no(row, key: str, default: bool) -> bool:
+    """Read an enum-yes-no cell. Blank falls back to `default`; the validator rejects anything
+    that is neither Yes nor No, so unrecognised text here is treated as No rather than guessed."""
+    val = safe_get(row, key)
+    if val is None or str(val).strip() == "":
+        return default
+    return str(val).strip().lower() in ("yes", "true", "1")
+
+
 def create_facility_payload(
         request_info: RequestInfo,
         row: Series,
-        are_facilities_onm_ready: bool,
         facility_schema: List[Dict[str, Any]],
 ):
     facility_category_name = safe_get(row, 'Category (Mandatory)')
@@ -512,14 +562,6 @@ def create_facility_payload(
     # "Sectors" is the renamed "Type of HC" -> maps to the existing facility_type field.
     sector_name = safe_get(row, 'Sectors (Mandatory)')
     facility_type_code = get_mdms_code_by_name(facility_schema, 'Sectors', sector_name)
-
-    # Solution Design Type (non-mandatory) -> facility_details.solar_solution_design_type
-    # Optional mdms field: only resolve a code when a value is actually provided.
-    solution_design_name = safe_get(row, 'Solution Design Type')
-    if solution_design_name is not None and str(solution_design_name).strip().lower() not in ('', 'nan', 'none'):
-        solution_design_code = get_mdms_code_by_name(facility_schema, 'Solution Design Type', solution_design_name)
-    else:
-        solution_design_code = None
 
     # Livelihood: the single "End user Name" is used both as the end-user contact name
     # and as the facility name (no separate facility-name column in the template).
@@ -540,18 +582,32 @@ def create_facility_payload(
     # MIS ID (optional, free-text): external end-user identifier, carried through as-is.
     mis_id = safe_get(row, 'MIS ID')
 
+    # End User Type (mandatory): the template offers the MDMS display names
+    # ("Individual" / "Group"); the facility column stores the code.
+    end_user_type_name = safe_get(row, 'End User Type (Mandatory)')
+    end_user_type_code = get_mdms_code_by_name(facility_schema, 'End User Type', end_user_type_name)
+
+    # Is Operational -> facility.is_active. PRD 8.3: defaults to Yes.
+    is_operational = read_yes_no(row, 'Is Operational', default=True)
+
+    # Is O&M Ready is mandatory, so a blank should not occur; fall back to No if one does.
+    # This drives POC user creation in facility-service, not just display.
+    is_onm_ready = read_yes_no(row, 'Is O&M Ready (Mandatory)', default=False)
+
+    # Blank password means the system generates one (first 4 letters of the name + '@' +
+    # first 4 digits of the phone). Never stored on the facility - passed to the user service.
+    end_user_password = safe_get(row, 'End User Password')
+    end_user_password = str(end_user_password).strip() if end_user_password is not None else None
+
     facility_record = {
         'tenant_id': LIVELIHOOD_TENANT_ID,
         'facility_name': end_user_name,
         'facility_category': facility_category_code,
         'facility_type': facility_type_code,
-        'facility_details': {
-            'solar_solution_design_type': solution_design_code,
-            'pocDesignation': safe_get(row, 'End user Designation'),
-        },
+        'facility_details': {},
         'facility_ownership': safe_get(row, 'Ownership', 'GOVERNMENT'),
         'facility_region': safe_get(row, 'Region', 'RURAL'),
-        'isActive': True,
+        'isActive': is_operational,
         'blockBoundaryCode': safe_get(row, 'Boundary Code (Mandatory)'),
         'address': {
             'tenantId': LIVELIHOOD_TENANT_ID,
@@ -566,7 +622,9 @@ def create_facility_payload(
         'facility_poc_phone': safe_get(row, 'End user Contact number (Mandatory)'),
         'facility_poc_email': safe_get(row, 'End user Email'),
         'facility_status': 'ACTIVE',
-        'isOnmReady': True,
+        'isOnmReady': is_onm_ready,
+        'endUserType': end_user_type_code,
+        'endUserPassword': end_user_password or None,
         'additionalDetails': {'preferredLanguage': preferred_language_code, 'misId': mis_id},
     }
     if poc_username_hdr:
@@ -579,7 +637,7 @@ def create_facility_payload(
 
 
 HAVE_SOLAR_COLUMN = "Have Solar"
-SOLAR_ASSET_TYPE_ID = "SOLAR PANEL"
+SOLAR_ASSET_TYPE_ID = "SOLAR"
 SOLAR_ASSET_NAME = "Solar"
 SOLAR_SERIAL_SUFFIX = "SOLAR"
 
@@ -677,11 +735,6 @@ def create_asset_payloads(
     }
     # Drop empty optional fields so they aren't sent as blanks.
     asset = {k: v for k, v in asset.items() if not (v is None or (isinstance(v, str) and v.strip() == ""))}
-    # asset-registry persists name inside assetDetails (the asset table has no name column;
-    # AssetRowMapper reads assetDetails.name, else falls back to assetTypeID). Store it there too.
-    name_val = val("name")
-    if name_val is not None and str(name_val).strip() != "":
-        asset["assetDetails"] = {"name": str(name_val).strip()}
     # asset-registry dereferences documents without a null-check -> always send an empty list.
     asset["documents"] = []
 
@@ -699,7 +752,7 @@ def create_asset_payloads(
             "tenantId": asset["tenantId"],
             "vendorId": asset["vendorId"],
             "assetTypeID": SOLAR_ASSET_TYPE_ID,
-            "assetDetails": {"name": SOLAR_ASSET_NAME},
+            "name": SOLAR_ASSET_NAME,
             "isOperational": True,
             "isActive": True,
             "documents": [],
@@ -1020,6 +1073,146 @@ def build_localization_reverse_map(messages: List[Dict[str, Any]]) -> Dict[str, 
                 reverse_map[key] = []
             reverse_map[key].append(code)
     return reverse_map
+
+
+LOCALIZATION_LOOKUP_BATCH = 500
+
+
+def build_boundary_localization_map(
+    boundary_list: List[Boundary],
+    localization_service_url: str,
+) -> Dict[str, str]:
+    """
+    Fetches localized display names for every country/state/district/block boundary code
+    appearing in boundary_list. Localization messages are keyed by the full hierarchical
+    boundary code (e.g. 'BOUNDARY_INDIA_ASSAM_BAKSA'), not by the leaf name alone, so this
+    must use each level's own boundary code (country_code/state_code/district_code/block_code)
+    rather than its display name.
+    """
+    all_raw_codes = set()
+    for boundary in boundary_list:
+        for field in ("country_code", "state_code", "district_code", "block_code"):
+            val = boundary.get(field, "")
+            if val:
+                all_raw_codes.add(val)
+        # The Installation Scope download's block slot holds each site's own facility-level code,
+        # so the real block code is never in boundary_list and would go unfetched. Adding the
+        # derived one costs nothing elsewhere: for a genuine block code the same derivation just
+        # yields its district, which is already in the set.
+        block_code = boundary.get("block_code", "")
+        if block_code:
+            all_raw_codes.add(block_boundary_code(block_code, block_code))
+
+    loc_codes = sorted(f"BOUNDARY_{code}" for code in all_raw_codes)
+
+    localization_map: Dict[str, str] = {}
+    if localization_service_url and loc_codes:
+        from app.utils.localization_service_client import LocalizationServiceClient
+        loc_client = LocalizationServiceClient(localization_service_url)
+        # Batched: a template over the whole country carries ~10k codes, too many for one
+        # request body. A failed batch only leaves its own names unlocalized.
+        for start in range(0, len(loc_codes), LOCALIZATION_LOOKUP_BATCH):
+            batch = loc_codes[start:start + LOCALIZATION_LOOKUP_BATCH]
+            try:
+                loc_response = loc_client.search_messages(
+                    tenant_id=LIVELIHOOD_TENANT_ID,
+                    locale="en_IN",
+                    module=LOCALIZATION_MODULE,
+                    codes=batch,
+                )
+                for m in loc_response.get("messages", []):
+                    code = (m.get("code") or "").strip()
+                    message = m.get("message", "")
+                    if code and message:
+                        localization_map[code] = message
+            except Exception as e:
+                logger.error(f"Error fetching boundary localizations: {e}", exc_info=True)
+
+    return localization_map
+
+
+def localize_boundary_name(raw_code: str, localization_map: Dict[str, str]) -> str:
+    """Resolves a raw boundary code (e.g. state/district/block name) to its localized display name."""
+    if not raw_code:
+        return ""
+    loc_key = f"BOUNDARY_{raw_code}"
+    return localization_map.get(loc_key, loc_key)
+
+
+def block_boundary_code(block_code: str, facility_boundary_code: str) -> str:
+    """The genuine block code, given whatever the request payload put in the block slot.
+
+    The Installation Scope download sends each site's FULL facility-level code
+    ({blockCode}_{facilityId}) as a `type: "block"` node -- deliberately, because the bulk facility
+    search matches boundary_code with an exact IN (...), so plain block codes return no facilities.
+    That leaves the block slot holding a facility, and facility-service registers a localization
+    message for every facility boundary whose text is the *site's own name* -- which is how the
+    Block column came to show "Anjali Bora".
+
+    Recognised by the block slot being the facility's own code rather than a prefix of it, and
+    undone the way FacilityService builds it (FacilityService.java:200, blockBoundaryCode + "_" +
+    facilityId). Facility ids carry slashes, never underscores, so the last "_" is the seam. The
+    project template sends real block codes, where the block is a proper prefix of the facility's
+    and this returns it untouched.
+    """
+    if block_code and block_code == facility_boundary_code:
+        return block_code.rsplit("_", 1)[0]
+    return block_code
+
+
+def resolve_boundary_names_for_code(
+    facility_boundary_code: str,
+    boundary_list: List[Boundary],
+    boundary_localization_map: Dict[str, str],
+) -> tuple:
+    """
+    Given a facility's boundary_code (the block-level boundary code, optionally suffixed
+    with a facility-specific code, e.g. "INDIA_ASSAM_UDALGURI_UDALGURI_ED/2026/0097"),
+    finds the matching block-level Boundary and returns its localized (state, district, block)
+    names. Returns ("", "", "") if no match is found.
+    """
+    if not facility_boundary_code:
+        return "", "", ""
+    for boundary in boundary_list:
+        code = boundary.get("code", "")
+        if not code:
+            continue
+        if facility_boundary_code == code or facility_boundary_code.startswith(code + "_"):
+            return (
+                localize_boundary_name(boundary.get("state_code", ""), boundary_localization_map),
+                localize_boundary_name(boundary.get("district_code", ""), boundary_localization_map),
+                localize_boundary_name(
+                    block_boundary_code(boundary.get("block_code", ""), facility_boundary_code),
+                    boundary_localization_map),
+            )
+    return "", "", ""
+
+
+def state_names_by_facility_id(
+    facility_data: List[Dict[str, Any]],
+    boundary_list: List[Boundary],
+    boundary_localization_map: Dict[str, str],
+) -> Dict[str, str]:
+    """facility_id -> the state name, resolved exactly as the sheet's State column is.
+
+    A facility record carries no state of its own. FacilityAddress declares state/district/
+    block, but facility_address has no such columns and nothing in the read path fills them,
+    so address.state is always null -- the state lives only in boundary_code. Resolving it
+    here through the same helper the State column uses keeps the Solution dropdown and the
+    upload validation keyed off one identical value; deriving them separately is what made
+    the dropdown come back empty.
+    """
+    states: Dict[str, str] = {}
+    for facility in facility_data:
+        facility_id = facility.get("facility_id") or facility.get("facilityId")
+        if not facility_id:
+            continue
+        boundary_code = facility.get("boundary_code") or facility.get("boundaryCode") or ""
+        state_name, _, _ = resolve_boundary_names_for_code(
+            boundary_code, boundary_list, boundary_localization_map
+        )
+        states[facility_id] = state_name
+    return states
 
 
 def resolve_boundary_code(

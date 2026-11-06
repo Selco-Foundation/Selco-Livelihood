@@ -58,7 +58,7 @@ function TimelineCaption({
       {reasonText ? (
         <div>
           <p className="font-medium text-foreground">{reasonLabel}</p>
-          <p>{reasonText}</p>
+          <p className="wrap-anywhere">{reasonText}</p>
         </div>
       ) : null}
 
@@ -110,9 +110,10 @@ export function ComplaintTimelineSection({
     >
       <ol className="space-y-0">
         {timeline.map((checkpoint, index) => {
-          // `timeline[0]` is the most recent process instance (see
-          // fetchWorkflowDetails's `currentInstance = processInstances[0]`), so the
-          // latest action is the FIRST entry here, not the last one rendered.
+          // `timeline[0]` is the most recent process instance (the workflow
+          // process search returns newest-first, and useComplaintDetails's
+          // workflowQuery keeps that order), so the latest action is the
+          // FIRST entry here, not the last one rendered.
           const isLatest = index === 0;
           const isLastRendered = index === timeline.length - 1;
           const action = checkpoint.performedAction ?? "UNKNOWN";

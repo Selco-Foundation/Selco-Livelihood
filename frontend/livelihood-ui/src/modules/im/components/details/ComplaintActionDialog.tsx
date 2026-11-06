@@ -1,5 +1,5 @@
 import { translateOr, useAuthStore, useTranslate } from "@/shared";
-import { Button } from "@/ui";
+import { Button, SearchableSelect } from "@/ui";
 import { useMutation } from "@tanstack/react-query";
 import { Files, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -27,7 +27,6 @@ import {
   MAX_QUOTATION_SIZE_MB,
   validateQuotationFiles,
 } from "../../utils/media-validation";
-import { FormSelectField } from "../create/FormSelectField";
 
 interface ComplaintActionDialogProps {
   action: string;
@@ -428,7 +427,7 @@ export function ComplaintActionDialog({
 
         <div className="mt-4 space-y-4">
           {actionConfig.reasonMaster ? (
-            <FormSelectField
+            <SearchableSelect
               label={reasonLabel}
               required
               value={selectedReason?.code ?? ""}
@@ -452,7 +451,7 @@ export function ComplaintActionDialog({
           ) : null}
 
           {actionConfig.requiresVendorAssignee ? (
-            <FormSelectField
+            <SearchableSelect
               label={translateOr(t, "WF_ASSIGN_VENDOR_LABEL", "Assign to vendor")}
               required
               value={selectedVendor?.code ?? ""}
@@ -493,7 +492,7 @@ export function ComplaintActionDialog({
             />
           ) : null}
 
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          {error ? <p className="text-sm text-destructive wrap-anywhere">{error}</p> : null}
 
           {outOfWarrantyHelperText ? (
             <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
@@ -503,12 +502,12 @@ export function ComplaintActionDialog({
         </div>
 
         <div className="mt-6 flex justify-center gap-3">
-          <Button type="button" variant="outline" size="lg" onClick={onClose}>
+          <Button type="button" variant="outline" size="sm" onClick={onClose}>
             {translateOr(t, "TL_COMMON_CANCEL", "Cancel")}
           </Button>
           <Button
             type="button"
-            size="lg"
+            size="sm"
             disabled={mutation.isPending || isUploading}
             onClick={() => {
               setError(null);

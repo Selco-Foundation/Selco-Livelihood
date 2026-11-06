@@ -247,15 +247,6 @@ components:
         minLength: 10
         maxLength: 10
         example: "1234567891"
-      solar_solution_design_type:
-        type: string
-        description: Master data code of the installation type. Based on this type, solution design will be selected
-        examples: 
-          - SC - without labour room + Refrigerator & without cold chain point
-          - SC + Staff Quarters - only lights & fans;
-      required:
-        - solar_solution_design_type
-          
     FacilityAssessment:
       type: object
       properties:
