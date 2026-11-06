@@ -16,10 +16,16 @@ import {
 import { WizardActionFooter } from "../../components/WizardActionFooter";
 import { useSaveProject, useValidateJustificationCode } from "../../hooks/use-create-project";
 import { pmKeys } from "../../hooks/query-keys";
+import { useBoundaryTree } from "../../hooks/use-boundary-tree";
 import { useProjectById } from "../../hooks/use-project-by-id";
 import type { CreateProjectRouteSearch } from "../../routes";
 import { scheduleProject } from "../../services/project";
 import type { GeographyDetails, Project } from "../../types/project";
+import {
+  clearCreateProjectDraft,
+  readCreateProjectDraft,
+  writeCreateProjectDraft,
+} from "../../utils/create-project-draft";
 import { pmMyProjectsPath, pmProjectDetailsPath } from "../../utils/paths";
 import { isDraftStatus } from "../../utils/status-label";
 import { tenantId } from "@/shared/config/global-config";
@@ -54,6 +60,10 @@ export function CreateProjectPage() {
   // it's the one step that's unreachable before then (guarded below).
   const isEditingExisting = Boolean(projectId);
 
+  // Warms the boundary tree (a large response) while the PM is still on step 1, so the geography
+  // step's dropdowns are usable as soon as it opens. Same query key as the step's own read.
+  useBoundaryTree();
+
   const { data: existingProject } = useProjectById(projectId);
   // A submitted project is reopened only to edit its geography: there is nothing left to submit,
   // so the wizard ends by returning to the project instead of scheduling it again.
@@ -70,10 +80,13 @@ export function CreateProjectPage() {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: pmKeys.projects() }),
   });
 
-  const [projectDetails, setProjectDetails] = useState<ProjectDetailsValue>({
-    justificationCode: "",
-  });
-  const [geographyDetails, setGeographyDetails] = useState<GeographyDetails>({});
+  // A new project that was being filled in before a reload comes back from sessionStorage. An
+  // existing project is read from the backend instead (the effect below), so it never uses this.
+  const [initialDraft] = useState(() => (projectId ? undefined : readCreateProjectDraft()));
+  const [projectDetails, setProjectDetails] = useState<ProjectDetailsValue>(
+    initialDraft?.projectDetails ?? { justificationCode: "" },
+  );
+  const [geographyDetails, setGeographyDetails] = useState<GeographyDetails>(initialDraft?.geographyDetails ?? {});
   // Snapshot of whatever geography is actually persisted on the backend — diverges from
   // `geographyDetails` the moment the PM edits it on step 2, and is only realigned once
   // `persistGeography()` actually succeeds. Used to block jumping to step 3 via the stepper nav
@@ -101,6 +114,19 @@ export function CreateProjectPage() {
     setGeographyDetails(savedGeography);
     setSavedGeographyDetails(savedGeography);
   }, [existingProject]);
+
+  // Mirror the not-yet-saved wizard values so a reload resumes them. Once the project exists the
+  // backend is the source of truth, so the draft is dropped. It is also dropped when the wizard
+  // unmounts: a reload doesn't run React cleanup (the draft survives it), but leaving the page
+  // in-app does, so a stale draft never greets the next "Create Project".
+  useEffect(() => {
+    if (projectId) {
+      clearCreateProjectDraft();
+      return;
+    }
+    writeCreateProjectDraft({ projectDetails, geographyDetails });
+  }, [projectId, projectDetails, geographyDetails]);
+  useEffect(() => clearCreateProjectDraft, []);
 
   // Step 3 has no meaning before the project exists — bounce back to
   // geography details if it's reached any other way (e.g. a stale/typed URL).

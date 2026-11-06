@@ -114,4 +114,65 @@ describe("fetchBoundaryRelations", () => {
       facilities: undefined,
     });
   });
+
+  it("keeps the first parentCode for a boundary repeated under several parents, and the same code under two types as two boundaries", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({
+      data: {
+        TenantBoundary: [
+          {
+            boundary: [
+              {
+                code: "S1",
+                boundaryType: "State",
+                children: [{ code: "D1", boundaryType: "District", children: [{ code: "B1", boundaryType: "Block" }] }],
+              },
+              {
+                code: "S2",
+                boundaryType: "State",
+                children: [
+                  // D1 again, under a different parent (includeParents repeats subtrees)
+                  { code: "D1", boundaryType: "District", children: [{ code: "B2", boundaryType: "Block" }] },
+                  { code: "X", boundaryType: "District" },
+                  { code: "X", boundaryType: "Block" },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const result = await fetchBoundaryRelations(["S1"], "token-1");
+
+    expect(result.districts).toEqual([
+      { code: "D1", parentCode: "S1" },
+      { code: "X", parentCode: "S2" },
+    ]);
+    // B2 sits under the repeated D1, so its children are still collected.
+    expect(result.blocks).toEqual([
+      { code: "B1", parentCode: "D1" },
+      { code: "B2", parentCode: "D1" },
+      { code: "X", parentCode: "S2" },
+    ]);
+  });
+
+  it("flattens a heavily repeated tree quickly (regression: quadratic dedupe froze the UI for ~2.5s)", async () => {
+    // 40 states x 250 blocks, every state repeated 20 times -> 200k nodes, 10k distinct.
+    const state = (s: number) => ({
+      code: `S${s}`,
+      boundaryType: "State",
+      children: Array.from({ length: 250 }, (_, b) => ({ code: `S${s}B${b}`, boundaryType: "Block" })),
+    });
+    const boundary = Array.from({ length: 20 }, () => Array.from({ length: 40 }, (_, s) => state(s))).flat();
+    vi.mocked(apiClient.post).mockResolvedValue({ data: { TenantBoundary: [{ boundary }] } });
+
+    const started = performance.now();
+    const result = await fetchBoundaryRelations([], "token-1");
+    const elapsed = performance.now() - started;
+
+    expect(result.states).toHaveLength(40);
+    expect(result.blocks).toHaveLength(10_000);
+    // The old implementation took seconds on this shape; the linear one takes tens of ms.
+    expect(elapsed).toBeLessThan(1000);
+  });
 });
