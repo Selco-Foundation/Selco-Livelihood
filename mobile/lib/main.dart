@@ -17,6 +17,7 @@ import 'blocs/auth/authbloc.dart';
 import 'blocs/localization/app_localization.dart';
 import 'blocs/localization/app_localization_delegate.dart';
 import 'blocs/localization/localization.dart';
+import 'blocs/user_type/user_type.dart';
 import 'data/api_interceptors.dart';
 import 'data/app_shared_preferences.dart';
 import 'data/nosql/localization.dart';
@@ -64,6 +65,7 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
   late final AppRouter _router = widget.router ?? AppRouter();
   late final AuthBloc _authBloc;
   late final LocationBloc _locationBloc;
+  final UserTypeBloc _userTypeBloc = UserTypeBloc();
 
   @override
   void initState() {
@@ -90,6 +92,7 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
   void dispose() {
     _authBloc.close();
     _locationBloc.close();
+    _userTypeBloc.close();
     super.dispose();
   }
 
@@ -108,6 +111,7 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
         providers: [
           BlocProvider<AuthBloc>.value(value: _authBloc),
           BlocProvider<LocationBloc>.value(value: _locationBloc),
+          BlocProvider<UserTypeBloc>.value(value: _userTypeBloc),
         ],
         child: BlocProvider<ActivityFacilityCountsBloc>(
           create: (_) => ActivityFacilityCountsBloc(),
@@ -123,6 +127,7 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
       providers: [
         BlocProvider<AuthBloc>.value(value: _authBloc),
         BlocProvider<LocationBloc>.value(value: _locationBloc),
+        BlocProvider<UserTypeBloc>.value(value: _userTypeBloc),
       ],
       child: BlocProvider<ActivityFacilityCountsBloc>(
         create: (_) => ActivityFacilityCountsBloc(),

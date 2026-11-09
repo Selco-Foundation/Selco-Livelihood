@@ -2,9 +2,15 @@ import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../data/nosql/cache_activity_facility_workflow.dart';
+import '../data/nosql/cache_amc_doc.dart';
+import '../data/nosql/cache_amc_failed_scheduled_visit.dart';
+import '../data/nosql/cache_amc_media_upload.dart';
 import '../data/nosql/cache_asset_count.dart';
 import '../data/nosql/cache_installation_data.dart';
 import '../data/nosql/cache_pending_submission.dart';
+import '../data/nosql/cache_prefilled_scheduled_visit.dart';
+import '../data/nosql/cache_schedule_visit_form_values.dart';
+import '../data/nosql/cache_scheduled_visit.dart';
 import '../data/nosql/cache_submission_job.dart';
 import '../data/nosql/localization.dart';
 
@@ -36,6 +42,13 @@ class Constants {
           CacheSubmissionJobSchema,
           CachePendingSubmissionSchema,
           CacheAssetCountSchema,
+          // AMC (ported from E4H)
+          CacheScheduledVisitSchema,
+          CacheAmcDocSchema,
+          CacheScheduleVisitFormValuesSchema,
+          CacheAmcMediaUploadSchema,
+          CachePrefilledScheduledVisitSchema,
+          CacheAmcFailedScheduledVisitSchema,
         ],
         name: 'Livelihood',
         inspector: true,

@@ -8,11 +8,15 @@ class FooterButton extends StatelessWidget {
     required this.text,
     required this.onPressed,
     this.isDisabled = false,
+    this.showSuffixIcon = true,
   });
 
   final String text;
   final VoidCallback onPressed;
   final bool isDisabled;
+
+  /// E4H's AMC screens use this footer without the trailing arrow.
+  final bool showSuffixIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +25,7 @@ class FooterButton extends StatelessWidget {
       children: [
         DigitButton(
           key: const ValueKey('proceed-button'),
-          suffixIcon: Icons.arrow_forward_outlined,
+          suffixIcon: showSuffixIcon ? Icons.arrow_forward_outlined : null,
           mainAxisSize: MainAxisSize.max,
           label: text,
           type: DigitButtonType.primary,
