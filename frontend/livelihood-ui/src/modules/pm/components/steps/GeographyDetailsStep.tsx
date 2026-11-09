@@ -67,7 +67,7 @@ export function GeographyDetailsStep({
             options={states.options}
             selected={states.selectedCodes}
             onChange={states.onChange}
-            disabled={isLoading || isLocksLoading}
+            loading={isLoading || isLocksLoading}
             locked={locked}
             hideChips
           />
@@ -76,7 +76,8 @@ export function GeographyDetailsStep({
             options={districts.options}
             selected={districts.selectedCodes}
             onChange={districts.onChange}
-            disabled={isLoading || isLocksLoading || states.selectedCodes.length === 0}
+            loading={isLoading || isLocksLoading}
+            disabled={states.selectedCodes.length === 0}
             locked={locked}
             hideChips
           />
@@ -86,7 +87,8 @@ export function GeographyDetailsStep({
             options={blocks.options}
             selected={blocks.selectedCodes}
             onChange={blocks.onChange}
-            disabled={isLoading || isLocksLoading || districts.selectedCodes.length === 0}
+            loading={isLoading || isLocksLoading}
+            disabled={districts.selectedCodes.length === 0}
             locked={locked}
             hideChips
           />

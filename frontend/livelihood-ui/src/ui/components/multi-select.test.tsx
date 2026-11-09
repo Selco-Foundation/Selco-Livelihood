@@ -213,6 +213,22 @@ describe("MultiSelect", () => {
     expect(screen.getByRole("button", { name: /District/ })).toBeDisabled();
   });
 
+  it("while loading, disables the trigger and shows the progress cursor instead of not-allowed", () => {
+    renderMultiSelect({ loading: true });
+    const trigger = screen.getByRole("button", { name: /District/ });
+    expect(trigger).toBeDisabled();
+    expect(trigger).toHaveAttribute("aria-busy", "true");
+    expect(trigger).toHaveClass("disabled:cursor-progress");
+    expect(trigger).not.toHaveClass("disabled:cursor-not-allowed");
+  });
+
+  it("a plain disabled trigger keeps the not-allowed cursor and is not marked busy", () => {
+    renderMultiSelect({ disabled: true });
+    const trigger = screen.getByRole("button", { name: /District/ });
+    expect(trigger).toHaveClass("disabled:cursor-not-allowed");
+    expect(trigger).not.toHaveAttribute("aria-busy");
+  });
+
   it("renders the error message when provided", () => {
     renderMultiSelect({ error: "Select at least one district" });
     expect(screen.getByText("Select at least one district")).toBeInTheDocument();
