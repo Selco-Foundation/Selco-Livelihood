@@ -28,6 +28,7 @@ class Common {
   String get home => 'COMMON_HOME';
   String get next => 'COMMON_NEXT';
   String get submit => 'COMMON_SUBMIT';
+  String get selectAvailableOption => 'COMMON_SELECT_AVAILABLE_OPTION';
   String get optional => 'COMMON_OPTIONAL';
   String get name => 'COMMON_NAME';
   String get type => 'COMMON_TYPE';
@@ -249,6 +250,7 @@ class InstallationReport {
       'INSTALLATION_REPORT_INSTALLATION_COMPLETION_REPORT';
   String get completionInstructions =>
       'INSTALLATION_REPORT_COMPLETION_INSTRUCTIONS';
+  String get sectionSaveFailed => 'INSTALLATION_REPORT_SECTION_SAVE_FAILED';
   String get systemParameters => 'INSTALLATION_REPORT_SYSTEM_PARAMETERS';
   String get bomSolarSystem => 'INSTALLATION_REPORT_BOM_SOLAR_SYSTEM';
   String get bomRms => 'INSTALLATION_REPORT_BOM_RMS';

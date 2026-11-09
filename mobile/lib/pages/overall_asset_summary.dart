@@ -1,5 +1,8 @@
 import '../repositories/associated_machine_bom_repository.dart';
 import 'dart:async';
+import 'package:digit_forms_engine/models/schema_object/schema_object.dart';
+import '../utils/dropdown_validation.dart';
+import '../utils/dynamic_form_schema.dart';
 import 'dart:io';
 
 import 'package:digit_ui_components/digit_components.dart';
@@ -198,6 +201,21 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
     return name.replaceFirst('AssetForm.', '').replaceAll('_', ' ');
   }
 
+  List<String> _invalidDropdowns(SolarInstallationDraft draft) => [
+        for (final name in draft.bomFormNames)
+          if (!_isAssociatedMachinesForm(name) &&
+              assetMdmsRepository.rawBomSchemaFor(name) != null)
+            ...invalidDropdownLabels(
+              SchemaObject.fromJson(transformBomMdmsRecordToSchema(
+                      assetMdmsRepository.rawBomSchemaFor(name)!))
+                  .pages,
+              {...draft.mergedBom, ...?draft.dynamicFormAnswers[name]},
+            ),
+      ];
+
+  bool _canSubmit(SolarInstallationDraft draft) =>
+      draft.canSubmit && _invalidDropdowns(draft).isEmpty;
+
   Map<String, List<String>> _missingRequirements(
     SolarInstallationDraft draft,
   ) {
@@ -207,6 +225,10 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
       if (!fields.contains(field)) fields.add(field);
     }
 
+    for (final label in _invalidDropdowns(draft)) {
+      add(context.translate(i18.installationReport.systemParameters),
+          '${context.translate(label)}: ${context.translate(i18.common.selectAvailableOption)}');
+    }
     for (final type in draft.applicableTypes) {
       final asset = draft.assets[type]!;
       final count = draft.countFor(type);
@@ -215,7 +237,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
         add(label, context.translate(i18.common.count));
         continue;
       }
-      if (asset.warrantyDuration.trim().isEmpty) {
+      if (!draft.warrantiesFor(type).contains(asset.warrantyDuration)) {
         add(label, context.translate(i18.assetFlow.warrantyDuration));
       }
       if (asset.selectedBrandCode?.trim().isNotEmpty != true) {
@@ -377,7 +399,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
     final draft = widget.draft;
     _refreshDocumentLocations();
     if (!_otpVerified ||
-        !draft.canSubmit ||
+        !_canSubmit(draft) ||
         !draft.allDocumentsMetadataComplete) {
       return;
     }
@@ -527,7 +549,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
               submitLabel: draft.mode == SolarWorkflowMode.resubmission
                   ? context.translate(i18.installationReport.resubmit)
                   : context.translate(i18.common.submit),
-              canSubmit: draft.canSubmit,
+              canSubmit: _canSubmit(draft),
               otpVerified: _otpVerified,
               onSaveDraft: _saveDraft,
               onSubmit: _submit,
@@ -626,6 +648,15 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                       child: Text(
                           'Required BOM form configuration is unavailable. Refresh master data to continue.'),
                     ),
+                  if (!draft.isReadOnly)
+                    for (final label in _invalidDropdowns(draft))
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: spacer2),
+                        child: Text(
+                          '${context.translate(label)}: ${context.translate(i18.common.selectAvailableOption)}',
+                          style: TextStyle(color: theme.colorTheme.alert.error),
+                        ),
+                      ),
                   for (final formName in _formNames) ...[
                     _CompletionButton(
                       key: ValueKey('solar-dynamic-${formName.toLowerCase()}'),
@@ -712,7 +743,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                 OtpVerificationWidget(
                   key: const ValueKey('solar-otp-widget'),
                   keyPrefix: 'solar',
-                  isEnabled: draft.canSubmit,
+                  isEnabled: _canSubmit(draft),
                   activityFacilityId: draft.workflow.activityFacility.id ?? '',
                   initiallyRequested: _otpRequested,
                   initiallyVerified: _otpVerified,
@@ -1133,9 +1164,9 @@ class _InstallationImagesPageState extends State<InstallationImagesPage> {
                   SolarInstallationDraft.installationImagesSection);
             } catch (_) {
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content:
-                      Text('Unable to save section. Please try Submit again.'),
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(context
+                      .translate(i18.installationReport.sectionSaveFailed)),
                 ));
               }
               return;

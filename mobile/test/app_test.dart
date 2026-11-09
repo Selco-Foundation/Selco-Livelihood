@@ -285,6 +285,7 @@ SolarInstallationDraft _filledSolarDraft(SolarWorkflowMode mode) {
     ];
   for (final type in SolarAssetType.values) {
     draft.setCount(type, 1);
+    draft.warrantyOptions[type] = ['5 Years'];
     final asset = draft.assets[type]!;
     asset
       ..warrantyDuration = '5 Years'
