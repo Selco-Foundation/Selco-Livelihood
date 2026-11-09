@@ -18,6 +18,7 @@ import '../utils/dynamic_form_schema.dart';
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
 import '../widgets/report_navigation_header.dart';
+import '../widgets/system_recording_time_field.dart';
 
 @RoutePage()
 class DynamicBomFormPage extends StatefulWidget {
@@ -376,7 +377,21 @@ class _DynamicBomFormPageState extends State<DynamicBomFormPage> {
                       currentSchemaKey: _schemaKey,
                       propertySchema: page,
                       pageName: _pageName,
-                      childrens: const [],
+                      childrens: [
+                        for (final entry in page.properties?.entries ??
+                            const <MapEntry<String, PropertySchema>>[])
+                          if (entry.key == 'system_time_of_recording' &&
+                              entry.value.format == PropertySchemaFormat.custom)
+                            {
+                              entry.key: SystemRecordingTimeField(
+                                formControlName: entry.key,
+                                label:
+                                    context.translate(entry.value.label ?? ''),
+                                readOnly: widget.readOnly ||
+                                    entry.value.readOnly == true,
+                              ),
+                            },
+                      ],
                       defaultValues: _defaultsFor(page),
                       isView: widget.readOnly,
                     ),

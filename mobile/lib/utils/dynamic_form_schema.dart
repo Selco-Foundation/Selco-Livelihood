@@ -27,6 +27,9 @@ Map<String, dynamic> transformBomMdmsRecordToSchema(
         ...property,
         'fieldName': fieldName,
         'type': property['type'] ?? 'string',
+        if (name.toLowerCase().endsWith('_system') &&
+            fieldName == 'system_time_of_recording')
+          'format': 'custom',
       };
     }
 
