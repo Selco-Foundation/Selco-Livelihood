@@ -228,50 +228,71 @@ class InstallationDraftRepository {
         .firstOrNull;
   }
 
-  Future<void> saveSolar(SolarInstallationDraft draft) async {
+  Future<void> submitSection(
+      SolarInstallationDraft draft, String section) async {
+    if (draft.isReadOnly) return;
+    final key = section.trim().toLowerCase();
+    await saveSolar(draft,
+        requirePersistence: true,
+        submittedSections: {...draft.submittedSections, key});
+    draft.submittedSections.add(key);
+  }
+
+  Future<void> saveSolar(SolarInstallationDraft draft,
+      {bool requirePersistence = false, Set<String>? submittedSections}) async {
     draft.syncCountsToBom();
     final key = draft.cacheKey;
-    await installationCacheRepository.putJson('solar-draft', key, {
-      'systemCode': draft.systemCode,
-      'solarAssetId': draft.solarAssetId,
-      'invoiceNumber': draft.invoiceNumber,
-      'counts': {
-        for (final entry in draft.counts.entries) entry.key.name: entry.value,
-      },
-      'assets': {
-        for (final entry in draft.assets.entries)
-          entry.key.name: {
-            'system': entry.value.system,
-            'totalCapacity': entry.value.totalCapacity,
-            'capacityUnit': entry.value.capacityUnit,
-            'warrantyDuration': entry.value.warrantyDuration,
-            'selectedBrandCode': entry.value.selectedBrandCode,
-            'entries': entry.value.assets
-                .map((asset) => {
-                      if (asset.assetId != null) 'assetId': asset.assetId,
-                      if (asset.itemCode != null) 'itemCode': asset.itemCode,
-                      'serialNumber': asset.serialNumber,
-                      'capacity': asset.capacity,
-                      if (entry.key == SolarAssetType.battery)
-                        'batteryType': asset.batteryType,
-                      'fields': asset.fields,
-                      if (asset.supportingPhoto != null)
-                        'supportingPhoto': asset.supportingPhoto!.toJson(),
-                    })
-                .toList(),
-            'images': entry.value.images.map((file) => file.toJson()).toList(),
-            'videos': entry.value.videos.map((file) => file.toJson()).toList(),
+    await installationCacheRepository.putJson(
+        'solar-draft',
+        key,
+        {
+          'submittedSections':
+              (submittedSections ?? draft.submittedSections).toList(),
+          'systemCode': draft.systemCode,
+          'solarAssetId': draft.solarAssetId,
+          'invoiceNumber': draft.invoiceNumber,
+          'counts': {
+            for (final entry in draft.counts.entries)
+              entry.key.name: entry.value,
           },
-      },
-      'dynamicFormAnswers': draft.dynamicFormAnswers,
-      'mergedBom': draft.mergedBom,
-      'completionReportFiles':
-          draft.completionReportFiles.map((file) => file.toJson()).toList(),
-      'installationMedia': {
-        for (final entry in draft.installationMedia.entries)
-          entry.key: entry.value.map((file) => file.toJson()).toList(),
-      },
-    });
+          'assets': {
+            for (final entry in draft.assets.entries)
+              entry.key.name: {
+                'system': entry.value.system,
+                'totalCapacity': entry.value.totalCapacity,
+                'capacityUnit': entry.value.capacityUnit,
+                'warrantyDuration': entry.value.warrantyDuration,
+                'selectedBrandCode': entry.value.selectedBrandCode,
+                'entries': entry.value.assets
+                    .map((asset) => {
+                          if (asset.assetId != null) 'assetId': asset.assetId,
+                          if (asset.itemCode != null)
+                            'itemCode': asset.itemCode,
+                          'serialNumber': asset.serialNumber,
+                          'capacity': asset.capacity,
+                          if (entry.key == SolarAssetType.battery)
+                            'batteryType': asset.batteryType,
+                          'fields': asset.fields,
+                          if (asset.supportingPhoto != null)
+                            'supportingPhoto': asset.supportingPhoto!.toJson(),
+                        })
+                    .toList(),
+                'images':
+                    entry.value.images.map((file) => file.toJson()).toList(),
+                'videos':
+                    entry.value.videos.map((file) => file.toJson()).toList(),
+              },
+          },
+          'dynamicFormAnswers': draft.dynamicFormAnswers,
+          'mergedBom': draft.mergedBom,
+          'completionReportFiles':
+              draft.completionReportFiles.map((file) => file.toJson()).toList(),
+          'installationMedia': {
+            for (final entry in draft.installationMedia.entries)
+              entry.key: entry.value.map((file) => file.toJson()).toList(),
+          },
+        },
+        requirePersistence: requirePersistence);
   }
 
   void saveSolarSoon(SolarInstallationDraft draft) {
@@ -517,6 +538,12 @@ class InstallationDraftRepository {
   }
 
   void _hydrateLocal(SolarInstallationDraft draft, Map<String, dynamic> json) {
+    final submitted = json['submittedSections'];
+    if (submitted is List) {
+      draft.submittedSections.addAll(submitted
+          .whereType<String>()
+          .map((section) => section.trim().toLowerCase()));
+    }
     draft.solarAssetId ??= json['solarAssetId']?.toString();
     final invoiceNumber = json['invoiceNumber']?.toString();
     if (invoiceNumber != null && invoiceNumber.isNotEmpty) {

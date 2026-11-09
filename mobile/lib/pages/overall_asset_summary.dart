@@ -165,6 +165,11 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
           context.translate(i18.common.view),
       };
 
+  String _sectionAction(String? section) =>
+      section != null && widget.draft.isSectionSubmitted(section)
+          ? context.translate(i18.common.view)
+          : _actionPrefix;
+
   List<String> get _formNames => widget.draft.bomFormNames;
 
   bool _isAssociatedMachinesForm(String name) =>
@@ -626,7 +631,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                       key: ValueKey('solar-dynamic-${formName.toLowerCase()}'),
                       label: _isAssociatedMachinesForm(formName)
                           ? 'View Associated Machines'
-                          : '$_actionPrefix ${_formLabel(formName)}',
+                          : '${_sectionAction(SolarInstallationDraft.trackedFormSection(formName))} ${_formLabel(formName)}',
                       onPressed: () => _openDynamicForm(formName),
                     ),
                     const SizedBox(height: spacer4),
@@ -634,7 +639,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                   _CompletionButton(
                     key: const ValueKey('solar-installation-images'),
                     label:
-                        '$_actionPrefix ${context.translate(i18.installationReport.installationImages)}',
+                        '${_sectionAction(SolarInstallationDraft.installationImagesSection)} ${context.translate(i18.installationReport.installationImages)}',
                     onPressed: _openInstallationImages,
                   ),
                   const SizedBox(height: spacer2),
@@ -1025,6 +1030,7 @@ class InstallationImagesPage extends StatefulWidget {
 }
 
 class _InstallationImagesPageState extends State<InstallationImagesPage> {
+  bool _isSubmitting = false;
   late final InstallationImagesBloc _bloc;
   String? _requestedSystemCode;
 
@@ -1117,9 +1123,27 @@ class _InstallationImagesPageState extends State<InstallationImagesPage> {
             : context.translate(i18.common.submit),
         isDisabled:
             !widget.readOnly && !widget.draft.installationImagesComplete,
-        onPressed: () {
-          installationDraftRepository.saveSolarSoon(widget.draft);
-          context.router.maybePop();
+        onPressed: () async {
+          if (_isSubmitting) return;
+          if (!widget.readOnly) {
+            if (!widget.draft.installationImagesComplete) return;
+            _isSubmitting = true;
+            try {
+              await installationDraftRepository.submitSection(widget.draft,
+                  SolarInstallationDraft.installationImagesSection);
+            } catch (_) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content:
+                      Text('Unable to save section. Please try Submit again.'),
+                ));
+              }
+              return;
+            } finally {
+              _isSubmitting = false;
+            }
+          }
+          if (context.mounted) context.router.maybePop();
         },
       ),
       child: Column(

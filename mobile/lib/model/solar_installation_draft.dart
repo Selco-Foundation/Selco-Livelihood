@@ -269,6 +269,19 @@ class SolarInstallationDraft {
   final List<SolarFileRef> completionReportFiles = [];
   List<InstallationImageRequirement> installationRequirements = const [];
   final Map<String, List<SolarFileRef>> installationMedia = {};
+  static const installationImagesSection = 'installation-images';
+  final Set<String> submittedSections = {};
+
+  static String? trackedFormSection(String name) {
+    final normalized = name.trim().toLowerCase();
+    return normalized.endsWith('_solar') || normalized.endsWith('_system')
+        ? normalized
+        : null;
+  }
+
+  bool isSectionSubmitted(String section) =>
+      submittedSections.contains(section.trim().toLowerCase());
+
   String? systemCode;
   String? solutionId;
   String? remoteBomId;

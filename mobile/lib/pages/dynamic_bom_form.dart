@@ -44,6 +44,7 @@ class _DynamicBomFormPageState extends State<DynamicBomFormPage> {
   String? _error;
   String? _resolvedPageName;
   bool _isPreparing = false;
+  bool _isSubmitting = false;
 
   String get _schemaKey => '${widget.draft.cacheKey}::${widget.schemaName}';
   String get _pageName => _resolvedPageName ?? widget.pageName;
@@ -223,6 +224,7 @@ class _DynamicBomFormPageState extends State<DynamicBomFormPage> {
   }
 
   Future<void> _continue(FormGroup form, PropertySchema page) async {
+    if (_isSubmitting) return;
     if (!widget.readOnly && !_validate(form, page)) return;
     final updated = _persist(form, page);
     final pageNames = updated.pages.keys.toList();
@@ -241,6 +243,24 @@ class _DynamicBomFormPageState extends State<DynamicBomFormPage> {
       if (cached != null) setState(() => _schema = cached);
       return;
     }
+    final section =
+        SolarInstallationDraft.trackedFormSection(widget.schemaName);
+    if (!widget.readOnly && section != null) {
+      _isSubmitting = true;
+      try {
+        await installationDraftRepository.submitSection(widget.draft, section);
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Unable to save section. Please try Submit again.'),
+          ));
+        }
+        return;
+      } finally {
+        _isSubmitting = false;
+      }
+    }
+    if (!mounted) return;
     context.router.popUntilRouteWithName(OverallAssetSummaryRoute.name);
   }
 
