@@ -30,11 +30,29 @@ class SubmittedSaveSuccessPage extends StatelessWidget {
               repeat: true,
               type: PanelType.success,
               title: context.translate(i18.machineForm.submittedSuccessfully),
-              description: context.translate(i18.machineForm.submittedDescription),
+              description:
+                  context.translate(i18.machineForm.submittedDescription),
               actions: [
                 DigitButton(
-                  label: context.translate(i18.common.home),
+                  key: const ValueKey('solar-success-new-reports-button'),
+                  label: context
+                      .translate(i18.installationReport.backToNewReports),
                   type: DigitButtonType.primary,
+                  size: DigitButtonSize.large,
+                  onPressed: () => context.router.root.replaceAll(
+                    const [
+                      AuthenticatedRouteWrapper(children: [
+                        HomeRoute(),
+                        InstallationReportHomeRoute(),
+                        NewReportFacilitiesRoute(),
+                      ])
+                    ],
+                  ),
+                ),
+                DigitButton(
+                  key: const ValueKey('solar-success-home-button'),
+                  label: context.translate(i18.common.home),
+                  type: DigitButtonType.secondary,
                   size: DigitButtonSize.large,
                   onPressed: () => context.router.root.replaceAll(
                     const [

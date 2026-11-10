@@ -251,6 +251,7 @@ class InstallationReport {
   String get completionInstructions =>
       'INSTALLATION_REPORT_COMPLETION_INSTRUCTIONS';
   String get sectionSaveFailed => 'INSTALLATION_REPORT_SECTION_SAVE_FAILED';
+  String get backToNewReports => 'INSTALLATION_REPORT_BACK_TO_NEW_REPORTS';
   String get systemParameters => 'INSTALLATION_REPORT_SYSTEM_PARAMETERS';
   String get bomSolarSystem => 'INSTALLATION_REPORT_BOM_SOLAR_SYSTEM';
   String get bomRms => 'INSTALLATION_REPORT_BOM_RMS';

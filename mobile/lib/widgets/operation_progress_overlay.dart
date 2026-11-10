@@ -92,6 +92,18 @@ class OperationProgressOverlay extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: spacer2),
+                if (isFailure &&
+                    progress.errorMessage?.trim().isNotEmpty == true) ...[
+                  Text(
+                    progress.errorMessage!.trim(),
+                    key: const ValueKey('operation-progress-error'),
+                    textAlign: TextAlign.center,
+                    style: textTheme.bodyS.copyWith(
+                      color: theme.colorTheme.alert.error,
+                    ),
+                  ),
+                  const SizedBox(height: spacer2),
+                ],
                 Text(
                   isFailure
                       ? context.translate(i18.syncLoading.progressSavedRetry)

@@ -77,8 +77,7 @@ OperationStage stageForKey(String stageKey) => submitStages.firstWhere(
     );
 
 /// Returns a safe, localized user-facing failure category for a submission
-/// checkpoint. The raw exception remains available in the cached job for
-/// diagnostics, but must never be rendered directly in the submission UI.
+/// checkpoint, alongside any backend error message available for the job.
 String failureMessageKeyForStage(String stageKey) => switch (stageKey) {
       'preparing_submission' ||
       'resolving_vendor_org' =>

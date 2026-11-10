@@ -55,11 +55,30 @@ class MachineReportSuccessPage extends StatelessWidget {
                   ? context.translate(i18.machineForm.dataSavedDescription)
                   : context.translate(i18.machineForm.submittedDescription),
               actions: [
+                if (!isDraft)
+                  DigitButton(
+                    key: const ValueKey('machine-success-new-reports-button'),
+                    label: context
+                        .translate(i18.installationReport.backToNewReports),
+                    type: DigitButtonType.primary,
+                    size: DigitButtonSize.large,
+                    onPressed: () => context.router.root.replaceAll(
+                      const [
+                        AuthenticatedRouteWrapper(children: [
+                          HomeRoute(),
+                          InstallationReportHomeRoute(),
+                          NewReportFacilitiesRoute(),
+                        ])
+                      ],
+                    ),
+                  ),
                 DigitButton(
                   key: const ValueKey('machine-success-home-button'),
                   label: context.translate(i18.common.home),
                   onPressed: () => _goHome(context),
-                  type: DigitButtonType.primary,
+                  type: isDraft
+                      ? DigitButtonType.primary
+                      : DigitButtonType.secondary,
                   size: DigitButtonSize.large,
                 ),
               ],

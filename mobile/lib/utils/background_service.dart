@@ -20,6 +20,7 @@ import '../repositories/pending_submission_repository.dart';
 import '../repositories/vendor_org_repository.dart';
 import 'envConfig.dart';
 import 'operation_progress.dart';
+import 'submission_error.dart';
 import 'submission_payload.dart';
 
 const String kMethodSubmit = 'submit';
@@ -197,7 +198,7 @@ void onStart(ServiceInstance service) async {
         completedSteps: current?.completedSteps ?? 0,
         totalSteps: submitStages.length,
         retryCount: (current?.retryCount ?? 0) + 1,
-        lastError: e.toString(),
+        lastError: submissionErrorMessage(e),
       );
       service.invoke(kEvtError, {
         'activityFacilityId': activityFacilityId,
