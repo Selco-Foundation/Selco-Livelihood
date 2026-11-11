@@ -21,4 +21,10 @@ abstract final class ApiPaths {
   static const otpValidate = 'activity/v1/activities/_validate-otp';
   static const otpResend = 'activity/v1/activities/_resend-otp';
   static const vendorOrgUserSearch = 'vendor/organisation/v1/user/_search';
+
+  // AMC (paths as used by E4H; served by `amc-scheduler-service`).
+  static const amcVisitSearch = 'asset-amc/v1/visit/_search';
+  static const amcVisitWorkflowUpdate = 'asset-amc/v1/visit/workflow/_update';
+  static const amcVisitResendOtp = 'asset-amc/v1/visit/_resend_otp';
+  static const mdmsV2Search = 'egov-mdms-service/v2/_search';
 }

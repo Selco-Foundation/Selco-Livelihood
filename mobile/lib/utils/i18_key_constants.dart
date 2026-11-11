@@ -11,6 +11,22 @@ const installationReport = InstallationReport();
 const scanner = Scanner();
 const syncLoading = SyncLoading();
 
+// AMC (ported from E4H). Key strings are E4H's exactly, so E4H's uploaded
+// localization messages apply unchanged.
+const amcCommon = AmcCommon();
+const amcHome = AmcHome();
+const amcReportHome = AmcReportHome();
+const amcSelectFacility = AmcSelectFacility();
+const amcDynamicForm = AmcDynamicForm();
+const amcOtp = AmcOtp();
+const amcDraft = AmcDraft();
+const amcInbox = AmcInbox();
+const amcMediaUpload = AmcMediaUpload();
+const amcBookmarks = AmcBookmarks();
+const inbox = Inbox();
+const sharedCards = SharedCards();
+const submitForApproval = SubmitForApproval();
+
 class Common {
   const Common();
 
@@ -305,4 +321,163 @@ class Scanner {
   String get enterManualCode => 'SCANNER_ENTER_MANUAL_CODE';
   String get uploadFromGallery => 'SCANNER_UPLOAD_FROM_GALLERY';
   String get scannerUnavailable => 'SCANNER_UNAVAILABLE';
+}
+
+/// E4H `Common` keys used by the AMC screens (E4H uses `CORE_COMMON_*`
+/// strings where this app's own [Common] uses `COMMON_*`).
+class AmcCommon {
+  const AmcCommon();
+
+  String get back => 'CORE_COMMON_BACK';
+  String get help => 'CORE_COMMON_HELP';
+  String get status => 'CORE_COMMON_STATUS';
+  String get state => 'CORE_COMMON_STATE';
+  String get district => 'CORE_COMMON_DISTRICT';
+  String get block => 'CORE_COMMON_BLOCK';
+  String get sort => 'CORE_COMMON_SORT';
+  String get sortBy => 'CORE_COMMON_SORT_BY';
+  String get clear => 'CORE_COMMON_CLEAR';
+  String get newestFirst => 'CORE_COMMON_NEWEST_FIRST';
+  String get oldestFirst => 'CORE_COMMON_OLDEST_FIRST';
+  String get retry => 'CORE_COMMON_RETRY';
+  String get loading => 'CORE_COMMON_LOADING';
+  String get loadingAppData => 'CORE_COMMON_LOADING_APP_DATA';
+  String get loadingSchema => 'CORE_COMMON_LOADING_SCHEMA';
+  String get formSchemaMissing => 'CORE_COMMON_FORM_SCHEMA_MISSING';
+  String get isRequired => 'CORE_COMMON_IS_REQUIRED';
+  String get hasInvalidFormat => 'CORE_COMMON_HAS_INVALID_FORMAT';
+  String get mustBeNumber => 'CORE_COMMON_MUST_BE_NUMBER';
+  String get belowMinimum => 'CORE_COMMON_BELOW_MINIMUM';
+  String get aboveMaximum => 'CORE_COMMON_ABOVE_MAXIMUM';
+  String get pleaseCorrect => 'CORE_COMMON_PLEASE_CORRECT';
+  String get coreCommonNext => 'CORE_COMMON_NEXT';
+  String get coreCommonSubmit => 'CORE_COMMON_SUBMIT';
+  String get backToHome => 'CORE_COMMON_BACK_TO_HOME';
+  String get images => 'CORE_COMMON_IMAGES';
+  String get couldNotFetchLocation => 'CORE_COMMON_COULD_NOT_FETCH_LOCATION';
+  String get noMatchingFacilitiesFound => 'COMMON_NO_MATCHING_FACILITIES_FOUND';
+  String get submissionDate => 'CORE_COMMON_SUBMISSION_DATE';
+  String get approvedDate => 'CORE_COMMON_APPROVED_DATE';
+  String get rejectedDate => 'CORE_COMMON_REJECTED_DATE';
+  String get somethingWentWrong => 'HOME_SOMETHING_WENT_WRONG';
+}
+
+class AmcHome {
+  const AmcHome();
+
+  String get formSchemaLoadFailed => 'AMC_HOME_FORM_SCHEMA_LOAD_FAILED';
+  String get amcReport => 'AMC_HOME_AMC_REPORT';
+  String get dataSync => 'AMC_HOME_DATA_SYNC';
+}
+
+class AmcReportHome {
+  const AmcReportHome();
+
+  String get installationReport => 'AMC_REPORT_HOME_INSTALLATION_REPORT';
+  String get newAmcReport => 'AMC_REPORT_HOME_NEW_AMC_REPORT';
+  String get newAmcReportDescription =>
+      'AMC_REPORT_HOME_NEW_AMC_REPORT_DESCRIPTION';
+  String get inboxDescription => 'AMC_REPORT_HOME_INBOX_DESCRIPTION';
+  String get pendingApprovalDescription =>
+      'AMC_REPORT_HOME_PENDING_APPROVAL_DESCRIPTION';
+}
+
+class AmcSelectFacility {
+  const AmcSelectFacility();
+
+  String get title => 'AMC_SELECT_FACILITY_TITLE';
+  String get noVisitsFound => 'AMC_SELECT_FACILITY_NO_VISITS_FOUND';
+  String get failedToLoadVisits => 'AMC_SELECT_FACILITY_FAILED_TO_LOAD_VISITS';
+  String get amcDate => 'AMC_SELECT_FACILITY_AMC_DATE';
+  String get amcNumber => 'AMC_NUMBER';
+  String get report => 'AMC_SELECT_FACILITY_REPORT';
+  String get submitForApproval => 'AMC_SELECT_FACILITY_SUBMIT_FOR_APPROVAL';
+}
+
+class AmcDynamicForm {
+  const AmcDynamicForm();
+
+  String get loading => 'AMC_DYNAMIC_FORM_LOADING';
+}
+
+class AmcOtp {
+  const AmcOtp();
+
+  String get resendSuccess => 'AMC_OTP_RESEND_SUCCESS';
+  String get verifySuccess => 'AMC_OTP_VERIFY_SUCCESS';
+  String get resending => 'AMC_OTP_RESENDING';
+  String get instruction => 'AMC_OTP_INSTRUCTION';
+  String get enterCode => 'AMC_OTP_ENTER_CODE';
+  String get resendCode => 'AMC_OTP_RESEND_CODE';
+  String get amcOtpReceiverInstruction1 => 'AMC_OTP_RECEIVER_INSTRUCTION_1';
+  String get amcOtpReceiverInstruction2 => 'AMC_OTP_RECEIVER_INSTRUCTION_2';
+  String get amcOtpMaskedPhone => 'AMC_OTP_MASKED_PHONE';
+  String get amcOtpNetworkWarning => 'AMC_OTP_NETWORK_WARNING';
+
+  /// E4H `login.otpPlaceholder`.
+  String get otpPlaceholder => 'OTP_PLACEHOLDER';
+}
+
+class AmcDraft {
+  const AmcDraft();
+
+  String get pendingOtpApproval => 'AMC_DRAFT_PENDING_OTP_APPROVAL';
+  String get pendingApproval => 'AMC_DRAFT_PENDING_APPROVAL';
+  String get noDraftsToDisplay => 'AMC_DRAFT_NO_DRAFTS_TO_DISPLAY';
+  String get amcDraftPendingCompletionApproval =>
+      'AMC_DRAFT_PENDING_COMPLETION_CODE_APPROVAL';
+}
+
+class AmcInbox {
+  const AmcInbox();
+
+  String get noVisitsToDisplay => 'AMC_INBOX_NO_VISITS_TO_DISPLAY';
+}
+
+class AmcMediaUpload {
+  const AmcMediaUpload();
+
+  String get selfieInstruction => 'AMC_MEDIA_UPLOAD_SELFIE_INSTRUCTION';
+  String get rejectionList => 'AMC_MEDIA_UPLOAD_REJECTION_LIST';
+  String get noRejectionReasonsFound =>
+      'AMC_MEDIA_UPLOAD_NO_REJECTION_REASONS_FOUND';
+}
+
+class AmcBookmarks {
+  const AmcBookmarks();
+
+  String get onlineRequired => 'AMC_BOOKMARKS_ONLINE_REQUIRED';
+  String get filter => 'AMC_BOOKMARKS_FILTER';
+  String get title => 'AMC_BOOKMARKS_TITLE';
+  String get description => 'AMC_BOOKMARKS_DESCRIPTION';
+  String get add => 'AMC_BOOKMARKS_ADD';
+  String get remove => 'AMC_BOOKMARKS_REMOVE';
+  String get empty => 'AMC_BOOKMARKS_EMPTY';
+  String get saveFailed => 'AMC_BOOKMARKS_SAVE_FAILED';
+  String get savedAt => 'AMC_BOOKMARKS_SAVED_AT';
+}
+
+class Inbox {
+  const Inbox();
+
+  String get rejected => 'INBOX_REJECTED';
+  String get approved => 'INBOX_APPROVED';
+  String get title => 'INBOX_TITLE';
+  String get searchHealthFacility => 'INBOX_SEARCH_HEALTH_FACILITY';
+}
+
+class SharedCards {
+  const SharedCards();
+
+  String get viewSummary => 'SHARED_CARDS_VIEW_SUMMARY';
+  String get submitForApproval => 'SHARED_CARDS_SUBMIT_FOR_APPROVAL';
+  String get viewReport => 'SHARED_CARDS_VIEW_REPORT';
+}
+
+class SubmitForApproval {
+  const SubmitForApproval();
+
+  String get view => 'SUBMIT_FOR_APPROVAL_VIEW';
+  String get rejectionReasons => 'SUBMIT_FOR_APPROVAL_REJECTION_REASONS';
+  String get reason => 'SUBMIT_FOR_APPROVAL_REASON';
 }

@@ -9,6 +9,7 @@ import '../blocs/auth/authbloc.dart';
 import '../router/app_router.dart';
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
+import '../utils/post_login_navigation.dart';
 import '../widgets/footer_button.dart';
 import '../widgets/livelihood_app_bar.dart';
 
@@ -17,17 +18,13 @@ class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
 
   void _proceed(BuildContext context) {
-    final isAuthenticated = context.read<AuthBloc>().state.maybeWhen(
-          authenticated: (_, __, ___) => true,
-          orElse: () => false,
+    final userRequest = context.read<AuthBloc>().state.maybeWhen(
+          authenticated: (_, __, userRequest) => userRequest,
+          orElse: () => null,
         );
 
-    if (isAuthenticated) {
-      context.router.root.replaceAll(
-        const [
-          AuthenticatedRouteWrapper(children: [HomeRoute()])
-        ],
-      );
+    if (userRequest != null) {
+      navigateAfterLogin(context, userRequest);
     } else {
       context.router.replace(const LoginRoute());
     }

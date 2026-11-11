@@ -33,6 +33,8 @@ import 'package:livelihood/model/mdms/asset_registry_response.dart';
 import 'package:livelihood/model/mdms/common_masters.dart';
 import 'package:livelihood/repositories/activity_facility_repo.dart';
 import 'package:livelihood/repositories/app_init_repo.dart';
+import 'package:livelihood/utils/role_login_resolver.dart'
+    show tempGrantAmcToFieldStaff;
 import 'package:livelihood/utils/workflow_status.dart';
 import 'package:livelihood/utils/i18_key_constants.dart' as i18;
 import 'package:livelihood/utils/operation_progress.dart';
@@ -445,6 +447,10 @@ const _machineMdms = AssetRegistryMdmsResponse(
 
 void main() {
   setUp(() {
+    // These tests cover the permanent role rules, not the temporary
+    // "field staff also get AMC" testing access.
+    tempGrantAmcToFieldStaff = false;
+    addTearDown(() => tempGrantAmcToFieldStaff = true);
     _secureStorageValues.clear();
     _secureStorageReadFailureKey = null;
     _secureStorageWriteFailureKey = null;
