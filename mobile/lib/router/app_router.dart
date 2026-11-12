@@ -15,6 +15,7 @@ import '../pages/amc/amc_otp.dart';
 import '../pages/amc/amc_rejection_reasons.dart';
 import '../pages/amc/amc_report_home.dart';
 import '../pages/amc/amc_select_facility.dart';
+import '../pages/amc/amc_system_status.dart';
 import '../pages/asset_flow_pages.dart';
 import '../pages/authenticated.dart';
 import '../pages/data_save_success.dart';
@@ -122,6 +123,8 @@ class AppRouter extends _$AppRouter {
             AutoRoute(
                 page: AmcSelectFacilityRoute.page,
                 path: Routes.amcSelectFacility),
+            AutoRoute(
+                page: AmcSystemStatusRoute.page, path: Routes.amcSystemStatus),
             AutoRoute(
                 page: AmcDynamicFormRoute.page, path: Routes.amcDynamicForm),
             AutoRoute(page: AmcOtpRoute.page, path: Routes.amcOtp),

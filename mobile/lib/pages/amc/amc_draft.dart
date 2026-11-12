@@ -108,12 +108,9 @@ class _AmcDraftPageState extends State<AmcDraftPage>
       context
           .read<SelectedAmcOriginBloc>()
           .add(SelectedAmcOriginEvent.select(origin));
-      await context.router.push(AmcDynamicFormRoute(
-          pageName: amcFormFirstPage,
-          uniqueIdentifier: amcFormSchemaKey,
-          schemaName: amcFormSchemaKey,
-          scheduledVisit: visit,
-          origin: origin));
+      // #247: status questions first, then the report form.
+      await context.router
+          .push(AmcSystemStatusRoute(scheduledVisit: visit, origin: origin));
     }
     if (mounted) {
       await _reloadBookmarks();

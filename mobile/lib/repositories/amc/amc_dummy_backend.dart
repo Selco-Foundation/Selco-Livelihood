@@ -183,6 +183,8 @@ class DummyAmcRemoteDataSource implements AmcRemoteDataSource {
             'submittedAt': now,
             if (report['responses'] != null) 'responses': report['responses'],
             if (report['documents'] != null) 'documents': report['documents'],
+            if (report['additionalDetails'] != null)
+              'additionalDetails': report['additionalDetails'],
           };
           break;
         case 'SUBMIT_OTP':
@@ -228,6 +230,32 @@ class DummyAmcRemoteDataSource implements AmcRemoteDataSource {
   Future<void> resendVisitOtp(String visitId) async {
     await Future<void>.delayed(latency);
     // The real service re-sends the SMS; here the code stays [dummyAmcOtp].
+  }
+
+  /// Records each call on the visit (`dummySystemStatusUpdates`) so tests
+  /// and testers can see what was sent. The real service emails the
+  /// Program POC (once per activity). The visit status does not change.
+  @override
+  Future<void> updateSystemStatus(Map<String, dynamic> body) async {
+    await Future<void>.delayed(latency);
+    await _lock.synchronized(() async {
+      final visits = await _readVisits();
+      final visitId = body['visitId']?.toString();
+      final index = visits.indexWhere((v) => v['id'] == visitId);
+      if (index < 0) {
+        _badRequest(ApiPaths.amcVisitSystemStatusUpdate, 'INVALID_VISIT',
+            'Scheduled visit not found');
+      }
+      final visit = visits[index];
+      visit['dummySystemStatusUpdates'] = [
+        ...?(visit['dummySystemStatusUpdates'] as List?),
+        {
+          ...body,
+          'receivedAt': DateTime.now().millisecondsSinceEpoch,
+        },
+      ];
+      await _writeVisits(visits);
+    });
   }
 
   @override
@@ -336,6 +364,14 @@ List<Map<String, dynamic>> dummySeedVisits() {
       'remarks': 'All components working normally.',
     },
     'documents': const [],
+    // Pre-report system status (#247), as the app submits it.
+    'additionalDetails': {
+      'systemStatus': {
+        'isSystemInUse': true,
+        'isSystemFunctional': true,
+        'nonFunctionalNotified': false,
+      },
+    },
   };
 
   return [

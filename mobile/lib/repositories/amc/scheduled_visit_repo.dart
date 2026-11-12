@@ -70,6 +70,7 @@ class ScheduledVisitRemoteRepository {
     String? status,
     Map<String, dynamic>? responses,
     List<AmcDocument>? visitDocuments,
+    Map<String, dynamic>? reportAdditionalDetails,
   }) async {
     try {
       final body = {
@@ -90,7 +91,8 @@ class ScheduledVisitRemoteRepository {
             'documents':
                 visitDocuments.map((d) => d.toJsonForWorkflow()).toList(),
           },
-          'additionalDetails': <String, dynamic>{},
+          // Pre-report system status (#247) goes here with the report.
+          'additionalDetails': reportAdditionalDetails ?? <String, dynamic>{},
         },
       };
 

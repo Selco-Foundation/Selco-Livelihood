@@ -16,6 +16,7 @@ import 'package:livelihood/pages/role_selection.dart';
 import 'package:livelihood/repositories/amc/amc_dummy_backend.dart';
 import 'package:livelihood/repositories/amc/amc_dummy_form_schema.dart';
 import 'package:livelihood/repositories/amc/amc_remote_data_source.dart';
+import 'package:livelihood/repositories/amc/amc_system_status_repo.dart';
 import 'package:livelihood/repositories/amc/scheduled_visit_repo.dart';
 import 'package:livelihood/repositories/auth_repo.dart';
 import 'package:livelihood/router/app_router.dart';
@@ -69,12 +70,32 @@ class _StubAuthRepository implements AuthRepository {
   Future<void> reportLogin(UserRequest user) async {}
 }
 
+/// In-memory stand-in for the Isar-backed system status store.
+class _MemorySystemStatusStore implements AmcSystemStatusLocalStore {
+  final Map<String, Map<String, dynamic>> values = {};
+
+  @override
+  Future<Map<String, dynamic>?> read(String visitId) async => values[visitId];
+
+  @override
+  Future<void> write(String visitId, Map<String, dynamic> value) async =>
+      values[visitId] = {...?values[visitId], ...value};
+}
+
 /// In-memory AMC backend for widget tests (no file IO, no delays).
 class _FakeAmcRemoteDataSource implements AmcRemoteDataSource {
   _FakeAmcRemoteDataSource({this.failSchema = false});
 
   final bool failSchema;
   final List<Map<String, dynamic>> workflowBodies = [];
+  final List<Map<String, dynamic>> systemStatusBodies = [];
+  bool failSystemStatus = false;
+
+  @override
+  Future<void> updateSystemStatus(Map<String, dynamic> body) async {
+    if (failSystemStatus) throw StateError('offline');
+    systemStatusBodies.add(body);
+  }
 
   @override
   Future<Map<String, dynamic>> searchVisits({
@@ -276,6 +297,177 @@ void main() {
       // 004-007 are past but not SCHEDULED.
       expect(ids, ['dummy-visit-008']);
       expect(res['TotalCount'], 1);
+    });
+  });
+
+  group('AMC pre-report system status', () {
+    late _MemorySystemStatusStore store;
+    late _FakeAmcRemoteDataSource remote;
+    late AmcSystemStatusRepository repo;
+    const visit = ScheduledVisit(id: 'v1', status: 'SCHEDULED');
+
+    setUp(() {
+      store = _MemorySystemStatusStore();
+      remote = _FakeAmcRemoteDataSource();
+      repo = AmcSystemStatusRepository(store: store, dataSource: remote);
+    });
+
+    test('functional system: answers saved, nothing sent', () async {
+      final result = await repo.save(
+          visit: visit, isSystemInUse: false, isSystemFunctional: true);
+      expect(result, AmcSystemStatusSaveResult.saved);
+      expect(remote.systemStatusBodies, isEmpty);
+      final saved = await repo.load(visit);
+      expect(saved?.isSystemInUse, isFalse);
+      expect(saved?.isSystemFunctional, isTrue);
+    });
+
+    test('non-functional is sent once per activity, however often saved',
+        () async {
+      expect(
+          await repo.save(
+              visit: visit, isSystemInUse: true, isSystemFunctional: false),
+          AmcSystemStatusSaveResult.notified);
+      expect(remote.systemStatusBodies.single['visitId'], 'v1');
+      expect(remote.systemStatusBodies.single['systemStatus'],
+          {'isSystemInUse': true, 'isSystemFunctional': false});
+
+      // Saving again (No, Yes, No) never sends a second request.
+      for (final functional in [false, true, false]) {
+        expect(
+            await repo.save(
+                visit: visit,
+                isSystemInUse: true,
+                isSystemFunctional: functional),
+            AmcSystemStatusSaveResult.saved);
+      }
+      expect(remote.systemStatusBodies, hasLength(1));
+      expect((await repo.load(visit))?.nonFunctionalNotified, isTrue);
+    });
+
+    test('a failed send is not retained, and saving again retries', () async {
+      remote.failSystemStatus = true;
+      expect(
+          await repo.save(
+              visit: visit, isSystemInUse: true, isSystemFunctional: false),
+          AmcSystemStatusSaveResult.notifyFailed);
+      // The answers are still saved; the report is not blocked.
+      expect((await repo.load(visit))?.isSystemFunctional, isFalse);
+      expect((await repo.load(visit))?.nonFunctionalNotified, isFalse);
+
+      remote.failSystemStatus = false;
+      expect(
+          await repo.save(
+              visit: visit, isSystemInUse: true, isSystemFunctional: false),
+          AmcSystemStatusSaveResult.notified);
+      expect(remote.systemStatusBodies, hasLength(1));
+    });
+
+    test('rework: answers and the sent flag come from the submitted report',
+        () async {
+      const rejected = ScheduledVisit(
+        id: 'v2',
+        status: 'REJECTED',
+        visitReport: ScheduledVisitReport(additionalDetails: {
+          'systemStatus': {
+            'isSystemInUse': true,
+            'isSystemFunctional': false,
+            'nonFunctionalNotified': true,
+          },
+        }),
+      );
+      final shown = await repo.load(rejected);
+      expect(shown?.isSystemInUse, isTrue);
+      expect(shown?.isSystemFunctional, isFalse);
+
+      expect(
+          await repo.save(
+              visit: rejected, isSystemInUse: true, isSystemFunctional: false),
+          AmcSystemStatusSaveResult.saved);
+      expect(remote.systemStatusBodies, isEmpty);
+    });
+
+    test('answers go with the report in visitReport.additionalDetails',
+        () async {
+      expect(await repo.reportAdditionalDetails('v1'), isNull);
+      await repo.save(
+          visit: visit, isSystemInUse: false, isSystemFunctional: false);
+      final details = await repo.reportAdditionalDetails('v1');
+
+      await ScheduledVisitRemoteRepository(dataSource: remote)
+          .updateVisitWorkflow(
+        visitId: 'v1',
+        schemaCode: '12345678',
+        version: 1,
+        responses: const {'faults_observed': 'NO'},
+        reportAdditionalDetails: details,
+      );
+      final report = remote.workflowBodies.single['visitReport'] as Map;
+      expect(report['additionalDetails'], {
+        'systemStatus': {
+          'isSystemInUse': false,
+          'isSystemFunctional': false,
+          'nonFunctionalNotified': true,
+        },
+      });
+      // The MDMS form answers are untouched.
+      expect(report['responses'], {'faults_observed': 'NO'});
+    });
+
+    test('dummy backend records the update and keeps it with the report',
+        () async {
+      final dir = Directory.systemTemp.createTempSync('amc_dummy_status');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final backend = DummyAmcRemoteDataSource(
+          latency: Duration.zero, storageDirectory: () async => dir);
+
+      await backend.updateSystemStatus(buildSystemStatusRequest(
+          visitId: 'dummy-visit-001',
+          isSystemInUse: true,
+          isSystemFunctional: false));
+      await backend.updateVisitWorkflow({
+        'visitId': 'dummy-visit-001',
+        'workflow': {'action': 'SUBMIT_VISIT_REPORT'},
+        'visitReport': {
+          'schemaCode': '12345678',
+          'version': 1,
+          'responses': {'faults_observed': 'YES'},
+          'additionalDetails': {
+            'systemStatus': {
+              'isSystemInUse': true,
+              'isSystemFunctional': false,
+              'nonFunctionalNotified': true,
+            },
+          },
+        },
+      });
+      await expectLater(
+        backend.updateSystemStatus(buildSystemStatusRequest(
+            visitId: 'missing',
+            isSystemInUse: true,
+            isSystemFunctional: false)),
+        throwsA(isA<Exception>()),
+      );
+
+      final res = await backend.searchVisits(
+          searchCriteria: const {}, limit: 100, offset: 0);
+      final raw = (res['ScheduledVisits'] as List)
+          .cast<Map<String, dynamic>>()
+          .firstWhere((v) => v['id'] == 'dummy-visit-001');
+      expect(raw['dummySystemStatusUpdates'], hasLength(1));
+      final status = AmcSystemStatusRepository.fromSubmittedReport(
+          ScheduledVisit.fromJson(raw));
+      expect(status?.isSystemFunctional, isFalse);
+      expect(status?.nonFunctionalNotified, isTrue);
+    });
+
+    test('submitted sample reports carry status answers for read-only views',
+        () {
+      final approved = dummySeedVisits()
+          .map(ScheduledVisit.fromJson)
+          .firstWhere((v) => v.status == 'APPROVED');
+      final status = AmcSystemStatusRepository.fromSubmittedReport(approved);
+      expect(status?.isComplete, isTrue);
     });
   });
 

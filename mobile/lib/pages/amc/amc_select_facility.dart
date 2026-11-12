@@ -317,12 +317,10 @@ class _AmcSelectFacilityPageState extends State<AmcSelectFacilityPage>
                                                           .select(FormOrigin
                                                               .overallSummary));
 
+                                              // #247: status questions first,
+                                              // then the report form.
                                               await context.router.push(
-                                                AmcDynamicFormRoute(
-                                                  pageName: amcFormFirstPage,
-                                                  uniqueIdentifier:
-                                                      amcFormSchemaKey,
-                                                  schemaName: schemaKey,
+                                                AmcSystemStatusRoute(
                                                   scheduledVisit: items[index],
                                                   origin:
                                                       FormOrigin.overallSummary,

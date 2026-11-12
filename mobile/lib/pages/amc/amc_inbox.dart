@@ -393,11 +393,9 @@ class _AmcInboxPageState extends State<AmcInboxPage>
                     context.read<SelectedAmcOriginBloc>().add(
                         const SelectedAmcOriginEvent.select(
                             FormOrigin.submitted));
+                    // #247: status answers (read-only), then the report.
                     await context.router.push(
-                      AmcDynamicFormRoute(
-                        pageName: amcFormFirstPage,
-                        uniqueIdentifier: amcFormSchemaKey,
-                        schemaName: amcFormSchemaKey,
+                      AmcSystemStatusRoute(
                         scheduledVisit: visit,
                         origin: FormOrigin.submitted,
                       ),

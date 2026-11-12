@@ -18,6 +18,7 @@ const amcHome = AmcHome();
 const amcReportHome = AmcReportHome();
 const amcSelectFacility = AmcSelectFacility();
 const amcDynamicForm = AmcDynamicForm();
+const amcSystemStatus = AmcSystemStatusText();
 const amcOtp = AmcOtp();
 const amcDraft = AmcDraft();
 const amcInbox = AmcInbox();
@@ -399,6 +400,19 @@ class AmcDynamicForm {
   const AmcDynamicForm();
 
   String get loading => 'AMC_DYNAMIC_FORM_LOADING';
+}
+
+/// Pre-report system status questions (#247).
+class AmcSystemStatusText {
+  const AmcSystemStatusText();
+
+  String get title => 'AMC_SYSTEM_STATUS_TITLE';
+  String get description => 'AMC_SYSTEM_STATUS_DESCRIPTION';
+  String get inUseQuestion => 'AMC_SYSTEM_STATUS_IN_USE_QUESTION';
+  String get functionalQuestion => 'AMC_SYSTEM_STATUS_FUNCTIONAL_QUESTION';
+  String get functionalSolarOnly => 'AMC_SYSTEM_STATUS_FUNCTIONAL_SOLAR_ONLY';
+  String get pocNotified => 'AMC_SYSTEM_STATUS_POC_NOTIFIED';
+  String get pocNotifyFailed => 'AMC_SYSTEM_STATUS_POC_NOTIFY_FAILED';
 }
 
 class AmcOtp {

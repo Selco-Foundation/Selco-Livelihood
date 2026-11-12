@@ -26,5 +26,10 @@ abstract final class ApiPaths {
   static const amcVisitSearch = 'asset-amc/v1/visit/_search';
   static const amcVisitWorkflowUpdate = 'asset-amc/v1/visit/workflow/_update';
   static const amcVisitResendOtp = 'asset-amc/v1/visit/_resend_otp';
+
+  /// DUMMY-BACKEND: placeholder. The pre-report system-status endpoint
+  /// (#247) is not built yet; set the real path here when it is.
+  static const amcVisitSystemStatusUpdate =
+      'asset-amc/v1/visit/system-status/_update';
   static const mdmsV2Search = 'egov-mdms-service/v2/_search';
 }

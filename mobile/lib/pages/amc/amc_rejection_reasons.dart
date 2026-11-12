@@ -106,11 +106,9 @@ class _AmcRejctionReasonsPageState extends State<AmcRejctionReasonsPage> {
           context.read<SelectedAmcOriginBloc>().add(
               const SelectedAmcOriginEvent.select(
                   FormOrigin.submitForApproval));
+          // #247: status questions first, then the report form.
           context.router.push(
-            AmcDynamicFormRoute(
-              pageName: amcFormFirstPage,
-              uniqueIdentifier: amcFormSchemaKey,
-              schemaName: amcFormSchemaKey,
+            AmcSystemStatusRoute(
               scheduledVisit: scheduledVisit!,
               origin: FormOrigin.submitForApproval,
             ),

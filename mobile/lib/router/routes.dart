@@ -34,6 +34,7 @@ class Routes {
   static const amcReportHome = 'amc-report-home';
   static const amcSelectFacility = 'amc-select-facility';
   static const amcDynamicForm = 'amc-dynamic-form';
+  static const amcSystemStatus = 'amc-system-status';
   static const amcOtp = 'amc-otp';
   static const amcDraft = 'amc-draft';
   static const amcInbox = 'amc-inbox';

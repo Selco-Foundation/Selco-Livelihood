@@ -12,6 +12,7 @@ import '../data/nosql/cache_amc_media_upload.dart';
 import '../data/nosql/cache_schedule_visit_form_values.dart';
 import '../data/secure_storage/secureStore.dart';
 import '../model/amc/scheduled_visit.dart';
+import '../repositories/amc/amc_system_status_repo.dart';
 import '../repositories/amc/scheduled_visit_repo.dart';
 import '../model/asset/asset_submission.dart';
 import '../model/bom/bom.dart';
@@ -344,6 +345,10 @@ Future<void> _performScheduleVisitSubmission({
     );
   }
 
+  // Pre-report system status answers (#247), sent with the report.
+  final reportAdditionalDetails = await AmcSystemStatusRepository()
+      .reportAdditionalDetails(scheduledVisitId);
+
   final remote = ScheduledVisitRemoteRepository();
   // DUMMY-BACKEND: E4H hard-codes schemaCode "12345678" / version 1 (kept
   // as-is); confirm the real values with the backend team.
@@ -353,6 +358,7 @@ Future<void> _performScheduleVisitSubmission({
     version: 1,
     responses: responses,
     visitDocuments: visitDocuments,
+    reportAdditionalDetails: reportAdditionalDetails,
   );
 
   await PrefilledScheduledVisitRepository(isar)

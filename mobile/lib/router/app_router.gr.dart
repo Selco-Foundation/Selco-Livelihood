@@ -95,6 +95,17 @@ abstract class _$AppRouter extends RootStackRouter {
         ),
       );
     },
+    AmcSystemStatusRoute.name: (routeData) {
+      final args = routeData.argsAs<AmcSystemStatusRouteArgs>();
+      return AutoRoutePage<dynamic>(
+        routeData: routeData,
+        child: AmcSystemStatusPage(
+          key: args.key,
+          scheduledVisit: args.scheduledVisit,
+          origin: args.origin,
+        ),
+      );
+    },
     ApprovedReportsRoute.name: (routeData) {
       return AutoRoutePage<dynamic>(
         routeData: routeData,
@@ -605,6 +616,49 @@ class AmcSelectFacilityRouteArgs {
   @override
   String toString() {
     return 'AmcSelectFacilityRouteArgs{key: $key, bookmarksOnly: $bookmarksOnly}';
+  }
+}
+
+/// generated route for
+/// [AmcSystemStatusPage]
+class AmcSystemStatusRoute extends PageRouteInfo<AmcSystemStatusRouteArgs> {
+  AmcSystemStatusRoute({
+    Key? key,
+    required ScheduledVisit scheduledVisit,
+    required FormOrigin origin,
+    List<PageRouteInfo>? children,
+  }) : super(
+          AmcSystemStatusRoute.name,
+          args: AmcSystemStatusRouteArgs(
+            key: key,
+            scheduledVisit: scheduledVisit,
+            origin: origin,
+          ),
+          initialChildren: children,
+        );
+
+  static const String name = 'AmcSystemStatusRoute';
+
+  static const PageInfo<AmcSystemStatusRouteArgs> page =
+      PageInfo<AmcSystemStatusRouteArgs>(name);
+}
+
+class AmcSystemStatusRouteArgs {
+  const AmcSystemStatusRouteArgs({
+    this.key,
+    required this.scheduledVisit,
+    required this.origin,
+  });
+
+  final Key? key;
+
+  final ScheduledVisit scheduledVisit;
+
+  final FormOrigin origin;
+
+  @override
+  String toString() {
+    return 'AmcSystemStatusRouteArgs{key: $key, scheduledVisit: $scheduledVisit, origin: $origin}';
   }
 }
 

@@ -37,6 +37,10 @@ abstract class AmcRemoteDataSource {
   /// `POST asset-amc/v1/visit/_resend_otp` body `{visitId}`.
   Future<void> resendVisitOtp(String visitId);
 
+  /// Pre-report system status (#247): sent when a non-functional status is
+  /// saved, so the backend can email the Program POC.
+  Future<void> updateSystemStatus(Map<String, dynamic> body);
+
   /// `POST egov-mdms-service/v2/_search` for `common-masters.AMCFormSchema`;
   /// returns the `mdms` array.
   Future<List<dynamic>> searchAmcFormSchemaDocs(
@@ -93,6 +97,12 @@ class HttpAmcRemoteDataSource implements AmcRemoteDataSource {
       ApiPaths.amcVisitResendOtp,
       data: <String, dynamic>{'visitId': visitId},
     );
+  }
+
+  @override
+  Future<void> updateSystemStatus(Map<String, dynamic> body) async {
+    // DUMMY-BACKEND: placeholder path until the backend provides the API.
+    await dio.post(ApiPaths.amcVisitSystemStatusUpdate, data: body);
   }
 
   @override
