@@ -33,6 +33,7 @@ class ScheduledVisitBloc
         statuses: event.statuses,
         facilityName: event.query,
         sortDirection: event.sortDirection,
+        delayedOnly: event.delayedOnly,
         limit: _pageSize,
         offset: 0,
       );
@@ -69,6 +70,7 @@ class ScheduledVisitBloc
         statuses: event.statuses,
         facilityName: event.query,
         sortDirection: event.sortDirection,
+        delayedOnly: event.delayedOnly,
         limit: _pageSize,
         offset: offset,
       );
@@ -101,6 +103,7 @@ class ScheduledVisitBloc
       statuses: event.statuses,
       query: event.query,
       sortDirection: event.sortDirection,
+      delayedOnly: event.delayedOnly,
     ));
   }
 }
@@ -111,18 +114,21 @@ class ScheduledVisitEvent with _$ScheduledVisitEvent {
     required List<String> statuses,
     String? query,
     String? sortDirection,
+    @Default(false) bool delayedOnly,
   }) = _LoadInitial;
 
   const factory ScheduledVisitEvent.loadMore({
     required List<String> statuses,
     String? query,
     String? sortDirection,
+    @Default(false) bool delayedOnly,
   }) = _LoadMore;
 
   const factory ScheduledVisitEvent.refresh({
     required List<String> statuses,
     String? query,
     String? sortDirection,
+    @Default(false) bool delayedOnly,
   }) = _Refresh;
 }
 

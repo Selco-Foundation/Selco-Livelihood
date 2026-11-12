@@ -389,6 +389,10 @@ class AmcSelectFacility {
   String get amcNumber => 'AMC_NUMBER';
   String get report => 'AMC_SELECT_FACILITY_REPORT';
   String get submitForApproval => 'AMC_SELECT_FACILITY_SUBMIT_FOR_APPROVAL';
+  String get delayedFilter => 'AMC_SELECT_FACILITY_DELAYED_FILTER';
+  String get delayedTag => 'AMC_SELECT_FACILITY_DELAYED_TAG';
+  String get noDelayedVisitsFound =>
+      'AMC_SELECT_FACILITY_NO_DELAYED_VISITS_FOUND';
 }
 
 class AmcDynamicForm {

@@ -135,16 +135,20 @@ class ScheduledVisitRepository {
     required List<String> statuses,
     String? facilityName,
     String? sortDirection,
+    bool delayedOnly = false,
     int limit = defaultPageSize,
     int offset = 0,
   }) async {
     final accessInfo = await SecureStore().getAccessInfo();
     final assignedUserUuid = accessInfo?.userRequest?.uuid;
+    final now = DateTime.now();
     final criteria = ScheduledVisitSearchCriteria(
       tenantId: envConfig.variables.tenantId,
       facilityName: facilityName,
       assignedUsers: assignedUserUuid == null ? null : [assignedUserUuid],
       statuses: statuses,
+      // "AMC delayed": Scheduled AMC Date before today.
+      scheduledTo: delayedOnly ? amcDelayedScheduledBefore(now) : null,
       sortDirection: sortDirection,
     );
     final isar = await _isar;
@@ -201,6 +205,7 @@ class ScheduledVisitRepository {
           )
           .where((visit) =>
               matchesFacilityName(visit.facility?.facilityName, facilityName))
+          .where((visit) => !delayedOnly || visit.isAmcDelayed(now))
           .toList();
       eligible.sort((a, b) {
         final order = (a.scheduledDate ?? DateTime(1970))

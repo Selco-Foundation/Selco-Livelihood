@@ -7,6 +7,7 @@ import 'package:digit_ui_components/widgets/atoms/digit_button.dart';
 import 'package:digit_ui_components/widgets/atoms/digit_divider.dart';
 import 'package:digit_ui_components/widgets/atoms/digit_radio_list.dart';
 import 'package:digit_ui_components/widgets/atoms/digit_search_form_input.dart';
+import 'package:digit_ui_components/widgets/atoms/digit_tag.dart';
 import 'package:digit_ui_components/widgets/atoms/pop_up_card.dart';
 import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
 import 'package:digit_ui_components/widgets/molecules/show_pop_up.dart';
@@ -31,7 +32,8 @@ import '../../widgets/amc/report_bookmarks.dart';
 import '../../widgets/amc/report_detail_row.dart';
 
 /// Ported from E4H `pages/amc_select_facility.dart`: "New AMC Report" —
-/// SCHEDULED visits with search, sort (newest/oldest/bookmarked), paging
+/// SCHEDULED visits with search, sort (newest/oldest/bookmarked/AMC
+/// delayed), paging
 /// and bookmarks. Each card opens the AMC form ("Start"/"Resume report")
 /// and, once a form is saved, "Submit for approval" (completion code).
 @RoutePage()
@@ -45,8 +47,18 @@ class AmcSelectFacilityPage extends StatefulWidget {
 
 class _AmcSelectFacilityPageState extends State<AmcSelectFacilityPage>
     with ReportBookmarksState<AmcSelectFacilityPage, ScheduledVisit> {
+  static const String _delayedFilter = 'DELAYED';
+
+  /// Selected "Sort by" option: `DESC`, `ASC`, `BOOKMARKED` or `DELAYED`.
   String? _sortDirection;
   bool get _bookmarksOnly => _sortDirection == 'BOOKMARKED';
+  bool get _delayedOnly => _sortDirection == _delayedFilter;
+
+  /// Only `ASC`/`DESC` are real sort orders sent to the server.
+  String? get _serverSortDirection =>
+      _sortDirection == 'ASC' || _sortDirection == 'DESC'
+          ? _sortDirection
+          : null;
   String _searchQuery = '';
 
   List<String> _statuses() {
@@ -82,26 +94,16 @@ class _AmcSelectFacilityPageState extends State<AmcSelectFacilityPage>
       _reloadBookmarks();
       return;
     }
-    final statuses = _statuses();
-    if (_searchQuery.isNotEmpty) {
-      context.read<ScheduledVisitBloc>().add(
-            ScheduledVisitEvent.loadInitial(
-              statuses: statuses,
-              query: _searchQuery,
-            ),
-          );
-    } else if (_sortDirection != null) {
-      context.read<ScheduledVisitBloc>().add(
-            ScheduledVisitEvent.loadInitial(
-              statuses: statuses,
-              sortDirection: _sortDirection,
-            ),
-          );
-    } else {
-      context.read<ScheduledVisitBloc>().add(
-            ScheduledVisitEvent.loadInitial(statuses: statuses),
-          );
-    }
+    // Search clears Newest/Oldest (E4H behaviour) but keeps "AMC delayed",
+    // so a search while delayed is on only searches delayed activities.
+    context.read<ScheduledVisitBloc>().add(
+          ScheduledVisitEvent.loadInitial(
+            statuses: _statuses(),
+            query: _searchQuery.isNotEmpty ? _searchQuery : null,
+            sortDirection: _serverSortDirection,
+            delayedOnly: _delayedOnly,
+          ),
+        );
   }
 
   @override
@@ -142,7 +144,8 @@ class _AmcSelectFacilityPageState extends State<AmcSelectFacilityPage>
                         ScheduledVisitEvent.loadMore(
                           statuses: _statuses(),
                           query: _searchQuery.isNotEmpty ? _searchQuery : null,
-                          sortDirection: _sortDirection,
+                          sortDirection: _serverSortDirection,
+                          delayedOnly: _delayedOnly,
                         ),
                       );
                     }
@@ -203,7 +206,11 @@ class _AmcSelectFacilityPageState extends State<AmcSelectFacilityPage>
                                     ? i18.amcCommon.noMatchingFacilitiesFound
                                     : _bookmarksOnly
                                         ? i18.amcBookmarks.empty
-                                        : i18.amcSelectFacility.noVisitsFound),
+                                        : _delayedOnly
+                                            ? i18.amcSelectFacility
+                                                .noDelayedVisitsFound
+                                            : i18.amcSelectFacility
+                                                .noVisitsFound),
                                 style: textTheme.bodyS.copyWith(
                                   color: theme.colorTheme.text.secondary,
                                 ),
@@ -264,6 +271,8 @@ class _AmcSelectFacilityPageState extends State<AmcSelectFacilityPage>
                                                     ?.facilityName ??
                                                 '',
                                             status: items[index].status,
+                                            isDelayed:
+                                                items[index].isAmcDelayed(),
                                             state: locality.state,
                                             district: locality.district,
                                             block: locality.block,
@@ -377,7 +386,9 @@ class _AmcSelectFacilityPageState extends State<AmcSelectFacilityPage>
                     onChange: (text) {
                       setState(() {
                         _searchQuery = text;
-                        if (!_bookmarksOnly) _sortDirection = null;
+                        if (!_bookmarksOnly && !_delayedOnly) {
+                          _sortDirection = null;
+                        }
                       });
                       if (_bookmarksOnly ||
                           text.isEmpty ||
@@ -431,6 +442,10 @@ class _AmcSelectFacilityPageState extends State<AmcSelectFacilityPage>
                 RadioButtonModel(
                     code: 'BOOKMARKED',
                     name: context.translate(i18.amcBookmarks.filter)),
+                RadioButtonModel(
+                    code: _delayedFilter,
+                    name:
+                        context.translate(i18.amcSelectFacility.delayedFilter)),
               ],
             ),
             Row(
@@ -481,6 +496,9 @@ class AMCInstallationReportCard extends StatefulWidget {
   final String? scheduledVisitId;
   final String? title;
   final String? status;
+
+  /// Shows the "AMC delayed" tag (New Report only).
+  final bool isDelayed;
   final String? label;
   final String? state;
   final String? district;
@@ -502,6 +520,7 @@ class AMCInstallationReportCard extends StatefulWidget {
     this.scheduledVisitId,
     this.title,
     this.status,
+    this.isDelayed = false,
     this.label,
     this.state,
     this.district,
@@ -572,6 +591,14 @@ class _AMCInstallationReportCardState extends State<AMCInstallationReportCard> {
                     addLabelKey: i18.amcBookmarks.add,
                     removeLabelKey: i18.amcBookmarks.remove),
             ]),
+            if (widget.isDelayed) ...[
+              const SizedBox(height: spacer2),
+              Tag(
+                key: ValueKey('amc-visit-delayed-${widget.scheduledVisitId}'),
+                label: context.translate(i18.amcSelectFacility.delayedTag),
+                type: TagType.error,
+              ),
+            ],
             const SizedBox(height: spacer4),
             const DigitDivider(dividerType: DividerType.small),
             ReportDetailRow(

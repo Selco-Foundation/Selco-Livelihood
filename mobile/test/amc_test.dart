@@ -217,6 +217,68 @@ void main() {
     });
   });
 
+  group('AMC delayed filter', () {
+    final now = DateTime(2026, 11, 12, 10, 30);
+    ScheduledVisit visitOn(DateTime? date, {String status = 'SCHEDULED'}) =>
+        ScheduledVisit(id: 'v', status: status, scheduledDate: date);
+
+    test('delay is decided by date: due today or later is not delayed', () {
+      expect(amcDelayedScheduledBefore(now),
+          DateTime(2026, 11, 11, 23, 59, 59, 999));
+      expect(
+          visitOn(DateTime(2026, 11, 11, 23, 59)).isAmcDelayed(now), isTrue);
+      expect(visitOn(DateTime(2026, 11, 1)).isAmcDelayed(now), isTrue);
+      expect(visitOn(DateTime(2026, 11, 12)).isAmcDelayed(now), isFalse);
+      expect(visitOn(DateTime(2026, 11, 12, 9)).isAmcDelayed(now), isFalse);
+      expect(visitOn(DateTime(2026, 11, 20)).isAmcDelayed(now), isFalse);
+      expect(visitOn(null).isAmcDelayed(now), isFalse);
+    });
+
+    test('only SCHEDULED visits can be delayed', () {
+      final past = DateTime(2026, 11, 1);
+      for (final status in [
+        'PENDING_OTP_APPROVAL',
+        'PENDING_APPROVAL',
+        'APPROVED',
+        'REJECTED',
+      ]) {
+        expect(visitOn(past, status: status).isAmcDelayed(now), isFalse,
+            reason: status);
+      }
+    });
+
+    test('search request uses the backend scheduledDateTo field', () {
+      final map = ScheduledVisitSearchCriteria(
+        statuses: const ['SCHEDULED'],
+        scheduledTo: amcDelayedScheduledBefore(now),
+      ).toApiMap();
+      expect(map['scheduledDateTo'],
+          DateTime(2026, 11, 11, 23, 59, 59, 999).millisecondsSinceEpoch);
+      expect(map.containsKey('scheduledTo'), isFalse);
+    });
+
+    test('dummy backend returns only overdue SCHEDULED visits', () async {
+      final dir = Directory.systemTemp.createTempSync('amc_dummy_delayed');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final backend = DummyAmcRemoteDataSource(
+          latency: Duration.zero, storageDirectory: () async => dir);
+
+      final res = await backend.searchVisits(
+        searchCriteria: {
+          'statuses': const ['SCHEDULED'],
+          'scheduledDateTo': amcDelayedScheduledBefore().millisecondsSinceEpoch,
+        },
+        limit: 10,
+        offset: 0,
+      );
+      final ids = (res['ScheduledVisits'] as List).map((v) => v['id']).toList();
+      // dummy-visit-009 is due today; 001-003 are in the future;
+      // 004-007 are past but not SCHEDULED.
+      expect(ids, ['dummy-visit-008']);
+      expect(res['TotalCount'], 1);
+    });
+  });
+
   group('Dummy AMC backend', () {
     late Directory dir;
     late DummyAmcRemoteDataSource backend;

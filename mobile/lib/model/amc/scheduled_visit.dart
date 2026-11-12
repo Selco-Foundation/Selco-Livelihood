@@ -165,8 +165,10 @@ class ScheduledVisitSearchCriteria with _$ScheduledVisitSearchCriteria {
   static const String AMC_CONFIGURATION_ID = 'amcConfigurationId';
   static const String STATUSES = 'statuses';
   static const String VISIT_NUMBER = 'visitNumber';
-  static const String SCHEDULED_FROM = 'scheduledFrom';
-  static const String SCHEDULED_TO = 'scheduledTo';
+  // Field names of `amc-scheduler-service` `ScheduledVisitSearchCriteria`
+  // (`sv.scheduled_date >= scheduledDateFrom` / `<= scheduledDateTo`).
+  static const String SCHEDULED_FROM = 'scheduledDateFrom';
+  static const String SCHEDULED_TO = 'scheduledDateTo';
   static const String SORT_DIRECTION = 'sort_direction';
 
   /// `searchCriteria` body of `asset-amc/v1/visit/_search`, as built by E4H.
@@ -346,4 +348,24 @@ extension ScheduledVisitDisplayDate on ScheduledVisit {
   DateTime? get displayDate => processInstances.isEmpty
       ? null
       : processInstances.first.auditDetails?.lastModifiedTime;
+}
+
+/// Latest instant that still counts as "Scheduled AMC Date has passed":
+/// the last millisecond of yesterday, on the device's calendar. Delay is
+/// decided by date, not time, so an activity due today is never delayed.
+DateTime amcDelayedScheduledBefore([DateTime? now]) {
+  final today = now ?? DateTime.now();
+  return DateTime(today.year, today.month, today.day)
+      .subtract(const Duration(milliseconds: 1));
+}
+
+/// "AMC delayed": still `SCHEDULED` (no report saved, so not waiting for a
+/// completion code and not finally submitted) and its Scheduled AMC Date is
+/// before today.
+extension ScheduledVisitDelay on ScheduledVisit {
+  bool isAmcDelayed([DateTime? now]) {
+    final date = scheduledDate;
+    if (date == null || status != 'SCHEDULED') return false;
+    return !date.toLocal().isAfter(amcDelayedScheduledBefore(now));
+  }
 }

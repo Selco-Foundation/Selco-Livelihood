@@ -117,11 +117,19 @@ class DummyAmcRemoteDataSource implements AmcRemoteDataSource {
     final name =
         searchCriteria['facilityName']?.toString().trim().toLowerCase() ?? '';
     final sort = searchCriteria['sort_direction']?.toString();
+    // Same inclusive bounds as the real query builder.
+    final from = searchCriteria['scheduledDateFrom'] as num?;
+    final to = searchCriteria['scheduledDateTo'] as num?;
 
     final matching = visits.where((visit) {
       if (statuses.isNotEmpty && !statuses.contains(visit['status'])) {
         return false;
       }
+      final scheduled = visit['scheduledDate'] as num?;
+      if (from != null && (scheduled == null || scheduled < from)) {
+        return false;
+      }
+      if (to != null && (scheduled == null || scheduled > to)) return false;
       final facilityName =
           ((visit['facility'] as Map?)?['facility_name'] ?? '')
               .toString()
@@ -354,6 +362,23 @@ List<Map<String, dynamic>> dummySeedVisits() {
       status: 'SCHEDULED',
       visitNumber: 3,
       scheduledInDays: 9,
+    ),
+    // "AMC delayed" samples: one overdue, one due today (not delayed).
+    visit(
+      id: 'dummy-visit-008',
+      name: 'PHC Bannur',
+      boundary: 'IN_KARNATAKA_MYSURU_T NARASIPURA',
+      status: 'SCHEDULED',
+      visitNumber: 2,
+      scheduledInDays: -4,
+    ),
+    visit(
+      id: 'dummy-visit-009',
+      name: 'CHC Malavalli',
+      boundary: 'IN_KARNATAKA_MANDYA_MALAVALLI',
+      status: 'SCHEDULED',
+      visitNumber: 1,
+      scheduledInDays: 0,
     ),
     visit(
       id: 'dummy-visit-004',
