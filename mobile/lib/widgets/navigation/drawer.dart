@@ -6,15 +6,18 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../blocs/auth/authbloc.dart';
+import '../../model/response/responsemodel.dart';
 import '../../router/app_router.dart';
 import '../../utils/extensions.dart';
 import '../../utils/i18_key_constants.dart' as i18;
+import '../../utils/post_login_navigation.dart';
 import '../privacy_policy/policy_dialog_launcher.dart';
 
 /// The hamburger-menu side drawer, ported from E4H's `CustomDrawer`
 /// (`lib/widgets/navigation/drawer.dart`). Trimmed for this app: no
-/// Profile page, role-based routing, or offline-connectivity popup, since
-/// this app has neither multiple modules nor a dedicated profile screen.
+/// Profile page or offline-connectivity popup. "Home" re-resolves the
+/// user's module from their roles (Installation / AMC / role selection),
+/// as E4H does.
 class CustomDrawer extends StatelessWidget {
   const CustomDrawer({super.key});
 
@@ -35,7 +38,11 @@ class _DrawerContent extends StatelessWidget {
 
   void _goHome(BuildContext context) {
     _closeDrawer(context);
-    context.router.replaceAll([const HomeRoute()]);
+    final roles = state.maybeWhen(
+      authenticated: (_, __, userRequest) => userRequest.roles,
+      orElse: () => const <Roles>[],
+    );
+    navigateToModuleHome(context, roles);
   }
 
   void _logOut(BuildContext context) {
