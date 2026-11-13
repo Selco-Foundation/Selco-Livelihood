@@ -19,8 +19,9 @@ import '../../widgets/amc/amc_back_navigation_help_header.dart';
 ///
 /// Both are mandatory. "Next" saves them on the device; if the system is not
 /// functional, it also sends the status to the backend once per activity so
-/// the Program POC is emailed. A failed send (e.g. offline) does not block
-/// the report: the vendor is told, and saving again retries. Read-only when
+/// the Program POC is emailed. Offline, the update is queued on the device
+/// and sent automatically once it is back online (see
+/// `AmcSystemStatusSync`). Neither case blocks the report. Read-only when
 /// opened from the inbox / submitted lists, like the form.
 @RoutePage()
 class AmcSystemStatusPage extends StatefulWidget {
@@ -105,6 +106,7 @@ class _AmcSystemStatusPageState extends State<AmcSystemStatusPage> {
 
     final messageKey = switch (result) {
       AmcSystemStatusSaveResult.notified => i18.amcSystemStatus.pocNotified,
+      AmcSystemStatusSaveResult.queued => i18.amcSystemStatus.pocNotifyQueued,
       AmcSystemStatusSaveResult.notifyFailed =>
         i18.amcSystemStatus.pocNotifyFailed,
       AmcSystemStatusSaveResult.saved => null,

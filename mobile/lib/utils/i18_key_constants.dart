@@ -412,6 +412,7 @@ class AmcSystemStatusText {
   String get functionalQuestion => 'AMC_SYSTEM_STATUS_FUNCTIONAL_QUESTION';
   String get functionalSolarOnly => 'AMC_SYSTEM_STATUS_FUNCTIONAL_SOLAR_ONLY';
   String get pocNotified => 'AMC_SYSTEM_STATUS_POC_NOTIFIED';
+  String get pocNotifyQueued => 'AMC_SYSTEM_STATUS_POC_NOTIFY_QUEUED';
   String get pocNotifyFailed => 'AMC_SYSTEM_STATUS_POC_NOTIFY_FAILED';
 }
 

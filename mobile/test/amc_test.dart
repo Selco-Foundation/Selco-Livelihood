@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:digit_forms_engine/models/schema_object/schema_object.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -82,6 +83,31 @@ class _MemorySystemStatusStore implements AmcSystemStatusLocalStore {
       values[visitId] = {...?values[visitId], ...value};
 }
 
+/// In-memory stand-in for the device-wide status update queue.
+class _MemorySystemStatusQueue implements AmcSystemStatusQueueStore {
+  List<Map<String, dynamic>> items = [];
+
+  @override
+  Future<List<Map<String, dynamic>>> read() async => [...items];
+
+  @override
+  Future<void> write(List<Map<String, dynamic>> value) async =>
+      items = [...value];
+}
+
+DioException _dioError({int? status}) {
+  final options = RequestOptions(path: '/status');
+  return DioException(
+    requestOptions: options,
+    type: status == null
+        ? DioExceptionType.connectionError
+        : DioExceptionType.badResponse,
+    response: status == null
+        ? null
+        : Response(requestOptions: options, statusCode: status),
+  );
+}
+
 /// In-memory AMC backend for widget tests (no file IO, no delays).
 class _FakeAmcRemoteDataSource implements AmcRemoteDataSource {
   _FakeAmcRemoteDataSource({this.failSchema = false});
@@ -89,11 +115,14 @@ class _FakeAmcRemoteDataSource implements AmcRemoteDataSource {
   final bool failSchema;
   final List<Map<String, dynamic>> workflowBodies = [];
   final List<Map<String, dynamic>> systemStatusBodies = [];
-  bool failSystemStatus = false;
+
+  /// Thrown by [updateSystemStatus] while set.
+  Object? systemStatusError;
 
   @override
   Future<void> updateSystemStatus(Map<String, dynamic> body) async {
-    if (failSystemStatus) throw StateError('offline');
+    final error = systemStatusError;
+    if (error != null) throw error;
     systemStatusBodies.add(body);
   }
 
@@ -302,14 +331,26 @@ void main() {
 
   group('AMC pre-report system status', () {
     late _MemorySystemStatusStore store;
+    late _MemorySystemStatusQueue queue;
     late _FakeAmcRemoteDataSource remote;
     late AmcSystemStatusRepository repo;
+    late bool online;
+    late bool loggedIn;
     const visit = ScheduledVisit(id: 'v1', status: 'SCHEDULED');
 
     setUp(() {
       store = _MemorySystemStatusStore();
+      queue = _MemorySystemStatusQueue();
       remote = _FakeAmcRemoteDataSource();
-      repo = AmcSystemStatusRepository(store: store, dataSource: remote);
+      online = true;
+      loggedIn = true;
+      repo = AmcSystemStatusRepository(
+        store: store,
+        queue: queue,
+        dataSource: remote,
+        isOnline: () async => online,
+        hasSession: () async => loggedIn,
+      );
     });
 
     test('functional system: answers saved, nothing sent', () async {
@@ -345,22 +386,100 @@ void main() {
       expect((await repo.load(visit))?.nonFunctionalNotified, isTrue);
     });
 
-    test('a failed send is not retained, and saving again retries', () async {
-      remote.failSystemStatus = true;
+    test('offline: queued once, then sent when the device is online', () async {
+      online = false;
+      expect(
+          await repo.save(
+              visit: visit, isSystemInUse: true, isSystemFunctional: false),
+          AmcSystemStatusSaveResult.queued);
+      expect(remote.systemStatusBodies, isEmpty);
+      expect(queue.items.single['visitId'], 'v1');
+      // The answers are saved and marked as handled; saving again does not
+      // queue a second update.
+      expect((await repo.load(visit))?.nonFunctionalNotified, isTrue);
+      expect(
+          await repo.save(
+              visit: visit, isSystemInUse: true, isSystemFunctional: false),
+          AmcSystemStatusSaveResult.saved);
+      expect(queue.items, hasLength(1));
+
+      // Still offline: nothing is sent.
+      expect(await repo.flushQueue(), 0);
+      expect(queue.items, hasLength(1));
+
+      online = true;
+      expect(await repo.flushQueue(), 1);
+      expect(remote.systemStatusBodies.single['systemStatus'],
+          {'isSystemInUse': true, 'isSystemFunctional': false});
+      expect(queue.items, isEmpty);
+    });
+
+    test('a request that cannot reach the server is queued', () async {
+      for (final error in [_dioError(), _dioError(status: 503)]) {
+        queue.items = [];
+        store.values.clear();
+        remote.systemStatusError = error;
+        expect(
+            await repo.save(
+                visit: visit, isSystemInUse: false, isSystemFunctional: false),
+            AmcSystemStatusSaveResult.queued);
+        expect(queue.items, hasLength(1));
+      }
+    });
+
+    test('a server rejection is not queued; saving again retries', () async {
+      remote.systemStatusError = _dioError(status: 400);
       expect(
           await repo.save(
               visit: visit, isSystemInUse: true, isSystemFunctional: false),
           AmcSystemStatusSaveResult.notifyFailed);
+      expect(queue.items, isEmpty);
       // The answers are still saved; the report is not blocked.
       expect((await repo.load(visit))?.isSystemFunctional, isFalse);
       expect((await repo.load(visit))?.nonFunctionalNotified, isFalse);
 
-      remote.failSystemStatus = false;
+      remote.systemStatusError = null;
       expect(
           await repo.save(
               visit: visit, isSystemInUse: true, isSystemFunctional: false),
           AmcSystemStatusSaveResult.notified);
       expect(remote.systemStatusBodies, hasLength(1));
+    });
+
+    test('queued updates are sent even after the activity data is gone',
+        () async {
+      online = false;
+      await repo.save(
+          visit: visit, isSystemInUse: true, isSystemFunctional: false);
+      // e.g. reassigned, or cleared after the completion code.
+      store.values.clear();
+      online = true;
+      expect(await repo.flushQueue(), 1);
+      expect(remote.systemStatusBodies.single['visitId'], 'v1');
+    });
+
+    test(
+        'flush waits for a login, keeps on connectivity errors, drops '
+        'rejected updates', () async {
+      queue.items = [
+        buildSystemStatusRequest(
+            visitId: 'a', isSystemInUse: true, isSystemFunctional: false),
+        buildSystemStatusRequest(
+            visitId: 'b', isSystemInUse: true, isSystemFunctional: false),
+      ];
+
+      loggedIn = false;
+      expect(await repo.flushQueue(), 0);
+      expect(queue.items, hasLength(2));
+
+      loggedIn = true;
+      remote.systemStatusError = _dioError();
+      expect(await repo.flushQueue(), 0);
+      expect(queue.items, hasLength(2));
+
+      remote.systemStatusError = _dioError(status: 400);
+      expect(await repo.flushQueue(), 0);
+      expect(queue.items, isEmpty);
     });
 
     test('rework: answers and the sent flag come from the submitted report',

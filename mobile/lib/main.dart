@@ -24,6 +24,7 @@ import 'data/nosql/localization.dart';
 import 'model/appconfig/mdmsResponse.dart';
 import 'router/app_router.dart';
 import 'repositories/auth_repo.dart';
+import 'utils/amc/amc_system_status_sync.dart';
 import 'utils/background_service.dart';
 import 'utils/constants.dart';
 import 'utils/envConfig.dart';
@@ -74,6 +75,7 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
     _locationBloc = LocationBloc(location: Location());
     if (!Platform.environment.containsKey('FLUTTER_TEST')) {
       _locationBloc.add(const LocationEvent.load());
+      AmcSystemStatusSync.instance.start();
     }
     _authBloc.add(const AuthEvent.attemptLoad());
 
@@ -93,6 +95,7 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
     _authBloc.close();
     _locationBloc.close();
     _userTypeBloc.close();
+    AmcSystemStatusSync.instance.stop();
     super.dispose();
   }
 

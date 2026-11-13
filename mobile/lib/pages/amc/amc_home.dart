@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../../repositories/amc/amc_form_schema_repo.dart';
 import '../../router/app_router.dart';
+import '../../utils/amc/amc_system_status_sync.dart';
 import '../../utils/extensions.dart';
 import '../../utils/i18_key_constants.dart' as i18;
 import '../../widgets/amc/amc_back_navigation_help_header.dart';
@@ -25,6 +26,14 @@ class AmcHomePage extends StatefulWidget {
 }
 
 class _AmcHomePageState extends State<AmcHomePage> {
+  @override
+  void initState() {
+    super.initState();
+    // #247: send any queued "system not functional" updates (e.g. after
+    // logging in while already online).
+    AmcSystemStatusSync.instance.flush();
+  }
+
   Future<void> _prefetchAmcSchemas() =>
       AmcFormSchemaRepository().prefetchAmcSchemas(isCancelled: () => !mounted);
 

@@ -1,5 +1,13 @@
-import 'package:flutter/foundation.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:synchronized/synchronized.dart';
+
+import '../../data/network_manager.dart';
+import '../../data/secure_storage/secureStore.dart';
 import '../../model/amc/scheduled_visit.dart';
 import '../../utils/envConfig.dart';
 import 'amc_dynamic_form_repo.dart';
@@ -12,6 +20,13 @@ import 'amc_remote_data_source.dart';
 /// report is submitted, then sent with `SUBMIT_VISIT_REPORT` in
 /// `visitReport.additionalDetails.systemStatus`, which is also where they are
 /// read back from for rework and read-only views.
+///
+/// Saving "not functional" sends a status update to the backend so the
+/// Program POC is emailed. If the device is offline (or the request cannot
+/// reach the server) the update is queued on the device and sent
+/// automatically once it is back online, whatever has happened to the
+/// activity meanwhile (e.g. reassignment); the backend decides what to do
+/// with it.
 @immutable
 class AmcSystemStatus {
   const AmcSystemStatus({
@@ -23,8 +38,9 @@ class AmcSystemStatus {
   final bool? isSystemInUse;
   final bool? isSystemFunctional;
 
-  /// The Program POC notification was sent successfully for this activity.
-  /// Kept (locally and in the submitted report) so it is never sent twice.
+  /// The Program POC notification for this activity was sent, or queued to
+  /// be sent when the device is online. Kept (locally and in the submitted
+  /// report) so it is never requested twice.
   final bool nonFunctionalNotified;
 
   static const String inUseKey = 'isSystemInUse';
@@ -60,10 +76,76 @@ enum AmcSystemStatusSaveResult {
   /// Saved and the non-functional status was sent to the backend.
   notified,
 
-  /// Saved, but sending the non-functional status failed (e.g. offline).
-  /// Not retained: saving again retries.
+  /// Saved; the device is offline, so the update was queued and will be
+  /// sent automatically when it is back online.
+  queued,
+
+  /// Saved, but the server rejected the update (not a connectivity
+  /// problem). Not queued: saving again retries.
   notifyFailed,
 }
+
+/// Device-wide queue of status updates waiting to be sent. Kept apart from
+/// each activity's local data, so it survives the visit's cleanup after the
+/// completion code and any reassignment. Not cleared on logout.
+abstract class AmcSystemStatusQueueStore {
+  Future<List<Map<String, dynamic>>> read();
+  Future<void> write(List<Map<String, dynamic>> items);
+}
+
+class _SecureStorageQueueStore implements AmcSystemStatusQueueStore {
+  static const _key = 'amcPendingSystemStatusUpdates';
+
+  @override
+  Future<List<Map<String, dynamic>>> read() async {
+    final raw = await SecureStore().storage.read(key: _key);
+    if (raw == null || raw.isEmpty) return [];
+    final decoded = jsonDecode(raw);
+    return decoded is List
+        ? decoded
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList()
+        : [];
+  }
+
+  @override
+  Future<void> write(List<Map<String, dynamic>> items) =>
+      SecureStore().storage.write(key: _key, value: jsonEncode(items));
+}
+
+/// True when a failed request should be queued and retried later: no
+/// response at all (offline, DNS, timeout), a server error (5xx), or an
+/// auth/rate-limit status. A 4xx rejection is final.
+bool isRetryableSystemStatusError(Object error) {
+  if (error is DioException) {
+    final status = error.response?.statusCode;
+    if (status == null) return true;
+    return status >= 500 || status == 401 || status == 408 || status == 429;
+  }
+  return error is NetworkException ||
+      error is SocketException ||
+      error is TimeoutException;
+}
+
+Future<bool> _defaultIsOnline() async {
+  try {
+    return await NetworkService().hasNetwork();
+  } catch (_) {
+    return false;
+  }
+}
+
+Future<bool> _defaultHasSession() async {
+  try {
+    final token = await SecureStore().getAccessToken();
+    return token != null && token.isNotEmpty;
+  } catch (_) {
+    return false;
+  }
+}
+
+enum _SendOutcome { sent, retryLater, rejected }
 
 /// Where the answers live on the device. The default stores them in the
 /// AMC form-values table under their own entry key
@@ -100,12 +182,24 @@ class _IsarAmcSystemStatusStore implements AmcSystemStatusLocalStore {
 class AmcSystemStatusRepository {
   AmcSystemStatusRepository({
     AmcSystemStatusLocalStore? store,
+    AmcSystemStatusQueueStore? queue,
     AmcRemoteDataSource? dataSource,
+    Future<bool> Function()? isOnline,
+    Future<bool> Function()? hasSession,
   })  : _store = store ?? _IsarAmcSystemStatusStore(),
-        _dataSource = dataSource;
+        _queue = queue ?? _SecureStorageQueueStore(),
+        _dataSource = dataSource,
+        _isOnline = isOnline ?? _defaultIsOnline,
+        _hasSession = hasSession ?? _defaultHasSession;
 
   final AmcSystemStatusLocalStore _store;
+  final AmcSystemStatusQueueStore _queue;
   final AmcRemoteDataSource? _dataSource;
+  final Future<bool> Function() _isOnline;
+  final Future<bool> Function() _hasSession;
+
+  /// Serialises queue reads/writes and flushes within this isolate.
+  static final _queueLock = Lock();
 
   AmcRemoteDataSource get _remote => _dataSource ?? amcRemoteDataSource;
 
@@ -134,7 +228,8 @@ class AmcSystemStatusRepository {
 
   /// Saves both answers. When the system is not functional and the Program
   /// POC was not already notified for this activity (on this device or in
-  /// the submitted report), sends the status update once.
+  /// the submitted report), sends the status update once, or queues it if
+  /// the device is offline.
   Future<AmcSystemStatusSaveResult> save({
     required ScheduledVisit visit,
     required bool isSystemInUse,
@@ -156,16 +251,17 @@ class AmcSystemStatusRepository {
       return AmcSystemStatusSaveResult.saved;
     }
 
-    try {
-      await _remote.updateSystemStatus(buildSystemStatusRequest(
-        visitId: visitId,
-        isSystemInUse: isSystemInUse,
-        isSystemFunctional: isSystemFunctional,
-      ));
-    } catch (e) {
-      debugPrint('AmcSystemStatusRepository.updateSystemStatus error=$e');
+    final body = buildSystemStatusRequest(
+      visitId: visitId,
+      isSystemInUse: isSystemInUse,
+      isSystemFunctional: isSystemFunctional,
+    );
+    final outcome =
+        await _isOnline() ? await _send(body) : _SendOutcome.retryLater;
+    if (outcome == _SendOutcome.rejected) {
       return AmcSystemStatusSaveResult.notifyFailed;
     }
+    if (outcome == _SendOutcome.retryLater) await _enqueue(body);
 
     status = AmcSystemStatus(
       isSystemInUse: isSystemInUse,
@@ -173,7 +269,62 @@ class AmcSystemStatusRepository {
       nonFunctionalNotified: true,
     );
     await _store.write(visitId, status.toJson());
-    return AmcSystemStatusSaveResult.notified;
+    return outcome == _SendOutcome.sent
+        ? AmcSystemStatusSaveResult.notified
+        : AmcSystemStatusSaveResult.queued;
+  }
+
+  Future<_SendOutcome> _send(Map<String, dynamic> body) async {
+    try {
+      await _remote.updateSystemStatus(body);
+      return _SendOutcome.sent;
+    } catch (e) {
+      debugPrint('AmcSystemStatusRepository.updateSystemStatus error=$e');
+      return isRetryableSystemStatusError(e)
+          ? _SendOutcome.retryLater
+          : _SendOutcome.rejected;
+    }
+  }
+
+  Future<void> _enqueue(Map<String, dynamic> body) =>
+      _queueLock.synchronized(() async {
+        final items = await _queue.read();
+        // One pending update per activity.
+        items.removeWhere((i) => i['visitId'] == body['visitId']);
+        items.add(body);
+        await _queue.write(items);
+      });
+
+  /// Status updates still waiting to be sent from this device.
+  Future<List<Map<String, dynamic>>> pendingUpdates() =>
+      _queueLock.synchronized(_queue.read);
+
+  /// Sends queued updates, oldest first, if the device is online and a user
+  /// is logged in. Stops at the first connectivity failure and keeps the
+  /// rest; drops an update the server rejects outright. Returns how many
+  /// were sent.
+  Future<int> flushQueue() async {
+    if (!await _hasSession() || !await _isOnline()) return 0;
+    return _queueLock.synchronized(() async {
+      final items = await _queue.read();
+      if (items.isEmpty) return 0;
+      var sent = 0;
+      final remaining = <Map<String, dynamic>>[];
+      for (var i = 0; i < items.length; i++) {
+        final outcome = await _send(items[i]);
+        if (outcome == _SendOutcome.retryLater) {
+          remaining.addAll(items.sublist(i));
+          break;
+        }
+        if (outcome == _SendOutcome.sent) sent++;
+        if (outcome == _SendOutcome.rejected) {
+          debugPrint('Dropping rejected AMC system status update '
+              'for visit ${items[i]['visitId']}');
+        }
+      }
+      await _queue.write(remaining);
+      return sent;
+    });
   }
 
   /// `visitReport.additionalDetails` for `SUBMIT_VISIT_REPORT`, or null if
