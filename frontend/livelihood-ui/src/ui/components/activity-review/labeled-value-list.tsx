@@ -1,13 +1,16 @@
 import { translateOr, useTranslate } from "@/shared";
+import { cn } from "@/ui/lib/utils";
 import type { LabeledValue } from "./types";
 
 interface LabeledValueRowsProps {
   items: LabeledValue[];
+  /** Width of the label column; widen it for long question-style labels so they don't wrap. */
+  labelWidthClassName?: string;
 }
 
 /** Just the label/value rows, no title or box — for composing inside a
  * shared sub-section box alongside other content (e.g. an item's images). */
-export function LabeledValueRows({ items }: LabeledValueRowsProps) {
+export function LabeledValueRows({ items, labelWidthClassName = "w-40" }: LabeledValueRowsProps) {
   const { t } = useTranslate();
 
   if (items.length === 0) {
@@ -18,7 +21,7 @@ export function LabeledValueRows({ items }: LabeledValueRowsProps) {
     <div className="space-y-1.5">
       {items.map((item) => (
         <div key={item.labelKey} className="flex flex-wrap gap-x-4 text-sm">
-          <span className="w-40 shrink-0 font-semibold text-ink-950">
+          <span className={cn(labelWidthClassName, "shrink-0 font-semibold text-ink-950")}>
             {translateOr(t, item.labelKey, item.label)}
           </span>
           <span className="text-ink-950">
