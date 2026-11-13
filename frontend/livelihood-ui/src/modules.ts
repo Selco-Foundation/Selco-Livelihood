@@ -1,3 +1,4 @@
+import { createAmcModule } from "@/modules/amc";
 import { createCoreModule } from "@/modules/core";
 import { createEuModule } from "@/modules/eu";
 import { createImModule } from "@/modules/im";
@@ -19,8 +20,9 @@ const im = createImModule(rootRoute, core.employeeLayoutRoute);
 const ir = createIrModule(rootRoute, core.employeeLayoutRoute);
 const eu = createEuModule(rootRoute, core.employeeLayoutRoute);
 const org = createOrgModule(rootRoute, core.employeeLayoutRoute);
+const amc = createAmcModule(rootRoute, core.employeeLayoutRoute);
 
-const enabledModules: ModuleDefinition<AnyRoute>[] = [core, pm, im, ir, eu, org];
+const enabledModules: ModuleDefinition<AnyRoute>[] = [core, pm, im, ir, eu, org, amc];
 
 setRegisteredModules(enabledModules);
 
