@@ -4,7 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../model/activity_facility_workflow/activity_facility_workflow.dart';
+import '../model/amc/scheduled_visit.dart';
 import '../model/solar_installation_draft.dart';
+import '../pages/amc/amc_draft.dart';
+import '../pages/amc/amc_dynamic_form.dart';
+import '../pages/amc/amc_home.dart';
+import '../pages/amc/amc_inbox.dart';
+import '../pages/amc/amc_media_upload.dart';
+import '../pages/amc/amc_otp.dart';
+import '../pages/amc/amc_rejection_reasons.dart';
+import '../pages/amc/amc_report_home.dart';
+import '../pages/amc/amc_select_facility.dart';
+import '../pages/amc/amc_system_status.dart';
 import '../pages/asset_flow_pages.dart';
 import '../pages/authenticated.dart';
 import '../pages/data_save_success.dart';
@@ -18,10 +29,12 @@ import '../pages/machine_report_success_page.dart';
 import '../pages/media_viewer.dart';
 import '../pages/dynamic_bom_form.dart';
 import '../pages/overall_asset_summary.dart';
+import '../pages/role_selection.dart';
 import '../pages/submitted_save_success.dart';
 import '../pages/sync_loading.dart';
 import '../pages/unauthenticated.dart';
 import '../pages/welcome_page.dart';
+import '../utils/amc/amc_utils.dart';
 import '../widgets/machine_media_picker.dart';
 import 'routes.dart';
 
@@ -101,6 +114,27 @@ class AppRouter extends _$AppRouter {
             AutoRoute(page: VideoViewerRoute.page, path: Routes.videoViewer),
             AutoRoute(page: PdfViewerRoute.page, path: Routes.pdfViewer),
             AutoRoute(page: SyncLoadingRoute.page, path: Routes.syncLoading),
+            AutoRoute(
+                page: RoleSelectionRoute.page, path: Routes.roleSelection),
+            // AMC (ported from E4H)
+            AutoRoute(page: AmcHomeRoute.page, path: Routes.amcHome),
+            AutoRoute(
+                page: AmcReportHomeRoute.page, path: Routes.amcReportHome),
+            AutoRoute(
+                page: AmcSelectFacilityRoute.page,
+                path: Routes.amcSelectFacility),
+            AutoRoute(
+                page: AmcSystemStatusRoute.page, path: Routes.amcSystemStatus),
+            AutoRoute(
+                page: AmcDynamicFormRoute.page, path: Routes.amcDynamicForm),
+            AutoRoute(page: AmcOtpRoute.page, path: Routes.amcOtp),
+            AutoRoute(page: AmcDraftRoute.page, path: Routes.amcDraft),
+            AutoRoute(page: AmcInboxRoute.page, path: Routes.amcInbox),
+            AutoRoute(
+                page: AmcMediaUploadRoute.page, path: Routes.amcMediaUpload),
+            AutoRoute(
+                page: AmcRejctionReasonsRoute.page,
+                path: Routes.amcRejectionReasons),
           ],
         ),
       ];

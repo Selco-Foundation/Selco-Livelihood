@@ -1,12 +1,19 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' show DartPluginRegistrant;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:isar/isar.dart';
 
+import '../data/nosql/cache_amc_media_upload.dart';
+import '../data/nosql/cache_schedule_visit_form_values.dart';
 import '../data/secure_storage/secureStore.dart';
+import '../model/amc/scheduled_visit.dart';
+import '../repositories/amc/amc_system_status_repo.dart';
+import '../repositories/amc/scheduled_visit_repo.dart';
 import '../model/asset/asset_submission.dart';
 import '../model/bom/bom.dart';
 import '../model/document/submission_document.dart';
@@ -18,6 +25,7 @@ import '../repositories/installation_cache_repo.dart';
 import '../repositories/operation_progress_repo.dart';
 import '../repositories/pending_submission_repository.dart';
 import '../repositories/vendor_org_repository.dart';
+import 'amc/amc_utils.dart' show getFilestoreUrl;
 import 'envConfig.dart';
 import 'operation_progress.dart';
 import 'submission_error.dart';
@@ -27,6 +35,11 @@ const String kMethodSubmit = 'submit';
 const String kEvtDone = 'submission_done';
 const String kEvtError = 'submission_error';
 const String kEvtReady = 'service_ready';
+
+// AMC visit report submission (ported from E4H `utils/background_service.dart`).
+const String kMethodSubmitVisit = 'submit_schedule_visit';
+const String kEvtScheduleVisitDone = 'schedule_visit_done';
+const String kEvtScheduleVisitError = 'schedule_visit_error';
 
 const String _svcChannelId = 'asset_submission_channel';
 const String _svcChannelName = 'Asset Submission';
@@ -149,6 +162,40 @@ class BackgroundServiceController {
       send();
     }
   }
+
+  /// AMC: uploads the visit's cached photos and submits its cached form
+  /// answers (`SUBMIT_VISIT_REPORT`) in the background isolate. Same
+  /// start/re-kick pattern as [enqueueSubmission].
+  Future<void> enqueueScheduleVisitSubmission({
+    required String scheduledVisitId,
+    required String userType,
+  }) async {
+    final service = FlutterBackgroundService();
+    final reqId = DateTime.now().microsecondsSinceEpoch.toString();
+    void send() => service.invoke(kMethodSubmitVisit, {
+          'scheduledVisitId': scheduledVisitId,
+          'userType': userType,
+          'reqId': reqId,
+        });
+
+    const channelTimeout = Duration(seconds: 5);
+    if (!await service.isRunning().timeout(channelTimeout)) {
+      await service.startService().timeout(channelTimeout);
+      StreamSubscription? readySub;
+      readySub = service.on(kEvtReady).listen((_) {
+        send();
+        readySub?.cancel();
+      });
+      send();
+      Timer(const Duration(milliseconds: 200), () {
+        send();
+        readySub?.cancel();
+      });
+    } else {
+      await ensureAndroidNotificationPermission();
+      send();
+    }
+  }
 }
 
 @pragma('vm:entry-point')
@@ -207,7 +254,116 @@ void onStart(ServiceInstance service) async {
     }
   });
 
+  String? lastHandledVisitReqId;
+  service.on(kMethodSubmitVisit).listen((payload) async {
+    final visitId = payload?['scheduledVisitId'] as String?;
+    final userType = payload?['userType'] as String?;
+    final reqId = payload?['reqId'] as String?;
+    if (visitId == null || userType == null) return;
+    if (reqId != null && reqId == lastHandledVisitReqId) return;
+    lastHandledVisitReqId = reqId;
+
+    if (service is AndroidServiceInstance) {
+      await service.setForegroundNotificationInfo(
+        title: 'Submitting visit report',
+        content: 'Preparing visit submission…',
+      );
+    }
+
+    try {
+      await _performScheduleVisitSubmission(
+        scheduledVisitId: visitId,
+        userType: userType,
+      );
+      service.invoke(kEvtScheduleVisitDone, {'scheduledVisitId': visitId});
+    } catch (e) {
+      debugPrint('[BG] _performScheduleVisitSubmission failed: $e');
+      // Kept as in E4H: the thrown message is 'Form not filled', so this
+      // FORM_NOT_FILLED branch never matches and the generic text is shown.
+      final String msg;
+      if (e.toString().contains('FORM_NOT_FILLED')) {
+        msg =
+            'Visit form is not filled yet. Please fill the AMC form before submitting.';
+      } else {
+        msg = 'Something went wrong while submitting the visit report.';
+      }
+      service.invoke(kEvtScheduleVisitError, {
+        'scheduledVisitId': visitId,
+        'message': msg,
+      });
+    }
+  });
+
   service.invoke(kEvtReady);
+}
+
+/// E4H `_performScheduleVisitSubmission`: reads the visit's cached answers
+/// and photos, uploads each photo, then sends `SUBMIT_VISIT_REPORT` and marks
+/// the visit as "prefilled" (awaiting the completion code).
+Future<void> _performScheduleVisitSubmission({
+  required String scheduledVisitId,
+  required String userType,
+}) async {
+  final Isar isar = await amcIsar();
+  final form = await isar.cacheScheduleVisitFormValues
+      .where()
+      .scheduledVisitIdEqualTo(scheduledVisitId)
+      .filter()
+      .userTypeEqualTo(userType)
+      .findFirst();
+
+  if (form == null || form.dataJson.trim().isEmpty) {
+    throw Exception('Form not filled');
+  }
+
+  final responses = jsonDecode(form.dataJson) as Map<String, dynamic>;
+
+  final cachedMedia = await isar.cacheAmcMediaUploads
+      .where()
+      .scheduledVisitIdEqualTo(scheduledVisitId)
+      .filter()
+      .userTypeEqualTo(userType)
+      .findAll();
+
+  final visitDocuments = <AmcDocument>[];
+
+  for (final media in cachedMedia) {
+    if (media.filePath.isEmpty) continue;
+
+    final fileStoreId = await getFilestoreUrl(media.filePath);
+
+    visitDocuments.add(
+      AmcDocument(
+        documentType: media.itemType,
+        fileStore: fileStoreId,
+        documentUid:
+            'DOC-AMC-${media.itemType}-${DateTime.now().millisecondsSinceEpoch}',
+        geoLocation: AmcGeoLocation(
+          latitude: media.latitude,
+          longitude: media.longitude,
+        ),
+      ),
+    );
+  }
+
+  // Pre-report system status answers (#247), sent with the report.
+  final reportAdditionalDetails = await AmcSystemStatusRepository()
+      .reportAdditionalDetails(scheduledVisitId);
+
+  final remote = ScheduledVisitRemoteRepository();
+  // DUMMY-BACKEND: E4H hard-codes schemaCode "12345678" / version 1 (kept
+  // as-is); confirm the real values with the backend team.
+  await remote.updateVisitWorkflow(
+    visitId: scheduledVisitId,
+    schemaCode: "12345678",
+    version: 1,
+    responses: responses,
+    visitDocuments: visitDocuments,
+    reportAdditionalDetails: reportAdditionalDetails,
+  );
+
+  await PrefilledScheduledVisitRepository(isar)
+      .addOrTouch(scheduledVisitId: scheduledVisitId, userType: userType);
 }
 
 Future<void> _reportStage({

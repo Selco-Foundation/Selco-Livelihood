@@ -11,6 +11,7 @@ import '../data/secure_storage/secureStore.dart';
 import '../router/app_router.dart';
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
+import '../utils/post_login_navigation.dart';
 import '../widgets/errors/app_error_notifier.dart';
 import '../widgets/livelihood_app_bar.dart';
 import '../widgets/login_consent_checkbox.dart';
@@ -130,11 +131,7 @@ class _LoginPageState extends State<LoginPage> {
           authenticated: (accessToken, refreshToken, userRequest) async {
             await _persistConsentAfterAuthentication();
             if (!context.mounted) return;
-            context.router.root.replaceAll(
-              const [
-                AuthenticatedRouteWrapper(children: [HomeRoute()])
-              ],
-            );
+            navigateAfterLogin(context, userRequest);
           },
           error: (message) {
             _shouldPersistConsentOnAuthentication = false;

@@ -8,18 +8,27 @@ import '../../data/secure_storage/secureStore.dart';
 import '../../model/login/loginModel.dart';
 import '../../model/response/responsemodel.dart';
 import '../../repositories/auth_repo.dart';
+import '../../utils/amc/amc_module_readiness.dart';
 import '../../utils/envConfig.dart';
 import '../../utils/error_i18n.dart';
 import '../../utils/i18_key_constants.dart' as i18;
+import '../../utils/role_login_resolver.dart';
 
 part 'authbloc.freezed.dart';
 
-/// Only a user whose roles include this code is allowed into the app.
-/// E4H itself never rejects a login on role grounds — role codes there only
-/// steer post-login routing between multiple app modules. This app has a
-/// single module, so the equivalent behavior is an outright reject.
+/// A user is allowed into the app only when their roles grant at least one
+/// module this app supports: Installation (this code) or AMC
+/// (`AMC_FIELD_STAFF`). E4H itself never rejects a login on role grounds —
+/// role codes there only steer post-login routing between modules (see
+/// `RoleLoginResolver`) — but this app has no fallback module, so users with
+/// neither role are rejected outright.
 const String kInstallationReportPartAEditorRoleCode =
-    'INSTALLATION_REPORT_PART_A_EDITOR';
+    installationReportPartAEditorRoleCode;
+
+bool _hasSupportedRole(UserRequest userRequest) =>
+    RoleLoginResolver.hasSupportedRole(
+      userRequest.roles.map((role) => role.code),
+    );
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc(this._authRepository) : super(const AuthState.unauthenticated()) {
@@ -50,9 +59,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         return;
       }
 
-      final hasRequiredRole = userRequest.roles
-          .any((role) => role.code == kInstallationReportPartAEditorRoleCode);
-      if (!hasRequiredRole) {
+      if (!_hasSupportedRole(userRequest)) {
         emit(AuthState.error(i18.login.accessRoleRequired));
         return;
       }
@@ -61,8 +68,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       await Future.wait([
         secureStore.setAccessToken(response.access_token),
         secureStore.setAccessInfo(response),
+        // E4H stores the user name as the "selected individual"; AMC records
+        // it as `assignUserUuid` on locally saved visit forms.
+        secureStore.setSelectedIndividual(userRequest.userName),
       ]);
       AuthTokenInterceptor.resetLogoutGuard();
+      AmcModuleReadiness.invalidate();
 
       unawaited(_authRepository.reportLogin(userRequest));
 
@@ -79,6 +90,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   FutureOr<void> _onLogout(
       _AuthLogoutEvent event, Emitter<AuthState> emit) async {
     await _authRepository.logout();
+    AmcModuleReadiness.invalidate();
     emit(const AuthState.unauthenticated());
   }
 
@@ -95,9 +107,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         return;
       }
 
-      final hasRequiredRole = userRequest.roles
-          .any((role) => role.code == kInstallationReportPartAEditorRoleCode);
-      if (!hasRequiredRole) {
+      if (!_hasSupportedRole(userRequest)) {
         emit(const AuthState.unauthenticated());
         return;
       }
