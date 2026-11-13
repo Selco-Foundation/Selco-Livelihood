@@ -120,9 +120,18 @@ vi.mock("../../components/steps/TechnicianAssignmentStep", async (importOriginal
   const actual = await importOriginal<typeof import("../../components/steps/TechnicianAssignmentStep")>();
   return {
     ...actual,
-    TechnicianAssignmentStep: ({ onChange }: { onChange: (v: unknown[]) => void }) => (
+    TechnicianAssignmentStep: ({
+      onChange,
+      onAmcApplicableChange,
+    }: {
+      onChange: (v: unknown[]) => void;
+      onAmcApplicableChange?: (v: Record<string, boolean>) => void;
+    }) => (
       <div>
         <span>Technician Assignment Step</span>
+        <button type="button" onClick={() => onAmcApplicableChange?.({ "f1:SOLAR:1": true })}>
+          Mark AMC Applicable
+        </button>
         <button
           type="button"
           onClick={() =>
@@ -358,6 +367,48 @@ describe("CreateInstallationPlanPage", () => {
 
     await waitFor(() => expect(publishInstallationPlan).toHaveBeenCalled());
     expect(await screen.findByText("Installation Plan Created!")).toBeInTheDocument();
+  });
+
+  it("does not send the UI-only AMC applicable flags in the publish payload", async () => {
+    const user = userEvent.setup();
+    mockSearchState = { projectId: "project-1", planId: "plan-1", step: 4 };
+    vi.mocked(useInstallationPlanById).mockReturnValue({
+      data: { id: "plan-1", tenantId: "tenant-1", projectId: "project-1", name: "Plan A", additionalDetails: {} },
+    } as never);
+    vi.mocked(useInstallationPlanScope).mockReturnValue({
+      data: [{ siteId: "f1", included: true, solutionCode: "SOLAR" }],
+      isLoading: false,
+    } as never);
+    vi.mocked(useInstallationPlanTemplates).mockReturnValue({
+      data: [{ solutionCode: "SOLAR", uploaded: true }],
+      isLoading: false,
+    } as never);
+    vi.mocked(useVendorAssignmentSearch).mockReturnValue({
+      data: {
+        sites: [
+          {
+            facilityId: "f1",
+            assets: [{ componentType: "SOLAR", componentSequence: 1, vendorOrgId: "org-1", vendorUserId: "u1" }],
+          },
+        ],
+      },
+    } as never);
+    vi.mocked(validateVendorAssignment).mockResolvedValue({ valid: true, errors: [] });
+    vi.mocked(publishInstallationPlan).mockResolvedValue({
+      id: "plan-1",
+      tenantId: "tenant-1",
+      projectId: "project-1",
+      additionalDetails: { status: "PUBLISHED" },
+    });
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Mark AMC Applicable" }));
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+    await user.click(screen.getByRole("button", { name: "Confirm & Submit" }));
+
+    await waitFor(() => expect(publishInstallationPlan).toHaveBeenCalled());
+    const [, publishedAssignments] = vi.mocked(publishInstallationPlan).mock.calls[0];
+    expect(JSON.stringify(publishedAssignments)).not.toMatch(/amc/i);
   });
 
   it("shows the validation errors when submitting fails vendor-assignment validation", async () => {

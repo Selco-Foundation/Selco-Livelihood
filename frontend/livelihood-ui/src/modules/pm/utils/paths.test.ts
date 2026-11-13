@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   pmCreateInstallationPlanPath,
   pmCreateProjectPath,
+  pmEditAmcPath,
   pmMyProjectsPath,
   pmProjectDetailsPath,
 } from "./paths";
@@ -31,6 +32,10 @@ describe("pm path builders", () => {
     expect(pmCreateInstallationPlanPath()).toBe(
       "/livelihood-ui/employee/pm/project/installation-plan/create",
     );
+  });
+
+  it("builds the edit-AMC path under the context path", () => {
+    expect(pmEditAmcPath()).toBe("/livelihood-ui/employee/pm/project/installation-plan/amc/edit");
   });
 
   it("reflects a different configured context path", () => {

@@ -11,6 +11,7 @@ import {
   TechnicianAssignmentStep,
   toRows,
   toSavedAssignments,
+  type AmcApplicableValue,
   type AssignmentValue,
 } from "../../components/steps/TechnicianAssignmentStep";
 import { InstallationScopeStep, isScopeValid, type ScopeValue } from "../../components/steps/InstallationScopeStep";
@@ -27,6 +28,7 @@ import { useProjectById } from "../../hooks/use-project-by-id";
 import { useSaveInstallationPlan } from "../../hooks/use-save-installation-plan";
 import { useVendorAssignmentSearch } from "../../hooks/use-vendor-assignment-search";
 import type { InstallationPlanRouteSearch } from "../../routes";
+import { getAmcApplicable, saveAmcApplicable } from "../../services/amc-applicable";
 import { publishInstallationPlan, type SavedInstallationPlan } from "../../services/installation-plan";
 import { checkInstallationScope } from "../../services/installation-scope";
 import { validateVendorAssignment } from "../../services/vendor-assignment";
@@ -88,6 +90,16 @@ export function CreateInstallationPlanPage() {
   const [scope, setScope] = useState<ScopeValue>([]);
   const [templates, setTemplates] = useState<TemplateValue>([]);
   const [assignments, setAssignments] = useState<AssignmentValue>([]);
+  // Prototype: AMC applicable flags live in localStorage per plan, so they can be turned on even
+  // after publish. Deliberately not part of `assignments`, which publishInstallationPlan sends
+  // to the vendor-assignment API unchanged.
+  const [amcApplicable, setAmcApplicableState] = useState<AmcApplicableValue>(() =>
+    planId ? getAmcApplicable(planId) : {},
+  );
+  const setAmcApplicable = (value: AmcApplicableValue) => {
+    setAmcApplicableState(value);
+    if (planId) saveAmcApplicable(planId, value);
+  };
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmError, setConfirmError] = useState<string | undefined>(undefined);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -407,6 +419,8 @@ export function CreateInstallationPlanPage() {
           value={assignments}
           onChange={setAssignments}
           locked={isPublished}
+          amcApplicable={amcApplicable}
+          onAmcApplicableChange={setAmcApplicable}
         />
       );
     }

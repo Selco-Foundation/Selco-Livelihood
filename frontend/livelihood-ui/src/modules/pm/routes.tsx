@@ -15,6 +15,7 @@ import { PmOverview } from "./components/PmOverview";
 import { PM_ROUTES } from "./constants/routes";
 import { CreateInstallationPlanPage } from "./pages/employee/CreateInstallationPlanPage";
 import { CreateProjectPage } from "./pages/employee/CreateProjectPage";
+import { EditAmcPage } from "./pages/employee/EditAmcPage";
 import { MyProjectsPage } from "./pages/employee/MyProjectsPage";
 import { ProjectDetailsPage } from "./pages/employee/ProjectDetailsPage";
 
@@ -31,6 +32,11 @@ export interface InstallationPlanRouteSearch {
   projectId: string;
   planId?: string;
   step?: number;
+}
+
+export interface EditAmcRouteSearch {
+  projectId: string;
+  planId: string;
 }
 
 function toStepNumber(value: unknown, maxStep: number): number | undefined {
@@ -65,6 +71,7 @@ function createPmRoutes(employeeLayoutRoute: AnyRoute) {
   const createProjectPath = `/${basePath}${PM_ROUTES.createProject}`;
   const projectDetailsPath = `/${basePath}${PM_ROUTES.projectDetails}`;
   const createInstallationPlanPath = `/${basePath}${PM_ROUTES.createInstallationPlan}`;
+  const editAmcPath = `/${basePath}${PM_ROUTES.editAmc}`;
   const homePath = `/${basePath}/employee`;
 
   // Parent route — loads rainmaker-pm translations and gates the whole PM
@@ -132,6 +139,16 @@ function createPmRoutes(employeeLayoutRoute: AnyRoute) {
     component: CreateInstallationPlanPage,
   });
 
+  const editAmcRoute = createRoute({
+    getParentRoute: () => pmParentRoute,
+    path: editAmcPath,
+    validateSearch: (search: Record<string, unknown>): EditAmcRouteSearch => ({
+      projectId: typeof search.projectId === "string" ? search.projectId : "",
+      planId: typeof search.planId === "string" ? search.planId : "",
+    }),
+    component: EditAmcPage,
+  });
+
   return {
     routes: [
       pmParentRoute,
@@ -140,6 +157,7 @@ function createPmRoutes(employeeLayoutRoute: AnyRoute) {
       createProjectRoute,
       projectDetailsRoute,
       createInstallationPlanRoute,
+      editAmcRoute,
     ],
     navItems: [
       {

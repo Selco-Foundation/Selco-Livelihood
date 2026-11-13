@@ -19,8 +19,15 @@ import { useAuthStore, useModuleI18n } from "@/shared";
 
 const rootRoute = createRootRoute();
 const pmModule = createPmModule(rootRoute, rootRoute);
-const [pmParentRoute, pmIndexRoute, myProjectsRoute, createProjectRoute, projectDetailsRoute, createInstallationPlanRoute] =
-  pmModule.routes;
+const [
+  pmParentRoute,
+  pmIndexRoute,
+  myProjectsRoute,
+  createProjectRoute,
+  projectDetailsRoute,
+  createInstallationPlanRoute,
+  editAmcRoute,
+] = pmModule.routes;
 
 const basePath = "livelihood-ui";
 const pmRootPath = `/${basePath}${PM_ROUTES.pmRoot}`;
@@ -28,6 +35,7 @@ const myProjectsPath = `/${basePath}${PM_ROUTES.myProjects}`;
 const createProjectPath = `/${basePath}${PM_ROUTES.createProject}`;
 const projectDetailsPath = `/${basePath}${PM_ROUTES.projectDetails}`;
 const createInstallationPlanPath = `/${basePath}${PM_ROUTES.createInstallationPlan}`;
+const editAmcPath = `/${basePath}${PM_ROUTES.editAmc}`;
 const homePath = `/${basePath}/employee`;
 
 function pathOf(route: (typeof pmModule.routes)[number]): string | undefined {
@@ -61,6 +69,7 @@ describe("createPmModule routes", () => {
     expect(pathOf(createProjectRoute)).toBe(createProjectPath);
     expect(pathOf(projectDetailsRoute)).toBe(projectDetailsPath);
     expect(pathOf(createInstallationPlanRoute)).toBe(createInstallationPlanPath);
+    expect(pathOf(editAmcRoute)).toBe(editAmcPath);
   });
 
   describe("pmIndexRoute", () => {
@@ -137,6 +146,20 @@ describe("createPmModule routes", () => {
 
     it("rejects a step beyond 4", () => {
       expect(validate({ projectId: "p1", step: "5" }).step).toBeUndefined();
+    });
+  });
+
+  describe("editAmcRoute.validateSearch", () => {
+    const validate = editAmcRoute.options.validateSearch as (
+      search: Record<string, unknown>,
+    ) => { projectId: string; planId: string };
+
+    it("keeps string projectId and planId", () => {
+      expect(validate({ projectId: "p1", planId: "plan-1" })).toEqual({ projectId: "p1", planId: "plan-1" });
+    });
+
+    it("defaults missing or non-string ids to empty strings", () => {
+      expect(validate({ planId: 7 })).toEqual({ projectId: "", planId: "" });
     });
   });
 

@@ -4,4 +4,5 @@ export const PM_ROUTES = {
   createProject: "/employee/pm/project/create",
   projectDetails: "/employee/pm/project/details",
   createInstallationPlan: "/employee/pm/project/installation-plan/create",
+  editAmc: "/employee/pm/project/installation-plan/amc/edit",
 } as const;
