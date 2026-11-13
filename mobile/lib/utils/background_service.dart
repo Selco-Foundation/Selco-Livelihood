@@ -179,17 +179,19 @@ class BackgroundServiceController {
 
     const channelTimeout = Duration(seconds: 5);
     if (!await service.isRunning().timeout(channelTimeout)) {
+      // As in E4H: listen for "ready" before starting the service, and keep
+      // listening until it arrives. A cold-started isolate can take well over
+      // a second to register its listeners, so the sends below can be lost;
+      // the re-send on "ready" is what delivers the request then. (This used
+      // to be cancelled after 200 ms, leaving the submit stuck on loading.)
+      final ready = service.on(kEvtReady).first;
       await service.startService().timeout(channelTimeout);
-      StreamSubscription? readySub;
-      readySub = service.on(kEvtReady).listen((_) {
-        send();
-        readySub?.cancel();
-      });
+      unawaited(ready
+          .timeout(const Duration(minutes: 1))
+          .then((_) => send())
+          .catchError((_) {}));
       send();
-      Timer(const Duration(milliseconds: 200), () {
-        send();
-        readySub?.cancel();
-      });
+      Timer(const Duration(milliseconds: 200), send);
     } else {
       await ensureAndroidNotificationPermission();
       send();

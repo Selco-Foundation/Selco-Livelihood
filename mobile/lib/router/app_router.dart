@@ -7,6 +7,7 @@ import '../model/activity_facility_workflow/activity_facility_workflow.dart';
 import '../model/amc/scheduled_visit.dart';
 import '../model/solar_installation_draft.dart';
 import '../pages/amc/amc_draft.dart';
+import '../pages/amc/android_camera_capture_page.dart';
 import '../pages/amc/amc_dynamic_form.dart';
 import '../pages/amc/amc_home.dart';
 import '../pages/amc/amc_inbox.dart';
@@ -132,6 +133,10 @@ class AppRouter extends _$AppRouter {
             AutoRoute(page: AmcInboxRoute.page, path: Routes.amcInbox),
             AutoRoute(
                 page: AmcMediaUploadRoute.page, path: Routes.amcMediaUpload),
+            AutoRoute(
+                page: AndroidCameraCaptureRoute.page,
+                path: Routes.amcCameraCapture,
+                fullscreenDialog: true),
             AutoRoute(
                 page: AmcRejctionReasonsRoute.page,
                 path: Routes.amcRejectionReasons),

@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:digit_ui_components/enum/app_enums.dart';
 import 'package:digit_ui_components/services/location_bloc.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:digit_ui_components/theme/spacers.dart';
 import 'package:digit_ui_components/widgets/atoms/digit_checkbox.dart';
+import 'package:digit_ui_components/widgets/atoms/digit_info_card.dart';
 import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
 import 'package:digit_ui_components/widgets/scrollable_content.dart';
 import 'package:flutter/material.dart';
@@ -30,10 +32,17 @@ import '../../widgets/footer_button.dart';
 import '../../widgets/image_uploader.dart';
 
 /// Ported from E4H `pages/amc_media_upload.dart`: photos (with GPS) for the
-/// AMC report. Submit caches the photos and hands the report to the
-/// background service, then opens the completion-code (OTP) screen. When
-/// resubmitting a rejected visit, every rejection reason must be ticked.
-/// Read-only (photos only) when opened from the inbox/submitted lists.
+/// AMC report. When resubmitting a rejected visit, every rejection reason
+/// must be ticked. Read-only (photos only) when opened from the
+/// inbox/submitted lists.
+///
+/// #248: this is the mandatory verification photograph screen (field staff
+/// with the end user in front of the solar system). At least one photo is
+/// required. "Save and Next" stores the photos on the device with the
+/// report, confirms the save, then (as in E4H) hands the report to the
+/// background service and opens the completion-code (OTP) screen once it is
+/// submitted. If submitting fails (e.g. offline) the report stays in Data
+/// Sync for retry.
 @RoutePage()
 class AmcMediaUploadPage extends StatefulWidget {
   const AmcMediaUploadPage({super.key});
@@ -53,6 +62,9 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
   double? _longitude;
   List<String>? existingImagePaths;
   StreamSubscription<LocationState>? _locSub;
+
+  bool _showPhotoError = false;
+  bool _savingPhotos = false;
 
   List<String> _rejectionReasons = const [];
   final Set<String> _selectedRejectionReasons = <String>{};
@@ -234,6 +246,85 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
     });
   }
 
+  /// Replaces the visit's cached photos with [_selectedImages] and waits
+  /// until every one is stored, so the "saved" message is only shown once
+  /// the photos really are on the device.
+  Future<bool> _cachePhotos() async {
+    final visitId = _currentScheduledVisitId!;
+    final cacheBloc = context.read<CacheAmcMediaUploadBloc>();
+
+    cacheBloc.add(CacheAmcMediaUploadEvent.deleteAll(visitId, userType));
+    final cleared = await cacheBloc.stream.firstWhere((state) =>
+        state.maybeWhen(
+            deleted: () => true, error: (_) => true, orElse: () => false));
+    if (cleared.maybeWhen(error: (_) => true, orElse: () => false)) {
+      return false;
+    }
+
+    final entries = <CacheAmcMediaUpload>[];
+    for (final file in _selectedImages) {
+      final copied = await copyFileToLocalDir(File(file.path));
+      entries.add(CacheAmcMediaUpload(
+        scheduledVisitId: visitId,
+        itemNumber: file.path,
+        itemType: 'image',
+        userType: userType,
+        filePath: copied,
+        longitude: _longitude.toString(),
+        latitude: _latitude.toString(),
+      ));
+    }
+
+    // Listen before adding so no result is missed.
+    final results = cacheBloc.stream
+        .where((state) => state.maybeWhen(
+            added: (_) => true, error: (_) => true, orElse: () => false))
+        .take(entries.length)
+        .toList();
+    for (final entry in entries) {
+      cacheBloc.add(CacheAmcMediaUploadEvent.add(entry));
+    }
+    final states = await results;
+    return states
+        .every((st) => st.maybeWhen(added: (_) => true, orElse: () => false));
+  }
+
+  Future<void> _onSaveAndNext() async {
+    if (_currentScheduledVisitId == null ||
+        _isImagesInitLoading ||
+        _savingPhotos) {
+      return;
+    }
+    if (_selectedImages.isEmpty) {
+      setState(() => _showPhotoError = true);
+      return;
+    }
+
+    setState(() => _savingPhotos = true);
+    bool saved;
+    try {
+      saved = await _cachePhotos();
+    } catch (_) {
+      saved = false;
+    } finally {
+      if (mounted) setState(() => _savingPhotos = false);
+    }
+    if (!mounted) return;
+
+    if (!saved) {
+      context.showSnackBar(SnackBar(
+          content:
+              Text(context.translate(i18.amcMediaUpload.photoSaveFailed))));
+      return;
+    }
+    context.showSnackBar(SnackBar(
+        content: Text(context.translate(i18.amcMediaUpload.reportSaved))));
+
+    context.read<ScheduleVisitSubmitBloc>().add(
+        ScheduleVisitSubmitEvent.submit(
+            scheduledVisitId: _currentScheduledVisitId!, userType: userType));
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -301,7 +392,7 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
         builder: (context, scheduleState) {
           String footerText = isReadOnlyMedia
               ? context.translate(i18.amcCommon.backToHome)
-              : context.translate(i18.amcCommon.coreCommonSubmit);
+              : context.translate(i18.amcMediaUpload.saveAndNext);
 
           final mustPickRejection =
               currentOrigin == FormOrigin.submitForApproval;
@@ -322,51 +413,21 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
                       loading: () => true,
                       orElse: () => false,
                     ) ||
+                    _savingPhotos ||
                     notAllRejectionsChecked,
                 showSuffixIcon: false,
-                text: scheduleState.maybeWhen(
-                  loading: () => context.translate(i18.amcCommon.loading),
-                  orElse: () => footerText,
-                ),
+                text: _savingPhotos
+                    ? context.translate(i18.amcCommon.loading)
+                    : scheduleState.maybeWhen(
+                        loading: () =>
+                            context.translate(i18.amcCommon.loading),
+                        orElse: () => footerText,
+                      ),
                 onPressed: () async {
                   switch (currentOrigin) {
                     case FormOrigin.overallSummary:
                     case FormOrigin.submitForApproval:
-                      if (_currentScheduledVisitId == null) return;
-                      context.read<CacheAmcMediaUploadBloc>().add(
-                          CacheAmcMediaUploadEvent.deleteAll(
-                              _currentScheduledVisitId!, userType));
-                      await context
-                          .read<CacheAmcMediaUploadBloc>()
-                          .stream
-                          .firstWhere((state) => state.maybeWhen(
-                                deleted: () => true,
-                                error: (_) => true,
-                                orElse: () => false,
-                              ));
-                      for (final file in _selectedImages) {
-                        final copied =
-                            await copyFileToLocalDir(File(file.path));
-                        final entry = CacheAmcMediaUpload(
-                          scheduledVisitId: _currentScheduledVisitId!,
-                          itemNumber: file.path,
-                          itemType: 'image',
-                          userType: userType,
-                          filePath: copied,
-                          longitude: _longitude.toString(),
-                          latitude: _latitude.toString(),
-                        );
-                        if (!context.mounted) return;
-                        context
-                            .read<CacheAmcMediaUploadBloc>()
-                            .add(CacheAmcMediaUploadEvent.add(entry));
-                      }
-
-                      if (!context.mounted) return;
-                      context.read<ScheduleVisitSubmitBloc>().add(
-                          ScheduleVisitSubmitEvent.submit(
-                              scheduledVisitId: _currentScheduledVisitId!,
-                              userType: userType));
+                      await _onSaveAndNext();
                       break;
                     default:
                       context.router.push(const AmcHomeRoute());
@@ -384,16 +445,18 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
                       DigitCard(children: [
                         SizedBox(width: context.width),
                         Text(
-                          context.translate(i18.amcCommon.images),
+                          context.translate(
+                              i18.amcMediaUpload.verificationPhotoTitle),
                           style: textTheme.headingXl.copyWith(
                               color: theme.colorTheme.primary.primary2),
                         ),
                         if (!isReadOnlyMedia)
-                          Text(
-                            context.translate(
-                                i18.amcMediaUpload.selfieInstruction),
-                            style: textTheme.headingS
-                                .copyWith(color: theme.colorTheme.text.primary),
+                          InfoCard(
+                            key: const ValueKey('amc-media-instruction'),
+                            title: '',
+                            type: InfoType.info,
+                            description: context.translate(i18
+                                .amcMediaUpload.verificationPhotoInstruction),
                           ),
                         if (!isReadOnlyMedia) const SizedBox(height: spacer2),
                         if (isReadOnlyMedia &&
@@ -404,6 +467,17 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
                           ImageUploader(
                             key: const ValueKey('amc-media-image-uploader'),
                             allowMultiples: true,
+                            // As in E4H: Android uses the in-app camera page;
+                            // iOS keeps the device camera.
+                            cameraCaptureLauncher: Platform.isAndroid
+                                ? (ctx) => ctx.router
+                                    .push(const AndroidCameraCaptureRoute())
+                                : null,
+                            errorMessage:
+                                _showPhotoError && _selectedImages.isEmpty
+                                    ? context.translate(
+                                        i18.amcMediaUpload.photoRequired)
+                                    : null,
                             initialImages: _selectedImages
                                 .map((file) => SolarFileRef(
                                       name: basename(file.path),

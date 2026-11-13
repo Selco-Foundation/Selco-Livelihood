@@ -215,6 +215,8 @@ class MachineForm {
   String get mediaPickerError => 'MACHINE_FORM_MEDIA_PICKER_ERROR';
   String get cameraPermissionRequired =>
       'MACHINE_FORM_CAMERA_PERMISSION_REQUIRED';
+  String get galleryPermissionRequired =>
+      'MACHINE_FORM_GALLERY_PERMISSION_REQUIRED';
   String get locationPermissionRequired =>
       'MACHINE_FORM_LOCATION_PERMISSION_REQUIRED';
   String get saveAsDraft => 'MACHINE_FORM_SAVE_AS_DRAFT';
@@ -457,6 +459,16 @@ class AmcMediaUpload {
   String get rejectionList => 'AMC_MEDIA_UPLOAD_REJECTION_LIST';
   String get noRejectionReasonsFound =>
       'AMC_MEDIA_UPLOAD_NO_REJECTION_REASONS_FOUND';
+
+  // #248: mandatory verification photograph.
+  String get verificationPhotoTitle =>
+      'AMC_MEDIA_UPLOAD_VERIFICATION_PHOTO_TITLE';
+  String get verificationPhotoInstruction =>
+      'AMC_MEDIA_UPLOAD_VERIFICATION_PHOTO_INSTRUCTION';
+  String get photoRequired => 'AMC_MEDIA_UPLOAD_PHOTO_REQUIRED';
+  String get saveAndNext => 'AMC_MEDIA_UPLOAD_SAVE_AND_NEXT';
+  String get reportSaved => 'AMC_MEDIA_UPLOAD_REPORT_SAVED';
+  String get photoSaveFailed => 'AMC_MEDIA_UPLOAD_PHOTO_SAVE_FAILED';
 }
 
 class AmcBookmarks {
