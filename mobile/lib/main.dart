@@ -17,12 +17,14 @@ import 'blocs/auth/authbloc.dart';
 import 'blocs/localization/app_localization.dart';
 import 'blocs/localization/app_localization_delegate.dart';
 import 'blocs/localization/localization.dart';
+import 'blocs/user_type/user_type.dart';
 import 'data/api_interceptors.dart';
 import 'data/app_shared_preferences.dart';
 import 'data/nosql/localization.dart';
 import 'model/appconfig/mdmsResponse.dart';
 import 'router/app_router.dart';
 import 'repositories/auth_repo.dart';
+import 'utils/amc/amc_system_status_sync.dart';
 import 'utils/background_service.dart';
 import 'utils/constants.dart';
 import 'utils/envConfig.dart';
@@ -64,6 +66,7 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
   late final AppRouter _router = widget.router ?? AppRouter();
   late final AuthBloc _authBloc;
   late final LocationBloc _locationBloc;
+  final UserTypeBloc _userTypeBloc = UserTypeBloc();
 
   @override
   void initState() {
@@ -72,6 +75,7 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
     _locationBloc = LocationBloc(location: Location());
     if (!Platform.environment.containsKey('FLUTTER_TEST')) {
       _locationBloc.add(const LocationEvent.load());
+      AmcSystemStatusSync.instance.start();
     }
     _authBloc.add(const AuthEvent.attemptLoad());
 
@@ -90,6 +94,8 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
   void dispose() {
     _authBloc.close();
     _locationBloc.close();
+    _userTypeBloc.close();
+    AmcSystemStatusSync.instance.stop();
     super.dispose();
   }
 
@@ -108,6 +114,7 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
         providers: [
           BlocProvider<AuthBloc>.value(value: _authBloc),
           BlocProvider<LocationBloc>.value(value: _locationBloc),
+          BlocProvider<UserTypeBloc>.value(value: _userTypeBloc),
         ],
         child: BlocProvider<ActivityFacilityCountsBloc>(
           create: (_) => ActivityFacilityCountsBloc(),
@@ -123,6 +130,7 @@ class _LivelihoodAppState extends State<LivelihoodApp> {
       providers: [
         BlocProvider<AuthBloc>.value(value: _authBloc),
         BlocProvider<LocationBloc>.value(value: _locationBloc),
+        BlocProvider<UserTypeBloc>.value(value: _userTypeBloc),
       ],
       child: BlocProvider<ActivityFacilityCountsBloc>(
         create: (_) => ActivityFacilityCountsBloc(),

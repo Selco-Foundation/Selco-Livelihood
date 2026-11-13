@@ -1,6 +1,7 @@
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../utils/extensions.dart';
@@ -14,6 +15,10 @@ typedef ImageUploaderPick = Future<XFile?> Function(
   ImageSource source,
 );
 typedef ImageUploaderPickMultiple = Future<List<XFile>> Function();
+
+/// Opens an in-app camera and returns the confirmed photo (null = cancelled).
+/// From E4H's uploader; used by AMC for E4H's Android camera page.
+typedef CameraCaptureLauncher = Future<XFile?> Function(BuildContext context);
 
 /// In-memory adaptation of E4H's shared image uploader. Matches E4H's API
 /// exactly: incoming/outgoing data is always list-based via
@@ -38,6 +43,7 @@ class ImageUploader extends StatefulWidget {
     this.maxImages,
     this.isDisabled = false,
     this.permissionGateway,
+    this.cameraCaptureLauncher,
   });
 
   final List<SolarFileRef>? initialImages;
@@ -50,6 +56,9 @@ class ImageUploader extends StatefulWidget {
   final int? maxImages;
   final bool isDisabled;
   final AppPermissionGateway? permissionGateway;
+
+  /// When set, "Camera" uses this instead of the device camera app.
+  final CameraCaptureLauncher? cameraCaptureLauncher;
 
   @override
   State<ImageUploader> createState() => _ImageUploaderState();
@@ -109,6 +118,10 @@ class _ImageUploaderState extends State<ImageUploader> {
         requestFullMetadata: false,
       );
     }
+    if (source == ImageSource.camera && widget.cameraCaptureLauncher != null) {
+      final file = await widget.cameraCaptureLauncher!(context);
+      return [if (file != null) file];
+    }
     final file = widget.pickMedia != null
         ? await widget.pickMedia!(SolarFileKind.image, source)
         : await ImagePicker().pickImage(
@@ -154,6 +167,18 @@ class _ImageUploaderState extends State<ImageUploader> {
         images.addAll(additions);
       });
       _notify();
+    } on PlatformException catch (e) {
+      // image_picker reports a blocked camera/photo library as
+      // `camera_access_denied` / `photo_access_denied`. Tapping the upload
+      // box again retries.
+      if (mounted) {
+        final key = !e.code.endsWith('access_denied')
+            ? i18.machineForm.mediaPickerError
+            : source == ImageSource.camera
+                ? i18.machineForm.cameraPermissionRequired
+                : i18.machineForm.galleryPermissionRequired;
+        setState(() => localError = context.translate(key));
+      }
     } catch (_) {
       if (mounted) {
         setState(() =>

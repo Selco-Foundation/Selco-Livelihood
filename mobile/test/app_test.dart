@@ -33,6 +33,8 @@ import 'package:livelihood/model/mdms/asset_registry_response.dart';
 import 'package:livelihood/model/mdms/common_masters.dart';
 import 'package:livelihood/repositories/activity_facility_repo.dart';
 import 'package:livelihood/repositories/app_init_repo.dart';
+import 'package:livelihood/utils/role_login_resolver.dart'
+    show tempGrantAmcToFieldStaff;
 import 'package:livelihood/utils/workflow_status.dart';
 import 'package:livelihood/utils/i18_key_constants.dart' as i18;
 import 'package:livelihood/utils/operation_progress.dart';
@@ -445,6 +447,10 @@ const _machineMdms = AssetRegistryMdmsResponse(
 
 void main() {
   setUp(() {
+    // These tests cover the permanent role rules, not the temporary
+    // "field staff also get AMC" testing access.
+    tempGrantAmcToFieldStaff = false;
+    addTearDown(() => tempGrantAmcToFieldStaff = true);
     _secureStorageValues.clear();
     _secureStorageReadFailureKey = null;
     _secureStorageWriteFailureKey = null;
@@ -2694,6 +2700,94 @@ void main() {
     await tester.pump();
     expect(selected, isEmpty);
     expect(find.byKey(const ValueKey('image-uploader-empty')), findsOneWidget);
+  });
+
+  testWidgets(
+      'image uploader explains a blocked gallery/camera and allows retry (#248)',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 844));
+    var selected = <SolarFileRef>[];
+    var denied = true;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: Scaffold(
+          body: ImageUploader(
+            initialImages: selected,
+            allowMultiples: true,
+            pickMedia: (_, source) async {
+              if (denied) {
+                throw PlatformException(
+                  code: source == ImageSource.camera
+                      ? 'camera_access_denied'
+                      : 'photo_access_denied',
+                );
+              }
+              return XFile('/tmp/verification.jpg');
+            },
+            onImagesSelected: (files) => selected = files,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('image-uploader-empty')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('image-uploader-files')));
+    await tester.pumpAndSettle();
+    expect(find.text(AppLocalizations.translateCached(
+        i18.machineForm.galleryPermissionRequired)), findsOneWidget);
+    expect(selected, isEmpty);
+
+    // Retry after access is granted: the upload box is still there.
+    denied = false;
+    await tester.tap(find.byKey(const ValueKey('image-uploader-empty')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('image-uploader-files')));
+    await tester.pumpAndSettle();
+    expect(selected.map((f) => f.path), ['/tmp/verification.jpg']);
+    expect(find.text(AppLocalizations.translateCached(
+        i18.machineForm.galleryPermissionRequired)), findsNothing);
+  });
+
+  testWidgets('image uploader uses the in-app camera launcher when given (#248)',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 844));
+    var selected = <SolarFileRef>[];
+    var launches = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: Scaffold(
+          body: ImageUploader(
+            initialImages: selected,
+            allowMultiples: true,
+            pickMedia: (_, __) async => XFile('/tmp/system-camera.jpg'),
+            cameraCaptureLauncher: (_) async {
+              launches++;
+              return XFile('/tmp/in-app-camera.jpg');
+            },
+            onImagesSelected: (files) => selected = files,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('image-uploader-empty')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('image-uploader-camera')));
+    await tester.pumpAndSettle();
+    expect(launches, 1);
+    expect(selected.map((f) => f.path), ['/tmp/in-app-camera.jpg']);
+
+    // Gallery is unaffected.
+    await tester.tap(find.byKey(const ValueKey('image-uploader-empty')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('image-uploader-files')));
+    await tester.pumpAndSettle();
+    expect(launches, 1);
+    expect(selected.map((f) => f.path),
+        ['/tmp/in-app-camera.jpg', '/tmp/system-camera.jpg']);
   });
 
   testWidgets(
