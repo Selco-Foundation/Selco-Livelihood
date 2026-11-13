@@ -22,6 +22,17 @@ describe("LabeledValueRows", () => {
     expect(screen.getByText("5kW")).toBeInTheDocument();
   });
 
+  it("uses w-40 for the label column by default and accepts a wider one", () => {
+    const { rerender } = render(<LabeledValueRows items={[{ labelKey: "K", label: "Long label", value: "V" }]} />);
+    expect(screen.getByText("Long label")).toHaveClass("w-40");
+
+    rerender(
+      <LabeledValueRows items={[{ labelKey: "K", label: "Long label", value: "V" }]} labelWidthClassName="w-72" />,
+    );
+    expect(screen.getByText("Long label")).toHaveClass("w-72");
+    expect(screen.getByText("Long label")).not.toHaveClass("w-40");
+  });
+
   it("translates the value when valueKey is set, falling back to the raw value", () => {
     render(
       <LabeledValueRows

@@ -98,6 +98,7 @@ export {
 } from "./components/ui/dropdown-menu";
 export { Skeleton } from "./components/ui/skeleton";
 export { Checkbox } from "./components/ui/checkbox";
+export { Switch } from "./components/ui/switch";
 export {
   Popover,
   PopoverAnchor,
