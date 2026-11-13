@@ -77,4 +77,14 @@ describe("InstallationPlansTable", () => {
 
     expect(screen.getByText("Published")).toBeInTheDocument();
   });
+
+  it("adds an AMC Plan column whose Edit button opens the Edit AMC page", () => {
+    render(<InstallationPlansTable plans={[wrapper()]} isLoading={false} />);
+
+    expect(screen.getByText("AMC Plan")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("/employee/pm/project/installation-plan/amc/edit"),
+    );
+  });
 });

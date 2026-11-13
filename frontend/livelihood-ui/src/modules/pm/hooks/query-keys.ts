@@ -35,6 +35,7 @@ export const pmKeys = {
   planVendorAssignment: (planId: string | undefined) => [...pmKeys.plan(planId), "vendor-assignment"] as const,
   planGeographyLocks: (planId: string | undefined) => [...pmKeys.plan(planId), "geography-locks"] as const,
   planFacilityCounts: (planIds: string[]) => [...pmKeys.plans(), "facility-counts", planIds] as const,
+  planAmcSchedules: (planId: string | undefined) => [...pmKeys.plan(planId), "amc-schedules"] as const,
 
   // Reference data — tenant-wide, not scoped to one project or plan.
   /** `boundaryCodes` is the caller's pre-sorted, comma-joined code list, so the key stays

@@ -1,5 +1,5 @@
 import { translateOr, useTranslate } from "@/shared";
-import { Input, Pagination, SearchableSelect } from "@/ui";
+import { Input, Pagination, SearchableSelect, Switch } from "@/ui";
 import { Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useVendorAssignmentSearch } from "../../hooks/use-vendor-assignment-search";
@@ -12,6 +12,21 @@ import { StepSectionCard } from "../StepSectionCard";
 const DEFAULT_PAGE_SIZE = 10;
 
 export type AssignmentValue = InstallationPlanAssignmentEntry[];
+
+/** Per solar asset "AMC applicable" flags, keyed by `amcApplicableKey`. Kept apart from
+ *  `AssignmentValue` on purpose: assignment entries are sent to the vendor-assignment API as-is. */
+export type AmcApplicableValue = Record<string, boolean>;
+
+export function amcApplicableKey(row: Pick<TechnicianAssignmentRow, "facilityId" | "componentSequence">): string {
+  return `${row.facilityId}:SOLAR:${row.componentSequence}`;
+}
+
+/** Sets every solar row of the plan (not only the visible page) to `applicable`. */
+export function applyAmcToAllSolarRows(rows: TechnicianAssignmentRow[], applicable: boolean): AmcApplicableValue {
+  return Object.fromEntries(
+    rows.filter((row) => row.componentType === "SOLAR").map((row) => [amcApplicableKey(row), applicable]),
+  );
+}
 
 export interface TechnicianAssignmentRow {
   facilityId: string;
@@ -85,6 +100,8 @@ interface TechnicianAssignmentStepProps {
   value: AssignmentValue;
   onChange: (value: AssignmentValue) => void;
   locked?: boolean;
+  amcApplicable?: AmcApplicableValue;
+  onAmcApplicableChange?: (value: AmcApplicableValue) => void;
 }
 
 function VendorUserSelect({
@@ -119,7 +136,15 @@ function VendorUserSelect({
   );
 }
 
-export function TechnicianAssignmentStep({ planId, planCode, value, onChange, locked = false }: Readonly<TechnicianAssignmentStepProps>) {
+export function TechnicianAssignmentStep({
+  planId,
+  planCode,
+  value,
+  onChange,
+  locked = false,
+  amcApplicable = {},
+  onAmcApplicableChange,
+}: Readonly<TechnicianAssignmentStepProps>) {
   const { t } = useTranslate();
   const { data: searchResult } = useVendorAssignmentSearch(planId);
   const { data: organisations = [] } = useVendorOrganisations();
@@ -136,6 +161,11 @@ export function TechnicianAssignmentStep({ planId, planCode, value, onChange, lo
   );
 
   const rows = useMemo(() => toRows(pagedSites), [pagedSites]);
+  const allSolarRows = useMemo(() => toRows(sites).filter((row) => row.componentType === "SOLAR"), [sites]);
+  const allSolarApplicable =
+    allSolarRows.length > 0 && allSolarRows.every((row) => amcApplicable[amcApplicableKey(row)]);
+  // Deliberately not tied to `locked`: the PM can turn AMC on for any end user after publish.
+  const amcDisabled = !onAmcApplicableChange;
   // Pre-counted once per render instead of a rows.filter() inside the map below, which made
   // rendering the table O(n^2) in the number of assets.
   const assetCountByFacilityId = useMemo(() => {
@@ -178,6 +208,10 @@ export function TechnicianAssignmentStep({ planId, planCode, value, onChange, lo
     ]);
   }
 
+  function setRowAmcApplicable(row: TechnicianAssignmentRow, applicable: boolean) {
+    onAmcApplicableChange?.({ ...amcApplicable, [amcApplicableKey(row)]: applicable });
+  }
+
   function handleOrganizationChange(row: TechnicianAssignmentRow, vendorOrgId: string) {
     const organization = organisations.find((item) => item.code === vendorOrgId);
     updateAssignment(row, {
@@ -210,19 +244,40 @@ export function TechnicianAssignmentStep({ planId, planCode, value, onChange, lo
         ) : null}
         <div className="livelihood-card overflow-hidden">
           <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] table-fixed border-collapse text-sm">
+          <table className="w-full min-w-[1300px] table-fixed border-collapse text-sm">
             <colgroup>
               <col className="w-[180px]" />
               <col className="w-[220px]" />
+              <col className="w-[200px]" />
               <col className="w-[240px]" />
               <col className="w-[220px]" />
               <col className="w-[240px]" />
             </colgroup>
             <thead>
               <tr className="border-b border-border">
+                {[translateOr(t, "ES_PM_END_USER", "End user"), translateOr(t, "ES_PM_ASSET", "Asset")].map((label) => (
+                  <th key={label} className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                    {label}
+                  </th>
+                ))}
+                <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                  <div className="space-y-1.5">
+                    <span className="block">{translateOr(t, "ES_PM_AMC_APPLICABLE", "AMC applicable")}</span>
+                    <label className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
+                      <Switch
+                        size="sm"
+                        checked={allSolarApplicable}
+                        disabled={amcDisabled || allSolarRows.length === 0}
+                        onCheckedChange={(checked) =>
+                          onAmcApplicableChange?.({ ...amcApplicable, ...applyAmcToAllSolarRows(allSolarRows, checked) })
+                        }
+                        aria-label={translateOr(t, "ES_PM_AMC_APPLY_FOR_ALL", "Apply for all")}
+                      />
+                      {translateOr(t, "ES_PM_AMC_APPLY_FOR_ALL", "Apply for all")}
+                    </label>
+                  </div>
+                </th>
                 {[
-                  translateOr(t, "ES_PM_END_USER", "End user"),
-                  translateOr(t, "ES_PM_ASSET", "Asset"),
                   translateOr(t, "ES_PM_VENDOR_ORGANIZATION", "Vendor Organization"),
                   translateOr(t, "ES_PM_VENDOR", "Vendor"),
                   translateOr(t, "ES_PM_EMAIL_ID", "Email ID"),
@@ -251,6 +306,21 @@ export function TechnicianAssignmentStep({ planId, planCode, value, onChange, lo
                       <span className="inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs font-medium text-foreground">
                         {row.assetName}
                       </span>
+                    </td>
+                    <td className="px-5 py-4">
+                      {row.componentType === "SOLAR" ? (
+                        <label className="flex items-center gap-2 text-sm text-foreground">
+                          <Switch
+                            checked={Boolean(amcApplicable[amcApplicableKey(row)])}
+                            disabled={amcDisabled}
+                            onCheckedChange={(checked) => setRowAmcApplicable(row, checked)}
+                            aria-label={`${translateOr(t, "ES_PM_AMC_APPLICABLE", "AMC applicable")}, ${rowLabel(row)}`}
+                          />
+                          {amcApplicable[amcApplicableKey(row)]
+                            ? translateOr(t, "CORE_COMMON_YES", "Yes")
+                            : translateOr(t, "CORE_COMMON_NO", "No")}
+                        </label>
+                      ) : null}
                     </td>
                     <td className="px-5 py-4">
                       <SearchableSelect
