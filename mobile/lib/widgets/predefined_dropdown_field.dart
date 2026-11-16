@@ -24,11 +24,15 @@ class PredefinedDropdownField extends StatelessWidget {
           final options = schema.enums ?? [];
           final selected =
               options.where((option) => option.code == control.value);
+          final tooltip = schema.tooltip?.trim();
+          final infoText = tooltip == null || tooltip.isEmpty
+              ? null
+              : context.translate(tooltip).trim();
           return LabeledField(
             label: context.translate(schema.label ?? name),
             capitalizedFirstLetter: false,
             isRequired: hasRequiredValidation(schema.validations),
-            infoText: context.translate(schema.tooltip ?? ''),
+            infoText: infoText == null || infoText.isEmpty ? null : infoText,
             child: DigitDropdown<String>(
               key: ValueKey('predefined-dropdown-$name'),
               isSearchable: false,

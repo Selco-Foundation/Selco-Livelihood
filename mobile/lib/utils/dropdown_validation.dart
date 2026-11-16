@@ -51,6 +51,9 @@ PropertySchema dropdownRenderingSchema(PropertySchema page) => page.copyWith(
       properties: page.properties?.map((key, field) => MapEntry(
           key,
           field.format == PropertySchemaFormat.dropdown
-              ? field.copyWith(format: PropertySchemaFormat.custom)
+              // The dynamic path wraps custom fields with their section once.
+              ? field.copyWith(
+                  type: PropertySchemaType.dynamic,
+                  format: PropertySchemaFormat.custom)
               : field)),
     );

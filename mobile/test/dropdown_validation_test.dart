@@ -1,3 +1,5 @@
+import 'package:digit_forms_engine/blocs/app_localization.dart' as forms;
+import 'package:digit_forms_engine/widgets/json_schema_builder.dart';
 import 'package:digit_forms_engine/models/property_schema/property_schema.dart';
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:flutter/material.dart';
@@ -66,6 +68,8 @@ void main() {
         original.properties!['weather']!.format, PropertySchemaFormat.dropdown);
     expect(
         rendering.properties!['weather']!.format, PropertySchemaFormat.custom);
+    expect(original.properties!['weather']!.type, PropertySchemaType.string);
+    expect(rendering.properties!['weather']!.type, PropertySchemaType.dynamic);
     expect(rendering.properties!['weather']!.enums,
         original.properties!['weather']!.enums);
     expect(rendering.properties!['weather']!.validations,
@@ -89,7 +93,7 @@ void main() {
   });
 
   Future<FormControl<String>> render(WidgetTester tester, String value,
-      {bool readOnly = false}) async {
+      {bool readOnly = false, String? tooltip}) async {
     final control = FormControl<String>(value: value, validators: [
       const DropdownOptionValidator(['CLEAR', 'RAIN'])
     ]);
@@ -99,9 +103,69 @@ void main() {
             body: ReactiveForm(
                 formGroup: FormGroup({'weather': control}),
                 child: PredefinedDropdownField(
-                    name: 'weather', schema: field(), readOnly: readOnly)))));
+                    name: 'weather',
+                    schema: field().copyWith(tooltip: tooltip),
+                    readOnly: readOnly)))));
     return control;
   }
+
+  for (final tooltip in <String?>[null, '', '   ', 'Choose the weather']) {
+    testWidgets('dropdown tooltip: ${tooltip == null ? 'null' : '"$tooltip"'}',
+        (tester) async {
+      await render(tester, 'CLEAR', tooltip: tooltip);
+      final hasTooltip = tooltip != null && tooltip.trim().isNotEmpty;
+      expect(find.byIcon(Icons.info_outline),
+          hasTooltip ? findsOneWidget : findsNothing);
+      expect(tester.widget<LabeledField>(find.byType(LabeledField)).infoText,
+          hasTooltip ? tooltip : null);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 1));
+    });
+  }
+
+  testWidgets('custom dropdown renders its MDMS section exactly once',
+      (tester) async {
+    final original = field().copyWith(
+      section: 'PCU/Inverter Display & Setting',
+      sectionDescription: 'Check inverter settings',
+    );
+    final page = PropertySchema(
+        type: PropertySchemaType.object, properties: {'weather': original});
+    final rendered = dropdownRenderingSchema(page).properties!['weather']!;
+    final control = FormControl<String>(value: 'CLEAR');
+    await tester.pumpWidget(MaterialApp(
+      theme: DigitTheme.instance.mobileTheme,
+      home: Scaffold(
+          body: SingleChildScrollView(
+              child: ReactiveForm(
+        formGroup: FormGroup({'weather': control}),
+        child: JsonFormBuilder(
+          appLocalizations: forms.FormLocalization(
+              const Locale('en', 'IN'), Future.value([]), []),
+          schema: rendered,
+          formControlName: 'weather',
+          pageName: 'system',
+          currentSchemaKey: 'bom',
+          components: [
+            {
+              'weather': PredefinedDropdownField(
+                  name: 'weather', schema: original, readOnly: false)
+            },
+          ],
+        ),
+      ))),
+    ));
+    expect(find.text('PCU/Inverter Display & Setting'), findsOneWidget);
+    expect(find.text('Check inverter settings'), findsOneWidget);
+    expect(find.byType(DigitDropdown<String>), findsOneWidget);
+    final dropdown = tester
+        .widget<DigitDropdown<String>>(find.byType(DigitDropdown<String>));
+    dropdown.onSelect!(const DropdownItem(code: 'RAIN', name: 'Rain'));
+    await tester.pump();
+    expect(control.value, 'RAIN');
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
+  });
 
   testWidgets('MDMS dropdown disables typing, opens options and saves code',
       (tester) async {
