@@ -58,4 +58,20 @@ public class ScheduledVisit {
     private Long latestSubmissionDate;
     // SYSTEM (auto-approved) or REVIEWER; null until approved.
     private String approvedBy;
+
+    // ---- Livelihood response additions, computed at read time (LLD §6.8, §6.9) ----
+    /** PENDING_APPROVAL only: 00:00 IST of (latest submission day + reviewSlaDays). */
+    private Long slaDueDate;
+    private Boolean slaBreached;
+    private Integer slaDaysRemaining;
+    private String vendorName;
+    /** The active assignee: {uuid, name, mobile}. */
+    private Map<String, Object> fieldStaff;
+    private Integer totalVisits;
+    /** First day a first report may be submitted: due day - submissionWindowDays (00:00 IST). */
+    private Long submissionWindowOpensAt;
+    private String activityFacilityId;
+    /** With includeSiteDetails=true (G1): {activityFacilityId, solarAssetId, systemType, batteryType, components, machines,
+     *  installationDate, pinCode, purchaseOrderNumber}. */
+    private Map<String, Object> siteDetails;
 }

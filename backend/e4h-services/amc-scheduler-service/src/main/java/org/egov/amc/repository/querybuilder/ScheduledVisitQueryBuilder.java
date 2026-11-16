@@ -29,7 +29,7 @@ public class ScheduledVisitQueryBuilder {
             "sv.additional_details AS sv_additional_details, sv.vendor_id AS sv_vendor_id, sv.first_submission_date AS sv_first_submission_date, " +
             "sv.latest_submission_date AS sv_latest_submission_date, sv.approved_by AS sv_approved_by, " +
             "ac.id AS amc_id, ac.tenant_id AS amc_tenant_id, ac.vendor_id as amc_vendor_id, ac.facility_id as amc_facility_id, ac.project_id as amc_project_id, ac.asset_types as amc_asset_types, ac.duration_months as amc_duration_months, " +
-            "ac.visit_frequency_months as amc_visit_frequency_months, ac.configuration_start_date as amc_configuration_start_date, ac.configuration_end_date as amc_configuration_end_date, ac.status AS amc_status, ac.additional_details AS amc_additional_details, ac.geography_details AS amc_geography_details, ac.created_by AS amc_created_by," +
+            "ac.visit_frequency_months as amc_visit_frequency_months, ac.configuration_start_date as amc_configuration_start_date, ac.configuration_end_date as amc_configuration_end_date, ac.status AS amc_status, ac.activity_facility_id AS amc_activity_facility_id, ac.additional_details AS amc_additional_details, ac.geography_details AS amc_geography_details, ac.created_by AS amc_created_by," +
             "ac.created_time AS amc_created_time, ac.last_modified_by AS amc_last_modified_by, ac.last_modified_time AS amc_last_modified_time, " +
             "f.id as facility_id, f.facility_name, f.facility_type, f.facility_category, f.facility_subtype, f.facility_ownership, f.facility_region, f.facility_details, f.boundary_code, f.is_active AS facility_is_active, " +
             "f.facility_poc_name, f.facility_poc_phone, f.facility_poc_email, f.facility_status, f.hfr_id, f.nin_id, " +
@@ -51,9 +51,9 @@ public class ScheduledVisitQueryBuilder {
             "    ) AS assignments " +
             " " +
             "FROM scheduled_visits sv LEFT JOIN amc_configuration ac ON sv.amc_configuration_id = ac.id LEFT JOIN facility f ON sv.facility_id = f.id LEFT JOIN scheduled_visit_assignments sva ON sv.id = sva.scheduled_visit_id " +
-            "LEFT JOIN scheduled_visits sv_next ON sv_next.amc_configuration_id = sv.amc_configuration_id AND sv_next.visit_number = sv.visit_number + 1 ";
+            "LEFT JOIN scheduled_visits sv_next ON sv_next.amc_configuration_id = sv.amc_configuration_id AND sv_next.visit_number = sv.visit_number + 1 AND sv_next.is_active ";
     private static final String SCHEDULED_VISIT_COUNT_QUERY = "SELECT COUNT(DISTINCT sv.id) FROM scheduled_visits sv LEFT JOIN amc_configuration ac ON sv.amc_configuration_id = ac.id LEFT JOIN facility f ON sv.facility_id = f.id LEFT JOIN scheduled_visit_assignments sva ON sv.id = sva.scheduled_visit_id " +
-            "LEFT JOIN scheduled_visits sv_next ON sv_next.amc_configuration_id = sv.amc_configuration_id AND sv_next.visit_number = sv.visit_number + 1 ";
+            "LEFT JOIN scheduled_visits sv_next ON sv_next.amc_configuration_id = sv.amc_configuration_id AND sv_next.visit_number = sv.visit_number + 1 AND sv_next.is_active ";
 
     private final String paginationWrapper = "SELECT * FROM " +
             "(SELECT *, DENSE_RANK() OVER (" +
@@ -175,7 +175,7 @@ public class ScheduledVisitQueryBuilder {
                 "\n" +
                 "    ac.id, ac.tenant_id, ac.vendor_id, ac.facility_id, ac.project_id, " +
                 "    ac.asset_types, ac.duration_months, ac.visit_frequency_months, " +
-                "    ac.configuration_start_date, ac.configuration_end_date, ac.status, " +
+                "    ac.configuration_start_date, ac.configuration_end_date, ac.status, ac.activity_facility_id, " +
                 "    ac.additional_details, ac.geography_details, ac.created_by, ac.created_time, ac.last_modified_by, ac.last_modified_time," +
                 "    f.id, f.facility_name, f.facility_type, f.facility_category, " +
                 "    f.facility_subtype, f.facility_ownership, f.facility_region, " +
@@ -185,7 +185,7 @@ public class ScheduledVisitQueryBuilder {
         queryBuilder.append(groupBy);
 
         //Wrap constructed SQL query with where criteria in pagination query
-        return addPaginationWrapper(queryBuilder.toString(), preparedStmtList, urlParams.getLimit(), urlParams.getOffset(), criteria.getSortDirection());
+        return addPaginationWrapper(queryBuilder.toString(), preparedStmtList, urlParams.getLimit(), urlParams.getOffset(), criteria.getSortDirection(), criteria);
     }
 
     private void extracted(Long lastChangedSince, List<Object> preparedStmtList, ScheduledVisitSearchCriteria criteria, StringBuilder queryBuilder, long nowMillis, String userUuid, boolean isProjectManager) {
@@ -271,7 +271,7 @@ public class ScheduledVisitQueryBuilder {
 
         if (!CollectionUtils.isEmpty(criteria.getVendorIds())) {
             addClauseIfRequired(preparedStmtList, queryBuilder);
-            queryBuilder.append(" ac.vendor_id IN (").append(createQuery(criteria.getVendorIds())).append(")");
+            queryBuilder.append(livelihood() ? " sv.vendor_id IN (" : " ac.vendor_id IN (").append(createQuery(criteria.getVendorIds())).append(")");
             preparedStmtList.addAll(criteria.getVendorIds());
         }
 
@@ -315,6 +315,8 @@ public class ScheduledVisitQueryBuilder {
 //            }
             queryBuilder.append(") ");
         }
+
+        addLivelihoodCriteria(criteria, preparedStmtList, queryBuilder);
 
         if (lastChangedSince != null && lastChangedSince != 0) {
             addClauseIfRequired(preparedStmtList, queryBuilder);
@@ -366,11 +368,95 @@ public class ScheduledVisitQueryBuilder {
         queryBuilder.append(") ");
     }
 
+    private boolean livelihood() {
+        return config != null && config.isLivelihoodScheduleEnabled();
+    }
+
+    /** Livelihood search criteria (LLD §6.9); the service works out slaCutoff and searchPhoneCipher. */
+    void addLivelihoodCriteria(ScheduledVisitSearchCriteria criteria, List<Object> preparedStmtList, StringBuilder queryBuilder) {
+        if (!livelihood()) {
+            return;
+        }
+        if (StringUtils.isNotBlank(criteria.getApprovedBy())) {
+            addClauseIfRequired(preparedStmtList, queryBuilder);
+            queryBuilder.append(" sv.approved_by = ? ");
+            preparedStmtList.add(criteria.getApprovedBy().trim().toUpperCase());
+        }
+        if (criteria.getSlaBreached() != null && criteria.getSlaCutoff() != null) {
+            addClauseIfRequired(preparedStmtList, queryBuilder);
+            queryBuilder.append(Boolean.TRUE.equals(criteria.getSlaBreached())
+                    ? " (sv.status = 'PENDING_APPROVAL' AND sv.latest_submission_date < ?) "
+                    : " (sv.status = 'PENDING_APPROVAL' AND sv.latest_submission_date >= ?) ");
+            preparedStmtList.add(criteria.getSlaCutoff());
+        }
+        if (criteria.getLatestSubmissionFrom() != null && criteria.getLatestSubmissionFrom() != 0) {
+            addClauseIfRequired(preparedStmtList, queryBuilder);
+            queryBuilder.append(" sv.latest_submission_date >= ? ");
+            preparedStmtList.add(criteria.getLatestSubmissionFrom());
+        }
+        if (criteria.getLatestSubmissionTo() != null && criteria.getLatestSubmissionTo() != 0) {
+            addClauseIfRequired(preparedStmtList, queryBuilder);
+            queryBuilder.append(" sv.latest_submission_date <= ? ");
+            preparedStmtList.add(criteria.getLatestSubmissionTo());
+        }
+        if (StringUtils.isNotBlank(criteria.getSearchText())) {
+            addClauseIfRequired(preparedStmtList, queryBuilder);
+            queryBuilder.append(" (COALESCE(sv.facility_name, f.facility_name) ILIKE ? ");
+            preparedStmtList.add("%" + criteria.getSearchText().trim() + "%");
+            if (StringUtils.isNotBlank(criteria.getSearchPhoneCipher())) {
+                queryBuilder.append(" OR f.facility_poc_phone = ? ");
+                preparedStmtList.add(criteria.getSearchPhoneCipher());
+            }
+            queryBuilder.append(") ");
+        }
+        if (!CollectionUtils.isEmpty(criteria.getActivityFacilityIds())) {
+            addClauseIfRequired(preparedStmtList, queryBuilder);
+            queryBuilder.append(" ac.activity_facility_id IN (").append(createQuery(criteria.getActivityFacilityIds())).append(")");
+            preparedStmtList.addAll(criteria.getActivityFacilityIds());
+        }
+    }
+
+    /**
+     * Livelihood order (LLD §6.9): New lists (only SCHEDULED) by due date, soonest first; everything else by last
+     * action, newest first; reviewers may ask for latestSubmissionDate. sort_direction overrides the direction.
+     */
+    public static String livelihoodOrder(ScheduledVisitSearchCriteria criteria) {
+        String by = criteria.getSortBy();
+        boolean onlyNew = criteria.getStatuses() != null && !criteria.getStatuses().isEmpty()
+                && criteria.getStatuses().stream().allMatch("SCHEDULED"::equals);
+        String column;
+        String defaultDir;
+        if ("latestSubmissionDate".equalsIgnoreCase(by)) {
+            column = "sv_latest_submission_date";
+            defaultDir = "ASC";
+        } else if ("scheduledDate".equalsIgnoreCase(by) || (by == null && onlyNew)) {
+            column = "sv_scheduled_date";
+            defaultDir = "ASC";
+        } else {
+            column = "sv_last_modified_time";
+            defaultDir = "DESC";
+        }
+        String sd = criteria.getSortDirection();
+        String dir = "ASC".equalsIgnoreCase(sd) ? "ASC" : "DESC".equalsIgnoreCase(sd) ? "DESC" : defaultDir;
+        return column + " " + dir + " NULLS LAST, sv_visit_id";
+    }
+
     private String addPaginationWrapper(String query, List<Object> preparedStmtList, Integer limitParam, Integer offsetParam, String sortDirection) {
+        return addPaginationWrapper(query, preparedStmtList, limitParam, offsetParam, sortDirection, null);
+    }
+
+    private String addPaginationWrapper(String query, List<Object> preparedStmtList, Integer limitParam, Integer offsetParam, String sortDirection,
+                                        ScheduledVisitSearchCriteria criteria) {
         int limit = config.getDefaultLimit();
         int offset = config.getDefaultOffset();
         String direction = "ASC".equalsIgnoreCase(sortDirection) ? "ASC" : "DESC";
-        String finalQuery = String.format(paginationWrapper, direction).replace("{}", query);
+        String finalQuery;
+        if (criteria != null && livelihood()) {
+            finalQuery = ("SELECT * FROM (SELECT *, DENSE_RANK() OVER (ORDER BY " + livelihoodOrder(criteria) + ") offset_ "
+                    + "FROM ({}) result) result_offset WHERE offset_ > ? AND offset_ <= ? ORDER BY offset_").replace("{}", query);
+        } else {
+            finalQuery = String.format(paginationWrapper, direction).replace("{}", query);
+        }
 
         if (limitParam != null) {
             if (limitParam <= config.getMaxLimit())

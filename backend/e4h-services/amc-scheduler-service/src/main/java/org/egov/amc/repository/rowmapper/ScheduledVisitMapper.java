@@ -88,6 +88,7 @@ public class ScheduledVisitMapper implements RowMapper<ScheduledVisit> {
         amc.setId(rs.getString("amc_id"));
         amc.setTenantId(rs.getString("amc_tenant_id"));
         amc.setVendorId(rs.getString("amc_vendor_id"));
+        amc.setActivityFacilityId(rs.getString("amc_activity_facility_id"));
         amc.setFacilityId(rs.getString("amc_facility_id"));
         amc.setProjectId(rs.getString("amc_project_id"));
         amc.setDurationMonths(rs.getInt("amc_duration_months"));

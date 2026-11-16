@@ -53,6 +53,9 @@ public class AmcConfigurationService {
     @Qualifier("objectMapper")
     ObjectMapper mapper;
 
+    @Autowired
+    private org.egov.amc.livelihood.ConfigSearchEnricher configSearchEnricher;
+
     /** Livelihood Edit AMC and turning AMC off. */
     @Autowired
     private org.egov.amc.livelihood.LivelihoodAmcEditService livelihoodAmcEditService;
@@ -414,6 +417,9 @@ public class AmcConfigurationService {
         amcConfigurationValidator.validateSearchAmcConfigurationRequest(request, limit, offset, tenantId);
         List<AmcConfiguration> amcConfigurationList = amcConfigurationRepository.getAmcConfiguration(request, limit, offset, tenantId, includeDeleted, lastChangedSince);
         enrichAmcConfiguration(request.getRequestInfo(), amcConfigurationList);
+        if (amcServiceConfiguration.isLivelihoodScheduleEnabled()) {
+            configSearchEnricher.enrich(amcConfigurationList, tenantId, request.getRequestInfo());
+        }
         log.debug("Found {} AMC configuration(s) matching search criteria", amcConfigurationList.size());
         log.info("AMC configuration search completed");
         return amcConfigurationList;
@@ -586,9 +592,10 @@ public class AmcConfigurationService {
     }
 
     private void enrichAmcConfiguration(RequestInfo requestInfo, List<AmcConfiguration> amcConfigurationList){
+        boolean livelihood = amcServiceConfiguration.isLivelihoodScheduleEnabled();
         for (AmcConfiguration amcConfiguration : amcConfigurationList){
-            // Enrich amc configuration with vendor details
-            Organisation organisation = getVendorById(requestInfo, amcConfiguration.getVendorId());
+            // Enrich amc configuration with vendor details (Livelihood: one batched call in ConfigSearchEnricher)
+            Organisation organisation = livelihood ? null : getVendorById(requestInfo, amcConfiguration.getVendorId());
             if(organisation != null){
                 amcConfiguration.setVendor(organisation);
             }

@@ -50,5 +50,17 @@ public class AmcConfiguration {
     // vendorId = vendorOrgId and a single assignment for amcFieldStaffId; these two are not persisted as such.
     private String vendorOrgId;
     private String amcFieldStaffId;
+
+    // ---- Livelihood config search enrichment, read time only (LLD §6.9) ----
+    private String endUserName;
+    private String endUserPhone;
+    private String state;
+    private String district;
+    private String block;
+    /** The SOLAR installation row's completed_at (approval), read live, not stored. */
+    private Long installationApprovedDate;
+    private String vendorName;
+    /** The active assignee: {uuid, name, mobile}. */
+    private Map<String, Object> fieldStaff;
 }
 

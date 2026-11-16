@@ -104,6 +104,31 @@ public class AmcMdmsOptions {
         return AutoApproval.parse(mapper.valueToTree(requestRepository.fetchResult(url, body)));
     }
 
+    /** Day counts of MDMS AMC.Config used at read time (LLD §6.8). */
+    public record ConfigDays(int reviewSlaDays, int submissionWindowDays) {
+    }
+
+    public static final int DEFAULT_REVIEW_SLA_DAYS = 7;
+
+    public ConfigDays configDays(String tenantId, RequestInfo requestInfo) {
+        Map<String, Object> criteria = new HashMap<>();
+        criteria.put("tenantId", tenantId);
+        criteria.put("moduleDetails", List.of(Map.of("moduleName", "AMC", "masterDetails", List.of(Map.of("name", "Config")))));
+        Map<String, Object> body = new HashMap<>();
+        body.put("RequestInfo", requestInfo);
+        body.put("MdmsCriteria", criteria);
+        StringBuilder url = new StringBuilder(config.getMdmsHost()).append(config.getMdmsEndPoint());
+        return parseConfigDays(mapper.valueToTree(requestRepository.fetchResult(url, body)));
+    }
+
+    static ConfigDays parseConfigDays(JsonNode root) {
+        JsonNode list = root == null ? null : root.path("MdmsRes").path("AMC").path("Config");
+        JsonNode c = list != null && list.isArray() && !list.isEmpty() ? list.get(0) : null;
+        int sla = c != null && c.path("reviewSlaDays").canConvertToInt() && c.path("reviewSlaDays").asInt() >= 0
+                ? c.path("reviewSlaDays").asInt() : DEFAULT_REVIEW_SLA_DAYS;
+        return new ConfigDays(sla, parseSubmissionWindowDays(root));
+    }
+
     /** Program POC emails from MDMS AMC.Config.programPocEmails (LLD §6.7); empty when not configured. */
     public List<String> programPocEmails(String tenantId, RequestInfo requestInfo) {
         Map<String, Object> criteria = new HashMap<>();

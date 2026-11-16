@@ -35,6 +35,32 @@ public class EncryptionDecryptionUtil {
         this.objectMapper = objectMapper;
     }
 
+    @Value("${egov.enc.encrypt.endpoint:/egov-enc-service/crypto/v1/_encrypt}")
+    private String encServiceEncryptPath;
+
+    /** The tenant key the facility registry encrypts phones with (review A22). */
+    @Value("${egov.enc.facility.phone.tenant:livelihood}")
+    private String facilityPhoneTenant;
+
+    /**
+     * Encrypts a phone exactly as the facility registry does (type Normal, deterministic, checked on dev 2026-11-16),
+     * so the result can be matched against facility.facility_poc_phone. Null when encryption fails.
+     */
+    public String encryptPhone(String phone) {
+        String uri = UriComponentsBuilder.fromUriString(encServiceHost).path(encServiceEncryptPath).toUriString();
+        Map<String, Object> body = Map.of("encryptionRequests", List.of(Map.of("tenantId", facilityPhoneTenant, "type", "Normal",
+                "value", Map.of("userObject", Map.of("mobileNumber", phone)))));
+        try {
+            Object response = serviceRequestRepository.fetchEncServiceResult(new StringBuilder(uri), body);
+            List<Map<String, Map<String, Object>>> list = objectMapper.convertValue(response, new TypeReference<>() {});
+            Object cipher = list == null || list.isEmpty() || list.get(0).get("userObject") == null ? null : list.get(0).get("userObject").get("mobileNumber");
+            return cipher == null ? null : cipher.toString();
+        } catch (RuntimeException e) {
+            log.warn("Phone encryption for search failed: {}", e.getMessage());
+            return null;
+        }
+    }
+
     public List<Map<String, EncryptObject>> decryptObject(DecryptionRequest request) {
         String uri = UriComponentsBuilder
                 .fromUriString(encServiceHost)

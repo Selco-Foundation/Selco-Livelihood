@@ -20,6 +20,8 @@ import org.egov.common.contract.models.AuditDetails;
 import org.egov.amc.livelihood.AmcMdmsOptions;
 import org.egov.amc.livelihood.AutoApproval;
 import org.egov.amc.livelihood.SystemUserProvider;
+import org.egov.amc.livelihood.VendorOrgDirectory;
+import org.egov.amc.livelihood.VisitReadFields;
 import org.egov.amc.livelihood.LivelihoodCodeVerify;
 import org.egov.amc.livelihood.LivelihoodCompletionService;
 import org.egov.amc.livelihood.LivelihoodReview;
@@ -96,6 +98,15 @@ public class ScheduledVisitService {
     /** AMC completion when every visit is approved. */
     @Autowired
     private LivelihoodCompletionService livelihoodCompletionService;
+
+    @Autowired
+    private VendorOrgDirectory vendorOrgDirectory;
+
+    @Autowired
+    private org.egov.amc.livelihood.SiteDetailsReader siteDetailsReader;
+
+    @Autowired
+    private org.egov.amc.util.EncryptionDecryptionUtil encryptionDecryptionUtil;
 
     /** The system account AUTO_APPROVE runs as. */
     @Autowired
@@ -1254,6 +1265,8 @@ public class ScheduledVisitService {
     public List<ScheduledVisit> searchScheduledVisit(ScheduledVisitSearchRequest request, Integer limit, Integer offset, String tenantId, Boolean includeDeleted, Long lastChangedSince) {
         log.trace("Entering searchScheduledVisit method, tenantId: {}, limit: {}, offset: {}", tenantId, limit, offset);
         scheduledVisitsValidator.validateSearchScheduledVisitRequest(request, limit, offset, tenantId);
+        boolean livelihood = amcServiceConfiguration.isLivelihoodScheduleEnabled();
+        VisitReadFields.LivelihoodVisitDays days = livelihood ? prepareLivelihoodSearch(request, tenantId) : null;
         List<ScheduledVisit> amcConfigurationList = scheduledVisitsRepository.getScheduledVisit(request, limit, offset, tenantId, includeDeleted, lastChangedSince);
         log.debug("Found {} scheduled visits matching search criteria", amcConfigurationList.size());
         Map<String, Boundary> listBlock = boundaryUtil.getBoundaryByCode();
@@ -1263,7 +1276,8 @@ public class ScheduledVisitService {
         log.info("Enriching {} scheduled visits with boundary and employee data", amcConfigurationList.size());
         for (ScheduledVisit scheduledVisit : amcConfigurationList){
             AmcConfiguration amcConfiguration = scheduledVisit.getAmcConfiguration();
-            if (amcConfiguration != null && amcConfiguration.getVendorId() != null) {
+            // Livelihood: vendor names come from one batched call below (E4H's per-row call searches by a single id)
+            if (!livelihood && amcConfiguration != null && amcConfiguration.getVendorId() != null) {
                 Organisation organisation = vendorOrganisationCache.computeIfAbsent(
                         amcConfiguration.getVendorId(),
                         vendorId -> amcConfigurationService.getVendorById(request.getRequestInfo(), vendorId));
@@ -1299,8 +1313,73 @@ public class ScheduledVisitService {
                 }
             }
         }
+        if (livelihood) {
+            enrichLivelihoodSearch(request.getRequestInfo(), tenantId, amcConfigurationList, days,
+                    request.getSearchCriteria() != null && Boolean.TRUE.equals(request.getSearchCriteria().getIncludeSiteDetails()));
+        }
         log.info("Completed enrichment of scheduled visits");
         return amcConfigurationList;
+    }
+
+    /** Before the query (LLD §6.9): SLA filter cutoff and the encrypted phone for searchText; MDMS failure = defaults. */
+    private VisitReadFields.LivelihoodVisitDays prepareLivelihoodSearch(ScheduledVisitSearchRequest request, String tenantId) {
+        int sla = AmcMdmsOptions.DEFAULT_REVIEW_SLA_DAYS;
+        int window = AmcMdmsOptions.DEFAULT_SUBMISSION_WINDOW_DAYS;
+        try {
+            AmcMdmsOptions.ConfigDays d = amcMdmsOptions.configDays(tenantId, request.getRequestInfo());
+            sla = d.reviewSlaDays();
+            window = d.submissionWindowDays();
+        } catch (RuntimeException e) {
+            log.warn("AMC.Config not read for search, using defaults: {}", e.getMessage());
+        }
+        ScheduledVisitSearchCriteria c = request.getSearchCriteria();
+        if (c != null) {
+            long now = System.currentTimeMillis();
+            c.setSlaCutoff(c.getSlaBreached() != null ? VisitReadFields.slaCutoff(sla, now) : null);
+            String phone = VisitReadFields.normalisePhone(c.getSearchText());
+            c.setSearchPhoneCipher(phone == null ? null : encryptionDecryptionUtil.encryptPhone(phone));
+        }
+        return new VisitReadFields.LivelihoodVisitDays(sla, window);
+    }
+
+    /** After the query: SLA, totals, window, field staff, vendor names (one call) and boundary names (LLD §6.9). */
+    private void enrichLivelihoodSearch(RequestInfo requestInfo, String tenantId, List<ScheduledVisit> visits, VisitReadFields.LivelihoodVisitDays days,
+                                        boolean includeSiteDetails) {
+        if (visits == null || visits.isEmpty()) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        visits.forEach(v -> VisitReadFields.fill(v, days, now));
+        try {
+            Set<String> orgIds = new LinkedHashSet<>();
+            for (ScheduledVisit v : visits) {
+                String org = v.getVendorId() != null ? v.getVendorId() : (v.getAmcConfiguration() != null ? v.getAmcConfiguration().getVendorId() : null);
+                if (org != null) {
+                    orgIds.add(org);
+                }
+            }
+            Map<String, VendorOrgDirectory.VendorOrg> orgs = vendorOrgDirectory.findOrgs(orgIds, tenantId, requestInfo);
+            for (ScheduledVisit v : visits) {
+                String org = v.getVendorId() != null ? v.getVendorId() : (v.getAmcConfiguration() != null ? v.getAmcConfiguration().getVendorId() : null);
+                VendorOrgDirectory.VendorOrg o = org == null ? null : orgs.get(org);
+                v.setVendorName(o != null ? o.name() : null);
+            }
+        } catch (RuntimeException e) {
+            log.warn("Vendor names not filled for search: {}", e.getMessage());
+        }
+        try {
+            enrichBoundaryLocalization(requestInfo, visits);
+        } catch (RuntimeException e) {
+            log.warn("Boundary names not filled for search: {}", e.getMessage());
+        }
+        if (includeSiteDetails) {
+            try {
+                Map<String, Map<String, Object>> site = siteDetailsReader.read(visits.stream().map(ScheduledVisit::getActivityFacilityId).toList());
+                visits.forEach(v -> v.setSiteDetails(v.getActivityFacilityId() == null ? null : site.get(v.getActivityFacilityId())));
+            } catch (RuntimeException e) {
+                log.warn("siteDetails not filled for search: {}", e.getMessage());
+            }
+        }
     }
 
     /**
