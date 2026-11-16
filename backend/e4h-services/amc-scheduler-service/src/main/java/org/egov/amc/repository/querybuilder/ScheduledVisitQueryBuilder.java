@@ -266,6 +266,7 @@ public class ScheduledVisitQueryBuilder {
             addClauseIfRequired(preparedStmtList, queryBuilder);
             queryBuilder.append(" sva.assigned_user IN (").append(createQuery(criteria.getAssignedUsers())).append(")");
             preparedStmtList.addAll(criteria.getAssignedUsers());
+            appendActiveAssignment(queryBuilder);
         }
 
         if (!CollectionUtils.isEmpty(criteria.getVendorIds())) {
@@ -333,6 +334,17 @@ public class ScheduledVisitQueryBuilder {
             addClauseIfRequired(preparedStmtList, queryBuilder);
             queryBuilder.append(" sva.assigned_user = ? ");
             preparedStmtList.add(userUuid);
+            appendActiveAssignment(queryBuilder);
+        }
+    }
+
+    /**
+     * Livelihood (LLD §6.6): only the visit's active assignee matches, so a replaced field staff stops seeing the
+     * upcoming visit. Finished visits keep the assignment they were done under (still active).
+     */
+    private void appendActiveAssignment(StringBuilder queryBuilder) {
+        if (config != null && config.isLivelihoodScheduleEnabled()) {
+            queryBuilder.append(" AND sva.is_active = true ");
         }
     }
 

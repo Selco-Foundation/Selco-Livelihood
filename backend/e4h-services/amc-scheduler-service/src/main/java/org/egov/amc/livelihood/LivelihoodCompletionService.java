@@ -71,7 +71,7 @@ public class LivelihoodCompletionService {
 
         cfg.setStatus(STATUS_COMPLETED);
         cfg.setAuditDetails(touched(cfg.getAuditDetails(), by, now));
-        producer.push(config.getUpdateAmcConfigurationTopic(), message(requestInfo, "AmcConfigurations", List.of(cfg)));
+        pushConfigUpdate(producer, config.getUpdateAmcConfigurationTopic(), requestInfo, List.of(cfg));
 
         long today = LivelihoodAmc.startOfIstDay(LivelihoodAmc.istDay(now));
         List<AssetAmc> links = new ArrayList<>();
@@ -92,6 +92,25 @@ public class LivelihoodCompletionService {
         log.info("AMC {} COMPLETED: all {} visits approved; {} asset_amc link(s) expired on {}", cfg.getId(), total,
                 links.size(), Instant.ofEpochMilli(today));
         return true;
+    }
+
+    /**
+     * Full-row config update without assignments (review A5): only field-staff/_update writes them, so a change
+     * landing in between is never undone. Kafka serializes on send, so the list is restored right after.
+     */
+    static void pushConfigUpdate(Producer producer, String topic, RequestInfo requestInfo, List<AmcConfiguration> configs) {
+        List<List<org.egov.amc.web.models.AmcConfigurationAssignment>> kept = new ArrayList<>();
+        for (AmcConfiguration c : configs) {
+            kept.add(c.getAssignments());
+            c.setAssignments(List.of());
+        }
+        try {
+            producer.push(topic, message(requestInfo, "AmcConfigurations", configs));
+        } finally {
+            for (int i = 0; i < configs.size(); i++) {
+                configs.get(i).setAssignments(kept.get(i));
+            }
+        }
     }
 
     static AuditDetails touched(AuditDetails a, String by, long now) {

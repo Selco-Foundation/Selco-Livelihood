@@ -1,9 +1,12 @@
 package org.egov.amc.web.controllers;
 
 import org.egov.amc.config.AMCServiceConfiguration;
+import org.egov.amc.livelihood.FieldStaffChangePlanner;
+import org.egov.amc.livelihood.FieldStaffChangeService;
 import org.egov.amc.livelihood.LivelihoodActivationService;
 import org.egov.amc.livelihood.LivelihoodNextVisitService;
 import org.egov.amc.web.models.AmcActivationRequest;
+import org.egov.amc.web.models.AmcFieldStaffUpdateRequest;
 import org.egov.common.contract.models.RequestInfoWrapper;
 import org.egov.tracer.model.CustomException;
 import org.springframework.http.ResponseEntity;
@@ -27,12 +30,14 @@ public class LivelihoodAmcController {
 
     private final LivelihoodActivationService activation;
     private final LivelihoodNextVisitService nextVisits;
+    private final FieldStaffChangeService fieldStaff;
     private final AMCServiceConfiguration config;
 
     public LivelihoodAmcController(LivelihoodActivationService activation, LivelihoodNextVisitService nextVisits,
-                                   AMCServiceConfiguration config) {
+                                   FieldStaffChangeService fieldStaff, AMCServiceConfiguration config) {
         this.activation = activation;
         this.nextVisits = nextVisits;
+        this.fieldStaff = fieldStaff;
         this.config = config;
     }
 
@@ -65,6 +70,17 @@ public class LivelihoodAmcController {
         String tenant = tenantId == null ? config.getStateTenantId() : tenantId;
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("created", nextVisits.createMissing(tenant, request.getRequestInfo()));
+        return ResponseEntity.ok(body);
+    }
+
+    /** Change the AMC's field staff, optionally with its vendor org (PROJECT_MANAGER, SUPER_ADMIN, END_USER_ADMIN; LLD §6.6). */
+    @RequestMapping(value = "/field-staff/_update", method = RequestMethod.POST)
+    public ResponseEntity<Map<String, Object>> changeFieldStaff(@RequestBody AmcFieldStaffUpdateRequest request) {
+        java.util.List<FieldStaffChangePlanner.Update> updates = request.getAmcFieldStaffUpdates() == null ? java.util.List.of()
+                : request.getAmcFieldStaffUpdates().stream().map(i -> new FieldStaffChangePlanner.Update(i.getTenantId(),
+                        i.getActivityFacilityId(), i.getVendorOrgId(), i.getFieldStaffUserId(), i.getRejectedVisitFieldStaffUserId())).toList();
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("AmcFieldStaffUpdates", fieldStaff.change(updates, request.getRequestInfo()));
         return ResponseEntity.ok(body);
     }
 }

@@ -128,7 +128,7 @@ public class LivelihoodAmcEditService {
                     cfg.getDurationMonths(), cfg.getVisitFrequencyMonths(), cfg.getConfigurationStartDate(), cfg.getConfigurationEndDate(),
                     plan.redateVisitId(), plan.removeVisitId(), plan.createVisitNumber(), plan.completeNow());
         }
-        producer.push(config.getUpdateAmcConfigurationTopic(), message(ri, "AmcConfigurations", changed));
+        LivelihoodCompletionService.pushConfigUpdate(producer, config.getUpdateAmcConfigurationTopic(), ri, changed);
         if (!links.isEmpty()) {
             producer.push(config.getUpdateAssetAmcTopic(), message(ri, "AssetAmcs", links));
         }
