@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.egov.amc.config.AMCServiceConfiguration;
 import org.egov.amc.livelihood.OtpRedaction;
+import org.egov.amc.livelihood.VisitRowCopy;
 import org.egov.amc.repository.ScheduledVisitRepository;
 import org.egov.amc.service.enrichment.ScheduledVisitEnrichment;
 import org.egov.amc.util.AmcConfigurationServiceUtil;
@@ -754,21 +755,9 @@ public class ScheduledVisitService {
         // 4. Inject workflow status into activity facility
         existingVisit.setStatus(updatedWorkflow.getState().getState());
 
-        // 5. Create a new Visit Instance instance with enriched additionalDetails
-        ScheduledVisit updatedScheduledVisit = ScheduledVisit.builder()
-                .id(existingVisit.getId())
-                .tenantId(existingVisit.getTenantId())
-                .amcConfigurationId(existingVisit.getAmcConfigurationId())
-                .facilityId(existingVisit.getFacilityId())
-                .facilityName(existingVisit.getFacilityName())
-                .visitNumber(existingVisit.getVisitNumber())
-                .status(existingVisit.getStatus())
-                .scheduledDate(existingVisit.getScheduledDate())
-                .actualVisitDate(existingVisit.getActualVisitDate())
-                .visitReport(existingVisit.getVisitReport())
-                .additionalDetails(existingVisit.getAdditionalDetails())
-                .assignments(existingVisit.getAssignments())
-                .build();
+        // 5. Create a new Visit Instance instance with enriched additionalDetails.
+        // Every persisted column is carried over: the persister update writes all of them (review A4).
+        ScheduledVisit updatedScheduledVisit = VisitRowCopy.fullRow(existingVisit).build();
 
         // 6. Create Schedule visit request wrapper
         ScheduledVisitRequest enrichedRequest = ScheduledVisitRequest.builder()
@@ -1267,19 +1256,8 @@ public class ScheduledVisitService {
             log.error("Workflow EXPIRE action failed for visit {}. Falling back to direct status update.", visit.getId(), e);
         }
 
-        ScheduledVisit expiredVisit = ScheduledVisit.builder()
-                .id(visit.getId())
-                .tenantId(visit.getTenantId())
-                .amcConfigurationId(visit.getAmcConfigurationId())
-                .facilityId(visit.getFacilityId())
-                .facilityName(visit.getFacilityName())
-                .visitNumber(visit.getVisitNumber())
+        ScheduledVisit expiredVisit = VisitRowCopy.fullRow(visit)
                 .status(expiredStatus)
-                .scheduledDate(visit.getScheduledDate())
-                .actualVisitDate(visit.getActualVisitDate())
-                .visitReport(visit.getVisitReport())
-                .additionalDetails(visit.getAdditionalDetails())
-                .assignments(visit.getAssignments())
                 .build();
 
         scheduledVisitsEnrichment.enrichScheduledVisitRequestOnUpdate(expiredVisit, visit, requestInfo);

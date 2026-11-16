@@ -26,6 +26,9 @@ public class ScheduledVisitQueryBuilder {
     private static final String FETCH_SCHEDULED_VISIT_QUERY = "SELECT sv.id AS sv_visit_id, sv.tenant_id AS sv_tenant_id, sv.amc_configuration_id AS sv_amc_configuration_id, sv.facility_id AS sv_facility_id, " +
             "sv.facility_name AS sv_facility_name, sv.project_id AS sv_project_id, sv.visit_number AS sv_visit_number, sv.scheduled_date AS sv_scheduled_date, sv.actual_visit_date AS sv_actual_visit_date, sv.last_scheduled_visit_date AS sv_last_scheduled_visit_date," +
             " sv.status AS sv_status, sv.is_active AS sv_is_active, sv.visit_report AS sv_visit_report, sv.created_by AS sv_created_by, sv.created_time AS sv_created_time, sv.last_modified_by AS sv_last_modified_by, sv.last_modified_time AS sv_last_modified_time, " +
+            // Livelihood (review A4): every persisted visit column is read, so a full-row update never nulls one.
+            "sv.additional_details AS sv_additional_details, sv.vendor_id AS sv_vendor_id, sv.first_submission_date AS sv_first_submission_date, " +
+            "sv.latest_submission_date AS sv_latest_submission_date, sv.approved_by AS sv_approved_by, " +
             "ac.id AS amc_id, ac.tenant_id AS amc_tenant_id, ac.vendor_id as amc_vendor_id, ac.facility_id as amc_facility_id, ac.project_id as amc_project_id, ac.asset_types as amc_asset_types, ac.duration_months as amc_duration_months, " +
             "ac.visit_frequency_months as amc_visit_frequency_months, ac.configuration_start_date as amc_configuration_start_date, ac.configuration_end_date as amc_configuration_end_date, ac.status AS amc_status, ac.additional_details AS amc_additional_details, ac.geography_details AS amc_geography_details, ac.created_by AS amc_created_by," +
             "ac.created_time AS amc_created_time, ac.last_modified_by AS amc_last_modified_by, ac.last_modified_time AS amc_last_modified_time, " +
@@ -152,6 +155,7 @@ public class ScheduledVisitQueryBuilder {
         String groupBy = " GROUP BY sv.id, sv.tenant_id, sv.amc_configuration_id, sv.facility_id,sv.project_id,  " +
                 "    sv.facility_name, sv.visit_number, sv.scheduled_date, sv.actual_visit_date, sv.status, sv.is_active, sv.last_scheduled_visit_date, " +
                 "    sv.visit_report, sv.created_by, sv.created_time, sv.last_modified_by, sv.last_modified_time, " +
+                "    sv.additional_details, sv.vendor_id, sv.first_submission_date, sv.latest_submission_date, sv.approved_by, " +
                 "\n" +
                 "    ac.id, ac.tenant_id, ac.vendor_id, ac.facility_id, ac.project_id, " +
                 "    ac.asset_types, ac.duration_months, ac.visit_frequency_months, " +
