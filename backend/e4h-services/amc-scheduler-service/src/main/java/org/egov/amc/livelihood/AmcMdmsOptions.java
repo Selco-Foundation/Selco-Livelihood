@@ -92,6 +92,18 @@ public class AmcMdmsOptions {
         return out;
     }
 
+    /** Active auto-approval rules from MDMS AMC.AutoApprovalRules (LLD §8.2). */
+    public List<AutoApproval.Rule> autoApprovalRules(String tenantId, RequestInfo requestInfo) {
+        Map<String, Object> criteria = new HashMap<>();
+        criteria.put("tenantId", tenantId);
+        criteria.put("moduleDetails", List.of(Map.of("moduleName", "AMC", "masterDetails", List.of(Map.of("name", "AutoApprovalRules")))));
+        Map<String, Object> body = new HashMap<>();
+        body.put("RequestInfo", requestInfo);
+        body.put("MdmsCriteria", criteria);
+        StringBuilder url = new StringBuilder(config.getMdmsHost()).append(config.getMdmsEndPoint());
+        return AutoApproval.parse(mapper.valueToTree(requestRepository.fetchResult(url, body)));
+    }
+
     static Options parse(JsonNode root) {
         JsonNode amc = root == null ? null : root.path("MdmsRes").path("AMC");
         return new Options(active(amc == null ? null : amc.path("Frequency"), "months"),

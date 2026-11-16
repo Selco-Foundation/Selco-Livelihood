@@ -76,7 +76,8 @@ public final class LivelihoodReportPdfData {
         d.put("scheduled_date", day(visit.getScheduledDate()));
         d.put("amc_start_date", day(cfg != null ? cfg.getConfigurationStartDate() : null));
         d.put("amc_end_date", day(cfg != null ? cfg.getConfigurationEndDate() : null));
-        boolean submitting = "SUBMIT_VISIT_REPORT".equals(step.action());
+        // submit, and auto-approval (the code verification that stamps the dates happens in the same request)
+        boolean submitting = "SUBMIT_VISIT_REPORT".equals(step.action()) || "AUTO_APPROVE".equals(step.action());
         Long first = visit.getFirstSubmissionDate() != null ? visit.getFirstSubmissionDate() : (submitting ? step.actedAt() : null);
         Long latest = submitting ? step.actedAt() : visit.getLatestSubmissionDate();
         d.put("first_submission_date", day(first));

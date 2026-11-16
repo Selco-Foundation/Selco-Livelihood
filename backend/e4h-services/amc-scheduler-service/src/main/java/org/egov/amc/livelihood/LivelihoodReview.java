@@ -133,7 +133,7 @@ public final class LivelihoodReview {
         return totalVisits > 0 && approvedOtherVisits + 1 >= totalVisits;
     }
 
-    static String fieldStaffName(ScheduledVisit visit) {
+    public static String fieldStaffName(ScheduledVisit visit) {
         if (visit.getAssignments() != null) {
             for (ScheduledVisitAssignment a : visit.getAssignments()) {
                 if (a != null && a.isActive() && a.getUser() != null) {

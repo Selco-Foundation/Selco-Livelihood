@@ -18,6 +18,8 @@ import org.egov.amc.validator.ScheduledVisitValidator;
 import org.egov.amc.web.models.*;
 import org.egov.common.contract.models.AuditDetails;
 import org.egov.amc.livelihood.AmcMdmsOptions;
+import org.egov.amc.livelihood.AutoApproval;
+import org.egov.amc.livelihood.SystemUserProvider;
 import org.egov.amc.livelihood.LivelihoodCodeVerify;
 import org.egov.amc.livelihood.LivelihoodCompletionService;
 import org.egov.amc.livelihood.LivelihoodReview;
@@ -94,6 +96,10 @@ public class ScheduledVisitService {
     /** AMC completion when every visit is approved. */
     @Autowired
     private LivelihoodCompletionService livelihoodCompletionService;
+
+    /** The system account AUTO_APPROVE runs as. */
+    @Autowired
+    private SystemUserProvider systemUserProvider;
 
     @Autowired
     public ScheduledVisitService(
@@ -951,18 +957,40 @@ public class ScheduledVisitService {
     }
 
     /**
-     * Livelihood SUBMIT_OTP (LLD §6.3): validate the code, workflow, save the submission dates, then the next visit.
-     * The order lives in {@link LivelihoodCodeVerify#run}. Fixes E4H's gaps: a missing phone or a code egov-otp
-     * does not confirm (isValidationSuccessful false, or an error) is refused with AMC_INVALID_SERVICE_CODE.
+     * Livelihood SUBMIT_OTP (LLD §6.3, §6.8): rules, "Approved" PDF if all pass, validate the code, AUTO_APPROVE (system
+     * user) or SUBMIT_OTP, save the submission dates, then the next visit and the completion check. The order lives in
+     * {@link LivelihoodCodeVerify#run}. Fixes E4H's gaps: a missing phone or a code egov-otp does not confirm
+     * (isValidationSuccessful false, or an error) is refused with AMC_INVALID_SERVICE_CODE.
      */
     private ScheduledVisit verifyLivelihoodCode(VisitReportSubmissionRequest request, ScheduledVisit existingVisit, String priorStatus) {
         RequestInfo requestInfo = request.getRequestInfo();
         String tenantId = existingVisit.getTenantId();
         String code = request.getVisitReport() != null ? request.getVisitReport().getOtpReference() : null;
         ScheduledVisit[] saved = new ScheduledVisit[1];
+        String[] actionTaken = new String[1];
 
         LivelihoodCodeVerify.run(existingVisit, requestInfo.getUserInfo().getUuid(), code, System.currentTimeMillis(),
                 new LivelihoodCodeVerify.Steps() {
+                    @Override
+                    public Map<String, Object> evaluateRules(ScheduledVisit visit, long now) {
+                        if (!amcServiceConfiguration.isAutoApprovalEnabled()) {
+                            return null;
+                        }
+                        List<AutoApproval.Rule> rules = amcMdmsOptions.autoApprovalRules(tenantId, requestInfo);
+                        // System type: no source holds it yet (open point P5), so every site is "unknown" (case e).
+                        Map<String, Object> result = AutoApproval.evaluate(rules,
+                                visit.getVisitReport() != null ? visit.getVisitReport().getResponses() : null, null, now);
+                        log.info("Auto-approval rules for visit {}: passed={} ({} rules)", visit.getId(), result.get("passed"), rules.size());
+                        return result;
+                    }
+
+                    @Override
+                    public String makeApprovedPdf(ScheduledVisit visit, long now) {
+                        return livelihoodReportPdfService.generate(requestInfo, visit, visit.getVisitReport(), visit.getFacility(),
+                                LivelihoodReview.fieldStaffName(visit), new LivelihoodReportPdfData.Step(LivelihoodCodeVerify.AUTO_APPROVE,
+                                        LivelihoodReview.STATUS_APPROVED, "System (auto-approved)", now, null));
+                    }
+
                     @Override
                     public boolean codeIsValid(String phone, String typed) {
                         if (amcServiceConfiguration.isByPassOtpValidation()) {
@@ -980,25 +1008,44 @@ public class ScheduledVisitService {
                     }
 
                     @Override
-                    public ProcessInstance transition() {
+                    public ProcessInstance transition(String action, String pdfFileStoreId) {
+                        actionTaken[0] = action;
+                        removeExistingAmcInstallationFormDocument(request.getWorkflow());
+                        if (pdfFileStoreId != null) {
+                            addAmcFormDocument(request, existingVisit, pdfFileStoreId);
+                        }
+                        // AUTO_APPROVE is a SYSTEM_USER action; the field staff stay in visitReport.submittedBy
+                        RequestInfo actor = LivelihoodCodeVerify.AUTO_APPROVE.equals(action) ? systemUserProvider.requestInfo() : requestInfo;
                         try {
-                            return workflowService.transitionWorkflow(existingVisit, LivelihoodCodeVerify.SUBMIT_OTP,
-                                    request.getWorkflow().getDocuments(), requestInfo, request.getWorkflow().getComment());
+                            return workflowService.transitionWorkflow(existingVisit, action, request.getWorkflow().getDocuments(),
+                                    actor, LivelihoodCodeVerify.AUTO_APPROVE.equals(action)
+                                            ? "Auto-approved: all readings within the accepted ranges" : request.getWorkflow().getComment());
                         } catch (Exception e) {
-                            log.error("Workflow SUBMIT_OTP failed for visit {}", existingVisit.getId(), e);
+                            log.error("Workflow {} failed for visit {}", action, existingVisit.getId(), e);
                             throw new CustomException("WORKFLOW_TRANSITION_FAILED",
                                     "Failed to transition workflow for visit: " + existingVisit.getId());
                         }
                     }
 
                     @Override
-                    public void save(ScheduledVisit visit, ProcessInstance processInstance) {
+                    public void save(ScheduledVisit visit, ProcessInstance processInstance, Map<String, Object> autoApproval) {
+                        // the history row keeps the check next to its workflow step (G4); the typed code is stripped
+                        VisitReport tx = OtpRedaction.withoutCode(request.getVisitReport());
+                        if (tx == null) {
+                            tx = new VisitReport();
+                        }
+                        if (autoApproval != null) {
+                            Map<String, Object> details = tx.getAdditionalDetails() == null ? new HashMap<>() : new HashMap<>(tx.getAdditionalDetails());
+                            details.put("autoApproval", autoApproval);
+                            tx.setAdditionalDetails(details);
+                        }
+                        request.setVisitReport(tx);
                         handleTransactions(request, processInstance);
                         ScheduledVisit row = VisitRowCopy.fullRow(visit).build();
                         handleUpdateScheduledVisit(ScheduledVisitRequest.builder().requestInfo(requestInfo)
                                 .scheduledVisits(List.of(row)).build(), row, visit);
                         saved[0] = row;
-                        amcAnalyticsService.publishVisitWorkflowEvent(visit, LivelihoodCodeVerify.SUBMIT_OTP, priorStatus, requestInfo);
+                        amcAnalyticsService.publishVisitWorkflowEvent(visit, actionTaken[0], priorStatus, requestInfo);
                     }
 
                     @Override
@@ -1006,8 +1053,13 @@ public class ScheduledVisitService {
                         AmcConfiguration cfg = livelihoodNextVisitService.load(visit.getAmcConfigurationId(), tenantId);
                         livelihoodNextVisitService.createAfter(cfg, visit.getVisitNumber(), firstSubmissionDate, requestInfo);
                     }
+
+                    @Override
+                    public void completeIfAllApproved(ScheduledVisit visit) {
+                        livelihoodCompletionService.completeIfAllApproved(visit, requestInfo);
+                    }
                 });
-        log.info("Service code verified for visit {}: status {}", existingVisit.getId(), existingVisit.getStatus());
+        log.info("Service code verified for visit {}: {} -> status {}", existingVisit.getId(), actionTaken[0], existingVisit.getStatus());
         return saved[0];
     }
 
