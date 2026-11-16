@@ -105,10 +105,11 @@ public class AmcMdmsOptions {
     }
 
     /** Day counts of MDMS AMC.Config used at read time (LLD §6.8). */
-    public record ConfigDays(int reviewSlaDays, int submissionWindowDays) {
+    public record ConfigDays(int reviewSlaDays, int submissionWindowDays, int reminderLeadDays) {
     }
 
     public static final int DEFAULT_REVIEW_SLA_DAYS = 7;
+    public static final int DEFAULT_REMINDER_LEAD_DAYS = 7;
 
     public ConfigDays configDays(String tenantId, RequestInfo requestInfo) {
         Map<String, Object> criteria = new HashMap<>();
@@ -126,7 +127,9 @@ public class AmcMdmsOptions {
         JsonNode c = list != null && list.isArray() && !list.isEmpty() ? list.get(0) : null;
         int sla = c != null && c.path("reviewSlaDays").canConvertToInt() && c.path("reviewSlaDays").asInt() >= 0
                 ? c.path("reviewSlaDays").asInt() : DEFAULT_REVIEW_SLA_DAYS;
-        return new ConfigDays(sla, parseSubmissionWindowDays(root));
+        int lead = c != null && c.path("reminderLeadDays").canConvertToInt() && c.path("reminderLeadDays").asInt() >= 0
+                ? c.path("reminderLeadDays").asInt() : DEFAULT_REMINDER_LEAD_DAYS;
+        return new ConfigDays(sla, parseSubmissionWindowDays(root), lead);
     }
 
     /** Program POC emails from MDMS AMC.Config.programPocEmails (LLD §6.7); empty when not configured. */

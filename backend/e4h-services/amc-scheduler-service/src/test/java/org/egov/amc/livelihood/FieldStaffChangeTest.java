@@ -252,7 +252,8 @@ class FieldStaffChangeTest {
         ProcessInstance scheduled = new ProcessInstance();
         scheduled.setState(State.builder().state("SCHEDULED").build());
         when(wf.getProcessInstanceById(eq("v1"), anyString(), any())).thenReturn(List.of(scheduled));
-        FieldStaffChangeService service = new FieldStaffChangeService(config, cfgRepo, visitRepo, vendors, wf, sys, util, producer, jdbc);
+        ReminderService reminders = mock(ReminderService.class);
+        FieldStaffChangeService service = new FieldStaffChangeService(config, cfgRepo, visitRepo, vendors, wf, sys, util, producer, jdbc, reminders);
         RequestInfo pm = RequestInfo.builder().userInfo(User.builder().uuid("pm").build()).build();
 
         List<Map<String, Object>> out = service.change(List.of(new Update("livelihood", "row-1", ORG_Y, "fs-9", null)), pm);
@@ -261,5 +262,25 @@ class FieldStaffChangeTest {
         verify(wf, never()).transitionWorkflow(any(), anyString(), any(), any(), anyString());
         verify(producer).push(eq("update-scheduled-visit"), any());
         verify(jdbc).update(FieldStaffChangeService.CLEAR_NON_FUNCTIONAL_SQL, "v1");
+        verify(reminders, never()).resendAfterFieldStaffChange(any(), anyString());
+    }
+
+    // ---- reminder resend (§6.6) ---------------------------------------------------------------------------
+
+    @Test
+    void reminderResendOnlyForMovedNewVisitsWhenThePersonChanged() {
+        AmcConfiguration c = cfg();
+        ScheduledVisit upcoming = visit(2, "SCHEDULED", null, ORG_X, "fs-1");
+        ScheduledVisit rework = visit(1, "REJECTED", 7L, ORG_X, "fs-1");
+        RowPlan p = FieldStaffChangePlanner.plan(to("fs-2"), c, List.of(rework, upcoming), AUDIT);
+        assertEquals(List.of(upcoming), FieldStaffChangePlanner.reminderResendCandidates(p, "fs-1", "fs-2"), "the rework visit is not New");
+
+        ScheduledVisit saved = visit(3, "PENDING_OTP_APPROVAL", null, ORG_X, "fs-1");
+        RowPlan reset = FieldStaffChangePlanner.plan(toOrg(ORG_Y, "fs-9"), cfg(), List.of(saved), AUDIT);
+        assertEquals("SCHEDULED", saved.getStatus());
+        assertTrue(FieldStaffChangePlanner.reminderResendCandidates(reset, "fs-1", "fs-9").isEmpty(), "a reset visit already happened");
+
+        RowPlan orgOnly = FieldStaffChangePlanner.plan(toOrg(ORG_Y, "fs-1"), cfg(), List.of(visit(4, "SCHEDULED", null, ORG_X, "fs-1")), AUDIT);
+        assertTrue(FieldStaffChangePlanner.reminderResendCandidates(orgOnly, "fs-1", "fs-1").isEmpty(), "same person, same number");
     }
 }
