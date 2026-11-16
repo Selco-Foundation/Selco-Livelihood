@@ -23,7 +23,8 @@ import java.util.Set;
 @Component
 public class LocalizationUtil {
 
-    private static final String BOUNDARY_CODE_PREFIX = "Boundary_";
+    @Value("${amc.localization.boundary.prefix:BOUNDARY_}")
+    private String boundaryCodePrefix;
 
     @Autowired
     private RestTemplate restTemplate;
@@ -40,7 +41,7 @@ public class LocalizationUtil {
     @Value("${egov.localization.search.endpoint}")
     private String localizationSearchEndpoint;
 
-    @Value("${amc.localization.boundary.module:rainmaker-in}")
+    @Value("${amc.localization.boundary.module:rainmaker-livelihood}")
     private String localizationBoundaryModule;
 
     @Value("${amc.localization.locale:en_IN}")
@@ -58,7 +59,7 @@ public class LocalizationUtil {
         }
 
         List<String> localizationCodes = boundaryCodes.stream()
-                .map(code -> code.startsWith(BOUNDARY_CODE_PREFIX) ? code : BOUNDARY_CODE_PREFIX + code)
+                .map(code -> code.startsWith(boundaryCodePrefix) ? code : boundaryCodePrefix + code)
                 .distinct()
                 .toList();
 
@@ -82,7 +83,7 @@ public class LocalizationUtil {
             }
             for (LocalizationResponse.Message message : localizationResponse.getMessages()) {
                 if (message.getCode() != null && message.getMessage() != null && !message.getMessage().isBlank()) {
-                    labels.put(message.getCode().replaceFirst("^" + BOUNDARY_CODE_PREFIX, ""), message.getMessage());
+                    labels.put(message.getCode().replaceFirst("^" + boundaryCodePrefix, ""), message.getMessage());
                 }
             }
         } catch (Exception e) {

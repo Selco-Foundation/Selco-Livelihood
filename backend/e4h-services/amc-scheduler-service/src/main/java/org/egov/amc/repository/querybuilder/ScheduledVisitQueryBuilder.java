@@ -16,7 +16,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.egov.amc.util.AmcConstants.DOT;
-import static org.egov.amc.util.AmcConstants.PROJECT_MANAGER;
 
 @Component
 @Slf4j
@@ -71,6 +70,17 @@ public class ScheduledVisitQueryBuilder {
             "WHERE offset_ > ? AND offset_ <= ?";
 
     private final AMCServiceConfiguration config;
+
+    /** True when any of the caller's roles is in amc.search.see.all.roles (case-insensitive). */
+    boolean hasSeeAllRole(List<org.egov.common.contract.request.Role> roles) {
+        List<String> seeAll = config.getSearchSeeAllRoles();
+        if (roles == null || seeAll == null) {
+            return false;
+        }
+        return roles.stream()
+                .filter(role -> role != null && role.getCode() != null)
+                .anyMatch(role -> seeAll.stream().anyMatch(code -> code.trim().equalsIgnoreCase(role.getCode())));
+    }
 
     /* Add WHERE clause before first condition, ADD and for subsequent conditions. Do not add AND before any condition and after "(" */
     private static void addClauseIfRequired(List<Object> values, StringBuilder queryString) {
@@ -129,10 +139,10 @@ public class ScheduledVisitQueryBuilder {
         // Get user info
         var userInfo = request.getRequestInfo().getUserInfo();
         String userUuid = userInfo.getUuid();
-        boolean isProjectManager = false;
-        if (userInfo.getRoles() != null) {
-            isProjectManager = userInfo.getRoles().stream().anyMatch(role -> PROJECT_MANAGER.equalsIgnoreCase(role.getCode()));
-        }
+        // "isProjectManager" = may see every visit. E4H allowed only PROJECT_MANAGER, which hid every
+        // report from reviewers and from the service's own system user; the list is a setting now
+        // (amc.search.see.all.roles, default PROJECT_MANAGER, AMC_REVIEWER, SYSTEM_USER).
+        boolean isProjectManager = hasSeeAllRole(userInfo.getRoles());
 
 //        if (!isProjectManager) {
 //            queryBuilder.append("JOIN project_staff ps ON ps.projectid = prj.id ");

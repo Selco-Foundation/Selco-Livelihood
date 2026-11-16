@@ -154,6 +154,11 @@ public class ScheduledVisitService {
      * Returns the number of visits actually pushed (DRAFT visits in the input are silently skipped).
      */
     private int pushNonDraftVisitsToIndex(RequestInfo requestInfo, List<ScheduledVisit> visits, String indexTopic) {
+        // Livelihood: off (amc.visit.index.push.enabled=false). No indexer reads these topics, and the
+        // push first does boundary and HRMS look-ups for nothing (LLD §6.2).
+        if (!amcServiceConfiguration.isVisitIndexPushEnabled()) {
+            return 0;
+        }
         List<ScheduledVisit> nonDraftVisits = visits.stream()
                 .filter(visit -> visit.getStatus() != null && !DRAFT_STATUS.equalsIgnoreCase(visit.getStatus()))
                 .toList();
@@ -1494,7 +1499,7 @@ public class ScheduledVisitService {
 
     public Employee getUserById(Object request, String userId) {
         log.trace("Entering getUserById method for userId: {}", userId);
-        String url = amcServiceConfiguration.getHrmsHost() + amcServiceConfiguration.getHrmsSearchUrl()+ "?tenantId=in&uuids="+userId;
+        String url = amcServiceConfiguration.getHrmsHost() + amcServiceConfiguration.getHrmsSearchUrl()+ "?tenantId=" + amcServiceConfiguration.getStateTenantId() + "&uuids="+userId;
         log.debug("Calling HRMS service to fetch employee details for userId: {}", userId);
         Object response = requestRepository.fetchResult(new StringBuilder(url), request);
 
@@ -1519,7 +1524,7 @@ public class ScheduledVisitService {
         }
         StringBuilder url = new StringBuilder(amcServiceConfiguration.getHrmsHost())
                 .append(amcServiceConfiguration.getHrmsSearchUrl())
-                .append("?tenantId=in&boundaryCodes=").append(boundaryCode)
+                .append("?tenantId=").append(amcServiceConfiguration.getStateTenantId()).append("&boundaryCodes=").append(boundaryCode)
                 .append("&searchOnlyInBoundary=true");
         if (role != null && !role.trim().isEmpty()) {
             url.append("&roles=").append(role);

@@ -49,12 +49,9 @@ import static org.egov.amc.util.AmcConstants.ANALYTICS_EVENT_AMC_VISIT_OTP_VERIF
 import static org.egov.amc.util.AmcConstants.ANALYTICS_EVENT_AMC_VISIT_RESUBMITTED;
 import static org.egov.amc.util.AmcConstants.ANALYTICS_EVENT_AMC_VISIT_SUBMITTED;
 import static org.egov.amc.util.AmcConstants.ANALYTICS_MODULE_AMC;
-import static org.egov.amc.util.AmcConstants.BOUNDARY_LOCALIZATION_MODULE;
 import static org.egov.amc.util.AmcConstants.LOCALIZATION_LOCALE;
-import static org.egov.amc.util.AmcConstants.LOCALIZATION_TENANT_ID;
 import static org.egov.amc.util.AmcConstants.MDMS_MASTER_AMC;
 import static org.egov.amc.util.AmcConstants.MDMS_MASTER_USER_TYPE;
-import static org.egov.amc.util.AmcConstants.TENANTID;
 
 /**
  * Builds and publishes {@link UserAnalyticsEvent}s to the shared {@code user-analytics-event}
@@ -143,7 +140,7 @@ public class AmcAnalyticsService {
                     .map(AmcConfiguration::getTenantId)
                     .filter(Objects::nonNull)
                     .findFirst()
-                    .orElse(TENANTID);
+                    .orElse(configs.getStateTenantId());
 
             // AMC_SCHEDULED is not a workflow action, so the role fields come from USER_TYPE alone,
             // the same best-match BoundaryAnalyticsService uses for its per-request create event.
@@ -205,7 +202,7 @@ public class AmcAnalyticsService {
                 return;
             }
 
-            String tenantId = (visit.getTenantId() != null) ? visit.getTenantId() : TENANTID;
+            String tenantId = (visit.getTenantId() != null) ? visit.getTenantId() : configs.getStateTenantId();
             User user = (requestInfo != null) ? requestInfo.getUserInfo() : null;
             Set<String> userRoleCodes = extractUserRoleCodes(user);
 
@@ -381,7 +378,7 @@ public class AmcAnalyticsService {
             if (facilityIds.isEmpty()) {
                 return byFacilityId;
             }
-            List<String> tenantList = tenantIds.isEmpty() ? List.of(TENANTID) : new ArrayList<>(tenantIds);
+            List<String> tenantList = tenantIds.isEmpty() ? List.of(configs.getStateTenantId()) : new ArrayList<>(tenantIds);
             List<String> idList = new ArrayList<>(facilityIds);
             String url = configs.getFacilityServiceHost() + configs.getFacilityBulkSearchPath();
 
@@ -435,7 +432,7 @@ public class AmcAnalyticsService {
      * Best-effort — never throws.
      */
     private String localizeStateName(String stateBoundaryCode, RequestInfo requestInfo) {
-        String code = "Boundary_" + stateBoundaryCode;
+        String code = configs.getBoundaryLocalizationPrefix() + stateBoundaryCode;
         try {
             String searchUrl = buildLocalizationSearchUrl();
             if (searchUrl == null) {
@@ -444,8 +441,8 @@ public class AmcAnalyticsService {
             }
 
             String url = UriComponentsBuilder.fromHttpUrl(searchUrl)
-                    .queryParam("tenantId", LOCALIZATION_TENANT_ID)
-                    .queryParam("module", BOUNDARY_LOCALIZATION_MODULE)
+                    .queryParam("tenantId", configs.getStateTenantId())
+                    .queryParam("module", configs.getBoundaryLocalizationModule())
                     .queryParam("locale", LOCALIZATION_LOCALE)
                     .queryParam("codes", code)
                     .build()
@@ -468,7 +465,7 @@ public class AmcAnalyticsService {
             String message = extractMessage(response.getBody(), code);
             if (message == null) {
                 log.warn("AMC analytics: no localization for {} in module {} at tenant {}", code,
-                        BOUNDARY_LOCALIZATION_MODULE, LOCALIZATION_TENANT_ID);
+                        configs.getBoundaryLocalizationModule(), configs.getStateTenantId());
             }
             return message;
         } catch (Exception e) {
