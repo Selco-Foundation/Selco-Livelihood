@@ -42,5 +42,13 @@ public class AmcConfiguration {
     private AuditDetails auditDetails;
     private Integer totalVisits;
     private Integer completedVisits;
+
+    // ---- Livelihood (LLD 07 §6.3) ----
+    // The SOLAR installation row (facility_activities.id) this AMC belongs to: one running AMC per row.
+    private String activityFacilityId;
+    // Create request only: the vendor org and the ONE named AMC field staff. The server stores
+    // vendorId = vendorOrgId and a single assignment for amcFieldStaffId; these two are not persisted as such.
+    private String vendorOrgId;
+    private String amcFieldStaffId;
 }
 

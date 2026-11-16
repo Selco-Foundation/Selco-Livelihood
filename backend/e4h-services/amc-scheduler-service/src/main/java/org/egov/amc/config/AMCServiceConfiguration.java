@@ -257,4 +257,19 @@ public class AMCServiceConfiguration {
     /** E4H's visit search-index push; Livelihood has no indexer config for these topics. */
     @Value("${amc.visit.index.push.enabled:false}")
     private boolean visitIndexPushEnabled;
+
+    /** Livelihood schedule model: create per SOLAR installation row, activation on approval (LLD §6.3). */
+    @Value("${amc.livelihood.schedule.enabled:true}")
+    private boolean livelihoodScheduleEnabled;
+
+    /** Installation service (field-planner-activity): SOLAR rows, approval status and date. */
+    @Value("${egov.field.planner.activity.host:http://field-planner-activity.core:8080}")
+    private String fieldPlannerActivityHost;
+
+    @Value("${egov.field.planner.activity.search.url:/activity/v1/activities/_search}")
+    private String fieldPlannerActivitySearchUrl;
+
+    /** vendor-registry org-user search: membership and roles of the AMC field staff. */
+    @Value("${egov.vendor.org.user.search.url:/vendor/organisation/v1/user/_search}")
+    private String vendorOrgUserSearchUrl;
 }

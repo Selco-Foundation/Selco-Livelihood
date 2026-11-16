@@ -11,6 +11,7 @@ import org.egov.common.contract.request.RequestInfo;
 import org.egov.common.models.project.ProjectStaff;
 import org.egov.common.producer.Producer;
 import org.egov.amc.config.AMCServiceConfiguration;
+import org.egov.amc.livelihood.LivelihoodAmcCreateService;
 import org.egov.amc.repository.AmcConfigurationRepository;
 import org.egov.amc.service.enrichment.AmcConfigurationEnrichment;
 import org.egov.amc.util.AmcConfigurationServiceUtil;
@@ -44,6 +45,7 @@ public class AmcConfigurationService {
     private final AmcAnalyticsService amcAnalyticsService;
     private final AmcVisitRegenerationService amcVisitRegenerationService;
     private final FacilityAmcIndexSyncService facilityAmcIndexSyncService;
+    private final LivelihoodAmcCreateService livelihoodAmcCreateService;
 
     @Autowired
     @Qualifier("objectMapper")
@@ -54,7 +56,8 @@ public class AmcConfigurationService {
             AmcConfigurationRepository amcConfigurationRepository, AmcConfigurationValidator amcConfigurationValidator, ScheduledVisitRepository scheduledVisitRepository, AmcConfigurationEnrichment amcConfigurationEnrichment, AMCServiceConfiguration amcConfigurationConfiguration,
             Producer producer, AmcConfigurationServiceUtil amcConfigurationServiceUtil, ServiceRequestRepository requestRepository, AssetAmcRepository assetAmcRepository,
             AmcAnalyticsService amcAnalyticsService, AmcVisitRegenerationService amcVisitRegenerationService,
-            FacilityAmcIndexSyncService facilityAmcIndexSyncService) {
+            FacilityAmcIndexSyncService facilityAmcIndexSyncService,
+            LivelihoodAmcCreateService livelihoodAmcCreateService) {
             this.amcConfigurationValidator = amcConfigurationValidator;
         this.scheduledVisitRepository = scheduledVisitRepository;
         this.producer = producer;
@@ -67,11 +70,17 @@ public class AmcConfigurationService {
         this.amcAnalyticsService = amcAnalyticsService;
         this.amcVisitRegenerationService = amcVisitRegenerationService;
         this.facilityAmcIndexSyncService = facilityAmcIndexSyncService;
+        this.livelihoodAmcCreateService = livelihoodAmcCreateService;
     }
 
     public AmcConfigurationRequest createAmcConfiguration(AmcConfigurationRequest request) {
         log.trace("Entering createAmcConfiguration method");
         log.info("Creating {} AMC configuration(s)", request.getAmcConfigurations().size());
+        if (amcServiceConfiguration.isLivelihoodScheduleEnabled()) {
+            // Livelihood (LLD §6.3): per SOLAR installation row, one named field staff, all-or-nothing checks.
+            livelihoodAmcCreateService.prepare(request);
+            return persistCreated(request);
+        }
         amcConfigurationValidator.validateCreateAmcConfigurationRequest(request);
         for (AmcConfiguration amcConfiguration : request.getAmcConfigurations()) {
             // remove Duplicate Assignments if the same user is AMC_STAFF and AMC_REVIEWER
@@ -88,7 +97,11 @@ public class AmcConfigurationService {
             log.debug("Enriched AMC configuration details - duration: {} months, visitFrequency: {} months",
                     amcConfiguration.getDurationMonths(), amcConfiguration.getVisitFrequencyMonths());
         }
+        return persistCreated(request);
+    }
 
+    /** Shared tail of create: project staff linking, save, analytics, facility index sync (off for Livelihood). */
+    private AmcConfigurationRequest persistCreated(AmcConfigurationRequest request) {
         // Bulk-link project staff: same semantics as per-config createProjectStaff; dedupe (tenant, project, user).
         List<ProjectStaff> distinctStaffToLink = collectDistinctProjectStaffForCreate(request.getAmcConfigurations());
         if (!distinctStaffToLink.isEmpty()) {
