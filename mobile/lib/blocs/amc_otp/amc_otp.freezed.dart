@@ -457,8 +457,8 @@ mixin _$AmcOtpState {
     required TResult Function() resendLoading,
     required TResult Function() resendSuccess,
     required TResult Function() submitLoading,
-    required TResult Function() submitSuccess,
-    required TResult Function(String message) failure,
+    required TResult Function(String? status) submitSuccess,
+    required TResult Function(String messageKey, String? serverMessage) failure,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
@@ -467,8 +467,8 @@ mixin _$AmcOtpState {
     TResult? Function()? resendLoading,
     TResult? Function()? resendSuccess,
     TResult? Function()? submitLoading,
-    TResult? Function()? submitSuccess,
-    TResult? Function(String message)? failure,
+    TResult? Function(String? status)? submitSuccess,
+    TResult? Function(String messageKey, String? serverMessage)? failure,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
@@ -477,8 +477,8 @@ mixin _$AmcOtpState {
     TResult Function()? resendLoading,
     TResult Function()? resendSuccess,
     TResult Function()? submitLoading,
-    TResult Function()? submitSuccess,
-    TResult Function(String message)? failure,
+    TResult Function(String? status)? submitSuccess,
+    TResult Function(String messageKey, String? serverMessage)? failure,
     required TResult orElse(),
   }) =>
       throw _privateConstructorUsedError;
@@ -581,8 +581,8 @@ class _$InitialImpl with DiagnosticableTreeMixin implements _Initial {
     required TResult Function() resendLoading,
     required TResult Function() resendSuccess,
     required TResult Function() submitLoading,
-    required TResult Function() submitSuccess,
-    required TResult Function(String message) failure,
+    required TResult Function(String? status) submitSuccess,
+    required TResult Function(String messageKey, String? serverMessage) failure,
   }) {
     return initial();
   }
@@ -594,8 +594,8 @@ class _$InitialImpl with DiagnosticableTreeMixin implements _Initial {
     TResult? Function()? resendLoading,
     TResult? Function()? resendSuccess,
     TResult? Function()? submitLoading,
-    TResult? Function()? submitSuccess,
-    TResult? Function(String message)? failure,
+    TResult? Function(String? status)? submitSuccess,
+    TResult? Function(String messageKey, String? serverMessage)? failure,
   }) {
     return initial?.call();
   }
@@ -607,8 +607,8 @@ class _$InitialImpl with DiagnosticableTreeMixin implements _Initial {
     TResult Function()? resendLoading,
     TResult Function()? resendSuccess,
     TResult Function()? submitLoading,
-    TResult Function()? submitSuccess,
-    TResult Function(String message)? failure,
+    TResult Function(String? status)? submitSuccess,
+    TResult Function(String messageKey, String? serverMessage)? failure,
     required TResult orElse(),
   }) {
     if (initial != null) {
@@ -715,8 +715,8 @@ class _$ResendLoadingImpl
     required TResult Function() resendLoading,
     required TResult Function() resendSuccess,
     required TResult Function() submitLoading,
-    required TResult Function() submitSuccess,
-    required TResult Function(String message) failure,
+    required TResult Function(String? status) submitSuccess,
+    required TResult Function(String messageKey, String? serverMessage) failure,
   }) {
     return resendLoading();
   }
@@ -728,8 +728,8 @@ class _$ResendLoadingImpl
     TResult? Function()? resendLoading,
     TResult? Function()? resendSuccess,
     TResult? Function()? submitLoading,
-    TResult? Function()? submitSuccess,
-    TResult? Function(String message)? failure,
+    TResult? Function(String? status)? submitSuccess,
+    TResult? Function(String messageKey, String? serverMessage)? failure,
   }) {
     return resendLoading?.call();
   }
@@ -741,8 +741,8 @@ class _$ResendLoadingImpl
     TResult Function()? resendLoading,
     TResult Function()? resendSuccess,
     TResult Function()? submitLoading,
-    TResult Function()? submitSuccess,
-    TResult Function(String message)? failure,
+    TResult Function(String? status)? submitSuccess,
+    TResult Function(String messageKey, String? serverMessage)? failure,
     required TResult orElse(),
   }) {
     if (resendLoading != null) {
@@ -849,8 +849,8 @@ class _$ResendSuccessImpl
     required TResult Function() resendLoading,
     required TResult Function() resendSuccess,
     required TResult Function() submitLoading,
-    required TResult Function() submitSuccess,
-    required TResult Function(String message) failure,
+    required TResult Function(String? status) submitSuccess,
+    required TResult Function(String messageKey, String? serverMessage) failure,
   }) {
     return resendSuccess();
   }
@@ -862,8 +862,8 @@ class _$ResendSuccessImpl
     TResult? Function()? resendLoading,
     TResult? Function()? resendSuccess,
     TResult? Function()? submitLoading,
-    TResult? Function()? submitSuccess,
-    TResult? Function(String message)? failure,
+    TResult? Function(String? status)? submitSuccess,
+    TResult? Function(String messageKey, String? serverMessage)? failure,
   }) {
     return resendSuccess?.call();
   }
@@ -875,8 +875,8 @@ class _$ResendSuccessImpl
     TResult Function()? resendLoading,
     TResult Function()? resendSuccess,
     TResult Function()? submitLoading,
-    TResult Function()? submitSuccess,
-    TResult Function(String message)? failure,
+    TResult Function(String? status)? submitSuccess,
+    TResult Function(String messageKey, String? serverMessage)? failure,
     required TResult orElse(),
   }) {
     if (resendSuccess != null) {
@@ -983,8 +983,8 @@ class _$SubmitLoadingImpl
     required TResult Function() resendLoading,
     required TResult Function() resendSuccess,
     required TResult Function() submitLoading,
-    required TResult Function() submitSuccess,
-    required TResult Function(String message) failure,
+    required TResult Function(String? status) submitSuccess,
+    required TResult Function(String messageKey, String? serverMessage) failure,
   }) {
     return submitLoading();
   }
@@ -996,8 +996,8 @@ class _$SubmitLoadingImpl
     TResult? Function()? resendLoading,
     TResult? Function()? resendSuccess,
     TResult? Function()? submitLoading,
-    TResult? Function()? submitSuccess,
-    TResult? Function(String message)? failure,
+    TResult? Function(String? status)? submitSuccess,
+    TResult? Function(String messageKey, String? serverMessage)? failure,
   }) {
     return submitLoading?.call();
   }
@@ -1009,8 +1009,8 @@ class _$SubmitLoadingImpl
     TResult Function()? resendLoading,
     TResult Function()? resendSuccess,
     TResult Function()? submitLoading,
-    TResult Function()? submitSuccess,
-    TResult Function(String message)? failure,
+    TResult Function(String? status)? submitSuccess,
+    TResult Function(String messageKey, String? serverMessage)? failure,
     required TResult orElse(),
   }) {
     if (submitLoading != null) {
@@ -1072,6 +1072,8 @@ abstract class _$$SubmitSuccessImplCopyWith<$Res> {
   factory _$$SubmitSuccessImplCopyWith(
           _$SubmitSuccessImpl value, $Res Function(_$SubmitSuccessImpl) then) =
       __$$SubmitSuccessImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({String? status});
 }
 
 /// @nodoc
@@ -1081,6 +1083,19 @@ class __$$SubmitSuccessImplCopyWithImpl<$Res>
   __$$SubmitSuccessImplCopyWithImpl(
       _$SubmitSuccessImpl _value, $Res Function(_$SubmitSuccessImpl) _then)
       : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? status = freezed,
+  }) {
+    return _then(_$SubmitSuccessImpl(
+      status: freezed == status
+          ? _value.status
+          : status // ignore: cast_nullable_to_non_nullable
+              as String?,
+    ));
+  }
 }
 
 /// @nodoc
@@ -1088,27 +1103,40 @@ class __$$SubmitSuccessImplCopyWithImpl<$Res>
 class _$SubmitSuccessImpl
     with DiagnosticableTreeMixin
     implements _SubmitSuccess {
-  const _$SubmitSuccessImpl();
+  const _$SubmitSuccessImpl({this.status});
+
+  @override
+  final String? status;
 
   @override
   String toString({DiagnosticLevel minLevel = DiagnosticLevel.info}) {
-    return 'AmcOtpState.submitSuccess()';
+    return 'AmcOtpState.submitSuccess(status: $status)';
   }
 
   @override
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
     super.debugFillProperties(properties);
-    properties.add(DiagnosticsProperty('type', 'AmcOtpState.submitSuccess'));
+    properties
+      ..add(DiagnosticsProperty('type', 'AmcOtpState.submitSuccess'))
+      ..add(DiagnosticsProperty('status', status));
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
-        (other.runtimeType == runtimeType && other is _$SubmitSuccessImpl);
+        (other.runtimeType == runtimeType &&
+            other is _$SubmitSuccessImpl &&
+            (identical(other.status, status) || other.status == status));
   }
 
   @override
-  int get hashCode => runtimeType.hashCode;
+  int get hashCode => Object.hash(runtimeType, status);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$SubmitSuccessImplCopyWith<_$SubmitSuccessImpl> get copyWith =>
+      __$$SubmitSuccessImplCopyWithImpl<_$SubmitSuccessImpl>(this, _$identity);
 
   @override
   @optionalTypeArgs
@@ -1117,10 +1145,10 @@ class _$SubmitSuccessImpl
     required TResult Function() resendLoading,
     required TResult Function() resendSuccess,
     required TResult Function() submitLoading,
-    required TResult Function() submitSuccess,
-    required TResult Function(String message) failure,
+    required TResult Function(String? status) submitSuccess,
+    required TResult Function(String messageKey, String? serverMessage) failure,
   }) {
-    return submitSuccess();
+    return submitSuccess(status);
   }
 
   @override
@@ -1130,10 +1158,10 @@ class _$SubmitSuccessImpl
     TResult? Function()? resendLoading,
     TResult? Function()? resendSuccess,
     TResult? Function()? submitLoading,
-    TResult? Function()? submitSuccess,
-    TResult? Function(String message)? failure,
+    TResult? Function(String? status)? submitSuccess,
+    TResult? Function(String messageKey, String? serverMessage)? failure,
   }) {
-    return submitSuccess?.call();
+    return submitSuccess?.call(status);
   }
 
   @override
@@ -1143,12 +1171,12 @@ class _$SubmitSuccessImpl
     TResult Function()? resendLoading,
     TResult Function()? resendSuccess,
     TResult Function()? submitLoading,
-    TResult Function()? submitSuccess,
-    TResult Function(String message)? failure,
+    TResult Function(String? status)? submitSuccess,
+    TResult Function(String messageKey, String? serverMessage)? failure,
     required TResult orElse(),
   }) {
     if (submitSuccess != null) {
-      return submitSuccess();
+      return submitSuccess(status);
     }
     return orElse();
   }
@@ -1198,7 +1226,12 @@ class _$SubmitSuccessImpl
 }
 
 abstract class _SubmitSuccess implements AmcOtpState {
-  const factory _SubmitSuccess() = _$SubmitSuccessImpl;
+  const factory _SubmitSuccess({final String? status}) = _$SubmitSuccessImpl;
+
+  String? get status;
+  @JsonKey(ignore: true)
+  _$$SubmitSuccessImplCopyWith<_$SubmitSuccessImpl> get copyWith =>
+      throw _privateConstructorUsedError;
 }
 
 /// @nodoc
@@ -1207,7 +1240,7 @@ abstract class _$$FailureImplCopyWith<$Res> {
           _$FailureImpl value, $Res Function(_$FailureImpl) then) =
       __$$FailureImplCopyWithImpl<$Res>;
   @useResult
-  $Res call({String message});
+  $Res call({String messageKey, String? serverMessage});
 }
 
 /// @nodoc
@@ -1221,13 +1254,18 @@ class __$$FailureImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
-    Object? message = null,
+    Object? messageKey = null,
+    Object? serverMessage = freezed,
   }) {
     return _then(_$FailureImpl(
-      null == message
-          ? _value.message
-          : message // ignore: cast_nullable_to_non_nullable
+      null == messageKey
+          ? _value.messageKey
+          : messageKey // ignore: cast_nullable_to_non_nullable
               as String,
+      serverMessage: freezed == serverMessage
+          ? _value.serverMessage
+          : serverMessage // ignore: cast_nullable_to_non_nullable
+              as String?,
     ));
   }
 }
@@ -1235,14 +1273,16 @@ class __$$FailureImplCopyWithImpl<$Res>
 /// @nodoc
 
 class _$FailureImpl with DiagnosticableTreeMixin implements _Failure {
-  const _$FailureImpl(this.message);
+  const _$FailureImpl(this.messageKey, {this.serverMessage});
 
   @override
-  final String message;
+  final String messageKey;
+  @override
+  final String? serverMessage;
 
   @override
   String toString({DiagnosticLevel minLevel = DiagnosticLevel.info}) {
-    return 'AmcOtpState.failure(message: $message)';
+    return 'AmcOtpState.failure(messageKey: $messageKey, serverMessage: $serverMessage)';
   }
 
   @override
@@ -1250,7 +1290,8 @@ class _$FailureImpl with DiagnosticableTreeMixin implements _Failure {
     super.debugFillProperties(properties);
     properties
       ..add(DiagnosticsProperty('type', 'AmcOtpState.failure'))
-      ..add(DiagnosticsProperty('message', message));
+      ..add(DiagnosticsProperty('messageKey', messageKey))
+      ..add(DiagnosticsProperty('serverMessage', serverMessage));
   }
 
   @override
@@ -1258,11 +1299,14 @@ class _$FailureImpl with DiagnosticableTreeMixin implements _Failure {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$FailureImpl &&
-            (identical(other.message, message) || other.message == message));
+            (identical(other.messageKey, messageKey) ||
+                other.messageKey == messageKey) &&
+            (identical(other.serverMessage, serverMessage) ||
+                other.serverMessage == serverMessage));
   }
 
   @override
-  int get hashCode => Object.hash(runtimeType, message);
+  int get hashCode => Object.hash(runtimeType, messageKey, serverMessage);
 
   @JsonKey(ignore: true)
   @override
@@ -1277,10 +1321,10 @@ class _$FailureImpl with DiagnosticableTreeMixin implements _Failure {
     required TResult Function() resendLoading,
     required TResult Function() resendSuccess,
     required TResult Function() submitLoading,
-    required TResult Function() submitSuccess,
-    required TResult Function(String message) failure,
+    required TResult Function(String? status) submitSuccess,
+    required TResult Function(String messageKey, String? serverMessage) failure,
   }) {
-    return failure(message);
+    return failure(messageKey, serverMessage);
   }
 
   @override
@@ -1290,10 +1334,10 @@ class _$FailureImpl with DiagnosticableTreeMixin implements _Failure {
     TResult? Function()? resendLoading,
     TResult? Function()? resendSuccess,
     TResult? Function()? submitLoading,
-    TResult? Function()? submitSuccess,
-    TResult? Function(String message)? failure,
+    TResult? Function(String? status)? submitSuccess,
+    TResult? Function(String messageKey, String? serverMessage)? failure,
   }) {
-    return failure?.call(message);
+    return failure?.call(messageKey, serverMessage);
   }
 
   @override
@@ -1303,12 +1347,12 @@ class _$FailureImpl with DiagnosticableTreeMixin implements _Failure {
     TResult Function()? resendLoading,
     TResult Function()? resendSuccess,
     TResult Function()? submitLoading,
-    TResult Function()? submitSuccess,
-    TResult Function(String message)? failure,
+    TResult Function(String? status)? submitSuccess,
+    TResult Function(String messageKey, String? serverMessage)? failure,
     required TResult orElse(),
   }) {
     if (failure != null) {
-      return failure(message);
+      return failure(messageKey, serverMessage);
     }
     return orElse();
   }
@@ -1358,9 +1402,11 @@ class _$FailureImpl with DiagnosticableTreeMixin implements _Failure {
 }
 
 abstract class _Failure implements AmcOtpState {
-  const factory _Failure(final String message) = _$FailureImpl;
+  const factory _Failure(final String messageKey,
+      {final String? serverMessage}) = _$FailureImpl;
 
-  String get message;
+  String get messageKey;
+  String? get serverMessage;
   @JsonKey(ignore: true)
   _$$FailureImplCopyWith<_$FailureImpl> get copyWith =>
       throw _privateConstructorUsedError;

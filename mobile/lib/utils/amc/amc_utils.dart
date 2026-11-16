@@ -1,5 +1,6 @@
 // ignore_for_file: constant_identifier_names, camel_case_types
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -546,6 +547,31 @@ bool isAuthenticationFailure(Object error) =>
     (error.response?.statusCode == 401 ||
         error.response?.statusCode == 403 ||
         error.message == 'SESSION_EXPIRED');
+
+/// `{code, message}` of the first entry of a DIGIT error response
+/// (`{"Errors": [{"code": ..., "message": ...}]}`), or null when [error] is
+/// not a server rejection.
+({String? code, String? message})? amcServerError(Object error) {
+  if (error is! DioException) return null;
+  final data = error.response?.data;
+  if (data is! Map) return null;
+  final errors = data['Errors'] ?? data['errors'];
+  if (errors is! List || errors.isEmpty || errors.first is! Map) return null;
+  final first = errors.first as Map;
+  final code = first['code']?.toString();
+  final message = first['message']?.toString();
+  if ((code ?? '').isEmpty && (message ?? '').isEmpty) return null;
+  return (code: code, message: message);
+}
+
+/// True when the request never got an answer from the server (offline, DNS,
+/// timeout, dropped connection) rather than being rejected by it.
+bool isAmcConnectivityError(Object error) {
+  if (error is DioException) return error.response == null;
+  return error is NetworkException ||
+      error is SocketException ||
+      error is TimeoutException;
+}
 
 bool matchesFacilityName(String? name, String? query) {
   final search = query?.trim().toLowerCase() ?? '';

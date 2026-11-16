@@ -62,7 +62,9 @@ class ScheduledVisitRemoteRepository {
     return ScheduledVisitSearchResponse.fromJson(response);
   }
 
-  Future<void> updateVisitWorkflow({
+  /// Returns the visit as the server now has it (with its new `status`),
+  /// or null if the response did not include it.
+  Future<ScheduledVisit?> updateVisitWorkflow({
     required String visitId,
     required String schemaCode,
     required int version,
@@ -96,15 +98,30 @@ class ScheduledVisitRemoteRepository {
         },
       };
 
-      await _remote.updateVisitWorkflow(body);
+      final response = await _remote.updateVisitWorkflow(body);
       await invalidateSubmittedReportBookmark(
           id: visitId,
           action: status ?? 'SUBMIT_VISIT_REPORT',
           storage: bookmarkStorage,
           tenantId: bookmarkTenantId);
+      return _visitFromWorkflowResponse(response, visitId);
     } catch (e) {
       debugPrint('ScheduledVisitRemoteRepository.updateVisitWorkflow error=$e');
       rethrow;
+    }
+  }
+
+  ScheduledVisit? _visitFromWorkflowResponse(
+      Map<String, dynamic>? response, String visitId) {
+    if (response == null) return null;
+    try {
+      final visits = ScheduledVisitSearchResponse.fromJson(response)
+          .scheduledVisits;
+      return visits.where((v) => v.id == visitId).firstOrNull ??
+          visits.firstOrNull;
+    } catch (e) {
+      debugPrint('Could not read the visit from the workflow response: $e');
+      return null;
     }
   }
 
@@ -244,6 +261,11 @@ class ScheduledVisitRepository {
         cachedPrefilledVisits:
             await prefilled.getPrefilledVisitsFromCache(ids));
   }
+
+  /// Stores [visit] as the latest cached copy (e.g. the status returned by a
+  /// workflow update), so offline lists match the server straight away.
+  Future<void> cacheVisit(ScheduledVisit visit) async =>
+      _upsertCache(await _isar, [visit]);
 
   Future<void> _upsertCache(
     Isar isar,

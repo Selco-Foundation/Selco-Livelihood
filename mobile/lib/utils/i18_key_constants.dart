@@ -431,6 +431,15 @@ class AmcOtp {
   String get amcOtpMaskedPhone => 'AMC_OTP_MASKED_PHONE';
   String get amcOtpNetworkWarning => 'AMC_OTP_NETWORK_WARNING';
 
+  // #249: verification outcome and actionable errors.
+  String get offline => 'AMC_OTP_OFFLINE';
+  String get serverUnreachable => 'AMC_OTP_SERVER_UNREACHABLE';
+  String get invalidCode => 'AMC_OTP_INVALID_CODE';
+  String get submitFailed => 'AMC_OTP_SUBMIT_FAILED';
+  String get resendFailed => 'AMC_OTP_RESEND_FAILED';
+  String get reportApproved => 'AMC_OTP_REPORT_APPROVED';
+  String get reportSentForReview => 'AMC_OTP_REPORT_SENT_FOR_REVIEW';
+
   /// E4H `login.otpPlaceholder`.
   String get otpPlaceholder => 'OTP_PLACEHOLDER';
 }

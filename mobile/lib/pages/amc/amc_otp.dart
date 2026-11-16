@@ -82,16 +82,27 @@ class _AmcOtpPageState extends State<AmcOtpPage> {
                   content: Text(context.translate(i18.amcOtp.resendSuccess))),
             );
           },
-          submitSuccess: () {
+          submitSuccess: (status) {
+            // #249: say where the report went, from the status the server
+            // returned (approved -> Inbox, otherwise Pending Approval).
+            final messageKey = switch (status) {
+              'APPROVED' => i18.amcOtp.reportApproved,
+              null => i18.amcOtp.verifySuccess,
+              _ => i18.amcOtp.reportSentForReview,
+            };
             ctx.showSnackBar(
-              SnackBar(
-                  content: Text(context.translate(i18.amcOtp.verifySuccess))),
+              SnackBar(content: Text(context.translate(messageKey))),
             );
             ctx.router.push(const AmcHomeRoute());
           },
-          failure: (msg) {
+          failure: (messageKey, serverMessage) {
+            final text = context.translate(messageKey);
             ctx.showSnackBar(
-              SnackBar(content: Text(msg)),
+              SnackBar(
+                content: Text(serverMessage == null || serverMessage.isEmpty
+                    ? text
+                    : '$text\n$serverMessage'),
+              ),
             );
           },
           orElse: () {},

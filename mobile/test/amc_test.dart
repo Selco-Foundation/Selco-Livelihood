@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:livelihood/blocs/localization/app_localization.dart';
+import 'package:livelihood/blocs/amc_otp/amc_otp.dart';
 import 'package:livelihood/main.dart';
 import 'package:livelihood/model/amc/scheduled_visit.dart';
 import 'package:livelihood/model/login/loginModel.dart';
@@ -134,9 +135,20 @@ class _FakeAmcRemoteDataSource implements AmcRemoteDataSource {
   }) async =>
       {'ScheduledVisits': const [], 'TotalCount': 0};
 
+  /// Thrown by [updateVisitWorkflow] while set.
+  Object? workflowError;
+
+  /// Returned by [updateVisitWorkflow].
+  Map<String, dynamic>? workflowResponse;
+
   @override
-  Future<void> updateVisitWorkflow(Map<String, dynamic> body) async =>
-      workflowBodies.add(body);
+  Future<Map<String, dynamic>?> updateVisitWorkflow(
+      Map<String, dynamic> body) async {
+    workflowBodies.add(body);
+    final error = workflowError;
+    if (error != null) throw error;
+    return workflowResponse;
+  }
 
   @override
   Future<void> resendVisitOtp(String visitId) async {}
@@ -742,6 +754,137 @@ void main() {
     final doc = (body['visitReport']['documents'] as List).single as Map;
     expect(doc['fileStoreId'], 'fs-1');
     expect(doc['geoLocation'], containsPair('latitude', '12.1'));
+  });
+
+  group('AMC completion code verification (#249)', () {
+    late _FakeAmcRemoteDataSource fake;
+    late bool online;
+    late List<ScheduledVisit> cached;
+    late List<String> cleared;
+
+    AmcOtpBloc buildBloc() => AmcOtpBloc(
+          scheduledVisitRepo: ScheduledVisitRemoteRepository(dataSource: fake),
+          isOnline: () async => online,
+          cacheVisit: (visit) async => cached.add(visit),
+          clearLocalData: (id) async => cleared.add(id),
+        );
+
+    Future<AmcOtpState> submit(AmcOtpBloc bloc) {
+      final result = bloc.stream.firstWhere((s) => s.maybeWhen(
+          submitSuccess: (_) => true,
+          failure: (_, __) => true,
+          orElse: () => false));
+      bloc.add(const AmcOtpEvent.submit(
+          visitId: 'v1', schemaCode: '12345678', version: 1, otp: '1234'));
+      return result;
+    }
+
+    DioException serverError(String code, String message) => DioException(
+          requestOptions: RequestOptions(path: '/workflow'),
+          type: DioExceptionType.badResponse,
+          response: Response(
+            requestOptions: RequestOptions(path: '/workflow'),
+            statusCode: 400,
+            data: {
+              'Errors': [
+                {'code': code, 'message': message}
+              ]
+            },
+          ),
+        );
+
+    setUp(() {
+      fake = _FakeAmcRemoteDataSource();
+      online = true;
+      cached = [];
+      cleared = [];
+    });
+
+    test('needs connectivity: offline does not call the server', () async {
+      online = false;
+      final bloc = buildBloc();
+      addTearDown(bloc.close);
+      final state = await submit(bloc);
+      expect(state, AmcOtpState.failure(i18.amcOtp.offline));
+      expect(fake.workflowBodies, isEmpty);
+      expect(cleared, isEmpty);
+    });
+
+    test('approved and sent-for-review results are reported and cached',
+        () async {
+      for (final status in ['APPROVED', 'PENDING_APPROVAL']) {
+        fake.workflowResponse = {
+          'ScheduledVisits': [
+            {'id': 'v1', 'status': status}
+          ]
+        };
+        cached.clear();
+        final bloc = buildBloc();
+        addTearDown(bloc.close);
+        final state = await submit(bloc);
+        expect(state, AmcOtpState.submitSuccess(status: status));
+        expect(cached.single.status, status);
+      }
+      expect(cleared, ['v1', 'v1']);
+      expect(fake.workflowBodies.last['workflow']['action'], 'SUBMIT_OTP');
+    });
+
+    test('wrong code, unreachable server and rejections keep saved data',
+        () async {
+      final cases = <Object, AmcOtpState>{
+        serverError('ERROR_OTP_GENERATION', 'OTP validation unsuccessful'):
+            AmcOtpState.failure(i18.amcOtp.invalidCode),
+        serverError('INVALID_OTP', 'Invalid OTP'):
+            AmcOtpState.failure(i18.amcOtp.invalidCode),
+        _dioError(): AmcOtpState.failure(i18.amcOtp.serverUnreachable),
+        serverError('SUBMISSION_WINDOW_CLOSED', 'Window not open yet'):
+            AmcOtpState.failure(i18.amcOtp.submitFailed,
+                serverMessage: 'Window not open yet'),
+      };
+      for (final entry in cases.entries) {
+        fake.workflowError = entry.key;
+        final bloc = buildBloc();
+        addTearDown(bloc.close);
+        expect(await submit(bloc), entry.value);
+      }
+      expect(cleared, isEmpty);
+      expect(cached, isEmpty);
+    });
+
+    test('dummy backend approves only when both pre-questions are Yes',
+        () async {
+      final dir = Directory.systemTemp.createTempSync('amc_dummy_otp');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final backend = DummyAmcRemoteDataSource(
+          latency: Duration.zero, storageDirectory: () async => dir);
+
+      Future<String?> verify(String id, bool inUse, bool functional) async {
+        await backend.updateVisitWorkflow({
+          'visitId': id,
+          'workflow': {'action': 'SUBMIT_VISIT_REPORT'},
+          'visitReport': {
+            'schemaCode': '12345678',
+            'version': 1,
+            'additionalDetails': {
+              'systemStatus': {
+                'isSystemInUse': inUse,
+                'isSystemFunctional': functional,
+              }
+            },
+          },
+        });
+        final res = await backend.updateVisitWorkflow({
+          'visitId': id,
+          'workflow': {'action': 'SUBMIT_OTP'},
+          'visitReport': {'otpReference': dummyAmcOtp},
+        });
+        return ((res!['ScheduledVisits'] as List).single as Map)['status']
+            as String?;
+      }
+
+      expect(await verify('dummy-visit-001', true, true), 'APPROVED');
+      expect(await verify('dummy-visit-002', true, false), 'PENDING_APPROVAL');
+    });
   });
 
   group('Login routing', () {

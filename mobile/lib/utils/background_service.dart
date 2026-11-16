@@ -25,7 +25,8 @@ import '../repositories/installation_cache_repo.dart';
 import '../repositories/operation_progress_repo.dart';
 import '../repositories/pending_submission_repository.dart';
 import '../repositories/vendor_org_repository.dart';
-import 'amc/amc_utils.dart' show getFilestoreUrl;
+import 'amc/amc_utils.dart'
+    show amcServerError, getFilestoreUrl, isAmcConnectivityError;
 import 'envConfig.dart';
 import 'operation_progress.dart';
 import 'submission_payload.dart';
@@ -281,12 +282,22 @@ void onStart(ServiceInstance service) async {
       debugPrint('[BG] _performScheduleVisitSubmission failed: $e');
       // Kept as in E4H: the thrown message is 'Form not filled', so this
       // FORM_NOT_FILLED branch never matches and the generic text is shown.
+      // #249: say why it failed and what to do; the report stays saved.
+      final server = amcServerError(e);
       final String msg;
       if (e.toString().contains('FORM_NOT_FILLED')) {
         msg =
             'Visit form is not filled yet. Please fill the AMC form before submitting.';
+      } else if ((server?.message ?? '').isNotEmpty) {
+        msg = 'The report was not submitted: ${server!.message} '
+            'Your report is saved on this device.';
+      } else if (isAmcConnectivityError(e)) {
+        msg = 'Could not reach the server. Your report is saved on this '
+            'device. Connect to the internet and submit it again from '
+            'New Report.';
       } else {
-        msg = 'Something went wrong while submitting the visit report.';
+        msg = 'Something went wrong while submitting the visit report. '
+            'Your report is saved on this device; please try again.';
       }
       service.invoke(kEvtScheduleVisitError, {
         'scheduledVisitId': visitId,
@@ -354,7 +365,7 @@ Future<void> _performScheduleVisitSubmission({
   final remote = ScheduledVisitRemoteRepository();
   // DUMMY-BACKEND: E4H hard-codes schemaCode "12345678" / version 1 (kept
   // as-is); confirm the real values with the backend team.
-  await remote.updateVisitWorkflow(
+  final updated = await remote.updateVisitWorkflow(
     visitId: scheduledVisitId,
     schemaCode: "12345678",
     version: 1,
@@ -362,6 +373,15 @@ Future<void> _performScheduleVisitSubmission({
     visitDocuments: visitDocuments,
     reportAdditionalDetails: reportAdditionalDetails,
   );
+  // #249: keep the cached copy in step with the server (now awaiting the
+  // completion code), so lists are right even before the next refresh.
+  if (updated != null) {
+    try {
+      await ScheduledVisitRepository(isar: isar).cacheVisit(updated);
+    } catch (e) {
+      debugPrint('[BG] could not cache the submitted visit: $e');
+    }
+  }
 
   await PrefilledScheduledVisitRepository(isar)
       .addOrTouch(scheduledVisitId: scheduledVisitId, userType: userType);

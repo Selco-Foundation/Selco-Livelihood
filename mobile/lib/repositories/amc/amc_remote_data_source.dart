@@ -31,8 +31,10 @@ abstract class AmcRemoteDataSource {
   });
 
   /// `POST asset-amc/v1/visit/workflow/_update` — both `SUBMIT_VISIT_REPORT`
-  /// and `SUBMIT_OTP` go through here.
-  Future<void> updateVisitWorkflow(Map<String, dynamic> body);
+  /// and `SUBMIT_OTP` go through here. Returns the response body
+  /// (`{ResponseInfo, ScheduledVisits: [visit with its new status]}`), or
+  /// null if it is not a JSON object.
+  Future<Map<String, dynamic>?> updateVisitWorkflow(Map<String, dynamic> body);
 
   /// `POST asset-amc/v1/visit/_resend_otp` body `{visitId}`.
   Future<void> resendVisitOtp(String visitId);
@@ -87,8 +89,11 @@ class HttpAmcRemoteDataSource implements AmcRemoteDataSource {
   }
 
   @override
-  Future<void> updateVisitWorkflow(Map<String, dynamic> body) async {
-    await dio.post(ApiPaths.amcVisitWorkflowUpdate, data: body);
+  Future<Map<String, dynamic>?> updateVisitWorkflow(
+      Map<String, dynamic> body) async {
+    final response = await dio.post(ApiPaths.amcVisitWorkflowUpdate, data: body);
+    final data = response.data;
+    return data is Map ? Map<String, dynamic>.from(data) : null;
   }
 
   @override

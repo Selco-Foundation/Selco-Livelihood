@@ -149,9 +149,10 @@ class DummyAmcRemoteDataSource implements AmcRemoteDataSource {
   }
 
   @override
-  Future<void> updateVisitWorkflow(Map<String, dynamic> body) async {
+  Future<Map<String, dynamic>?> updateVisitWorkflow(
+      Map<String, dynamic> body) async {
     await Future<void>.delayed(latency);
-    await _lock.synchronized(() async {
+    return _lock.synchronized(() async {
       final visits = await _readVisits();
       final visitId = body['visitId']?.toString();
       final index = visits.indexWhere((v) => v['id'] == visitId);
@@ -196,7 +197,16 @@ class DummyAmcRemoteDataSource implements AmcRemoteDataSource {
             _badRequest(ApiPaths.amcVisitWorkflowUpdate, 'INVALID_OTP',
                 'Invalid OTP');
           }
-          nextStatus = 'PENDING_APPROVAL';
+          // DUMMY-BACKEND: stand-in for the backend's auto-approval
+          // evaluation (#249), so both outcomes can be tested: approved when
+          // both pre-report answers (#247) are "Yes", otherwise sent for
+          // review. The real rule is the backend's.
+          final systemStatus = ((visit['visitReport'] as Map?)?[
+                  'additionalDetails'] as Map?)?['systemStatus'] as Map?;
+          nextStatus = systemStatus?['isSystemInUse'] == true &&
+                  systemStatus?['isSystemFunctional'] == true
+              ? 'APPROVED'
+              : 'PENDING_APPROVAL';
           visit['visitReport'] = {
             ...?(visit['visitReport'] as Map?)?.cast<String, dynamic>(),
             'otpReference': report['otpReference'],
@@ -223,6 +233,11 @@ class DummyAmcRemoteDataSource implements AmcRemoteDataSource {
       ];
       visits[index] = visit;
       await _writeVisits(visits);
+      // Same shape as the real `workflow/_update` response.
+      return <String, dynamic>{
+        'ResponseInfo': {'status': 'successful'},
+        'ScheduledVisits': [visit],
+      };
     });
   }
 
