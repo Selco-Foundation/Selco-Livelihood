@@ -104,6 +104,31 @@ public class AmcMdmsOptions {
         return AutoApproval.parse(mapper.valueToTree(requestRepository.fetchResult(url, body)));
     }
 
+    /** Program POC emails from MDMS AMC.Config.programPocEmails (LLD §6.7); empty when not configured. */
+    public List<String> programPocEmails(String tenantId, RequestInfo requestInfo) {
+        Map<String, Object> criteria = new HashMap<>();
+        criteria.put("tenantId", tenantId);
+        criteria.put("moduleDetails", List.of(Map.of("moduleName", "AMC", "masterDetails", List.of(Map.of("name", "Config")))));
+        Map<String, Object> body = new HashMap<>();
+        body.put("RequestInfo", requestInfo);
+        body.put("MdmsCriteria", criteria);
+        StringBuilder url = new StringBuilder(config.getMdmsHost()).append(config.getMdmsEndPoint());
+        return parseProgramPocEmails(mapper.valueToTree(requestRepository.fetchResult(url, body)));
+    }
+
+    static List<String> parseProgramPocEmails(JsonNode root) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        JsonNode list = root == null ? null : root.path("MdmsRes").path("AMC").path("Config");
+        if (list != null && list.isArray() && !list.isEmpty()) {
+            list.get(0).path("programPocEmails").forEach(e -> {
+                if (e.isTextual() && !e.asText().isBlank()) {
+                    out.add(e.asText().trim());
+                }
+            });
+        }
+        return out;
+    }
+
     static Options parse(JsonNode root) {
         JsonNode amc = root == null ? null : root.path("MdmsRes").path("AMC");
         return new Options(active(amc == null ? null : amc.path("Frequency"), "months"),
