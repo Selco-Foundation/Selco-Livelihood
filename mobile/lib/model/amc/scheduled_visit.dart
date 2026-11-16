@@ -359,6 +359,20 @@ DateTime amcDelayedScheduledBefore([DateTime? now]) {
       .subtract(const Duration(milliseconds: 1));
 }
 
+/// Days before the Scheduled AMC Date from which a visit can be reported.
+const int amcSubmissionWindowDays = 30;
+
+/// Latest Scheduled AMC Date a not-started (`SCHEDULED`) visit may have to be
+/// shown: the last millisecond of the day [amcSubmissionWindowDays] days
+/// from today, on the device's calendar. Visits due later are hidden until
+/// their window opens; there is no lower limit (overdue visits stay).
+DateTime amcSubmissionWindowEnd([DateTime? now]) {
+  final today = now ?? DateTime.now();
+  return DateTime(
+          today.year, today.month, today.day + amcSubmissionWindowDays + 1)
+      .subtract(const Duration(milliseconds: 1));
+}
+
 /// "AMC delayed": still `SCHEDULED` (no report saved, so not waiting for a
 /// completion code and not finally submitted) and its Scheduled AMC Date is
 /// before today.
@@ -367,5 +381,15 @@ extension ScheduledVisitDelay on ScheduledVisit {
     final date = scheduledDate;
     if (date == null || status != 'SCHEDULED') return false;
     return !date.toLocal().isAfter(amcDelayedScheduledBefore(now));
+  }
+
+  /// False for a `SCHEDULED` visit whose Scheduled AMC Date is more than
+  /// [amcSubmissionWindowDays] days ahead (or unknown, matching the
+  /// server's date filter). Other statuses are always shown.
+  bool isWithinAmcSubmissionWindow([DateTime? now]) {
+    if (status != 'SCHEDULED') return true;
+    final date = scheduledDate;
+    if (date == null) return false;
+    return !date.toLocal().isAfter(amcSubmissionWindowEnd(now));
   }
 }

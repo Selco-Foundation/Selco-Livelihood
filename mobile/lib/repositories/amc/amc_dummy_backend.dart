@@ -416,6 +416,23 @@ List<Map<String, dynamic>> dummySeedVisits() {
       visitNumber: 1,
       scheduledInDays: 0,
     ),
+    // 30-day window samples: +30 days is listed, +31 days is hidden.
+    visit(
+      id: 'dummy-visit-010',
+      name: 'PHC Saligrama',
+      boundary: 'IN_KARNATAKA_MYSURU_K R NAGAR',
+      status: 'SCHEDULED',
+      visitNumber: 1,
+      scheduledInDays: 30,
+    ),
+    visit(
+      id: 'dummy-visit-011',
+      name: 'CHC Hanur',
+      boundary: 'IN_KARNATAKA_CHAMARAJANAGAR_HANUR',
+      status: 'SCHEDULED',
+      visitNumber: 1,
+      scheduledInDays: 31,
+    ),
     visit(
       id: 'dummy-visit-004',
       name: 'PHC Kushalnagar',
