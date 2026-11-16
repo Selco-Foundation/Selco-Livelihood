@@ -40,8 +40,7 @@ public final class LivelihoodAmc {
     public static final String AMC_INSTALLATION_APPROVAL_DATE_MISSING = "AMC_INSTALLATION_APPROVAL_DATE_MISSING";
     public static final String DUPLICATE_AMC_CONFIGURATION = "DUPLICATE_AMC_CONFIGURATION";
     public static final String AMC_INVALID_TENANT = "AMC_INVALID_TENANT";
-    /** Temporary (step 2.1): create on an already-approved row arrives with activation in step 2.2. */
-    public static final String AMC_APPROVED_ROW_NOT_SUPPORTED_YET = "AMC_APPROVED_ROW_NOT_SUPPORTED_YET";
+    public static final String AMC_SOLAR_ASSET_NOT_FOUND = "AMC_SOLAR_ASSET_NOT_FOUND";
 
     /** The IST calendar day of an epoch-millis instant. */
     public static LocalDate istDay(long epochMillis) {

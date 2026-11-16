@@ -11,6 +11,7 @@ import org.egov.common.contract.request.RequestInfo;
 import org.egov.common.models.project.ProjectStaff;
 import org.egov.common.producer.Producer;
 import org.egov.amc.config.AMCServiceConfiguration;
+import org.egov.amc.livelihood.LivelihoodActivationService;
 import org.egov.amc.livelihood.LivelihoodAmcCreateService;
 import org.egov.amc.repository.AmcConfigurationRepository;
 import org.egov.amc.service.enrichment.AmcConfigurationEnrichment;
@@ -46,6 +47,7 @@ public class AmcConfigurationService {
     private final AmcVisitRegenerationService amcVisitRegenerationService;
     private final FacilityAmcIndexSyncService facilityAmcIndexSyncService;
     private final LivelihoodAmcCreateService livelihoodAmcCreateService;
+    private final LivelihoodActivationService livelihoodActivationService;
 
     @Autowired
     @Qualifier("objectMapper")
@@ -57,7 +59,8 @@ public class AmcConfigurationService {
             Producer producer, AmcConfigurationServiceUtil amcConfigurationServiceUtil, ServiceRequestRepository requestRepository, AssetAmcRepository assetAmcRepository,
             AmcAnalyticsService amcAnalyticsService, AmcVisitRegenerationService amcVisitRegenerationService,
             FacilityAmcIndexSyncService facilityAmcIndexSyncService,
-            LivelihoodAmcCreateService livelihoodAmcCreateService) {
+            LivelihoodAmcCreateService livelihoodAmcCreateService,
+            LivelihoodActivationService livelihoodActivationService) {
             this.amcConfigurationValidator = amcConfigurationValidator;
         this.scheduledVisitRepository = scheduledVisitRepository;
         this.producer = producer;
@@ -71,6 +74,7 @@ public class AmcConfigurationService {
         this.amcVisitRegenerationService = amcVisitRegenerationService;
         this.facilityAmcIndexSyncService = facilityAmcIndexSyncService;
         this.livelihoodAmcCreateService = livelihoodAmcCreateService;
+        this.livelihoodActivationService = livelihoodActivationService;
     }
 
     public AmcConfigurationRequest createAmcConfiguration(AmcConfigurationRequest request) {
@@ -78,8 +82,8 @@ public class AmcConfigurationService {
         log.info("Creating {} AMC configuration(s)", request.getAmcConfigurations().size());
         if (amcServiceConfiguration.isLivelihoodScheduleEnabled()) {
             // Livelihood (LLD §6.3): per SOLAR installation row, one named field staff, all-or-nothing checks.
-            livelihoodAmcCreateService.prepare(request);
-            return persistCreated(request);
+            LivelihoodAmcCreateService.PreparedCreate prepared = livelihoodAmcCreateService.prepare(request);
+            return persistCreated(request, prepared);
         }
         amcConfigurationValidator.validateCreateAmcConfigurationRequest(request);
         for (AmcConfiguration amcConfiguration : request.getAmcConfigurations()) {
@@ -97,11 +101,12 @@ public class AmcConfigurationService {
             log.debug("Enriched AMC configuration details - duration: {} months, visitFrequency: {} months",
                     amcConfiguration.getDurationMonths(), amcConfiguration.getVisitFrequencyMonths());
         }
-        return persistCreated(request);
+        return persistCreated(request, null);
     }
 
     /** Shared tail of create: project staff linking, save, analytics, facility index sync (off for Livelihood). */
-    private AmcConfigurationRequest persistCreated(AmcConfigurationRequest request) {
+    private AmcConfigurationRequest persistCreated(AmcConfigurationRequest request,
+                                                   LivelihoodAmcCreateService.PreparedCreate livelihood) {
         // Bulk-link project staff: same semantics as per-config createProjectStaff; dedupe (tenant, project, user).
         List<ProjectStaff> distinctStaffToLink = collectDistinctProjectStaffForCreate(request.getAmcConfigurations());
         if (!distinctStaffToLink.isEmpty()) {
@@ -118,8 +123,18 @@ public class AmcConfigurationService {
             }
         }
 
-        log.info("Pushing {} AMC configuration(s) to kafka", request.getAmcConfigurations().size());
-        producer.push(amcServiceConfiguration.getSaveAmcConfigurationTopic(), request);
+        if (livelihood == null) {
+            log.info("Pushing {} AMC configuration(s) to kafka", request.getAmcConfigurations().size());
+            producer.push(amcServiceConfiguration.getSaveAmcConfigurationTopic(), request);
+        } else {
+            // Livelihood: not-yet-approved rows are saved pending; approved rows start now (SCHEDULE visit 1
+            // first, then config + visit 1 + asset_amc in one message), LLD §6.3.
+            if (!livelihood.pending().isEmpty()) {
+                producer.push(amcServiceConfiguration.getSaveAmcConfigurationTopic(), AmcConfigurationRequest.builder()
+                        .requestInfo(request.getRequestInfo()).amcConfigurations(livelihood.pending()).build());
+            }
+            livelihoodActivationService.persistActiveCreates(livelihood.active(), request.getRequestInfo());
+        }
 
         // Creating a configuration is the AMC scheduling action - best-effort, never breaks create.
         amcAnalyticsService.publishConfigurationCreateEvents(request);
@@ -488,7 +503,9 @@ public class AmcConfigurationService {
          */
         List<ScheduledVisit> regeneratedVisits = List.of();
         try {
-            regeneratedVisits = amcVisitRegenerationService.regenerateIfCadenceChanged(amcConfigurationFromDB, amcConfiguration, request.getRequestInfo());
+            // Livelihood replaces E4H's full regeneration with "upcoming visit only" edits (LLD §6.5, step 3.3).
+            regeneratedVisits = amcServiceConfiguration.isLivelihoodScheduleEnabled() ? List.of()
+                    : amcVisitRegenerationService.regenerateIfCadenceChanged(amcConfigurationFromDB, amcConfiguration, request.getRequestInfo());
         } catch (Exception e) {
             log.error("Failed to regenerate scheduled visits for configurationId: {}", amcConfiguration.getId(), e);
         }
