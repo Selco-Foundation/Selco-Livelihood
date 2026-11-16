@@ -18,6 +18,8 @@ import org.egov.amc.validator.ScheduledVisitValidator;
 import org.egov.amc.web.models.*;
 import org.egov.common.contract.models.AuditDetails;
 import org.egov.amc.livelihood.AmcMdmsOptions;
+import org.egov.amc.livelihood.LivelihoodCodeVerify;
+import org.egov.amc.livelihood.LivelihoodNextVisitService;
 import org.egov.amc.livelihood.LivelihoodReportPdfData;
 import org.egov.amc.livelihood.LivelihoodReportPdfService;
 import org.egov.amc.livelihood.LivelihoodVisitSubmit;
@@ -82,6 +84,10 @@ public class ScheduledVisitService {
     /** MDMS AMC.Config (submission window). */
     @Autowired
     private AmcMdmsOptions amcMdmsOptions;
+
+    /** Lazy next visit after the first code verification. */
+    @Autowired
+    private LivelihoodNextVisitService livelihoodNextVisitService;
 
     @Autowired
     public ScheduledVisitService(
@@ -671,6 +677,9 @@ public class ScheduledVisitService {
             if (SUBMIT_VISIT_REPORT_ACTION.equalsIgnoreCase(request.getWorkflow().getAction())) {
                 return List.of(submitLivelihoodReport(request, existingVisit, priorStatus));
             }
+            if (LivelihoodCodeVerify.SUBMIT_OTP.equalsIgnoreCase(request.getWorkflow().getAction())) {
+                return List.of(verifyLivelihoodCode(request, existingVisit, priorStatus));
+            }
         }
 
         // Step 2: if action is SUBMIT_VISIT_REPORT, check if send OTP is successful or not
@@ -929,6 +938,67 @@ public class ScheduledVisitService {
                     }
                 });
         log.info("Livelihood report submitted for visit {}: status {}", existingVisit.getId(), existingVisit.getStatus());
+        return saved[0];
+    }
+
+    /**
+     * Livelihood SUBMIT_OTP (LLD §6.3): validate the code, workflow, save the submission dates, then the next visit.
+     * The order lives in {@link LivelihoodCodeVerify#run}. Fixes E4H's gaps: a missing phone or a code egov-otp
+     * does not confirm (isValidationSuccessful false, or an error) is refused with AMC_INVALID_SERVICE_CODE.
+     */
+    private ScheduledVisit verifyLivelihoodCode(VisitReportSubmissionRequest request, ScheduledVisit existingVisit, String priorStatus) {
+        RequestInfo requestInfo = request.getRequestInfo();
+        String tenantId = existingVisit.getTenantId();
+        String code = request.getVisitReport() != null ? request.getVisitReport().getOtpReference() : null;
+        ScheduledVisit[] saved = new ScheduledVisit[1];
+
+        LivelihoodCodeVerify.run(existingVisit, requestInfo.getUserInfo().getUuid(), code, System.currentTimeMillis(),
+                new LivelihoodCodeVerify.Steps() {
+                    @Override
+                    public boolean codeIsValid(String phone, String typed) {
+                        if (amcServiceConfiguration.isByPassOtpValidation()) {
+                            String def = amcServiceConfiguration.getDefaultOtp();
+                            boolean ok = def != null && def.trim().equals(typed);
+                            log.warn("OTP bypass is on: visit {} code {} the default code", existingVisit.getId(), ok ? "matches" : "does not match");
+                            return ok;
+                        }
+                        try {
+                            return LivelihoodCodeVerify.confirmed(validateOTP(phone, tenantId, typed));
+                        } catch (RuntimeException e) {
+                            log.info("Service code rejected by egov-otp for visit {}: {}", existingVisit.getId(), e.getMessage());
+                            return false;
+                        }
+                    }
+
+                    @Override
+                    public ProcessInstance transition() {
+                        try {
+                            return workflowService.transitionWorkflow(existingVisit, LivelihoodCodeVerify.SUBMIT_OTP,
+                                    request.getWorkflow().getDocuments(), requestInfo, request.getWorkflow().getComment());
+                        } catch (Exception e) {
+                            log.error("Workflow SUBMIT_OTP failed for visit {}", existingVisit.getId(), e);
+                            throw new CustomException("WORKFLOW_TRANSITION_FAILED",
+                                    "Failed to transition workflow for visit: " + existingVisit.getId());
+                        }
+                    }
+
+                    @Override
+                    public void save(ScheduledVisit visit, ProcessInstance processInstance) {
+                        handleTransactions(request, processInstance);
+                        ScheduledVisit row = VisitRowCopy.fullRow(visit).build();
+                        handleUpdateScheduledVisit(ScheduledVisitRequest.builder().requestInfo(requestInfo)
+                                .scheduledVisits(List.of(row)).build(), row, visit);
+                        saved[0] = row;
+                        amcAnalyticsService.publishVisitWorkflowEvent(visit, LivelihoodCodeVerify.SUBMIT_OTP, priorStatus, requestInfo);
+                    }
+
+                    @Override
+                    public void createNextVisit(ScheduledVisit visit, long firstSubmissionDate) {
+                        AmcConfiguration cfg = livelihoodNextVisitService.load(visit.getAmcConfigurationId(), tenantId);
+                        livelihoodNextVisitService.createAfter(cfg, visit.getVisitNumber(), firstSubmissionDate, requestInfo);
+                    }
+                });
+        log.info("Service code verified for visit {}: status {}", existingVisit.getId(), existingVisit.getStatus());
         return saved[0];
     }
 

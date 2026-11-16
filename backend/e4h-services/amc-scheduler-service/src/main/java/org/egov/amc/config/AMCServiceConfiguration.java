@@ -292,6 +292,10 @@ public class AMCServiceConfiguration {
     @Value("${amc.livelihood.save.active.topic:save-active-amc-configuration}")
     private String saveActiveAmcConfigurationTopic;
 
+    /** Lazy next visit after the first code verification (LLD §6.3). false = no visit n+1 is created. */
+    @Value("${amc.livelihood.lazy.generation.enabled:true}")
+    private boolean lazyGenerationEnabled;
+
     /** Report PDF on every report step (LLD §6.10). false = steps skip the PDF (rollback switch). */
     @Value("${amc.pdf.enabled:true}")
     private boolean amcPdfEnabled;

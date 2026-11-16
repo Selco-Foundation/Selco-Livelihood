@@ -57,7 +57,12 @@ public record ActivationPlan(AmcConfiguration configuration, ScheduledVisit firs
 
     /** Visit 1 of an ACTIVE configuration, assigned to its one active field staff. */
     static ScheduledVisit firstVisit(AmcConfiguration cfg, long dueDay, AuditDetails audit) {
-        String visitId = AmcSchedule.visitId(cfg.getId(), 1);
+        return visit(cfg, 1, dueDay, audit);
+    }
+
+    /** Visit n (fixed id), SCHEDULED, assigned to the configuration's active field staff. */
+    public static ScheduledVisit visit(AmcConfiguration cfg, int visitNumber, long dueDay, AuditDetails audit) {
+        String visitId = AmcSchedule.visitId(cfg.getId(), visitNumber);
         List<ScheduledVisitAssignment> assignments = new ArrayList<>();
         if (cfg.getAssignments() != null) {
             for (AmcConfigurationAssignment a : cfg.getAssignments()) {
@@ -79,7 +84,7 @@ public record ActivationPlan(AmcConfiguration configuration, ScheduledVisit firs
                 .amcConfigurationId(cfg.getId())
                 .projectId(cfg.getProjectId())
                 .facilityId(cfg.getFacilityId())
-                .visitNumber(1)
+                .visitNumber(visitNumber)
                 .scheduledDate(dueDay)
                 .lastVisitDate(null)
                 .status("SCHEDULED")
