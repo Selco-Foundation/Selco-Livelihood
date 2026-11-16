@@ -296,6 +296,13 @@ public class AMCServiceConfiguration {
     @Value("${amc.livelihood.lazy.generation.enabled:true}")
     private boolean lazyGenerationEnabled;
 
+    /** Non-functional system email to the Program POCs (LLD §6.7); {name} {phone} {state} {district} {block} are filled in. */
+    @Value("${amc.non.functional.email.subject:AMC: system non-functional at {name}}")
+    private String nonFunctionalEmailSubject;
+
+    @Value("${amc.non.functional.email.body:End user: {name}\nPhone: {phone}\nState: {state}\nDistrict: {district}\nBlock: {block}\n\nSystem non-functional. Please raise a ticket.}")
+    private String nonFunctionalEmailBody;
+
     /** Livelihood Edit AMC: only the upcoming visit moves (LLD §6.5). false = E4H update path. */
     @Value("${amc.livelihood.edit.upcoming.only:true}")
     private boolean editUpcomingOnly;

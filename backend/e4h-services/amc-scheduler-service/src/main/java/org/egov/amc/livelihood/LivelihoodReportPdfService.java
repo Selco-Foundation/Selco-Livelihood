@@ -154,7 +154,7 @@ public class LivelihoodReportPdfService {
     }
 
     /** {state, district, block} names; the code itself when a name is missing; nulls when unknown. */
-    private String[] boundary(Facility site, RequestInfo requestInfo) {
+    public String[] boundary(Facility site, RequestInfo requestInfo) {
         String[] out = new String[3];
         try {
             Map<String, Boundary> byCode = site == null || site.getBoundaryCode() == null ? null : boundaryUtil.getBoundaryByCode();
