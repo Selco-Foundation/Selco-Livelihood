@@ -513,8 +513,16 @@ public class ActivityService {
         if (isApprove) {
             String activityFacilityId = existingActivityFacitlity.getId();
             if (activityFacilityId != null) {
+                // AMC first: updateAssetsForFacility can throw and would skip it (AMC LLD §9, review A11)
+                boolean livelihoodAmc = activityConfiguration.isAmcLivelihoodActivateEnabled();
+                if (livelihoodAmc) {
+                    amcSchedulerService.activateLivelihoodAmc(existingActivityFacitlity.getTenantId(), activityFacilityId,
+                            completedAt, request.getRequestInfo());
+                }
                 updateAssetsForFacility(existingActivityFacitlity, request.getRequestInfo(), activityFacilityId);
-                triggerInstallationCompletionSideEffects(existingActivityFacitlity, request.getRequestInfo(), activityFacilityId);
+                if (!livelihoodAmc) {
+                    triggerInstallationCompletionSideEffects(existingActivityFacitlity, request.getRequestInfo(), activityFacilityId);
+                }
                 markFacilityOnmReady(existingActivityFacitlity, request.getRequestInfo());
                 addFacilityToComplaintResolverJurisdiction(existingActivityFacitlity, request.getRequestInfo());
                 releaseSiteLockIfAllComponentsApproved(existingActivityFacitlity, request.getRequestInfo());
