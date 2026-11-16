@@ -195,6 +195,11 @@ public class FacilityAmcIndexSyncService {
      */
     public void syncFacilityAmcSnapshot(String facilityId, String tenantId, RequestInfo requestInfo,
                                         List<ScheduledVisit> visitsInFlight) {
+        // Livelihood: off (amc.facility.index.sync.enabled=false). Its facility service has no
+        // _update-amc-index endpoint, so every call would only fail and log an error (LLD §6.2).
+        if (!amcServiceConfiguration.isFacilityIndexSyncEnabled()) {
+            return;
+        }
         try {
             if (facilityId == null || facilityId.isBlank()) {
                 return;

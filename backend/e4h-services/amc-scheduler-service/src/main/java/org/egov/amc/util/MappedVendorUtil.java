@@ -34,8 +34,6 @@ public class MappedVendorUtil {
      */
     private static final int MAPPED_VENDOR_UUID_BATCH_SIZE = 100;
 
-    /** HRMS employees are registered against the national tenant. */
-    private static final String HRMS_TENANT_ID = "in";
 
     private final AMCServiceConfiguration amcServiceConfiguration;
     private final ServiceRequestRepository requestRepository;
@@ -68,7 +66,7 @@ public class MappedVendorUtil {
             List<String> batch = assigneeUuids.subList(from,
                     Math.min(from + MAPPED_VENDOR_UUID_BATCH_SIZE, assigneeUuids.size()));
             String url = amcServiceConfiguration.getHrmsHost() + amcServiceConfiguration.getHrmsSearchUrl()
-                    + "?tenantId=" + HRMS_TENANT_ID
+                    + "?tenantId=" + amcServiceConfiguration.getStateTenantId()
                     + "&uuids=" + String.join(",", batch)
                     // Explicit limit: HRMS would otherwise fall back to its own default page size, which
                     // an environment is free to configure below the batch size and silently truncate.

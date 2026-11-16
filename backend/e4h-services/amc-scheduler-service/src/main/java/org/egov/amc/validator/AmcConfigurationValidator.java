@@ -375,7 +375,7 @@ public class AmcConfigurationValidator {
         }
         List<String> tenantList = new ArrayList<>(tenantIds);
         if (tenantList.isEmpty()) {
-            tenantList = List.of("in");
+            tenantList = List.of(config.getStateTenantId());
         }
         Map<String, Facility> byFacilityId = new HashMap<>();
         List<String> idList = new ArrayList<>(facilityIds);

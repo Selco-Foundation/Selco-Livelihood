@@ -578,9 +578,9 @@ public class AmcConfigurationService {
     }
 
     public Organisation getVendorById(RequestInfo requestInfo, String vendorId) {
-        OrgSearchCriteria searchCriteria = OrgSearchCriteria.builder().tenantId("in").id(vendorId).build();
+        OrgSearchCriteria searchCriteria = OrgSearchCriteria.builder().tenantId(amcServiceConfiguration.getStateTenantId()).id(vendorId).build();
         OrgSearchRequest searchRequest = OrgSearchRequest.builder().requestInfo(requestInfo).searchCriteria(searchCriteria).build();
-        String url = amcServiceConfiguration.getVendorHost() + amcServiceConfiguration.getVendorSearchUrl()+ "?tenantId=in&limit=1";
+        String url = amcServiceConfiguration.getVendorHost() + amcServiceConfiguration.getVendorSearchUrl()+ "?tenantId=" + amcServiceConfiguration.getStateTenantId() + "&limit=1";
 
         Object response = requestRepository.fetchResult(new StringBuilder(url), searchRequest);
 

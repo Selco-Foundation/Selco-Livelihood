@@ -231,4 +231,30 @@ public class AMCServiceConfiguration {
     public String getFacilityBulkSearchPath() {
         return facilityBulkSearchUrl;
     }
+
+    // ---- Livelihood (LLD 07 §6.2). Defaults are the Livelihood values; E4H used "in" everywhere. ----
+
+    /** State-level tenant for HRMS, vendor, boundary, localization and fallbacks. */
+    @Value("${amc.state.tenant.id:livelihood}")
+    private String stateTenantId;
+
+    /** Localization module holding boundary names (E4H: rainmaker-in). */
+    @Value("${amc.localization.boundary.module:rainmaker-livelihood}")
+    private String boundaryLocalizationModule;
+
+    /** Prefix of boundary name keys (E4H: Boundary_, Livelihood: BOUNDARY_). */
+    @Value("${amc.localization.boundary.prefix:BOUNDARY_}")
+    private String boundaryLocalizationPrefix;
+
+    /** Roles that see every visit in search (E4H: PROJECT_MANAGER only, which hid reports from reviewers). */
+    @Value("#{'${amc.search.see.all.roles:PROJECT_MANAGER,AMC_REVIEWER,SYSTEM_USER}'.split(',')}")
+    private java.util.List<String> searchSeeAllRoles;
+
+    /** E4H's per-facility AMC snapshot for Kibana; Livelihood's facility service has no endpoint for it. */
+    @Value("${amc.facility.index.sync.enabled:false}")
+    private boolean facilityIndexSyncEnabled;
+
+    /** E4H's visit search-index push; Livelihood has no indexer config for these topics. */
+    @Value("${amc.visit.index.push.enabled:false}")
+    private boolean visitIndexPushEnabled;
 }

@@ -24,9 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.egov.amc.util.AmcConstants.BOUNDARY_LOCALIZATION_MODULE;
 import static org.egov.amc.util.AmcConstants.LOCALIZATION_LOCALE;
-import static org.egov.amc.util.AmcConstants.LOCALIZATION_TENANT_ID;
 
 /**
  * Resolves boundary codes (e.g. {@code India_Assam_Darrang}) to their human-readable localized
@@ -41,7 +39,6 @@ import static org.egov.amc.util.AmcConstants.LOCALIZATION_TENANT_ID;
 @Slf4j
 public class BoundaryLocalizationUtil {
 
-    private static final String BOUNDARY_CODE_PREFIX = "Boundary_";
 
     private final RestTemplate restTemplate;
     private final AMCServiceConfiguration configs;
@@ -81,12 +78,12 @@ public class BoundaryLocalizationUtil {
         }
 
         String localizationCodes = String.join(",",
-                codes.stream().map(code -> BOUNDARY_CODE_PREFIX + code).toList());
+                codes.stream().map(code -> configs.getBoundaryLocalizationPrefix() + code).toList());
 
         try {
             String url = UriComponentsBuilder.fromHttpUrl(searchUrl)
-                    .queryParam("tenantId", LOCALIZATION_TENANT_ID)
-                    .queryParam("module", BOUNDARY_LOCALIZATION_MODULE)
+                    .queryParam("tenantId", configs.getStateTenantId())
+                    .queryParam("module", configs.getBoundaryLocalizationModule())
                     .queryParam("locale", LOCALIZATION_LOCALE)
                     .queryParam("codes", localizationCodes)
                     .build()
@@ -149,10 +146,10 @@ public class BoundaryLocalizationUtil {
                 }
                 String code = codeValue.toString();
                 String text = textValue.toString();
-                if (!code.startsWith(BOUNDARY_CODE_PREFIX) || text.isBlank()) {
+                if (!code.startsWith(configs.getBoundaryLocalizationPrefix()) || text.isBlank()) {
                     continue;
                 }
-                namesByBoundaryCode.put(code.substring(BOUNDARY_CODE_PREFIX.length()), text);
+                namesByBoundaryCode.put(code.substring(configs.getBoundaryLocalizationPrefix().length()), text);
             }
         } catch (Exception e) {
             log.warn("Failed to parse localization response: {}", e.getMessage());

@@ -19,6 +19,9 @@ public class BoundaryUtil {
     @Autowired
     private RestTemplate restTemplate;
 
+    @Autowired
+    private org.egov.amc.config.AMCServiceConfiguration amcServiceConfiguration;
+
     @Value("${egov.boundary.host}")
     private String boundaryHost;
 
@@ -37,7 +40,7 @@ public class BoundaryUtil {
 //    @Cacheable(value="boundaryConfiguration")
     public Map<String, Boundary> getBoundaryByCode() {
         Map<String, Boundary> listBlock = null;
-        String params = "?boundaryType="+boundaryType+"&includeChildren=true&tenantId=in&hierarchyType="+boundaryHierarchyType;
+        String params = "?boundaryType="+boundaryType+"&includeChildren=true&tenantId="+amcServiceConfiguration.getStateTenantId()+"&hierarchyType="+boundaryHierarchyType;
         StringBuilder uri = new StringBuilder();
         uri.append(boundaryHost).append(boundaryUrl).append(params);
         RequestInfo requestInfo = new RequestInfo();
