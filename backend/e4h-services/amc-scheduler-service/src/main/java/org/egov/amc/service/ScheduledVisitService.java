@@ -380,6 +380,11 @@ public class ScheduledVisitService {
         if (request == null)
             throw new CustomException("GENERATE_VISIT_ERROR", "The request is empty");
 
+        // Livelihood creates visits one at a time (activation, then after each code verification), LLD §6.3.
+        if (amcServiceConfiguration.isLivelihoodScheduleEnabled())
+            throw new CustomException("AMC_GENERATE_NOT_AVAILABLE",
+                    "Bulk visit generation is not used for Livelihood: visits are created one at a time");
+
         if (request.getConfigurationId() == null || request.getConfigurationId().isEmpty())
             throw new CustomException("GENERATE_VISIT_ERROR", "Configuration ID is mandatory");
 

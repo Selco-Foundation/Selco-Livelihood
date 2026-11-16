@@ -272,4 +272,23 @@ public class AMCServiceConfiguration {
     /** vendor-registry org-user search: membership and roles of the AMC field staff. */
     @Value("${egov.vendor.org.user.search.url:/vendor/organisation/v1/user/_search}")
     private String vendorOrgUserSearchUrl;
+
+    /** egov-user search, to find the shared system account the service acts as (LLD §8.3). */
+    @Value("${egov.user.host:http://egov-user.core:8080}")
+    private String userHost;
+
+    @Value("${egov.user.search.path:/user/_search}")
+    private String userSearchPath;
+
+    /** Username of the system account; the one holding SYSTEM_USER on the state tenant is used. */
+    @Value("${amc.system.user.username:CRONJOB}")
+    private String systemUserName;
+
+    /** One persister message, one DB transaction: config ACTIVE + visit 1 + asset_amc (review A7). */
+    @Value("${amc.livelihood.activate.topic:activate-amc-configuration}")
+    private String activateAmcConfigurationTopic;
+
+    /** One persister message: create on an already-approved installation (config + visit 1 + asset_amc). */
+    @Value("${amc.livelihood.save.active.topic:save-active-amc-configuration}")
+    private String saveActiveAmcConfigurationTopic;
 }
