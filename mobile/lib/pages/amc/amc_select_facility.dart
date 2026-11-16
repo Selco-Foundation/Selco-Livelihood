@@ -7,7 +7,6 @@ import 'package:digit_ui_components/widgets/atoms/digit_button.dart';
 import 'package:digit_ui_components/widgets/atoms/digit_divider.dart';
 import 'package:digit_ui_components/widgets/atoms/digit_radio_list.dart';
 import 'package:digit_ui_components/widgets/atoms/digit_search_form_input.dart';
-import 'package:digit_ui_components/widgets/atoms/digit_tag.dart';
 import 'package:digit_ui_components/widgets/atoms/pop_up_card.dart';
 import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
 import 'package:digit_ui_components/widgets/molecules/show_pop_up.dart';
@@ -123,6 +122,7 @@ class _AmcSelectFacilityPageState extends State<AmcSelectFacilityPage>
                   : ScheduledVisitState.loaded(
                       items: bookmarkedItems
                           .where((visit) => _statuses().contains(visit.status))
+                          .where((visit) => visit.isWithinAmcSubmissionWindow())
                           .toList(),
                       hasMore: false,
                       totalCount: bookmarkedItems.length,
@@ -271,8 +271,6 @@ class _AmcSelectFacilityPageState extends State<AmcSelectFacilityPage>
                                                     ?.facilityName ??
                                                 '',
                                             status: items[index].status,
-                                            isDelayed:
-                                                items[index].isAmcDelayed(),
                                             state: locality.state,
                                             district: locality.district,
                                             block: locality.block,
@@ -495,8 +493,6 @@ class AMCInstallationReportCard extends StatefulWidget {
   final String? title;
   final String? status;
 
-  /// Shows the "AMC delayed" tag (New Report only).
-  final bool isDelayed;
   final String? label;
   final String? state;
   final String? district;
@@ -518,7 +514,6 @@ class AMCInstallationReportCard extends StatefulWidget {
     this.scheduledVisitId,
     this.title,
     this.status,
-    this.isDelayed = false,
     this.label,
     this.state,
     this.district,
@@ -589,14 +584,6 @@ class _AMCInstallationReportCardState extends State<AMCInstallationReportCard> {
                     addLabelKey: i18.amcBookmarks.add,
                     removeLabelKey: i18.amcBookmarks.remove),
             ]),
-            if (widget.isDelayed) ...[
-              const SizedBox(height: spacer2),
-              Tag(
-                key: ValueKey('amc-visit-delayed-${widget.scheduledVisitId}'),
-                label: context.translate(i18.amcSelectFacility.delayedTag),
-                type: TagType.error,
-              ),
-            ],
             const SizedBox(height: spacer4),
             const DigitDivider(dividerType: DividerType.small),
             ReportDetailRow(
