@@ -149,7 +149,11 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
       }
     } else {
       final visitReport = scheduledVisit?.visitReport;
-      final docs = visitReport?.documents ?? const [];
+      // #250: reading photos are the form's; this screen shows only the
+      // verification photograph(s).
+      final docs = (visitReport?.documents ?? const [])
+          .where((doc) => !isAmcReadingPhotoField(doc.documentType ?? ''))
+          .toList();
 
       if (docs.isEmpty) {
         if (mounted) {

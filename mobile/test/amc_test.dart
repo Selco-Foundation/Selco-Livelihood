@@ -1,16 +1,27 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:digit_forms_engine/blocs/app_localization.dart'
+    as forms_localization;
+import 'package:digit_forms_engine/blocs/forms/forms.dart';
+import 'package:digit_forms_engine/json_forms.dart';
+import 'package:digit_forms_engine/models/property_schema/property_schema.dart';
 import 'package:digit_forms_engine/models/schema_object/schema_object.dart';
+import 'package:digit_forms_engine/utils/utils.dart'
+    show evaluateVisibilityExpression;
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:livelihood/blocs/localization/app_localization.dart';
 import 'package:livelihood/data/nosql/localization.dart' show Localization;
 import 'package:livelihood/blocs/amc_otp/amc_otp.dart';
 import 'package:livelihood/main.dart';
+import 'package:livelihood/model/amc/amc_site_details.dart';
 import 'package:livelihood/model/amc/scheduled_visit.dart';
+import 'package:livelihood/model/appconfig/mdmsResponse.dart' show Language;
 import 'package:livelihood/model/login/loginModel.dart';
 import 'package:livelihood/model/response/responsemodel.dart';
 import 'package:livelihood/pages/amc/amc_home.dart';
@@ -18,6 +29,7 @@ import 'package:livelihood/pages/home_page.dart';
 import 'package:livelihood/pages/role_selection.dart';
 import 'package:livelihood/repositories/amc/amc_dummy_backend.dart';
 import 'package:livelihood/repositories/amc/amc_dummy_form_schema.dart';
+import 'package:livelihood/repositories/amc/amc_dummy_localization.dart';
 import 'package:livelihood/repositories/amc/amc_remote_data_source.dart';
 import 'package:livelihood/repositories/amc/amc_system_status_repo.dart';
 import 'package:livelihood/repositories/amc/scheduled_visit_repo.dart';
@@ -29,12 +41,20 @@ import 'package:livelihood/utils/amc/amc_utils.dart';
 import 'package:livelihood/utils/envConfig.dart';
 import 'package:livelihood/utils/i18_key_constants.dart' as i18;
 import 'package:livelihood/utils/role_login_resolver.dart';
+import 'package:reactive_forms/reactive_forms.dart';
+import 'package:livelihood/widgets/amc/amc_reading_fields.dart';
 
 const _secureStorageChannel =
     MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
 final Map<String, String> _secureStorageValues = {};
 
 String tr(String code) => AppLocalizations.fallbackLabel(code);
+
+/// A form field label as Digit UI draws it: rich text, in sentence case,
+/// followed by the required "*".
+Finder _label(String text) => find.textContaining(
+    RegExp('^${RegExp.escape(text)}\\s*\\*?\$', caseSensitive: false),
+    findRichText: true);
 
 class _StubAuthRepository implements AuthRepository {
   _StubAuthRepository(this.roles);
@@ -263,7 +283,7 @@ void main() {
       expect(schema.name, amcFormSchemaKey);
       expect(schema.pages.keys.first, amcFormFirstPage);
       expect(schema.pages[amcFormFirstPage]!.properties!.keys,
-          contains('faults_observed'));
+          contains('date_of_visit'));
     });
 
     test('seed visits parse and round-trip through JSON', () {
@@ -969,6 +989,301 @@ void main() {
     addTearDown(() => AppLocalizations.debugSeedLocalizations(const []));
     expect(AppLocalizations.translateCached(i18.amcOtp.reportApproved),
         'From the server');
+  });
+
+  group('Livelihood AMC report form (#250)', () {
+    final schema = SchemaObject.fromJson(
+        transformSelcoFormMdmsDocToSchema(dummyAmcFormSchemaDoc('t')));
+    Map<String, PropertySchema> fieldsOf(String page) =>
+        schema.pages[page]!.properties!;
+    bool isRequired(PropertySchema field) =>
+        field.validations?.any((r) => r.type == 'required' && r.value == true) ??
+        false;
+
+    test('five sections in order, each with its heading', () {
+      expect(schema.pages.keys, [
+        'Report_Header',
+        'Site_Details',
+        'Charge_Controller_PCU',
+        'Observation_Points',
+        'Capture_Readings',
+      ]);
+      expect(schema.pages.values.map((page) => page.label), [
+        'AMC_FORM_REPORT_HEADER',
+        'AMC_FORM_SITE_DETAILS',
+        'AMC_FORM_CHARGE_CONTROLLER_PCU',
+        'AMC_FORM_OBSERVATION_POINTS',
+        'AMC_FORM_CAPTURE_READINGS',
+      ]);
+      expect(schema.pages['Capture_Readings']!.actionLabel,
+          'AMC_FORM_SAVE_AND_NEXT');
+    });
+
+    test('fields match the final field list', () {
+      expect(fieldsOf('Report_Header').keys,
+          ['date_of_visit', 'service_by', 'service_contact_number']);
+      expect(fieldsOf('Site_Details').keys, amcSiteDetailFields);
+      expect(fieldsOf('Charge_Controller_PCU').keys,
+          ['pcu_priority', 'panels_per_string']);
+      expect(fieldsOf('Observation_Points'), hasLength(20));
+      expect(fieldsOf('Capture_Readings').keys, [
+        'battery_type',
+        'system_type',
+        'pcu_neutral_earth_voltage',
+        'pcu_neutral_earth_voltage_photo',
+        'grid_neutral_earth_voltage',
+        'grid_neutral_earth_voltage_photo',
+        'inverter_output_voltage',
+        'earthing_electrode_available',
+        'earthing_wire_connected',
+        'battery_specific_gravity',
+        'battery_specific_gravity_action',
+        'solar_spd',
+        'solar_spd_photo',
+        'solar_spd_action',
+        'grid_spd',
+        'grid_spd_photo',
+        'grid_spd_action',
+        'vendor_remarks',
+        'end_user_remarks',
+      ]);
+    });
+
+    test('site details are read-only; everything else applicable is required',
+        () {
+      expect(fieldsOf('Site_Details').values.every((f) => f.readOnly == true),
+          isTrue);
+      const optional = {
+        'battery_type',
+        'system_type',
+        'battery_specific_gravity_action',
+        'solar_spd_action',
+        'grid_spd_action',
+        'vendor_remarks',
+        'end_user_remarks',
+      };
+      for (final page in schema.pages.keys.where((p) => p != 'Site_Details')) {
+        fieldsOf(page).forEach((name, field) {
+          expect(isRequired(field), !optional.contains(name), reason: name);
+        });
+      }
+    });
+
+    test('N/A is offered exactly where the field list allows it', () {
+      final withNa = <String>{
+        for (final page in schema.pages.keys)
+          for (final entry in fieldsOf(page).entries)
+            if (entry.value.enums?.any((o) => o.code == 'NA') ?? false)
+              entry.key,
+      };
+      expect(withNa, {
+        'solar_cables_tied',
+        'solar_mms_rusting',
+        'battery_float_indicators_ok',
+        'battery_water_level_ok',
+        'la_insulation',
+        'la_firmly_fixed',
+        'la_saddle_insulators',
+        'mc4_interlocked',
+        'battery_specific_gravity',
+      });
+    });
+
+    test('conditional fields follow battery and system type', () {
+      final readings = fieldsOf('Capture_Readings');
+      bool visible(String field, String battery, String system) {
+        final expression = readings[field]!.visibilityCondition?.expression;
+        if (expression == null) return true;
+        return evaluateVisibilityExpression(expression, {
+          'Capture_Readings.battery_type': battery,
+          'Capture_Readings.system_type': system,
+        });
+      }
+
+      for (final field in [
+        'battery_specific_gravity',
+        'battery_specific_gravity_action'
+      ]) {
+        expect(visible(field, 'LEAD_ACID', 'DC'), isTrue, reason: field);
+        expect(visible(field, 'LITHIUM_ION', 'DC'), isFalse, reason: field);
+        expect(visible(field, '', 'DC'), isFalse, reason: field);
+      }
+      for (final field in ['solar_spd', 'solar_spd_photo', 'solar_spd_action']) {
+        expect(visible(field, 'LEAD_ACID', 'DC'), isTrue, reason: field);
+        expect(visible(field, 'LEAD_ACID', 'AC'), isFalse, reason: field);
+      }
+      for (final field in ['grid_spd', 'grid_spd_photo', 'grid_spd_action']) {
+        expect(visible(field, 'LEAD_ACID', 'AC'), isTrue, reason: field);
+        expect(visible(field, 'LEAD_ACID', 'DC'), isFalse, reason: field);
+      }
+      expect(visible('inverter_output_voltage', '', ''), isTrue);
+    });
+
+    test('site details come from the visit and override saved values', () {
+      final visit = ScheduledVisit.fromJson(dummySeedVisits()
+          .firstWhere((v) => v['id'] == 'dummy-visit-002'));
+      final site = AmcSiteDetails.fromVisit(visit);
+      expect(site.batteryType, 'LITHIUM_ION');
+      expect(site.systemType, amcAcSystem);
+
+      final values = withAmcSiteDetails(
+          {'service_by': 'Suresh', 'end_user_name': 'stale'}, visit);
+      expect(values['service_by'], 'Suresh');
+      expect(values['end_user_name'], 'Manjunath S');
+      expect(values['district'], 'CHAMARAJANAGAR');
+      expect(values[amcSystemTypeField], 'AC');
+      expect(values['installation_date'], matches(RegExp(r'^\d\d/\d\d/\d{4}$')));
+
+      expect(AmcSiteDetails.normaliseBatteryType('Lead-acid'), 'LEAD_ACID');
+      expect(AmcSiteDetails.normaliseSystemType('dc system'), 'DC');
+      expect(AmcSiteDetails.normaliseSystemType('Hybrid'), isNull);
+      // No site record: nothing is invented.
+      expect(AmcSiteDetails.fromVisit(const ScheduledVisit()).toFormValues(),
+          isEmpty);
+    });
+
+    test('custom fields: photos by name, decimals accepted', () {
+      final custom = fieldsOf('Capture_Readings')
+          .entries
+          .where((e) => e.value.format == PropertySchemaFormat.custom)
+          .map((e) => e.key);
+      expect(custom.where(isAmcReadingPhotoField), [
+        'pcu_neutral_earth_voltage_photo',
+        'grid_neutral_earth_voltage_photo',
+        'solar_spd_photo',
+        'grid_spd_photo',
+      ]);
+      String typed(String text) => amcDecimalInputFormatter
+          .formatEditUpdate(TextEditingValue.empty,
+              TextEditingValue(text: text))
+          .text;
+      expect(typed('230.5'), '230.5');
+      expect(typed('1.2.3'), '1.2');
+      expect(typed('abc'), '');
+    });
+
+    /// Renders the Capture Readings page through the forms engine, as the
+    /// report screen does, for a site of the given battery/system type.
+    Future<void> pumpReadings(
+        WidgetTester tester, String battery, String system) async {
+      tester.view.physicalSize = const Size(1080, 20000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final page = resolveAmcVisibility(schema, 'Capture_Readings', {
+        amcBatteryTypeField: battery,
+        amcSystemTypeField: system,
+      });
+      final bloc = FormsBloc()
+        ..add(FormsUpdateEvent(schema: schema, schemaKey: amcFormSchemaKey));
+      addTearDown(bloc.close);
+      await tester.pumpWidget(MaterialApp(
+        locale: const Locale('en', 'IN'),
+        supportedLocales: const [Locale('en', 'IN')],
+        localizationsDelegates: [
+          forms_localization.FormLocalization.getDelegate(
+            Future.value(withDummyAmcLocalizations(const [], 'en_IN')),
+            const [Language(label: 'English', value: 'en_IN')],
+          ),
+          GlobalWidgetsLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: BlocProvider.value(
+          value: bloc,
+          child: Scaffold(
+            body: SingleChildScrollView(
+              child: ReactiveFormBuilder(
+                form: () => fb.group(JsonForms.getFormControls(page,
+                    defaultValues: {
+                      amcBatteryTypeField: battery,
+                      amcSystemTypeField: system,
+                    })),
+                builder: (context, form, _) => JsonForms(
+                  currentSchemaKey: amcFormSchemaKey,
+                  propertySchema: page,
+                  pageName: 'Capture_Readings',
+                  childrens: [
+                    for (final e in page.properties!.entries)
+                      if (e.value.format == PropertySchemaFormat.custom)
+                        {
+                          e.key: amcCustomFormField(
+                            fieldName: e.key,
+                            label: dummyAmcLocalization[e.value.label],
+                            isRequired: true,
+                            readOnly: false,
+                          ),
+                        },
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ));
+      // Settles: no rebuild loop from the engine's visibility checks.
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('readings page: lead-acid DC site', (tester) async {
+      await pumpReadings(tester, 'LEAD_ACID', 'DC');
+      expect(_label('Battery specific gravity, measured through hydrometer'),
+          findsOneWidget);
+      expect(_label('Solar SPD'), findsOneWidget);
+      expect(_label('Solar SPD photo'), findsOneWidget);
+      expect(_label('Grid input SPD'), findsNothing);
+      expect(_label('Grid input SPD photo'), findsNothing);
+      expect(find.byType(AmcDecimalReadingField), findsNWidgets(3));
+      expect(find.byType(AmcReadingPhotoField), findsNWidgets(3));
+      expect(find.text('Good'), findsOneWidget);
+      // Only fields that apply have inputs, so only they are validated.
+      final form = ReactiveForm.of(
+          tester.element(find.byType(AmcDecimalReadingField).first),
+          listen: false) as FormGroup;
+      expect(form.contains('grid_spd'), isFalse);
+      expect(form.contains('solar_spd'), isTrue);
+      expect(find.text('Not applicable'), findsOneWidget);
+    });
+
+    testWidgets('readings page: lithium AC site', (tester) async {
+      await pumpReadings(tester, 'LITHIUM_ION', 'AC');
+      expect(_label('Battery specific gravity, measured through hydrometer'),
+          findsNothing);
+      expect(_label('Solar SPD'), findsNothing);
+      expect(_label('Grid input SPD'), findsOneWidget);
+      expect(_label('Grid input SPD photo'), findsOneWidget);
+      expect(find.byType(AmcReadingPhotoField), findsNWidgets(3));
+    });
+
+    test('every form text has a dummy translation, server texts win', () {
+      final keys = <String>{
+        for (final page in schema.pages.values) ...[
+          page.label!,
+          if (page.actionLabel != null) page.actionLabel!,
+          for (final field in page.properties!.values) ...[
+            if (field.hidden != true) field.label!,
+            if (field.section != null) field.section!,
+            for (final option in field.enums ?? const <Option>[]) option.name,
+          ],
+        ],
+        i18.amcForm.naNote,
+        i18.amcForm.photoRequired,
+      }..removeAll(const {'COMMON_YES', 'COMMON_NO'});
+      expect(keys.where((k) => !dummyAmcLocalization.containsKey(k)), isEmpty);
+
+      final server = Localization()
+        ..code = 'AMC_FORM_NA'
+        ..message = 'Not applicable'
+        ..module = 'm'
+        ..locale = 'en_IN';
+      final merged = withDummyAmcLocalizations([server], 'en_IN');
+      expect(merged.where((l) => l.code == 'AMC_FORM_NA').single.message,
+          'Not applicable');
+      expect(
+          merged
+              .firstWhere((l) => l.code == 'AMC_FORM_REPORT_HEADER')
+              .message,
+          'Report Header');
+    });
   });
 
   group('Login routing', () {

@@ -340,6 +340,26 @@ List<Map<String, dynamic>> dummySeedVisits() {
         'auditDetails': {'lastModifiedTime': at, 'createdTime': at},
       };
 
+  /// #250: the end user's site record (Site Details section). Where the
+  /// real API puts this is not decided yet; see `AmcSiteDetails`.
+  Map<String, dynamic> siteDetails(String id, String boundary,
+      {required String endUser, String battery = 'Lead Acid',
+      String system = 'DC'}) {
+    final parts = boundary.split('_');
+    final number = id.split('-').last;
+    return {
+      'endUserName': endUser,
+      'endUserPhone': '98450${number.padLeft(5, '0')}',
+      'installationDate': daysFromNow(-200),
+      'block': parts.length > 3 ? parts[3] : '',
+      'district': parts.length > 2 ? parts[2] : '',
+      'pincode': '571${number.padLeft(3, '0')}',
+      'purchaseOrderNumber': 'PO-2026-$number',
+      'batteryType': battery,
+      'systemType': system,
+    };
+  }
+
   Map<String, dynamic> visit({
     required String id,
     required String name,
@@ -349,6 +369,9 @@ List<Map<String, dynamic>> dummySeedVisits() {
     required int scheduledInDays,
     Map<String, dynamic>? visitReport,
     Object? comment,
+    String endUser = 'Lakshmi Devi',
+    String battery = 'Lead Acid',
+    String system = 'DC',
   }) {
     final facilityId = 'dummy-facility-$id';
     final at = daysFromNow(scheduledInDays);
@@ -365,19 +388,19 @@ List<Map<String, dynamic>> dummySeedVisits() {
       if (visitReport != null) 'visitReport': visitReport,
       'processInstances': [instance(id, status, at, comment: comment)],
       'assignments': const [],
+      'additionalDetails': {
+        'siteDetails': siteDetails(id, boundary,
+            endUser: endUser, battery: battery, system: system),
+      },
     };
   }
 
   final submittedReport = {
     'schemaCode': amcDummySchemaCode,
     'version': '1',
-    'responses': {
-      'faults_observed': 'NO',
-      'panel_condition': 'GOOD',
-      'battery_condition': 'GOOD',
-      'inverter_condition': 'GOOD',
-      'remarks': 'All components working normally.',
-    },
+    // #250: a lead-acid DC site. Reading photos are left out (the dummy
+    // filestore has no files for them), so a rework asks for them again.
+    'responses': dummySubmittedAmcResponses(daysFromNow(-1)),
     'documents': const [],
     // Pre-report system status (#247), as the app submits it.
     'additionalDetails': {
@@ -405,6 +428,9 @@ List<Map<String, dynamic>> dummySeedVisits() {
       status: 'SCHEDULED',
       visitNumber: 1,
       scheduledInDays: 5,
+      endUser: 'Manjunath S',
+      battery: 'Lithium Ion',
+      system: 'AC',
     ),
     visit(
       id: 'dummy-visit-003',
@@ -413,6 +439,8 @@ List<Map<String, dynamic>> dummySeedVisits() {
       status: 'SCHEDULED',
       visitNumber: 3,
       scheduledInDays: 9,
+      endUser: 'Shivamma K',
+      system: 'AC',
     ),
     // "AMC delayed" samples: one overdue, one due today (not delayed).
     visit(
@@ -422,6 +450,8 @@ List<Map<String, dynamic>> dummySeedVisits() {
       status: 'SCHEDULED',
       visitNumber: 2,
       scheduledInDays: -4,
+      endUser: 'Ravi Gowda',
+      battery: 'Lithium Ion',
     ),
     visit(
       id: 'dummy-visit-009',
@@ -497,3 +527,48 @@ List<Map<String, dynamic>> dummySeedVisits() {
     ),
   ];
 }
+
+/// #250: answers of a submitted report on a lead-acid DC site (field names
+/// from the dummy form schema).
+Map<String, dynamic> dummySubmittedAmcResponses(int visitedAt) => {
+      'date_of_visit':
+          DateTime.fromMillisecondsSinceEpoch(visitedAt).toUtc().toIso8601String(),
+      'service_by': 'Suresh Kumar',
+      'service_contact_number': '9876501234',
+      'pcu_priority': 'SOLAR_BATTERY_GRID',
+      'panels_per_string': 4,
+      for (final field in const [
+        'solar_cables_tied',
+        'solar_panels_clean',
+        'solar_mms_rusting',
+        'solar_nuts_bolts_rusting',
+        'ajb_mounted_firm',
+        'battery_terminals_clean',
+        'battery_petroleum_jelly',
+        'battery_float_indicators_ok',
+        'battery_water_level_ok',
+        'pcu_cables_intact',
+        'la_insulation',
+        'la_firmly_fixed',
+        'la_saddle_insulators',
+        'earthing_conduit',
+        'earthing_cable_contact',
+        'earthing_electrodes_buried',
+        'cable_lugs_used',
+        'cable_lugs_crimped',
+        'cable_lugs_insulated',
+        'mc4_interlocked',
+      ])
+        field: 'YES',
+      'solar_mms_rusting': 'NO',
+      'solar_nuts_bolts_rusting': 'NO',
+      'la_saddle_insulators': 'NA',
+      'pcu_neutral_earth_voltage': '2.5',
+      'grid_neutral_earth_voltage': '3',
+      'inverter_output_voltage': '230.4',
+      'earthing_electrode_available': 'YES',
+      'earthing_wire_connected': 'YES',
+      'battery_specific_gravity': 'GOOD',
+      'solar_spd': 'WORKING',
+      'vendor_remarks': 'All components working normally.',
+    };

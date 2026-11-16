@@ -1,10 +1,12 @@
 import 'package:digit_forms_engine/blocs/forms/forms.dart';
 import 'package:digit_forms_engine/json_forms.dart';
+import 'package:digit_forms_engine/models/property_schema/property_schema.dart';
 import 'package:digit_forms_engine/models/schema_object/schema_object.dart';
 import 'package:digit_ui_components/enum/app_enums.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:digit_ui_components/theme/spacers.dart';
 import 'package:digit_ui_components/widgets/atoms/digit_button.dart';
+import 'package:digit_ui_components/widgets/atoms/digit_info_card.dart';
 import 'package:digit_ui_components/widgets/atoms/digit_stepper.dart';
 import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
 import 'package:digit_ui_components/widgets/scrollable_content.dart';
@@ -24,6 +26,7 @@ import '../../utils/extensions.dart';
 import '../../utils/i18_key_constants.dart' as i18;
 import '../../utils/role_login_resolver.dart';
 import '../../widgets/amc/amc_back_navigation_help_header.dart';
+import '../../widgets/amc/amc_reading_fields.dart';
 import '../../widgets/workflow_rejection_reasons.dart';
 
 /// Ported from E4H `pages/amc_dynamic_form.dart`: the multi-page AMC report
@@ -157,6 +160,33 @@ class _AmcDynamicFormPageState extends State<AmcDynamicFormPage> {
 
     await SecureStore().setRawSchemaDoc(cacheKey, Map.from(schemaJson));
     bloc.add(FormsUpdateEvent(schema: schemaObj, schemaKey: cacheKey));
+  }
+
+  bool get _isView =>
+      widget.origin == FormOrigin.inboxSummary ||
+      widget.origin == FormOrigin.submitted;
+
+  /// #250: widgets for the page's `format: custom` fields (decimal readings
+  /// and reading photos), which the forms engine draws from `childrens`.
+  List<Map<String, Widget>> _customFields(
+      BuildContext context, PropertySchema pageSchema) {
+    final properties = pageSchema.properties ?? const {};
+    return [
+      for (final entry in properties.entries)
+        if (entry.value.format == PropertySchemaFormat.custom)
+          {
+            entry.key: amcCustomFormField(
+              fieldName: entry.key,
+              label: entry.value.label == null
+                  ? null
+                  : context.translate(entry.value.label!),
+              isRequired: entry.value.validations?.any(
+                      (rule) => rule.type == 'required' && rule.value == true) ??
+                  false,
+              readOnly: _isView,
+            ),
+          },
+    ];
   }
 
   void _popUntilThenRefreshOrigin(BuildContext context) {
@@ -322,11 +352,13 @@ class _AmcDynamicFormPageState extends State<AmcDynamicFormPage> {
                 child:
                     Text(context.translate(i18.amcCommon.formSchemaMissing)));
           }
-          final pageSchema = schemaObject.pages[widget.pageName];
-          if (pageSchema == null) {
+          if (schemaObject.pages[widget.pageName] == null) {
             Future.microtask(_ensureSchemaLoaded);
             return const Center(child: CircularProgressIndicator());
           }
+          // #250: conditional fields decided once for this visit's site.
+          final pageSchema = resolveAmcVisibility(
+              schemaObject, widget.pageName, _projectInitialKV);
 
           final pageIndex =
               schemaObject.pages.keys.toList().indexOf(widget.pageName);
@@ -406,8 +438,8 @@ class _AmcDynamicFormPageState extends State<AmcDynamicFormPage> {
                       isDisabled: _isNextLoading,
                       label: _isNextLoading || _isPreparingForm
                           ? context.translate(i18.amcDynamicForm.loading)
-                          : (pageSchema.actionLabel ??
-                              context.translate(i18.amcCommon.coreCommonNext)),
+                          : context.translate(pageSchema.actionLabel ??
+                              i18.amcCommon.coreCommonNext),
                       onPressed: () async {
                         if (_isNextLoading || _isPreparingForm) return;
                         setState(() => _isNextLoading = true);
@@ -419,6 +451,11 @@ class _AmcDynamicFormPageState extends State<AmcDynamicFormPage> {
                           final invalid = <String>[];
 
                           for (final k in propKeys) {
+                            // Fields hidden for this site have no input.
+                            if (!isAmcFormInput(
+                                pageSchema.properties![k]!)) {
+                              continue;
+                            }
                             if (form.contains(k)) {
                               final c = form.control(k);
                               c.markAsTouched();
@@ -429,6 +466,11 @@ class _AmcDynamicFormPageState extends State<AmcDynamicFormPage> {
                             }
                           }
 
+                          // Read-only views just page through the report.
+                          if (_isView) {
+                            missing.clear();
+                            invalid.clear();
+                          }
                           if (missing.isNotEmpty) {
                             final first = missing.first;
                             final label = labelForKey(pageSchema, first);
@@ -599,30 +641,40 @@ class _AmcDynamicFormPageState extends State<AmcDynamicFormPage> {
                   children: [
                     if (pageSchema.label != null)
                       Text(
-                        pageSchema.label!,
+                        context.translate(pageSchema.label!),
                         style: Theme.of(context)
                             .digitTextTheme(context)
                             .headingXl
                             .copyWith(color: theme.colorTheme.primary.primary2),
                       ),
+                    // #250 (PRD 5.4.4): the N/A note at the top of every
+                    // section.
+                    InfoCard(
+                      key: const ValueKey('amc-form-na-note'),
+                      title: '',
+                      type: InfoType.info,
+                      description: context.translate(i18.amcForm.naNote),
+                    ),
                     if (pageSchema.description != null)
                       Text(
-                        pageSchema.description!,
+                        context.translate(pageSchema.description!),
                         style: Theme.of(context)
                             .digitTextTheme(context)
                             .bodyS
                             .copyWith(color: theme.colorTheme.text.secondary),
                       ),
-                    JsonForms(
-                      currentSchemaKey: currentKey,
-                      propertySchema: pageSchema,
-                      pageName: widget.pageName,
-                      childrens: const [],
-                      defaultValues: pageDefaults,
-                      isView: (widget.origin == FormOrigin.inboxSummary ||
-                              widget.origin == FormOrigin.submitted)
-                          ? true
-                          : false,
+                    // Read-only views block input outright: the engine's
+                    // radio buttons ignore `isView`.
+                    AbsorbPointer(
+                      absorbing: _isView,
+                      child: JsonForms(
+                        currentSchemaKey: currentKey,
+                        propertySchema: pageSchema,
+                        pageName: widget.pageName,
+                        childrens: _customFields(context, pageSchema),
+                        defaultValues: pageDefaults,
+                        isView: _isView,
+                      ),
                     ),
                   ],
                 ),

@@ -23,6 +23,7 @@ import 'data/app_shared_preferences.dart';
 import 'data/nosql/localization.dart';
 import 'model/appconfig/mdmsResponse.dart';
 import 'router/app_router.dart';
+import 'repositories/amc/amc_dummy_localization.dart';
 import 'repositories/auth_repo.dart';
 import 'utils/amc/amc_system_status_sync.dart';
 import 'utils/background_service.dart';
@@ -279,8 +280,9 @@ Future<List<dynamic>> _getLocalizationStrings(
       .filter()
       .localeEqualTo(selectedLocale)
       .findAll();
-  if (wrappers.isEmpty) return const [];
-  return wrappers.first.localization ?? const [];
+  final strings =
+      wrappers.isEmpty ? const <Localization>[] : wrappers.first.localization;
+  return withDummyAmcLocalizations(strings ?? const [], selectedLocale);
 }
 
 class _LoadingApp extends StatelessWidget {

@@ -8,6 +8,8 @@ import 'package:digit_forms_engine/blocs/forms/forms.dart';
 import 'package:digit_forms_engine/models/property_schema/property_schema.dart'
     as digit_property_schema;
 import 'package:digit_forms_engine/models/schema_object/schema_object.dart';
+import 'package:digit_forms_engine/utils/utils.dart'
+    show evaluateVisibilityExpression;
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,6 +20,7 @@ import 'package:reactive_forms/reactive_forms.dart';
 
 import '../../blocs/auth/authbloc.dart';
 import '../../data/network_manager.dart';
+import '../../model/amc/amc_site_details.dart';
 import '../../model/amc/scheduled_visit.dart';
 import '../../repositories/amc/amc_dynamic_form_repo.dart';
 import '../../repositories/amc/amc_remote_data_source.dart';
@@ -64,9 +67,14 @@ enum FormOrigin { overallSummary, inboxSummary, submitForApproval, submitted }
 const int minFacilitySearchQueryLength = 1;
 
 /// The AMC report form, as named in E4H (`AssetForm.AMC_SCHEDULED_MAINTENANCE`
-/// MDMS document, first page `AMC_Report`).
+/// MDMS document). Livelihood's form (#250) starts with the Report Header.
 const String amcFormSchemaKey = 'AssetForm.AMC_SCHEDULED_MAINTENANCE';
-const String amcFormFirstPage = 'AMC_Report';
+const String amcFormFirstPage = 'Report_Header';
+
+/// #250: a `format: custom` form field whose name ends in `_photo` is a
+/// reading photo (its value is a local path, then a filestore id once
+/// uploaded); any other custom field is a decimal reading.
+bool isAmcReadingPhotoField(String fieldName) => fieldName.endsWith('_photo');
 
 Future<String> copyFileToLocalDir(File sourceFile) async {
   try {
@@ -411,8 +419,9 @@ dynamic coerceForControl(AbstractControl<Object?> control, dynamic v) {
   }
 
   if (control is FormControl<DateTime?>) {
-    if (v is DateTime) return v;
-    if (v is String) return DateTime.tryParse(v);
+    // Saved dates are UTC ISO strings; show them as the local calendar day.
+    if (v is DateTime) return v.toLocal();
+    if (v is String) return DateTime.tryParse(v)?.toLocal();
     return null;
   }
 
@@ -469,8 +478,10 @@ bool isLastPage({required SchemaObject schema, required String pageName}) {
   return lastKey == pageName;
 }
 
-/// E4H: local saved answers first, then the server's submitted responses,
-/// otherwise `{"faults_observed": "YES"}`.
+/// E4H: local saved answers first, then the server's submitted responses.
+/// #250: the Site Details fields and the site's battery/system type are then
+/// filled from the visit (E4H's `{"faults_observed": "YES"}` default is gone
+/// with E4H's form).
 Future<Map<String, dynamic>> buildInitialAmcValues({
   required BuildContext context,
   required ScheduledVisit scheduledVisit,
@@ -485,8 +496,61 @@ Future<Map<String, dynamic>> buildInitialAmcValues({
     userType: userType,
   );
 
-  return initialValues ?? {"faults_observed": "YES"};
+  return withAmcSiteDetails(initialValues, scheduledVisit);
 }
+
+/// #250: [pageName]'s schema with each field's `visibilityCondition`
+/// decided once, against [values] (the visit's saved answers and site
+/// details): a field whose condition fails is hidden, one whose condition
+/// holds loses the condition.
+///
+/// The AMC form's conditions depend only on the site's battery and system
+/// type, which don't change while the form is open. Leaving them to
+/// `digit_forms_engine` makes it re-check every condition on every build,
+/// and that check itself triggers a rebuild, so the page never stops
+/// redrawing.
+digit_property_schema.PropertySchema resolveAmcVisibility(
+  SchemaObject schema,
+  String pageName,
+  Map<String, dynamic> values,
+) {
+  final page = schema.pages[pageName]!;
+  final context = <String, dynamic>{
+    for (final p in schema.pages.entries)
+      for (final field in (p.value.properties ?? const {}).keys)
+        '${p.key}.$field': values[field] ?? '',
+  };
+  return page.copyWith(
+    properties: page.properties?.map((name, field) {
+      final expression = field.visibilityCondition?.expression;
+      if (expression == null || expression.isEmpty) {
+        return MapEntry(name, field);
+      }
+      final visible = evaluateVisibilityExpression(expression, context);
+      return MapEntry(
+        name,
+        field.copyWith(
+          visibilityCondition: null,
+          hidden: visible ? field.hidden : true,
+          includeInForm: visible ? field.includeInForm : false,
+        ),
+      );
+    }),
+  );
+}
+
+/// Whether the AMC form has an input for [field] (hidden fields without
+/// `includeInForm` have none and are not validated).
+bool isAmcFormInput(digit_property_schema.PropertySchema field) =>
+    field.hidden != true || field.includeInForm == true;
+
+/// [values] with the visit's Site Details (#250) on top.
+Map<String, dynamic> withAmcSiteDetails(
+        Map<String, dynamic>? values, ScheduledVisit visit) =>
+    {
+      ...?values,
+      ...AmcSiteDetails.fromVisit(visit).toFormValues(),
+    };
 
 bool isSessionExpiredMessage(String? message) {
   final msg = (message ?? '').toLowerCase();

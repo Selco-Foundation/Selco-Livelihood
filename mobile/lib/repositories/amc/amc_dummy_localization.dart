@@ -1,3 +1,6 @@
+import '../../data/nosql/localization.dart';
+import 'amc_remote_data_source.dart' show kAmcUseDummyBackend;
+
 /// DUMMY-BACKEND: English texts for every localisation key the AMC screens
 /// use, until they are added to the localisation server.
 ///
@@ -57,6 +60,116 @@ const Map<String, String> dummyAmcLocalization = {
 
   // Report form
   'AMC_DYNAMIC_FORM_LOADING': 'Loading...',
+
+  // Report form (#250): sections, notes and messages
+  'AMC_FORM_REPORT_HEADER': 'Report Header',
+  'AMC_FORM_SITE_DETAILS': 'Site Details',
+  'AMC_FORM_CHARGE_CONTROLLER_PCU': 'Charge Controller / PCU',
+  'AMC_FORM_OBSERVATION_POINTS': 'Observation Points',
+  'AMC_FORM_CAPTURE_READINGS': 'Capture Readings',
+  'AMC_FORM_NA_NOTE':
+      "If a component is not present at the site, enter 'N/A' in the relevant "
+          'fields.',
+  // "Not Applicable" (PRD 5.2.6): the radio list shows options in sentence
+  // case, which would turn "N/A" into "N/a".
+  'AMC_FORM_NA': 'Not applicable',
+  'AMC_FORM_SAVE_AND_NEXT': 'Save and Next',
+  'AMC_FORM_PHOTO_REQUIRED': 'Photo is required',
+  'AMC_FORM_INVALID_PHONE': 'Enter a valid 10-digit phone number',
+
+  // 1. Report header
+  'AMC_FORM_DATE_OF_VISIT': 'Date of visit',
+  'AMC_FORM_SERVICE_BY': 'Service by',
+  'AMC_FORM_SERVICE_CONTACT_NUMBER': 'Contact number',
+
+  // 2. Site details
+  'AMC_FORM_END_USER_NAME': 'End user name',
+  'AMC_FORM_END_USER_CONTACT_NUMBER': 'Contact number',
+  'AMC_FORM_INSTALLATION_DATE': 'Date of installation',
+  'AMC_FORM_BLOCK': 'Taluk / Block',
+  'AMC_FORM_DISTRICT': 'District',
+  'AMC_FORM_PINCODE': 'PIN code',
+  'AMC_FORM_PURCHASE_ORDER_NUMBER': 'Purchase order no',
+
+  // 3. Charge controller / PCU
+  'AMC_FORM_PCU_PRIORITY': 'Priority',
+  'AMC_FORM_SOLAR_BATTERY_GRID': 'Solar-Battery-Grid',
+  'AMC_FORM_SOLAR_GRID_BATTERY': 'Solar-Grid-Battery',
+  'AMC_FORM_PANELS_PER_STRING': 'No of panels in a string',
+
+  // 4. Observation points
+  'AMC_FORM_SECTION_SOLAR_PANEL': 'Solar panel',
+  'AMC_FORM_SOLAR_CABLES_TIED': 'Cables are tied to the frame / protection',
+  'AMC_FORM_SOLAR_PANELS_CLEAN': 'Are the panels clean?',
+  'AMC_FORM_SOLAR_MMS_RUSTING': 'Rusting on MMS',
+  'AMC_FORM_SOLAR_NUTS_BOLTS_RUSTING': 'Rusting on nuts and bolts',
+  'AMC_FORM_SECTION_AJB': 'Array junction box (AJB)',
+  'AMC_FORM_AJB_MOUNTED_FIRM': 'AJB is mounted firm to the vertical surface',
+  'AMC_FORM_SECTION_BATTERY': 'Battery',
+  'AMC_FORM_BATTERY_TERMINALS_CLEAN': 'Are battery terminals clean?',
+  'AMC_FORM_BATTERY_PETROLEUM_JELLY':
+      'Petroleum jelly is applied at all battery terminals',
+  'AMC_FORM_BATTERY_FLOAT_INDICATORS_OK': 'Float indicators are not damaged',
+  'AMC_FORM_BATTERY_WATER_LEVEL_OK':
+      'Is the distilled water level between the green and red marks on the '
+          'float indicator?',
+  'AMC_FORM_SECTION_INVERTER_PCU': 'Inverter / PCU',
+  'AMC_FORM_PCU_CABLES_INTACT':
+      'Cables entering the PCU are intact, without loose connections',
+  'AMC_FORM_SECTION_LIGHTNING_ARRESTOR': 'Lightning arrestor (LA)',
+  'AMC_FORM_LA_INSULATION':
+      'Insulation is provided between the LA and the elevation pole using '
+          'ceramic insulators',
+  'AMC_FORM_LA_FIRMLY_FIXED':
+      'The entire lightning arrestor set-up is firmly fixed over the roof '
+          'surface',
+  'AMC_FORM_LA_SADDLE_INSULATORS':
+      'GI strips / cable are provided with saddle insulators on the RCC roof',
+  'AMC_FORM_SECTION_EARTHING': 'Earthing',
+  'AMC_FORM_EARTHING_CONDUIT':
+      'Down conductor is protected with conduit pipe until the pit',
+  'AMC_FORM_EARTHING_CABLE_CONTACT':
+      'Is the earthing cable in full contact with the electrode?',
+  'AMC_FORM_EARTHING_ELECTRODES_BURIED':
+      'Earth electrodes are buried well in the earth',
+  'AMC_FORM_SECTION_CABLE_MANAGEMENT': 'Cable management',
+  'AMC_FORM_CABLE_LUGS_USED': 'Cable lugs are used for termination',
+  'AMC_FORM_CABLE_LUGS_CRIMPED': 'Cable lugs are properly crimped',
+  'AMC_FORM_CABLE_LUGS_INSULATED': 'Cable lugs are insulated',
+  'AMC_FORM_MC4_INTERLOCKED': 'MC4 connectors are properly interlocked',
+
+  // 5. Capture readings
+  'AMC_FORM_PCU_NEUTRAL_EARTH_VOLTAGE':
+      'Neutral to earth voltage at PCU output (V)',
+  'AMC_FORM_PCU_NEUTRAL_EARTH_VOLTAGE_PHOTO':
+      'Photo: neutral to earth voltage at PCU output',
+  'AMC_FORM_GRID_NEUTRAL_EARTH_VOLTAGE':
+      'Neutral to earth voltage for grid input (V)',
+  'AMC_FORM_GRID_NEUTRAL_EARTH_VOLTAGE_PHOTO':
+      'Photo: neutral to earth voltage for grid input',
+  'AMC_FORM_INVERTER_OUTPUT_VOLTAGE':
+      'Inverter output voltage, with solar and grid disconnected and battery '
+          'connected (V)',
+  'AMC_FORM_EARTHING_ELECTRODE_AVAILABLE': 'Earthing electrode available',
+  'AMC_FORM_EARTHING_WIRE_CONNECTED': 'Earthing wire connected to earth pit',
+  'AMC_FORM_BATTERY_SPECIFIC_GRAVITY':
+      'Battery specific gravity, measured through hydrometer',
+  'AMC_FORM_GOOD': 'Good',
+  'AMC_FORM_OK': 'OK',
+  'AMC_FORM_BAD': 'Bad',
+  'AMC_FORM_BATTERY_SPECIFIC_GRAVITY_ACTION':
+      'Action taken (for specific gravity)',
+  'AMC_FORM_SOLAR_SPD': 'Solar SPD',
+  'AMC_FORM_SOLAR_SPD_PHOTO': 'Solar SPD photo',
+  'AMC_FORM_SOLAR_SPD_ACTION': 'Solar SPD action taken',
+  'AMC_FORM_GRID_SPD': 'Grid input SPD',
+  'AMC_FORM_GRID_SPD_PHOTO': 'Grid input SPD photo',
+  'AMC_FORM_GRID_SPD_ACTION': 'Grid input SPD action taken',
+  'AMC_FORM_WORKING': 'Working',
+  'AMC_FORM_FAILED': 'Failed',
+  'AMC_FORM_SECTION_REMARKS': 'Remarks',
+  'AMC_FORM_VENDOR_REMARKS': 'Vendor remarks',
+  'AMC_FORM_END_USER_REMARKS': 'End user remarks',
 
   // Verification photograph (#248)
   'AMC_MEDIA_UPLOAD_VERIFICATION_PHOTO_TITLE': 'Verification Photograph',
@@ -152,3 +265,22 @@ const Map<String, String> dummyAmcLocalization = {
   'MACHINE_FORM_GALLERY_PERMISSION_REQUIRED':
       'Photo access is required. Please allow access and try again.',
 };
+
+/// DUMMY-BACKEND: the forms engine translates the AMC form's labels from
+/// this list only, so the dummy AMC texts (`dummyAmcLocalization`) are added
+/// for codes the server has no message for. Server messages always win.
+List<Localization> withDummyAmcLocalizations(
+    List<Localization> strings, String locale) {
+  if (!kAmcUseDummyBackend) return strings;
+  final known = {for (final s in strings) s.code};
+  return [
+    ...strings,
+    for (final entry in dummyAmcLocalization.entries)
+      if (!known.contains(entry.key))
+        Localization()
+          ..code = entry.key
+          ..message = entry.value
+          ..module = 'dummy-amc'
+          ..locale = locale,
+  ];
+}

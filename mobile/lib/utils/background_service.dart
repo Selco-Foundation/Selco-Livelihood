@@ -26,7 +26,11 @@ import '../repositories/operation_progress_repo.dart';
 import '../repositories/pending_submission_repository.dart';
 import '../repositories/vendor_org_repository.dart';
 import 'amc/amc_utils.dart'
-    show amcServerError, getFilestoreUrl, isAmcConnectivityError;
+    show
+        amcServerError,
+        getFilestoreUrl,
+        isAmcConnectivityError,
+        isAmcReadingPhotoField;
 import 'envConfig.dart';
 import 'operation_progress.dart';
 import 'submission_payload.dart';
@@ -356,6 +360,24 @@ Future<void> _performScheduleVisitSubmission({
         ),
       ),
     );
+  }
+
+  // #250: reading photos (`*_photo` answers) are uploaded too. The answer
+  // then holds the filestore id, and the photo is also listed in the
+  // report's documents with the field name as its document type.
+  for (final key in responses.keys.where(isAmcReadingPhotoField).toList()) {
+    final value = responses[key]?.toString().trim() ?? '';
+    if (value.isEmpty) continue;
+    final fileStoreId = await getFilestoreUrl(value);
+    if (fileStoreId.startsWith('/')) {
+      throw Exception('A reading photo is missing from this device.');
+    }
+    responses[key] = fileStoreId;
+    visitDocuments.add(AmcDocument(
+      documentType: key,
+      fileStore: fileStoreId,
+      documentUid: 'DOC-AMC-$key-${DateTime.now().millisecondsSinceEpoch}',
+    ));
   }
 
   // Pre-report system status answers (#247), sent with the report.

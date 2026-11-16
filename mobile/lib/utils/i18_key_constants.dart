@@ -18,6 +18,7 @@ const amcHome = AmcHome();
 const amcReportHome = AmcReportHome();
 const amcSelectFacility = AmcSelectFacility();
 const amcDynamicForm = AmcDynamicForm();
+const amcForm = AmcFormText();
 const amcSystemStatus = AmcSystemStatusText();
 const amcOtp = AmcOtp();
 const amcDraft = AmcDraft();
@@ -401,6 +402,15 @@ class AmcDynamicForm {
   const AmcDynamicForm();
 
   String get loading => 'AMC_DYNAMIC_FORM_LOADING';
+}
+
+/// Livelihood AMC report form (#250). The field labels, section headings and
+/// options are in the form's MDMS record (`AMC_FORM_*`).
+class AmcFormText {
+  const AmcFormText();
+
+  String get naNote => 'AMC_FORM_NA_NOTE';
+  String get photoRequired => 'AMC_FORM_PHOTO_REQUIRED';
 }
 
 /// Pre-report system status questions (#247).
