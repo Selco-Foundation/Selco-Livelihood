@@ -15,6 +15,7 @@ import '../repositories/asset_mdms_repository.dart';
 import '../repositories/installation_draft_repository.dart';
 import '../router/app_router.dart';
 import '../utils/dynamic_form_schema.dart';
+import '../utils/form_date_value.dart';
 import '../utils/dropdown_validation.dart';
 import '../widgets/predefined_dropdown_field.dart';
 import '../utils/extensions.dart';
@@ -150,7 +151,8 @@ class _DynamicBomFormPageState extends State<DynamicBomFormPage> {
 
   SchemaObject _updatedSchema(FormGroup form, PropertySchema page) {
     final schema = _schema!;
-    final values = JsonForms.getFormValues(form, page);
+    final values = Map<String, dynamic>.from(
+        formValueForStorage(page, JsonForms.getFormValues(form, page)));
     final updatedPage = page.copyWith(
       properties: Map.fromEntries(
         page.properties?.entries.map(
@@ -183,7 +185,8 @@ class _DynamicBomFormPageState extends State<DynamicBomFormPage> {
         .read<FormsBloc>()
         .add(FormsUpdateEvent(schema: updated, schemaKey: _schemaKey));
     if (!widget.readOnly) {
-      final values = JsonForms.getFormValues(form, page);
+      final values = Map<String, dynamic>.from(
+          formValueForStorage(page, JsonForms.getFormValues(form, page)));
       widget.draft.dynamicFormAnswers
           .putIfAbsent(widget.schemaName, () => <String, dynamic>{})
           .addAll(values);
