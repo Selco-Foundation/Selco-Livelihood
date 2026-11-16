@@ -279,6 +279,60 @@ void main() {
     });
   });
 
+  group('AMC 30-day submission window', () {
+    final now = DateTime(2026, 11, 12, 10, 30);
+    ScheduledVisit visitOn(DateTime? date, {String status = 'SCHEDULED'}) =>
+        ScheduledVisit(id: 'v', status: status, scheduledDate: date);
+
+    test('SCHEDULED visits are listed up to 30 days ahead, by date', () {
+      expect(amcSubmissionWindowEnd(now),
+          DateTime(2026, 12, 12, 23, 59, 59, 999));
+      expect(visitOn(DateTime(2026, 12, 12, 23, 59))
+          .isWithinAmcSubmissionWindow(now), isTrue);
+      expect(visitOn(DateTime(2026, 12, 13)).isWithinAmcSubmissionWindow(now),
+          isFalse);
+      // No lower limit: overdue visits stay listed.
+      expect(visitOn(DateTime(2025, 1, 1)).isWithinAmcSubmissionWindow(now),
+          isTrue);
+      expect(visitOn(null).isWithinAmcSubmissionWindow(now), isFalse);
+    });
+
+    test('only SCHEDULED visits are hidden', () {
+      final far = DateTime(2027, 6, 1);
+      for (final status in [
+        'PENDING_OTP_APPROVAL',
+        'PENDING_APPROVAL',
+        'APPROVED',
+        'REJECTED',
+      ]) {
+        expect(visitOn(far, status: status).isWithinAmcSubmissionWindow(now),
+            isTrue,
+            reason: status);
+      }
+    });
+
+    test('dummy backend hides SCHEDULED visits more than 30 days ahead',
+        () async {
+      final dir = Directory.systemTemp.createTempSync('amc_dummy_window');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final backend = DummyAmcRemoteDataSource(
+          latency: Duration.zero, storageDirectory: () async => dir);
+
+      final res = await backend.searchVisits(
+        searchCriteria: {
+          'statuses': const ['SCHEDULED'],
+          'scheduledDateTo': amcSubmissionWindowEnd().millisecondsSinceEpoch,
+        },
+        limit: 20,
+        offset: 0,
+      );
+      final ids = (res['ScheduledVisits'] as List).map((v) => v['id']).toSet();
+      expect(ids, contains('dummy-visit-010')); // +30 days
+      expect(ids, contains('dummy-visit-008')); // overdue
+      expect(ids, isNot(contains('dummy-visit-011'))); // +31 days
+    });
+  });
+
   group('Dummy AMC backend', () {
     late Directory dir;
     late DummyAmcRemoteDataSource backend;

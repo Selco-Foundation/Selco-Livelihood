@@ -142,13 +142,23 @@ class ScheduledVisitRepository {
     final accessInfo = await SecureStore().getAccessInfo();
     final assignedUserUuid = accessInfo?.userRequest?.uuid;
     final now = DateTime.now();
+    // Not-started visits are only listed from 30 days before their
+    // Scheduled AMC Date. Only applied server-side when every requested
+    // status is SCHEDULED, since the date filter covers the whole query.
+    final scheduledOnly = statuses.isNotEmpty &&
+        statuses.every(
+            (s) => s == WORKFLOW_STATUS_AMC_FIELD_STAFF.SCHEDULED.name);
     final criteria = ScheduledVisitSearchCriteria(
       tenantId: envConfig.variables.tenantId,
       facilityName: facilityName,
       assignedUsers: assignedUserUuid == null ? null : [assignedUserUuid],
       statuses: statuses,
       // "AMC delayed": Scheduled AMC Date before today.
-      scheduledTo: delayedOnly ? amcDelayedScheduledBefore(now) : null,
+      scheduledTo: delayedOnly
+          ? amcDelayedScheduledBefore(now)
+          : scheduledOnly
+              ? amcSubmissionWindowEnd(now)
+              : null,
       sortDirection: sortDirection,
     );
     final isar = await _isar;
@@ -206,6 +216,7 @@ class ScheduledVisitRepository {
           .where((visit) =>
               matchesFacilityName(visit.facility?.facilityName, facilityName))
           .where((visit) => !delayedOnly || visit.isAmcDelayed(now))
+          .where((visit) => visit.isWithinAmcSubmissionWindow(now))
           .toList();
       eligible.sort((a, b) {
         final order = (a.scheduledDate ?? DateTime(1970))
