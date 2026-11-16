@@ -48,4 +48,14 @@ public class ScheduledVisit {
     private List<ScheduledVisitAssignment> assignments;
     private Map<String, Object> additionalDetails;
     private AuditDetails auditDetails;
+
+    // Livelihood columns (LLD 07 §7.1). Persisted by the AMC persister; null until set.
+    // The vendor org that does this visit (kept for history when the AMC moves to another org).
+    private String vendorId;
+    // Set once, when the first report's service code is verified; dates the next visit.
+    private Long firstSubmissionDate;
+    // Set on every final submission (code verified); drives the review SLA.
+    private Long latestSubmissionDate;
+    // SYSTEM (auto-approved) or REVIEWER; null until approved.
+    private String approvedBy;
 }

@@ -42,7 +42,8 @@ public class ScheduledVisitMapper implements RowMapper<ScheduledVisit> {
         // ResultSet.getLong maps SQL NULL to 0, which would defeat the null guards downstream
         // (the AMC report PDF would render epoch 0 as 01-01-1970), so read it as a true null.
         visit.setActualVisitDate(getNullableLong(rs, "sv_actual_visit_date"));
-        visit.setLastVisitDate(rs.getLong("sv_last_scheduled_visit_date"));
+        // NULL stays null (review A14): getLong alone would turn it into 0 and the update would write 0.
+        visit.setLastVisitDate(getNullableLong(rs, "sv_last_scheduled_visit_date"));
         visit.setStatus(rs.getString("sv_status"));
         visit.setIsActive(rs.getBoolean("sv_is_active"));
 
@@ -56,6 +57,23 @@ public class ScheduledVisitMapper implements RowMapper<ScheduledVisit> {
                 throw new SQLException("Error parsing visit_report JSON", e);
             }
         }
+
+        // additional_details (JSONB → Map). E4H never read it, so every update wiped it (review A4).
+        String additionalDetailsJson = rs.getString("sv_additional_details");
+        if (additionalDetailsJson != null) {
+            try {
+                visit.setAdditionalDetails(objectMapper.readValue(additionalDetailsJson,
+                        new TypeReference<Map<String, Object>>() {}));
+            } catch (Exception e) {
+                throw new SQLException("Error parsing scheduled visit additional_details JSON", e);
+            }
+        }
+
+        // Livelihood columns (LLD 07 §7.1)
+        visit.setVendorId(rs.getString("sv_vendor_id"));
+        visit.setFirstSubmissionDate(getNullableLong(rs, "sv_first_submission_date"));
+        visit.setLatestSubmissionDate(getNullableLong(rs, "sv_latest_submission_date"));
+        visit.setApprovedBy(rs.getString("sv_approved_by"));
 
         // Audit
         AuditDetails auditDetails = new AuditDetails();
