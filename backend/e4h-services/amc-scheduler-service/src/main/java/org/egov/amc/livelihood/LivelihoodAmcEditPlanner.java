@@ -165,7 +165,7 @@ public final class LivelihoodAmcEditPlanner {
         return visits.stream().filter(v -> REMOVED_ON_TURN_OFF.contains(v.status())).map(VisitFact::id).toList();
     }
 
-    static String activeFieldStaff(AmcConfiguration cfg) {
+    public static String activeFieldStaff(AmcConfiguration cfg) {
         if (cfg.getAssignments() != null) {
             for (AmcConfigurationAssignment a : cfg.getAssignments()) {
                 if (a.isActive()) {

@@ -25,7 +25,7 @@ public class AmcConfigurationQueryBuilder {
             "ac.visit_frequency_months as amc_visit_frequency_months, ac.configuration_start_date as amc_configuration_start_date, ac.configuration_end_date as amc_configuration_end_date, ac.status AS amc_status, ac.is_active AS amc_is_active, ac.geography_details AS amc_geography_details, ac.additional_details AS amc_additional_details, ac.amc_plan_id AS amc_amc_plan_id, ac.activity_facility_id AS amc_activity_facility_id, ac.created_by AS amc_created_by, " +
             "ac.created_time AS amc_created_time, ac.last_modified_by AS amc_last_modified_by, ac.last_modified_time AS amc_last_modified_time, " +
             "f.id as facility_id, f.facility_name, f.facility_type, f.facility_category, f.facility_subtype, f.facility_ownership, f.facility_region, " +
-            "f.facility_details, f.boundary_code, f.is_active AS facility_is_active, " +
+            "f.facility_details, f.boundary_code, f.is_active AS facility_is_active, f.facility_poc_phone AS facility_poc_phone, " +
             "p.id as project_id, p.name AS project_name, p.description AS project_description, p.projectnumber AS project_number, p.projectsubtype AS project_subtype, " +
             "p.projecttype AS project_type, p.startdate AS project_start_date, p.enddate AS project_end_date, p.status AS project_status, p.additionalDetails as project_additionalDetails, " +
             "COALESCE(" +
@@ -115,7 +115,7 @@ public class AmcConfigurationQueryBuilder {
                 "    ac.last_modified_by, ac.last_modified_time,\n" +
                 "    f.id, f.facility_name, f.facility_type, f.facility_category,\n" +
                 "    f.facility_subtype, f.facility_ownership, f.facility_region,\n" +
-                "    f.facility_details, f.boundary_code, f.is_active,\n" +
+                "    f.facility_details, f.boundary_code, f.is_active, f.facility_poc_phone,\n" +
                 "    p.id, p.name, p.description, p.projectnumber,\n" +
                 "    p.projectsubtype, p.projecttype, p.startdate,\n" +
                 "    p.enddate, p.status, p.additionalDetails";

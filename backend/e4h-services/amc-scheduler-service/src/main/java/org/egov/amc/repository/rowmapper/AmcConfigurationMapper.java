@@ -52,6 +52,7 @@ public class AmcConfigurationMapper implements RowMapper<AmcConfiguration> {
         facility.setFacilityCategory(rs.getString("facility_category"));
         facility.setFacilityOwnership(rs.getString("facility_ownership"));
         facility.setBoundaryCode(rs.getString("boundary_code"));
+        facility.setFacilityPocPhone(rs.getString("facility_poc_phone"));   // encrypted at rest; decrypted by the Livelihood enrichment
         facility.setIsActive(rs.getBoolean("facility_is_active"));
         facility.setFacilityRegion(rs.getString("facility_region"));
 
