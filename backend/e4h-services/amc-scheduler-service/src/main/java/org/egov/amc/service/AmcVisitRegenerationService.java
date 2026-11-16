@@ -94,7 +94,7 @@ public class AmcVisitRegenerationService {
                         || !Objects.equals(configurationFromDB.getConfigurationStartDate(), updatedConfiguration.getConfigurationStartDate());
         if (!scheduleChanged) {
             log.debug("Schedule unchanged for configurationId: {}, visits left as-is", updatedConfiguration.getId());
-            List.of();
+            return List.of();
         }
 
         Long startDate = updatedConfiguration.getConfigurationStartDate() != null
