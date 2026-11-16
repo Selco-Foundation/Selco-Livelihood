@@ -92,19 +92,35 @@ public class LivelihoodNextVisitService {
             log.info("No next visit: visit {} is the last of AMC {}", visitNumber, cfg.getId());
             return null;
         }
-        long due = nextDueDay(firstSubmissionDate, cfg.getVisitFrequencyMonths());
+        return createVisit(cfg, next, nextDueDay(firstSubmissionDate, cfg.getVisitFrequencyMonths()), caller);
+    }
+
+    /** Re-activates a visit an earlier edit removed (same fixed id): due date and reminder reset (review A3). */
+    static final String REACTIVATE_SQL = "UPDATE scheduled_visits SET is_active = true, scheduled_date = ?, reminder_sent_at = NULL,"
+            + " last_modified_by = ?, last_modified_time = ? WHERE id = ? AND is_active = false";
+
+    /**
+     * Visit n of an AMC (fixed id): a removed one with that id is brought back; otherwise SCHEDULE first (system user),
+     * then the row. Returns the visit, or null when it already existed (live).
+     */
+    public ScheduledVisit createVisit(AmcConfiguration cfg, int visitNumber, long due, RequestInfo caller) {
         String by = caller != null && caller.getUserInfo() != null ? caller.getUserInfo().getUuid() : systemUser.user().getUuid();
-        ScheduledVisit visit = ActivationPlan.visit(cfg, next, due, util.getAuditDetails(by, null, true));
+        ScheduledVisit visit = ActivationPlan.visit(cfg, visitNumber, due, util.getAuditDetails(by, null, true));
+        int reactivated = jdbcTemplate.update(REACTIVATE_SQL, due, by, System.currentTimeMillis(), visit.getId());
+        if (reactivated > 0) {
+            log.info("Brought back removed visit {} of AMC {}, due {}", visitNumber, cfg.getId(), istDay(due));
+            return visit;
+        }
         RequestInfo sys = systemUser.requestInfo();
         if (!activation.scheduleIfNeeded(visit, sys)) {
-            log.info("Visit {} of AMC {} already exists", next, cfg.getId());
+            log.info("Visit {} of AMC {} already exists", visitNumber, cfg.getId());
             return null;
         }
         Map<String, Object> message = new LinkedHashMap<>();
         message.put("RequestInfo", sys);
         message.put("ScheduledVisit", List.of(visit));
         producer.push(config.getSaveScheduledVisitTopic(), message);
-        log.info("Created visit {} of AMC {}, due {}", next, cfg.getId(), istDay(due));
+        log.info("Created visit {} of AMC {}, due {}", visitNumber, cfg.getId(), istDay(due));
         return visit;
     }
 

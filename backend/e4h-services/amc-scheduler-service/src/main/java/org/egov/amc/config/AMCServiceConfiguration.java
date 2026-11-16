@@ -296,6 +296,10 @@ public class AMCServiceConfiguration {
     @Value("${amc.livelihood.lazy.generation.enabled:true}")
     private boolean lazyGenerationEnabled;
 
+    /** Livelihood Edit AMC: only the upcoming visit moves (LLD §6.5). false = E4H update path. */
+    @Value("${amc.livelihood.edit.upcoming.only:true}")
+    private boolean editUpcomingOnly;
+
     /** Auto-approval against MDMS AMC.AutoApprovalRules at code verification (LLD §6.8). false = every report to a reviewer. */
     @Value("${amc.livelihood.auto.approval.enabled:true}")
     private boolean autoApprovalEnabled;

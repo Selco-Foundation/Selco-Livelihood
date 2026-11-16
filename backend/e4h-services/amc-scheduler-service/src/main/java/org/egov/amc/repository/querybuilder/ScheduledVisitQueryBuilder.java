@@ -96,12 +96,18 @@ public class ScheduledVisitQueryBuilder {
      * unless includeDeleted is requested. Visits with no configuration link at all are left visible -
      * hiding them would be a silent behaviour change for data that predates the soft delete.
      */
-    private static void addIsActiveConfigurationCondition(StringBuilder queryBuilder, List<Object> preparedStmtList, Boolean includeDeleted) {
+    private void addIsActiveConfigurationCondition(StringBuilder queryBuilder, List<Object> preparedStmtList, Boolean includeDeleted) {
         if (Boolean.TRUE.equals(includeDeleted)) {
             return;
         }
         addClauseIfRequired(preparedStmtList, queryBuilder);
-        queryBuilder.append(" sv.is_active = true AND (ac.id IS NULL OR ac.is_active = true) ");
+        if (config != null && config.isLivelihoodScheduleEnabled()) {
+            // Livelihood (LLD §6.5): turning an AMC off removes its unfinished visits itself; the reports already in
+            // review or approved stay visible (and actionable), so only the visit's own flag counts.
+            queryBuilder.append(" sv.is_active = true ");
+        } else {
+            queryBuilder.append(" sv.is_active = true AND (ac.id IS NULL OR ac.is_active = true) ");
+        }
     }
 
     /* Add conditional clause */

@@ -53,6 +53,10 @@ public class AmcConfigurationService {
     @Qualifier("objectMapper")
     ObjectMapper mapper;
 
+    /** Livelihood Edit AMC and turning AMC off. */
+    @Autowired
+    private org.egov.amc.livelihood.LivelihoodAmcEditService livelihoodAmcEditService;
+
     @Autowired
     public AmcConfigurationService(
             AmcConfigurationRepository amcConfigurationRepository, AmcConfigurationValidator amcConfigurationValidator, ScheduledVisitRepository scheduledVisitRepository, AmcConfigurationEnrichment amcConfigurationEnrichment, AMCServiceConfiguration amcConfigurationConfiguration,
@@ -178,6 +182,11 @@ public class AmcConfigurationService {
 
     public AmcConfigurationRequest updateAmcConfiguration(AmcConfigurationRequest request) {
         log.trace("Entering updateAmcConfiguration method");
+        if (amcServiceConfiguration.isLivelihoodScheduleEnabled() && amcServiceConfiguration.isEditUpcomingOnly()) {
+            // Livelihood Edit AMC (LLD §6.5): minimal body, only the upcoming visit moves; no E4H regeneration.
+            request.setAmcConfigurations(livelihoodAmcEditService.update(request));
+            return request;
+        }
         /*
          * Only enough validation to safely search the DB by id - full validation runs further down,
          * once the sentinel fields below have been resolved into real values.
@@ -355,6 +364,11 @@ public class AmcConfigurationService {
      */
     public AmcConfigurationRequest deleteAmcConfiguration(AmcConfigurationRequest request) {
         log.trace("Entering deleteAmcConfiguration method");
+        if (amcServiceConfiguration.isLivelihoodScheduleEnabled()) {
+            // Livelihood (LLD §6.5): unfinished visits removed, submitted work stays visible; COMPLETED can't be turned off.
+            request.setAmcConfigurations(livelihoodAmcEditService.turnOff(request));
+            return request;
+        }
         amcConfigurationValidator.validateDeleteAmcConfigurationRequest(request);
 
         List<AmcConfiguration> amcConfigurationsFromDB = searchAmcConfiguration(
