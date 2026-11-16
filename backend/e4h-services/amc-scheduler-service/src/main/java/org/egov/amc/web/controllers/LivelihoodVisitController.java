@@ -4,12 +4,14 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 import org.egov.amc.livelihood.LivelihoodSystemStatus;
 import org.egov.amc.livelihood.ProjectSummaryService;
+import org.egov.amc.livelihood.ReminderService;
 import org.egov.amc.livelihood.SystemStatusService;
 import org.egov.common.contract.request.RequestInfo;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.LinkedHashMap;
@@ -23,10 +25,21 @@ public class LivelihoodVisitController {
 
     private final SystemStatusService systemStatus;
     private final ProjectSummaryService projectSummary;
+    private final ReminderService reminders;
 
-    public LivelihoodVisitController(SystemStatusService systemStatus, ProjectSummaryService projectSummary) {
+    public LivelihoodVisitController(SystemStatusService systemStatus, ProjectSummaryService projectSummary, ReminderService reminders) {
         this.systemStatus = systemStatus;
         this.projectSummary = projectSummary;
+        this.reminders = reminders;
+    }
+
+    /**
+     * Runs the reminder job now (open point P1). Ops only, in-cluster: no web role, like {@code _activate-pending}.
+     * Same rules as the daily run, so a second call the same day sends nothing new.
+     */
+    @RequestMapping(value = "/reminder/_run", method = RequestMethod.POST)
+    public ResponseEntity<Map<String, Object>> runReminders(@RequestParam(required = false) String tenantId) {
+        return ResponseEntity.ok(reminders.run(tenantId == null || tenantId.isBlank() ? "livelihood" : tenantId));
     }
 
     @Data

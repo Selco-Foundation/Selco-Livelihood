@@ -57,10 +57,13 @@ public class FieldStaffChangeService {
     private final AmcConfigurationServiceUtil util;
     private final Producer producer;
     private final JdbcTemplate jdbcTemplate;
+    private final ReminderService reminders;
 
     public FieldStaffChangeService(AMCServiceConfiguration config, AmcConfigurationRepository configurationRepository,
                                    ScheduledVisitRepository visitRepository, VendorOrgDirectory vendors, VisitWorkflowService workflow,
-                                   SystemUserProvider systemUser, AmcConfigurationServiceUtil util, Producer producer, JdbcTemplate jdbcTemplate) {
+                                   SystemUserProvider systemUser, AmcConfigurationServiceUtil util, Producer producer, JdbcTemplate jdbcTemplate,
+                                   ReminderService reminders) {
+        this.reminders = reminders;
         this.config = config;
         this.configurationRepository = configurationRepository;
         this.visitRepository = visitRepository;
@@ -119,10 +122,17 @@ public class FieldStaffChangeService {
         AuditDetails audit = util.getAuditDetails(caller.getUserInfo().getUuid(), null, true);
         List<Map<String, Object>> result = new ArrayList<>();
         List<RowPlan> plans = new ArrayList<>();
+        List<ScheduledVisit> remindAgain = new ArrayList<>();
+        Map<String, String> remindTo = new HashMap<>();
         for (Update u : updates) {
             AmcConfiguration cfg = running.get(u.activityFacilityId());
+            String staffBefore = LivelihoodAmcEditPlanner.activeFieldStaff(cfg);
             RowPlan p = FieldStaffChangePlanner.plan(u, cfg, visits.getOrDefault(cfg.getId(), List.of()), audit);
             plans.add(p);
+            for (ScheduledVisit v : FieldStaffChangePlanner.reminderResendCandidates(p, staffBefore, u.fieldStaffUserId())) {
+                remindAgain.add(v);
+                remindTo.put(v.getId(), u.fieldStaffUserId());
+            }
             Map<String, Object> r = new LinkedHashMap<>();
             r.put("activityFacilityId", u.activityFacilityId());
             r.put("amcConfigurationId", cfg.getId());
@@ -162,7 +172,16 @@ public class FieldStaffChangeService {
         if (!visitRows.isEmpty()) {
             producer.push(config.getUpdateScheduledVisitTopic(), message(caller, "ScheduledVisit", visitRows));
         }
-        log.info("field-staff/_update: {} row(s), {} changed, {} visit(s) moved", updates.size(), configs.size(), visitRows.size());
+
+        // 4. reminder already out with the old person's number: send it again with the new one (never fails the change)
+        int resent = 0;
+        Map<String, List<ScheduledVisit>> byUser = new LinkedHashMap<>();
+        remindAgain.forEach(v -> byUser.computeIfAbsent(remindTo.get(v.getId()), k -> new ArrayList<>()).add(v));
+        for (Map.Entry<String, List<ScheduledVisit>> e : byUser.entrySet()) {
+            resent += reminders.resendAfterFieldStaffChange(e.getValue(), e.getKey());
+        }
+        log.info("field-staff/_update: {} row(s), {} changed, {} visit(s) moved, {} reminder(s) resent", updates.size(), configs.size(),
+                visitRows.size(), resent);
         return result;
     }
 

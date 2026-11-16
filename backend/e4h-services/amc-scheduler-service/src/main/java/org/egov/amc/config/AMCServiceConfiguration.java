@@ -318,4 +318,15 @@ public class AMCServiceConfiguration {
     /** pdf-service key; Configs-Livelihood pdf-service/{data,format}-config/amc-report.json. */
     @Value("${amc.pdf.key:amc-report}")
     private String amcPdfKey;
+
+    /** Daily reminder SMS job (LLD §6.8; cron amc.reminder.cron, 09:30 IST). false = the job does nothing. */
+    @Value("${amc.livelihood.reminder.enabled:true}")
+    private boolean reminderEnabled;
+
+    /** PRD 7.4 wording; must match the DLT template exactly. {Date} and {Vendor number} are filled in. */
+    @Value("${amc.reminder.sms.template:Dear User, the annual maintenance (AMC) of your solar system is scheduled on {Date}. Please contact your vendor on {Vendor number} to confirm the visit and for any details. Thank you. SELCO Foundation}")
+    private String reminderSmsTemplate;
+
+    @Value("${amc.reminder.date.format:dd/MM/yyyy}")
+    private String reminderDateFormat;
 }

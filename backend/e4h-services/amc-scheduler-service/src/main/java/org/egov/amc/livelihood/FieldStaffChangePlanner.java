@@ -176,6 +176,19 @@ public final class FieldStaffChangePlanner {
         return new RowPlan(cfg, updates, resets);
     }
 
+    /**
+     * Visits whose reminder may need resending with the new person's number (LLD §6.6): moved New visits only,
+     * when the field staff changed. A visit reset from PENDING_OTP_APPROVAL is left out (the visit happened and the
+     * end user already got the code SMS); the resend claim also checks it was reminded and is not yet past due.
+     */
+    public static List<ScheduledVisit> reminderResendCandidates(RowPlan p, String fieldStaffBefore, String fieldStaffAfter) {
+        if (p.configuration() == null || Objects.equals(fieldStaffBefore, fieldStaffAfter)) {
+            return List.of();
+        }
+        return p.visitUpdates().stream().filter(v -> !p.resets().contains(v) && "SCHEDULED".equals(v.getStatus())
+                && !isSet(v.getFirstSubmissionDate())).toList();
+    }
+
     /** REJECTED visits whose org is not the AMC's (left behind by an org change). */
     static List<ScheduledVisit> rejectedLeftWithOtherOrg(List<ScheduledVisit> visits, String amcOrg) {
         return visits.stream().filter(v -> "REJECTED".equals(v.getStatus()) && v.getVendorId() != null
