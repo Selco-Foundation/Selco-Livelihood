@@ -71,6 +71,10 @@ public class ScheduledVisitService {
     @Qualifier("objectMapper")
     ObjectMapper mapper;
 
+    /** Livelihood report PDF (LLD §6.10); used instead of the E4H PDF when the Livelihood flag is on. */
+    @Autowired
+    private org.egov.amc.livelihood.LivelihoodReportPdfService livelihoodReportPdfService;
+
     @Autowired
     public ScheduledVisitService(
             ScheduledVisitRepository scheduledVisitsRepository, ScheduledVisitValidator scheduledVisitsValidator, ServiceRequestRepository requestRepository, ScheduledVisitEnrichment scheduledVisitsEnrichment, AMCServiceConfiguration scheduledVisitsConfiguration,
@@ -814,7 +818,21 @@ public class ScheduledVisitService {
         // Regenerate on every (re)submission so the form reflects the current visit report - drop any
         // stale AMC form document first, otherwise a re-submission would carry two of them.
         removeExistingAmcInstallationFormDocument(request.getWorkflow());
-        String fileStoreId = amcVisitReportPdfService.generateAmcVisitReportPdf(request, existingVisit, facility);
+        String fileStoreId;
+        if (amcServiceConfiguration.isLivelihoodScheduleEnabled()) {
+            // Step 2.4 moves this into the agreed submit order; until then the submit path makes the Livelihood PDF here.
+            org.egov.common.contract.request.User submitter =
+                    request.getRequestInfo() != null ? request.getRequestInfo().getUserInfo() : null;
+            String name = submitter != null ? submitter.getName() : null;
+            fileStoreId = livelihoodReportPdfService.generate(request.getRequestInfo(), existingVisit, request.getVisitReport(),
+                    facility, name, new org.egov.amc.livelihood.LivelihoodReportPdfData.Step(
+                            request.getWorkflow().getAction(), "PENDING_OTP_APPROVAL", name, System.currentTimeMillis(), null));
+            if (fileStoreId == null) {
+                return; // amc.pdf.enabled=false
+            }
+        } else {
+            fileStoreId = amcVisitReportPdfService.generateAmcVisitReportPdf(request, existingVisit, facility);
+        }
         GeoLocation geoLocation = amcVisitReportPdfService.resolveGeoLocation(request.getVisitReport());
 
         Document pdfDocument = Document.builder()

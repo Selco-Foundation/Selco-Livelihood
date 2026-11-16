@@ -291,4 +291,12 @@ public class AMCServiceConfiguration {
     /** One persister message: create on an already-approved installation (config + visit 1 + asset_amc). */
     @Value("${amc.livelihood.save.active.topic:save-active-amc-configuration}")
     private String saveActiveAmcConfigurationTopic;
+
+    /** Report PDF on every report step (LLD §6.10). false = steps skip the PDF (rollback switch). */
+    @Value("${amc.pdf.enabled:true}")
+    private boolean amcPdfEnabled;
+
+    /** pdf-service key; Configs-Livelihood pdf-service/{data,format}-config/amc-report.json. */
+    @Value("${amc.pdf.key:amc-report}")
+    private String amcPdfKey;
 }
