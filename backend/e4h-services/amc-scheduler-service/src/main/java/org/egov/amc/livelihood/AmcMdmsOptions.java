@@ -67,6 +67,31 @@ public class AmcMdmsOptions {
         return DEFAULT_SUBMISSION_WINDOW_DAYS;
     }
 
+    /** Active rework reason codes from MDMS AMC.RejectionReasons (LLD §6.8); OTHERS is always allowed by the caller. */
+    public Set<String> rejectionReasonCodes(String tenantId, RequestInfo requestInfo) {
+        Map<String, Object> criteria = new HashMap<>();
+        criteria.put("tenantId", tenantId);
+        criteria.put("moduleDetails", List.of(Map.of("moduleName", "AMC", "masterDetails", List.of(Map.of("name", "RejectionReasons")))));
+        Map<String, Object> body = new HashMap<>();
+        body.put("RequestInfo", requestInfo);
+        body.put("MdmsCriteria", criteria);
+        StringBuilder url = new StringBuilder(config.getMdmsHost()).append(config.getMdmsEndPoint());
+        return parseRejectionReasonCodes(mapper.valueToTree(requestRepository.fetchResult(url, body)));
+    }
+
+    static Set<String> parseRejectionReasonCodes(JsonNode root) {
+        Set<String> out = new TreeSet<>();
+        JsonNode list = root == null ? null : root.path("MdmsRes").path("AMC").path("RejectionReasons");
+        if (list != null && list.isArray()) {
+            for (JsonNode n : list) {
+                if (n.path("active").asBoolean(true) && n.path("isActive").asBoolean(true) && n.hasNonNull("code")) {
+                    out.add(n.get("code").asText());
+                }
+            }
+        }
+        return out;
+    }
+
     static Options parse(JsonNode root) {
         JsonNode amc = root == null ? null : root.path("MdmsRes").path("AMC");
         return new Options(active(amc == null ? null : amc.path("Frequency"), "months"),

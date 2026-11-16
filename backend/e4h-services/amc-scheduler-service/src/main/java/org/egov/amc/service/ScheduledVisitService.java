@@ -19,6 +19,8 @@ import org.egov.amc.web.models.*;
 import org.egov.common.contract.models.AuditDetails;
 import org.egov.amc.livelihood.AmcMdmsOptions;
 import org.egov.amc.livelihood.LivelihoodCodeVerify;
+import org.egov.amc.livelihood.LivelihoodCompletionService;
+import org.egov.amc.livelihood.LivelihoodReview;
 import org.egov.amc.livelihood.LivelihoodNextVisitService;
 import org.egov.amc.livelihood.LivelihoodReportPdfData;
 import org.egov.amc.livelihood.LivelihoodReportPdfService;
@@ -88,6 +90,10 @@ public class ScheduledVisitService {
     /** Lazy next visit after the first code verification. */
     @Autowired
     private LivelihoodNextVisitService livelihoodNextVisitService;
+
+    /** AMC completion when every visit is approved. */
+    @Autowired
+    private LivelihoodCompletionService livelihoodCompletionService;
 
     @Autowired
     public ScheduledVisitService(
@@ -680,6 +686,9 @@ public class ScheduledVisitService {
             if (LivelihoodCodeVerify.SUBMIT_OTP.equalsIgnoreCase(request.getWorkflow().getAction())) {
                 return List.of(verifyLivelihoodCode(request, existingVisit, priorStatus));
             }
+            if (LivelihoodReview.isReviewAction(request.getWorkflow().getAction())) {
+                return List.of(reviewLivelihoodReport(request, existingVisit, priorStatus));
+            }
         }
 
         // Step 2: if action is SUBMIT_VISIT_REPORT, check if send OTP is successful or not
@@ -999,6 +1008,65 @@ public class ScheduledVisitService {
                     }
                 });
         log.info("Service code verified for visit {}: status {}", existingVisit.getId(), existingVisit.getStatus());
+        return saved[0];
+    }
+
+    /**
+     * Livelihood APPROVE / REJECT by a reviewer (LLD §6.8). The order lives in {@link LivelihoodReview#run}.
+     * The stored report is kept as is (the web sends an empty one); the step gets its own PDF and history row.
+     */
+    private ScheduledVisit reviewLivelihoodReport(VisitReportSubmissionRequest request, ScheduledVisit existingVisit, String priorStatus) {
+        RequestInfo requestInfo = request.getRequestInfo();
+        String tenantId = existingVisit.getTenantId();
+        String action = request.getWorkflow().getAction().toUpperCase();
+        ScheduledVisit[] saved = new ScheduledVisit[1];
+
+        LivelihoodReview.run(existingVisit, action, requestInfo.getUserInfo(), tenantId, request.getWorkflow().getComment(),
+                System.currentTimeMillis(), new LivelihoodReview.Steps() {
+                    @Override
+                    public java.util.Set<String> activeReasonCodes() {
+                        return amcMdmsOptions.rejectionReasonCodes(tenantId, requestInfo);
+                    }
+
+                    @Override
+                    public String makePdf(String act, String statusAfter, String reviewerName, String fieldStaffName, String comment, long now) {
+                        return livelihoodReportPdfService.generate(requestInfo, existingVisit, existingVisit.getVisitReport(),
+                                existingVisit.getFacility(), fieldStaffName,
+                                new LivelihoodReportPdfData.Step(act, statusAfter, reviewerName, now, comment));
+                    }
+
+                    @Override
+                    public ProcessInstance transition(String act, String pdfFileStoreId) {
+                        removeExistingAmcInstallationFormDocument(request.getWorkflow());
+                        if (pdfFileStoreId != null) {
+                            addAmcFormDocument(request, existingVisit, pdfFileStoreId);
+                        }
+                        try {
+                            return workflowService.transitionWorkflow(existingVisit, act, request.getWorkflow().getDocuments(),
+                                    requestInfo, request.getWorkflow().getComment());
+                        } catch (Exception e) {
+                            log.error("Workflow {} failed for visit {}", act, existingVisit.getId(), e);
+                            throw new CustomException("WORKFLOW_TRANSITION_FAILED",
+                                    "Failed to transition workflow for visit: " + existingVisit.getId());
+                        }
+                    }
+
+                    @Override
+                    public void save(ScheduledVisit visit, ProcessInstance processInstance) {
+                        handleTransactions(request, processInstance);
+                        ScheduledVisit row = VisitRowCopy.fullRow(visit).build();
+                        handleUpdateScheduledVisit(ScheduledVisitRequest.builder().requestInfo(requestInfo)
+                                .scheduledVisits(List.of(row)).build(), row, visit);
+                        saved[0] = row;
+                        amcAnalyticsService.publishVisitWorkflowEvent(visit, action, priorStatus, requestInfo);
+                    }
+
+                    @Override
+                    public void completeIfAllApproved(ScheduledVisit visit) {
+                        livelihoodCompletionService.completeIfAllApproved(visit, requestInfo);
+                    }
+                });
+        log.info("Reviewer {} on visit {}: status {}", action, existingVisit.getId(), existingVisit.getStatus());
         return saved[0];
     }
 
