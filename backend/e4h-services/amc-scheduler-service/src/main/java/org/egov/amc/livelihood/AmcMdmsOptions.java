@@ -44,6 +44,29 @@ public class AmcMdmsOptions {
         return parse(mapper.valueToTree(requestRepository.fetchResult(url, body)));
     }
 
+    /** Days before the due date a first report may be submitted (MDMS AMC.Config.submissionWindowDays; LLD §6.4). */
+    public static final int DEFAULT_SUBMISSION_WINDOW_DAYS = 30;
+
+    public int submissionWindowDays(String tenantId, RequestInfo requestInfo) {
+        Map<String, Object> criteria = new HashMap<>();
+        criteria.put("tenantId", tenantId);
+        criteria.put("moduleDetails", List.of(Map.of("moduleName", "AMC", "masterDetails", List.of(Map.of("name", "Config")))));
+        Map<String, Object> body = new HashMap<>();
+        body.put("RequestInfo", requestInfo);
+        body.put("MdmsCriteria", criteria);
+        StringBuilder url = new StringBuilder(config.getMdmsHost()).append(config.getMdmsEndPoint());
+        return parseSubmissionWindowDays(mapper.valueToTree(requestRepository.fetchResult(url, body)));
+    }
+
+    static int parseSubmissionWindowDays(JsonNode root) {
+        JsonNode list = root == null ? null : root.path("MdmsRes").path("AMC").path("Config");
+        if (list != null && list.isArray() && !list.isEmpty() && list.get(0).path("submissionWindowDays").canConvertToInt()) {
+            int days = list.get(0).path("submissionWindowDays").asInt();
+            return days >= 0 ? days : DEFAULT_SUBMISSION_WINDOW_DAYS;
+        }
+        return DEFAULT_SUBMISSION_WINDOW_DAYS;
+    }
+
     static Options parse(JsonNode root) {
         JsonNode amc = root == null ? null : root.path("MdmsRes").path("AMC");
         return new Options(active(amc == null ? null : amc.path("Frequency"), "months"),
