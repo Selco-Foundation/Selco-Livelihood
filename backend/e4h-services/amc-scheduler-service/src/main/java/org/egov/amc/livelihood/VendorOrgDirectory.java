@@ -25,7 +25,11 @@ import java.util.Set;
 @Component
 public class VendorOrgDirectory {
 
-    public record VendorOrg(String id, String orgType, boolean active) {
+    public record VendorOrg(String id, String orgType, boolean active, String name) {
+        public VendorOrg(String id, String orgType, boolean active) {
+            this(id, orgType, active, null);
+        }
+
         public boolean isActiveVendor() {
             return active && LivelihoodAmc.ORG_TYPE_VENDOR.equalsIgnoreCase(orgType);
         }
@@ -99,7 +103,8 @@ public class VendorOrgDirectory {
         for (JsonNode o : list) {
             String id = o.path("id").asText(null);
             if (id != null) {
-                out.put(id, new VendorOrg(id, o.path("orgType").asText(null), o.path("isActive").asBoolean(false)));
+                out.put(id, new VendorOrg(id, o.path("orgType").asText(null), o.path("isActive").asBoolean(false),
+                        o.path("name").asText(null)));
             }
         }
         return out;
