@@ -940,10 +940,11 @@ public class ScheduledVisitService {
                     @Override
                     public void save(ScheduledVisit visit, ProcessInstance processInstance) {
                         handleTransactions(request, processInstance);
-                        ScheduledVisit row = VisitRowCopy.fullRow(visit).build();
+                        // assignments: [] - only field-staff/_update writes them (review A5)
+                        ScheduledVisit row = VisitRowCopy.fullRow(visit).assignments(List.of()).build();
                         handleUpdateScheduledVisit(ScheduledVisitRequest.builder().requestInfo(requestInfo)
                                 .scheduledVisits(List.of(row)).build(), row, visit);
-                        saved[0] = row;
+                        saved[0] = VisitRowCopy.fullRow(row).assignments(visit.getAssignments()).build();
                         amcAnalyticsService.publishVisitWorkflowEvent(visit, SUBMIT_VISIT_REPORT_ACTION, priorStatus, requestInfo);
                     }
 
@@ -1041,10 +1042,11 @@ public class ScheduledVisitService {
                         }
                         request.setVisitReport(tx);
                         handleTransactions(request, processInstance);
-                        ScheduledVisit row = VisitRowCopy.fullRow(visit).build();
+                        // assignments: [] - only field-staff/_update writes them (review A5)
+                        ScheduledVisit row = VisitRowCopy.fullRow(visit).assignments(List.of()).build();
                         handleUpdateScheduledVisit(ScheduledVisitRequest.builder().requestInfo(requestInfo)
                                 .scheduledVisits(List.of(row)).build(), row, visit);
-                        saved[0] = row;
+                        saved[0] = VisitRowCopy.fullRow(row).assignments(visit.getAssignments()).build();
                         amcAnalyticsService.publishVisitWorkflowEvent(visit, actionTaken[0], priorStatus, requestInfo);
                     }
 
@@ -1106,10 +1108,11 @@ public class ScheduledVisitService {
                     @Override
                     public void save(ScheduledVisit visit, ProcessInstance processInstance) {
                         handleTransactions(request, processInstance);
-                        ScheduledVisit row = VisitRowCopy.fullRow(visit).build();
+                        // assignments: [] - only field-staff/_update writes them (review A5)
+                        ScheduledVisit row = VisitRowCopy.fullRow(visit).assignments(List.of()).build();
                         handleUpdateScheduledVisit(ScheduledVisitRequest.builder().requestInfo(requestInfo)
                                 .scheduledVisits(List.of(row)).build(), row, visit);
-                        saved[0] = row;
+                        saved[0] = VisitRowCopy.fullRow(row).assignments(visit.getAssignments()).build();
                         amcAnalyticsService.publishVisitWorkflowEvent(visit, action, priorStatus, requestInfo);
                     }
 
