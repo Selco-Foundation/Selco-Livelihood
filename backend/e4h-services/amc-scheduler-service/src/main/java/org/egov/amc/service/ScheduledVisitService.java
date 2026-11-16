@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.egov.amc.config.AMCServiceConfiguration;
+import org.egov.amc.livelihood.OtpRedaction;
 import org.egov.amc.repository.ScheduledVisitRepository;
 import org.egov.amc.service.enrichment.ScheduledVisitEnrichment;
 import org.egov.amc.util.AmcConfigurationServiceUtil;
@@ -598,9 +599,11 @@ public class ScheduledVisitService {
         if (employee != null && employee.getUser() != null && employee.getUser().getMobileNumber() != null && !employee.getUser().getMobileNumber().isEmpty()) {
             OtpResponse otpResponse = createOTP(employee.getUser().getMobileNumber(), existingVisit.getTenantId());
             if (otpResponse != null && otpResponse.getOtp() != null) {
-                log.info("OTP {} generated for this mobile number {}", otpResponse.getOtp().getOtp(), employee.getUser().getMobileNumber());
                 sendOtpSms(employee.getUser().getMobileNumber(), otpResponse.getOtp().getOtp(), existingVisit.getTenantId());
-                return otpResponse;
+                log.info("Service code re-sent for visitId={}", existingVisit.getId());
+                // Never hand the code (or the end user's phone) back to the caller: the field staff
+                // must get it from the end user.
+                return OtpRedaction.withoutCode(otpResponse);
             } else {
                 throw new CustomException("GENERATE_TOKEN", "Error occured while generating OTP");
             }
@@ -630,8 +633,8 @@ public class ScheduledVisitService {
 
         // Step 2: if action is SUBMIT_VISIT_REPORT, check if send OTP is successful or not
         if (SUBMIT_VISIT_REPORT_ACTION.equalsIgnoreCase(request.getWorkflow().getAction())) {
-            // We need to update visit report on existing visit
-            existingVisit.setVisitReport(request.getVisitReport());
+            // We need to update visit report on existing visit (never with a service code in it)
+            existingVisit.setVisitReport(OtpRedaction.withoutCode(request.getVisitReport()));
             // The report is filled in on site, so this submission is the moment the visit actually
             // happened - the only point in the workflow that stands for it. Stamped here, at the top
             // of the branch, because attachAmcInstallationFormDocument below renders it into the AMC
@@ -663,7 +666,7 @@ public class ScheduledVisitService {
                 if (otpResponse !=null && otpResponse.getOtp()!=null){
                     log.debug("OTP generated successfully for visitId: {}", existingVisit.getId());
                     log.info("OTP generated for visit report submission, visitId: {}", existingVisit.getId());
-                    existingVisit.getVisitReport().setOtpReference(otpResponse.getOtp().getOtp());
+                    // The code is not stored on the visit: search returns the report to the field staff.
                     sendOtpSms(employee.getUser().getMobileNumber(), otpResponse.getOtp().getOtp(), existingVisit.getTenantId());
                 }
                 else {
@@ -691,7 +694,7 @@ public class ScheduledVisitService {
                 if(request.getVisitReport().getOtpReference() ==null || !request.getVisitReport().getOtpReference().trim().equals(defaultOtp)){
                     throw new CustomException("ERROR_OTP_GENERATION", "OTP validation unsuccessful");
                 }
-                log.info("OTP {} validated for default OTP", defaultOtp);
+                log.info("Service code validated with the bypass code for visitId={}", existingVisit.getId());
                 existingVisit.getVisitReport().setOtpVerifiedAt(new Timestamp(System.currentTimeMillis()).getTime());
             }
             else{
@@ -714,7 +717,7 @@ public class ScheduledVisitService {
                 if (employee !=null && employee.getUser() !=null && employee.getUser().getMobileNumber()!=null && !employee.getUser().getMobileNumber().isEmpty()){
                     OtpResponse otpResponse = validateOTP(employee.getUser().getMobileNumber(), existingVisit.getTenantId(), request.getVisitReport().getOtpReference());
                     if (otpResponse !=null && otpResponse.getOtp()!=null){
-                        log.info("OTP {} validated for this mobile number {}", otpResponse.getOtp().getOtp(), employee.getUser().getMobileNumber());
+                        log.info("Service code validated for visitId={}", existingVisit.getId());
                         // We need to update visit report on existing visit after validation
                         existingVisit.getVisitReport().setOtpVerifiedAt(new Timestamp(System.currentTimeMillis()).getTime());
                     }
@@ -832,7 +835,8 @@ public class ScheduledVisitService {
     private void handleTransactions(VisitReportSubmissionRequest request, ProcessInstance updatedWorkflow) {
         Transaction transaction = new Transaction();
         transaction.setProcessInstanceId(updatedWorkflow.getId());
-        transaction.setVisitReport(request.getVisitReport());
+        // History row: keep the report as sent, minus the typed service code (SUBMIT_OTP carries it).
+        transaction.setVisitReport(OtpRedaction.withoutCode(request.getVisitReport()));
         String userUUID = request.getRequestInfo().getUserInfo().getUuid();
         transaction.setVisitId(request.getVisitId());
         transaction.setAuditDetails(amcConfigurationServiceUtil.getAuditDetails(userUUID, null, true));
@@ -1470,7 +1474,7 @@ public class ScheduledVisitService {
 
     private void sendOtpSms(String mobileNumber, String otp, String tenantId) {
         if (Boolean.FALSE.equals(amcServiceConfiguration.getSmsEnabled())) {
-            log.info("SMS notification is disabled. Skipping OTP SMS for mobile number {}", mobileNumber);
+            log.info("SMS notification is disabled. Skipping OTP SMS for mobile number {}", OtpRedaction.maskPhone(mobileNumber));
             return;
         }
         if (mobileNumber == null || mobileNumber.isEmpty() || otp == null || otp.isEmpty()) {
@@ -1484,7 +1488,7 @@ public class ScheduledVisitService {
                 .message(smsMessage)
                 .build();
         producer.push(amcServiceConfiguration.getSmsNotificationTopic(), smsRequest);
-        log.info("OTP SMS queued for mobile number {} in tenant {}", mobileNumber, tenantId);
+        log.info("OTP SMS queued for mobile number {} in tenant {}", OtpRedaction.maskPhone(mobileNumber), tenantId);
     }
 
     public OtpResponse validateOTP(String identity, String tenantId, String otpCode) {
