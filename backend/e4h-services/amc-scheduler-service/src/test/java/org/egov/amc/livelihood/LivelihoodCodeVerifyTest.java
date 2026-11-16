@@ -44,7 +44,7 @@ class LivelihoodCodeVerifyTest {
         when(s.codeIsValid(anyString(), anyString())).thenReturn(valid);
         ProcessInstance pi = new ProcessInstance();
         pi.setState(State.builder().state("PENDING_APPROVAL").build());
-        when(s.transition()).thenReturn(pi);
+        when(s.transition(anyString(), any())).thenReturn(pi);
         return s;
     }
 
@@ -55,8 +55,8 @@ class LivelihoodCodeVerifyTest {
 
         InOrder o = inOrder(s);
         o.verify(s).codeIsValid("9678335201", "1234");
-        o.verify(s).transition();
-        o.verify(s).save(any(), any());
+        o.verify(s).transition("SUBMIT_OTP", null);
+        o.verify(s).save(any(), any(), any());
         o.verify(s).createNextVisit(any(), anyLong());
         assertEquals("PENDING_APPROVAL", v.getStatus());
         assertEquals(NOW, v.getFirstSubmissionDate());
@@ -72,8 +72,8 @@ class LivelihoodCodeVerifyTest {
         ScheduledVisit v = waiting();
         assertEquals("AMC_INVALID_SERVICE_CODE", assertThrows(CustomException.class,
                 () -> LivelihoodCodeVerify.run(v, FS, "0000", NOW, s)).getCode());
-        verify(s, never()).transition();
-        verify(s, never()).save(any(), any());
+        verify(s, never()).transition(anyString(), any());
+        verify(s, never()).save(any(), any(), any());
         verify(s, never()).createNextVisit(any(), anyLong());
         assertEquals("PENDING_OTP_APPROVAL", v.getStatus());
         assertNull(v.getFirstSubmissionDate());
@@ -102,10 +102,10 @@ class LivelihoodCodeVerifyTest {
     @Test
     void workflowFailureSavesNothing() {
         LivelihoodCodeVerify.Steps s = steps(true);
-        when(s.transition()).thenThrow(new CustomException("WORKFLOW_TRANSITION_FAILED", "x"));
+        when(s.transition(anyString(), any())).thenThrow(new CustomException("WORKFLOW_TRANSITION_FAILED", "x"));
         ScheduledVisit v = waiting();
         assertThrows(CustomException.class, () -> LivelihoodCodeVerify.run(v, FS, "1234", NOW, s));
-        verify(s, never()).save(any(), any());
+        verify(s, never()).save(any(), any(), any());
         assertNull(v.getFirstSubmissionDate());
     }
 

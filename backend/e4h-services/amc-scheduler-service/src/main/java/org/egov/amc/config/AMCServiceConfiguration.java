@@ -296,6 +296,10 @@ public class AMCServiceConfiguration {
     @Value("${amc.livelihood.lazy.generation.enabled:true}")
     private boolean lazyGenerationEnabled;
 
+    /** Auto-approval against MDMS AMC.AutoApprovalRules at code verification (LLD §6.8). false = every report to a reviewer. */
+    @Value("${amc.livelihood.auto.approval.enabled:true}")
+    private boolean autoApprovalEnabled;
+
     /** Report PDF on every report step (LLD §6.10). false = steps skip the PDF (rollback switch). */
     @Value("${amc.pdf.enabled:true}")
     private boolean amcPdfEnabled;
