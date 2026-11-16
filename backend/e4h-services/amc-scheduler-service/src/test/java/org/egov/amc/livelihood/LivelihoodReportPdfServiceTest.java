@@ -78,6 +78,25 @@ class LivelihoodReportPdfServiceTest {
     }
 
     @Test
+    void requestInfoAlwaysCarriesALocaleForPdfService() {
+        assertEquals("en_IN", ((String) service.withLocale(RequestInfo.builder().build()).get("msgId")).split("\\|")[1],
+                "system user RequestInfo has no msgId");
+        assertEquals("abc|en_IN", service.withLocale(RequestInfo.builder().msgId("abc").build()).get("msgId"));
+        assertEquals("1700|kn_IN", service.withLocale(RequestInfo.builder().msgId("1700|kn_IN").build()).get("msgId"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void sentRequestInfoHasMsgId() {
+        when(http.fetchResult(any(), any())).thenReturn(Map.of("filestoreIds", List.of("fs-1")));
+        service.generate(ri, visit(), LivelihoodReportPdfDataTest.report(), null, "FS", step);
+        ArgumentCaptor<Object> body = ArgumentCaptor.forClass(Object.class);
+        verify(http).fetchResult(any(), body.capture());
+        Map<String, Object> sent = (Map<String, Object>) ((Map<String, Object>) body.getValue()).get("RequestInfo");
+        org.junit.jupiter.api.Assertions.assertTrue(String.valueOf(sent.get("msgId")).endsWith("|en_IN"));
+    }
+
+    @Test
     void noFileBackIsAPdfFailure() {
         when(http.fetchResult(any(), any())).thenReturn(Map.of("filestoreIds", List.of()));
         CustomException e = assertThrows(CustomException.class,
