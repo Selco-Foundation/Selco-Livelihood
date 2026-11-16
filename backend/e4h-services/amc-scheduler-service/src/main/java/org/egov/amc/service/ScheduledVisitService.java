@@ -17,6 +17,10 @@ import org.egov.amc.util.MappedVendorUtil;
 import org.egov.amc.validator.ScheduledVisitValidator;
 import org.egov.amc.web.models.*;
 import org.egov.common.contract.models.AuditDetails;
+import org.egov.amc.livelihood.AmcMdmsOptions;
+import org.egov.amc.livelihood.LivelihoodReportPdfData;
+import org.egov.amc.livelihood.LivelihoodReportPdfService;
+import org.egov.amc.livelihood.LivelihoodVisitSubmit;
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.common.producer.Producer;
 import org.egov.tracer.model.CustomException;
@@ -73,7 +77,11 @@ public class ScheduledVisitService {
 
     /** Livelihood report PDF (LLD §6.10); used instead of the E4H PDF when the Livelihood flag is on. */
     @Autowired
-    private org.egov.amc.livelihood.LivelihoodReportPdfService livelihoodReportPdfService;
+    private LivelihoodReportPdfService livelihoodReportPdfService;
+
+    /** MDMS AMC.Config (submission window). */
+    @Autowired
+    private AmcMdmsOptions amcMdmsOptions;
 
     @Autowired
     public ScheduledVisitService(
@@ -595,6 +603,18 @@ public class ScheduledVisitService {
         }
 
         ScheduledVisit existingVisit = scheduledVisitsList.get(0);
+        if (amcServiceConfiguration.isLivelihoodScheduleEnabled()) {
+            // Livelihood: the code goes to the end user's phone (LLD §6.4), not an HRMS COMPLAINANT.
+            String phone = LivelihoodVisitSubmit.checkResend(existingVisit, request.getRequestInfo().getUserInfo().getUuid());
+            String code = createLivelihoodCode(phone, existingVisit.getTenantId(), existingVisit.getId());
+            if (code == null || code.isBlank()) {
+                throw new CustomException(LivelihoodVisitSubmit.AMC_SERVICE_CODE_FAILED, "Could not create the service code. Please try again.");
+            }
+            sendLivelihoodCode(phone, code, existingVisit.getTenantId(), existingVisit.getId());
+            log.info("Service code re-sent for visitId={}", existingVisit.getId());
+            // never the code or the phone back to the caller
+            return OtpResponse.builder().otp(Otp.builder().tenantId(existingVisit.getTenantId()).build()).build();
+        }
         if (existingVisit.getFacilityId() == null || existingVisit.getFacilityId().trim().isEmpty()) {
             log.error("RESEND_OTP failed: facilityId missing for visitId={}", existingVisit.getId());
             throw new CustomException("GENERATE_TOKEN", "Facility ID is missing for visit: " + existingVisit.getId());
@@ -645,6 +665,13 @@ public class ScheduledVisitService {
         // status to tell a first report submission (out of SCHEDULED) from a re-submission
         // (out of REJECTED).
         String priorStatus = existingVisit.getStatus();
+
+        if (amcServiceConfiguration.isLivelihoodScheduleEnabled()) {
+            LivelihoodVisitSubmit.rejectSystemOnlyAction(request.getWorkflow().getAction());
+            if (SUBMIT_VISIT_REPORT_ACTION.equalsIgnoreCase(request.getWorkflow().getAction())) {
+                return List.of(submitLivelihoodReport(request, existingVisit, priorStatus));
+            }
+        }
 
         // Step 2: if action is SUBMIT_VISIT_REPORT, check if send OTP is successful or not
         if (SUBMIT_VISIT_REPORT_ACTION.equalsIgnoreCase(request.getWorkflow().getAction())) {
@@ -818,23 +845,13 @@ public class ScheduledVisitService {
         // Regenerate on every (re)submission so the form reflects the current visit report - drop any
         // stale AMC form document first, otherwise a re-submission would carry two of them.
         removeExistingAmcInstallationFormDocument(request.getWorkflow());
-        String fileStoreId;
-        if (amcServiceConfiguration.isLivelihoodScheduleEnabled()) {
-            // Step 2.4 moves this into the agreed submit order; until then the submit path makes the Livelihood PDF here.
-            org.egov.common.contract.request.User submitter =
-                    request.getRequestInfo() != null ? request.getRequestInfo().getUserInfo() : null;
-            String name = submitter != null ? submitter.getName() : null;
-            fileStoreId = livelihoodReportPdfService.generate(request.getRequestInfo(), existingVisit, request.getVisitReport(),
-                    facility, name, new org.egov.amc.livelihood.LivelihoodReportPdfData.Step(
-                            request.getWorkflow().getAction(), "PENDING_OTP_APPROVAL", name, System.currentTimeMillis(), null));
-            if (fileStoreId == null) {
-                return; // amc.pdf.enabled=false
-            }
-        } else {
-            fileStoreId = amcVisitReportPdfService.generateAmcVisitReportPdf(request, existingVisit, facility);
-        }
-        GeoLocation geoLocation = amcVisitReportPdfService.resolveGeoLocation(request.getVisitReport());
+        String fileStoreId = amcVisitReportPdfService.generateAmcVisitReportPdf(request, existingVisit, facility);
+        addAmcFormDocument(request, existingVisit, fileStoreId);
+    }
 
+    /** Puts the step's report PDF on the workflow documents (type AMC_INSTALLATION_FORM), one per step. */
+    private void addAmcFormDocument(VisitReportSubmissionRequest request, ScheduledVisit existingVisit, String fileStoreId) {
+        GeoLocation geoLocation = amcVisitReportPdfService.resolveGeoLocation(request.getVisitReport());
         Document pdfDocument = Document.builder()
                 .documentType(AMC_INSTALLATION_FORM_DOCUMENT_TYPE)
                 .fileStoreId(fileStoreId)
@@ -847,6 +864,100 @@ public class ScheduledVisitService {
         documents.add(pdfDocument);
         request.getWorkflow().setDocuments(documents);
         log.info("AMC installation form document attached to workflow for visitId: {}", existingVisit.getId());
+    }
+
+    /**
+     * Livelihood SUBMIT_VISIT_REPORT (LLD §6.4): checks, PDF, code created, workflow, save, SMS last.
+     * The order lives in {@link LivelihoodVisitSubmit#run}; this supplies each step.
+     */
+    private ScheduledVisit submitLivelihoodReport(VisitReportSubmissionRequest request, ScheduledVisit existingVisit, String priorStatus) {
+        RequestInfo requestInfo = request.getRequestInfo();
+        String tenantId = existingVisit.getTenantId();
+        // The report as sent, never with a code in it; the full report replaces the stored one (rework too).
+        existingVisit.setVisitReport(OtpRedaction.withoutCode(request.getVisitReport()));
+        ScheduledVisit[] saved = new ScheduledVisit[1];
+
+        LivelihoodVisitSubmit.run(existingVisit, requestInfo.getUserInfo().getUuid(), System.currentTimeMillis(),
+                new LivelihoodVisitSubmit.Steps() {
+                    @Override
+                    public int submissionWindowDays() {
+                        return amcMdmsOptions.submissionWindowDays(tenantId, requestInfo);
+                    }
+
+                    @Override
+                    public String makePdf(String fieldStaffName, long now) {
+                        return livelihoodReportPdfService.generate(requestInfo, existingVisit, existingVisit.getVisitReport(),
+                                existingVisit.getFacility(), fieldStaffName,
+                                new LivelihoodReportPdfData.Step(SUBMIT_VISIT_REPORT_ACTION,
+                                        LivelihoodVisitSubmit.STATUS_PENDING_OTP_APPROVAL, fieldStaffName, now, null));
+                    }
+
+                    @Override
+                    public String createCode(String phone) {
+                        return createLivelihoodCode(phone, tenantId, existingVisit.getId());
+                    }
+
+                    @Override
+                    public ProcessInstance transition(String pdfFileStoreId) {
+                        removeExistingAmcInstallationFormDocument(request.getWorkflow());
+                        if (pdfFileStoreId != null) {
+                            addAmcFormDocument(request, existingVisit, pdfFileStoreId);
+                        }
+                        try {
+                            return workflowService.transitionWorkflow(existingVisit, SUBMIT_VISIT_REPORT_ACTION,
+                                    request.getWorkflow().getDocuments(), requestInfo, request.getWorkflow().getComment());
+                        } catch (Exception e) {
+                            log.error("Workflow SUBMIT_VISIT_REPORT failed for visit {}", existingVisit.getId(), e);
+                            throw new CustomException("WORKFLOW_TRANSITION_FAILED",
+                                    "Failed to transition workflow for visit: " + existingVisit.getId());
+                        }
+                    }
+
+                    @Override
+                    public void save(ScheduledVisit visit, ProcessInstance processInstance) {
+                        handleTransactions(request, processInstance);
+                        ScheduledVisit row = VisitRowCopy.fullRow(visit).build();
+                        handleUpdateScheduledVisit(ScheduledVisitRequest.builder().requestInfo(requestInfo)
+                                .scheduledVisits(List.of(row)).build(), row, visit);
+                        saved[0] = row;
+                        amcAnalyticsService.publishVisitWorkflowEvent(visit, SUBMIT_VISIT_REPORT_ACTION, priorStatus, requestInfo);
+                    }
+
+                    @Override
+                    public void sendCode(String phone, String code) {
+                        sendLivelihoodCode(phone, code, tenantId, existingVisit.getId());
+                    }
+                });
+        log.info("Livelihood report submitted for visit {}: status {}", existingVisit.getId(), existingVisit.getStatus());
+        return saved[0];
+    }
+
+    /**
+     * Livelihood service code for the end user (submit and Resend code). With egov.otp.bypass.validation=true
+     * (testing only, as field-planner-activity does on dev) no code is created in egov-otp and nothing is sent:
+     * the default code (egov.otp.default) stands in, and SUBMIT_OTP accepts only that code.
+     */
+    private String createLivelihoodCode(String phone, String tenantId, String visitId) {
+        if (amcServiceConfiguration.isByPassOtpValidation()) {
+            log.warn("OTP bypass is on: no service code created for visit {}; the default code is accepted", visitId);
+            return amcServiceConfiguration.getDefaultOtp();
+        }
+        OtpResponse otp;
+        try {
+            otp = createOTP(phone, tenantId);
+        } catch (RuntimeException e) {
+            log.error("Service code creation failed for visit {}", visitId, e);
+            throw new CustomException(LivelihoodVisitSubmit.AMC_SERVICE_CODE_FAILED, "Could not create the service code. Please try again.");
+        }
+        return otp != null && otp.getOtp() != null ? otp.getOtp().getOtp() : null;
+    }
+
+    private void sendLivelihoodCode(String phone, String code, String tenantId, String visitId) {
+        if (amcServiceConfiguration.isByPassOtpValidation()) {
+            log.warn("OTP bypass is on: service code SMS not sent for visit {}", visitId);
+            return;
+        }
+        sendOtpSms(phone, code, tenantId);
     }
 
     private void handleTransactions(VisitReportSubmissionRequest request, ProcessInstance updatedWorkflow) {
