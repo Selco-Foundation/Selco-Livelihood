@@ -81,7 +81,7 @@ public class LivelihoodReportPdfService {
         }
         Map<String, Object> amc = buildData(requestInfo, visit, report, facility, fieldStaffName, step);
         Map<String, Object> body = new HashMap<>();
-        body.put("RequestInfo", requestInfo);
+        body.put("RequestInfo", withLocale(requestInfo));
         body.put("amc", amc);
         StringBuilder url = new StringBuilder(config.getPdfServiceHost()).append(config.getPdfServiceCreateUrl())
                 .append("?key=").append(config.getAmcPdfKey()).append("&tenantId=").append(visit.getTenantId());
@@ -172,6 +172,25 @@ public class LivelihoodReportPdfService {
         }
         return out;
     }
+
+    /**
+     * pdf-service reads the locale with {@code RequestInfo.msgId.split('|')[1]} and fails with
+     * "Cannot read property 'split' of undefined" when msgId is missing (dev, 2026-11-16). The system
+     * user's RequestInfo (auto-approval) has none, so always send "<msgId>|<locale>".
+     */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> withLocale(RequestInfo requestInfo) {
+        Map<String, Object> ri = requestInfo == null ? new HashMap<>() : new HashMap<>(mapper.convertValue(requestInfo, Map.class));
+        Object msgId = ri.get("msgId");
+        String id = msgId == null || String.valueOf(msgId).isBlank() ? String.valueOf(System.currentTimeMillis()) : String.valueOf(msgId);
+        if (!id.contains("|")) {
+            id = id + "|" + PDF_LOCALE;
+        }
+        ri.put("msgId", id);
+        return ri;
+    }
+
+    static final String PDF_LOCALE = "en_IN";
 
     static String fileStoreId(JsonNode response) {
         JsonNode ids = response == null ? null : response.get("filestoreIds");
