@@ -2,6 +2,7 @@ package org.egov.amc.web.controllers;
 
 import org.egov.amc.config.AMCServiceConfiguration;
 import org.egov.amc.livelihood.LivelihoodActivationService;
+import org.egov.amc.livelihood.LivelihoodNextVisitService;
 import org.egov.amc.web.models.AmcActivationRequest;
 import org.egov.common.contract.models.RequestInfoWrapper;
 import org.egov.tracer.model.CustomException;
@@ -16,18 +17,22 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Livelihood activation endpoints (LLD 07 §6.3). Not for screens: no web role; called in-cluster by the
- * installation service on approval ({@code _activate}) and by ops ({@code _activate-pending}).
+ * Livelihood activation and repair endpoints (LLD 07 §6.3). Not for screens: no web role; called in-cluster by
+ * the installation service on approval ({@code _activate}) and by ops ({@code _activate-pending},
+ * {@code _create-missing-visits}).
  */
 @RestController
 @RequestMapping("/v1/configuration")
 public class LivelihoodAmcController {
 
     private final LivelihoodActivationService activation;
+    private final LivelihoodNextVisitService nextVisits;
     private final AMCServiceConfiguration config;
 
-    public LivelihoodAmcController(LivelihoodActivationService activation, AMCServiceConfiguration config) {
+    public LivelihoodAmcController(LivelihoodActivationService activation, LivelihoodNextVisitService nextVisits,
+                                   AMCServiceConfiguration config) {
         this.activation = activation;
+        this.nextVisits = nextVisits;
         this.config = config;
     }
 
@@ -51,5 +56,15 @@ public class LivelihoodAmcController {
                                                                @RequestBody RequestInfoWrapper request) {
         String tenant = tenantId == null ? config.getStateTenantId() : tenantId;
         return ResponseEntity.ok(activation.activatePending(tenant, request.getRequestInfo()));
+    }
+
+    /** By hand only: creates the next visits a failure left out after a code verification. */
+    @RequestMapping(value = "/_create-missing-visits", method = RequestMethod.POST)
+    public ResponseEntity<Map<String, Object>> createMissingVisits(@RequestParam(required = false) String tenantId,
+                                                                   @RequestBody RequestInfoWrapper request) {
+        String tenant = tenantId == null ? config.getStateTenantId() : tenantId;
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("created", nextVisits.createMissing(tenant, request.getRequestInfo()));
+        return ResponseEntity.ok(body);
     }
 }
