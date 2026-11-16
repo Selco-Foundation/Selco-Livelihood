@@ -40,5 +40,4 @@ class Routes {
   static const amcInbox = 'amc-inbox';
   static const amcMediaUpload = 'amc-media-upload';
   static const amcCameraCapture = 'amc-camera-capture';
-  static const amcRejectionReasons = 'amc-rejection-reasons';
 }

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:livelihood/blocs/localization/app_localization.dart';
+import 'package:livelihood/data/nosql/localization.dart' show Localization;
 import 'package:livelihood/blocs/amc_otp/amc_otp.dart';
 import 'package:livelihood/main.dart';
 import 'package:livelihood/model/amc/scheduled_visit.dart';
@@ -23,6 +24,7 @@ import 'package:livelihood/repositories/amc/scheduled_visit_repo.dart';
 import 'package:livelihood/repositories/auth_repo.dart';
 import 'package:livelihood/router/app_router.dart';
 import 'package:livelihood/utils/amc/amc_module_readiness.dart';
+import 'package:livelihood/utils/amc/amc_rejection_reasons.dart';
 import 'package:livelihood/utils/amc/amc_utils.dart';
 import 'package:livelihood/utils/envConfig.dart';
 import 'package:livelihood/utils/i18_key_constants.dart' as i18;
@@ -885,6 +887,88 @@ void main() {
       expect(await verify('dummy-visit-001', true, true), 'APPROVED');
       expect(await verify('dummy-visit-002', true, false), 'PENDING_APPROVAL');
     });
+  });
+
+  group('AMC rejection reasons (#251)', () {
+    test('E4H JSON list, installation objects, strings and plain text', () {
+      final e4h = parseAmcRejectionComment(jsonEncode([
+        {'reason': 'Photos are not clear', 'comment': 'Retake in daylight.'},
+        {'reason': 'Battery details missing'},
+      ]));
+      expect(e4h.map((c) => c.reason), [
+        'Photos are not clear',
+        'Battery details missing',
+      ]);
+      expect(e4h.first.details, 'Retake in daylight.');
+
+      final installation = parseAmcRejectionComment([
+        {
+          'reasonCode': 'READING_OUT_OF_RANGE',
+          'sectionLabel': 'Inverter',
+          'comment': 'Recheck the output voltage.',
+          'assetType': 'INVERTER',
+        },
+        {
+          'commentMessage': jsonEncode({'reason': 'Wrong photo'}),
+        },
+      ]);
+      expect(installation.first.reasonCode, 'READING_OUT_OF_RANGE');
+      expect(installation.first.sectionLabel, 'Inverter');
+      expect(installation.first.assetType, 'INVERTER');
+      expect(installation.last.reason, 'Wrong photo');
+
+      expect(parseAmcRejectionComment('["Blurred photo", "Wrong date"]')
+          .map((c) => c.reason), ['Blurred photo', 'Wrong date']);
+      expect(parseAmcRejectionComment('Please retake the photo.')
+          .single.reason, 'Please retake the photo.');
+      // A comment-only entry is shown as the reason itself.
+      expect(parseAmcRejectionComment([
+        {'comment': 'Readings look wrong'}
+      ]).single.reason, 'Readings look wrong');
+      expect(parseAmcRejectionComment(null), isEmpty);
+      expect(parseAmcRejectionComment('  '), isEmpty);
+    });
+
+    test('read from the latest workflow step of a REJECTED visit only', () {
+      ScheduledVisit visit(String status, Object? comment) =>
+          ScheduledVisit.fromJson({
+            'id': 'v1',
+            'status': status,
+            'processInstances': [
+              {'id': 'pi-2', 'comment': comment},
+              {'id': 'pi-1', 'comment': 'older comment'},
+            ],
+          });
+      expect(amcRejectionReasons(visit('REJECTED', 'Retake photos'))
+          .single.reason, 'Retake photos');
+      expect(amcRejectionReasons(visit('APPROVED', 'Retake photos')), isEmpty);
+
+      final seeded = dummySeedVisits()
+          .map(ScheduledVisit.fromJson)
+          .firstWhere((v) => v.status == 'REJECTED');
+      expect(amcRejectionReasons(seeded).map((c) => c.reason), [
+        'Photos are not clear',
+        'Battery details missing',
+      ]);
+    });
+  });
+
+  test('dummy backend supplies AMC texts the server does not have', () {
+    expect(AppLocalizations.translateCached(i18.amcOtp.reportApproved),
+        'Report approved. You can find it in Inbox.');
+    expect(AppLocalizations.translateCached('PENDING_OTP_APPROVAL'),
+        'Pending Service Code');
+    // Server messages win over the dummy texts.
+    AppLocalizations.debugSeedLocalizations([
+      Localization()
+        ..code = i18.amcOtp.reportApproved
+        ..message = 'From the server'
+        ..module = 'rainmaker-common'
+        ..locale = 'en_IN',
+    ]);
+    addTearDown(() => AppLocalizations.debugSeedLocalizations(const []));
+    expect(AppLocalizations.translateCached(i18.amcOtp.reportApproved),
+        'From the server');
   });
 
   group('Login routing', () {

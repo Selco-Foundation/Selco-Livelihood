@@ -1,12 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:digit_ui_components/enum/app_enums.dart';
 import 'package:digit_ui_components/services/location_bloc.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:digit_ui_components/theme/spacers.dart';
-import 'package:digit_ui_components/widgets/atoms/digit_checkbox.dart';
 import 'package:digit_ui_components/widgets/atoms/digit_info_card.dart';
 import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
 import 'package:digit_ui_components/widgets/scrollable_content.dart';
@@ -22,6 +20,7 @@ import '../../data/nosql/cache_amc_media_upload.dart';
 import '../../model/amc/scheduled_visit.dart';
 import '../../model/solar_installation_draft.dart';
 import '../../router/app_router.dart';
+import '../../utils/amc/amc_rejection_reasons.dart';
 import '../../utils/amc/amc_utils.dart';
 import '../../utils/extensions.dart';
 import '../../utils/i18_key_constants.dart' as i18;
@@ -30,11 +29,14 @@ import '../../widgets/amc/amc_back_navigation_help_header.dart';
 import '../../widgets/amc/amc_existing_images.dart';
 import '../../widgets/footer_button.dart';
 import '../../widgets/image_uploader.dart';
+import '../../widgets/workflow_rejection_reasons.dart';
 
 /// Ported from E4H `pages/amc_media_upload.dart`: photos (with GPS) for the
-/// AMC report. When resubmitting a rejected visit, every rejection reason
-/// must be ticked. Read-only (photos only) when opened from the
-/// inbox/submitted lists.
+/// AMC report. Read-only (photos only) when opened from the inbox/submitted
+/// lists. When correcting a rejected report (#251, Installation App
+/// rectification) the reviewer's reasons are shown above the photos, with a
+/// "Complete before resubmitting" card while something is missing; E4H's
+/// tick-every-reason checklist is not used.
 ///
 /// #248: this is the mandatory verification photograph screen (field staff
 /// with the end user in front of the solar system). At least one photo is
@@ -66,8 +68,6 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
   bool _showPhotoError = false;
   bool _savingPhotos = false;
 
-  List<String> _rejectionReasons = const [];
-  final Set<String> _selectedRejectionReasons = <String>{};
 
   @override
   void initState() {
@@ -94,8 +94,6 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
         selected: (visit) {
       _currentScheduledVisitId = visit.id;
       scheduledVisit = visit;
-
-      _loadRejectionReasonsFromVisit(visit);
 
       context.read<CacheAmcMediaUploadBloc>().add(
           CacheAmcMediaUploadEvent.get(_currentScheduledVisitId!, userType));
@@ -186,63 +184,6 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
           .where((f) => f.path.isNotEmpty)
           .map((f) => f.path)
           .toList();
-    });
-  }
-
-  List<String> _extractRejectionReasons(ScheduledVisit? visit) {
-    if (visit == null) return const <String>[];
-
-    final candidates = <String>[];
-
-    void addFromRawJson(String? rawJson) {
-      if (rawJson == null || rawJson.trim().isEmpty) return;
-      try {
-        final decoded = jsonDecode(rawJson);
-
-        if (decoded is Map<String, dynamic>) {
-          final commentField = decoded['comment'];
-          if (commentField is String && commentField.trim().isNotEmpty) {
-            candidates.add(commentField);
-          }
-          if (commentField is List) {
-            candidates.add(jsonEncode(commentField));
-          }
-        }
-      } catch (_) {}
-    }
-
-    final processes = visit.processInstances;
-    if (processes.isEmpty) return const <String>[];
-
-    addFromRawJson(processes.first.rawJson);
-
-    if (candidates.isEmpty) return const <String>[];
-
-    final rawCommentJson = candidates.last;
-
-    try {
-      final decodedList = jsonDecode(rawCommentJson);
-
-      if (decodedList is List) {
-        final reasons = decodedList
-            .whereType<Map<String, dynamic>>()
-            .map((m) => m['reason']?.toString().trim())
-            .where((r) => r != null && r.isNotEmpty)
-            .cast<String>()
-            .toList();
-
-        return reasons;
-      }
-    } catch (_) {}
-
-    return const <String>[];
-  }
-
-  void _loadRejectionReasonsFromVisit(ScheduledVisit? visit) {
-    final reasons = _extractRejectionReasons(visit);
-    setState(() {
-      _rejectionReasons = reasons;
-      _selectedRejectionReasons.clear();
     });
   }
 
@@ -379,8 +320,6 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
               _currentScheduledVisitId = visit.id;
               scheduledVisit = visit;
 
-              _loadRejectionReasonsFromVisit(visit);
-
               context.read<CacheAmcMediaUploadBloc>().add(
                     CacheAmcMediaUploadEvent.get(visit.id!, userType),
                   );
@@ -394,11 +333,7 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
               ? context.translate(i18.amcCommon.backToHome)
               : context.translate(i18.amcMediaUpload.saveAndNext);
 
-          final mustPickRejection =
-              currentOrigin == FormOrigin.submitForApproval;
-          final notAllRejectionsChecked = mustPickRejection &&
-              _rejectionReasons.isNotEmpty &&
-              _selectedRejectionReasons.length != _rejectionReasons.length;
+          final isRework = currentOrigin == FormOrigin.submitForApproval;
           return Scaffold(
             body: ScrollableContent(
               enableFixedDigitButton: true,
@@ -413,8 +348,7 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
                       loading: () => true,
                       orElse: () => false,
                     ) ||
-                    _savingPhotos ||
-                    notAllRejectionsChecked,
+                    _savingPhotos,
                 showSuffixIcon: false,
                 text: _savingPhotos
                     ? context.translate(i18.amcCommon.loading)
@@ -442,6 +376,14 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: spacer4),
+                      if (isRework) ...[
+                        WorkflowRejectionReasons(
+                          panelKey: const ValueKey('amc-rejection-reasons'),
+                          comments: amcRejectionReasons(scheduledVisit),
+                          showSectionLabel: true,
+                        ),
+                        const SizedBox(height: spacer4),
+                      ],
                       DigitCard(children: [
                         SizedBox(width: context.width),
                         Text(
@@ -509,46 +451,30 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
                           const Center(child: CircularProgressIndicator())
                       ]),
                       const SizedBox(height: spacer4),
-                      if (origin == FormOrigin.submitForApproval)
+                      // #251: Installation App's "Complete before
+                      // resubmitting" card. The form pages and pre-questions
+                      // already enforce their required fields, so only the
+                      // photograph can still be missing here.
+                      if (isRework &&
+                          !_isImagesInitLoading &&
+                          _selectedImages.isEmpty)
                         DigitCard(
+                          key: const ValueKey('amc-missing-requirements'),
                           children: [
                             SizedBox(width: context.width),
                             Text(
-                              context
-                                  .translate(i18.amcMediaUpload.rejectionList),
-                              style: textTheme.headingXl.copyWith(
-                                  color: theme.colorTheme.primary.primary2),
+                              context.translate(i18.installationReport
+                                  .completeBeforeResubmitting),
+                              style: textTheme.headingS,
                             ),
-                            const SizedBox(height: spacer1),
-                            if (_rejectionReasons.isEmpty)
-                              Text(
-                                context.translate(
-                                    i18.amcMediaUpload.noRejectionReasonsFound),
-                                style: textTheme.bodyS,
-                              )
-                            else
-                              for (final reason in _rejectionReasons) ...[
-                                DigitCheckbox(
-                                  key: ValueKey(
-                                      'amc-rej-${_currentScheduledVisitId ?? "none"}-$reason'),
-                                  label: reason,
-                                  value: _selectedRejectionReasons
-                                      .contains(reason),
-                                  onChanged: (value) {
-                                    setState(() {
-                                      if (value == true) {
-                                        _selectedRejectionReasons.add(reason);
-                                      } else {
-                                        _selectedRejectionReasons
-                                            .remove(reason);
-                                      }
-                                    });
-                                  },
-                                ),
-                                const SizedBox(height: spacer1),
-                              ],
+                            const SizedBox(height: spacer2),
+                            Text(
+                              context.translate(
+                                  i18.amcMediaUpload.verificationPhotoTitle),
+                              style: textTheme.bodyS,
+                            ),
                           ],
-                        )
+                        ),
                     ],
                   ),
                 ),

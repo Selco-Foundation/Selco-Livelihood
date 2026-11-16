@@ -13,7 +13,6 @@ import '../pages/amc/amc_home.dart';
 import '../pages/amc/amc_inbox.dart';
 import '../pages/amc/amc_media_upload.dart';
 import '../pages/amc/amc_otp.dart';
-import '../pages/amc/amc_rejection_reasons.dart';
 import '../pages/amc/amc_report_home.dart';
 import '../pages/amc/amc_select_facility.dart';
 import '../pages/amc/amc_system_status.dart';
@@ -137,9 +136,6 @@ class AppRouter extends _$AppRouter {
                 page: AndroidCameraCaptureRoute.page,
                 path: Routes.amcCameraCapture,
                 fullscreenDialog: true),
-            AutoRoute(
-                page: AmcRejctionReasonsRoute.page,
-                path: Routes.amcRejectionReasons),
           ],
         ),
       ];

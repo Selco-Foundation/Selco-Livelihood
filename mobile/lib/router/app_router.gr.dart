@@ -72,12 +72,6 @@ abstract class _$AppRouter extends RootStackRouter {
         child: const AmcOtpPage(),
       );
     },
-    AmcRejctionReasonsRoute.name: (routeData) {
-      return AutoRoutePage<dynamic>(
-        routeData: routeData,
-        child: const AmcRejctionReasonsPage(),
-      );
-    },
     AmcReportHomeRoute.name: (routeData) {
       return AutoRoutePage<dynamic>(
         routeData: routeData,
@@ -555,20 +549,6 @@ class AmcOtpRoute extends PageRouteInfo<void> {
         );
 
   static const String name = 'AmcOtpRoute';
-
-  static const PageInfo<void> page = PageInfo<void>(name);
-}
-
-/// generated route for
-/// [AmcRejctionReasonsPage]
-class AmcRejctionReasonsRoute extends PageRouteInfo<void> {
-  const AmcRejctionReasonsRoute({List<PageRouteInfo>? children})
-      : super(
-          AmcRejctionReasonsRoute.name,
-          initialChildren: children,
-        );
-
-  static const String name = 'AmcRejctionReasonsRoute';
 
   static const PageInfo<void> page = PageInfo<void>(name);
 }

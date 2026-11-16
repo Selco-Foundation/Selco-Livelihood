@@ -7,10 +7,12 @@ import 'package:flutter/material.dart';
 import '../../model/amc/scheduled_visit.dart';
 import '../../repositories/amc/amc_system_status_repo.dart';
 import '../../router/app_router.dart';
+import '../../utils/amc/amc_rejection_reasons.dart';
 import '../../utils/amc/amc_utils.dart';
 import '../../utils/extensions.dart';
 import '../../utils/i18_key_constants.dart' as i18;
 import '../../widgets/amc/amc_back_navigation_help_header.dart';
+import '../../widgets/workflow_rejection_reasons.dart';
 
 /// Pre-report status check (#247), shown after an AMC card is selected and
 /// before the report form:
@@ -197,6 +199,16 @@ class _AmcSystemStatusPageState extends State<AmcSystemStatusPage> {
           ],
         ),
         children: [
+          // #251: reviewer's reasons while correcting a rejected report.
+          if (widget.origin == FormOrigin.submitForApproval)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: spacer2),
+              child: WorkflowRejectionReasons(
+                panelKey: const ValueKey('amc-rejection-reasons'),
+                comments: amcRejectionReasons(widget.scheduledVisit),
+                showSectionLabel: true,
+              ),
+            ),
           DigitCard(
             margin: const EdgeInsets.all(spacer2),
             children: [

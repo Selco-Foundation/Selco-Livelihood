@@ -18,11 +18,13 @@ import '../../model/amc/scheduled_visit.dart';
 import '../../repositories/amc/amc_dynamic_form_repo.dart';
 import '../../repositories/amc/amc_form_schema_repo.dart';
 import '../../router/app_router.dart';
+import '../../utils/amc/amc_rejection_reasons.dart';
 import '../../utils/amc/amc_utils.dart';
 import '../../utils/extensions.dart';
 import '../../utils/i18_key_constants.dart' as i18;
 import '../../utils/role_login_resolver.dart';
 import '../../widgets/amc/amc_back_navigation_help_header.dart';
+import '../../widgets/workflow_rejection_reasons.dart';
 
 /// Ported from E4H `pages/amc_dynamic_form.dart`: the multi-page AMC report
 /// form, rendered by `digit_forms_engine` from the MDMS schema
@@ -581,6 +583,17 @@ class _AmcDynamicFormPageState extends State<AmcDynamicFormPage> {
                   ),
                 ),
                 const SizedBox(height: spacer3),
+                // #251: reviewer's reasons while correcting a rejected report.
+                if (widget.origin == FormOrigin.submitForApproval)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                        spacer2, 0, spacer2, spacer3),
+                    child: WorkflowRejectionReasons(
+                      panelKey: const ValueKey('amc-rejection-reasons'),
+                      comments: amcRejectionReasons(widget.scheduledVisit),
+                      showSectionLabel: true,
+                    ),
+                  ),
                 DigitCard(
                   margin: const EdgeInsets.symmetric(horizontal: spacer2),
                   children: [

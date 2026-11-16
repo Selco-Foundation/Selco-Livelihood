@@ -34,8 +34,9 @@ import '../../widgets/amc/loading_indicator.dart';
 import '../../widgets/amc/report_bookmarks.dart';
 import 'amc_select_facility.dart';
 
-/// Ported from E4H `pages/amc_inbox.dart`: Rejected (open the rejection
-/// reasons and resubmit) and Approved (read-only report) visits.
+/// Ported from E4H `pages/amc_inbox.dart`: Rejected (correct and resubmit,
+/// Installation App style - #251) and Approved (read-only report; approved
+/// by the system or a reviewer, both `APPROVED`) visits.
 @RoutePage()
 class AmcInboxPage extends StatefulWidget {
   const AmcInboxPage({super.key});
@@ -371,8 +372,18 @@ class _AmcInboxPageState extends State<AmcInboxPage>
                       context
                           .read<SelectedScheduledVisitBloc>()
                           .add(SelectedScheduledVisitEvent.select(visit));
-                      await context.router
-                          .push(const AmcRejctionReasonsRoute());
+                      // #251: Installation App rectification - open the
+                      // report for correction straight away; the reviewer's
+                      // reasons are shown on every rework screen.
+                      context.read<SelectedAmcOriginBloc>().add(
+                          const SelectedAmcOriginEvent.select(
+                              FormOrigin.submitForApproval));
+                      await context.router.push(
+                        AmcSystemStatusRoute(
+                          scheduledVisit: visit,
+                          origin: FormOrigin.submitForApproval,
+                        ),
+                      );
                       if (mounted) await _reloadBookmarks();
                     },
                   );

@@ -464,9 +464,6 @@ class AmcMediaUpload {
   const AmcMediaUpload();
 
   String get selfieInstruction => 'AMC_MEDIA_UPLOAD_SELFIE_INSTRUCTION';
-  String get rejectionList => 'AMC_MEDIA_UPLOAD_REJECTION_LIST';
-  String get noRejectionReasonsFound =>
-      'AMC_MEDIA_UPLOAD_NO_REJECTION_REASONS_FOUND';
 
   // #248: mandatory verification photograph.
   String get verificationPhotoTitle =>
