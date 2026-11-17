@@ -12,6 +12,7 @@ const Map<String, String> dummyAmcLocalization = {
   // AMC home / report home
   'AMC_HOME_AMC_REPORT': 'AMC Report',
   'AMC_HOME_DATA_SYNC': 'Data Sync',
+  'AMC_HOME_VIEW_SCHEDULE': 'View Schedule',
   'AMC_REPORT_HOME_INSTALLATION_REPORT': 'AMC Report',
   'AMC_REPORT_HOME_NEW_AMC_REPORT': 'New AMC Report',
   'AMC_REPORT_HOME_NEW_AMC_REPORT_DESCRIPTION':
@@ -20,6 +21,29 @@ const Map<String, String> dummyAmcLocalization = {
       'View approved reports and correct rejected ones.',
   'AMC_REPORT_HOME_PENDING_APPROVAL_DESCRIPTION':
       'Reports awaiting the service completion code or review.',
+
+  // View Schedule (#252)
+  'AMC_SCHEDULE_TITLE': 'View Schedule',
+  'AMC_SCHEDULE_PERIOD_PROMPT': 'Show AMC schedule for the next',
+  'AMC_SCHEDULE_PERIOD_DAYS': '{days} days',
+  'AMC_SCHEDULE_COUNT': '{count} AMCs in the next {days} days',
+  'AMC_SCHEDULE_DUE': 'Due {date}',
+  'AMC_SCHEDULE_END_USER_NAME': 'End user name',
+  'AMC_SCHEDULE_PHONE': 'Phone number',
+  'AMC_SCHEDULE_SCHEDULED_DATE': 'Scheduled AMC date',
+  'AMC_SCHEDULE_MACHINES': 'Machines',
+  'AMC_SCHEDULE_EMPTY': 'No AMC visits are scheduled in the next {days} days.',
+  'AMC_SCHEDULE_LOAD_FAILED':
+      'Could not load the schedule. Check your internet connection and try again.',
+  'AMC_SCHEDULE_OFFLINE':
+      'No internet. Showing the schedule last saved on this device; it may be out of date.',
+  'AMC_SCHEDULE_DOWNLOAD': 'Download Schedule',
+  'AMC_SCHEDULE_DOWNLOADED': 'Schedule saved to {path}',
+  'AMC_SCHEDULE_DOWNLOAD_FAILED':
+      'Could not download the schedule. Please try again.',
+  'AMC_SCHEDULE_NO_APP_TO_OPEN':
+      'Schedule saved to {path}. No app on this phone can open Excel files.',
+  'AMC_SCHEDULE_OPEN': 'Open',
 
   // New report list (select facility)
   'AMC_SELECT_FACILITY_TITLE': 'New AMC Report',

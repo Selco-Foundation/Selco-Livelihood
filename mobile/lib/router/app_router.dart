@@ -16,6 +16,8 @@ import '../pages/amc/amc_otp.dart';
 import '../pages/amc/amc_report_home.dart';
 import '../pages/amc/amc_select_facility.dart';
 import '../pages/amc/amc_system_status.dart';
+import '../pages/amc/amc_view_schedule.dart';
+import '../repositories/amc/scheduled_visit_repo.dart';
 import '../pages/asset_flow_pages.dart';
 import '../pages/authenticated.dart';
 import '../pages/data_save_success.dart';
@@ -130,6 +132,9 @@ class AppRouter extends _$AppRouter {
             AutoRoute(page: AmcOtpRoute.page, path: Routes.amcOtp),
             AutoRoute(page: AmcDraftRoute.page, path: Routes.amcDraft),
             AutoRoute(page: AmcInboxRoute.page, path: Routes.amcInbox),
+            AutoRoute(
+                page: AmcViewScheduleRoute.page,
+                path: Routes.amcViewSchedule),
             AutoRoute(
                 page: AmcMediaUploadRoute.page, path: Routes.amcMediaUpload),
             AutoRoute(

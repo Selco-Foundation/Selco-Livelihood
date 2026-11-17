@@ -6,6 +6,7 @@ import '../../data/nosql/cache_amc_media_upload.dart';
 import '../../data/nosql/cache_prefilled_scheduled_visit.dart';
 import '../../data/nosql/cache_scheduled_visit.dart';
 import '../../data/secure_storage/secureStore.dart';
+import '../../model/amc/amc_schedule.dart';
 import '../../model/amc/scheduled_visit.dart';
 import '../../utils/amc/amc_utils.dart';
 import '../../utils/constants.dart';
@@ -29,6 +30,17 @@ class PaginatedScheduledVisits {
     required this.totalCount,
     this.fromCache = false,
   });
+}
+
+/// #252 View Schedule: the visits of the chosen period, earliest due first.
+class AmcScheduleResult {
+  final List<ScheduledVisit> visits;
+
+  /// True when the server could not be reached and the visits are the
+  /// device's last saved copy.
+  final bool fromCache;
+
+  const AmcScheduleResult({required this.visits, this.fromCache = false});
 }
 
 class ScheduledVisitRemoteRepository {
@@ -60,6 +72,39 @@ class ScheduledVisitRemoteRepository {
     );
 
     return ScheduledVisitSearchResponse.fromJson(response);
+  }
+
+  /// #252: every not-started (`SCHEDULED`) visit of the logged-in field
+  /// staff, with site details, earliest due first, page by page. The
+  /// backend creates a visit only after the previous one is done, so this
+  /// is about one row per AMC.
+  ///
+  /// No date range is sent: TODO(backend) the search rejects any
+  /// `scheduledDateFrom`/`scheduledDateTo` today (`ScheduledVisitValidator`
+  /// date check), so the period is applied on the device
+  /// ([amcScheduleVisits]).
+  Future<List<ScheduledVisit>> fetchAllScheduled({
+    int pageSize = 50,
+    int maxPages = 40,
+  }) async {
+    final criteria = ScheduledVisitSearchCriteria(
+      tenantId: envConfig.variables.tenantId,
+      statuses: [WORKFLOW_STATUS_AMC_FIELD_STAFF.SCHEDULED.name],
+      includeSiteDetails: true,
+      sortBy: 'scheduledDate',
+      sortDirection: 'ASC',
+    );
+    final visits = <ScheduledVisit>[];
+    for (var page = 0; page < maxPages; page++) {
+      final response = await search(
+          criteria: criteria, limit: pageSize, offset: visits.length);
+      visits.addAll(response.scheduledVisits);
+      if (response.scheduledVisits.isEmpty ||
+          visits.length >= response.totalCount) {
+        break;
+      }
+    }
+    return visits;
   }
 
   /// Returns the visit as the server now has it (with its new `status`),
@@ -250,6 +295,33 @@ class ScheduledVisitRepository {
         totalCount: eligible.length,
         fromCache: true,
       );
+    }
+  }
+
+  /// #252 View Schedule: `SCHEDULED` visits due from today to the end of the
+  /// [days]-day period. Fetched fresh each time, so reassigned or re-dated
+  /// visits show at once; without a connection the last saved copy is
+  /// used ([AmcScheduleResult.fromCache]). Throws when neither is
+  /// available.
+  Future<AmcScheduleResult> fetchSchedule({
+    required int days,
+    DateTime? now,
+  }) async {
+    final isar = await _isar;
+    try {
+      final visits = await _remote.fetchAllScheduled();
+      await _upsertCache(isar, visits);
+      return AmcScheduleResult(
+          visits: amcScheduleVisits(visits, days, now ?? DateTime.now()));
+    } catch (e) {
+      if (isAuthenticationFailure(e)) rethrow;
+      debugPrint('Failed to fetch the AMC schedule, using the cache: $e');
+      final cached = await _readCache(isar,
+          statuses: [WORKFLOW_STATUS_AMC_FIELD_STAFF.SCHEDULED.name]);
+      if (cached.isEmpty) rethrow;
+      return AmcScheduleResult(
+          visits: amcScheduleVisits(cached, days, now ?? DateTime.now()),
+          fromCache: true);
     }
   }
 

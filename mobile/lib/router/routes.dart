@@ -38,6 +38,7 @@ class Routes {
   static const amcOtp = 'amc-otp';
   static const amcDraft = 'amc-draft';
   static const amcInbox = 'amc-inbox';
+  static const amcViewSchedule = 'amc-view-schedule';
   static const amcMediaUpload = 'amc-media-upload';
   static const amcCameraCapture = 'amc-camera-capture';
 }

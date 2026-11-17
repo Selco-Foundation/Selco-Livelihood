@@ -406,7 +406,20 @@ List<Map<String, dynamic>> dummySeedVisits() {
       'installationDate': daysFromNow(-200),
       'purchaseOrderNumber': 'PO-2026-$number',
       'pinCode': '571${number.padLeft(3, '0')}',
-      'machines': const [],
+      // #252: machines installed with the end user, shaped like the
+      // backend's SiteDetailsReader (`name` joins the asset names).
+      'machines': [
+        for (final (i, name) in (int.parse(number).isOdd
+                ? ['Sewing Machine']
+                : ['Chaff Cutter', 'Milking Machine, Milk Can'])
+            .indexed)
+          {
+            'activityFacilityId': 'dummy-machine-$number-$i',
+            'solutionId': 'dummy-solution-$i',
+            'status': 'COMPLETED',
+            'name': name,
+          },
+      ],
     };
   }
 
@@ -536,6 +549,16 @@ List<Map<String, dynamic>> dummySeedVisits() {
       status: 'SCHEDULED',
       visitNumber: 1,
       scheduledInDays: 30,
+    ),
+    // #252: due within 20 days but not 10, so each schedule period differs.
+    visit(
+      id: 'dummy-visit-012',
+      name: 'PHC Periyapatna',
+      boundary: 'IN_KARNATAKA_MYSURU_PERIYAPATNA',
+      status: 'SCHEDULED',
+      visitNumber: 2,
+      scheduledInDays: 15,
+      endUser: 'Ramesh Kumar',
     ),
     visit(
       id: 'dummy-visit-011',

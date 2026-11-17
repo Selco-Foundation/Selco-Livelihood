@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+
+import 'package:digit_ui_components/widgets/atoms/digit_button.dart';
 import 'package:digit_forms_engine/blocs/app_localization.dart'
     as forms_localization;
 import 'package:digit_forms_engine/blocs/forms/forms.dart';
@@ -10,6 +12,7 @@ import 'package:digit_forms_engine/models/schema_object/schema_object.dart';
 import 'package:digit_forms_engine/utils/utils.dart'
     show evaluateVisibilityExpression;
 import 'package:dio/dio.dart';
+import 'package:excel/excel.dart' show Excel;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -19,6 +22,7 @@ import 'package:livelihood/blocs/localization/app_localization.dart';
 import 'package:livelihood/data/nosql/localization.dart' show Localization;
 import 'package:livelihood/blocs/amc_otp/amc_otp.dart';
 import 'package:livelihood/main.dart';
+import 'package:livelihood/model/amc/amc_schedule.dart';
 import 'package:livelihood/model/amc/amc_site_details.dart';
 import 'package:livelihood/model/amc/scheduled_visit.dart';
 import 'package:livelihood/model/appconfig/mdmsResponse.dart' show Language;
@@ -37,6 +41,7 @@ import 'package:livelihood/repositories/auth_repo.dart';
 import 'package:livelihood/router/app_router.dart';
 import 'package:livelihood/utils/amc/amc_module_readiness.dart';
 import 'package:livelihood/utils/amc/amc_rejection_reasons.dart';
+import 'package:livelihood/utils/amc/amc_schedule_export.dart';
 import 'package:livelihood/utils/amc/amc_utils.dart';
 import 'package:livelihood/utils/envConfig.dart';
 import 'package:livelihood/utils/i18_key_constants.dart' as i18;
@@ -187,6 +192,33 @@ class _FakeAmcRemoteDataSource implements AmcRemoteDataSource {
 
   @override
   Future<List<int>?> downloadFile(String fileStoreId) async => null;
+}
+
+/// #252: serves the View Schedule screen without Isar or a server.
+class _FakeScheduleRepository extends ScheduledVisitRepository {
+  _FakeScheduleRepository(this.respond);
+
+  final Future<AmcScheduleResult> Function(int days) respond;
+  final List<int> requestedDays = [];
+
+  @override
+  Future<AmcScheduleResult> fetchSchedule(
+      {required int days, DateTime? now}) {
+    requestedDays.add(days);
+    return respond(days);
+  }
+}
+
+class _ScheduleTestRouter extends RootStackRouter {
+  @override
+  Map<String, PageFactory> get pagesMap => {
+        AmcViewScheduleRoute.name:
+            AppRouter().pagesMap[AmcViewScheduleRoute.name]!,
+      };
+
+  @override
+  List<AutoRoute> get routes =>
+      [AutoRoute(page: AmcViewScheduleRoute.page, path: '/')];
 }
 
 void main() {
@@ -1516,6 +1548,275 @@ void main() {
     });
   });
 
+  group('AMC View Schedule (#252)', () {
+    // 17 Nov 2026, 10:30 on the device's calendar.
+    final now = DateTime(2026, 11, 17, 10, 30);
+    ScheduledVisit visit(String id, DateTime? date,
+            {String status = 'SCHEDULED'}) =>
+        ScheduledVisit(id: id, status: status, scheduledDate: date);
+
+    test('offers only 10, 20 and 30 days, 30 selected first', () {
+      expect(amcSchedulePeriods, [10, 20, 30]);
+      expect(amcDefaultSchedulePeriod, 30);
+      expect(amcSchedulePeriods.last, amcSubmissionWindowDays);
+    });
+
+    test('a period runs from the start of today to the end of its last day',
+        () {
+      expect(amcScheduleStart(now), DateTime(2026, 11, 17));
+      expect(amcScheduleEnd(10, now),
+          DateTime(2026, 11, 28).subtract(const Duration(milliseconds: 1)));
+      // Same last day as New Report's 30-day window.
+      expect(amcScheduleEnd(30, now), amcSubmissionWindowEnd(now));
+
+      bool inTen(DateTime? date, [String status = 'SCHEDULED']) =>
+          isInAmcSchedule(visit('v', date, status: status), 10, now);
+      expect(inTen(DateTime(2026, 11, 17)), isTrue); // today, earlier hour
+      expect(inTen(DateTime(2026, 11, 27, 23, 59)), isTrue);
+      expect(inTen(DateTime(2026, 11, 28)), isFalse);
+      expect(inTen(DateTime(2026, 11, 16, 23, 59)), isFalse); // overdue
+      expect(inTen(null), isFalse);
+      expect(inTen(DateTime(2026, 11, 20), 'PENDING_OTP_APPROVAL'), isFalse);
+    });
+
+    test('lists the period earliest due first, once per visit', () {
+      final list = amcScheduleVisits([
+        visit('c', DateTime(2026, 11, 25)),
+        visit('a', DateTime(2026, 11, 18)),
+        visit('late', DateTime(2026, 12, 30)),
+        visit('a', DateTime(2026, 11, 18)),
+        visit('b', DateTime(2026, 11, 20)),
+      ], 10, now);
+      expect(list.map((v) => v.id), ['a', 'b', 'c']);
+    });
+
+    test('reads the machine names from the site details', () {
+      expect(
+          amcMachineNames({
+            'machines': [
+              {'name': 'Sewing Machine', 'solutionId': 'S1'},
+              {'name': ' ', 'solutionId': 'SOL-CHAFF'},
+              {'name': null, 'solutionId': null},
+              'Oil Expeller',
+            ],
+          }),
+          ['Sewing Machine', 'SOL-CHAFF', 'Oil Expeller']);
+      expect(amcMachineNames({'machines': null}), isEmpty);
+      expect(amcMachineNames(null), isEmpty);
+    });
+
+    group('with the sample backend', () {
+      late Directory dir;
+      late ScheduledVisitRemoteRepository remote;
+
+      setUp(() {
+        dir = Directory.systemTemp.createTempSync('amc_schedule');
+        remote = ScheduledVisitRemoteRepository(
+          dataSource: DummyAmcRemoteDataSource(
+            latency: Duration.zero,
+            storageDirectory: () async => dir,
+          ),
+        );
+      });
+
+      tearDown(() => dir.deleteSync(recursive: true));
+
+      test('fetches every page of not-started visits, earliest first',
+          () async {
+        final visits = await remote.fetchAllScheduled(pageSize: 3);
+        expect(visits.map((v) => v.id), [
+          'dummy-visit-008', // overdue
+          'dummy-visit-009', // today
+          'dummy-visit-001',
+          'dummy-visit-002',
+          'dummy-visit-003',
+          'dummy-visit-012',
+          'dummy-visit-010',
+          'dummy-visit-011', // +31
+        ]);
+        expect(visits.every((v) => v.siteDetails != null), isTrue);
+      });
+
+      test('each period shows only the visits due within it', () async {
+        final visits = await remote.fetchAllScheduled();
+        List<String?> ids(int days) =>
+            amcScheduleVisits(visits, days).map((v) => v.id).toList();
+        const tenDays = [
+          'dummy-visit-009',
+          'dummy-visit-001',
+          'dummy-visit-002',
+          'dummy-visit-003',
+        ];
+        expect(ids(10), tenDays);
+        expect(ids(20), [...tenDays, 'dummy-visit-012']);
+        expect(ids(30), [...tenDays, 'dummy-visit-012', 'dummy-visit-010']);
+      });
+
+      test('a row has the screen fields and the machines', () async {
+        final visits = await remote.fetchAllScheduled();
+        final entry = AmcScheduleEntry.fromVisit(
+            visits.firstWhere((v) => v.id == 'dummy-visit-012'));
+        expect(entry.endUserName, 'Ramesh Kumar');
+        expect(entry.phone, '9845000012');
+        expect(entry.state, 'Karnataka');
+        expect(entry.district, 'Mysuru');
+        expect(entry.block, 'Periyapatna');
+        expect(entry.machines, ['Chaff Cutter', 'Milking Machine, Milk Can']);
+      });
+    });
+
+    test('the Excel file has a header row and one row per visit', () {
+      final bytes = buildAmcScheduleWorkbook(
+        headers: const [
+          'End user name',
+          'Phone number',
+          'State',
+          'District',
+          'Block',
+          'Scheduled AMC date',
+          'Machines',
+        ],
+        entries: [
+          AmcScheduleEntry(
+            visitId: 'v1',
+            endUserName: 'Ramesh Kumar',
+            phone: '09876543210',
+            state: 'Assam',
+            district: 'Kamrup',
+            block: 'Rangia',
+            scheduledDate: DateTime(2026, 11, 20),
+            machines: const ['Sewing Machine', 'Chaff Cutter'],
+          ),
+        ],
+      );
+      final excel = Excel.decodeBytes(bytes);
+      expect(excel.tables.keys, [amcScheduleSheetName]);
+      final rows = excel.tables[amcScheduleSheetName]!
+          .rows
+          .map((row) => row.map((cell) => cell?.value?.toString()).toList())
+          .toList();
+      expect(rows, [
+        [
+          'End user name',
+          'Phone number',
+          'State',
+          'District',
+          'Block',
+          'Scheduled AMC date',
+          'Machines',
+        ],
+        [
+          'Ramesh Kumar',
+          '09876543210', // text, so the leading zero stays
+          'Assam',
+          'Kamrup',
+          'Rangia',
+          '20/11/2026',
+          'Sewing Machine, Chaff Cutter',
+        ],
+      ]);
+      expect(amcScheduleFileName(30, now),
+          'AMC_Schedule_next_30_days_2026-11-17.xlsx');
+    });
+
+    group('screen', () {
+      Future<void> pumpSchedule(
+          WidgetTester tester, _FakeScheduleRepository repository) async {
+        tester.view.physicalSize = const Size(1080, 6000);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final router = _ScheduleTestRouter();
+        await tester.pumpWidget(MaterialApp.router(
+          routerConfig: router.config(
+            deepLinkBuilder: (_) =>
+                DeepLink([AmcViewScheduleRoute(repository: repository)]),
+          ),
+        ));
+        await tester.pumpAndSettle();
+      }
+
+      final today = DateTime.now();
+      ScheduledVisit due(String id, int days) => ScheduledVisit(
+            id: id,
+            status: 'SCHEDULED',
+            scheduledDate:
+                DateTime(today.year, today.month, today.day + days, 12),
+            facilityName: 'Site $id',
+          );
+      final all = [due('a', 1), due('b', 15), due('c', 25)];
+      AmcScheduleResult resultFor(int days) =>
+          AmcScheduleResult(visits: amcScheduleVisits(all, days));
+      Finder card(String id) => find.byKey(ValueKey('amc-schedule-$id'));
+      DigitButton downloadButton(WidgetTester tester) => tester.widget(
+          find.byKey(const ValueKey('amc-schedule-download')));
+
+      testWidgets('opens on 30 days; another period fetches again',
+          (tester) async {
+        final repository =
+            _FakeScheduleRepository((days) async => resultFor(days));
+        await pumpSchedule(tester, repository);
+
+        expect(repository.requestedDays, [30]);
+        for (final id in ['a', 'b', 'c']) {
+          expect(card(id), findsOneWidget);
+        }
+        expect(find.text('Site b'), findsOneWidget);
+        expect(downloadButton(tester).isDisabled, isFalse);
+
+        await tester
+            .tap(find.byKey(const ValueKey('amc-schedule-period-10')));
+        await tester.pumpAndSettle();
+        expect(repository.requestedDays, [30, 10]);
+        expect(card('a'), findsOneWidget);
+        expect(card('b'), findsNothing);
+        expect(card('c'), findsNothing);
+        expect(find.byKey(const ValueKey('amc-schedule-period-40')),
+            findsNothing);
+      });
+
+      testWidgets('says so when nothing is due; nothing to download',
+          (tester) async {
+        await pumpSchedule(
+            tester,
+            _FakeScheduleRepository(
+                (_) async => const AmcScheduleResult(visits: [])));
+        expect(find.byKey(const ValueKey('amc-schedule-empty')),
+            findsOneWidget);
+        expect(downloadButton(tester).isDisabled, isTrue);
+      });
+
+      testWidgets('a failed load shows Retry, which loads again',
+          (tester) async {
+        var fail = true;
+        final repository = _FakeScheduleRepository((days) async {
+          if (fail) throw Exception('offline');
+          return resultFor(days);
+        });
+        await pumpSchedule(tester, repository);
+        expect(find.byKey(const ValueKey('amc-schedule-retry')),
+            findsOneWidget);
+        expect(downloadButton(tester).isDisabled, isTrue);
+
+        fail = false;
+        await tester.tap(find.byKey(const ValueKey('amc-schedule-retry')));
+        await tester.pumpAndSettle();
+        expect(card('a'), findsOneWidget);
+        expect(find.byKey(const ValueKey('amc-schedule-retry')), findsNothing);
+      });
+
+      testWidgets('offline, the saved copy is shown with a notice',
+          (tester) async {
+        await pumpSchedule(
+            tester,
+            _FakeScheduleRepository((days) async => AmcScheduleResult(
+                visits: amcScheduleVisits(all, days), fromCache: true)));
+        expect(find.byKey(const ValueKey('amc-schedule-offline')),
+            findsOneWidget);
+        expect(card('a'), findsOneWidget);
+      });
+    });
+  });
+
   group('Login routing', () {
     void setViewport(WidgetTester tester) {
       tester.view.physicalSize = const Size(390, 844);
@@ -1571,6 +1872,8 @@ void main() {
       expect(find.byType(HomePage), findsNothing);
       expect(find.byKey(const ValueKey('amc-home-report')), findsOneWidget);
       expect(find.byKey(const ValueKey('amc-home-data-sync')), findsOneWidget);
+      expect(find.byKey(const ValueKey('amc-home-view-schedule')),
+          findsOneWidget);
       expect(
           find.byKey(const ValueKey('amc-mdms-loading-dialog')), findsNothing);
       expect(AmcModuleReadiness.isReady, isTrue);

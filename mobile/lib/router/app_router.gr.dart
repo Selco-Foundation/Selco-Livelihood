@@ -100,6 +100,17 @@ abstract class _$AppRouter extends RootStackRouter {
         ),
       );
     },
+    AmcViewScheduleRoute.name: (routeData) {
+      final args = routeData.argsAs<AmcViewScheduleRouteArgs>(
+          orElse: () => const AmcViewScheduleRouteArgs());
+      return AutoRoutePage<dynamic>(
+        routeData: routeData,
+        child: AmcViewSchedulePage(
+          key: args.key,
+          repository: args.repository,
+        ),
+      );
+    },
     AndroidCameraCaptureRoute.name: (routeData) {
       return AutoRoutePage<XFile>(
         routeData: routeData,
@@ -645,6 +656,44 @@ class AmcSystemStatusRouteArgs {
   @override
   String toString() {
     return 'AmcSystemStatusRouteArgs{key: $key, scheduledVisit: $scheduledVisit, origin: $origin}';
+  }
+}
+
+/// generated route for
+/// [AmcViewSchedulePage]
+class AmcViewScheduleRoute extends PageRouteInfo<AmcViewScheduleRouteArgs> {
+  AmcViewScheduleRoute({
+    Key? key,
+    ScheduledVisitRepository? repository,
+    List<PageRouteInfo>? children,
+  }) : super(
+          AmcViewScheduleRoute.name,
+          args: AmcViewScheduleRouteArgs(
+            key: key,
+            repository: repository,
+          ),
+          initialChildren: children,
+        );
+
+  static const String name = 'AmcViewScheduleRoute';
+
+  static const PageInfo<AmcViewScheduleRouteArgs> page =
+      PageInfo<AmcViewScheduleRouteArgs>(name);
+}
+
+class AmcViewScheduleRouteArgs {
+  const AmcViewScheduleRouteArgs({
+    this.key,
+    this.repository,
+  });
+
+  final Key? key;
+
+  final ScheduledVisitRepository? repository;
+
+  @override
+  String toString() {
+    return 'AmcViewScheduleRouteArgs{key: $key, repository: $repository}';
   }
 }
 

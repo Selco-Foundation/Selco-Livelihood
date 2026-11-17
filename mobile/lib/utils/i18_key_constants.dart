@@ -25,6 +25,7 @@ const amcDraft = AmcDraft();
 const amcInbox = AmcInbox();
 const amcMediaUpload = AmcMediaUpload();
 const amcBookmarks = AmcBookmarks();
+const amcSchedule = AmcScheduleText();
 const inbox = Inbox();
 const sharedCards = SharedCards();
 const submitForApproval = SubmitForApproval();
@@ -369,6 +370,31 @@ class AmcHome {
   String get formSchemaLoadFailed => 'AMC_HOME_FORM_SCHEMA_LOAD_FAILED';
   String get amcReport => 'AMC_HOME_AMC_REPORT';
   String get dataSync => 'AMC_HOME_DATA_SYNC';
+  String get viewSchedule => 'AMC_HOME_VIEW_SCHEDULE';
+}
+
+/// #252 View Schedule. `{days}`, `{count}`, `{date}` and `{path}` are
+/// replaced in the app.
+class AmcScheduleText {
+  const AmcScheduleText();
+
+  String get title => 'AMC_SCHEDULE_TITLE';
+  String get periodPrompt => 'AMC_SCHEDULE_PERIOD_PROMPT';
+  String get periodDays => 'AMC_SCHEDULE_PERIOD_DAYS';
+  String get count => 'AMC_SCHEDULE_COUNT';
+  String get due => 'AMC_SCHEDULE_DUE';
+  String get endUserName => 'AMC_SCHEDULE_END_USER_NAME';
+  String get phone => 'AMC_SCHEDULE_PHONE';
+  String get scheduledDate => 'AMC_SCHEDULE_SCHEDULED_DATE';
+  String get machines => 'AMC_SCHEDULE_MACHINES';
+  String get empty => 'AMC_SCHEDULE_EMPTY';
+  String get loadFailed => 'AMC_SCHEDULE_LOAD_FAILED';
+  String get offline => 'AMC_SCHEDULE_OFFLINE';
+  String get download => 'AMC_SCHEDULE_DOWNLOAD';
+  String get downloaded => 'AMC_SCHEDULE_DOWNLOADED';
+  String get downloadFailed => 'AMC_SCHEDULE_DOWNLOAD_FAILED';
+  String get noAppToOpen => 'AMC_SCHEDULE_NO_APP_TO_OPEN';
+  String get open => 'AMC_SCHEDULE_OPEN';
 }
 
 class AmcReportHome {
