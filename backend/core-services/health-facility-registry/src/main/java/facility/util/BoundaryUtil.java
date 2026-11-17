@@ -453,10 +453,18 @@ public class BoundaryUtil {
     }
 
     /**
-     * Facility boundary codes embed the facility id (e.g. fac/2026/0013) after the block prefix.
+     * A facility boundary code is its block code plus "_" and the facility id, e.g.
+     * INDIA_ODISHA_DHENKANAL_DHENKANAL/SADAR_ED/2026/0013. Checking for any "/" is not enough:
+     * since LGD onboarding, multi-word state/district/block names also use "/" in place of spaces
+     * (DHENKANAL/SADAR), so a plain block code was taken for a facility code, never expanded to
+     * its facilities, and the search returned nothing. Only the idgen shape PREFIX/YYYY/NNNN in
+     * the last segment marks a facility.
      */
-    private boolean isFacilityLevelBoundaryCode(String code) {
-        return code != null && code.contains("/");
+    private static final java.util.regex.Pattern FACILITY_ID_SEGMENT =
+            java.util.regex.Pattern.compile("(^|_)[A-Za-z]+/\\d{4}/\\d+$");
+
+    boolean isFacilityLevelBoundaryCode(String code) {
+        return code != null && FACILITY_ID_SEGMENT.matcher(code.trim()).find();
     }
 
 }
