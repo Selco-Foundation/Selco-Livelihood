@@ -353,6 +353,7 @@ public class BomPdfService {
             data.put("report_no", bom.getData().get("report_number"));
             data.put("report_po_wo_number", bom.getData().get("purchase_order_number"));
         }
+        fillBlankSystemUnits(data, requestInfo, activityFacility.getTenantId());
 
         Asset asset = findAssetForActivityFacility(requestInfo, activityFacility.getId(), activityFacility.getTenantId());
         Map<String, Object> assetDetails = asset.getAssetDetails() != null ? asset.getAssetDetails() : Map.of();
@@ -408,6 +409,22 @@ public class BomPdfService {
         data.put("technician_submitted_at", nowFormatted);
 
         return data;
+    }
+
+    /**
+     * Units (V, A, W, Ω, Hz) are fixed, read-only values of the shared system form, but rows
+     * seeded before vendor assignment learnt them hold "" for every unit, and the app saves that
+     * "" back. pdf-service prints a blank as NA, so any unit still blank here takes the form's value.
+     * Never overwrites a non-blank value.
+     */
+    private void fillBlankSystemUnits(Map<String, Object> data, RequestInfo requestInfo, String tenantId) {
+        Map<String, String> defaults = mdmsUtils.fetchSystemFieldDefaults(requestInfo, tenantId);
+        defaults.forEach((name, value) -> {
+            Object current = data.get(name);
+            if (current == null || String.valueOf(current).isBlank()) {
+                data.put(name, value);
+            }
+        });
     }
 
     /**
