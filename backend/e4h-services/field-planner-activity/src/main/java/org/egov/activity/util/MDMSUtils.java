@@ -33,6 +33,9 @@ public class MDMSUtils {
     public static final String FILTER_NAME = "$.*.name";
     public static final String FILTER_ACTIVE_TRUE = "$.[?(@.active==true)]";
     private static final String INSTALLATION_SOLUTION_SCHEMA_CODE = "Installation.Solution";
+    private static final String BOM_FORM_SCHEMA_CODE = "livelihood.BOMFormSchema";
+    // Every Solution's SolutionBOMForms record lists this one form for the technician's readings.
+    private static final String SYSTEM_BOM_FORM_ID = "AssetForm.LIVELIHOOD_COMMON_BOM_system";
     private final ServiceRequestClient serviceRequestRepository;
     private final ActivityConfiguration config;
 
@@ -247,6 +250,62 @@ public class MDMSUtils {
             log.error("Error while fetching Installation.Solution MDMS master for code: {}", solutionCode, e);
         }
         return null;
+    }
+
+    /**
+     * The fixed values the shared system-readings form gives its read-only fields: today the 39
+     * units (V, A, W, Ω, Hz) of {@code AssetForm.LIVELIHOOD_COMMON_BOM_system}, keyed by
+     * fieldName. Fields without a value, i.e. everything the technician types, are left out.
+     *
+     * <p>Never throws: an unreachable or empty MDMS returns an empty map, so callers keep their
+     * previous behaviour (a blank unit) rather than failing an assignment or a report over a label.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, String> fetchSystemFieldDefaults(RequestInfo requestInfo, String tenantId) {
+        Map<String, Object> mdmsCriteria = new LinkedHashMap<>();
+        mdmsCriteria.put("tenantId", tenantId);
+        mdmsCriteria.put("schemaCode", BOM_FORM_SCHEMA_CODE);
+        mdmsCriteria.put("uniqueIdentifiers", Collections.singletonList(SYSTEM_BOM_FORM_ID));
+
+        Map<String, Object> mdmsCriteriaReq = new LinkedHashMap<>();
+        mdmsCriteriaReq.put("RequestInfo", requestInfo);
+        mdmsCriteriaReq.put("MdmsCriteria", mdmsCriteria);
+
+        Map<String, String> defaults = new LinkedHashMap<>();
+        try {
+            StringBuilder url = new StringBuilder(config.getMdmsHost()).append(config.getMdmsSchemaSearchEndpoint());
+            Map<String, Object> response = serviceRequestRepository.fetchResult(url, mdmsCriteriaReq, Map.class);
+            List<Map<String, Object>> mdmsRecords = response != null ? (List<Map<String, Object>>) response.get("mdms") : null;
+            if (mdmsRecords == null) {
+                log.warn("No {} record returned for tenantId: {}", SYSTEM_BOM_FORM_ID, tenantId);
+                return defaults;
+            }
+            for (Map<String, Object> record : mdmsRecords) {
+                if (!SYSTEM_BOM_FORM_ID.equals(record.get("uniqueIdentifier"))
+                        || !Boolean.TRUE.equals(record.get("isActive"))) {
+                    continue;
+                }
+                Map<String, Object> data = (Map<String, Object>) record.get("data");
+                List<Map<String, Object>> pages = data != null ? (List<Map<String, Object>>) data.get("pages") : null;
+                for (Map<String, Object> page : pages != null ? pages : List.<Map<String, Object>>of()) {
+                    List<Map<String, Object>> properties = (List<Map<String, Object>>) page.get("properties");
+                    for (Map<String, Object> property : properties != null ? properties : List.<Map<String, Object>>of()) {
+                        Object fieldName = property.get("fieldName");
+                        Object value = property.get("value");
+                        if (fieldName != null && Boolean.TRUE.equals(property.get("readOnly"))
+                                && value != null && !String.valueOf(value).isBlank()) {
+                            defaults.put(String.valueOf(fieldName), String.valueOf(value));
+                        }
+                    }
+                }
+            }
+            if (defaults.isEmpty()) {
+                log.warn("{} has no read-only defaults for tenantId: {}", SYSTEM_BOM_FORM_ID, tenantId);
+            }
+        } catch (Exception e) {
+            log.error("Error while fetching {} for tenantId: {}", SYSTEM_BOM_FORM_ID, tenantId, e);
+        }
+        return defaults;
     }
 
     private ModuleDetail getBOMModuleRequestData() {
