@@ -1,23 +1,29 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../data/remote_client.dart';
 import '../../utils/api_paths.dart';
 import '../../utils/envConfig.dart';
 import '../filestore_repository.dart';
 import 'amc_dummy_backend.dart';
+import 'amc_dummy_form_schema.dart';
 
 export 'amc_dummy_backend.dart' show isDummyFileStoreId;
 
 /// DUMMY-BACKEND: the single switch for every AMC backend interaction.
 ///
 /// `true`  → [DummyAmcRemoteDataSource]: no network, sample data, a
-///           file-backed fake server (see `amc_dummy_backend.dart`).
-/// `false` → [HttpAmcRemoteDataSource]: the exact E4H requests
-///           (`asset-amc/v1/...`, MDMS v2, filestore).
+///           file-backed fake server (see `amc_dummy_backend.dart`) that
+///           follows the Livelihood AMC API contract.
+/// `false` → [HttpAmcRemoteDataSource]: the Livelihood AMC API
+///           (`asset-amc/v1/...`, MDMS v2, filestore), as in the
+///           "Livelihood AMC API Contract" (checked on dev, 16 Nov 2026).
+///           Point `.env` at the Livelihood server with
+///           `TENANT_ID="livelihood"` when using it.
 ///
 /// See `mobile/AMC_DUMMY_BACKEND.md` for every dummy location and what to
 /// confirm with the backend team before switching this off.
-const bool kAmcUseDummyBackend = true;
+const bool kAmcUseDummyBackend = false;
 
 /// Every call the AMC module makes to a backend. The repositories above this
 /// layer are E4H's logic, unchanged; only this transport is swappable.
@@ -60,9 +66,8 @@ AmcRemoteDataSource amcRemoteDataSource = kAmcUseDummyBackend
     ? DummyAmcRemoteDataSource()
     : HttpAmcRemoteDataSource();
 
-/// The real calls, request-for-request identical to E4H
-/// (`scheduled_visit_repo.dart`, `app_init_repo.dart`, `asset_repo.dart`,
-/// `utils.dart getCachedFile`).
+/// The real calls (Livelihood AMC API contract). `RequestInfo` (token and
+/// user) is added by `AuthTokenInterceptor`.
 class HttpAmcRemoteDataSource implements AmcRemoteDataSource {
   HttpAmcRemoteDataSource({Dio? dio}) : _dio = dio;
 
@@ -91,7 +96,11 @@ class HttpAmcRemoteDataSource implements AmcRemoteDataSource {
   @override
   Future<Map<String, dynamic>?> updateVisitWorkflow(
       Map<String, dynamic> body) async {
-    final response = await dio.post(ApiPaths.amcVisitWorkflowUpdate, data: body);
+    final response = await dio.post(
+      ApiPaths.amcVisitWorkflowUpdate,
+      queryParameters: _tenant,
+      data: body,
+    );
     final data = response.data;
     return data is Map ? Map<String, dynamic>.from(data) : null;
   }
@@ -100,14 +109,18 @@ class HttpAmcRemoteDataSource implements AmcRemoteDataSource {
   Future<void> resendVisitOtp(String visitId) async {
     await dio.post(
       ApiPaths.amcVisitResendOtp,
+      queryParameters: _tenant,
       data: <String, dynamic>{'visitId': visitId},
     );
   }
 
   @override
   Future<void> updateSystemStatus(Map<String, dynamic> body) async {
-    // DUMMY-BACKEND: placeholder path until the backend provides the API.
-    await dio.post(ApiPaths.amcVisitSystemStatusUpdate, data: body);
+    await dio.post(
+      ApiPaths.amcVisitSystemStatusUpdate,
+      queryParameters: _tenant,
+      data: body,
+    );
   }
 
   @override
@@ -129,8 +142,20 @@ class HttpAmcRemoteDataSource implements AmcRemoteDataSource {
     if (raw is! List) {
       throw Exception('MDMS v2 response missing "mdms" array');
     }
+    // DUMMY-BACKEND: until the backend uploads the Livelihood AMC form
+    // (#250) to MDMS, use the app's copy so the report can be filled.
+    final hasForm = raw.any((doc) =>
+        doc is Map && doc['uniqueIdentifier'] == amcDummyFormIdentifier);
+    if (!hasForm) {
+      debugPrint('MDMS has no $amcDummyFormIdentifier for '
+          '${envConfig.variables.tenantId}; using the app\'s copy.');
+      return [...raw, dummyAmcFormSchemaDoc(envConfig.variables.tenantId)];
+    }
     return raw;
   }
+
+  Map<String, dynamic> get _tenant =>
+      {'tenantId': envConfig.variables.tenantId};
 
   @override
   Future<String> uploadFile(String localFilePath) =>

@@ -238,9 +238,7 @@ class _AmcSelectFacilityPageState extends State<AmcSelectFacilityPage>
                                       builder: (context, snapshot) {
                                         final label = snapshot.data ?? 'Start';
                                         final locality =
-                                            parseBoundaryCodeLocality(
-                                          items[index].facility?.boundaryCode,
-                                        );
+                                            amcVisitLocality(items[index]);
                                         return AMCInstallationReportCard(
                                             isBookmarked: bookmarkIds.contains(
                                                 items[index].id?.trim()),
@@ -265,11 +263,9 @@ class _AmcSelectFacilityPageState extends State<AmcSelectFacilityPage>
                                             visitFrequencyMonths: items[index]
                                                 .amcConfiguration
                                                 ?.visitFrequencyMonths,
+                                            totalVisits: items[index].totalVisits,
                                             label: label,
-                                            title: items[index]
-                                                    .facility
-                                                    ?.facilityName ??
-                                                '',
+                                            title: items[index].displayFacilityName,
                                             status: items[index].status,
                                             state: locality.state,
                                             district: locality.district,
@@ -503,6 +499,7 @@ class AMCInstallationReportCard extends StatefulWidget {
   final int? visitNumber;
   final int? durationMonths;
   final int? visitFrequencyMonths;
+  final int? totalVisits;
   final Function() onPress;
   final VoidCallback? onSubmit;
 
@@ -524,6 +521,7 @@ class AMCInstallationReportCard extends StatefulWidget {
     this.visitNumber,
     this.durationMonths,
     this.visitFrequencyMonths,
+    this.totalVisits,
     required this.onPress,
     this.onSubmit,
   });
@@ -620,6 +618,7 @@ class _AMCInstallationReportCardState extends State<AMCInstallationReportCard> {
                   widget.visitNumber,
                   widget.durationMonths,
                   widget.visitFrequencyMonths,
+                  totalVisits: widget.totalVisits,
                 ),
                 textTheme,
                 theme,

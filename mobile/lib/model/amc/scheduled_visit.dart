@@ -88,6 +88,27 @@ class ScheduledVisit with _$ScheduledVisit {
     String? facilityId,
     @AmcFacilityConverter() AmcFacility? facility,
     int? visitNumber,
+    // Livelihood visit search fields (AMC API contract, 16 Nov 2026).
+    /// End user site name; the facility object may not repeat it.
+    String? facilityName,
+    String? activityFacilityId,
+
+    /// Place names, ready to show (not boundary codes).
+    String? state,
+    String? district,
+    String? block,
+
+    /// Visits in the whole AMC ("Visit {visitNumber} of {totalVisits}").
+    int? totalVisits,
+
+    /// First day a report can be submitted (30 days before the due date).
+    @EpochDateTimeConverter() DateTime? submissionWindowOpensAt,
+
+    /// `SYSTEM` (auto-approved) or `REVIEWER`, once approved.
+    String? approvedBy,
+
+    /// Only returned when searched with `includeSiteDetails: true`.
+    Map<String, dynamic>? siteDetails,
     @EpochDateTimeConverter() DateTime? scheduledDate,
     @EpochDateTimeConverter() DateTime? actualVisitDate,
     String? status,
@@ -148,6 +169,15 @@ class ScheduledVisitSearchCriteria with _$ScheduledVisitSearchCriteria {
     String? facilityId,
     String? facilityName,
     List<String>? assignedUsers,
+
+    /// End user name (contains, any case) or an exact phone number.
+    String? searchText,
+
+    /// Adds `siteDetails` to each visit.
+    bool? includeSiteDetails,
+
+    /// `scheduledDate` or `latestSubmissionDate`.
+    String? sortBy,
     String? amcConfigurationId,
     @Default(<String>[]) List<String> statuses,
     int? visitNumber,
@@ -170,6 +200,9 @@ class ScheduledVisitSearchCriteria with _$ScheduledVisitSearchCriteria {
   static const String SCHEDULED_FROM = 'scheduledDateFrom';
   static const String SCHEDULED_TO = 'scheduledDateTo';
   static const String SORT_DIRECTION = 'sort_direction';
+  static const String SEARCH_TEXT = 'searchText';
+  static const String INCLUDE_SITE_DETAILS = 'includeSiteDetails';
+  static const String SORT_BY = 'sortBy';
 
   /// `searchCriteria` body of `asset-amc/v1/visit/_search`, as built by E4H.
   Map<String, dynamic> toApiMap() {
@@ -195,6 +228,15 @@ class ScheduledVisitSearchCriteria with _$ScheduledVisitSearchCriteria {
     }
     if (sortDirection != null && sortDirection!.trim().isNotEmpty) {
       out[SORT_DIRECTION] = sortDirection!.trim();
+    }
+    if (searchText != null && searchText!.trim().isNotEmpty) {
+      out[SEARCH_TEXT] = searchText!.trim();
+    }
+    if (includeSiteDetails != null) {
+      out[INCLUDE_SITE_DETAILS] = includeSiteDetails;
+    }
+    if (sortBy != null && sortBy!.trim().isNotEmpty) {
+      out[SORT_BY] = sortBy!.trim();
     }
     return out;
   }
@@ -391,5 +433,25 @@ extension ScheduledVisitDelay on ScheduledVisit {
     final date = scheduledDate;
     if (date == null) return false;
     return !date.toLocal().isAfter(amcSubmissionWindowEnd(now));
+  }
+}
+
+/// What the visit cards show. The Livelihood search returns the site name
+/// and place names on the visit itself; E4H's (and the dummy's older
+/// samples) only on the facility, so both are read.
+extension ScheduledVisitDisplay on ScheduledVisit {
+  String get displayFacilityName =>
+      (facility?.facilityName?.trim().isNotEmpty ?? false)
+          ? facility!.facilityName!
+          : facilityName ?? '';
+
+  /// Visits in the whole AMC: the server's `totalVisits`, else worked out
+  /// from the AMC's duration and frequency (E4H).
+  int? get amcTotalVisits {
+    if (totalVisits != null) return totalVisits;
+    final duration = amcConfiguration?.durationMonths;
+    final frequency = amcConfiguration?.visitFrequencyMonths;
+    if (duration == null || frequency == null || frequency <= 0) return null;
+    return duration % frequency == 0 ? duration ~/ frequency : null;
   }
 }

@@ -64,44 +64,43 @@ class ScheduledVisitRemoteRepository {
 
   /// Returns the visit as the server now has it (with its new `status`),
   /// or null if the response did not include it.
+  ///
+  /// Body as in the AMC API contract: `SUBMIT_VISIT_REPORT` sends the
+  /// answers, the documents and the pre-report system status (#247);
+  /// `SUBMIT_OTP` sends only the code, so the saved report is untouched.
   Future<ScheduledVisit?> updateVisitWorkflow({
     required String visitId,
-    required String schemaCode,
-    required int version,
     String? otp,
     String? status,
     Map<String, dynamic>? responses,
     List<AmcDocument>? visitDocuments,
     Map<String, dynamic>? reportAdditionalDetails,
   }) async {
+    final action = status ?? 'SUBMIT_VISIT_REPORT';
     try {
       final body = {
         'visitId': visitId,
         'workflow': {
-          'action': status ?? 'SUBMIT_VISIT_REPORT',
-          'comment': 'Submit Visit Report Action',
-          'additionalDetails': <String, dynamic>{},
+          'action': action,
+          'comment': null,
+          'documents': <dynamic>[],
         },
-        'visitReport': {
-          'schemaCode': schemaCode,
-          'version': version,
-          'otpReference': otp,
-          if (responses != null) ...{
-            'responses': responses,
-          },
-          if (visitDocuments != null) ...{
-            'documents':
-                visitDocuments.map((d) => d.toJsonForWorkflow()).toList(),
-          },
-          // Pre-report system status (#247) goes here with the report.
-          'additionalDetails': reportAdditionalDetails ?? <String, dynamic>{},
-        },
+        'visitReport': action == 'SUBMIT_OTP'
+            ? {'otpReference': otp}
+            : {
+                'responses': responses ?? <String, dynamic>{},
+                'documents': (visitDocuments ?? const <AmcDocument>[])
+                    .map((d) => d.toJsonForWorkflow())
+                    .toList(),
+                'additionalDetails':
+                    reportAdditionalDetails ?? <String, dynamic>{},
+              },
       };
 
       final response = await _remote.updateVisitWorkflow(body);
       await invalidateSubmittedReportBookmark(
           id: visitId,
-          action: status ?? 'SUBMIT_VISIT_REPORT',
+          action: action,
           storage: bookmarkStorage,
           tenantId: bookmarkTenantId);
       return _visitFromWorkflowResponse(response, visitId);
@@ -158,8 +157,6 @@ class ScheduledVisitRepository {
     int limit = defaultPageSize,
     int offset = 0,
   }) async {
-    final accessInfo = await SecureStore().getAccessInfo();
-    final assignedUserUuid = accessInfo?.userRequest?.uuid;
     final now = DateTime.now();
     // Not-started visits are only listed from 30 days before their
     // Scheduled AMC Date. Only applied server-side when every requested
@@ -167,10 +164,16 @@ class ScheduledVisitRepository {
     final scheduledOnly = statuses.isNotEmpty &&
         statuses.every(
             (s) => s == WORKFLOW_STATUS_AMC_FIELD_STAFF.SCHEDULED.name);
+    // The backend scopes the search to the logged-in field staff's own
+    // visits, so no assignee is sent. The name search is `searchText`
+    // (end user name, or an exact phone number).
     final criteria = ScheduledVisitSearchCriteria(
       tenantId: envConfig.variables.tenantId,
-      facilityName: facilityName,
-      assignedUsers: assignedUserUuid == null ? null : [assignedUserUuid],
+      searchText: facilityName,
+      includeSiteDetails: true,
+      // Without a direction the backend's default order applies (due date
+      // for New, last action for the others).
+      sortBy: sortDirection == null ? null : 'scheduledDate',
       statuses: statuses,
       // "AMC delayed": Scheduled AMC Date before today.
       scheduledTo: delayedOnly
@@ -233,7 +236,7 @@ class ScheduledVisitRepository {
                 await prefilledRepo.getPrefilledVisitsFromCache(prefilledIds),
           )
           .where((visit) =>
-              matchesFacilityName(visit.facility?.facilityName, facilityName))
+              matchesFacilityName(visit.displayFacilityName, facilityName))
           .where((visit) => !delayedOnly || visit.isAmcDelayed(now))
           .where((visit) => visit.isWithinAmcSubmissionWindow(now))
           .toList();

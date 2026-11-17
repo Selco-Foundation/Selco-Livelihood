@@ -138,13 +138,8 @@ class _AmcOtpPageState extends State<AmcOtpPage> {
                         FocusManager.instance.primaryFocus?.unfocus();
 
                         final otp = (form.control(_otp).value as String).trim();
-                        // DUMMY-BACKEND: E4H hard-codes schemaCode "12345678"
-                        // / version 1 here (kept as-is); confirm with backend.
                         context.read<AmcOtpBloc>().add(AmcOtpEvent.submit(
-                            visitId: _currentScheduledVisitId!,
-                            schemaCode: "12345678",
-                            version: 1,
-                            otp: otp));
+                            visitId: _currentScheduledVisitId!, otp: otp));
                       },
                     );
                   },

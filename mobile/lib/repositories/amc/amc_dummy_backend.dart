@@ -15,10 +15,12 @@ import 'amc_remote_data_source.dart';
 /// while `kAmcUseDummyBackend` is true. Remove this file (and
 /// `amc_dummy_form_schema.dart`) once the real backend is wired.
 ///
-/// It behaves like the AMC_VISIT workflow so every E4H screen can be
-/// exercised: visits start in each status; `SUBMIT_VISIT_REPORT` moves a
-/// visit to `PENDING_OTP_APPROVAL`; `SUBMIT_OTP` with [dummyAmcOtp] moves it
-/// to `PENDING_APPROVAL` (any other code fails like an invalid OTP).
+/// It follows the "Livelihood AMC API Contract" (16 Nov 2026) so every
+/// screen can be exercised: visits start in each status;
+/// `SUBMIT_VISIT_REPORT` moves a visit to `PENDING_OTP_APPROVAL`;
+/// `SUBMIT_OTP` with [dummyAmcOtp] runs the auto-approval rules
+/// ([dummyAutoApproval]) and moves it to `APPROVED` (by `SYSTEM`) or
+/// `PENDING_APPROVAL`. Errors use the contract's codes.
 ///
 /// State is a JSON file in app-support storage (not memory) because the
 /// report submission runs in the background-service isolate, and both
@@ -114,8 +116,10 @@ class DummyAmcRemoteDataSource implements AmcRemoteDataSource {
             ?.map((e) => e.toString())
             .toSet() ??
         const <String>{};
-    final name =
-        searchCriteria['facilityName']?.toString().trim().toLowerCase() ?? '';
+    final search =
+        searchCriteria['searchText']?.toString().trim().toLowerCase() ?? '';
+    final searchPhone = search.replaceAll(' ', '').replaceFirst('+91', '');
+    final withSiteDetails = searchCriteria['includeSiteDetails'] == true;
     final sort = searchCriteria['sort_direction']?.toString();
     // Same inclusive bounds as the real query builder.
     final from = searchCriteria['scheduledDateFrom'] as num?;
@@ -130,11 +134,14 @@ class DummyAmcRemoteDataSource implements AmcRemoteDataSource {
         return false;
       }
       if (to != null && (scheduled == null || scheduled > to)) return false;
-      final facilityName =
-          ((visit['facility'] as Map?)?['facility_name'] ?? '')
-              .toString()
-              .toLowerCase();
-      return name.isEmpty || facilityName.contains(name);
+      if (search.isEmpty) return true;
+      // End user name contains the text, or the phone matches exactly.
+      final names = [
+        visit['facilityName'],
+        (visit['facility'] as Map?)?['facilityPocName'],
+      ].map((n) => (n ?? '').toString().toLowerCase());
+      final phone = (visit['facility'] as Map?)?['facilityPocPhone'];
+      return names.any((n) => n.contains(search)) || phone == searchPhone;
     }).toList()
       ..sort((a, b) {
         final order = ((a['scheduledDate'] as num?) ?? 0)
@@ -143,7 +150,10 @@ class DummyAmcRemoteDataSource implements AmcRemoteDataSource {
       });
 
     return {
-      'ScheduledVisits': matching.skip(offset).take(limit).toList(),
+      'ScheduledVisits': [
+        for (final visit in matching.skip(offset).take(limit))
+          withSiteDetails ? visit : (Map.of(visit)..remove('siteDetails')),
+      ],
       'TotalCount': matching.length,
     };
   }
@@ -157,7 +167,7 @@ class DummyAmcRemoteDataSource implements AmcRemoteDataSource {
       final visitId = body['visitId']?.toString();
       final index = visits.indexWhere((v) => v['id'] == visitId);
       if (index < 0) {
-        _badRequest(ApiPaths.amcVisitWorkflowUpdate, 'INVALID_VISIT',
+        _badRequest(ApiPaths.amcVisitWorkflowUpdate, 'AMC_VISIT_NOT_FOUND',
             'Scheduled visit not found');
       }
 
@@ -173,40 +183,72 @@ class DummyAmcRemoteDataSource implements AmcRemoteDataSource {
       switch (action) {
         case 'SUBMIT_VISIT_REPORT':
           if (visit['status'] != 'SCHEDULED' && visit['status'] != 'REJECTED') {
-            _badRequest(ApiPaths.amcVisitWorkflowUpdate, 'INVALID_ACTION',
-                'Action $action not allowed in ${visit['status']}');
+            _badRequest(
+                ApiPaths.amcVisitWorkflowUpdate,
+                'AMC_VISIT_NOT_SUBMITTABLE',
+                'This report has already been submitted.');
+          }
+          final opensAt = visit['submissionWindowOpensAt'] as num?;
+          if (visit['status'] == 'SCHEDULED' &&
+              opensAt != null &&
+              now < opensAt) {
+            _badRequest(
+                ApiPaths.amcVisitWorkflowUpdate,
+                'AMC_SUBMISSION_WINDOW_NOT_OPEN',
+                'The report can be submitted from 30 days before the AMC '
+                    'date.');
+          }
+          final documents = (report['documents'] as List?) ?? const [];
+          if (!documents.any((d) =>
+              d is Map && d['documentType'] == 'AMC_VERIFICATION_PHOTO')) {
+            _badRequest(
+                ApiPaths.amcVisitWorkflowUpdate,
+                'AMC_VERIFICATION_PHOTO_MISSING',
+                'Add the photo of the system with the end user and the '
+                    'technician.');
           }
           nextStatus = 'PENDING_OTP_APPROVAL';
           visit['visitReport'] = {
             ...?(visit['visitReport'] as Map?)?.cast<String, dynamic>(),
-            'schemaCode': report['schemaCode'],
-            'version': report['version']?.toString(),
             'submittedAt': now,
-            if (report['responses'] != null) 'responses': report['responses'],
-            if (report['documents'] != null) 'documents': report['documents'],
-            if (report['additionalDetails'] != null)
-              'additionalDetails': report['additionalDetails'],
+            'responses': report['responses'] ?? const <String, dynamic>{},
+            'documents': documents,
+            'additionalDetails':
+                report['additionalDetails'] ?? const <String, dynamic>{},
+          };
+          visit['firstSubmissionDate'] ??= now;
+          visit['latestSubmissionDate'] = now;
+          visit['additionalDetails'] = {
+            ...?(visit['additionalDetails'] as Map?)?.cast<String, dynamic>(),
+            'reportPdf': {
+              'fileStoreId': '${_dummyFileStorePrefix}pdf-$now',
+              'visitStatus': nextStatus,
+            },
           };
           break;
         case 'SUBMIT_OTP':
           if (visit['status'] != 'PENDING_OTP_APPROVAL') {
-            _badRequest(ApiPaths.amcVisitWorkflowUpdate, 'INVALID_ACTION',
+            _badRequest(
+                ApiPaths.amcVisitWorkflowUpdate,
+                'AMC_ACTION_NOT_ALLOWED',
                 'Action $action not allowed in ${visit['status']}');
           }
           if (report['otpReference']?.toString() != dummyAmcOtp) {
-            _badRequest(ApiPaths.amcVisitWorkflowUpdate, 'INVALID_OTP',
-                'Invalid OTP');
+            _badRequest(ApiPaths.amcVisitWorkflowUpdate,
+                'AMC_INVALID_SERVICE_CODE', 'The service code is wrong.');
           }
-          // DUMMY-BACKEND: stand-in for the backend's auto-approval
-          // evaluation (#249), so both outcomes can be tested: approved when
-          // both pre-report answers (#247) are "Yes", otherwise sent for
-          // review. The real rule is the backend's.
-          final systemStatus = ((visit['visitReport'] as Map?)?[
-                  'additionalDetails'] as Map?)?['systemStatus'] as Map?;
-          nextStatus = systemStatus?['isSystemInUse'] == true &&
-                  systemStatus?['isSystemFunctional'] == true
-              ? 'APPROVED'
-              : 'PENDING_APPROVAL';
+          final responses =
+              ((visit['visitReport'] as Map?)?['responses'] as Map?)
+                  ?.cast<String, dynamic>();
+          final approval = dummyAutoApproval(responses ?? const {},
+              (visit['siteDetails'] as Map?)?.cast<String, dynamic>());
+          nextStatus =
+              approval['allPassed'] == true ? 'APPROVED' : 'PENDING_APPROVAL';
+          if (nextStatus == 'APPROVED') visit['approvedBy'] = 'SYSTEM';
+          visit['additionalDetails'] = {
+            ...?(visit['additionalDetails'] as Map?)?.cast<String, dynamic>(),
+            'autoApproval': approval,
+          };
           visit['visitReport'] = {
             ...?(visit['visitReport'] as Map?)?.cast<String, dynamic>(),
             'otpReference': report['otpReference'],
@@ -214,8 +256,8 @@ class DummyAmcRemoteDataSource implements AmcRemoteDataSource {
           };
           break;
         default:
-          _badRequest(ApiPaths.amcVisitWorkflowUpdate, 'INVALID_ACTION',
-              'Unsupported action $action');
+          _badRequest(ApiPaths.amcVisitWorkflowUpdate, 'AMC_ACTION_NOT_ALLOWED',
+              'Action $action is not allowed');
       }
 
       visit['status'] = nextStatus;
@@ -258,8 +300,15 @@ class DummyAmcRemoteDataSource implements AmcRemoteDataSource {
       final visitId = body['visitId']?.toString();
       final index = visits.indexWhere((v) => v['id'] == visitId);
       if (index < 0) {
-        _badRequest(ApiPaths.amcVisitSystemStatusUpdate, 'INVALID_VISIT',
+        _badRequest(ApiPaths.amcVisitSystemStatusUpdate, 'AMC_VISIT_NOT_FOUND',
             'Scheduled visit not found');
+      }
+      final status = body['systemStatus'];
+      if (status is! Map ||
+          status['isSystemInUse'] is! bool ||
+          status['isSystemFunctional'] is! bool) {
+        _badRequest(ApiPaths.amcVisitSystemStatusUpdate,
+            'AMC_INVALID_SYSTEM_STATUS', 'Answer both questions.');
       }
       final visit = visits[index];
       visit['dummySystemStatusUpdates'] = [
@@ -319,14 +368,16 @@ List<Map<String, dynamic>> dummySeedVisits() {
         ],
       };
 
-  Map<String, dynamic> facility(String id, String name, String boundary) => {
-        'tenant_id': tenantId,
-        'facility_id': id,
-        'facility_name': name,
+  /// `facility` as the visit search returns it (camelCase).
+  Map<String, dynamic> facility(String id, String name, String boundary,
+          {required String endUser, required String phone}) =>
+      {
+        'tenantId': tenantId,
+        'facilityId': id,
+        'facilityName': name,
         'boundaryCode': boundary,
-        'facility_type': 'PHC',
-        'facility_poc_name': 'Ravi Kumar',
-        'facility_poc_phone': '9876543210',
+        'facilityPocName': endUser,
+        'facilityPocPhone': phone,
       };
 
   Map<String, dynamic> instance(String id, String state, int at,
@@ -340,25 +391,30 @@ List<Map<String, dynamic>> dummySeedVisits() {
         'auditDetails': {'lastModifiedTime': at, 'createdTime': at},
       };
 
-  /// #250: the end user's site record (Site Details section). Where the
-  /// real API puts this is not decided yet; see `AmcSiteDetails`.
-  Map<String, dynamic> siteDetails(String id, String boundary,
-      {required String endUser, String battery = 'Lead Acid',
-      String system = 'DC'}) {
-    final parts = boundary.split('_');
+  /// `siteDetails` as the visit search returns it with
+  /// `includeSiteDetails: true` (the contract's fields; the real
+  /// `systemType` and `pinCode` are blank today, the samples fill them so
+  /// the conditional questions can be tried).
+  Map<String, dynamic> siteDetails(String id,
+      {String battery = 'Lead Acid', String system = 'DC'}) {
     final number = id.split('-').last;
     return {
-      'endUserName': endUser,
-      'endUserPhone': '98450${number.padLeft(5, '0')}',
-      'installationDate': daysFromNow(-200),
-      'block': parts.length > 3 ? parts[3] : '',
-      'district': parts.length > 2 ? parts[2] : '',
-      'pincode': '571${number.padLeft(3, '0')}',
-      'purchaseOrderNumber': 'PO-2026-$number',
+      'solarAssetId': 'dummy-solar-asset-$number',
+      'components': const [],
       'batteryType': battery,
       'systemType': system,
+      'installationDate': daysFromNow(-200),
+      'purchaseOrderNumber': 'PO-2026-$number',
+      'pinCode': '571${number.padLeft(3, '0')}',
+      'machines': const [],
     };
   }
+
+  String title(String code) => code
+      .toLowerCase()
+      .split(' ')
+      .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
+      .join(' ');
 
   Map<String, dynamic> visit({
     required String id,
@@ -375,31 +431,42 @@ List<Map<String, dynamic>> dummySeedVisits() {
   }) {
     final facilityId = 'dummy-facility-$id';
     final at = daysFromNow(scheduledInDays);
+    final parts = boundary.split('_');
+    final number = id.split('-').last;
     return {
       'id': id,
       'tenantId': tenantId,
       'amcConfigurationId': 'dummy-config-$id',
       'amcConfiguration': config('dummy-config-$id', facilityId),
+      'activityFacilityId': 'dummy-activity-facility-$number',
       'facilityId': facilityId,
-      'facility': facility(facilityId, name, boundary),
+      'facilityName': name,
+      'facility': facility(facilityId, name, boundary,
+          endUser: endUser, phone: '98450${number.padLeft(5, '0')}'),
+      'state': parts.length > 1 ? title(parts[1]) : '',
+      'district': parts.length > 2 ? title(parts[2]) : '',
+      'block': parts.length > 3 ? title(parts[3]) : '',
       'visitNumber': visitNumber,
+      'totalVisits': 4,
       'scheduledDate': at,
+      'submissionWindowOpensAt': DateTime.fromMillisecondsSinceEpoch(at)
+          .subtract(const Duration(days: 30))
+          .millisecondsSinceEpoch,
       'status': status,
+      if (status == 'APPROVED') 'approvedBy': 'SYSTEM',
+      'vendorName': 'Sample Vendor',
+      'fieldStaff': const {'uuid': 'dummy-field-staff', 'name': 'You'},
       if (visitReport != null) 'visitReport': visitReport,
       'processInstances': [instance(id, status, at, comment: comment)],
       'assignments': const [],
-      'additionalDetails': {
-        'siteDetails': siteDetails(id, boundary,
-            endUser: endUser, battery: battery, system: system),
-      },
+      'siteDetails': siteDetails(id, battery: battery, system: system),
+      'additionalDetails': const <String, dynamic>{},
     };
   }
 
   final submittedReport = {
-    'schemaCode': amcDummySchemaCode,
-    'version': '1',
-    // #250: a lead-acid DC site. Reading photos are left out (the dummy
-    // filestore has no files for them), so a rework asks for them again.
+    // #250: a lead-acid DC site. Photos are left out (the dummy filestore
+    // has no files for them), so a rework asks for them again.
     'responses': dummySubmittedAmcResponses(daysFromNow(-1)),
     'documents': const [],
     // Pre-report system status (#247), as the app submits it.
@@ -513,14 +580,15 @@ List<Map<String, dynamic>> dummySeedVisits() {
       visitNumber: 2,
       scheduledInDays: -10,
       visitReport: submittedReport,
-      // The web reviewer stores rejection reasons as a JSON list string.
+      // The web reviewer stores rejection reasons as a JSON list string;
+      // `OTHERS` is the only reason code today (AMC API contract).
       comment: jsonEncode([
         {
-          'reason': 'Photos are not clear',
-          'comment': 'Retake the panel photos in daylight.',
+          'reason': 'OTHERS',
+          'comment': 'Retake the SPD photo in daylight.',
         },
         {
-          'reason': 'Battery details missing',
+          'reason': 'OTHERS',
           'comment': 'Record the battery condition.',
         },
       ]),
@@ -528,47 +596,114 @@ List<Map<String, dynamic>> dummySeedVisits() {
   ];
 }
 
-/// #250: answers of a submitted report on a lead-acid DC site (field names
-/// from the dummy form schema).
+/// #250: answers of a submitted report on a lead-acid DC site, as the app
+/// sends them (contract report keys, readings as numbers).
 Map<String, dynamic> dummySubmittedAmcResponses(int visitedAt) => {
-      'date_of_visit':
-          DateTime.fromMillisecondsSinceEpoch(visitedAt).toUtc().toIso8601String(),
-      'service_by': 'Suresh Kumar',
-      'service_contact_number': '9876501234',
-      'pcu_priority': 'SOLAR_BATTERY_GRID',
-      'panels_per_string': 4,
+      'visitDate': () {
+        final d = DateTime.fromMillisecondsSinceEpoch(visitedAt);
+        String two(int n) => n.toString().padLeft(2, '0');
+        return '${d.year}-${two(d.month)}-${two(d.day)}';
+      }(),
+      'serviceBy': 'Suresh Kumar',
+      'serviceByPhone': '9876501234',
+      'pcuPriority': 'SOLAR_BATTERY_GRID',
+      'panelsPerString': 4,
       for (final field in const [
-        'solar_cables_tied',
-        'solar_panels_clean',
-        'solar_mms_rusting',
-        'solar_nuts_bolts_rusting',
-        'ajb_mounted_firm',
-        'battery_terminals_clean',
-        'battery_petroleum_jelly',
-        'battery_float_indicators_ok',
-        'battery_water_level_ok',
-        'pcu_cables_intact',
-        'la_insulation',
-        'la_firmly_fixed',
-        'la_saddle_insulators',
-        'earthing_conduit',
-        'earthing_cable_contact',
-        'earthing_electrodes_buried',
-        'cable_lugs_used',
-        'cable_lugs_crimped',
-        'cable_lugs_insulated',
-        'mc4_interlocked',
+        'obsPanelCablesTied',
+        'obsPanelsClean',
+        'obsAjbMounted',
+        'obsBatteryTerminalsClean',
+        'obsPetroleumJelly',
+        'obsFloatIndicators',
+        'obsDistilledWaterLevel',
+        'obsPcuCablesIntact',
+        'obsLaInsulation',
+        'obsLaFixed',
+        'obsDownConductorConduit',
+        'obsEarthCableContact',
+        'obsEarthElectrodesBuried',
+        'obsCableLugsUsed',
+        'obsCablesCrimped',
+        'obsCableLugsInsulated',
+        'obsMc4Intact',
       ])
         field: 'YES',
-      'solar_mms_rusting': 'NO',
-      'solar_nuts_bolts_rusting': 'NO',
-      'la_saddle_insulators': 'NA',
-      'pcu_neutral_earth_voltage': '2.5',
-      'grid_neutral_earth_voltage': '3',
-      'inverter_output_voltage': '230.4',
-      'earthing_electrode_available': 'YES',
-      'earthing_wire_connected': 'YES',
-      'battery_specific_gravity': 'GOOD',
-      'solar_spd': 'WORKING',
-      'vendor_remarks': 'All components working normally.',
+      'obsMmsRusting': 'NO',
+      'obsNutsBoltsRusting': 'NO',
+      'obsGiStripsInsulated': 'NA',
+      'neVoltagePcuOutput': 2.5,
+      'neVoltageGridInput': 3,
+      'inverterOutputVoltage': 230.4,
+      'earthingElectrodeAvailable': 'YES',
+      'earthingWireConnected': 'YES',
+      'batterySpecificGravity': 'GOOD',
+      'solarSpdStatus': 'WORKING',
+      'vendorRemarks': 'All components working normally.',
     };
+
+/// The backend's auto-approval rules (AMC API contract, "Readings and
+/// auto-approval rules"), applied when the service code is accepted: every
+/// rule must pass, and a missing or non-numeric reading fails its rule.
+/// The SPD rule applies only to the site's system type (DC: Solar SPD, AC:
+/// Grid SPD).
+Map<String, dynamic> dummyAutoApproval(
+    Map<String, dynamic> responses, Map<String, dynamic>? siteDetails) {
+  final system = (siteDetails?['systemType'] ?? '').toString().toUpperCase();
+  num? number(String key) {
+    final value = responses[key];
+    return value is num ? value : num.tryParse(value?.toString() ?? '');
+  }
+
+  bool equals(String key, String expected) =>
+      responses[key]?.toString().toUpperCase() == expected;
+
+  final rules = <Map<String, dynamic>>[
+    {
+      'key': 'neVoltagePcuOutput',
+      'rule': '< 7',
+      'passed': (number('neVoltagePcuOutput') ?? 99) < 7,
+    },
+    {
+      'key': 'neVoltageGridInput',
+      'rule': '< 7',
+      'passed': (number('neVoltageGridInput') ?? 99) < 7,
+    },
+    {
+      'key': 'inverterOutputVoltage',
+      'rule': '215 to 250',
+      'passed': () {
+        final v = number('inverterOutputVoltage');
+        return v != null && v >= 215 && v <= 250;
+      }(),
+    },
+    {
+      'key': 'earthingElectrodeAvailable',
+      'rule': 'YES',
+      'passed': equals('earthingElectrodeAvailable', 'YES'),
+    },
+    {
+      'key': 'earthingWireConnected',
+      'rule': 'YES',
+      'passed': equals('earthingWireConnected', 'YES'),
+    },
+    if (system.contains('DC'))
+      {
+        'key': 'solarSpdStatus',
+        'rule': 'WORKING',
+        'passed': equals('solarSpdStatus', 'WORKING'),
+      },
+    if (system.contains('AC'))
+      {
+        'key': 'gridSpdStatus',
+        'rule': 'WORKING',
+        'passed': equals('gridSpdStatus', 'WORKING'),
+      },
+  ];
+  for (final rule in rules) {
+    rule['reading'] = responses[rule['key']];
+  }
+  return {
+    'allPassed': rules.every((r) => r['passed'] == true),
+    'rules': rules,
+  };
+}

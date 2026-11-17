@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../data/secure_storage/secureStore.dart';
 import '../../utils/amc/amc_utils.dart';
+import '../../utils/envConfig.dart';
 import 'amc_remote_data_source.dart';
 
 /// The AMC form-schema half of E4H's `AppInitRepo`
@@ -20,11 +21,11 @@ class AmcFormSchemaRepository {
 
   AmcRemoteDataSource get _remote => _dataSource ?? amcRemoteDataSource;
 
-  /// E4H requests the AMC form with tenant `'in'` (hard-coded, kept as-is).
-  /// DUMMY-BACKEND: confirm the tenant for Livelihood with the backend team.
-  static const String amcFormMdmsTenantId = 'in';
+  /// The app's tenant (`livelihood`). E4H hard-coded `in`; the AMC API
+  /// contract asks for the Livelihood tenant.
+  static String get amcFormMdmsTenantId => envConfig.variables.tenantId;
 
-  static Map<String, dynamic> amcFormMdmsRequest() => const {
+  static Map<String, dynamic> amcFormMdmsRequest() => {
         'MdmsCriteria': {
           'tenantId': amcFormMdmsTenantId,
           'schemaCode': 'common-masters.AMCFormSchema',

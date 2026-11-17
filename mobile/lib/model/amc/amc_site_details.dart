@@ -3,21 +3,23 @@ import 'package:intl/intl.dart';
 import 'scheduled_visit.dart';
 
 /// Site Details fields of the AMC report form (#250, field list 2.1–2.7),
-/// in display order. They are auto-fetched and read-only.
+/// in display order. They are auto-fetched and read-only, and are not sent
+/// back with the report (the backend already has them).
 const List<String> amcSiteDetailFields = [
-  'end_user_name',
-  'end_user_contact_number',
-  'installation_date',
+  'endUserName',
+  'endUserPhone',
+  'installationDate',
   'block',
   'district',
-  'pincode',
-  'purchase_order_number',
+  'pinCode',
+  'purchaseOrderNumber',
 ];
 
 /// Hidden form fields holding the site's battery and system type, tested by
-/// the conditional fields (specific gravity, Solar SPD, Grid SPD).
-const String amcBatteryTypeField = 'battery_type';
-const String amcSystemTypeField = 'system_type';
+/// the conditional fields (specific gravity, Solar SPD, Grid SPD). Not sent
+/// back with the report.
+const String amcBatteryTypeField = 'batteryType';
+const String amcSystemTypeField = 'systemType';
 
 /// Values written to [amcBatteryTypeField] / [amcSystemTypeField].
 const String amcLeadAcidBattery = 'LEAD_ACID';
@@ -26,9 +28,10 @@ const String amcAcSystem = 'AC';
 
 /// The end user's site record shown in the report's Site Details section.
 ///
-/// Read from the visit's `additionalDetails.siteDetails`. DUMMY-BACKEND: the
-/// backend has not defined where these come from yet; this is the only place
-/// to change once it does.
+/// From the visit search with `includeSiteDetails: true` (AMC API contract):
+/// `siteDetails` gives the installation date, purchase order, PIN code and
+/// battery/system type; the visit gives the district and block, and its
+/// facility the end user's phone.
 class AmcSiteDetails {
   const AmcSiteDetails({
     this.endUserName,
@@ -53,30 +56,36 @@ class AmcSiteDetails {
   /// [amcLeadAcidBattery] or the site's other battery type, upper-cased.
   final String? batteryType;
 
-  /// [amcDcSystem], [amcAcSystem] or null when unknown.
+  /// [amcDcSystem], [amcAcSystem] or null when unknown. The contract says
+  /// `systemType` is blank for every installation today, so neither SPD
+  /// question shows until the backend fills it.
   final String? systemType;
 
   factory AmcSiteDetails.fromVisit(ScheduledVisit visit) {
-    final raw = visit.additionalDetails?['siteDetails'];
-    final site = raw is Map ? raw : const {};
-    String? text(String key) {
-      final value = site[key]?.toString().trim();
+    final site = visit.siteDetails ?? const <String, dynamic>{};
+    String? text(Object? raw) {
+      final value = raw?.toString().trim();
       return value == null || value.isEmpty ? null : value;
     }
 
     final installed = site['installationDate'];
     return AmcSiteDetails(
-      endUserName: text('endUserName'),
-      endUserPhone: text('endUserPhone'),
+      // TODO(backend): the contract has no end user name on the visit;
+      // the facility's contact name, then the site name, stand in for it.
+      endUserName: text(site['endUserName']) ??
+          text(visit.facility?.facility_poc_name) ??
+          text(visit.displayFacilityName),
+      endUserPhone:
+          text(site['endUserPhone']) ?? text(visit.facility?.facility_poc_phone),
       installationDate: installed is num
           ? DateTime.fromMillisecondsSinceEpoch(installed.toInt())
           : DateTime.tryParse(installed?.toString() ?? '')?.toLocal(),
-      block: text('block'),
-      district: text('district'),
-      pincode: text('pincode'),
-      purchaseOrderNumber: text('purchaseOrderNumber'),
-      batteryType: normaliseBatteryType(text('batteryType')),
-      systemType: normaliseSystemType(text('systemType')),
+      block: text(visit.block) ?? text(site['block']),
+      district: text(visit.district) ?? text(site['district']),
+      pincode: text(site['pinCode']) ?? text(site['pincode']),
+      purchaseOrderNumber: text(site['purchaseOrderNumber']),
+      batteryType: normaliseBatteryType(text(site['batteryType'])),
+      systemType: normaliseSystemType(text(site['systemType'])),
     );
   }
 
@@ -99,15 +108,15 @@ class AmcSiteDetails {
   /// Missing values are left out, so whatever was saved is kept.
   Map<String, dynamic> toFormValues() {
     final values = <String, dynamic>{
-      'end_user_name': endUserName,
-      'end_user_contact_number': endUserPhone,
-      'installation_date': installationDate == null
+      'endUserName': endUserName,
+      'endUserPhone': endUserPhone,
+      'installationDate': installationDate == null
           ? null
           : DateFormat('dd/MM/yyyy').format(installationDate!),
       'block': block,
       'district': district,
-      'pincode': pincode,
-      'purchase_order_number': purchaseOrderNumber,
+      'pinCode': pincode,
+      'purchaseOrderNumber': purchaseOrderNumber,
       amcBatteryTypeField: batteryType,
       amcSystemTypeField: systemType,
     };

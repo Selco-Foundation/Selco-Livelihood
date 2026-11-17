@@ -30,7 +30,10 @@ import 'amc/amc_utils.dart'
         amcServerError,
         getFilestoreUrl,
         isAmcConnectivityError,
-        isAmcReadingPhotoField;
+        isAmcReadingPhotoField,
+        amcVerificationPhotoDocumentType,
+        amcReadingPhotoDocumentType,
+        amcResponsesForSubmit;
 import 'envConfig.dart';
 import 'operation_progress.dart';
 import 'submission_payload.dart';
@@ -332,7 +335,7 @@ Future<void> _performScheduleVisitSubmission({
     throw Exception('Form not filled');
   }
 
-  final responses = jsonDecode(form.dataJson) as Map<String, dynamic>;
+  final answers = jsonDecode(form.dataJson) as Map<String, dynamic>;
 
   final cachedMedia = await isar.cacheAmcMediaUploads
       .where()
@@ -348,12 +351,14 @@ Future<void> _performScheduleVisitSubmission({
 
     final fileStoreId = await getFilestoreUrl(media.filePath);
 
+    // This screen only takes the verification photograph; its cached
+    // `itemType` is E4H's generic 'image'.
     visitDocuments.add(
       AmcDocument(
-        documentType: media.itemType,
+        documentType: amcVerificationPhotoDocumentType,
         fileStore: fileStoreId,
-        documentUid:
-            'DOC-AMC-${media.itemType}-${DateTime.now().millisecondsSinceEpoch}',
+        documentUid: 'DOC-AMC-$amcVerificationPhotoDocumentType-'
+            '${DateTime.now().millisecondsSinceEpoch}',
         geoLocation: AmcGeoLocation(
           latitude: media.latitude,
           longitude: media.longitude,
@@ -362,35 +367,32 @@ Future<void> _performScheduleVisitSubmission({
     );
   }
 
-  // #250: reading photos (`*_photo` answers) are uploaded too. The answer
-  // then holds the filestore id, and the photo is also listed in the
-  // report's documents with the field name as its document type.
-  for (final key in responses.keys.where(isAmcReadingPhotoField).toList()) {
-    final value = responses[key]?.toString().trim() ?? '';
+  // #250: reading photos (`*Photo` answers) are uploaded too and sent as
+  // report documents of their own type (AMC_PHOTO_NE_PCU, ...).
+  for (final key in answers.keys.where(isAmcReadingPhotoField).toList()) {
+    final value = answers[key]?.toString().trim() ?? '';
     if (value.isEmpty) continue;
     final fileStoreId = await getFilestoreUrl(value);
     if (fileStoreId.startsWith('/')) {
       throw Exception('A reading photo is missing from this device.');
     }
-    responses[key] = fileStoreId;
+    final documentType = amcReadingPhotoDocumentType(key);
     visitDocuments.add(AmcDocument(
-      documentType: key,
+      documentType: documentType,
       fileStore: fileStoreId,
-      documentUid: 'DOC-AMC-$key-${DateTime.now().millisecondsSinceEpoch}',
+      documentUid:
+          'DOC-AMC-$documentType-${DateTime.now().millisecondsSinceEpoch}',
     ));
   }
+  final responses = amcResponsesForSubmit(answers);
 
   // Pre-report system status answers (#247), sent with the report.
   final reportAdditionalDetails = await AmcSystemStatusRepository()
       .reportAdditionalDetails(scheduledVisitId);
 
   final remote = ScheduledVisitRemoteRepository();
-  // DUMMY-BACKEND: E4H hard-codes schemaCode "12345678" / version 1 (kept
-  // as-is); confirm the real values with the backend team.
   final updated = await remote.updateVisitWorkflow(
     visitId: scheduledVisitId,
-    schemaCode: "12345678",
-    version: 1,
     responses: responses,
     visitDocuments: visitDocuments,
     reportAdditionalDetails: reportAdditionalDetails,

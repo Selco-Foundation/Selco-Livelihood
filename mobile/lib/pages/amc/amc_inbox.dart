@@ -347,7 +347,7 @@ class _AmcInboxPageState extends State<AmcInboxPage>
             children: [
               Builder(builder: (context) {
                 final locality =
-                    parseBoundaryCodeLocality(visit.facility?.boundaryCode);
+                    amcVisitLocality(visit);
                 if (_selectedTabIndex == 0) {
                   return AMCInstallationReportCard(
                     dateLabelKey: i18.amcCommon.rejectedDate,
@@ -362,7 +362,8 @@ class _AmcInboxPageState extends State<AmcInboxPage>
                     durationMonths: visit.amcConfiguration?.durationMonths,
                     visitFrequencyMonths:
                         visit.amcConfiguration?.visitFrequencyMonths,
-                    title: visit.facility?.facilityName ?? '',
+                    totalVisits: visit.totalVisits,
+                    title: visit.displayFacilityName,
                     status: visit.status ?? '---',
                     dateAssigned: visit.displayDate,
                     state: locality.state,
@@ -413,11 +414,12 @@ class _AmcInboxPageState extends State<AmcInboxPage>
                     );
                     if (mounted) await _reloadBookmarks();
                   },
-                  title: visit.facility?.facilityName ?? '',
+                  title: visit.displayFacilityName,
                   visitNumber: visit.visitNumber,
                   durationMonths: visit.amcConfiguration?.durationMonths,
                   visitFrequencyMonths:
                       visit.amcConfiguration?.visitFrequencyMonths,
+                  totalVisits: visit.totalVisits,
                   dateAssigned: visit.displayDate,
                   status: visit.status ?? '---',
                   state: locality.state,

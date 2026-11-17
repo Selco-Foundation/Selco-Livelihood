@@ -259,8 +259,8 @@ void main() {
 
     test('only Part A or AMC grant access', () {
       expect(RoleLoginResolver.hasSupportedRole(['EMPLOYEE']), isFalse);
-      expect(RoleLoginResolver.hasSupportedRole([amcFieldStaffRoleCode]),
-          isTrue);
+      expect(
+          RoleLoginResolver.hasSupportedRole([amcFieldStaffRoleCode]), isTrue);
     });
   });
 
@@ -268,8 +268,7 @@ void main() {
     test('formatAmcNumber and boundary locality', () {
       expect(formatAmcNumber(2, 12, 3), '2 / 4');
       expect(formatAmcNumber(null, 12, 5), '--- / ---');
-      final locality =
-          parseBoundaryCodeLocality('IN_KARNATAKA_MYSURU_HUNSUR');
+      final locality = parseBoundaryCodeLocality('IN_KARNATAKA_MYSURU_HUNSUR');
       expect(locality.state, 'KARNATAKA');
       expect(locality.district, 'MYSURU');
       expect(locality.block, 'HUNSUR');
@@ -283,7 +282,7 @@ void main() {
       expect(schema.name, amcFormSchemaKey);
       expect(schema.pages.keys.first, amcFormFirstPage);
       expect(schema.pages[amcFormFirstPage]!.properties!.keys,
-          contains('date_of_visit'));
+          contains('visitDate'));
     });
 
     test('seed visits parse and round-trip through JSON', () {
@@ -295,7 +294,13 @@ void main() {
         expect(again.id, visit.id);
         expect(again.status, visit.status);
         expect(again.facility?.facilityName, visit.facility?.facilityName);
-        expect(again.facility?.facility_poc_phone, '9876543210');
+        // The contract's camelCase facility fields are read.
+        expect(again.facility?.facility_poc_phone, matches(r'^\d{10}$'));
+        expect(again.displayFacilityName, isNotEmpty);
+        expect(again.totalVisits, 4);
+        expect(again.district, isNotEmpty);
+        expect(again.siteDetails?['batteryType'], isNotNull);
+        expect(again.submissionWindowOpensAt, isNotNull);
         expect(again.displayDate, isNotNull);
       }
     });
@@ -309,8 +314,7 @@ void main() {
     test('delay is decided by date: due today or later is not delayed', () {
       expect(amcDelayedScheduledBefore(now),
           DateTime(2026, 11, 11, 23, 59, 59, 999));
-      expect(
-          visitOn(DateTime(2026, 11, 11, 23, 59)).isAmcDelayed(now), isTrue);
+      expect(visitOn(DateTime(2026, 11, 11, 23, 59)).isAmcDelayed(now), isTrue);
       expect(visitOn(DateTime(2026, 11, 1)).isAmcDelayed(now), isTrue);
       expect(visitOn(DateTime(2026, 11, 12)).isAmcDelayed(now), isFalse);
       expect(visitOn(DateTime(2026, 11, 12, 9)).isAmcDelayed(now), isFalse);
@@ -550,9 +554,7 @@ void main() {
       await ScheduledVisitRemoteRepository(dataSource: remote)
           .updateVisitWorkflow(
         visitId: 'v1',
-        schemaCode: '12345678',
-        version: 1,
-        responses: const {'faults_observed': 'NO'},
+        responses: const {'obsPanelsClean': 'NO'},
         reportAdditionalDetails: details,
       );
       final report = remote.workflowBodies.single['visitReport'] as Map;
@@ -564,7 +566,7 @@ void main() {
         },
       });
       // The MDMS form answers are untouched.
-      expect(report['responses'], {'faults_observed': 'NO'});
+      expect(report['responses'], {'obsPanelsClean': 'NO'});
     });
 
     test('dummy backend records the update and keeps it with the report',
@@ -582,9 +584,10 @@ void main() {
         'visitId': 'dummy-visit-001',
         'workflow': {'action': 'SUBMIT_VISIT_REPORT'},
         'visitReport': {
-          'schemaCode': '12345678',
-          'version': 1,
-          'responses': {'faults_observed': 'YES'},
+          'responses': {'obsPanelsClean': 'YES'},
+          'documents': [
+            {'documentType': 'AMC_VERIFICATION_PHOTO', 'fileStoreId': 'fs-1'}
+          ],
           'additionalDetails': {
             'systemStatus': {
               'isSystemInUse': true,
@@ -602,8 +605,8 @@ void main() {
         throwsA(isA<Exception>()),
       );
 
-      final res = await backend.searchVisits(
-          searchCriteria: const {}, limit: 100, offset: 0);
+      final res = await backend
+          .searchVisits(searchCriteria: const {}, limit: 100, offset: 0);
       final raw = (res['ScheduledVisits'] as List)
           .cast<Map<String, dynamic>>()
           .firstWhere((v) => v['id'] == 'dummy-visit-001');
@@ -630,10 +633,12 @@ void main() {
         ScheduledVisit(id: 'v', status: status, scheduledDate: date);
 
     test('SCHEDULED visits are listed up to 30 days ahead, by date', () {
-      expect(amcSubmissionWindowEnd(now),
-          DateTime(2026, 12, 12, 23, 59, 59, 999));
-      expect(visitOn(DateTime(2026, 12, 12, 23, 59))
-          .isWithinAmcSubmissionWindow(now), isTrue);
+      expect(
+          amcSubmissionWindowEnd(now), DateTime(2026, 12, 12, 23, 59, 59, 999));
+      expect(
+          visitOn(DateTime(2026, 12, 12, 23, 59))
+              .isWithinAmcSubmissionWindow(now),
+          isTrue);
       expect(visitOn(DateTime(2026, 12, 13)).isWithinAmcSubmissionWindow(now),
           isFalse);
       // No lower limit: overdue visits stay listed.
@@ -693,8 +698,8 @@ void main() {
     tearDown(() => dir.deleteSync(recursive: true));
 
     Future<String> statusOf(String id) async {
-      final res = await backend.searchVisits(
-          searchCriteria: const {}, limit: 100, offset: 0);
+      final res = await backend
+          .searchVisits(searchCriteria: const {}, limit: 100, offset: 0);
       return ((res['ScheduledVisits'] as List)
           .cast<Map>()
           .firstWhere((v) => v['id'] == id))['status'] as String;
@@ -704,27 +709,62 @@ void main() {
       final res = await backend.searchVisits(
         searchCriteria: const {
           'statuses': ['SCHEDULED'],
-          'facilityName': 'kollegal',
+          'searchText': 'kollegal',
         },
         limit: 10,
         offset: 0,
       );
       expect(res['TotalCount'], 1);
-      expect((res['ScheduledVisits'] as List).single['id'], 'dummy-visit-002');
+      final visit = (res['ScheduledVisits'] as List).single as Map;
+      expect(visit['id'], 'dummy-visit-002');
+      // Site details only when asked for.
+      expect(visit.containsKey('siteDetails'), isFalse);
+
+      // An exact phone number (spaces and +91 ignored) also finds it.
+      final byPhone = await backend.searchVisits(
+        searchCriteria: const {
+          'searchText': '+91 98450 00002',
+          'includeSiteDetails': true,
+        },
+        limit: 10,
+        offset: 0,
+      );
+      final found = (byPhone['ScheduledVisits'] as List).single as Map;
+      expect(found['id'], 'dummy-visit-002');
+      expect(found['siteDetails'], containsPair('systemType', 'AC'));
     });
 
     test('report submit then completion code follows the AMC workflow',
         () async {
+      await expectLater(
+        backend.updateVisitWorkflow({
+          'visitId': 'dummy-visit-001',
+          'workflow': {'action': 'SUBMIT_VISIT_REPORT'},
+          'visitReport': {'responses': <String, dynamic>{}},
+        }),
+        throwsA(predicate((e) =>
+            amcServerError(e!)?.code == 'AMC_VERIFICATION_PHOTO_MISSING')),
+      );
       await backend.updateVisitWorkflow({
         'visitId': 'dummy-visit-001',
         'workflow': {'action': 'SUBMIT_VISIT_REPORT'},
         'visitReport': {
-          'schemaCode': '12345678',
-          'version': 1,
-          'responses': {'faults_observed': 'YES'},
+          'responses': {'obsPanelsClean': 'YES'},
+          'documents': [
+            {'documentType': 'AMC_VERIFICATION_PHOTO', 'fileStoreId': 'fs-1'}
+          ],
         },
       });
       expect(await statusOf('dummy-visit-001'), 'PENDING_OTP_APPROVAL');
+      await expectLater(
+        backend.updateVisitWorkflow({
+          'visitId': 'dummy-visit-001',
+          'workflow': {'action': 'SUBMIT_VISIT_REPORT'},
+          'visitReport': {'documents': const []},
+        }),
+        throwsA(predicate(
+            (e) => amcServerError(e!)?.code == 'AMC_VISIT_NOT_SUBMITTABLE')),
+      );
 
       await expectLater(
         backend.updateVisitWorkflow({
@@ -732,7 +772,8 @@ void main() {
           'workflow': {'action': 'SUBMIT_OTP'},
           'visitReport': {'otpReference': '0000'},
         }),
-        throwsA(isA<Exception>()),
+        throwsA(predicate(
+            (e) => amcServerError(e!)?.code == 'AMC_INVALID_SERVICE_CODE')),
       );
       expect(await statusOf('dummy-visit-001'), 'PENDING_OTP_APPROVAL');
 
@@ -752,16 +793,14 @@ void main() {
     });
   });
 
-  test('SUBMIT_VISIT_REPORT request body matches E4H', () async {
+  test('SUBMIT_VISIT_REPORT request body matches the API contract', () async {
     final fake = _FakeAmcRemoteDataSource();
     await ScheduledVisitRemoteRepository(dataSource: fake).updateVisitWorkflow(
       visitId: 'v1',
-      schemaCode: '12345678',
-      version: 1,
-      responses: const {'faults_observed': 'NO'},
+      responses: const {'obsPanelsClean': 'NO'},
       visitDocuments: [
         AmcDocument(
-          documentType: 'image',
+          documentType: 'AMC_VERIFICATION_PHOTO',
           fileStore: 'fs-1',
           documentUid: 'DOC-AMC-image-1',
           geoLocation: AmcGeoLocation(latitude: '12.1', longitude: '76.6'),
@@ -770,10 +809,12 @@ void main() {
     );
     final body = fake.workflowBodies.single;
     expect(body['visitId'], 'v1');
-    expect(body['workflow']['action'], 'SUBMIT_VISIT_REPORT');
-    expect(body['visitReport']['schemaCode'], '12345678');
-    expect(body['visitReport']['responses'], {'faults_observed': 'NO'});
+    expect(body['workflow'],
+        {'action': 'SUBMIT_VISIT_REPORT', 'comment': null, 'documents': []});
+    expect(body['visitReport'], isNot(contains('schemaCode')));
+    expect(body['visitReport']['responses'], {'obsPanelsClean': 'NO'});
     final doc = (body['visitReport']['documents'] as List).single as Map;
+    expect(doc['documentType'], 'AMC_VERIFICATION_PHOTO');
     expect(doc['fileStoreId'], 'fs-1');
     expect(doc['geoLocation'], containsPair('latitude', '12.1'));
   });
@@ -796,8 +837,7 @@ void main() {
           submitSuccess: (_) => true,
           failure: (_, __) => true,
           orElse: () => false));
-      bloc.add(const AmcOtpEvent.submit(
-          visitId: 'v1', schemaCode: '12345678', version: 1, otp: '1234'));
+      bloc.add(const AmcOtpEvent.submit(visitId: 'v1', otp: '1234'));
       return result;
     }
 
@@ -873,26 +913,21 @@ void main() {
       expect(cached, isEmpty);
     });
 
-    test('dummy backend approves only when both pre-questions are Yes',
-        () async {
+    test('dummy backend applies the contract auto-approval rules', () async {
       final dir = Directory.systemTemp.createTempSync('amc_dummy_otp');
       addTearDown(() => dir.deleteSync(recursive: true));
       final backend = DummyAmcRemoteDataSource(
           latency: Duration.zero, storageDirectory: () async => dir);
 
-      Future<String?> verify(String id, bool inUse, bool functional) async {
+      Future<Map> verify(String id, Map<String, dynamic> responses) async {
         await backend.updateVisitWorkflow({
           'visitId': id,
           'workflow': {'action': 'SUBMIT_VISIT_REPORT'},
           'visitReport': {
-            'schemaCode': '12345678',
-            'version': 1,
-            'additionalDetails': {
-              'systemStatus': {
-                'isSystemInUse': inUse,
-                'isSystemFunctional': functional,
-              }
-            },
+            'responses': responses,
+            'documents': [
+              {'documentType': 'AMC_VERIFICATION_PHOTO', 'fileStoreId': 'f'}
+            ],
           },
         });
         final res = await backend.updateVisitWorkflow({
@@ -900,12 +935,38 @@ void main() {
           'workflow': {'action': 'SUBMIT_OTP'},
           'visitReport': {'otpReference': dummyAmcOtp},
         });
-        return ((res!['ScheduledVisits'] as List).single as Map)['status']
-            as String?;
+        return (res!['ScheduledVisits'] as List).single as Map;
       }
 
-      expect(await verify('dummy-visit-001', true, true), 'APPROVED');
-      expect(await verify('dummy-visit-002', true, false), 'PENDING_APPROVAL');
+      const good = {
+        'neVoltagePcuOutput': 2.5,
+        'neVoltageGridInput': 3,
+        'inverterOutputVoltage': 230,
+        'earthingElectrodeAvailable': 'YES',
+        'earthingWireConnected': 'yes',
+      };
+      // dummy-visit-001 is a DC site: Solar SPD must be working.
+      final approved = await verify(
+          'dummy-visit-001', {...good, 'solarSpdStatus': 'WORKING'});
+      expect(approved['status'], 'APPROVED');
+      expect(approved['approvedBy'], 'SYSTEM');
+
+      // dummy-visit-002 is an AC site; a reading out of range needs review.
+      final review = await verify('dummy-visit-002', {
+        ...good,
+        'inverterOutputVoltage': 260,
+        'gridSpdStatus': 'WORKING',
+      });
+      expect(review['status'], 'PENDING_APPROVAL');
+      final rules =
+          (review['additionalDetails']['autoApproval']['rules'] as List)
+              .cast<Map>();
+      expect(rules.where((r) => r['passed'] != true).map((r) => r['key']),
+          ['inverterOutputVoltage']);
+
+      // A missing reading also goes to a reviewer.
+      expect((await verify('dummy-visit-003', good))['status'],
+          'PENDING_APPROVAL');
     });
   });
 
@@ -937,14 +998,18 @@ void main() {
       expect(installation.first.assetType, 'INVERTER');
       expect(installation.last.reason, 'Wrong photo');
 
-      expect(parseAmcRejectionComment('["Blurred photo", "Wrong date"]')
-          .map((c) => c.reason), ['Blurred photo', 'Wrong date']);
-      expect(parseAmcRejectionComment('Please retake the photo.')
-          .single.reason, 'Please retake the photo.');
+      expect(
+          parseAmcRejectionComment('["Blurred photo", "Wrong date"]')
+              .map((c) => c.reason),
+          ['Blurred photo', 'Wrong date']);
+      expect(parseAmcRejectionComment('Please retake the photo.').single.reason,
+          'Please retake the photo.');
       // A comment-only entry is shown as the reason itself.
-      expect(parseAmcRejectionComment([
-        {'comment': 'Readings look wrong'}
-      ]).single.reason, 'Readings look wrong');
+      expect(
+          parseAmcRejectionComment([
+            {'comment': 'Readings look wrong'}
+          ]).single.reason,
+          'Readings look wrong');
       expect(parseAmcRejectionComment(null), isEmpty);
       expect(parseAmcRejectionComment('  '), isEmpty);
     });
@@ -959,17 +1024,19 @@ void main() {
               {'id': 'pi-1', 'comment': 'older comment'},
             ],
           });
-      expect(amcRejectionReasons(visit('REJECTED', 'Retake photos'))
-          .single.reason, 'Retake photos');
+      expect(
+          amcRejectionReasons(visit('REJECTED', 'Retake photos')).single.reason,
+          'Retake photos');
       expect(amcRejectionReasons(visit('APPROVED', 'Retake photos')), isEmpty);
 
       final seeded = dummySeedVisits()
           .map(ScheduledVisit.fromJson)
           .firstWhere((v) => v.status == 'REJECTED');
-      expect(amcRejectionReasons(seeded).map((c) => c.reason), [
-        'Photos are not clear',
-        'Battery details missing',
-      ]);
+      // `OTHERS` is the only reason code today; the comment says why.
+      expect(amcRejectionReasons(seeded).map((c) => c.reason),
+          ['OTHERS', 'OTHERS']);
+      expect(amcRejectionReasons(seeded).first.details,
+          'Retake the SPD photo in daylight.');
     });
   });
 
@@ -997,7 +1064,8 @@ void main() {
     Map<String, PropertySchema> fieldsOf(String page) =>
         schema.pages[page]!.properties!;
     bool isRequired(PropertySchema field) =>
-        field.validations?.any((r) => r.type == 'required' && r.value == true) ??
+        field.validations
+            ?.any((r) => r.type == 'required' && r.value == true) ??
         false;
 
     test('five sections in order, each with its heading', () {
@@ -1020,33 +1088,60 @@ void main() {
     });
 
     test('fields match the final field list', () {
+      // Field names are the API contract's report keys.
       expect(fieldsOf('Report_Header').keys,
-          ['date_of_visit', 'service_by', 'service_contact_number']);
+          ['visitDate', 'serviceBy', 'serviceByPhone']);
       expect(fieldsOf('Site_Details').keys, amcSiteDetailFields);
       expect(fieldsOf('Charge_Controller_PCU').keys,
-          ['pcu_priority', 'panels_per_string']);
-      expect(fieldsOf('Observation_Points'), hasLength(20));
-      expect(fieldsOf('Capture_Readings').keys, [
-        'battery_type',
-        'system_type',
-        'pcu_neutral_earth_voltage',
-        'pcu_neutral_earth_voltage_photo',
-        'grid_neutral_earth_voltage',
-        'grid_neutral_earth_voltage_photo',
-        'inverter_output_voltage',
-        'earthing_electrode_available',
-        'earthing_wire_connected',
-        'battery_specific_gravity',
-        'battery_specific_gravity_action',
-        'solar_spd',
-        'solar_spd_photo',
-        'solar_spd_action',
-        'grid_spd',
-        'grid_spd_photo',
-        'grid_spd_action',
-        'vendor_remarks',
-        'end_user_remarks',
+          ['pcuPriority', 'panelsPerString']);
+      expect(fieldsOf('Observation_Points').keys, [
+        'obsPanelCablesTied',
+        'obsPanelsClean',
+        'obsMmsRusting',
+        'obsNutsBoltsRusting',
+        'obsAjbMounted',
+        'obsBatteryTerminalsClean',
+        'obsPetroleumJelly',
+        'obsFloatIndicators',
+        'obsDistilledWaterLevel',
+        'obsPcuCablesIntact',
+        'obsLaInsulation',
+        'obsLaFixed',
+        'obsGiStripsInsulated',
+        'obsDownConductorConduit',
+        'obsEarthCableContact',
+        'obsEarthElectrodesBuried',
+        'obsCableLugsUsed',
+        'obsCablesCrimped',
+        'obsCableLugsInsulated',
+        'obsMc4Intact',
       ]);
+      expect(fieldsOf('Capture_Readings').keys, [
+        'batteryType',
+        'systemType',
+        'neVoltagePcuOutput',
+        'neVoltagePcuOutputPhoto',
+        'neVoltageGridInput',
+        'neVoltageGridInputPhoto',
+        'inverterOutputVoltage',
+        'earthingElectrodeAvailable',
+        'earthingWireConnected',
+        'batterySpecificGravity',
+        'batterySpecificGravityAction',
+        'solarSpdStatus',
+        'solarSpdPhoto',
+        'solarSpdAction',
+        'gridSpdStatus',
+        'gridSpdPhoto',
+        'gridSpdAction',
+        'vendorRemarks',
+        'endUserRemarks',
+      ]);
+      // Labels keep their localisation keys.
+      expect(fieldsOf('Report_Header')['visitDate']!.label,
+          'AMC_FORM_DATE_OF_VISIT');
+      expect(fieldsOf('Capture_Readings')['solarSpdStatus']!.label,
+          'AMC_FORM_SOLAR_SPD');
     });
 
     test('site details are read-only; everything else applicable is required',
@@ -1054,13 +1149,13 @@ void main() {
       expect(fieldsOf('Site_Details').values.every((f) => f.readOnly == true),
           isTrue);
       const optional = {
-        'battery_type',
-        'system_type',
-        'battery_specific_gravity_action',
-        'solar_spd_action',
-        'grid_spd_action',
-        'vendor_remarks',
-        'end_user_remarks',
+        'batteryType',
+        'systemType',
+        'batterySpecificGravityAction',
+        'solarSpdAction',
+        'gridSpdAction',
+        'vendorRemarks',
+        'endUserRemarks',
       };
       for (final page in schema.pages.keys.where((p) => p != 'Site_Details')) {
         fieldsOf(page).forEach((name, field) {
@@ -1077,15 +1172,15 @@ void main() {
               entry.key,
       };
       expect(withNa, {
-        'solar_cables_tied',
-        'solar_mms_rusting',
-        'battery_float_indicators_ok',
-        'battery_water_level_ok',
-        'la_insulation',
-        'la_firmly_fixed',
-        'la_saddle_insulators',
-        'mc4_interlocked',
-        'battery_specific_gravity',
+        'obsPanelCablesTied',
+        'obsMmsRusting',
+        'obsFloatIndicators',
+        'obsDistilledWaterLevel',
+        'obsLaInsulation',
+        'obsLaFixed',
+        'obsGiStripsInsulated',
+        'obsMc4Intact',
+        'batterySpecificGravity',
       });
     });
 
@@ -1095,44 +1190,53 @@ void main() {
         final expression = readings[field]!.visibilityCondition?.expression;
         if (expression == null) return true;
         return evaluateVisibilityExpression(expression, {
-          'Capture_Readings.battery_type': battery,
-          'Capture_Readings.system_type': system,
+          'Capture_Readings.batteryType': battery,
+          'Capture_Readings.systemType': system,
         });
       }
 
       for (final field in [
-        'battery_specific_gravity',
-        'battery_specific_gravity_action'
+        'batterySpecificGravity',
+        'batterySpecificGravityAction'
       ]) {
         expect(visible(field, 'LEAD_ACID', 'DC'), isTrue, reason: field);
         expect(visible(field, 'LITHIUM_ION', 'DC'), isFalse, reason: field);
         expect(visible(field, '', 'DC'), isFalse, reason: field);
       }
-      for (final field in ['solar_spd', 'solar_spd_photo', 'solar_spd_action']) {
+      for (final field in [
+        'solarSpdStatus',
+        'solarSpdPhoto',
+        'solarSpdAction'
+      ]) {
         expect(visible(field, 'LEAD_ACID', 'DC'), isTrue, reason: field);
         expect(visible(field, 'LEAD_ACID', 'AC'), isFalse, reason: field);
       }
-      for (final field in ['grid_spd', 'grid_spd_photo', 'grid_spd_action']) {
+      for (final field in ['gridSpdStatus', 'gridSpdPhoto', 'gridSpdAction']) {
         expect(visible(field, 'LEAD_ACID', 'AC'), isTrue, reason: field);
         expect(visible(field, 'LEAD_ACID', 'DC'), isFalse, reason: field);
       }
-      expect(visible('inverter_output_voltage', '', ''), isTrue);
+      expect(visible('inverterOutputVoltage', '', ''), isTrue);
     });
 
     test('site details come from the visit and override saved values', () {
-      final visit = ScheduledVisit.fromJson(dummySeedVisits()
-          .firstWhere((v) => v['id'] == 'dummy-visit-002'));
+      final visit = ScheduledVisit.fromJson(
+          dummySeedVisits().firstWhere((v) => v['id'] == 'dummy-visit-002'));
       final site = AmcSiteDetails.fromVisit(visit);
       expect(site.batteryType, 'LITHIUM_ION');
       expect(site.systemType, amcAcSystem);
 
       final values = withAmcSiteDetails(
-          {'service_by': 'Suresh', 'end_user_name': 'stale'}, visit);
-      expect(values['service_by'], 'Suresh');
-      expect(values['end_user_name'], 'Manjunath S');
-      expect(values['district'], 'CHAMARAJANAGAR');
+          {'serviceBy': 'Suresh', 'endUserName': 'stale'}, visit);
+      expect(values['serviceBy'], 'Suresh');
+      // The end user's name and phone come from the visit's facility, the
+      // district from the visit, the rest from `siteDetails`.
+      expect(values['endUserName'], 'Manjunath S');
+      expect(values['endUserPhone'], '9845000002');
+      expect(values['district'], 'Chamarajanagar');
+      expect(values['pinCode'], '571002');
+      expect(values['purchaseOrderNumber'], 'PO-2026-002');
       expect(values[amcSystemTypeField], 'AC');
-      expect(values['installation_date'], matches(RegExp(r'^\d\d/\d\d/\d{4}$')));
+      expect(values['installationDate'], matches(RegExp(r'^\d\d/\d\d/\d{4}$')));
 
       expect(AmcSiteDetails.normaliseBatteryType('Lead-acid'), 'LEAD_ACID');
       expect(AmcSiteDetails.normaliseSystemType('dc system'), 'DC');
@@ -1148,14 +1252,23 @@ void main() {
           .where((e) => e.value.format == PropertySchemaFormat.custom)
           .map((e) => e.key);
       expect(custom.where(isAmcReadingPhotoField), [
-        'pcu_neutral_earth_voltage_photo',
-        'grid_neutral_earth_voltage_photo',
-        'solar_spd_photo',
-        'grid_spd_photo',
+        'neVoltagePcuOutputPhoto',
+        'neVoltageGridInputPhoto',
+        'solarSpdPhoto',
+        'gridSpdPhoto',
       ]);
+      // Each has its own report document type.
+      expect(
+          custom.where(isAmcReadingPhotoField).map(amcReadingPhotoDocumentType),
+          [
+            'AMC_PHOTO_NE_PCU',
+            'AMC_PHOTO_NE_GRID',
+            'AMC_PHOTO_SOLAR_SPD',
+            'AMC_PHOTO_GRID_SPD',
+          ]);
       String typed(String text) => amcDecimalInputFormatter
-          .formatEditUpdate(TextEditingValue.empty,
-              TextEditingValue(text: text))
+          .formatEditUpdate(
+              TextEditingValue.empty, TextEditingValue(text: text))
           .text;
       expect(typed('230.5'), '230.5');
       expect(typed('1.2.3'), '1.2');
@@ -1193,11 +1306,11 @@ void main() {
           child: Scaffold(
             body: SingleChildScrollView(
               child: ReactiveFormBuilder(
-                form: () => fb.group(JsonForms.getFormControls(page,
-                    defaultValues: {
-                      amcBatteryTypeField: battery,
-                      amcSystemTypeField: system,
-                    })),
+                form: () =>
+                    fb.group(JsonForms.getFormControls(page, defaultValues: {
+                  amcBatteryTypeField: battery,
+                  amcSystemTypeField: system,
+                })),
                 builder: (context, form, _) => JsonForms(
                   currentSchemaKey: amcFormSchemaKey,
                   propertySchema: page,
@@ -1239,8 +1352,8 @@ void main() {
       final form = ReactiveForm.of(
           tester.element(find.byType(AmcDecimalReadingField).first),
           listen: false) as FormGroup;
-      expect(form.contains('grid_spd'), isFalse);
-      expect(form.contains('solar_spd'), isTrue);
+      expect(form.contains('gridSpdStatus'), isFalse);
+      expect(form.contains('solarSpdStatus'), isTrue);
       expect(find.text('Not applicable'), findsOneWidget);
     });
 
@@ -1279,10 +1392,127 @@ void main() {
       expect(merged.where((l) => l.code == 'AMC_FORM_NA').single.message,
           'Not applicable');
       expect(
-          merged
-              .firstWhere((l) => l.code == 'AMC_FORM_REPORT_HEADER')
-              .message,
+          merged.firstWhere((l) => l.code == 'AMC_FORM_REPORT_HEADER').message,
           'Report Header');
+    });
+  });
+
+  group('AMC API contract (integration)', () {
+    test('report answers are converted to the contract format', () {
+      final out = amcResponsesForSubmit({
+        'visitDate': DateTime(2026, 11, 16, 0, 0).toUtc().toIso8601String(),
+        'serviceBy': 'Ravi',
+        'neVoltagePcuOutput': '3.5',
+        'neVoltageGridInput': '2',
+        'inverterOutputVoltage': '23O', // a typo stays text: reviewer
+        'panelsPerString': 4,
+        'neVoltagePcuOutputPhoto': '/local/photo.jpg',
+        'endUserName': 'Shown only',
+        'batteryType': 'LEAD_ACID',
+        'systemType': 'DC',
+        'vendorRemarks': '  ',
+        'solarSpdAction': null,
+        'obsPanelsClean': 'YES',
+      });
+      expect(out, {
+        'visitDate': '2026-11-16',
+        'serviceBy': 'Ravi',
+        'neVoltagePcuOutput': 3.5,
+        'neVoltageGridInput': 2,
+        'inverterOutputVoltage': '23O',
+        'panelsPerString': 4,
+        'obsPanelsClean': 'YES',
+      });
+      expect(amcReportDate(DateTime(2026, 1, 5, 23, 30)), '2026-01-05');
+      expect(amcReportDate('2026-11-16'), '2026-11-16');
+      expect(amcReportDate(null), isNull);
+    });
+
+    test('reading photos come back from the report documents', () {
+      final answers = amcPhotoAnswersFromDocuments([
+        AmcDocument(documentType: 'AMC_VERIFICATION_PHOTO', fileStore: 'v'),
+        AmcDocument(documentType: 'AMC_PHOTO_NE_PCU', fileStore: 'fs-pcu'),
+        AmcDocument(documentType: 'AMC_PHOTO_SOLAR_SPD', fileStore: 'fs-spd'),
+        AmcDocument(documentType: 'AMC_PHOTO_NE_GRID', fileStore: ''),
+      ]);
+      expect(answers, {
+        'neVoltagePcuOutputPhoto': 'fs-pcu',
+        'solarSpdPhoto': 'fs-spd',
+      });
+      // The photo screen shows only the verification photograph.
+      expect(isAmcReadingPhotoDocument('AMC_PHOTO_GRID_SPD'), isTrue);
+      expect(isAmcReadingPhotoDocument('AMC_VERIFICATION_PHOTO'), isFalse);
+      expect(isAmcReadingPhotoDocument('image'), isFalse);
+    });
+
+    test('visit search asks for site details and searches by text', () {
+      final map = const ScheduledVisitSearchCriteria(
+        tenantId: 'livelihood',
+        statuses: ['SCHEDULED'],
+        searchText: ' Nipe ',
+        includeSiteDetails: true,
+        sortBy: 'scheduledDate',
+        sortDirection: 'ASC',
+      ).toApiMap();
+      expect(map, {
+        'tenantId': 'livelihood',
+        'statuses': ['SCHEDULED'],
+        'searchText': 'Nipe',
+        'includeSiteDetails': true,
+        'sortBy': 'scheduledDate',
+        'sort_direction': 'ASC',
+      });
+    });
+
+    test('a contract visit shows its own names, places and visit count', () {
+      final visit = ScheduledVisit.fromJson({
+        'id': 'v1',
+        'visitNumber': 2,
+        'totalVisits': 6,
+        'facilityName': 'Nipe Brahma',
+        'facility': {'facilityPocPhone': '9678335201'},
+        'state': 'Assam',
+        'district': 'Baksa',
+        'block': 'Dhamdhama',
+        'siteDetails': {
+          'batteryType': 'Lead Acid',
+          'systemType': null,
+          'installationDate': DateTime(2026, 5, 1).millisecondsSinceEpoch,
+          'purchaseOrderNumber': 'PO-1',
+          'pinCode': '',
+        },
+      });
+      expect(visit.displayFacilityName, 'Nipe Brahma');
+      expect(visit.facility?.facility_poc_phone, '9678335201');
+      final locality = amcVisitLocality(visit);
+      expect([locality.state, locality.district, locality.block],
+          ['Assam', 'Baksa', 'Dhamdhama']);
+      expect(
+          formatAmcNumber(visit.visitNumber, null, null,
+              totalVisits: visit.totalVisits),
+          '2 / 6');
+      final site = AmcSiteDetails.fromVisit(visit).toFormValues();
+      expect(site, {
+        'endUserName': 'Nipe Brahma',
+        'endUserPhone': '9678335201',
+        'installationDate': '01/05/2026',
+        'block': 'Dhamdhama',
+        'district': 'Baksa',
+        'purchaseOrderNumber': 'PO-1',
+        amcBatteryTypeField: 'LEAD_ACID',
+      });
+    });
+
+    test('service code calls send only the code', () async {
+      final fake = _FakeAmcRemoteDataSource();
+      await ScheduledVisitRemoteRepository(dataSource: fake)
+          .updateVisitWorkflow(
+              visitId: 'v1', otp: '1234', status: 'SUBMIT_OTP');
+      expect(fake.workflowBodies.single, {
+        'visitId': 'v1',
+        'workflow': {'action': 'SUBMIT_OTP', 'comment': null, 'documents': []},
+        'visitReport': {'otpReference': '1234'},
+      });
     });
   });
 
@@ -1341,8 +1571,8 @@ void main() {
       expect(find.byType(HomePage), findsNothing);
       expect(find.byKey(const ValueKey('amc-home-report')), findsOneWidget);
       expect(find.byKey(const ValueKey('amc-home-data-sync')), findsOneWidget);
-      expect(find.byKey(const ValueKey('amc-mdms-loading-dialog')),
-          findsNothing);
+      expect(
+          find.byKey(const ValueKey('amc-mdms-loading-dialog')), findsNothing);
       expect(AmcModuleReadiness.isReady, isTrue);
       // The AMC form schema was cached for offline use, as in E4H.
       expect(_secureStorageValues.keys, contains('amcFormConfigsRaw'));
@@ -1366,8 +1596,8 @@ void main() {
           [installationReportPartAEditorRoleCode, amcFieldStaffRoleCode]);
 
       expect(find.byType(RoleSelectionPage), findsOneWidget);
-      expect(find.byKey(const ValueKey('role-selection-staff')),
-          findsOneWidget);
+      expect(
+          find.byKey(const ValueKey('role-selection-staff')), findsOneWidget);
       expect(find.byKey(const ValueKey('role-selection-amc')), findsOneWidget);
 
       await tester.tap(find.byKey(const ValueKey('role-selection-amc')));

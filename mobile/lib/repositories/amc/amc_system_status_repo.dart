@@ -336,9 +336,9 @@ class AmcSystemStatusRepository {
   }
 }
 
-/// DUMMY-BACKEND: request body for the system-status update. The backend
-/// contract is not defined yet; replace the fields here (and the path in
-/// `ApiPaths.amcVisitSystemStatusUpdate`) when it is.
+/// Request body of `asset-amc/v1/visit/system-status/_update` (AMC API
+/// contract). A missing Program POC email comes back as
+/// `AMC_PROGRAM_POC_EMAIL_NOT_CONFIGURED` (a rejection: "could not notify").
 Map<String, dynamic> buildSystemStatusRequest({
   required String visitId,
   required bool isSystemInUse,

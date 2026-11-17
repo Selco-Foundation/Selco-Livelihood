@@ -1203,7 +1203,29 @@ mixin _$ScheduledVisit {
   String? get facilityId => throw _privateConstructorUsedError;
   @AmcFacilityConverter()
   AmcFacility? get facility => throw _privateConstructorUsedError;
-  int? get visitNumber => throw _privateConstructorUsedError;
+  int? get visitNumber =>
+      throw _privateConstructorUsedError; // Livelihood visit search fields (AMC API contract, 16 Nov 2026).
+  /// End user site name; the facility object may not repeat it.
+  String? get facilityName => throw _privateConstructorUsedError;
+  String? get activityFacilityId => throw _privateConstructorUsedError;
+
+  /// Place names, ready to show (not boundary codes).
+  String? get state => throw _privateConstructorUsedError;
+  String? get district => throw _privateConstructorUsedError;
+  String? get block => throw _privateConstructorUsedError;
+
+  /// Visits in the whole AMC ("Visit {visitNumber} of {totalVisits}").
+  int? get totalVisits => throw _privateConstructorUsedError;
+
+  /// First day a report can be submitted (30 days before the due date).
+  @EpochDateTimeConverter()
+  DateTime? get submissionWindowOpensAt => throw _privateConstructorUsedError;
+
+  /// `SYSTEM` (auto-approved) or `REVIEWER`, once approved.
+  String? get approvedBy => throw _privateConstructorUsedError;
+
+  /// Only returned when searched with `includeSiteDetails: true`.
+  Map<String, dynamic>? get siteDetails => throw _privateConstructorUsedError;
   @EpochDateTimeConverter()
   DateTime? get scheduledDate => throw _privateConstructorUsedError;
   @EpochDateTimeConverter()
@@ -1243,6 +1265,15 @@ abstract class $ScheduledVisitCopyWith<$Res> {
       String? facilityId,
       @AmcFacilityConverter() AmcFacility? facility,
       int? visitNumber,
+      String? facilityName,
+      String? activityFacilityId,
+      String? state,
+      String? district,
+      String? block,
+      int? totalVisits,
+      @EpochDateTimeConverter() DateTime? submissionWindowOpensAt,
+      String? approvedBy,
+      Map<String, dynamic>? siteDetails,
       @EpochDateTimeConverter() DateTime? scheduledDate,
       @EpochDateTimeConverter() DateTime? actualVisitDate,
       String? status,
@@ -1278,6 +1309,15 @@ class _$ScheduledVisitCopyWithImpl<$Res, $Val extends ScheduledVisit>
     Object? facilityId = freezed,
     Object? facility = freezed,
     Object? visitNumber = freezed,
+    Object? facilityName = freezed,
+    Object? activityFacilityId = freezed,
+    Object? state = freezed,
+    Object? district = freezed,
+    Object? block = freezed,
+    Object? totalVisits = freezed,
+    Object? submissionWindowOpensAt = freezed,
+    Object? approvedBy = freezed,
+    Object? siteDetails = freezed,
     Object? scheduledDate = freezed,
     Object? actualVisitDate = freezed,
     Object? status = freezed,
@@ -1318,6 +1358,42 @@ class _$ScheduledVisitCopyWithImpl<$Res, $Val extends ScheduledVisit>
           ? _value.visitNumber
           : visitNumber // ignore: cast_nullable_to_non_nullable
               as int?,
+      facilityName: freezed == facilityName
+          ? _value.facilityName
+          : facilityName // ignore: cast_nullable_to_non_nullable
+              as String?,
+      activityFacilityId: freezed == activityFacilityId
+          ? _value.activityFacilityId
+          : activityFacilityId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      state: freezed == state
+          ? _value.state
+          : state // ignore: cast_nullable_to_non_nullable
+              as String?,
+      district: freezed == district
+          ? _value.district
+          : district // ignore: cast_nullable_to_non_nullable
+              as String?,
+      block: freezed == block
+          ? _value.block
+          : block // ignore: cast_nullable_to_non_nullable
+              as String?,
+      totalVisits: freezed == totalVisits
+          ? _value.totalVisits
+          : totalVisits // ignore: cast_nullable_to_non_nullable
+              as int?,
+      submissionWindowOpensAt: freezed == submissionWindowOpensAt
+          ? _value.submissionWindowOpensAt
+          : submissionWindowOpensAt // ignore: cast_nullable_to_non_nullable
+              as DateTime?,
+      approvedBy: freezed == approvedBy
+          ? _value.approvedBy
+          : approvedBy // ignore: cast_nullable_to_non_nullable
+              as String?,
+      siteDetails: freezed == siteDetails
+          ? _value.siteDetails
+          : siteDetails // ignore: cast_nullable_to_non_nullable
+              as Map<String, dynamic>?,
       scheduledDate: freezed == scheduledDate
           ? _value.scheduledDate
           : scheduledDate // ignore: cast_nullable_to_non_nullable
@@ -1402,6 +1478,15 @@ abstract class _$$ScheduledVisitImplCopyWith<$Res>
       String? facilityId,
       @AmcFacilityConverter() AmcFacility? facility,
       int? visitNumber,
+      String? facilityName,
+      String? activityFacilityId,
+      String? state,
+      String? district,
+      String? block,
+      int? totalVisits,
+      @EpochDateTimeConverter() DateTime? submissionWindowOpensAt,
+      String? approvedBy,
+      Map<String, dynamic>? siteDetails,
       @EpochDateTimeConverter() DateTime? scheduledDate,
       @EpochDateTimeConverter() DateTime? actualVisitDate,
       String? status,
@@ -1437,6 +1522,15 @@ class __$$ScheduledVisitImplCopyWithImpl<$Res>
     Object? facilityId = freezed,
     Object? facility = freezed,
     Object? visitNumber = freezed,
+    Object? facilityName = freezed,
+    Object? activityFacilityId = freezed,
+    Object? state = freezed,
+    Object? district = freezed,
+    Object? block = freezed,
+    Object? totalVisits = freezed,
+    Object? submissionWindowOpensAt = freezed,
+    Object? approvedBy = freezed,
+    Object? siteDetails = freezed,
     Object? scheduledDate = freezed,
     Object? actualVisitDate = freezed,
     Object? status = freezed,
@@ -1477,6 +1571,42 @@ class __$$ScheduledVisitImplCopyWithImpl<$Res>
           ? _value.visitNumber
           : visitNumber // ignore: cast_nullable_to_non_nullable
               as int?,
+      facilityName: freezed == facilityName
+          ? _value.facilityName
+          : facilityName // ignore: cast_nullable_to_non_nullable
+              as String?,
+      activityFacilityId: freezed == activityFacilityId
+          ? _value.activityFacilityId
+          : activityFacilityId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      state: freezed == state
+          ? _value.state
+          : state // ignore: cast_nullable_to_non_nullable
+              as String?,
+      district: freezed == district
+          ? _value.district
+          : district // ignore: cast_nullable_to_non_nullable
+              as String?,
+      block: freezed == block
+          ? _value.block
+          : block // ignore: cast_nullable_to_non_nullable
+              as String?,
+      totalVisits: freezed == totalVisits
+          ? _value.totalVisits
+          : totalVisits // ignore: cast_nullable_to_non_nullable
+              as int?,
+      submissionWindowOpensAt: freezed == submissionWindowOpensAt
+          ? _value.submissionWindowOpensAt
+          : submissionWindowOpensAt // ignore: cast_nullable_to_non_nullable
+              as DateTime?,
+      approvedBy: freezed == approvedBy
+          ? _value.approvedBy
+          : approvedBy // ignore: cast_nullable_to_non_nullable
+              as String?,
+      siteDetails: freezed == siteDetails
+          ? _value._siteDetails
+          : siteDetails // ignore: cast_nullable_to_non_nullable
+              as Map<String, dynamic>?,
       scheduledDate: freezed == scheduledDate
           ? _value.scheduledDate
           : scheduledDate // ignore: cast_nullable_to_non_nullable
@@ -1532,6 +1662,15 @@ class _$ScheduledVisitImpl implements _ScheduledVisit {
       this.facilityId,
       @AmcFacilityConverter() this.facility,
       this.visitNumber,
+      this.facilityName,
+      this.activityFacilityId,
+      this.state,
+      this.district,
+      this.block,
+      this.totalVisits,
+      @EpochDateTimeConverter() this.submissionWindowOpensAt,
+      this.approvedBy,
+      final Map<String, dynamic>? siteDetails,
       @EpochDateTimeConverter() this.scheduledDate,
       @EpochDateTimeConverter() this.actualVisitDate,
       this.status,
@@ -1544,7 +1683,8 @@ class _$ScheduledVisitImpl implements _ScheduledVisit {
           const <ScheduledVisitAssignment>[],
       final Map<String, dynamic>? additionalDetails,
       @AmcAuditDetailsConverter() this.auditDetails})
-      : _processInstances = processInstances,
+      : _siteDetails = siteDetails,
+        _processInstances = processInstances,
         _transactions = transactions,
         _assignments = assignments,
         _additionalDetails = additionalDetails;
@@ -1567,6 +1707,47 @@ class _$ScheduledVisitImpl implements _ScheduledVisit {
   final AmcFacility? facility;
   @override
   final int? visitNumber;
+// Livelihood visit search fields (AMC API contract, 16 Nov 2026).
+  /// End user site name; the facility object may not repeat it.
+  @override
+  final String? facilityName;
+  @override
+  final String? activityFacilityId;
+
+  /// Place names, ready to show (not boundary codes).
+  @override
+  final String? state;
+  @override
+  final String? district;
+  @override
+  final String? block;
+
+  /// Visits in the whole AMC ("Visit {visitNumber} of {totalVisits}").
+  @override
+  final int? totalVisits;
+
+  /// First day a report can be submitted (30 days before the due date).
+  @override
+  @EpochDateTimeConverter()
+  final DateTime? submissionWindowOpensAt;
+
+  /// `SYSTEM` (auto-approved) or `REVIEWER`, once approved.
+  @override
+  final String? approvedBy;
+
+  /// Only returned when searched with `includeSiteDetails: true`.
+  final Map<String, dynamic>? _siteDetails;
+
+  /// Only returned when searched with `includeSiteDetails: true`.
+  @override
+  Map<String, dynamic>? get siteDetails {
+    final value = _siteDetails;
+    if (value == null) return null;
+    if (_siteDetails is EqualUnmodifiableMapView) return _siteDetails;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(value);
+  }
+
   @override
   @EpochDateTimeConverter()
   final DateTime? scheduledDate;
@@ -1628,7 +1809,7 @@ class _$ScheduledVisitImpl implements _ScheduledVisit {
 
   @override
   String toString() {
-    return 'ScheduledVisit(id: $id, tenantId: $tenantId, amcConfigurationId: $amcConfigurationId, amcConfiguration: $amcConfiguration, facilityId: $facilityId, facility: $facility, visitNumber: $visitNumber, scheduledDate: $scheduledDate, actualVisitDate: $actualVisitDate, status: $status, visitReport: $visitReport, workflow: $workflow, processInstances: $processInstances, transactions: $transactions, assignments: $assignments, additionalDetails: $additionalDetails, auditDetails: $auditDetails)';
+    return 'ScheduledVisit(id: $id, tenantId: $tenantId, amcConfigurationId: $amcConfigurationId, amcConfiguration: $amcConfiguration, facilityId: $facilityId, facility: $facility, visitNumber: $visitNumber, facilityName: $facilityName, activityFacilityId: $activityFacilityId, state: $state, district: $district, block: $block, totalVisits: $totalVisits, submissionWindowOpensAt: $submissionWindowOpensAt, approvedBy: $approvedBy, siteDetails: $siteDetails, scheduledDate: $scheduledDate, actualVisitDate: $actualVisitDate, status: $status, visitReport: $visitReport, workflow: $workflow, processInstances: $processInstances, transactions: $transactions, assignments: $assignments, additionalDetails: $additionalDetails, auditDetails: $auditDetails)';
   }
 
   @override
@@ -1649,6 +1830,23 @@ class _$ScheduledVisitImpl implements _ScheduledVisit {
                 other.facility == facility) &&
             (identical(other.visitNumber, visitNumber) ||
                 other.visitNumber == visitNumber) &&
+            (identical(other.facilityName, facilityName) ||
+                other.facilityName == facilityName) &&
+            (identical(other.activityFacilityId, activityFacilityId) ||
+                other.activityFacilityId == activityFacilityId) &&
+            (identical(other.state, state) || other.state == state) &&
+            (identical(other.district, district) ||
+                other.district == district) &&
+            (identical(other.block, block) || other.block == block) &&
+            (identical(other.totalVisits, totalVisits) ||
+                other.totalVisits == totalVisits) &&
+            (identical(
+                    other.submissionWindowOpensAt, submissionWindowOpensAt) ||
+                other.submissionWindowOpensAt == submissionWindowOpensAt) &&
+            (identical(other.approvedBy, approvedBy) ||
+                other.approvedBy == approvedBy) &&
+            const DeepCollectionEquality()
+                .equals(other._siteDetails, _siteDetails) &&
             (identical(other.scheduledDate, scheduledDate) ||
                 other.scheduledDate == scheduledDate) &&
             (identical(other.actualVisitDate, actualVisitDate) ||
@@ -1672,25 +1870,35 @@ class _$ScheduledVisitImpl implements _ScheduledVisit {
 
   @JsonKey(ignore: true)
   @override
-  int get hashCode => Object.hash(
-      runtimeType,
-      id,
-      tenantId,
-      amcConfigurationId,
-      amcConfiguration,
-      facilityId,
-      facility,
-      visitNumber,
-      scheduledDate,
-      actualVisitDate,
-      status,
-      visitReport,
-      workflow,
-      const DeepCollectionEquality().hash(_processInstances),
-      const DeepCollectionEquality().hash(_transactions),
-      const DeepCollectionEquality().hash(_assignments),
-      const DeepCollectionEquality().hash(_additionalDetails),
-      auditDetails);
+  int get hashCode => Object.hashAll([
+        runtimeType,
+        id,
+        tenantId,
+        amcConfigurationId,
+        amcConfiguration,
+        facilityId,
+        facility,
+        visitNumber,
+        facilityName,
+        activityFacilityId,
+        state,
+        district,
+        block,
+        totalVisits,
+        submissionWindowOpensAt,
+        approvedBy,
+        const DeepCollectionEquality().hash(_siteDetails),
+        scheduledDate,
+        actualVisitDate,
+        status,
+        visitReport,
+        workflow,
+        const DeepCollectionEquality().hash(_processInstances),
+        const DeepCollectionEquality().hash(_transactions),
+        const DeepCollectionEquality().hash(_assignments),
+        const DeepCollectionEquality().hash(_additionalDetails),
+        auditDetails
+      ]);
 
   @JsonKey(ignore: true)
   @override
@@ -1716,6 +1924,15 @@ abstract class _ScheduledVisit implements ScheduledVisit {
       final String? facilityId,
       @AmcFacilityConverter() final AmcFacility? facility,
       final int? visitNumber,
+      final String? facilityName,
+      final String? activityFacilityId,
+      final String? state,
+      final String? district,
+      final String? block,
+      final int? totalVisits,
+      @EpochDateTimeConverter() final DateTime? submissionWindowOpensAt,
+      final String? approvedBy,
+      final Map<String, dynamic>? siteDetails,
       @EpochDateTimeConverter() final DateTime? scheduledDate,
       @EpochDateTimeConverter() final DateTime? actualVisitDate,
       final String? status,
@@ -1746,6 +1963,36 @@ abstract class _ScheduledVisit implements ScheduledVisit {
   AmcFacility? get facility;
   @override
   int? get visitNumber;
+  @override // Livelihood visit search fields (AMC API contract, 16 Nov 2026).
+  /// End user site name; the facility object may not repeat it.
+  String? get facilityName;
+  @override
+  String? get activityFacilityId;
+  @override
+
+  /// Place names, ready to show (not boundary codes).
+  String? get state;
+  @override
+  String? get district;
+  @override
+  String? get block;
+  @override
+
+  /// Visits in the whole AMC ("Visit {visitNumber} of {totalVisits}").
+  int? get totalVisits;
+  @override
+
+  /// First day a report can be submitted (30 days before the due date).
+  @EpochDateTimeConverter()
+  DateTime? get submissionWindowOpensAt;
+  @override
+
+  /// `SYSTEM` (auto-approved) or `REVIEWER`, once approved.
+  String? get approvedBy;
+  @override
+
+  /// Only returned when searched with `includeSiteDetails: true`.
+  Map<String, dynamic>? get siteDetails;
   @override
   @EpochDateTimeConverter()
   DateTime? get scheduledDate;
@@ -2440,6 +2687,15 @@ mixin _$ScheduledVisitSearchCriteria {
   String? get facilityId => throw _privateConstructorUsedError;
   String? get facilityName => throw _privateConstructorUsedError;
   List<String>? get assignedUsers => throw _privateConstructorUsedError;
+
+  /// End user name (contains, any case) or an exact phone number.
+  String? get searchText => throw _privateConstructorUsedError;
+
+  /// Adds `siteDetails` to each visit.
+  bool? get includeSiteDetails => throw _privateConstructorUsedError;
+
+  /// `scheduledDate` or `latestSubmissionDate`.
+  String? get sortBy => throw _privateConstructorUsedError;
   String? get amcConfigurationId => throw _privateConstructorUsedError;
   List<String> get statuses => throw _privateConstructorUsedError;
   int? get visitNumber => throw _privateConstructorUsedError;
@@ -2467,6 +2723,9 @@ abstract class $ScheduledVisitSearchCriteriaCopyWith<$Res> {
       String? facilityId,
       String? facilityName,
       List<String>? assignedUsers,
+      String? searchText,
+      bool? includeSiteDetails,
+      String? sortBy,
       String? amcConfigurationId,
       List<String> statuses,
       int? visitNumber,
@@ -2493,6 +2752,9 @@ class _$ScheduledVisitSearchCriteriaCopyWithImpl<$Res,
     Object? facilityId = freezed,
     Object? facilityName = freezed,
     Object? assignedUsers = freezed,
+    Object? searchText = freezed,
+    Object? includeSiteDetails = freezed,
+    Object? sortBy = freezed,
     Object? amcConfigurationId = freezed,
     Object? statuses = null,
     Object? visitNumber = freezed,
@@ -2517,6 +2779,18 @@ class _$ScheduledVisitSearchCriteriaCopyWithImpl<$Res,
           ? _value.assignedUsers
           : assignedUsers // ignore: cast_nullable_to_non_nullable
               as List<String>?,
+      searchText: freezed == searchText
+          ? _value.searchText
+          : searchText // ignore: cast_nullable_to_non_nullable
+              as String?,
+      includeSiteDetails: freezed == includeSiteDetails
+          ? _value.includeSiteDetails
+          : includeSiteDetails // ignore: cast_nullable_to_non_nullable
+              as bool?,
+      sortBy: freezed == sortBy
+          ? _value.sortBy
+          : sortBy // ignore: cast_nullable_to_non_nullable
+              as String?,
       amcConfigurationId: freezed == amcConfigurationId
           ? _value.amcConfigurationId
           : amcConfigurationId // ignore: cast_nullable_to_non_nullable
@@ -2559,6 +2833,9 @@ abstract class _$$ScheduledVisitSearchCriteriaImplCopyWith<$Res>
       String? facilityId,
       String? facilityName,
       List<String>? assignedUsers,
+      String? searchText,
+      bool? includeSiteDetails,
+      String? sortBy,
       String? amcConfigurationId,
       List<String> statuses,
       int? visitNumber,
@@ -2584,6 +2861,9 @@ class __$$ScheduledVisitSearchCriteriaImplCopyWithImpl<$Res>
     Object? facilityId = freezed,
     Object? facilityName = freezed,
     Object? assignedUsers = freezed,
+    Object? searchText = freezed,
+    Object? includeSiteDetails = freezed,
+    Object? sortBy = freezed,
     Object? amcConfigurationId = freezed,
     Object? statuses = null,
     Object? visitNumber = freezed,
@@ -2608,6 +2888,18 @@ class __$$ScheduledVisitSearchCriteriaImplCopyWithImpl<$Res>
           ? _value._assignedUsers
           : assignedUsers // ignore: cast_nullable_to_non_nullable
               as List<String>?,
+      searchText: freezed == searchText
+          ? _value.searchText
+          : searchText // ignore: cast_nullable_to_non_nullable
+              as String?,
+      includeSiteDetails: freezed == includeSiteDetails
+          ? _value.includeSiteDetails
+          : includeSiteDetails // ignore: cast_nullable_to_non_nullable
+              as bool?,
+      sortBy: freezed == sortBy
+          ? _value.sortBy
+          : sortBy // ignore: cast_nullable_to_non_nullable
+              as String?,
       amcConfigurationId: freezed == amcConfigurationId
           ? _value.amcConfigurationId
           : amcConfigurationId // ignore: cast_nullable_to_non_nullable
@@ -2644,6 +2936,9 @@ class _$ScheduledVisitSearchCriteriaImpl extends _ScheduledVisitSearchCriteria {
       this.facilityId,
       this.facilityName,
       final List<String>? assignedUsers,
+      this.searchText,
+      this.includeSiteDetails,
+      this.sortBy,
       this.amcConfigurationId,
       final List<String> statuses = const <String>[],
       this.visitNumber,
@@ -2670,6 +2965,17 @@ class _$ScheduledVisitSearchCriteriaImpl extends _ScheduledVisitSearchCriteria {
     return EqualUnmodifiableListView(value);
   }
 
+  /// End user name (contains, any case) or an exact phone number.
+  @override
+  final String? searchText;
+
+  /// Adds `siteDetails` to each visit.
+  @override
+  final bool? includeSiteDetails;
+
+  /// `scheduledDate` or `latestSubmissionDate`.
+  @override
+  final String? sortBy;
   @override
   final String? amcConfigurationId;
   final List<String> _statuses;
@@ -2694,7 +3000,7 @@ class _$ScheduledVisitSearchCriteriaImpl extends _ScheduledVisitSearchCriteria {
 
   @override
   String toString() {
-    return 'ScheduledVisitSearchCriteria(tenantId: $tenantId, facilityId: $facilityId, facilityName: $facilityName, assignedUsers: $assignedUsers, amcConfigurationId: $amcConfigurationId, statuses: $statuses, visitNumber: $visitNumber, scheduledFrom: $scheduledFrom, scheduledTo: $scheduledTo, sortDirection: $sortDirection)';
+    return 'ScheduledVisitSearchCriteria(tenantId: $tenantId, facilityId: $facilityId, facilityName: $facilityName, assignedUsers: $assignedUsers, searchText: $searchText, includeSiteDetails: $includeSiteDetails, sortBy: $sortBy, amcConfigurationId: $amcConfigurationId, statuses: $statuses, visitNumber: $visitNumber, scheduledFrom: $scheduledFrom, scheduledTo: $scheduledTo, sortDirection: $sortDirection)';
   }
 
   @override
@@ -2710,6 +3016,11 @@ class _$ScheduledVisitSearchCriteriaImpl extends _ScheduledVisitSearchCriteria {
                 other.facilityName == facilityName) &&
             const DeepCollectionEquality()
                 .equals(other._assignedUsers, _assignedUsers) &&
+            (identical(other.searchText, searchText) ||
+                other.searchText == searchText) &&
+            (identical(other.includeSiteDetails, includeSiteDetails) ||
+                other.includeSiteDetails == includeSiteDetails) &&
+            (identical(other.sortBy, sortBy) || other.sortBy == sortBy) &&
             (identical(other.amcConfigurationId, amcConfigurationId) ||
                 other.amcConfigurationId == amcConfigurationId) &&
             const DeepCollectionEquality().equals(other._statuses, _statuses) &&
@@ -2730,6 +3041,9 @@ class _$ScheduledVisitSearchCriteriaImpl extends _ScheduledVisitSearchCriteria {
       facilityId,
       facilityName,
       const DeepCollectionEquality().hash(_assignedUsers),
+      searchText,
+      includeSiteDetails,
+      sortBy,
       amcConfigurationId,
       const DeepCollectionEquality().hash(_statuses),
       visitNumber,
@@ -2753,6 +3067,9 @@ abstract class _ScheduledVisitSearchCriteria
       final String? facilityId,
       final String? facilityName,
       final List<String>? assignedUsers,
+      final String? searchText,
+      final bool? includeSiteDetails,
+      final String? sortBy,
       final String? amcConfigurationId,
       final List<String> statuses,
       final int? visitNumber,
@@ -2769,6 +3086,18 @@ abstract class _ScheduledVisitSearchCriteria
   String? get facilityName;
   @override
   List<String>? get assignedUsers;
+  @override
+
+  /// End user name (contains, any case) or an exact phone number.
+  String? get searchText;
+  @override
+
+  /// Adds `siteDetails` to each visit.
+  bool? get includeSiteDetails;
+  @override
+
+  /// `scheduledDate` or `latestSubmissionDate`.
+  String? get sortBy;
   @override
   String? get amcConfigurationId;
   @override

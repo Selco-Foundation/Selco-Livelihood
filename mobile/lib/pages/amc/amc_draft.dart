@@ -46,7 +46,7 @@ class _AmcDraftPageState extends State<AmcDraftPage>
           query: _searchQuery,
           filter: 'BOOKMARKED',
           id: (record) => record.id ?? '',
-          name: (record) => record.facility?.facilityName,
+          name: (record) => record.displayFacilityName,
           date: (record) => record.scheduledDate ?? DateTime(1970),
           bookmarkedIds: bookmarkIds.toList());
 
@@ -321,7 +321,7 @@ class _AmcDraftPageState extends State<AmcDraftPage>
             children: [
               Builder(builder: (context) {
                 final locality =
-                    parseBoundaryCodeLocality(visit.facility?.boundaryCode);
+                    amcVisitLocality(visit);
                 if (_selectedTabIndex == 0) {
                   return InboxReportCard(
                       isBookmarked: bookmarkIds.contains(visit.id),
@@ -332,11 +332,12 @@ class _AmcDraftPageState extends State<AmcDraftPage>
                           : () =>
                               toggleBookmark(visit, reload: _reloadBookmarks),
                       onPress: () => _openVisit(visit),
-                      title: visit.facility?.facilityName ?? '',
+                      title: visit.displayFacilityName,
                       visitNumber: visit.visitNumber,
                       durationMonths: visit.amcConfiguration?.durationMonths,
                       visitFrequencyMonths:
                           visit.amcConfiguration?.visitFrequencyMonths,
+                      totalVisits: visit.totalVisits,
                       dateAssigned: visit.displayDate,
                       status: visit.status!.isNotEmpty
                           ? (visit.status!.toLowerCase().contains(otpText)
@@ -359,11 +360,12 @@ class _AmcDraftPageState extends State<AmcDraftPage>
                       ? null
                       : () => toggleBookmark(visit, reload: _reloadBookmarks),
                   onPress: () => _openVisit(visit),
-                  title: visit.facility?.facilityName ?? '',
+                  title: visit.displayFacilityName,
                   visitNumber: visit.visitNumber,
                   durationMonths: visit.amcConfiguration?.durationMonths,
                   visitFrequencyMonths:
                       visit.amcConfiguration?.visitFrequencyMonths,
+                  totalVisits: visit.totalVisits,
                   dateAssigned: visit.displayDate,
                   status: visit.status ?? '---',
                   state: locality.state,

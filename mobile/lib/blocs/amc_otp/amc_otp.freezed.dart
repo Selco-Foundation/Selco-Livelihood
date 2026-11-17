@@ -20,25 +20,19 @@ mixin _$AmcOtpEvent {
   @optionalTypeArgs
   TResult when<TResult extends Object?>({
     required TResult Function(String visitId) resend,
-    required TResult Function(
-            String visitId, String schemaCode, int version, String otp)
-        submit,
+    required TResult Function(String visitId, String otp) submit,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function(String visitId)? resend,
-    TResult? Function(
-            String visitId, String schemaCode, int version, String otp)?
-        submit,
+    TResult? Function(String visitId, String otp)? submit,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult maybeWhen<TResult extends Object?>({
     TResult Function(String visitId)? resend,
-    TResult Function(
-            String visitId, String schemaCode, int version, String otp)?
-        submit,
+    TResult Function(String visitId, String otp)? submit,
     required TResult orElse(),
   }) =>
       throw _privateConstructorUsedError;
@@ -178,9 +172,7 @@ class _$AmcOtpEventResendImpl
   @optionalTypeArgs
   TResult when<TResult extends Object?>({
     required TResult Function(String visitId) resend,
-    required TResult Function(
-            String visitId, String schemaCode, int version, String otp)
-        submit,
+    required TResult Function(String visitId, String otp) submit,
   }) {
     return resend(visitId);
   }
@@ -189,9 +181,7 @@ class _$AmcOtpEventResendImpl
   @optionalTypeArgs
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function(String visitId)? resend,
-    TResult? Function(
-            String visitId, String schemaCode, int version, String otp)?
-        submit,
+    TResult? Function(String visitId, String otp)? submit,
   }) {
     return resend?.call(visitId);
   }
@@ -200,9 +190,7 @@ class _$AmcOtpEventResendImpl
   @optionalTypeArgs
   TResult maybeWhen<TResult extends Object?>({
     TResult Function(String visitId)? resend,
-    TResult Function(
-            String visitId, String schemaCode, int version, String otp)?
-        submit,
+    TResult Function(String visitId, String otp)? submit,
     required TResult orElse(),
   }) {
     if (resend != null) {
@@ -263,7 +251,7 @@ abstract class _$$AmcOtpEventSubmitImplCopyWith<$Res>
       __$$AmcOtpEventSubmitImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({String visitId, String schemaCode, int version, String otp});
+  $Res call({String visitId, String otp});
 }
 
 /// @nodoc
@@ -278,8 +266,6 @@ class __$$AmcOtpEventSubmitImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? visitId = null,
-    Object? schemaCode = null,
-    Object? version = null,
     Object? otp = null,
   }) {
     return _then(_$AmcOtpEventSubmitImpl(
@@ -287,14 +273,6 @@ class __$$AmcOtpEventSubmitImplCopyWithImpl<$Res>
           ? _value.visitId
           : visitId // ignore: cast_nullable_to_non_nullable
               as String,
-      schemaCode: null == schemaCode
-          ? _value.schemaCode
-          : schemaCode // ignore: cast_nullable_to_non_nullable
-              as String,
-      version: null == version
-          ? _value.version
-          : version // ignore: cast_nullable_to_non_nullable
-              as int,
       otp: null == otp
           ? _value.otp
           : otp // ignore: cast_nullable_to_non_nullable
@@ -308,24 +286,16 @@ class __$$AmcOtpEventSubmitImplCopyWithImpl<$Res>
 class _$AmcOtpEventSubmitImpl
     with DiagnosticableTreeMixin
     implements AmcOtpEventSubmit {
-  const _$AmcOtpEventSubmitImpl(
-      {required this.visitId,
-      required this.schemaCode,
-      required this.version,
-      required this.otp});
+  const _$AmcOtpEventSubmitImpl({required this.visitId, required this.otp});
 
   @override
   final String visitId;
-  @override
-  final String schemaCode;
-  @override
-  final int version;
   @override
   final String otp;
 
   @override
   String toString({DiagnosticLevel minLevel = DiagnosticLevel.info}) {
-    return 'AmcOtpEvent.submit(visitId: $visitId, schemaCode: $schemaCode, version: $version, otp: $otp)';
+    return 'AmcOtpEvent.submit(visitId: $visitId, otp: $otp)';
   }
 
   @override
@@ -334,8 +304,6 @@ class _$AmcOtpEventSubmitImpl
     properties
       ..add(DiagnosticsProperty('type', 'AmcOtpEvent.submit'))
       ..add(DiagnosticsProperty('visitId', visitId))
-      ..add(DiagnosticsProperty('schemaCode', schemaCode))
-      ..add(DiagnosticsProperty('version', version))
       ..add(DiagnosticsProperty('otp', otp));
   }
 
@@ -345,15 +313,11 @@ class _$AmcOtpEventSubmitImpl
         (other.runtimeType == runtimeType &&
             other is _$AmcOtpEventSubmitImpl &&
             (identical(other.visitId, visitId) || other.visitId == visitId) &&
-            (identical(other.schemaCode, schemaCode) ||
-                other.schemaCode == schemaCode) &&
-            (identical(other.version, version) || other.version == version) &&
             (identical(other.otp, otp) || other.otp == otp));
   }
 
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, visitId, schemaCode, version, otp);
+  int get hashCode => Object.hash(runtimeType, visitId, otp);
 
   @JsonKey(ignore: true)
   @override
@@ -366,35 +330,29 @@ class _$AmcOtpEventSubmitImpl
   @optionalTypeArgs
   TResult when<TResult extends Object?>({
     required TResult Function(String visitId) resend,
-    required TResult Function(
-            String visitId, String schemaCode, int version, String otp)
-        submit,
+    required TResult Function(String visitId, String otp) submit,
   }) {
-    return submit(visitId, schemaCode, version, otp);
+    return submit(visitId, otp);
   }
 
   @override
   @optionalTypeArgs
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function(String visitId)? resend,
-    TResult? Function(
-            String visitId, String schemaCode, int version, String otp)?
-        submit,
+    TResult? Function(String visitId, String otp)? submit,
   }) {
-    return submit?.call(visitId, schemaCode, version, otp);
+    return submit?.call(visitId, otp);
   }
 
   @override
   @optionalTypeArgs
   TResult maybeWhen<TResult extends Object?>({
     TResult Function(String visitId)? resend,
-    TResult Function(
-            String visitId, String schemaCode, int version, String otp)?
-        submit,
+    TResult Function(String visitId, String otp)? submit,
     required TResult orElse(),
   }) {
     if (submit != null) {
-      return submit(visitId, schemaCode, version, otp);
+      return submit(visitId, otp);
     }
     return orElse();
   }
@@ -434,14 +392,10 @@ class _$AmcOtpEventSubmitImpl
 abstract class AmcOtpEventSubmit implements AmcOtpEvent {
   const factory AmcOtpEventSubmit(
       {required final String visitId,
-      required final String schemaCode,
-      required final int version,
       required final String otp}) = _$AmcOtpEventSubmitImpl;
 
   @override
   String get visitId;
-  String get schemaCode;
-  int get version;
   String get otp;
   @override
   @JsonKey(ignore: true)

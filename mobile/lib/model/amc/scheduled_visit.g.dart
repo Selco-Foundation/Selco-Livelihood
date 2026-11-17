@@ -127,6 +127,16 @@ _$ScheduledVisitImpl _$$ScheduledVisitImplFromJson(Map<String, dynamic> json) =>
       facilityId: json['facilityId'] as String?,
       facility: const AmcFacilityConverter().fromJson(json['facility']),
       visitNumber: (json['visitNumber'] as num?)?.toInt(),
+      facilityName: json['facilityName'] as String?,
+      activityFacilityId: json['activityFacilityId'] as String?,
+      state: json['state'] as String?,
+      district: json['district'] as String?,
+      block: json['block'] as String?,
+      totalVisits: (json['totalVisits'] as num?)?.toInt(),
+      submissionWindowOpensAt: const EpochDateTimeConverter()
+          .fromJson(json['submissionWindowOpensAt']),
+      approvedBy: json['approvedBy'] as String?,
+      siteDetails: json['siteDetails'] as Map<String, dynamic>?,
       scheduledDate:
           const EpochDateTimeConverter().fromJson(json['scheduledDate']),
       actualVisitDate:
@@ -162,6 +172,16 @@ Map<String, dynamic> _$$ScheduledVisitImplToJson(
       'facilityId': instance.facilityId,
       'facility': const AmcFacilityConverter().toJson(instance.facility),
       'visitNumber': instance.visitNumber,
+      'facilityName': instance.facilityName,
+      'activityFacilityId': instance.activityFacilityId,
+      'state': instance.state,
+      'district': instance.district,
+      'block': instance.block,
+      'totalVisits': instance.totalVisits,
+      'submissionWindowOpensAt': const EpochDateTimeConverter()
+          .toJson(instance.submissionWindowOpensAt),
+      'approvedBy': instance.approvedBy,
+      'siteDetails': instance.siteDetails,
       'scheduledDate':
           const EpochDateTimeConverter().toJson(instance.scheduledDate),
       'actualVisitDate':

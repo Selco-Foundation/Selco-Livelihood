@@ -46,11 +46,11 @@ class AmcOtpBloc extends Bloc<AmcOtpEvent, AmcOtpState> {
   static const String CLEANUP_ERROR = "Cleanup Error";
   static const String ERROR_CLEARING_CACHE = "Error clearing cache for";
 
-  /// Wrong-code error codes: E4H's amc-scheduler-service sends
-  /// `ERROR_OTP_GENERATION` ("OTP validation unsuccessful"); the dummy
-  /// backend sends `INVALID_OTP`.
-  // TODO(backend): confirm the codes once the Livelihood API is available.
+  /// Wrong-code error codes: Livelihood's AMC service sends
+  /// `AMC_INVALID_SERVICE_CODE`; E4H's sent `ERROR_OTP_GENERATION` ("OTP
+  /// validation unsuccessful") and older dummy data `INVALID_OTP`.
   static const Set<String> invalidCodeErrors = {
+    'AMC_INVALID_SERVICE_CODE',
     'ERROR_OTP_GENERATION',
     'INVALID_OTP',
     'INVALID_OTP_REQUEST',
@@ -87,8 +87,6 @@ class AmcOtpBloc extends Bloc<AmcOtpEvent, AmcOtpState> {
     try {
       updated = await scheduledVisitRepo.updateVisitWorkflow(
         visitId: event.visitId,
-        schemaCode: event.schemaCode,
-        version: event.version,
         otp: event.otp,
         status: 'SUBMIT_OTP',
         responses: null,
@@ -174,8 +172,6 @@ class AmcOtpEvent with _$AmcOtpEvent {
 
   const factory AmcOtpEvent.submit({
     required String visitId,
-    required String schemaCode,
-    required int version,
     required String otp,
   }) = AmcOtpEventSubmit;
 }

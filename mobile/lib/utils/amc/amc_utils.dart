@@ -38,12 +38,16 @@ export 'amc_json.dart';
 String formatAmcNumber(
   int? visitNumber,
   int? durationMonths,
-  int? visitFrequencyMonths,
-) {
+  int? visitFrequencyMonths, {
+  int? totalVisits,
+}) {
   final visit = visitNumber?.toString() ?? '---';
   var total = '---';
 
-  if (durationMonths != null &&
+  // Livelihood: the visit search returns `totalVisits` itself.
+  if (totalVisits != null) {
+    total = totalVisits.toString();
+  } else if (durationMonths != null &&
       visitFrequencyMonths != null &&
       visitFrequencyMonths > 0 &&
       durationMonths % visitFrequencyMonths == 0) {
@@ -71,10 +75,105 @@ const int minFacilitySearchQueryLength = 1;
 const String amcFormSchemaKey = 'AssetForm.AMC_SCHEDULED_MAINTENANCE';
 const String amcFormFirstPage = 'Report_Header';
 
-/// #250: a `format: custom` form field whose name ends in `_photo` is a
-/// reading photo (its value is a local path, then a filestore id once
+/// #250: a `format: custom` form field whose name ends in `Photo` is a
+/// reading photo (its value is a local path, or a filestore id once
 /// uploaded); any other custom field is a decimal reading.
-bool isAmcReadingPhotoField(String fieldName) => fieldName.endsWith('_photo');
+bool isAmcReadingPhotoField(String fieldName) => fieldName.endsWith('Photo');
+
+/// Document type of the verification photograph (system with the end user
+/// and the technician). The backend refuses a report without one
+/// (`AMC_VERIFICATION_PHOTO_MISSING`).
+const String amcVerificationPhotoDocumentType = 'AMC_VERIFICATION_PHOTO';
+
+/// Reading photo field → its report document type (AMC API contract). The
+/// report PDF places each photo by its type.
+const Map<String, String> amcReadingPhotoDocumentTypes = {
+  'neVoltagePcuOutputPhoto': 'AMC_PHOTO_NE_PCU',
+  'neVoltageGridInputPhoto': 'AMC_PHOTO_NE_GRID',
+  'solarSpdPhoto': 'AMC_PHOTO_SOLAR_SPD',
+  'gridSpdPhoto': 'AMC_PHOTO_GRID_SPD',
+};
+
+/// Document type for the reading photo in [fieldName].
+String amcReadingPhotoDocumentType(String fieldName) =>
+    amcReadingPhotoDocumentTypes[fieldName] ?? fieldName;
+
+/// Whether a report document is a reading photo (shown in the form), not
+/// the verification photograph (shown on the photo screen).
+bool isAmcReadingPhotoDocument(String? documentType) =>
+    amcReadingPhotoDocumentTypes.containsValue(documentType) ||
+    isAmcReadingPhotoField(documentType ?? '');
+
+/// Readings the backend's auto-approval rules compare as numbers.
+const Set<String> amcNumericResponseKeys = {
+  'neVoltagePcuOutput',
+  'neVoltageGridInput',
+  'inverterOutputVoltage',
+  'panelsPerString',
+};
+
+/// The date fields of the report, sent as `yyyy-MM-dd`.
+const Set<String> amcDateResponseKeys = {'visitDate'};
+
+/// Form answers only the app uses: shown from the visit, never sent.
+const Set<String> amcDisplayOnlyResponseKeys = {
+  ...amcSiteDetailFields,
+  amcBatteryTypeField,
+  amcSystemTypeField,
+};
+
+/// `visitReport.responses` for `SUBMIT_VISIT_REPORT`, from the saved form
+/// answers: reading photos are left out (they go in `documents`), as are
+/// the display-only fields; readings become numbers and dates `yyyy-MM-dd`
+/// (AMC API contract). A reading that is not a number is sent as typed, so
+/// the backend sends the report to a reviewer rather than dropping it.
+Map<String, dynamic> amcResponsesForSubmit(Map<String, dynamic> answers) {
+  final out = <String, dynamic>{};
+  for (final MapEntry(:key, :value) in answers.entries) {
+    if (isAmcReadingPhotoField(key) ||
+        amcDisplayOnlyResponseKeys.contains(key)) {
+      continue;
+    }
+    if (value == null || (value is String && value.trim().isEmpty)) continue;
+    if (amcNumericResponseKeys.contains(key) && value is String) {
+      out[key] = num.tryParse(value.trim()) ?? value;
+    } else if (amcDateResponseKeys.contains(key)) {
+      out[key] = amcReportDate(value) ?? value;
+    } else {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
+/// [value] (a DateTime, ISO text or epoch ms) as a local `yyyy-MM-dd`.
+String? amcReportDate(Object? value) {
+  final DateTime? date = switch (value) {
+    DateTime d => d,
+    num ms => DateTime.fromMillisecondsSinceEpoch(ms.toInt()),
+    String text => DateTime.tryParse(text.trim()),
+    _ => null,
+  };
+  if (date == null) return null;
+  final local = date.isUtc ? date.toLocal() : date;
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${local.year}-${two(local.month)}-${two(local.day)}';
+}
+
+/// Reading photo answers from a submitted report's [documents]
+/// (field → filestore id), so a returned report shows its photos.
+Map<String, dynamic> amcPhotoAnswersFromDocuments(
+    List<AmcDocument>? documents) {
+  final fieldByType = {
+    for (final e in amcReadingPhotoDocumentTypes.entries) e.value: e.key,
+  };
+  return {
+    for (final doc in documents ?? const <AmcDocument>[])
+      if (fieldByType[doc.documentType] != null &&
+          (doc.fileStore ?? '').isNotEmpty)
+        fieldByType[doc.documentType]!: doc.fileStore,
+  };
+}
 
 Future<String> copyFileToLocalDir(File sourceFile) async {
   try {
@@ -99,6 +198,20 @@ class BoundaryCodeLocality {
     this.district = '',
     this.block = '',
   });
+}
+
+/// The visit's state, district and block. Livelihood's visit search sends
+/// them ready to show; otherwise they are read from the facility's
+/// boundary code (E4H).
+BoundaryCodeLocality amcVisitLocality(ScheduledVisit visit) {
+  final parsed = parseBoundaryCodeLocality(visit.facility?.boundaryCode);
+  String pick(String? value, String fallback) =>
+      (value?.trim().isNotEmpty ?? false) ? value!.trim() : fallback;
+  return BoundaryCodeLocality(
+    state: pick(visit.state, parsed.state),
+    district: pick(visit.district, parsed.district),
+    block: pick(visit.block, parsed.block),
+  );
 }
 
 BoundaryCodeLocality parseBoundaryCodeLocality(String? boundaryCode) {
@@ -490,9 +603,16 @@ Future<Map<String, dynamic>> buildInitialAmcValues({
   final userType = USER_TYPES.AMC.name;
 
   final formRepo = AmcDynamicFormRepository();
+  final report = scheduledVisit.visitReport;
   final initialValues = await formRepo.getInitialFormValues(
     scheduledVisitId: scheduledVisit.id!,
-    responsesFromModel: scheduledVisit.visitReport?.responses,
+    // Reading photos come back as report documents, not answers.
+    responsesFromModel: report == null
+        ? null
+        : {
+            ...?report.responses,
+            ...amcPhotoAnswersFromDocuments(report.documents),
+          },
     userType: userType,
   );
 

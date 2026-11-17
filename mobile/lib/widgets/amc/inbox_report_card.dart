@@ -33,6 +33,7 @@ class InboxReportCard extends StatelessWidget {
   final int? visitNumber;
   final int? durationMonths;
   final int? visitFrequencyMonths;
+  final int? totalVisits;
 
   const InboxReportCard({
     super.key,
@@ -52,6 +53,7 @@ class InboxReportCard extends StatelessWidget {
     this.visitNumber,
     this.durationMonths,
     this.visitFrequencyMonths,
+    this.totalVisits,
   });
 
   @override
@@ -116,6 +118,7 @@ class InboxReportCard extends StatelessWidget {
                   visitNumber,
                   durationMonths,
                   visitFrequencyMonths,
+                  totalVisits: totalVisits,
                 ),
                 textTheme,
                 theme,

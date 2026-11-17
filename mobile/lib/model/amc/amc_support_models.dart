@@ -34,17 +34,23 @@ class AmcFacility {
   final String? facility_poc_phone;
   final Map<String, dynamic> raw;
 
-  factory AmcFacility.fromMap(Map<String, dynamic> m) => AmcFacility(
-        tenantId: m['tenant_id']?.toString(),
-        facilityId: m['facility_id']?.toString(),
-        boundaryCode: m['boundaryCode']?.toString(),
-        facilityName: m['facility_name']?.toString(),
-        facilityType: m['facility_type']?.toString(),
-        facility_category: m['facility_category']?.toString(),
-        facility_poc_name: m['facility_poc_name']?.toString(),
-        facility_poc_phone: m['facility_poc_phone']?.toString(),
-        raw: Map<String, dynamic>.from(m),
-      );
+  /// Reads E4H's snake_case keys and the Livelihood visit search's
+  /// camelCase ones (`facility.facilityPocPhone`).
+  factory AmcFacility.fromMap(Map<String, dynamic> m) {
+    String? read(String snake, String camel) =>
+        (m[snake] ?? m[camel])?.toString();
+    return AmcFacility(
+      tenantId: read('tenant_id', 'tenantId'),
+      facilityId: read('facility_id', 'facilityId'),
+      boundaryCode: m['boundaryCode']?.toString(),
+      facilityName: read('facility_name', 'facilityName'),
+      facilityType: read('facility_type', 'facilityType'),
+      facility_category: read('facility_category', 'facilityCategory'),
+      facility_poc_name: read('facility_poc_name', 'facilityPocName'),
+      facility_poc_phone: read('facility_poc_phone', 'facilityPocPhone'),
+      raw: Map<String, dynamic>.from(m),
+    );
+  }
 
   Map<String, dynamic> toMap() => {
         ...raw,
