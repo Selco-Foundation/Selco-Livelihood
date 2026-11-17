@@ -791,9 +791,19 @@ public class VendorAssignmentService {
      * across processes and JVM versions, which is exactly the property needed here.
      */
     private String assetId(VendorAssignmentCriteria criteria, VendorAssignmentSubmission submission) {
-        return deterministicId("facility-activity", criteria.getTenantId(), criteria.getFieldPlanId(),
-                submission.getFacilityId(), submission.getComponentType(),
-                String.valueOf(submission.getComponentSequence()));
+        return activityFacilityId(criteria.getTenantId(), criteria.getFieldPlanId(),
+                submission.getFacilityId(), submission.getComponentType(), submission.getComponentSequence());
+    }
+
+    /**
+     * The id vendor assignment gives an asset's activity facility. Deterministic, so other code can
+     * tell which assets belong to the same plan and site without a lookup (BomPdfService uses it
+     * to find the solar report's machines).
+     */
+    public static String activityFacilityId(String tenantId, String fieldPlanId, String facilityId,
+                                            String componentType, Integer componentSequence) {
+        return deterministicId("facility-activity", tenantId, fieldPlanId, facilityId, componentType,
+                String.valueOf(componentSequence));
     }
 
     private static String deterministicId(String... parts) {
