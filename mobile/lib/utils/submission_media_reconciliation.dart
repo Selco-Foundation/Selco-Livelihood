@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-/// Draft media is authoritative; server IDs and completed work belong to the
-/// checkpoint. A path is not an identity: picking again can overwrite it.
+/// Refreshes draft media and BOM units while preserving server checkpoints.
+/// A path is not an identity: picking again can overwrite it.
 Map<String, dynamic> reconcileSubmissionMedia(
   Map<String, dynamic> existing,
   Map<String, dynamic> latest,
@@ -11,6 +11,23 @@ Map<String, dynamic> reconcileSubmissionMedia(
   if (existing['workflowSubmitted'] == true) return result;
   if (existing['kind'] != latest['kind']) {
     throw StateError('Cannot reconcile different submission kinds.');
+  }
+  if (latest['kind'] == 'solar') {
+    final bom = result['bom'];
+    final latestData = latest['bom']?['data'];
+    if (bom is Map && bom['data'] is Map && latestData is Map) {
+      final data = bom['data'] as Map;
+      for (final entry in latestData.entries) {
+        if (entry.key is String &&
+            (entry.key as String).endsWith('_uom') &&
+            entry.value is String &&
+            (entry.value as String).trim().isNotEmpty &&
+            data[entry.key] != entry.value) {
+          data[entry.key] = entry.value;
+          bom['submitted'] = false;
+        }
+      }
+    }
   }
   result['workflowDocuments'] =
       _documents(existing['workflowDocuments'], latest['workflowDocuments']);

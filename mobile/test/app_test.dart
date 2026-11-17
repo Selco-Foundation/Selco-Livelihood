@@ -1736,6 +1736,111 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('BOM units display MDMS defaults and persist on navigation',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 1200));
+    const schemaName = 'AssetForm.LIVELIHOOD_COMMON_BOM_system';
+    final previous = assetMdmsRepository.current;
+    await assetMdmsRepository.store(const AssetRegistryMdmsResponse(
+      livelihood: LivelihoodModule(bomFormSchema: [
+        {
+          'name': schemaName,
+          'pages': [
+            {
+              'page': 'Electrical',
+              'label': 'Electrical measurements',
+              'properties': [
+                {
+                  'fieldName': 'system_battery_bank_voltage',
+                  'includeInForm': true,
+                  'label': 'Measured Value',
+                  'type': 'string',
+                  'format': 'text',
+                },
+                {
+                  'fieldName': 'system_battery_bank_voltage_uom',
+                  'includeInForm': true,
+                  'label': 'Voltage UOM',
+                  'type': 'string',
+                  'format': 'text',
+                  'value': 'V',
+                  'readOnly': true,
+                },
+                {
+                  'fieldName': 'system_battery_bank_current_uom',
+                  'includeInForm': true,
+                  'label': 'Current UOM',
+                  'type': 'string',
+                  'format': 'text',
+                  'value': 'A',
+                  'readOnly': true,
+                },
+              ],
+            },
+            {'page': 'Review', 'label': 'Review', 'properties': []},
+          ],
+        },
+      ]),
+    ));
+    addTearDown(() async {
+      await assetMdmsRepository
+          .store(previous ?? const AssetRegistryMdmsResponse());
+    });
+    final draft = SolarInstallationDraft(
+      workflow:
+          const ActivityFacilityWorkflow(activityFacility: ActivityFacility()),
+      mode: SolarWorkflowMode.newReport,
+    );
+    draft.mergedBom.addAll({
+      'system_battery_bank_voltage': '230',
+      'system_battery_bank_voltage_uom': '',
+    });
+    draft.dynamicFormAnswers[schemaName] = {
+      'system_battery_bank_current_uom': 'incorrect',
+    };
+    final router = await pumpAuthenticatedRoute(
+        tester,
+        DynamicBomFormRoute(
+          draft: draft,
+          schemaName: schemaName,
+          pageName: 'Electrical',
+          readOnly: false,
+        ));
+
+    expect(
+        tester
+            .widgetList<TextField>(find.byType(TextField))
+            .map((field) => field.controller?.text),
+        containsAll(['230', 'V', 'A']));
+    final unitFields = tester
+        .widgetList<TextField>(find.byType(TextField))
+        .where((field) => ['V', 'A'].contains(field.controller?.text));
+    expect(unitFields, hasLength(2));
+    expect(unitFields.every((field) => field.readOnly), isTrue);
+
+    await tester.tap(find.byKey(const ValueKey('dynamic-form-continue')));
+    await tester.pumpAndSettle();
+    expect(draft.mergedBom['system_battery_bank_voltage_uom'], 'V');
+    expect(draft.mergedBom['system_battery_bank_current_uom'], 'A');
+    expect(draft.mergedBom['system_battery_bank_voltage'], '230');
+    expect(draft.dynamicFormAnswers[schemaName],
+        containsPair('system_battery_bank_voltage_uom', 'V'));
+
+    await router.maybePop();
+    unawaited(router.push(DynamicBomFormRoute(
+      draft: draft,
+      schemaName: schemaName,
+      pageName: 'Electrical',
+      readOnly: false,
+    )));
+    await tester.pumpAndSettle();
+    expect(
+        tester
+            .widgetList<TextField>(find.byType(TextField))
+            .map((field) => field.controller?.text),
+        containsAll(['V', 'A']));
+  });
+
   testWidgets('Associated Machines is always labelled as view-only',
       (tester) async {
     setMobileViewport(tester, const Size(390, 3000));

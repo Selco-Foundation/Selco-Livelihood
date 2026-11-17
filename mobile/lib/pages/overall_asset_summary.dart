@@ -417,7 +417,14 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
       await installationDraftRepository.saveSolar(draft);
       await installationCacheRepository.ensureSubmissionPayload(
         activityFacilityId,
-        () => buildSolarSubmissionPayload(draft),
+        () => buildSolarSubmissionPayload(
+          draft,
+          bomSchemas: [
+            for (final name in draft.bomFormNames)
+              if (assetMdmsRepository.rawBomSchemaFor(name) case final schema?)
+                schema,
+          ],
+        ),
         preserveExisting: preserveExistingPayload,
       );
       if (!mounted) return;

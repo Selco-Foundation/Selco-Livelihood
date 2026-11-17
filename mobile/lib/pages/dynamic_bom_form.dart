@@ -114,8 +114,13 @@ class _DynamicBomFormPageState extends State<DynamicBomFormPage> {
 
   Map<String, dynamic> _defaultsFor(PropertySchema page) {
     final keys = page.properties?.keys.toSet() ?? const <String>{};
+    final raw = assetMdmsRepository.rawBomSchemaFor(widget.schemaName);
+    final values = <String, dynamic>{
+      ..._initialValues,
+      if (raw != null) ...readOnlyBomUnitDefaults(raw),
+    };
     return <String, dynamic>{
-      for (final entry in _initialValues.entries)
+      for (final entry in values.entries)
         if (keys.contains(entry.key)) entry.key: entry.value,
     };
   }
