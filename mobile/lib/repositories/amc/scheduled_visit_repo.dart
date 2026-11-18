@@ -83,12 +83,17 @@ class ScheduledVisitRemoteRepository {
   /// `scheduledDateFrom`/`scheduledDateTo` today (`ScheduledVisitValidator`
   /// date check), so the period is applied on the device
   /// ([amcScheduleVisits]).
+  ///
+  /// Also used by New Report and its "AMC delayed" filter, with
+  /// [searchText] (end user name, or an exact phone number).
   Future<List<ScheduledVisit>> fetchAllScheduled({
+    String? searchText,
     int pageSize = 50,
     int maxPages = 40,
   }) async {
     final criteria = ScheduledVisitSearchCriteria(
       tenantId: envConfig.variables.tenantId,
+      searchText: (searchText?.trim().isEmpty ?? true) ? null : searchText,
       statuses: [WORKFLOW_STATUS_AMC_FIELD_STAFF.SCHEDULED.name],
       includeSiteDetails: true,
       sortBy: 'scheduledDate',
@@ -159,8 +164,8 @@ class ScheduledVisitRemoteRepository {
       Map<String, dynamic>? response, String visitId) {
     if (response == null) return null;
     try {
-      final visits = ScheduledVisitSearchResponse.fromJson(response)
-          .scheduledVisits;
+      final visits =
+          ScheduledVisitSearchResponse.fromJson(response).scheduledVisits;
       return visits.where((v) => v.id == visitId).firstOrNull ??
           visits.firstOrNull;
     } catch (e) {
@@ -204,14 +209,24 @@ class ScheduledVisitRepository {
   }) async {
     final now = DateTime.now();
     // Not-started visits are only listed from 30 days before their
-    // Scheduled AMC Date. Only applied server-side when every requested
-    // status is SCHEDULED, since the date filter covers the whole query.
+    // Scheduled AMC Date, and "AMC delayed" lists those whose date has
+    // passed. Both apply only when every requested status is SCHEDULED.
     final scheduledOnly = statuses.isNotEmpty &&
-        statuses.every(
-            (s) => s == WORKFLOW_STATUS_AMC_FIELD_STAFF.SCHEDULED.name);
+        statuses
+            .every((s) => s == WORKFLOW_STATUS_AMC_FIELD_STAFF.SCHEDULED.name);
+    if (scheduledOnly || delayedOnly) {
+      return _fetchScheduledList(
+        facilityName: facilityName,
+        sortDirection: sortDirection,
+        delayedOnly: delayedOnly,
+        limit: limit,
+        offset: offset,
+        now: now,
+      );
+    }
     // The backend scopes the search to the logged-in field staff's own
     // visits, so no assignee is sent. The name search is `searchText`
-    // (end user name, or an exact phone number).
+    // (end user name, or an exact phone number). No date is sent.
     final criteria = ScheduledVisitSearchCriteria(
       tenantId: envConfig.variables.tenantId,
       searchText: facilityName,
@@ -220,12 +235,6 @@ class ScheduledVisitRepository {
       // for New, last action for the others).
       sortBy: sortDirection == null ? null : 'scheduledDate',
       statuses: statuses,
-      // "AMC delayed": Scheduled AMC Date before today.
-      scheduledTo: delayedOnly
-          ? amcDelayedScheduledBefore(now)
-          : scheduledOnly
-              ? amcSubmissionWindowEnd(now)
-              : null,
       sortDirection: sortDirection,
     );
     final isar = await _isar;
@@ -323,6 +332,74 @@ class ScheduledVisitRepository {
           visits: amcScheduleVisits(cached, days, now ?? DateTime.now()),
           fromCache: true);
     }
+  }
+
+  /// The New Report list (with or without "AMC delayed"), filtered on the
+  /// device.
+  ///
+  /// TODO(backend): the visit search rejects every `scheduledDateFrom` /
+  /// `scheduledDateTo` (`ScheduledVisitValidator`: "Start date is required
+  /// if end date is passed", and a `!= 0` typo that refuses both dates
+  /// together). So all of the field staff's not-started visits are fetched
+  /// (about one per AMC) and the 30-day window or the delayed rule is
+  /// applied here, with the same checks as the offline copy. Page 1 fetches
+  /// afresh; later pages are cut from that list, so the count and "load
+  /// more" match what is shown. Once the backend is fixed the date range
+  /// could be sent again; the result would be the same.
+  List<ScheduledVisit>? _scheduledList;
+  String? _scheduledListKey;
+
+  Future<PaginatedScheduledVisits> _fetchScheduledList({
+    required String? facilityName,
+    required String? sortDirection,
+    required bool delayedOnly,
+    required int limit,
+    required int offset,
+    required DateTime now,
+  }) async {
+    final statuses = [WORKFLOW_STATUS_AMC_FIELD_STAFF.SCHEDULED.name];
+    final key = '${facilityName ?? ''}|${sortDirection ?? ''}|$delayedOnly';
+    var list = offset > 0 && _scheduledListKey == key ? _scheduledList : null;
+    var fromCache = false;
+    final isar = await _isar;
+    final prefilledRepo = PrefilledScheduledVisitRepository(isar);
+
+    if (list == null) {
+      List<ScheduledVisit> visits;
+      try {
+        visits = await _remote.fetchAllScheduled(searchText: facilityName);
+        await _upsertCache(isar, visits);
+      } catch (e) {
+        if (isAuthenticationFailure(e)) rethrow;
+        debugPrint(
+          'Failed to fetch scheduled visits remotely, falling back to cache: $e',
+        );
+        fromCache = true;
+        visits = (await _readCache(isar, statuses: statuses))
+            .where((visit) =>
+                matchesFacilityName(visit.displayFacilityName, facilityName))
+            .toList();
+      }
+      list = amcNewReportVisits(
+        prefilledRepo.filterByPrefilledRules(
+          remoteVisits: visits,
+          statuses: statuses,
+          prefilledVisitIds: await prefilledRepo.getPrefilledVisitIds(),
+          cachedPrefilledVisits: const [],
+        ),
+        delayedOnly: delayedOnly,
+        sortDirection: sortDirection,
+        now: now,
+      );
+      _scheduledList = list;
+      _scheduledListKey = fromCache ? null : key;
+    }
+
+    return PaginatedScheduledVisits(
+      items: list.skip(offset).take(limit).toList(),
+      totalCount: list.length,
+      fromCache: fromCache,
+    );
   }
 
   Future<List<ScheduledVisit>> readEligibleCache(List<String> statuses) async {
@@ -594,4 +671,29 @@ class PrefilledScheduledVisitRepository {
 
     return result;
   }
+}
+
+/// New Report's list rules, applied on the device: not-started visits due
+/// within the 30-day window, or only overdue ones for "AMC delayed",
+/// soonest first (`DESC`: latest first). Visits without a due date go last.
+List<ScheduledVisit> amcNewReportVisits(
+  Iterable<ScheduledVisit> visits, {
+  bool delayedOnly = false,
+  String? sortDirection,
+  DateTime? now,
+}) {
+  final at = now ?? DateTime.now();
+  final seen = <String>{};
+  final list = visits
+      .where((v) => v.status == WORKFLOW_STATUS_AMC_FIELD_STAFF.SCHEDULED.name)
+      .where((v) => v.isWithinAmcSubmissionWindow(at))
+      .where((v) => !delayedOnly || v.isAmcDelayed(at))
+      .where((v) => (v.id ?? '').isEmpty || seen.add(v.id!))
+      .toList();
+  final far = DateTime.fromMillisecondsSinceEpoch(8640000000000000);
+  list.sort((a, b) {
+    final order = (a.scheduledDate ?? far).compareTo(b.scheduledDate ?? far);
+    return sortDirection == 'DESC' ? -order : order;
+  });
+  return list;
 }

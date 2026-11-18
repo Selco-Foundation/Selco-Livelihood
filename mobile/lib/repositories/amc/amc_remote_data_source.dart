@@ -23,7 +23,7 @@ export 'amc_dummy_backend.dart' show isDummyFileStoreId;
 ///
 /// See `mobile/AMC_DUMMY_BACKEND.md` for every dummy location and what to
 /// confirm with the backend team before switching this off.
-const bool kAmcUseDummyBackend = true;
+const bool kAmcUseDummyBackend = false;
 
 /// Every call the AMC module makes to a backend. The repositories above this
 /// layer are E4H's logic, unchanged; only this transport is swappable.

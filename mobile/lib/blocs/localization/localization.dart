@@ -73,7 +73,9 @@ class LocalizationBloc extends Bloc<LocalizationEvent, LocalizationState> {
   }
 
   Map<String, String> _queryParamsFor(String locale) {
-    const moduleNameList = ['rainmaker-common'];
+    // rainmaker-amc: the AMC screens' texts (#246-#252), kept in their own
+    // module on the localisation server.
+    const moduleNameList = ['rainmaker-common', 'rainmaker-amc'];
     return {
       'locale': locale,
       'module': moduleNameList.join(','),

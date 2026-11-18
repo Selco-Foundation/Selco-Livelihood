@@ -194,6 +194,31 @@ class _FakeAmcRemoteDataSource implements AmcRemoteDataSource {
   Future<List<int>?> downloadFile(String fileStoreId) async => null;
 }
 
+/// The real visit search refuses any due-date range today
+/// (`ScheduledVisitValidator`); this sample backend does the same and records
+/// what was asked.
+class _NoDateFilterBackend extends DummyAmcRemoteDataSource {
+  _NoDateFilterBackend(Directory dir)
+      : super(latency: Duration.zero, storageDirectory: () async => dir);
+
+  final List<Map<String, dynamic>> criteria = [];
+
+  @override
+  Future<Map<String, dynamic>> searchVisits({
+    required Map<String, dynamic> searchCriteria,
+    required int limit,
+    required int offset,
+  }) {
+    criteria.add(Map.of(searchCriteria));
+    if (searchCriteria.containsKey('scheduledDateFrom') ||
+        searchCriteria.containsKey('scheduledDateTo')) {
+      throw StateError('INVALID_SCHEDULED_DATE');
+    }
+    return super.searchVisits(
+        searchCriteria: searchCriteria, limit: limit, offset: offset);
+  }
+}
+
 /// #252: serves the View Schedule screen without Isar or a server.
 class _FakeScheduleRepository extends ScheduledVisitRepository {
   _FakeScheduleRepository(this.respond);
@@ -1545,6 +1570,77 @@ void main() {
         'workflow': {'action': 'SUBMIT_OTP', 'comment': null, 'documents': []},
         'visitReport': {'otpReference': '1234'},
       });
+    });
+  });
+
+  group('New Report filtered on the device (backend date bug)', () {
+    final now = DateTime(2026, 11, 18, 10, 30);
+    ScheduledVisit visit(String id, DateTime? date,
+            {String status = 'SCHEDULED'}) =>
+        ScheduledVisit(id: id, status: status, scheduledDate: date);
+    final visits = [
+      visit('later', DateTime(2026, 12, 1)),
+      visit('overdue', DateTime(2026, 11, 10)),
+      visit('today', DateTime(2026, 11, 18, 9)),
+      visit('last-day', DateTime(2026, 12, 18, 23)),
+      visit('too-far', DateTime(2026, 12, 19)),
+      visit('no-date', null),
+      visit('done', DateTime(2026, 11, 20), status: 'PENDING_APPROVAL'),
+      visit('later', DateTime(2026, 12, 1)),
+    ];
+    List<String?> ids(List<ScheduledVisit> list) =>
+        list.map((v) => v.id).toList();
+
+    test('New Report: due within 30 days (overdue too), soonest first', () {
+      expect(ids(amcNewReportVisits(visits, now: now)),
+          ['overdue', 'today', 'later', 'last-day']);
+      expect(
+          ids(amcNewReportVisits(visits, now: now, sortDirection: 'DESC')),
+          ['last-day', 'later', 'today', 'overdue']);
+    });
+
+    test('AMC delayed: only visits whose date has passed', () {
+      expect(ids(amcNewReportVisits(visits, now: now, delayedOnly: true)),
+          ['overdue']);
+    });
+
+    test('the search sends no date, so the real backend accepts it',
+        () async {
+      final dir = Directory.systemTemp.createTempSync('amc_no_dates');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final backend = _NoDateFilterBackend(dir);
+      final remote = ScheduledVisitRemoteRepository(dataSource: backend);
+
+      final all = await remote.fetchAllScheduled(pageSize: 3);
+      expect(backend.criteria, isNotEmpty);
+      for (final sent in backend.criteria) {
+        expect(sent.containsKey('scheduledDateFrom'), isFalse);
+        expect(sent.containsKey('scheduledDateTo'), isFalse);
+        expect(sent['statuses'], ['SCHEDULED']);
+      }
+      // The sample visits: 008 overdue, 009 today, then +2, +5, +9, +15,
+      // +30; 011 (+31) is left out.
+      expect(ids(amcNewReportVisits(all)), [
+        'dummy-visit-008',
+        'dummy-visit-009',
+        'dummy-visit-001',
+        'dummy-visit-002',
+        'dummy-visit-003',
+        'dummy-visit-012',
+        'dummy-visit-010',
+      ]);
+      expect(ids(amcNewReportVisits(all, delayedOnly: true)),
+          ['dummy-visit-008']);
+
+      // Name search still goes to the server.
+      backend.criteria.clear();
+      final found = await remote.fetchAllScheduled(searchText: 'kollegal');
+      expect(ids(found), ['dummy-visit-002']);
+      expect(backend.criteria.single['searchText'], 'kollegal');
+      // A blank search is not sent.
+      backend.criteria.clear();
+      await remote.fetchAllScheduled(searchText: '  ');
+      expect(backend.criteria.single.containsKey('searchText'), isFalse);
     });
   });
 
