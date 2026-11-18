@@ -1,0 +1,1190 @@
+{
+  "RequestInfo": {
+    "authToken": "<token>"
+  },
+  "tenantId": "livelihood",
+  "messages": [
+    {
+      "code": "AMC_HOME_AMC_REPORT",
+      "message": "AMC Report",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_HOME_DATA_SYNC",
+      "message": "Data Sync",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_HOME_VIEW_SCHEDULE",
+      "message": "View Schedule",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_REPORT_HOME_INSTALLATION_REPORT",
+      "message": "AMC Report",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_REPORT_HOME_NEW_AMC_REPORT",
+      "message": "New AMC Report",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_REPORT_HOME_NEW_AMC_REPORT_DESCRIPTION",
+      "message": "Start or resume reports for your scheduled AMC visits.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_REPORT_HOME_INBOX_DESCRIPTION",
+      "message": "View approved reports and correct rejected ones.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_REPORT_HOME_PENDING_APPROVAL_DESCRIPTION",
+      "message": "Reports awaiting the service completion code or review.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SCHEDULE_TITLE",
+      "message": "View Schedule",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SCHEDULE_PERIOD_PROMPT",
+      "message": "Show AMC schedule for the next",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SCHEDULE_PERIOD_DAYS",
+      "message": "{days} days",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SCHEDULE_COUNT",
+      "message": "{count} AMCs in the next {days} days",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SCHEDULE_DUE",
+      "message": "Due {date}",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SCHEDULE_END_USER_NAME",
+      "message": "End user name",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SCHEDULE_PHONE",
+      "message": "Phone number",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SCHEDULE_SCHEDULED_DATE",
+      "message": "Scheduled AMC date",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SCHEDULE_MACHINES",
+      "message": "Machines",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SCHEDULE_EMPTY",
+      "message": "No AMC visits are scheduled in the next {days} days.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SCHEDULE_LOAD_FAILED",
+      "message": "Could not load the schedule. Check your internet connection and try again.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SCHEDULE_OFFLINE",
+      "message": "No internet. Showing the schedule last saved on this device; it may be out of date.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SCHEDULE_DOWNLOAD",
+      "message": "Download Schedule",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SCHEDULE_DOWNLOADED",
+      "message": "Schedule saved to {path}",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SCHEDULE_DOWNLOAD_FAILED",
+      "message": "Could not download the schedule. Please try again.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SCHEDULE_NO_APP_TO_OPEN",
+      "message": "Schedule saved to {path}. No app on this phone can open Excel files.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SCHEDULE_OPEN",
+      "message": "Open",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SELECT_FACILITY_TITLE",
+      "message": "New AMC Report",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SELECT_FACILITY_REPORT",
+      "message": "Report",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SELECT_FACILITY_AMC_DATE",
+      "message": "AMC Date",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SELECT_FACILITY_SUBMIT_FOR_APPROVAL",
+      "message": "Submit for approval",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SELECT_FACILITY_DELAYED_FILTER",
+      "message": "AMC delayed",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SELECT_FACILITY_NO_VISITS_FOUND",
+      "message": "No AMC visits found.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SELECT_FACILITY_NO_DELAYED_VISITS_FOUND",
+      "message": "No delayed AMC visits.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SELECT_FACILITY_FAILED_TO_LOAD_VISITS",
+      "message": "Could not load AMC visits. Please try again.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_NUMBER",
+      "message": "AMC Number",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_BOOKMARKS_ADD",
+      "message": "Bookmark",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_BOOKMARKS_REMOVE",
+      "message": "Remove bookmark",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_BOOKMARKS_FILTER",
+      "message": "Bookmarked",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_BOOKMARKS_EMPTY",
+      "message": "No bookmarked reports.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_BOOKMARKS_ONLINE_REQUIRED",
+      "message": "Connect to the internet to change bookmarks.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_BOOKMARKS_SAVE_FAILED",
+      "message": "Could not update the bookmark. Please try again.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SYSTEM_STATUS_TITLE",
+      "message": "System Status",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SYSTEM_STATUS_DESCRIPTION",
+      "message": "Answer these questions before filling in the AMC report.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SYSTEM_STATUS_IN_USE_QUESTION",
+      "message": "Is the end user using the system?",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SYSTEM_STATUS_FUNCTIONAL_QUESTION",
+      "message": "Is the system functional?",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SYSTEM_STATUS_FUNCTIONAL_SOLAR_ONLY",
+      "message": "Answer for the solar system only.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SYSTEM_STATUS_POC_NOTIFIED",
+      "message": "The Program POC has been notified that the system is not functional.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SYSTEM_STATUS_POC_NOTIFY_QUEUED",
+      "message": "You're offline. The Program POC will be notified automatically when the device is back online.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_SYSTEM_STATUS_POC_NOTIFY_FAILED",
+      "message": "Could not notify the Program POC. You can continue with the report.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_DYNAMIC_FORM_LOADING",
+      "message": "Loading...",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_REPORT_HEADER",
+      "message": "Report Header",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_SITE_DETAILS",
+      "message": "Site Details",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_CHARGE_CONTROLLER_PCU",
+      "message": "Charge Controller / PCU",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_OBSERVATION_POINTS",
+      "message": "Observation Points",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_CAPTURE_READINGS",
+      "message": "Capture Readings",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_NA_NOTE",
+      "message": "If a component is not present at the site, enter 'N/A' in the relevant fields.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_NA",
+      "message": "Not applicable",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_SAVE_AND_NEXT",
+      "message": "Save and Next",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_PHOTO_REQUIRED",
+      "message": "Photo is required",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_INVALID_PHONE",
+      "message": "Enter a valid 10-digit phone number",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_DATE_OF_VISIT",
+      "message": "Date of visit",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_SERVICE_BY",
+      "message": "Service by",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_SERVICE_CONTACT_NUMBER",
+      "message": "Contact number",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_END_USER_NAME",
+      "message": "End user name",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_END_USER_CONTACT_NUMBER",
+      "message": "Contact number",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_INSTALLATION_DATE",
+      "message": "Date of installation",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_BLOCK",
+      "message": "Taluk / Block",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_DISTRICT",
+      "message": "District",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_PINCODE",
+      "message": "PIN code",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_PURCHASE_ORDER_NUMBER",
+      "message": "Purchase order no",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_PCU_PRIORITY",
+      "message": "Priority",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_SOLAR_BATTERY_GRID",
+      "message": "Solar-Battery-Grid",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_SOLAR_GRID_BATTERY",
+      "message": "Solar-Grid-Battery",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_PANELS_PER_STRING",
+      "message": "No of panels in a string",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_SECTION_SOLAR_PANEL",
+      "message": "Solar panel",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_SOLAR_CABLES_TIED",
+      "message": "Cables are tied to the frame / protection",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_SOLAR_PANELS_CLEAN",
+      "message": "Are the panels clean?",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_SOLAR_MMS_RUSTING",
+      "message": "Rusting on MMS",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_SOLAR_NUTS_BOLTS_RUSTING",
+      "message": "Rusting on nuts and bolts",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_SECTION_AJB",
+      "message": "Array junction box (AJB)",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_AJB_MOUNTED_FIRM",
+      "message": "AJB is mounted firm to the vertical surface",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_SECTION_BATTERY",
+      "message": "Battery",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_BATTERY_TERMINALS_CLEAN",
+      "message": "Are battery terminals clean?",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_BATTERY_PETROLEUM_JELLY",
+      "message": "Petroleum jelly is applied at all battery terminals",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_BATTERY_FLOAT_INDICATORS_OK",
+      "message": "Float indicators are not damaged",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_BATTERY_WATER_LEVEL_OK",
+      "message": "Is the distilled water level between the green and red marks on the float indicator?",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_SECTION_INVERTER_PCU",
+      "message": "Inverter / PCU",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_PCU_CABLES_INTACT",
+      "message": "Cables entering the PCU are intact, without loose connections",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_SECTION_LIGHTNING_ARRESTOR",
+      "message": "Lightning arrestor (LA)",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_LA_INSULATION",
+      "message": "Insulation is provided between the LA and the elevation pole using ceramic insulators",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_LA_FIRMLY_FIXED",
+      "message": "The entire lightning arrestor set-up is firmly fixed over the roof surface",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_LA_SADDLE_INSULATORS",
+      "message": "GI strips / cable are provided with saddle insulators on the RCC roof",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_SECTION_EARTHING",
+      "message": "Earthing",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_EARTHING_CONDUIT",
+      "message": "Down conductor is protected with conduit pipe until the pit",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_EARTHING_CABLE_CONTACT",
+      "message": "Is the earthing cable in full contact with the electrode?",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_EARTHING_ELECTRODES_BURIED",
+      "message": "Earth electrodes are buried well in the earth",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_SECTION_CABLE_MANAGEMENT",
+      "message": "Cable management",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_CABLE_LUGS_USED",
+      "message": "Cable lugs are used for termination",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_CABLE_LUGS_CRIMPED",
+      "message": "Cable lugs are properly crimped",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_CABLE_LUGS_INSULATED",
+      "message": "Cable lugs are insulated",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_MC4_INTERLOCKED",
+      "message": "MC4 connectors are properly interlocked",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_PCU_NEUTRAL_EARTH_VOLTAGE",
+      "message": "Neutral to earth voltage at PCU output (V)",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_PCU_NEUTRAL_EARTH_VOLTAGE_PHOTO",
+      "message": "Photo: neutral to earth voltage at PCU output",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_GRID_NEUTRAL_EARTH_VOLTAGE",
+      "message": "Neutral to earth voltage for grid input (V)",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_GRID_NEUTRAL_EARTH_VOLTAGE_PHOTO",
+      "message": "Photo: neutral to earth voltage for grid input",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_INVERTER_OUTPUT_VOLTAGE",
+      "message": "Inverter output voltage, with solar and grid disconnected and battery connected (V)",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_EARTHING_ELECTRODE_AVAILABLE",
+      "message": "Earthing electrode available",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_EARTHING_WIRE_CONNECTED",
+      "message": "Earthing wire connected to earth pit",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_BATTERY_SPECIFIC_GRAVITY",
+      "message": "Battery specific gravity, measured through hydrometer",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_GOOD",
+      "message": "Good",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_OK",
+      "message": "OK",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_BAD",
+      "message": "Bad",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_BATTERY_SPECIFIC_GRAVITY_ACTION",
+      "message": "Action taken (for specific gravity)",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_SOLAR_SPD",
+      "message": "Solar SPD",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_SOLAR_SPD_PHOTO",
+      "message": "Solar SPD photo",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_SOLAR_SPD_ACTION",
+      "message": "Solar SPD action taken",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_GRID_SPD",
+      "message": "Grid input SPD",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_GRID_SPD_PHOTO",
+      "message": "Grid input SPD photo",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_GRID_SPD_ACTION",
+      "message": "Grid input SPD action taken",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_WORKING",
+      "message": "Working",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_FAILED",
+      "message": "Failed",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_SECTION_REMARKS",
+      "message": "Remarks",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_VENDOR_REMARKS",
+      "message": "Vendor remarks",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_FORM_END_USER_REMARKS",
+      "message": "End user remarks",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_MEDIA_UPLOAD_VERIFICATION_PHOTO_TITLE",
+      "message": "Verification Photograph",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_MEDIA_UPLOAD_VERIFICATION_PHOTO_INSTRUCTION",
+      "message": "Please capture a selfie or photograph of yourself along with the end user in front of the solar system. This photograph is compulsory and will be used for verification.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_MEDIA_UPLOAD_PHOTO_REQUIRED",
+      "message": "Verification photograph is required",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_MEDIA_UPLOAD_SAVE_AND_NEXT",
+      "message": "Save and Next",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_MEDIA_UPLOAD_REPORT_SAVED",
+      "message": "Your report is saved for both offline and online use.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_MEDIA_UPLOAD_PHOTO_SAVE_FAILED",
+      "message": "Could not save the photograph. Please try again.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_OTP_INSTRUCTION",
+      "message": "Enter the AMC Service Completion Code",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_OTP_RECEIVER_INSTRUCTION_1",
+      "message": "The code has been sent to",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_OTP_RECEIVER_INSTRUCTION_2",
+      "message": "on the phone number",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_OTP_MASKED_PHONE",
+      "message": "******",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_OTP_ENTER_CODE",
+      "message": "Enter code",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_OTP_RESEND_CODE",
+      "message": "Resend code",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_OTP_RESENDING",
+      "message": "Resending...",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_OTP_RESEND_SUCCESS",
+      "message": "The code has been sent again.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_OTP_VERIFY_SUCCESS",
+      "message": "Code verified. The report has been submitted.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_OTP_NETWORK_WARNING",
+      "message": "An internet connection is needed to verify the code.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_OTP_OFFLINE",
+      "message": "You're offline. Connect to the internet to verify the code.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_OTP_SERVER_UNREACHABLE",
+      "message": "Could not reach the server. Please try again.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_OTP_INVALID_CODE",
+      "message": "The code is incorrect. Check it with the end user or tap Resend code.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_OTP_SUBMIT_FAILED",
+      "message": "Could not submit the report.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_OTP_RESEND_FAILED",
+      "message": "Could not resend the code. Please try again.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_OTP_REPORT_APPROVED",
+      "message": "Report approved. You can find it in Inbox.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_OTP_REPORT_SENT_FOR_REVIEW",
+      "message": "Report sent for review. You can find it under Pending Approval.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "OTP_PLACEHOLDER",
+      "message": "Code",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "OTP_PLACEHOLDER_IS_REQUIRED",
+      "message": "Code is required",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_DRAFT_PENDING_OTP_APPROVAL",
+      "message": "Pending Service Code",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_DRAFT_PENDING_APPROVAL",
+      "message": "Pending Approval",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_DRAFT_NO_DRAFTS_TO_DISPLAY",
+      "message": "No reports to display.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "AMC_INBOX_NO_VISITS_TO_DISPLAY",
+      "message": "No reports to display.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "INBOX_TITLE",
+      "message": "Inbox",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "INBOX_APPROVED",
+      "message": "Approved",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "INBOX_REJECTED",
+      "message": "Rejected",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "INBOX_SEARCH_HEALTH_FACILITY",
+      "message": "Search by name",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "SUBMIT_FOR_APPROVAL_VIEW",
+      "message": "View",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "SHARED_CARDS_SUBMIT_FOR_APPROVAL",
+      "message": "Submit for approval",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "SHARED_CARDS_VIEW_REPORT",
+      "message": "View Report",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "SHARED_CARDS_VIEW_SUMMARY",
+      "message": "View Summary",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "SCHEDULED",
+      "message": "Scheduled",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "PENDING_OTP_APPROVAL",
+      "message": "Pending Service Code",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "PENDING_APPROVAL",
+      "message": "Pending Approval",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "APPROVED",
+      "message": "Approved",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "REJECTED",
+      "message": "Rejected",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_NEXT",
+      "message": "Next",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_BACK",
+      "message": "Back",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_BACK_TO_HOME",
+      "message": "Back to Home",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_SUBMIT",
+      "message": "Submit",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_RETRY",
+      "message": "Retry",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_HELP",
+      "message": "Help",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_CLEAR",
+      "message": "Clear",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_SORT",
+      "message": "Sort",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_SORT_BY",
+      "message": "Sort by",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_NEWEST_FIRST",
+      "message": "Newest first",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_OLDEST_FIRST",
+      "message": "Oldest first",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_LOADING",
+      "message": "Loading...",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_LOADING_APP_DATA",
+      "message": "Loading app data...",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_LOADING_SCHEMA",
+      "message": "Loading the form...",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_FORM_SCHEMA_MISSING",
+      "message": "The form could not be loaded.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_STATUS",
+      "message": "Status",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_STATE",
+      "message": "State",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_DISTRICT",
+      "message": "District",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_BLOCK",
+      "message": "Block",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_SUBMISSION_DATE",
+      "message": "Submission Date",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_APPROVED_DATE",
+      "message": "Approved Date",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_REJECTED_DATE",
+      "message": "Rejected Date",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_IS_REQUIRED",
+      "message": "This field is required",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_MUST_BE_NUMBER",
+      "message": "Must be a number",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_HAS_INVALID_FORMAT",
+      "message": "Invalid format",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_ABOVE_MAXIMUM",
+      "message": "Value is above the maximum",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_BELOW_MINIMUM",
+      "message": "Value is below the minimum",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_PLEASE_CORRECT",
+      "message": "Please correct the highlighted fields",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "MACHINE_FORM_GALLERY_PERMISSION_REQUIRED",
+      "message": "Photo access is required. Please allow access and try again.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "COMMON_NO_MATCHING_FACILITIES_FOUND",
+      "message": "No matching records found.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "CORE_COMMON_COULD_NOT_FETCH_LOCATION",
+      "message": "Could not fetch your location. Please try again.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    },
+    {
+      "code": "HOME_SOMETHING_WENT_WRONG",
+      "message": "Something went wrong. Please try again.",
+      "module": "rainmaker-amc",
+      "locale": "en_IN"
+    }
+  ]
+}
