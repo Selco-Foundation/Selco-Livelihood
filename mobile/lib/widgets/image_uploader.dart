@@ -9,16 +9,13 @@ import '../utils/i18_key_constants.dart' as i18;
 import '../model/solar_installation_draft.dart';
 import '../pages/media_viewer.dart';
 import '../utils/app_permission_gateway.dart';
+import '../utils/photo_capture.dart';
 
 typedef ImageUploaderPick = Future<XFile?> Function(
   SolarFileKind kind,
   ImageSource source,
 );
 typedef ImageUploaderPickMultiple = Future<List<XFile>> Function();
-
-/// Opens an in-app camera and returns the confirmed photo (null = cancelled).
-/// From E4H's uploader; used by AMC for E4H's Android camera page.
-typedef CameraCaptureLauncher = Future<XFile?> Function(BuildContext context);
 
 /// In-memory adaptation of E4H's shared image uploader. Matches E4H's API
 /// exactly: incoming/outgoing data is always list-based via
@@ -43,7 +40,6 @@ class ImageUploader extends StatefulWidget {
     this.maxImages,
     this.isDisabled = false,
     this.permissionGateway,
-    this.cameraCaptureLauncher,
   });
 
   final List<SolarFileRef>? initialImages;
@@ -56,9 +52,6 @@ class ImageUploader extends StatefulWidget {
   final int? maxImages;
   final bool isDisabled;
   final AppPermissionGateway? permissionGateway;
-
-  /// When set, "Camera" uses this instead of the device camera app.
-  final CameraCaptureLauncher? cameraCaptureLauncher;
 
   @override
   State<ImageUploader> createState() => _ImageUploaderState();
@@ -105,6 +98,7 @@ class _ImageUploaderState extends State<ImageUploader> {
       widget.maxImages != null && images.length >= widget.maxImages!;
 
   Future<List<XFile>> _pick(ImageSource source) async {
+    final pickerContext = context;
     if (source == ImageSource.gallery && widget.allowMultiples) {
       if (widget.pickMultiple != null) return widget.pickMultiple!();
       if (widget.pickMedia != null) {
@@ -118,19 +112,19 @@ class _ImageUploaderState extends State<ImageUploader> {
         requestFullMetadata: false,
       );
     }
-    if (source == ImageSource.camera && widget.cameraCaptureLauncher != null) {
-      final file = await widget.cameraCaptureLauncher!(context);
+    if (widget.pickMedia != null) {
+      final file = await widget.pickMedia!(SolarFileKind.image, source);
       return [if (file != null) file];
     }
-    final file = widget.pickMedia != null
-        ? await widget.pickMedia!(SolarFileKind.image, source)
-        : await ImagePicker().pickImage(
-            source: source,
-            imageQuality: 60,
-            maxWidth: 1280,
-            maxHeight: 1280,
-            requestFullMetadata: false,
-          );
+    if (!pickerContext.mounted) return [];
+    final file = await pickPhoto(
+      pickerContext,
+      source,
+      imageQuality: 60,
+      maxWidth: 1280,
+      maxHeight: 1280,
+      requestFullMetadata: false,
+    );
     return [if (file != null) file];
   }
 

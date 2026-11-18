@@ -112,7 +112,7 @@ abstract class _$AppRouter extends RootStackRouter {
       );
     },
     AndroidCameraCaptureRoute.name: (routeData) {
-      return AutoRoutePage<XFile>(
+      return AutoRoutePage<dynamic>(
         routeData: routeData,
         child: const AndroidCameraCapturePage(),
       );
