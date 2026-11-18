@@ -254,11 +254,9 @@ String get fileStoreFileUrl =>
 
 /// E4H `getCachedFile`: a filestore id is downloaded once into app-support
 /// `filestore/<scope>/<id>` and reused; a local path is returned as-is.
-/// The download goes through [amcRemoteDataSource] (dummy or real).
+/// The download goes through [amcRemoteDataSource].
 Future<File?> getCachedFile(String idOrPath) async {
-  // DUMMY-BACKEND: `isDummyFileStoreId` lets the dummy filestore's ids be
-  // treated like real ones; remove it with the dummy backend.
-  final isRemote = isValidUuid(idOrPath) || isDummyFileStoreId(idOrPath);
+  final isRemote = isValidUuid(idOrPath);
   final cacheKey = isRemote ? '$fileStoreFileUrl$idOrPath' : idOrPath;
   final cached = _fileCache[cacheKey];
   if (cached != null && await cached.exists()) return cached;
@@ -306,8 +304,7 @@ Future<File?> getCachedFile(String idOrPath) async {
 /// an id is returned unchanged.
 Future<String> getFilestoreUrl(String idOrPath) async {
   String photoId = idOrPath;
-  // DUMMY-BACKEND: see `getCachedFile`.
-  if (!isValidUuid(photoId) && !isDummyFileStoreId(photoId)) {
+  if (!isValidUuid(photoId)) {
     final file = await getCachedFile(idOrPath);
     if (file != null) {
       photoId = await amcRemoteDataSource.uploadFile(file.path);

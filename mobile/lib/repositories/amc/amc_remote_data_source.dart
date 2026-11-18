@@ -5,25 +5,7 @@ import '../../data/remote_client.dart';
 import '../../utils/api_paths.dart';
 import '../../utils/envConfig.dart';
 import '../filestore_repository.dart';
-import 'amc_dummy_backend.dart';
 import 'amc_report_form_schema.dart';
-
-export 'amc_dummy_backend.dart' show isDummyFileStoreId;
-
-/// DUMMY-BACKEND: the single switch for every AMC backend interaction.
-///
-/// `true`  → [DummyAmcRemoteDataSource]: no network, sample data, a
-///           file-backed fake server (see `amc_dummy_backend.dart`) that
-///           follows the Livelihood AMC API contract.
-/// `false` → [HttpAmcRemoteDataSource]: the Livelihood AMC API
-///           (`asset-amc/v1/...`, MDMS v2, filestore), as in the
-///           "Livelihood AMC API Contract" (checked on dev, 16 Nov 2026).
-///           Point `.env` at the Livelihood server with
-///           `TENANT_ID="livelihood"` when using it.
-///
-/// See `mobile/AMC_DUMMY_BACKEND.md` for every dummy location and what to
-/// confirm with the backend team before switching this off.
-const bool kAmcUseDummyBackend = false;
 
 /// Every call the AMC module makes to a backend. The repositories above this
 /// layer are E4H's logic, unchanged; only this transport is swappable.
@@ -62,9 +44,7 @@ abstract class AmcRemoteDataSource {
   Future<List<int>?> downloadFile(String fileStoreId);
 }
 
-AmcRemoteDataSource amcRemoteDataSource = kAmcUseDummyBackend
-    ? DummyAmcRemoteDataSource()
-    : HttpAmcRemoteDataSource();
+AmcRemoteDataSource amcRemoteDataSource = HttpAmcRemoteDataSource();
 
 /// The real calls (Livelihood AMC API contract). `RequestInfo` (token and
 /// user) is added by `AuthTokenInterceptor`.

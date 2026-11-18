@@ -4,9 +4,6 @@ import 'package:isar/isar.dart';
 import '../../data/nosql/localization.dart';
 import '../../model/appconfig/mdmsResponse.dart';
 import '../../model/localization/localizationModel.dart';
-import '../../repositories/amc/amc_dummy_localization.dart';
-import '../../repositories/amc/amc_remote_data_source.dart'
-    show kAmcUseDummyBackend;
 import 'app_localization_delegate.dart';
 
 class AppLocalizations {
@@ -77,7 +74,7 @@ class AppLocalizations {
   /// full app shell (e.g. a bare `MaterialApp` in a widget test).
   static String translateCached(String localizedValues) {
     if (_localizedStrings.isEmpty) {
-      return _dummyAmcText(localizedValues) ?? fallbackLabel(localizedValues);
+      return fallbackLabel(localizedValues);
     } else {
       final index = _localizedStrings.indexWhere(
         (medium) => medium.code == localizedValues,
@@ -85,14 +82,9 @@ class AppLocalizations {
 
       return index != -1
           ? _localizedStrings[index].message
-          : _dummyAmcText(localizedValues) ?? localizedValues;
+          : localizedValues;
     }
   }
-
-  /// DUMMY-BACKEND: AMC texts not yet on the localisation server (see
-  /// `dummyAmcLocalization`). Server messages always take precedence.
-  static String? _dummyAmcText(String code) =>
-      kAmcUseDummyBackend ? dummyAmcLocalization[code] : null;
 
   /// Readable, compact fallback used only when the backend/cache has no
   /// message. It keeps tests and first-offline-launch layouts independent of

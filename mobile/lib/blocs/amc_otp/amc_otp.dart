@@ -48,7 +48,7 @@ class AmcOtpBloc extends Bloc<AmcOtpEvent, AmcOtpState> {
 
   /// Wrong-code error codes: Livelihood's AMC service sends
   /// `AMC_INVALID_SERVICE_CODE`; E4H's sent `ERROR_OTP_GENERATION` ("OTP
-  /// validation unsuccessful") and older dummy data `INVALID_OTP`.
+  /// validation unsuccessful").
   static const Set<String> invalidCodeErrors = {
     'AMC_INVALID_SERVICE_CODE',
     'ERROR_OTP_GENERATION',

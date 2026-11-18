@@ -1,6 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
-
 
 import 'package:digit_ui_components/widgets/atoms/digit_button.dart';
 import 'package:digit_forms_engine/blocs/app_localization.dart'
@@ -31,9 +29,7 @@ import 'package:livelihood/model/response/responsemodel.dart';
 import 'package:livelihood/pages/amc/amc_home.dart';
 import 'package:livelihood/pages/home_page.dart';
 import 'package:livelihood/pages/role_selection.dart';
-import 'package:livelihood/repositories/amc/amc_dummy_backend.dart';
 import 'package:livelihood/repositories/amc/amc_report_form_schema.dart';
-import 'package:livelihood/repositories/amc/amc_dummy_localization.dart';
 import 'package:livelihood/repositories/amc/amc_remote_data_source.dart';
 import 'package:livelihood/repositories/amc/amc_system_status_repo.dart';
 import 'package:livelihood/repositories/amc/scheduled_visit_repo.dart';
@@ -194,13 +190,68 @@ class _FakeAmcRemoteDataSource implements AmcRemoteDataSource {
   Future<List<int>?> downloadFile(String fileStoreId) async => null;
 }
 
-/// The real visit search refuses any due-date range today
-/// (`ScheduledVisitValidator`); this sample backend does the same and records
-/// what was asked.
-class _NoDateFilterBackend extends DummyAmcRemoteDataSource {
-  _NoDateFilterBackend(Directory dir)
-      : super(latency: Duration.zero, storageDirectory: () async => dir);
+/// A visit as the AMC visit search returns it, due [days] days from now.
+Map<String, dynamic> _visitJson(
+  String id, {
+  required int days,
+  String status = 'SCHEDULED',
+  String site = 'PHC Hunsur',
+  String endUser = 'Lakshmi Devi',
+  String phone = '9845000001',
+  String state = 'Karnataka',
+  String district = 'Mysuru',
+  String block = 'Hunsur',
+  Map<String, dynamic>? siteDetails,
+}) =>
+    {
+      'id': id,
+      'status': status,
+      'scheduledDate':
+          DateTime.now().add(Duration(days: days)).millisecondsSinceEpoch,
+      'facilityName': site,
+      'facility': {
+        'facilityName': site,
+        'facilityPocName': endUser,
+        'facilityPocPhone': phone,
+      },
+      'state': state,
+      'district': district,
+      'block': block,
+      if (siteDetails != null) 'siteDetails': siteDetails,
+    };
 
+/// One field staff's visits: one not started per AMC, plus one in review.
+List<Map<String, dynamic>> _sampleVisits() => [
+      _visitJson('v-overdue', days: -4, site: 'PHC Bannur'),
+      _visitJson('v-today', days: 0, site: 'PHC Malavalli'),
+      _visitJson('v-2', days: 2, site: 'PHC Hunsur'),
+      _visitJson('v-5', days: 5, site: 'CHC Kollegal'),
+      _visitJson('v-9', days: 9, site: 'Sub Centre Hosur'),
+      _visitJson('v-15',
+          days: 15,
+          site: 'PHC Periyapatna',
+          endUser: 'Ramesh Kumar',
+          phone: '9845000012',
+          block: 'Periyapatna',
+          siteDetails: {
+            'machines': [
+              {'name': 'Chaff Cutter', 'solutionId': 'S1'},
+              {'name': 'Milking Machine, Milk Can', 'solutionId': 'S2'},
+            ],
+          }),
+      _visitJson('v-30', days: 30, site: 'PHC Saligrama'),
+      _visitJson('v-31', days: 31, site: 'CHC Hanur'),
+      _visitJson('v-review',
+          days: -3, status: 'PENDING_APPROVAL', site: 'PHC Nanjangud'),
+    ];
+
+/// Serves [visits] like the real visit search: status and name filter, due
+/// date soonest first, paging. Like the real search today, it refuses any
+/// due-date range (`ScheduledVisitValidator`), and it records what was asked.
+class _VisitsBackend extends _FakeAmcRemoteDataSource {
+  _VisitsBackend(this.visits);
+
+  final List<Map<String, dynamic>> visits;
   final List<Map<String, dynamic>> criteria = [];
 
   @override
@@ -208,16 +259,40 @@ class _NoDateFilterBackend extends DummyAmcRemoteDataSource {
     required Map<String, dynamic> searchCriteria,
     required int limit,
     required int offset,
-  }) {
+  }) async {
     criteria.add(Map.of(searchCriteria));
     if (searchCriteria.containsKey('scheduledDateFrom') ||
         searchCriteria.containsKey('scheduledDateTo')) {
       throw StateError('INVALID_SCHEDULED_DATE');
     }
-    return super.searchVisits(
-        searchCriteria: searchCriteria, limit: limit, offset: offset);
+    final statuses = (searchCriteria['statuses'] as List?)?.toSet();
+    final search = searchCriteria['searchText']?.toString().toLowerCase() ?? '';
+    final matching = visits
+        .where((v) => statuses == null || statuses.contains(v['status']))
+        .where((v) =>
+            search.isEmpty ||
+            v['facilityName'].toString().toLowerCase().contains(search))
+        .toList()
+      ..sort((a, b) =>
+          (a['scheduledDate'] as int).compareTo(b['scheduledDate'] as int));
+    return {
+      'ScheduledVisits': matching.skip(offset).take(limit).toList(),
+      'TotalCount': matching.length,
+    };
   }
 }
+
+/// The texts the readings page tests look for (normally from the server).
+const _readingTexts = {
+  'AMC_FORM_BATTERY_SPECIFIC_GRAVITY':
+      'Battery specific gravity, measured through hydrometer',
+  'AMC_FORM_SOLAR_SPD': 'Solar SPD',
+  'AMC_FORM_SOLAR_SPD_PHOTO': 'Solar SPD photo',
+  'AMC_FORM_GRID_SPD': 'Grid input SPD',
+  'AMC_FORM_GRID_SPD_PHOTO': 'Grid input SPD photo',
+  'AMC_FORM_GOOD': 'Good',
+  'AMC_FORM_NA': 'Not applicable',
+};
 
 /// #252: serves the View Schedule screen without Isar or a server.
 class _FakeScheduleRepository extends ScheduledVisitRepository {
@@ -227,8 +302,7 @@ class _FakeScheduleRepository extends ScheduledVisitRepository {
   final List<int> requestedDays = [];
 
   @override
-  Future<AmcScheduleResult> fetchSchedule(
-      {required int days, DateTime? now}) {
+  Future<AmcScheduleResult> fetchSchedule({required int days, DateTime? now}) {
     requestedDays.add(days);
     return respond(days);
   }
@@ -332,7 +406,7 @@ void main() {
       expect(lastPhoneDigits('9876543210'), '3210');
     });
 
-    test('dummy AMC form schema loads in digit_forms_engine', () {
+    test('AMC report form loads in digit_forms_engine', () {
       final transformed =
           transformSelcoFormMdmsDocToSchema(amcReportFormSchemaDoc('t'));
       final schema = SchemaObject.fromJson(transformed);
@@ -340,26 +414,6 @@ void main() {
       expect(schema.pages.keys.first, amcFormFirstPage);
       expect(schema.pages[amcFormFirstPage]!.properties!.keys,
           contains('visitDate'));
-    });
-
-    test('seed visits parse and round-trip through JSON', () {
-      for (final raw in dummySeedVisits()) {
-        final visit = ScheduledVisit.fromJson(raw);
-        // The app always persists through jsonEncode (Isar cache, bookmarks).
-        final again = ScheduledVisit.fromJson(
-            jsonDecode(jsonEncode(visit.toJson())) as Map<String, dynamic>);
-        expect(again.id, visit.id);
-        expect(again.status, visit.status);
-        expect(again.facility?.facilityName, visit.facility?.facilityName);
-        // The contract's camelCase facility fields are read.
-        expect(again.facility?.facility_poc_phone, matches(r'^\d{10}$'));
-        expect(again.displayFacilityName, isNotEmpty);
-        expect(again.totalVisits, 4);
-        expect(again.district, isNotEmpty);
-        expect(again.siteDetails?['batteryType'], isNotNull);
-        expect(again.submissionWindowOpensAt, isNotNull);
-        expect(again.displayDate, isNotNull);
-      }
     });
   });
 
@@ -400,27 +454,6 @@ void main() {
       expect(map['scheduledDateTo'],
           DateTime(2026, 11, 11, 23, 59, 59, 999).millisecondsSinceEpoch);
       expect(map.containsKey('scheduledTo'), isFalse);
-    });
-
-    test('dummy backend returns only overdue SCHEDULED visits', () async {
-      final dir = Directory.systemTemp.createTempSync('amc_dummy_delayed');
-      addTearDown(() => dir.deleteSync(recursive: true));
-      final backend = DummyAmcRemoteDataSource(
-          latency: Duration.zero, storageDirectory: () async => dir);
-
-      final res = await backend.searchVisits(
-        searchCriteria: {
-          'statuses': const ['SCHEDULED'],
-          'scheduledDateTo': amcDelayedScheduledBefore().millisecondsSinceEpoch,
-        },
-        limit: 10,
-        offset: 0,
-      );
-      final ids = (res['ScheduledVisits'] as List).map((v) => v['id']).toList();
-      // dummy-visit-009 is due today; 001-003 are in the future;
-      // 004-007 are past but not SCHEDULED.
-      expect(ids, ['dummy-visit-008']);
-      expect(res['TotalCount'], 1);
     });
   });
 
@@ -625,63 +658,6 @@ void main() {
       // The MDMS form answers are untouched.
       expect(report['responses'], {'obsPanelsClean': 'NO'});
     });
-
-    test('dummy backend records the update and keeps it with the report',
-        () async {
-      final dir = Directory.systemTemp.createTempSync('amc_dummy_status');
-      addTearDown(() => dir.deleteSync(recursive: true));
-      final backend = DummyAmcRemoteDataSource(
-          latency: Duration.zero, storageDirectory: () async => dir);
-
-      await backend.updateSystemStatus(buildSystemStatusRequest(
-          visitId: 'dummy-visit-001',
-          isSystemInUse: true,
-          isSystemFunctional: false));
-      await backend.updateVisitWorkflow({
-        'visitId': 'dummy-visit-001',
-        'workflow': {'action': 'SUBMIT_VISIT_REPORT'},
-        'visitReport': {
-          'responses': {'obsPanelsClean': 'YES'},
-          'documents': [
-            {'documentType': 'AMC_VERIFICATION_PHOTO', 'fileStoreId': 'fs-1'}
-          ],
-          'additionalDetails': {
-            'systemStatus': {
-              'isSystemInUse': true,
-              'isSystemFunctional': false,
-              'nonFunctionalNotified': true,
-            },
-          },
-        },
-      });
-      await expectLater(
-        backend.updateSystemStatus(buildSystemStatusRequest(
-            visitId: 'missing',
-            isSystemInUse: true,
-            isSystemFunctional: false)),
-        throwsA(isA<Exception>()),
-      );
-
-      final res = await backend
-          .searchVisits(searchCriteria: const {}, limit: 100, offset: 0);
-      final raw = (res['ScheduledVisits'] as List)
-          .cast<Map<String, dynamic>>()
-          .firstWhere((v) => v['id'] == 'dummy-visit-001');
-      expect(raw['dummySystemStatusUpdates'], hasLength(1));
-      final status = AmcSystemStatusRepository.fromSubmittedReport(
-          ScheduledVisit.fromJson(raw));
-      expect(status?.isSystemFunctional, isFalse);
-      expect(status?.nonFunctionalNotified, isTrue);
-    });
-
-    test('submitted sample reports carry status answers for read-only views',
-        () {
-      final approved = dummySeedVisits()
-          .map(ScheduledVisit.fromJson)
-          .firstWhere((v) => v.status == 'APPROVED');
-      final status = AmcSystemStatusRepository.fromSubmittedReport(approved);
-      expect(status?.isComplete, isTrue);
-    });
   });
 
   group('AMC 30-day submission window', () {
@@ -716,137 +692,6 @@ void main() {
             isTrue,
             reason: status);
       }
-    });
-
-    test('dummy backend hides SCHEDULED visits more than 30 days ahead',
-        () async {
-      final dir = Directory.systemTemp.createTempSync('amc_dummy_window');
-      addTearDown(() => dir.deleteSync(recursive: true));
-      final backend = DummyAmcRemoteDataSource(
-          latency: Duration.zero, storageDirectory: () async => dir);
-
-      final res = await backend.searchVisits(
-        searchCriteria: {
-          'statuses': const ['SCHEDULED'],
-          'scheduledDateTo': amcSubmissionWindowEnd().millisecondsSinceEpoch,
-        },
-        limit: 20,
-        offset: 0,
-      );
-      final ids = (res['ScheduledVisits'] as List).map((v) => v['id']).toSet();
-      expect(ids, contains('dummy-visit-010')); // +30 days
-      expect(ids, contains('dummy-visit-008')); // overdue
-      expect(ids, isNot(contains('dummy-visit-011'))); // +31 days
-    });
-  });
-
-  group('Dummy AMC backend', () {
-    late Directory dir;
-    late DummyAmcRemoteDataSource backend;
-
-    setUp(() {
-      dir = Directory.systemTemp.createTempSync('amc_dummy');
-      backend = DummyAmcRemoteDataSource(
-        latency: Duration.zero,
-        storageDirectory: () async => dir,
-      );
-    });
-
-    tearDown(() => dir.deleteSync(recursive: true));
-
-    Future<String> statusOf(String id) async {
-      final res = await backend
-          .searchVisits(searchCriteria: const {}, limit: 100, offset: 0);
-      return ((res['ScheduledVisits'] as List)
-          .cast<Map>()
-          .firstWhere((v) => v['id'] == id))['status'] as String;
-    }
-
-    test('filters by status and name, with paging', () async {
-      final res = await backend.searchVisits(
-        searchCriteria: const {
-          'statuses': ['SCHEDULED'],
-          'searchText': 'kollegal',
-        },
-        limit: 10,
-        offset: 0,
-      );
-      expect(res['TotalCount'], 1);
-      final visit = (res['ScheduledVisits'] as List).single as Map;
-      expect(visit['id'], 'dummy-visit-002');
-      // Site details only when asked for.
-      expect(visit.containsKey('siteDetails'), isFalse);
-
-      // An exact phone number (spaces and +91 ignored) also finds it.
-      final byPhone = await backend.searchVisits(
-        searchCriteria: const {
-          'searchText': '+91 98450 00002',
-          'includeSiteDetails': true,
-        },
-        limit: 10,
-        offset: 0,
-      );
-      final found = (byPhone['ScheduledVisits'] as List).single as Map;
-      expect(found['id'], 'dummy-visit-002');
-      expect(found['siteDetails'], containsPair('systemType', 'AC'));
-    });
-
-    test('report submit then completion code follows the AMC workflow',
-        () async {
-      await expectLater(
-        backend.updateVisitWorkflow({
-          'visitId': 'dummy-visit-001',
-          'workflow': {'action': 'SUBMIT_VISIT_REPORT'},
-          'visitReport': {'responses': <String, dynamic>{}},
-        }),
-        throwsA(predicate((e) =>
-            amcServerError(e!)?.code == 'AMC_VERIFICATION_PHOTO_MISSING')),
-      );
-      await backend.updateVisitWorkflow({
-        'visitId': 'dummy-visit-001',
-        'workflow': {'action': 'SUBMIT_VISIT_REPORT'},
-        'visitReport': {
-          'responses': {'obsPanelsClean': 'YES'},
-          'documents': [
-            {'documentType': 'AMC_VERIFICATION_PHOTO', 'fileStoreId': 'fs-1'}
-          ],
-        },
-      });
-      expect(await statusOf('dummy-visit-001'), 'PENDING_OTP_APPROVAL');
-      await expectLater(
-        backend.updateVisitWorkflow({
-          'visitId': 'dummy-visit-001',
-          'workflow': {'action': 'SUBMIT_VISIT_REPORT'},
-          'visitReport': {'documents': const []},
-        }),
-        throwsA(predicate(
-            (e) => amcServerError(e!)?.code == 'AMC_VISIT_NOT_SUBMITTABLE')),
-      );
-
-      await expectLater(
-        backend.updateVisitWorkflow({
-          'visitId': 'dummy-visit-001',
-          'workflow': {'action': 'SUBMIT_OTP'},
-          'visitReport': {'otpReference': '0000'},
-        }),
-        throwsA(predicate(
-            (e) => amcServerError(e!)?.code == 'AMC_INVALID_SERVICE_CODE')),
-      );
-      expect(await statusOf('dummy-visit-001'), 'PENDING_OTP_APPROVAL');
-
-      await backend.updateVisitWorkflow({
-        'visitId': 'dummy-visit-001',
-        'workflow': {'action': 'SUBMIT_OTP'},
-        'visitReport': {'otpReference': dummyAmcOtp},
-      });
-      expect(await statusOf('dummy-visit-001'), 'PENDING_APPROVAL');
-    });
-
-    test('uploaded files can be downloaded by their dummy id', () async {
-      final file = File('${dir.path}/photo.jpg')..writeAsBytesSync([1, 2, 3]);
-      final id = await backend.uploadFile(file.path);
-      expect(isDummyFileStoreId(id), isTrue);
-      expect(await backend.downloadFile(id), [1, 2, 3]);
     });
   });
 
@@ -969,62 +814,6 @@ void main() {
       expect(cleared, isEmpty);
       expect(cached, isEmpty);
     });
-
-    test('dummy backend applies the contract auto-approval rules', () async {
-      final dir = Directory.systemTemp.createTempSync('amc_dummy_otp');
-      addTearDown(() => dir.deleteSync(recursive: true));
-      final backend = DummyAmcRemoteDataSource(
-          latency: Duration.zero, storageDirectory: () async => dir);
-
-      Future<Map> verify(String id, Map<String, dynamic> responses) async {
-        await backend.updateVisitWorkflow({
-          'visitId': id,
-          'workflow': {'action': 'SUBMIT_VISIT_REPORT'},
-          'visitReport': {
-            'responses': responses,
-            'documents': [
-              {'documentType': 'AMC_VERIFICATION_PHOTO', 'fileStoreId': 'f'}
-            ],
-          },
-        });
-        final res = await backend.updateVisitWorkflow({
-          'visitId': id,
-          'workflow': {'action': 'SUBMIT_OTP'},
-          'visitReport': {'otpReference': dummyAmcOtp},
-        });
-        return (res!['ScheduledVisits'] as List).single as Map;
-      }
-
-      const good = {
-        'neVoltagePcuOutput': 2.5,
-        'neVoltageGridInput': 3,
-        'inverterOutputVoltage': 230,
-        'earthingElectrodeAvailable': 'YES',
-        'earthingWireConnected': 'yes',
-      };
-      // dummy-visit-001 is a DC site: Solar SPD must be working.
-      final approved = await verify(
-          'dummy-visit-001', {...good, 'solarSpdStatus': 'WORKING'});
-      expect(approved['status'], 'APPROVED');
-      expect(approved['approvedBy'], 'SYSTEM');
-
-      // dummy-visit-002 is an AC site; a reading out of range needs review.
-      final review = await verify('dummy-visit-002', {
-        ...good,
-        'inverterOutputVoltage': 260,
-        'gridSpdStatus': 'WORKING',
-      });
-      expect(review['status'], 'PENDING_APPROVAL');
-      final rules =
-          (review['additionalDetails']['autoApproval']['rules'] as List)
-              .cast<Map>();
-      expect(rules.where((r) => r['passed'] != true).map((r) => r['key']),
-          ['inverterOutputVoltage']);
-
-      // A missing reading also goes to a reviewer.
-      expect((await verify('dummy-visit-003', good))['status'],
-          'PENDING_APPROVAL');
-    });
   });
 
   group('AMC rejection reasons (#251)', () {
@@ -1086,33 +875,28 @@ void main() {
           'Retake photos');
       expect(amcRejectionReasons(visit('APPROVED', 'Retake photos')), isEmpty);
 
-      final seeded = dummySeedVisits()
-          .map(ScheduledVisit.fromJson)
-          .firstWhere((v) => v.status == 'REJECTED');
+      final seeded = ScheduledVisit.fromJson({
+        'id': 'v2',
+        'status': 'REJECTED',
+        'processInstances': [
+          {
+            'id': 'pi-1',
+            'comment': jsonEncode([
+              {
+                'reason': 'OTHERS',
+                'comment': 'Retake the SPD photo in daylight.',
+              },
+              {'reason': 'OTHERS', 'comment': 'Record the battery condition.'},
+            ]),
+          },
+        ],
+      });
       // `OTHERS` is the only reason code today; the comment says why.
       expect(amcRejectionReasons(seeded).map((c) => c.reason),
           ['OTHERS', 'OTHERS']);
       expect(amcRejectionReasons(seeded).first.details,
           'Retake the SPD photo in daylight.');
     });
-  });
-
-  test('dummy backend supplies AMC texts the server does not have', () {
-    expect(AppLocalizations.translateCached(i18.amcOtp.reportApproved),
-        'Report approved. You can find it in Inbox.');
-    expect(AppLocalizations.translateCached('PENDING_OTP_APPROVAL'),
-        'Pending Service Code');
-    // Server messages win over the dummy texts.
-    AppLocalizations.debugSeedLocalizations([
-      Localization()
-        ..code = i18.amcOtp.reportApproved
-        ..message = 'From the server'
-        ..module = 'rainmaker-common'
-        ..locale = 'en_IN',
-    ]);
-    addTearDown(() => AppLocalizations.debugSeedLocalizations(const []));
-    expect(AppLocalizations.translateCached(i18.amcOtp.reportApproved),
-        'From the server');
   });
 
   group('Livelihood AMC report form (#250)', () {
@@ -1276,8 +1060,20 @@ void main() {
     });
 
     test('site details come from the visit and override saved values', () {
-      final visit = ScheduledVisit.fromJson(
-          dummySeedVisits().firstWhere((v) => v['id'] == 'dummy-visit-002'));
+      final visit = ScheduledVisit.fromJson(_visitJson('v-5',
+          days: 5,
+          site: 'CHC Kollegal',
+          endUser: 'Manjunath S',
+          phone: '9845000002',
+          district: 'Chamarajanagar',
+          block: 'Kollegal',
+          siteDetails: {
+            'batteryType': 'Lithium Ion',
+            'systemType': 'AC',
+            'installationDate': DateTime(2026, 4, 20).millisecondsSinceEpoch,
+            'purchaseOrderNumber': 'PO-2026-002',
+            'pinCode': '571002',
+          }));
       final site = AmcSiteDetails.fromVisit(visit);
       expect(site.batteryType, 'LITHIUM_ION');
       expect(site.systemType, amcAcSystem);
@@ -1351,7 +1147,14 @@ void main() {
         supportedLocales: const [Locale('en', 'IN')],
         localizationsDelegates: [
           forms_localization.FormLocalization.getDelegate(
-            Future.value(withDummyAmcLocalizations(const [], 'en_IN')),
+            Future.value([
+              for (final e in _readingTexts.entries)
+                Localization()
+                  ..code = e.key
+                  ..message = e.value
+                  ..module = 'rainmaker-amc'
+                  ..locale = 'en_IN',
+            ]),
             const [Language(label: 'English', value: 'en_IN')],
           ),
           GlobalWidgetsLocalizations.delegate,
@@ -1378,7 +1181,7 @@ void main() {
                         {
                           e.key: amcCustomFormField(
                             fieldName: e.key,
-                            label: dummyAmcLocalization[e.value.label],
+                            label: _readingTexts[e.value.label],
                             isRequired: true,
                             readOnly: false,
                           ),
@@ -1422,35 +1225,6 @@ void main() {
       expect(_label('Grid input SPD'), findsOneWidget);
       expect(_label('Grid input SPD photo'), findsOneWidget);
       expect(find.byType(AmcReadingPhotoField), findsNWidgets(3));
-    });
-
-    test('every form text has a dummy translation, server texts win', () {
-      final keys = <String>{
-        for (final page in schema.pages.values) ...[
-          page.label!,
-          if (page.actionLabel != null) page.actionLabel!,
-          for (final field in page.properties!.values) ...[
-            if (field.hidden != true) field.label!,
-            if (field.section != null) field.section!,
-            for (final option in field.enums ?? const <Option>[]) option.name,
-          ],
-        ],
-        i18.amcForm.naNote,
-        i18.amcForm.photoRequired,
-      }..removeAll(const {'COMMON_YES', 'COMMON_NO'});
-      expect(keys.where((k) => !dummyAmcLocalization.containsKey(k)), isEmpty);
-
-      final server = Localization()
-        ..code = 'AMC_FORM_NA'
-        ..message = 'Not applicable'
-        ..module = 'm'
-        ..locale = 'en_IN';
-      final merged = withDummyAmcLocalizations([server], 'en_IN');
-      expect(merged.where((l) => l.code == 'AMC_FORM_NA').single.message,
-          'Not applicable');
-      expect(
-          merged.firstWhere((l) => l.code == 'AMC_FORM_REPORT_HEADER').message,
-          'Report Header');
     });
   });
 
@@ -1594,8 +1368,7 @@ void main() {
     test('New Report: due within 30 days (overdue too), soonest first', () {
       expect(ids(amcNewReportVisits(visits, now: now)),
           ['overdue', 'today', 'later', 'last-day']);
-      expect(
-          ids(amcNewReportVisits(visits, now: now, sortDirection: 'DESC')),
+      expect(ids(amcNewReportVisits(visits, now: now, sortDirection: 'DESC')),
           ['last-day', 'later', 'today', 'overdue']);
     });
 
@@ -1604,11 +1377,8 @@ void main() {
           ['overdue']);
     });
 
-    test('the search sends no date, so the real backend accepts it',
-        () async {
-      final dir = Directory.systemTemp.createTempSync('amc_no_dates');
-      addTearDown(() => dir.deleteSync(recursive: true));
-      final backend = _NoDateFilterBackend(dir);
+    test('the search sends no date, so the real backend accepts it', () async {
+      final backend = _VisitsBackend(_sampleVisits());
       final remote = ScheduledVisitRemoteRepository(dataSource: backend);
 
       final all = await remote.fetchAllScheduled(pageSize: 3);
@@ -1618,24 +1388,21 @@ void main() {
         expect(sent.containsKey('scheduledDateTo'), isFalse);
         expect(sent['statuses'], ['SCHEDULED']);
       }
-      // The sample visits: 008 overdue, 009 today, then +2, +5, +9, +15,
-      // +30; 011 (+31) is left out.
       expect(ids(amcNewReportVisits(all)), [
-        'dummy-visit-008',
-        'dummy-visit-009',
-        'dummy-visit-001',
-        'dummy-visit-002',
-        'dummy-visit-003',
-        'dummy-visit-012',
-        'dummy-visit-010',
+        'v-overdue',
+        'v-today',
+        'v-2',
+        'v-5',
+        'v-9',
+        'v-15',
+        'v-30',
       ]);
-      expect(ids(amcNewReportVisits(all, delayedOnly: true)),
-          ['dummy-visit-008']);
+      expect(ids(amcNewReportVisits(all, delayedOnly: true)), ['v-overdue']);
 
       // Name search still goes to the server.
       backend.criteria.clear();
       final found = await remote.fetchAllScheduled(searchText: 'kollegal');
-      expect(ids(found), ['dummy-visit-002']);
+      expect(ids(found), ['v-5']);
       expect(backend.criteria.single['searchText'], 'kollegal');
       // A blank search is not sent.
       backend.criteria.clear();
@@ -1701,57 +1468,41 @@ void main() {
       expect(amcMachineNames(null), isEmpty);
     });
 
-    group('with the sample backend', () {
-      late Directory dir;
+    group('fetched from the visit search', () {
       late ScheduledVisitRemoteRepository remote;
 
-      setUp(() {
-        dir = Directory.systemTemp.createTempSync('amc_schedule');
-        remote = ScheduledVisitRemoteRepository(
-          dataSource: DummyAmcRemoteDataSource(
-            latency: Duration.zero,
-            storageDirectory: () async => dir,
-          ),
-        );
-      });
-
-      tearDown(() => dir.deleteSync(recursive: true));
+      setUp(() => remote = ScheduledVisitRemoteRepository(
+          dataSource: _VisitsBackend(_sampleVisits())));
 
       test('fetches every page of not-started visits, earliest first',
           () async {
         final visits = await remote.fetchAllScheduled(pageSize: 3);
         expect(visits.map((v) => v.id), [
-          'dummy-visit-008', // overdue
-          'dummy-visit-009', // today
-          'dummy-visit-001',
-          'dummy-visit-002',
-          'dummy-visit-003',
-          'dummy-visit-012',
-          'dummy-visit-010',
-          'dummy-visit-011', // +31
+          'v-overdue',
+          'v-today',
+          'v-2',
+          'v-5',
+          'v-9',
+          'v-15',
+          'v-30',
+          'v-31',
         ]);
-        expect(visits.every((v) => v.siteDetails != null), isTrue);
       });
 
       test('each period shows only the visits due within it', () async {
         final visits = await remote.fetchAllScheduled();
         List<String?> ids(int days) =>
             amcScheduleVisits(visits, days).map((v) => v.id).toList();
-        const tenDays = [
-          'dummy-visit-009',
-          'dummy-visit-001',
-          'dummy-visit-002',
-          'dummy-visit-003',
-        ];
+        const tenDays = ['v-today', 'v-2', 'v-5', 'v-9'];
         expect(ids(10), tenDays);
-        expect(ids(20), [...tenDays, 'dummy-visit-012']);
-        expect(ids(30), [...tenDays, 'dummy-visit-012', 'dummy-visit-010']);
+        expect(ids(20), [...tenDays, 'v-15']);
+        expect(ids(30), [...tenDays, 'v-15', 'v-30']);
       });
 
       test('a row has the screen fields and the machines', () async {
         final visits = await remote.fetchAllScheduled();
         final entry = AmcScheduleEntry.fromVisit(
-            visits.firstWhere((v) => v.id == 'dummy-visit-012'));
+            visits.firstWhere((v) => v.id == 'v-15'));
         expect(entry.endUserName, 'Ramesh Kumar');
         expect(entry.phone, '9845000012');
         expect(entry.state, 'Karnataka');
@@ -1787,8 +1538,7 @@ void main() {
       );
       final excel = Excel.decodeBytes(bytes);
       expect(excel.tables.keys, [amcScheduleSheetName]);
-      final rows = excel.tables[amcScheduleSheetName]!
-          .rows
+      final rows = excel.tables[amcScheduleSheetName]!.rows
           .map((row) => row.map((cell) => cell?.value?.toString()).toList())
           .toList();
       expect(rows, [
@@ -1843,8 +1593,8 @@ void main() {
       AmcScheduleResult resultFor(int days) =>
           AmcScheduleResult(visits: amcScheduleVisits(all, days));
       Finder card(String id) => find.byKey(ValueKey('amc-schedule-$id'));
-      DigitButton downloadButton(WidgetTester tester) => tester.widget(
-          find.byKey(const ValueKey('amc-schedule-download')));
+      DigitButton downloadButton(WidgetTester tester) =>
+          tester.widget(find.byKey(const ValueKey('amc-schedule-download')));
 
       testWidgets('opens on 30 days; another period fetches again',
           (tester) async {
@@ -1859,15 +1609,14 @@ void main() {
         expect(find.text('Site b'), findsOneWidget);
         expect(downloadButton(tester).isDisabled, isFalse);
 
-        await tester
-            .tap(find.byKey(const ValueKey('amc-schedule-period-10')));
+        await tester.tap(find.byKey(const ValueKey('amc-schedule-period-10')));
         await tester.pumpAndSettle();
         expect(repository.requestedDays, [30, 10]);
         expect(card('a'), findsOneWidget);
         expect(card('b'), findsNothing);
         expect(card('c'), findsNothing);
-        expect(find.byKey(const ValueKey('amc-schedule-period-40')),
-            findsNothing);
+        expect(
+            find.byKey(const ValueKey('amc-schedule-period-40')), findsNothing);
       });
 
       testWidgets('says so when nothing is due; nothing to download',
@@ -1876,8 +1625,8 @@ void main() {
             tester,
             _FakeScheduleRepository(
                 (_) async => const AmcScheduleResult(visits: [])));
-        expect(find.byKey(const ValueKey('amc-schedule-empty')),
-            findsOneWidget);
+        expect(
+            find.byKey(const ValueKey('amc-schedule-empty')), findsOneWidget);
         expect(downloadButton(tester).isDisabled, isTrue);
       });
 
@@ -1889,8 +1638,8 @@ void main() {
           return resultFor(days);
         });
         await pumpSchedule(tester, repository);
-        expect(find.byKey(const ValueKey('amc-schedule-retry')),
-            findsOneWidget);
+        expect(
+            find.byKey(const ValueKey('amc-schedule-retry')), findsOneWidget);
         expect(downloadButton(tester).isDisabled, isTrue);
 
         fail = false;
@@ -1906,8 +1655,8 @@ void main() {
             tester,
             _FakeScheduleRepository((days) async => AmcScheduleResult(
                 visits: amcScheduleVisits(all, days), fromCache: true)));
-        expect(find.byKey(const ValueKey('amc-schedule-offline')),
-            findsOneWidget);
+        expect(
+            find.byKey(const ValueKey('amc-schedule-offline')), findsOneWidget);
         expect(card('a'), findsOneWidget);
       });
     });
@@ -1968,8 +1717,8 @@ void main() {
       expect(find.byType(HomePage), findsNothing);
       expect(find.byKey(const ValueKey('amc-home-report')), findsOneWidget);
       expect(find.byKey(const ValueKey('amc-home-data-sync')), findsOneWidget);
-      expect(find.byKey(const ValueKey('amc-home-view-schedule')),
-          findsOneWidget);
+      expect(
+          find.byKey(const ValueKey('amc-home-view-schedule')), findsOneWidget);
       expect(
           find.byKey(const ValueKey('amc-mdms-loading-dialog')), findsNothing);
       expect(AmcModuleReadiness.isReady, isTrue);

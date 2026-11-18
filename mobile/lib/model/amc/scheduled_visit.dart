@@ -437,8 +437,8 @@ extension ScheduledVisitDelay on ScheduledVisit {
 }
 
 /// What the visit cards show. The Livelihood search returns the site name
-/// and place names on the visit itself; E4H's (and the dummy's older
-/// samples) only on the facility, so both are read.
+/// and place names on the visit itself; E4H's only on the facility, so
+/// both are read.
 extension ScheduledVisitDisplay on ScheduledVisit {
   String get displayFacilityName =>
       (facility?.facilityName?.trim().isNotEmpty ?? false)

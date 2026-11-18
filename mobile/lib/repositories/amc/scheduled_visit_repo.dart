@@ -15,7 +15,7 @@ import 'amc_bookmark_repo.dart';
 import 'amc_remote_data_source.dart';
 
 /// Ported from E4H `lib/repositories/scheduled_visit_repo.dart`. The only
-/// change is that requests go through [amcRemoteDataSource] (dummy or real)
+/// change is that requests go through [amcRemoteDataSource]
 /// and Isar is resolved from `Constants().isar` instead of a bloc field.
 
 Future<Isar> amcIsar() => Constants().isar;
