@@ -19,6 +19,7 @@ import '../pages/asset_flow_pages.dart';
 import '../pages/authenticated.dart';
 import '../pages/data_save_success.dart';
 import '../pages/digit_scanner_page.dart';
+import '../pages/android_camera_capture_page.dart';
 import '../pages/home_page.dart';
 import '../pages/installation_report_home_page.dart';
 import '../pages/installation_report_list_pages.dart';
@@ -107,6 +108,10 @@ class AppRouter extends _$AppRouter {
                 page: SubmittedSaveSuccessRoute.page,
                 path: Routes.submittedSaveSuccess),
             AutoRoute(page: DigitScannerRoute.page, path: Routes.scanner),
+            AutoRoute(
+                page: AndroidCameraCaptureRoute.page,
+                path: 'camera-capture',
+                fullscreenDialog: true),
             AutoRoute(
                 page: DynamicBomFormRoute.page, path: Routes.dynamicBomForm),
             AutoRoute(page: ImageViewerRoute.page, path: Routes.imageViewer),

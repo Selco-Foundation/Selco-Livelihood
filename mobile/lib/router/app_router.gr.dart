@@ -95,6 +95,12 @@ abstract class _$AppRouter extends RootStackRouter {
         ),
       );
     },
+    AndroidCameraCaptureRoute.name: (routeData) {
+      return AutoRoutePage<dynamic>(
+        routeData: routeData,
+        child: const AndroidCameraCapturePage(),
+      );
+    },
     ApprovedReportsRoute.name: (routeData) {
       return AutoRoutePage<dynamic>(
         routeData: routeData,
@@ -606,6 +612,20 @@ class AmcSelectFacilityRouteArgs {
   String toString() {
     return 'AmcSelectFacilityRouteArgs{key: $key, bookmarksOnly: $bookmarksOnly}';
   }
+}
+
+/// generated route for
+/// [AndroidCameraCapturePage]
+class AndroidCameraCaptureRoute extends PageRouteInfo<void> {
+  const AndroidCameraCaptureRoute({List<PageRouteInfo>? children})
+      : super(
+          AndroidCameraCaptureRoute.name,
+          initialChildren: children,
+        );
+
+  static const String name = 'AndroidCameraCaptureRoute';
+
+  static const PageInfo<void> page = PageInfo<void>(name);
 }
 
 /// generated route for

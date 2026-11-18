@@ -1,6 +1,7 @@
 import '../model/activity_facility_workflow/activity_facility_workflow.dart';
 import '../model/document/submission_document.dart';
 import '../model/solar_installation_draft.dart';
+import 'dynamic_form_schema.dart';
 import 'warranty.dart';
 
 const machineDefaultBrandId = 'SELCO';
@@ -9,7 +10,10 @@ const machineDefaultBrandId = 'SELCO';
 /// Endpoint-specific document keys are deliberately not created here: the
 /// owning repositories serialize [SubmissionDocument] for Asset Registry or
 /// workflow when the actual request is sent.
-Map<String, dynamic> buildSolarSubmissionPayload(SolarInstallationDraft draft) {
+Map<String, dynamic> buildSolarSubmissionPayload(
+  SolarInstallationDraft draft, {
+  Iterable<Map<String, dynamic>> bomSchemas = const [],
+}) {
   draft.syncCountsToBom();
   final activityFacility = draft.workflow.activityFacility;
 
@@ -84,7 +88,10 @@ Map<String, dynamic> buildSolarSubmissionPayload(SolarInstallationDraft draft) {
           ? draft.remoteBomName
           : 'Solar',
       'solutionId': draft.solutionId,
-      'data': Map<String, dynamic>.from(draft.mergedBom),
+      'data': <String, dynamic>{
+        ...draft.mergedBom,
+        for (final schema in bomSchemas) ...readOnlyBomUnitDefaults(schema),
+      },
       'required': draft.bomFormNames.isNotEmpty,
       'additionalDetails': {
         ...draft.remoteBomAdditionalDetails,

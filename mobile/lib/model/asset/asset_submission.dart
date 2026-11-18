@@ -7,6 +7,7 @@ import '../document/submission_document.dart';
 class AssetSubmission {
   const AssetSubmission({
     this.assetId,
+    this.parentId,
     required this.system,
     required this.assetTypeId,
     required this.serialNumber,
@@ -24,6 +25,7 @@ class AssetSubmission {
   });
 
   final String? assetId;
+  final String? parentId;
   final bool isOperational;
   final bool isActive;
   final String system;
@@ -52,6 +54,7 @@ class AssetSubmission {
                 Map<String, dynamic>.from(child)))
             .toList(),
         assetId: _text(json['assetId'] ?? json['assetID']),
+        parentId: _text(json['parentId']),
         system: _text(json['system']) ?? '',
         assetTypeId: _text(json['assetTypeID']) ?? '',
         serialNumber: _text(json['serialNumber']) ?? '',
@@ -75,6 +78,8 @@ class AssetSubmission {
 
   AssetSubmission copyWith({
     String? assetId,
+    String? parentId,
+    String? system,
     List<SubmissionDocument>? documents,
     List<AssetSubmission>? children,
   }) =>
@@ -83,7 +88,8 @@ class AssetSubmission {
         isOperational: isOperational,
         isActive: isActive,
         assetId: assetId ?? this.assetId,
-        system: system,
+        parentId: parentId ?? this.parentId,
+        system: system ?? this.system,
         assetTypeId: assetTypeId,
         serialNumber: serialNumber,
         modelNumber: modelNumber,
@@ -123,6 +129,7 @@ class AssetSubmission {
   }) =>
       {
         if (assetId?.trim().isNotEmpty == true) 'assetId': assetId,
+        if (parentId?.trim().isNotEmpty == true) 'parentId': parentId,
         'tenantId': tenantId,
         'system': system,
         'facilityID': facilityId,
@@ -181,7 +188,8 @@ AssetSubmission reconcileSolarSubmission(
           .where((other) =>
               (document.fileStore != null &&
                   other.fileStore == document.fileStore) ||
-              (document.documentUid?.trim().isNotEmpty == true &&
+              (document.fileStore == null &&
+                  document.documentUid?.trim().isNotEmpty == true &&
                   document.documentUid == other.documentUid &&
                   document.documentType == other.documentType))
           .firstOrNull;
@@ -201,7 +209,8 @@ AssetSubmission reconcileSolarSubmission(
       final match = existing.children
           .where((other) =>
               (child.assetId != null && child.assetId == other.assetId) ||
-              (child.assetTypeId == other.assetTypeId &&
+              (child.assetId == null &&
+                  child.assetTypeId == other.assetTypeId &&
                   child.serialNumber == other.serialNumber))
           .firstOrNull;
       return match == null
@@ -214,23 +223,74 @@ AssetSubmission reconcileSolarSubmission(
   );
 }
 
-/// A parent alone is insufficient: all expected units and photos must persist.
-bool assetSubmissionIsPersisted(
-    AssetSubmission expected, Map<String, dynamic> remote) {
-  final saved = AssetSubmission.fromCheckpoint(remote);
-  bool documentsPresent(AssetSubmission unit, AssetSubmission other) =>
-      unit.documents.every((document) =>
-          document.isUploaded &&
-          other.documents
-              .any((saved) => saved.fileStore == document.fileStore));
-  if (expected.isSolarParent) {
-    return saved.isSolarParent &&
-        (expected.assetId == null || expected.assetId == saved.assetId) &&
-        documentsPresent(expected, saved) &&
-        expected.children.every((child) => saved.children.any((other) =>
-            child.assetTypeId == other.assetTypeId &&
-            child.serialNumber == other.serialNumber &&
-            documentsPresent(child, other)));
+/// Returns the first saved field that differs from the submitted asset.
+String? assetSubmissionMismatch(
+        AssetSubmission expected, Map<String, dynamic> remote) =>
+    _assetMismatch(expected, AssetSubmission.fromCheckpoint(remote));
+
+String? _assetMismatch(AssetSubmission expected, AssetSubmission saved) {
+  if (expected.assetId != null && expected.assetId != saved.assetId) {
+    return 'assetId';
   }
-  return expected.serialNumber == saved.serialNumber;
+  if (expected.assetTypeId != saved.assetTypeId) return 'assetTypeID';
+  if (!expected.isSolarParent) {
+    for (final entry in <String, (Object?, Object?)>{
+      'serialNumber': (expected.serialNumber, saved.serialNumber),
+      'modelNumber': (expected.modelNumber, saved.modelNumber),
+      'brandID': (expected.brandId, saved.brandId),
+      'itemCode': (expected.itemCode, saved.itemCode),
+      'warrantyDuration': (expected.warrantyDuration, saved.warrantyDuration),
+    }.entries) {
+      if (_text(entry.value.$1) != _text(entry.value.$2)) return entry.key;
+    }
+    for (final entry
+        in (expected.assetDetails ?? const <String, dynamic>{}).entries) {
+      if (!_containsValue(entry.value, saved.assetDetails?[entry.key])) {
+        return 'assetDetails.${entry.key}';
+      }
+    }
+  }
+  if (expected.documents.length != saved.documents.length ||
+      expected.documents.any((document) =>
+          !document.isUploaded ||
+          !saved.documents.any((other) =>
+              document.documentType == other.documentType &&
+              document.fileStore == other.fileStore))) {
+    return 'documents';
+  }
+  if (expected.isSolarParent) {
+    if (expected.children.length != saved.children.length) return 'children';
+    for (final child in expected.children) {
+      final match = saved.children
+          .where((other) => child.assetId != null
+              ? child.assetId == other.assetId
+              : child.assetTypeId == other.assetTypeId &&
+                  child.serialNumber == other.serialNumber)
+          .firstOrNull;
+      final mismatch =
+          match == null ? 'missing asset' : _assetMismatch(child, match);
+      if (mismatch != null) {
+        return '${child.assetTypeId} ${child.assetId ?? child.serialNumber}: $mismatch';
+      }
+    }
+  }
+  return null;
 }
+
+bool _containsValue(Object? expected, Object? saved) {
+  if (expected is Map && saved is Map) {
+    return expected.entries
+        .every((entry) => _containsValue(entry.value, saved[entry.key]));
+  }
+  if (expected is List && saved is List) {
+    return expected.length == saved.length &&
+        List.generate(expected.length, (index) => index)
+            .every((index) => _containsValue(expected[index], saved[index]));
+  }
+  return expected == saved;
+}
+
+/// A parent alone is insufficient: all submitted edits and photos must persist.
+bool assetSubmissionIsPersisted(
+        AssetSubmission expected, Map<String, dynamic> remote) =>
+    assetSubmissionMismatch(expected, remote) == null;

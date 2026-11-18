@@ -8,6 +8,7 @@ import '../utils/i18_key_constants.dart' as i18;
 import '../model/solar_installation_draft.dart';
 import '../pages/media_viewer.dart';
 import '../utils/app_permission_gateway.dart';
+import '../utils/photo_capture.dart';
 
 typedef ImageUploaderPick = Future<XFile?> Function(
   SolarFileKind kind,
@@ -96,6 +97,7 @@ class _ImageUploaderState extends State<ImageUploader> {
       widget.maxImages != null && images.length >= widget.maxImages!;
 
   Future<List<XFile>> _pick(ImageSource source) async {
+    final pickerContext = context;
     if (source == ImageSource.gallery && widget.allowMultiples) {
       if (widget.pickMultiple != null) return widget.pickMultiple!();
       if (widget.pickMedia != null) {
@@ -109,15 +111,19 @@ class _ImageUploaderState extends State<ImageUploader> {
         requestFullMetadata: false,
       );
     }
-    final file = widget.pickMedia != null
-        ? await widget.pickMedia!(SolarFileKind.image, source)
-        : await ImagePicker().pickImage(
-            source: source,
-            imageQuality: 60,
-            maxWidth: 1280,
-            maxHeight: 1280,
-            requestFullMetadata: false,
-          );
+    if (widget.pickMedia != null) {
+      final file = await widget.pickMedia!(SolarFileKind.image, source);
+      return [if (file != null) file];
+    }
+    if (!pickerContext.mounted) return [];
+    final file = await pickPhoto(
+      pickerContext,
+      source,
+      imageQuality: 60,
+      maxWidth: 1280,
+      maxHeight: 1280,
+      requestFullMetadata: false,
+    );
     return [if (file != null) file];
   }
 

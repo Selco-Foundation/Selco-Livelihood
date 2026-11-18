@@ -15,9 +15,13 @@ import '../repositories/asset_mdms_repository.dart';
 import '../repositories/installation_draft_repository.dart';
 import '../router/app_router.dart';
 import '../utils/dynamic_form_schema.dart';
+import '../utils/form_date_value.dart';
+import '../utils/dropdown_validation.dart';
+import '../widgets/predefined_dropdown_field.dart';
 import '../utils/extensions.dart';
 import '../utils/i18_key_constants.dart' as i18;
 import '../widgets/report_navigation_header.dart';
+import '../widgets/system_recording_time_field.dart';
 
 @RoutePage()
 class DynamicBomFormPage extends StatefulWidget {
@@ -44,6 +48,7 @@ class _DynamicBomFormPageState extends State<DynamicBomFormPage> {
   String? _error;
   String? _resolvedPageName;
   bool _isPreparing = false;
+  bool _isSubmitting = false;
 
   String get _schemaKey => '${widget.draft.cacheKey}::${widget.schemaName}';
   String get _pageName => _resolvedPageName ?? widget.pageName;
@@ -109,8 +114,13 @@ class _DynamicBomFormPageState extends State<DynamicBomFormPage> {
 
   Map<String, dynamic> _defaultsFor(PropertySchema page) {
     final keys = page.properties?.keys.toSet() ?? const <String>{};
+    final raw = assetMdmsRepository.rawBomSchemaFor(widget.schemaName);
+    final values = <String, dynamic>{
+      ..._initialValues,
+      if (raw != null) ...readOnlyBomUnitDefaults(raw),
+    };
     return <String, dynamic>{
-      for (final entry in _initialValues.entries)
+      for (final entry in values.entries)
         if (keys.contains(entry.key)) entry.key: entry.value,
     };
   }
@@ -127,6 +137,13 @@ class _DynamicBomFormPageState extends State<DynamicBomFormPage> {
       final raw = defaults.containsKey(entry.key)
           ? defaults[entry.key]
           : entry.value.value;
+      if (entry.value.format == PropertySchemaFormat.dropdown) {
+        control.setValidators([
+          ...control.validators,
+          DropdownOptionValidator(
+              (entry.value.enums ?? []).map((option) => option.code).toList()),
+        ]);
+      }
       control.updateValue(
         _coerceForControl(control, raw),
         updateParent: true,
@@ -139,7 +156,8 @@ class _DynamicBomFormPageState extends State<DynamicBomFormPage> {
 
   SchemaObject _updatedSchema(FormGroup form, PropertySchema page) {
     final schema = _schema!;
-    final values = JsonForms.getFormValues(form, page);
+    final values = Map<String, dynamic>.from(
+        formValueForStorage(page, JsonForms.getFormValues(form, page)));
     final updatedPage = page.copyWith(
       properties: Map.fromEntries(
         page.properties?.entries.map(
@@ -172,7 +190,8 @@ class _DynamicBomFormPageState extends State<DynamicBomFormPage> {
         .read<FormsBloc>()
         .add(FormsUpdateEvent(schema: updated, schemaKey: _schemaKey));
     if (!widget.readOnly) {
-      final values = JsonForms.getFormValues(form, page);
+      final values = Map<String, dynamic>.from(
+          formValueForStorage(page, JsonForms.getFormValues(form, page)));
       widget.draft.dynamicFormAnswers
           .putIfAbsent(widget.schemaName, () => <String, dynamic>{})
           .addAll(values);
@@ -183,6 +202,17 @@ class _DynamicBomFormPageState extends State<DynamicBomFormPage> {
   }
 
   bool _validate(FormGroup form, PropertySchema page) {
+    final invalid = invalidDropdownLabels(
+        _schema!.pages, {..._initialValues, ...form.rawValue},
+        onlyPage: _pageName);
+    if (invalid.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            '${context.translate(invalid.first)}: ${context.translate(i18.common.selectAvailableOption)}'),
+      ));
+      return false;
+    }
+
     for (final key in page.properties?.keys ?? const <String>[]) {
       final label = _prettyLabel(page.properties?[key]?.label ?? key);
       if (!form.contains(key)) {
@@ -223,6 +253,7 @@ class _DynamicBomFormPageState extends State<DynamicBomFormPage> {
   }
 
   Future<void> _continue(FormGroup form, PropertySchema page) async {
+    if (_isSubmitting) return;
     if (!widget.readOnly && !_validate(form, page)) return;
     final updated = _persist(form, page);
     final pageNames = updated.pages.keys.toList();
@@ -241,6 +272,25 @@ class _DynamicBomFormPageState extends State<DynamicBomFormPage> {
       if (cached != null) setState(() => _schema = cached);
       return;
     }
+    final section =
+        SolarInstallationDraft.trackedFormSection(widget.schemaName);
+    if (!widget.readOnly && section != null) {
+      _isSubmitting = true;
+      try {
+        await installationDraftRepository.submitSection(widget.draft, section);
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                context.translate(i18.installationReport.sectionSaveFailed)),
+          ));
+        }
+        return;
+      } finally {
+        _isSubmitting = false;
+      }
+    }
+    if (!mounted) return;
     context.router.popUntilRouteWithName(OverallAssetSummaryRoute.name);
   }
 
@@ -354,9 +404,32 @@ class _DynamicBomFormPageState extends State<DynamicBomFormPage> {
                       ),
                     JsonForms(
                       currentSchemaKey: _schemaKey,
-                      propertySchema: page,
+                      propertySchema: dropdownRenderingSchema(page),
                       pageName: _pageName,
-                      childrens: const [],
+                      childrens: [
+                        for (final entry in page.properties?.entries ??
+                            const <MapEntry<String, PropertySchema>>[])
+                          if (entry.value.format ==
+                              PropertySchemaFormat.dropdown)
+                            {
+                              entry.key: PredefinedDropdownField(
+                                name: entry.key,
+                                schema: entry.value,
+                                readOnly: widget.readOnly,
+                              )
+                            }
+                          else if (entry.key == 'system_time_of_recording' &&
+                              entry.value.format == PropertySchemaFormat.custom)
+                            {
+                              entry.key: SystemRecordingTimeField(
+                                formControlName: entry.key,
+                                label:
+                                    context.translate(entry.value.label ?? ''),
+                                readOnly: widget.readOnly ||
+                                    entry.value.readOnly == true,
+                              ),
+                            },
+                      ],
                       defaultValues: _defaultsFor(page),
                       isView: widget.readOnly,
                     ),

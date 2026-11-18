@@ -46,6 +46,7 @@ import 'package:livelihood/pages/home_page.dart';
 import 'package:livelihood/pages/login_page.dart';
 import 'package:livelihood/pages/machine_form.dart';
 import 'package:livelihood/pages/machine_report_success_page.dart';
+import 'package:livelihood/pages/submitted_save_success.dart';
 import 'package:livelihood/pages/media_viewer.dart';
 import 'package:livelihood/pages/add_new_asset.dart';
 import 'package:livelihood/pages/asset_type_detail.dart';
@@ -287,6 +288,7 @@ SolarInstallationDraft _filledSolarDraft(SolarWorkflowMode mode) {
     ];
   for (final type in SolarAssetType.values) {
     draft.setCount(type, 1);
+    draft.warrantyOptions[type] = ['5 Years'];
     final asset = draft.assets[type]!;
     asset
       ..warrantyDuration = '5 Years'
@@ -569,8 +571,9 @@ void main() {
 
   Future<AppRouter> pumpAuthenticatedRoute(
     WidgetTester tester,
-    PageRouteInfo route,
-  ) async {
+    PageRouteInfo route, {
+    bool settle = true,
+  }) async {
     final router = AppRouter();
     await tester.pumpWidget(
       LivelihoodApp(key: UniqueKey(), router: router),
@@ -582,7 +585,12 @@ void main() {
     await router.replaceAll([
       AuthenticatedRouteWrapper(children: children),
     ]);
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+    }
     return router;
   }
 
@@ -1732,6 +1740,111 @@ void main() {
     expect(draft.mergedBom.containsKey('machine_1_product'), false);
     await router.maybePop();
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('BOM units display MDMS defaults and persist on navigation',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 1200));
+    const schemaName = 'AssetForm.LIVELIHOOD_COMMON_BOM_system';
+    final previous = assetMdmsRepository.current;
+    await assetMdmsRepository.store(const AssetRegistryMdmsResponse(
+      livelihood: LivelihoodModule(bomFormSchema: [
+        {
+          'name': schemaName,
+          'pages': [
+            {
+              'page': 'Electrical',
+              'label': 'Electrical measurements',
+              'properties': [
+                {
+                  'fieldName': 'system_battery_bank_voltage',
+                  'includeInForm': true,
+                  'label': 'Measured Value',
+                  'type': 'string',
+                  'format': 'text',
+                },
+                {
+                  'fieldName': 'system_battery_bank_voltage_uom',
+                  'includeInForm': true,
+                  'label': 'Voltage UOM',
+                  'type': 'string',
+                  'format': 'text',
+                  'value': 'V',
+                  'readOnly': true,
+                },
+                {
+                  'fieldName': 'system_battery_bank_current_uom',
+                  'includeInForm': true,
+                  'label': 'Current UOM',
+                  'type': 'string',
+                  'format': 'text',
+                  'value': 'A',
+                  'readOnly': true,
+                },
+              ],
+            },
+            {'page': 'Review', 'label': 'Review', 'properties': []},
+          ],
+        },
+      ]),
+    ));
+    addTearDown(() async {
+      await assetMdmsRepository
+          .store(previous ?? const AssetRegistryMdmsResponse());
+    });
+    final draft = SolarInstallationDraft(
+      workflow:
+          const ActivityFacilityWorkflow(activityFacility: ActivityFacility()),
+      mode: SolarWorkflowMode.newReport,
+    );
+    draft.mergedBom.addAll({
+      'system_battery_bank_voltage': '230',
+      'system_battery_bank_voltage_uom': '',
+    });
+    draft.dynamicFormAnswers[schemaName] = {
+      'system_battery_bank_current_uom': 'incorrect',
+    };
+    final router = await pumpAuthenticatedRoute(
+        tester,
+        DynamicBomFormRoute(
+          draft: draft,
+          schemaName: schemaName,
+          pageName: 'Electrical',
+          readOnly: false,
+        ));
+
+    expect(
+        tester
+            .widgetList<TextField>(find.byType(TextField))
+            .map((field) => field.controller?.text),
+        containsAll(['230', 'V', 'A']));
+    final unitFields = tester
+        .widgetList<TextField>(find.byType(TextField))
+        .where((field) => ['V', 'A'].contains(field.controller?.text));
+    expect(unitFields, hasLength(2));
+    expect(unitFields.every((field) => field.readOnly), isTrue);
+
+    await tester.tap(find.byKey(const ValueKey('dynamic-form-continue')));
+    await tester.pumpAndSettle();
+    expect(draft.mergedBom['system_battery_bank_voltage_uom'], 'V');
+    expect(draft.mergedBom['system_battery_bank_current_uom'], 'A');
+    expect(draft.mergedBom['system_battery_bank_voltage'], '230');
+    expect(draft.dynamicFormAnswers[schemaName],
+        containsPair('system_battery_bank_voltage_uom', 'V'));
+
+    await router.maybePop();
+    unawaited(router.push(DynamicBomFormRoute(
+      draft: draft,
+      schemaName: schemaName,
+      pageName: 'Electrical',
+      readOnly: false,
+    )));
+    await tester.pumpAndSettle();
+    expect(
+        tester
+            .widgetList<TextField>(find.byType(TextField))
+            .map((field) => field.controller?.text),
+        containsAll(['V', 'A']));
   });
 
   testWidgets('Associated Machines is always labelled as view-only',
@@ -3115,86 +3228,97 @@ void main() {
     expect(find.text(tr(i18.machineForm.requestOtp)), findsOneWidget);
   });
 
-  testWidgets(
-      'submission overlay replaces raw workflow errors with retry guidance', (
-    tester,
-  ) async {
-    setMobileViewport(tester, const Size(390, 844));
-    Localization localized(String code, String message) => Localization()
-      ..code = code
-      ..message = message
-      ..module = 'rainmaker-common'
-      ..locale = 'en_IN';
+  for (final backendMessage in <String?>[
+    null,
+    'Parent entity with boundary code INDIA_MEGHALAYA_RIBHOI_BHOIRYMBONGRIBHOI_ED/2026/0096 does not exist.',
+  ]) {
+    testWidgets(
+        'submission overlay shows backend error or fallback: $backendMessage', (
+      tester,
+    ) async {
+      setMobileViewport(tester, const Size(390, 844));
+      Localization localized(String code, String message) => Localization()
+        ..code = code
+        ..message = message
+        ..module = 'rainmaker-common'
+        ..locale = 'en_IN';
 
-    AppLocalizations.debugSeedLocalizations([
-      localized(i18.syncLoading.failed, 'Submission failed'),
-      localized(
-        i18.syncLoading.failureWorkflow,
-        'Unable to complete the report submission.',
-      ),
-      localized(
-        i18.syncLoading.progressSavedRetry,
-        'Your progress has been saved. Please try again.',
-      ),
-      localized(i18.common.back, 'Back'),
-      localized(i18.common.retry, 'Retry'),
-    ]);
-    addTearDown(() => AppLocalizations.debugSeedLocalizations(const []));
+      AppLocalizations.debugSeedLocalizations([
+        localized(i18.syncLoading.failed, 'Submission failed'),
+        localized(
+          i18.syncLoading.failureWorkflow,
+          'Unable to complete the report submission.',
+        ),
+        localized(
+          i18.syncLoading.progressSavedRetry,
+          'Your progress has been saved. Please try again.',
+        ),
+        localized(i18.common.back, 'Back'),
+        localized(i18.common.retry, 'Retry'),
+      ]);
+      addTearDown(() => AppLocalizations.debugSeedLocalizations(const []));
 
-    var backCalls = 0;
-    var retryCalls = 0;
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: DigitTheme.instance.mobileTheme,
-        home: Scaffold(
-          body: Stack(
-            children: [
-              const SizedBox.expand(),
-              OperationProgressOverlay(
-                progress: const OperationProgressModel(
-                  activityFacilityId: 'workflow-failure',
-                  operationType: OperationTypes.submit,
-                  status: OperationStatuses.failed,
-                  stageKey: 'finalizing_workflow_submission',
-                  stageLabel: 'Finalizing workflow submission',
-                  completedSteps: 6,
-                  totalSteps: 9,
-                  progressPercent: 67,
-                  retryCount: 1,
-                  errorMessage:
-                      'DioException [bad response]: error while publishing to kafka',
+      var backCalls = 0;
+      var retryCalls = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: DigitTheme.instance.mobileTheme,
+          home: Scaffold(
+            body: Stack(
+              children: [
+                const SizedBox.expand(),
+                OperationProgressOverlay(
+                  progress: OperationProgressModel(
+                    activityFacilityId: 'workflow-failure',
+                    operationType: OperationTypes.submit,
+                    status: OperationStatuses.failed,
+                    stageKey: 'finalizing_workflow_submission',
+                    stageLabel: 'Finalizing workflow submission',
+                    completedSteps: 6,
+                    totalSteps: 9,
+                    progressPercent: 67,
+                    retryCount: 1,
+                    errorMessage: backendMessage,
+                  ),
+                  onClose: () => backCalls++,
+                  onRetry: () => retryCalls++,
                 ),
-                onClose: () => backCalls++,
-                onRetry: () => retryCalls++,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    expect(find.text('Submission failed'), findsOneWidget);
-    expect(
-      find.text('Unable to complete the report submission.'),
-      findsOneWidget,
-    );
-    expect(
-      find.text('Your progress has been saved. Please try again.'),
-      findsOneWidget,
-    );
-    expect(find.text('67%'), findsOneWidget);
-    expect(find.textContaining('DioException'), findsNothing);
-    expect(find.textContaining('kafka'), findsNothing);
+      expect(find.text('Submission failed'), findsOneWidget);
+      expect(
+        find.text('Unable to complete the report submission.'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Your progress has been saved. Please try again.'),
+        findsOneWidget,
+      );
+      expect(find.text('67%'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('operation-progress-error')),
+        backendMessage == null ? findsNothing : findsOneWidget,
+      );
+      if (backendMessage != null) {
+        expect(find.text(backendMessage), findsOneWidget);
+      }
+      expect(find.textContaining('DioException'), findsNothing);
+      expect(find.textContaining('kafka'), findsNothing);
 
-    await tester.tap(find.byKey(
-      const ValueKey('operation-progress-retry-button'),
-    ));
-    await tester.tap(find.byKey(
-      const ValueKey('operation-progress-close-button'),
-    ));
-    expect(retryCalls, 1);
-    expect(backCalls, 1);
-  });
+      await tester.tap(find.byKey(
+        const ValueKey('operation-progress-retry-button'),
+      ));
+      await tester.tap(find.byKey(
+        const ValueKey('operation-progress-close-button'),
+      ));
+      expect(retryCalls, 1);
+      expect(backCalls, 1);
+    });
+  }
 
   testWidgets('solar asset summary has edit controls only when editable', (
     tester,
@@ -4113,6 +4237,57 @@ void main() {
     expect(find.byType(MachineFormPage), findsOneWidget);
   });
 
+  for (final machine in [false, true]) {
+    for (final newReports in [false, true]) {
+      testWidgets(
+          '${machine ? 'machine' : 'solar'} success navigates to ${newReports ? 'new reports' : 'home'} and clears completed flow',
+          (tester) async {
+        setMobileViewport(tester, const Size(390, 844));
+        final router = await pumpAuthenticatedRoute(
+            tester,
+            machine
+                ? MachineReportSuccessRoute(
+                    mode: MachineReportSuccessMode.submitted)
+                : const SubmittedSaveSuccessRoute(),
+            settle: false);
+        final panel = tester.widget<PanelCard>(find.byType(PanelCard));
+        expect(panel.actions, hasLength(2));
+        expect(panel.actions!.first.type, DigitButtonType.primary);
+        expect(panel.actions!.last.type, DigitButtonType.secondary);
+        expect(panel.actions!.first.label,
+            tr(i18.installationReport.backToNewReports));
+        expect(panel.actions!.last.label, tr(i18.common.home));
+        final key =
+            '${machine ? 'machine' : 'solar'}-success-${newReports ? 'new-reports' : 'home'}-button';
+        await tester.ensureVisible(find.byKey(ValueKey(key)));
+        await tester.tap(find.byKey(ValueKey(key)));
+        await tester.pumpAndSettle();
+        final inner =
+            router.innerRouterOf<StackRouter>(AuthenticatedRouteWrapper.name)!;
+        expect(
+            inner.stack.map((page) => page.name).toList(),
+            newReports
+                ? [
+                    HomeRoute.name,
+                    InstallationReportHomeRoute.name,
+                    NewReportFacilitiesRoute.name
+                  ]
+                : [HomeRoute.name]);
+        expect(find.byType(newReports ? NewReportFacilitiesPage : HomePage),
+            findsOneWidget);
+        expect(find.byType(SubmittedSaveSuccessPage), findsNothing);
+        expect(find.byType(MachineReportSuccessPage), findsNothing);
+        if (newReports) {
+          expect(find.text('Rajesh Kumar - Solar'), findsOneWidget);
+          await inner.maybePop();
+          await tester.pumpAndSettle();
+          expect(find.byType(InstallationReportHomePage), findsOneWidget);
+        }
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
   testWidgets('machine success screens match E4H panel and DIGIT footer', (
     tester,
   ) async {
@@ -4135,10 +4310,13 @@ void main() {
       expect(panelCard.type, PanelType.success);
       expect(panelCard.animate, isTrue);
       expect(panelCard.repeat, isTrue);
-      expect(panelCard.actions, hasLength(1));
-      expect(panelCard.actions!.single.type, DigitButtonType.primary);
-      expect(panelCard.actions!.single.size, DigitButtonSize.large);
-      expect(panelCard.actions!.single.mainAxisSize, isNull);
+      final isDraft = mode == MachineReportSuccessMode.draft;
+      expect(panelCard.actions, hasLength(isDraft ? 1 : 2));
+      expect(panelCard.actions!.first.type, DigitButtonType.primary);
+      expect(panelCard.actions!.last.type,
+          isDraft ? DigitButtonType.primary : DigitButtonType.secondary);
+      expect(panelCard.actions!.first.size, DigitButtonSize.large);
+      expect(panelCard.actions!.first.mainAxisSize, isNull);
 
       final panelPadding = tester.widget<Padding>(
         find.byKey(const ValueKey('machine-success-panel-padding')),

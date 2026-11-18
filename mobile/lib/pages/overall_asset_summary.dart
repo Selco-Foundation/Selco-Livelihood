@@ -1,5 +1,8 @@
 import '../repositories/associated_machine_bom_repository.dart';
 import 'dart:async';
+import 'package:digit_forms_engine/models/schema_object/schema_object.dart';
+import '../utils/dropdown_validation.dart';
+import '../utils/dynamic_form_schema.dart';
 import 'dart:io';
 
 import 'package:digit_ui_components/digit_components.dart';
@@ -165,6 +168,11 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
           context.translate(i18.common.view),
       };
 
+  String _sectionAction(String? section) =>
+      section != null && widget.draft.isSectionSubmitted(section)
+          ? context.translate(i18.common.view)
+          : _actionPrefix;
+
   List<String> get _formNames => widget.draft.bomFormNames;
 
   bool _isAssociatedMachinesForm(String name) =>
@@ -193,6 +201,21 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
     return name.replaceFirst('AssetForm.', '').replaceAll('_', ' ');
   }
 
+  List<String> _invalidDropdowns(SolarInstallationDraft draft) => [
+        for (final name in draft.bomFormNames)
+          if (!_isAssociatedMachinesForm(name) &&
+              assetMdmsRepository.rawBomSchemaFor(name) != null)
+            ...invalidDropdownLabels(
+              SchemaObject.fromJson(transformBomMdmsRecordToSchema(
+                      assetMdmsRepository.rawBomSchemaFor(name)!))
+                  .pages,
+              {...draft.mergedBom, ...?draft.dynamicFormAnswers[name]},
+            ),
+      ];
+
+  bool _canSubmit(SolarInstallationDraft draft) =>
+      draft.canSubmit && _invalidDropdowns(draft).isEmpty;
+
   Map<String, List<String>> _missingRequirements(
     SolarInstallationDraft draft,
   ) {
@@ -202,6 +225,10 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
       if (!fields.contains(field)) fields.add(field);
     }
 
+    for (final label in _invalidDropdowns(draft)) {
+      add(context.translate(i18.installationReport.systemParameters),
+          '${context.translate(label)}: ${context.translate(i18.common.selectAvailableOption)}');
+    }
     for (final type in draft.applicableTypes) {
       final asset = draft.assets[type]!;
       final count = draft.countFor(type);
@@ -210,7 +237,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
         add(label, context.translate(i18.common.count));
         continue;
       }
-      if (asset.warrantyDuration.trim().isEmpty) {
+      if (!draft.warrantiesFor(type).contains(asset.warrantyDuration)) {
         add(label, context.translate(i18.assetFlow.warrantyDuration));
       }
       if (asset.selectedBrandCode?.trim().isNotEmpty != true) {
@@ -372,7 +399,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
     final draft = widget.draft;
     _refreshDocumentLocations();
     if (!_otpVerified ||
-        !draft.canSubmit ||
+        !_canSubmit(draft) ||
         !draft.allDocumentsMetadataComplete) {
       return;
     }
@@ -390,7 +417,14 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
       await installationDraftRepository.saveSolar(draft);
       await installationCacheRepository.ensureSubmissionPayload(
         activityFacilityId,
-        () => buildSolarSubmissionPayload(draft),
+        () => buildSolarSubmissionPayload(
+          draft,
+          bomSchemas: [
+            for (final name in draft.bomFormNames)
+              if (assetMdmsRepository.rawBomSchemaFor(name) case final schema?)
+                schema,
+          ],
+        ),
         preserveExisting: preserveExistingPayload,
       );
       if (!mounted) return;
@@ -522,7 +556,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
               submitLabel: draft.mode == SolarWorkflowMode.resubmission
                   ? context.translate(i18.installationReport.resubmit)
                   : context.translate(i18.common.submit),
-              canSubmit: draft.canSubmit,
+              canSubmit: _canSubmit(draft),
               otpVerified: _otpVerified,
               onSaveDraft: _saveDraft,
               onSubmit: _submit,
@@ -621,12 +655,21 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                       child: Text(
                           'Required BOM form configuration is unavailable. Refresh master data to continue.'),
                     ),
+                  if (!draft.isReadOnly)
+                    for (final label in _invalidDropdowns(draft))
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: spacer2),
+                        child: Text(
+                          '${context.translate(label)}: ${context.translate(i18.common.selectAvailableOption)}',
+                          style: TextStyle(color: theme.colorTheme.alert.error),
+                        ),
+                      ),
                   for (final formName in _formNames) ...[
                     _CompletionButton(
                       key: ValueKey('solar-dynamic-${formName.toLowerCase()}'),
                       label: _isAssociatedMachinesForm(formName)
                           ? 'View Associated Machines'
-                          : '$_actionPrefix ${_formLabel(formName)}',
+                          : '${_sectionAction(SolarInstallationDraft.trackedFormSection(formName))} ${_formLabel(formName)}',
                       onPressed: () => _openDynamicForm(formName),
                     ),
                     const SizedBox(height: spacer4),
@@ -634,7 +677,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                   _CompletionButton(
                     key: const ValueKey('solar-installation-images'),
                     label:
-                        '$_actionPrefix ${context.translate(i18.installationReport.installationImages)}',
+                        '${_sectionAction(SolarInstallationDraft.installationImagesSection)} ${context.translate(i18.installationReport.installationImages)}',
                     onPressed: _openInstallationImages,
                   ),
                   const SizedBox(height: spacer2),
@@ -707,7 +750,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
                 OtpVerificationWidget(
                   key: const ValueKey('solar-otp-widget'),
                   keyPrefix: 'solar',
-                  isEnabled: draft.canSubmit,
+                  isEnabled: _canSubmit(draft),
                   activityFacilityId: draft.workflow.activityFacility.id ?? '',
                   initiallyRequested: _otpRequested,
                   initiallyVerified: _otpVerified,
@@ -1025,6 +1068,7 @@ class InstallationImagesPage extends StatefulWidget {
 }
 
 class _InstallationImagesPageState extends State<InstallationImagesPage> {
+  bool _isSubmitting = false;
   late final InstallationImagesBloc _bloc;
   String? _requestedSystemCode;
 
@@ -1117,9 +1161,27 @@ class _InstallationImagesPageState extends State<InstallationImagesPage> {
             : context.translate(i18.common.submit),
         isDisabled:
             !widget.readOnly && !widget.draft.installationImagesComplete,
-        onPressed: () {
-          installationDraftRepository.saveSolarSoon(widget.draft);
-          context.router.maybePop();
+        onPressed: () async {
+          if (_isSubmitting) return;
+          if (!widget.readOnly) {
+            if (!widget.draft.installationImagesComplete) return;
+            _isSubmitting = true;
+            try {
+              await installationDraftRepository.submitSection(widget.draft,
+                  SolarInstallationDraft.installationImagesSection);
+            } catch (_) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(context
+                      .translate(i18.installationReport.sectionSaveFailed)),
+                ));
+              }
+              return;
+            } finally {
+              _isSubmitting = false;
+            }
+          }
+          if (context.mounted) context.router.maybePop();
         },
       ),
       child: Column(

@@ -30,13 +30,18 @@ class InstallationCacheRepository {
   Future<void> putJson(
     String namespace,
     String key,
-    Object? payload,
-  ) async {
-    if (!_hasTestIsar) return;
+    Object? payload, {
+    bool requirePersistence = false,
+  }) async {
+    if (!_hasTestIsar) {
+      if (requirePersistence) throw StateError('Draft storage is unavailable.');
+      return;
+    }
     try {
       await _writeJson(namespace, key, payload)
           .timeout(const Duration(seconds: 5));
     } catch (_) {
+      if (requirePersistence) rethrow;
       // Best-effort — see doc comment above. The timeout guards against
       // Isar's per-instance write-transaction lock stalling indefinitely
       // when many writes (e.g. rapid `saveSolarSoon` calls) overlap.

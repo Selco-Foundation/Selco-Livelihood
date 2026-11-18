@@ -193,6 +193,7 @@ class _SelectAssetTypePageState extends State<SelectAssetTypePage> {
             label: context.translate(i18.assetFlow.selectAssetType),
             capitalizedFirstLetter: false,
             child: DigitDropdown(
+              isSearchable: false,
               key: const ValueKey('solar-asset-type-dropdown'),
               sentenceCaseEnabled: false,
               selectedOption: DropdownItem(
@@ -244,7 +245,10 @@ class _AssetTypeDetailPageState extends State<AssetTypeDetailPage> {
       stepIndex: 2,
       footer: SolarFooterButton(
         label: context.translate(i18.common.next),
-        isDisabled: !asset.detailsComplete,
+        isDisabled: !asset.detailsComplete ||
+            !widget.draft
+                .warrantiesFor(widget.assetType)
+                .contains(asset.warrantyDuration),
         onPressed: () {
           _recordAssetProgress(widget.draft, widget.assetType, 2);
           context.router.push(
@@ -281,7 +285,14 @@ class _AssetTypeDetailPageState extends State<AssetTypeDetailPage> {
             isRequired: true,
             capitalizedFirstLetter: false,
             child: DigitDropdown(
+              isSearchable: false,
               key: const ValueKey('solar-warranty-dropdown'),
+              errorMessage: asset.warrantyDuration.isNotEmpty &&
+                      !widget.draft
+                          .warrantiesFor(widget.assetType)
+                          .contains(asset.warrantyDuration)
+                  ? context.translate(i18.common.selectAvailableOption)
+                  : null,
               sentenceCaseEnabled: false,
               selectedOption: asset.warrantyDuration.isEmpty
                   ? null
@@ -522,8 +533,7 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
                         pickMedia: widget.pickMedia,
                         onImagesSelected: (files) async {
                           final file = files.isEmpty ? null : files.last;
-                          final existingId =
-                              indexed.value.supportingPhoto?.id;
+                          final existingId = indexed.value.supportingPhoto?.id;
                           if (file == null) {
                             if (existingId?.trim().isNotEmpty == true) {
                               _freedSupportingPhotoIds[indexed.key] =
@@ -536,13 +546,12 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
                                 .saveSolar(widget.draft);
                             return;
                           }
-                          final previousId =
-                              existingId?.trim().isNotEmpty == true
-                                  ? existingId
-                                  : _freedSupportingPhotoIds
-                                      .remove(indexed.key);
-                          final persisted = await installationCacheRepository
-                              .persistMediaRef(
+                          final previousId = existingId?.trim().isNotEmpty ==
+                                  true
+                              ? existingId
+                              : _freedSupportingPhotoIds.remove(indexed.key);
+                          final persisted =
+                              await installationCacheRepository.persistMediaRef(
                             commitDocumentMetadata(
                               context,
                               previousId?.trim().isNotEmpty == true
@@ -603,7 +612,12 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
                 '${widget.draft.labelFor(widget.assetType)} ${context.translate(i18.assetFlow.assetType)}',
             capitalizedFirstLetter: false,
             child: DigitDropdown(
+              isSearchable: false,
               key: const ValueKey('solar-battery-type-dropdown'),
+              errorMessage: selectedType.isNotEmpty &&
+                      !assetDraft.typeOptions.contains(selectedType)
+                  ? context.translate(i18.common.selectAvailableOption)
+                  : null,
               sentenceCaseEnabled: false,
               selectedOption:
                   DropdownItem(name: selectedType, code: selectedType),

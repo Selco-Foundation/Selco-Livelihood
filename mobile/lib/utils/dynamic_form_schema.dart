@@ -1,3 +1,22 @@
+/// Fixed units come from MDMS, even when saved BOM answers contain blanks.
+Map<String, dynamic> readOnlyBomUnitDefaults(Map<String, dynamic> record) {
+  final schema = transformBomMdmsRecordToSchema(record);
+  final units = <String, dynamic>{};
+  for (final page in _entries(schema['pages'])) {
+    for (final property in _entries(page.value['properties'])) {
+      final field = property.value;
+      final value = field['value'];
+      if (property.key.endsWith('_uom') &&
+          field['readOnly'] == true &&
+          value is String &&
+          value.trim().isNotEmpty) {
+        units[property.key] = value;
+      }
+    }
+  }
+  return units;
+}
+
 Map<String, dynamic> transformBomMdmsRecordToSchema(
   Map<String, dynamic> record,
 ) {
@@ -27,6 +46,9 @@ Map<String, dynamic> transformBomMdmsRecordToSchema(
         ...property,
         'fieldName': fieldName,
         'type': property['type'] ?? 'string',
+        if (name.toLowerCase().endsWith('_system') &&
+            fieldName == 'system_time_of_recording')
+          'format': 'custom',
       };
     }
 
