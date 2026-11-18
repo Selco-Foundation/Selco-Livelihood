@@ -269,6 +269,19 @@ class SolarInstallationDraft {
   final List<SolarFileRef> completionReportFiles = [];
   List<InstallationImageRequirement> installationRequirements = const [];
   final Map<String, List<SolarFileRef>> installationMedia = {};
+  static const installationImagesSection = 'installation-images';
+  final Set<String> submittedSections = {};
+
+  static String? trackedFormSection(String name) {
+    final normalized = name.trim().toLowerCase();
+    return normalized.endsWith('_solar') || normalized.endsWith('_system')
+        ? normalized
+        : null;
+  }
+
+  bool isSectionSubmitted(String section) =>
+      submittedSections.contains(section.trim().toLowerCase());
+
   String? systemCode;
   String? solutionId;
   String? remoteBomId;
@@ -404,7 +417,9 @@ class SolarInstallationDraft {
   bool completeFor(SolarAssetType type) {
     final count = countFor(type);
     if (count == 0) return false;
-    return assets[type]!.assets.length == count && assets[type]!.isComplete;
+    return warrantiesFor(type).contains(assets[type]!.warrantyDuration) &&
+        assets[type]!.assets.length == count &&
+        assets[type]!.isComplete;
   }
 
   bool get allCountsEntered =>

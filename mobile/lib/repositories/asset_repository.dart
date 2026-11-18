@@ -57,13 +57,37 @@ class AssetRepository {
         .toList();
   }
 
-  /// Writes a solar parent with its children, or a standalone machine.
+  /// Creates solar groups together; updates existing units by their own IDs.
   Future<Map<String, dynamic>> createOrUpdate({
     required AssetSubmission asset,
     required String facilityId,
     required String activityFacilityId,
     required String vendorId,
   }) async {
+    if (asset.isSolarParent && asset.assetId?.trim().isNotEmpty == true) {
+      // A parent update does not persist nested child edits.
+      final children = <Map<String, dynamic>>[];
+      for (final child in asset.children) {
+        children.add(await createOrUpdate(
+          asset: child.copyWith(
+            parentId: asset.assetId,
+            system: child.system.isEmpty ? asset.system : child.system,
+          ),
+          facilityId: facilityId,
+          activityFacilityId: activityFacilityId,
+          vendorId: vendorId,
+        ));
+      }
+      return {
+        ...asset.toRegistryJson(
+          tenantId: envConfig.variables.tenantId,
+          facilityId: facilityId,
+          activityFacilityId: activityFacilityId,
+          vendorId: vendorId,
+        ),
+        'children': children,
+      };
+    }
     final payload = asset.toRegistryJson(
       tenantId: envConfig.variables.tenantId,
       facilityId: facilityId,

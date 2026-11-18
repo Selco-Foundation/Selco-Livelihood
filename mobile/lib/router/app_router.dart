@@ -7,7 +7,6 @@ import '../model/activity_facility_workflow/activity_facility_workflow.dart';
 import '../model/amc/scheduled_visit.dart';
 import '../model/solar_installation_draft.dart';
 import '../pages/amc/amc_draft.dart';
-import '../pages/amc/android_camera_capture_page.dart';
 import '../pages/amc/amc_dynamic_form.dart';
 import '../pages/amc/amc_home.dart';
 import '../pages/amc/amc_inbox.dart';
@@ -22,6 +21,7 @@ import '../pages/asset_flow_pages.dart';
 import '../pages/authenticated.dart';
 import '../pages/data_save_success.dart';
 import '../pages/digit_scanner_page.dart';
+import '../pages/android_camera_capture_page.dart';
 import '../pages/home_page.dart';
 import '../pages/installation_report_home_page.dart';
 import '../pages/installation_report_list_pages.dart';
@@ -111,6 +111,10 @@ class AppRouter extends _$AppRouter {
                 path: Routes.submittedSaveSuccess),
             AutoRoute(page: DigitScannerRoute.page, path: Routes.scanner),
             AutoRoute(
+                page: AndroidCameraCaptureRoute.page,
+                path: 'camera-capture',
+                fullscreenDialog: true),
+            AutoRoute(
                 page: DynamicBomFormRoute.page, path: Routes.dynamicBomForm),
             AutoRoute(page: ImageViewerRoute.page, path: Routes.imageViewer),
             AutoRoute(page: VideoViewerRoute.page, path: Routes.videoViewer),
@@ -137,10 +141,6 @@ class AppRouter extends _$AppRouter {
                 path: Routes.amcViewSchedule),
             AutoRoute(
                 page: AmcMediaUploadRoute.page, path: Routes.amcMediaUpload),
-            AutoRoute(
-                page: AndroidCameraCaptureRoute.page,
-                path: Routes.amcCameraCapture,
-                fullscreenDialog: true),
           ],
         ),
       ];

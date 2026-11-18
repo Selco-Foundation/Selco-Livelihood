@@ -8,7 +8,6 @@ import 'package:path/path.dart' show basename;
 import 'package:reactive_forms/reactive_forms.dart';
 
 import '../../model/solar_installation_draft.dart';
-import '../../router/app_router.dart';
 import '../../utils/amc/amc_utils.dart';
 import '../../utils/extensions.dart';
 import '../../utils/i18_key_constants.dart' as i18;
@@ -173,10 +172,6 @@ class _AmcReadingPhotoFieldState extends State<AmcReadingPhotoField> {
                   // Rebuilt when the photo changes, so it shows the new one.
                   key: ValueKey('${widget.formControlName}:${_file?.path}'),
                   isDisabled: widget.readOnly,
-                  cameraCaptureLauncher: Platform.isAndroid
-                      ? (ctx) =>
-                          ctx.router.push(const AndroidCameraCaptureRoute())
-                      : null,
                   errorMessage: showError
                       ? context.translate(i18.amcForm.photoRequired)
                       : null,

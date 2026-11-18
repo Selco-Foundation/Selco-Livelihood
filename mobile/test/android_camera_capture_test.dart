@@ -1,4 +1,3 @@
-// Ported from E4H `test/widgets/android_camera_capture_test.dart` (#248).
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -9,9 +8,14 @@ import 'package:camera/camera.dart';
 import 'package:camera_platform_interface/camera_platform_interface.dart'
     as platform;
 import 'package:flutter/material.dart';
+import 'package:livelihood/router/app_router.dart';
+import 'package:digit_ui_components/digit_components.dart';
+import 'package:livelihood/widgets/image_uploader.dart';
+import 'package:livelihood/utils/app_permission_gateway.dart';
+import 'package:livelihood/model/solar_installation_draft.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:livelihood/pages/amc/android_camera_capture_page.dart';
+import 'package:livelihood/pages/android_camera_capture_page.dart';
 
 const rear = CameraDescription(
     name: 'rear',
@@ -32,6 +36,8 @@ class TestCameraPlatform extends platform.CameraPlatform {
   Completer<void>? initializeWait;
   Completer<void>? disposeWait;
   bool failDispose = false;
+  CameraException? initializeError;
+  CameraException? captureError;
 
   @override
   Future<List<CameraDescription>> availableCameras() async => cameras;
@@ -49,6 +55,7 @@ class TestCameraPlatform extends platform.CameraPlatform {
       {ImageFormatGroup imageFormatGroup = ImageFormatGroup.unknown}) async {
     assert(imageFormatGroup == ImageFormatGroup.jpeg);
     await initializeWait?.future;
+    if (initializeError != null) throw initializeError!;
   }
 
   @override
@@ -63,6 +70,7 @@ class TestCameraPlatform extends platform.CameraPlatform {
   @override
   Future<XFile> takePicture(int cameraId) async {
     captures++;
+    if (captureError != null) throw captureError!;
     return photo;
   }
 
@@ -72,6 +80,32 @@ class TestCameraPlatform extends platform.CameraPlatform {
     await disposeWait?.future;
     if (failDispose) throw CameraException('cleanup-failed', 'test');
   }
+}
+
+class TestPermissions implements AppPermissionGateway {
+  AppPermissionStatus status = AppPermissionStatus.granted;
+  @override
+  Future<AppPermissionStatus> requestCamera() async => status;
+  @override
+  Future<AppPermissionStatus> requestForegroundLocation() async => status;
+  @override
+  Future<bool> openSettings() async => true;
+}
+
+class CameraTestRouter extends RootStackRouter {
+  CameraTestRouter(this.home);
+  final Widget home;
+  @override
+  Map<String, PageFactory> get pagesMap => {
+        ...AppRouter().pagesMap,
+        HomeRoute.name: (data) =>
+            AutoRoutePage<dynamic>(routeData: data, child: home),
+      };
+  @override
+  List<AutoRoute> get routes => [
+        AutoRoute(page: HomeRoute.page, initial: true, path: '/'),
+        AutoRoute(page: AndroidCameraCaptureRoute.page, path: '/camera'),
+      ];
 }
 
 void main() {
@@ -139,6 +173,116 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle();
     expect(camera.created.last, front);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final confirm in [false, true]) {
+    testWidgets('Android uploader returns to report; confirm: $confirm',
+        (tester) async {
+      var selected = <SolarFileRef>[];
+      final router = CameraTestRouter(Scaffold(
+          body: Column(children: [
+        const TextField(),
+        ImageUploader(
+          permissionGateway: TestPermissions(),
+          onImagesSelected: (files) => selected = files,
+        ),
+      ])));
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(
+        theme: DigitTheme.instance.mobileTheme,
+        routerConfig: router.config(),
+      ));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Unsaved report data');
+      await tester.tap(find.byKey(const ValueKey('image-uploader-empty')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('image-uploader-camera')));
+      await tester.pumpAndSettle();
+      expect(find.byType(AndroidCameraCapturePage), findsOneWidget);
+      await tester.tap(find.byKey(const Key('camera-capture')));
+      await tester.pumpAndSettle();
+      if (confirm) {
+        await tester.tap(find.byKey(const Key('camera-confirm')));
+      } else {
+        await tester.binding.handlePopRoute();
+      }
+      await tester.pumpAndSettle();
+      expect(find.byType(AndroidCameraCapturePage), findsNothing);
+      expect(find.text('Unsaved report data'), findsOneWidget);
+      expect(selected, hasLength(confirm ? 1 : 0));
+      if (confirm) expect(selected.single.path, camera.photo.path);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('permission error releases the camera and supports retry',
+      (tester) async {
+    camera.initializeError = CameraException('CameraAccessDenied', 'denied');
+    await openCamera(tester);
+    expect(
+        find.textContaining('Camera permission is required'), findsOneWidget);
+    expect(camera.disposed, [1]);
+    camera.initializeError = null;
+    await tester.tap(find.byKey(const Key('camera-initialize-retry')));
+    await tester.pumpAndSettle();
+    expect(find.byType(CameraPreview), findsOneWidget);
+  });
+
+  testWidgets('capture failure supports retry without leaving the camera',
+      (tester) async {
+    camera.captureError = CameraException('capture-failed', 'test');
+    await openCamera(tester);
+    await tester.tap(find.byKey(const Key('camera-capture')));
+    await tester.pumpAndSettle();
+    expect(find.byType(AndroidCameraCapturePage), findsOneWidget);
+    expect(find.byKey(const Key('camera-initialize-retry')), findsOneWidget);
+    camera.captureError = null;
+    await tester.tap(find.byKey(const Key('camera-initialize-retry')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('camera-capture')));
+    await tester.pumpAndSettle();
+    expect(find.byType(CapturedPhotoReview), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Back during initialization releases the late controller',
+      (tester) async {
+    camera.initializeWait = Completer<void>();
+    await tester.pumpWidget(MaterialApp(
+        home: Builder(
+            builder: (context) => Scaffold(
+                  body: TextButton(
+                      onPressed: () => Navigator.of(context).push<XFile>(
+                          MaterialPageRoute(
+                              builder: (_) =>
+                                  const AndroidCameraCapturePage())),
+                      child: const Text('Open')),
+                ))));
+    await tester.tap(find.text('Open'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    camera.initializeWait!.complete();
+    await tester.pumpAndSettle();
+    expect(find.text('Open'), findsOneWidget);
+    expect(camera.disposed, [1]);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('unavailable camera offers retry and cancel', (tester) async {
+    camera.cameras = [];
+    await openCamera(tester);
+    expect(find.byKey(const Key('camera-initialize-retry')), findsOneWidget);
+    camera.cameras = [rear];
+    await tester.tap(find.byKey(const Key('camera-initialize-retry')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('camera-capture')), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('Open'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

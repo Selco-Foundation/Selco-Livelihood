@@ -25,6 +25,7 @@ import '../repositories/operation_progress_repo.dart';
 import '../repositories/pending_submission_repository.dart';
 import '../router/app_router.dart';
 import '../utils/app_permission_gateway.dart';
+import '../utils/photo_capture.dart';
 import '../utils/submission_payload.dart';
 import '../utils/document_metadata.dart';
 import '../utils/workflow_status.dart';
@@ -223,7 +224,7 @@ class _MachineFormPageState extends State<MachineFormPage> {
     if (override != null) return override(kind, source);
     final picker = ImagePicker();
     return kind == MachineMediaKind.image
-        ? picker.pickImage(source: source)
+        ? pickPhoto(context, source)
         : picker.pickVideo(source: source);
   }
 

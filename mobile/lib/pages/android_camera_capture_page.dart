@@ -1,19 +1,12 @@
-// Ported from E4H `widgets/customized_digit_widget/android_camera_capture_page.dart`
-// (in-app camera used by E4H's AMC photo upload on Android). Kept identical,
-// including its hard-coded English text. Changes: E4H's AppLogger call is
-// replaced with debugPrint, and it is a typed route (`AndroidCameraCaptureRoute`,
-// returns the confirmed `XFile`) because Livelihood only navigates via
-// AppRouter.
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
 import 'package:camera/camera.dart';
+import 'package:auto_route/auto_route.dart';
 import 'package:digit_ui_components/theme/spacers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
-import '../../router/app_router.dart';
 
 @visibleForTesting
 Size calculateCameraPreviewCoverSize({
@@ -112,7 +105,7 @@ class CameraControlsSafeArea extends StatelessWidget {
   Widget build(BuildContext context) => SafeArea(child: child);
 }
 
-@RoutePage<XFile>()
+@RoutePage()
 class AndroidCameraCapturePage extends StatefulWidget {
   const AndroidCameraCapturePage({super.key});
 
@@ -155,6 +148,7 @@ class _AndroidCameraCapturePageState extends State<AndroidCameraCapturePage>
   }
 
   Future<void> _initializeCamera() async {
+    if (!mounted || _cancelling || _returningPhoto) return;
     final generation = ++_initializationGeneration;
     if (mounted) {
       setState(() {
@@ -165,6 +159,7 @@ class _AndroidCameraCapturePageState extends State<AndroidCameraCapturePage>
 
     await _disposeController(invalidateInitialization: false);
 
+    CameraController? initializingController;
     try {
       final cameras = await availableCameras();
       if (!mounted || generation != _initializationGeneration) return;
@@ -185,9 +180,9 @@ class _AndroidCameraCapturePageState extends State<AndroidCameraCapturePage>
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.jpeg,
       );
+      initializingController = controller;
       await controller.initialize();
       if (!mounted || generation != _initializationGeneration) {
-        await controller.dispose();
         return;
       }
 
@@ -208,6 +203,11 @@ class _AndroidCameraCapturePageState extends State<AndroidCameraCapturePage>
         _errorMessage =
             'Camera could not be started. Retry or select a photo from the gallery.';
       });
+    } finally {
+      if (initializingController != null &&
+          !identical(initializingController, _controller)) {
+        await _releaseController(initializingController);
+      }
     }
   }
 
@@ -242,7 +242,15 @@ class _AndroidCameraCapturePageState extends State<AndroidCameraCapturePage>
     final controller = _controller;
     _controller = null;
     if (controller != null) {
+      await _releaseController(controller);
+    }
+  }
+
+  Future<void> _releaseController(CameraController controller) async {
+    try {
       await controller.dispose();
+    } catch (error) {
+      debugPrint('Camera cleanup failed: ${error.runtimeType}');
     }
   }
 
@@ -330,7 +338,7 @@ class _AndroidCameraCapturePageState extends State<AndroidCameraCapturePage>
     ++_initializationGeneration;
     final controller = _controller;
     _controller = null;
-    unawaited(controller?.dispose());
+    if (controller != null) unawaited(_releaseController(controller));
     if (!_returningPhoto) unawaited(_deleteTemporaryPhoto(_capturedPhoto));
     unawaited(
       SystemChrome.setEnabledSystemUIMode(

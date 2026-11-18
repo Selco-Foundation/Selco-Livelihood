@@ -36,6 +36,7 @@ import 'amc/amc_utils.dart'
         amcResponsesForSubmit;
 import 'envConfig.dart';
 import 'operation_progress.dart';
+import 'submission_error.dart';
 import 'submission_payload.dart';
 
 const String kMethodSubmit = 'submit';
@@ -254,7 +255,7 @@ void onStart(ServiceInstance service) async {
         completedSteps: current?.completedSteps ?? 0,
         totalSteps: submitStages.length,
         retryCount: (current?.retryCount ?? 0) + 1,
-        lastError: e.toString(),
+        lastError: submissionErrorMessage(e),
       );
       service.invoke(kEvtError, {
         'activityFacilityId': activityFacilityId,
@@ -606,6 +607,7 @@ Future<void> _performSubmission({
     Map<String, dynamic>? existing;
     final matches = await assetRepository.searchRemote(
       activityFacilityId: activityFacilityId,
+      assetId: submission.assetId,
       serialNumber: submission.isSolarParent ? null : submission.serialNumber,
     );
     if (submission.isSolarParent) {
@@ -620,22 +622,7 @@ Future<void> _performSubmission({
       if (submission.isSolarParent) {
         submission = reconcileSolarSubmission(submission, existing!);
       } else {
-        final existingFileStores =
-            (existing?['documents'] as List<dynamic>? ?? const [])
-                .whereType<Map>()
-                .map((document) => SubmissionDocument.fromJson(
-                      Map<String, dynamic>.from(document),
-                    ).fileStore)
-                .whereType<String>()
-                .toSet();
-        submission = submission.copyWith(
-          assetId: remoteAssetId,
-          documents: submission.documents
-              .where((document) =>
-                  document.fileStore == null ||
-                  !existingFileStores.contains(document.fileStore))
-              .toList(),
-        );
+        submission = submission.copyWith(assetId: remoteAssetId);
       }
     }
     Map<String, dynamic> submittedAsset;
@@ -647,6 +634,7 @@ Future<void> _performSubmission({
         vendorId: vendorId,
       );
     } catch (_) {
+      if (submission.assetId?.trim().isNotEmpty == true) rethrow;
       // Match E4H's duplicate-create recovery. The first create may have
       // reached Kafka before the client received its response.
       final duplicate = await assetRepository.searchRemote(
@@ -822,19 +810,28 @@ Future<void> _waitForAssets({
   required List<AssetSubmission> expectedAssets,
 }) async {
   if (expectedAssets.isEmpty) return;
-
+  String? mismatch;
   for (var attempt = 0; attempt < 10; attempt++) {
     final remote = await assetRepository.searchRemote(
       activityFacilityId: activityFacilityId,
     );
-    if (expectedAssets.every((expected) =>
-        remote.any((asset) => assetSubmissionIsPersisted(expected, asset)))) {
-      return;
-    }
+    final unmatched = expectedAssets
+        .where((expected) =>
+            !remote.any((asset) => assetSubmissionIsPersisted(expected, asset)))
+        .firstOrNull;
+    if (unmatched == null) return;
+    final candidate = remote
+        .where((asset) => unmatched.assetId != null
+            ? (asset['assetId'] ?? asset['assetID']) == unmatched.assetId
+            : asset['assetTypeID'] == unmatched.assetTypeId)
+        .firstOrNull;
+    mismatch =
+        '${unmatched.assetTypeId} ${unmatched.assetId ?? unmatched.serialNumber}: '
+        '${candidate == null ? 'missing asset' : assetSubmissionMismatch(unmatched, candidate)}';
     if (attempt < 9) await Future<void>.delayed(const Duration(seconds: 1));
   }
   throw Exception(
-      'Asset Registry accepted the request but the assets are not searchable yet. Retry will resume safely.');
+      'Saved assets do not match the submission ($mismatch). Retry will resume safely.');
 }
 
 Future<void> _waitForBom({

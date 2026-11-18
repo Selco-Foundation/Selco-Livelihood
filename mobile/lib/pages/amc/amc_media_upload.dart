@@ -413,12 +413,6 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
                           ImageUploader(
                             key: const ValueKey('amc-media-image-uploader'),
                             allowMultiples: true,
-                            // As in E4H: Android uses the in-app camera page;
-                            // iOS keeps the device camera.
-                            cameraCaptureLauncher: Platform.isAndroid
-                                ? (ctx) => ctx.router
-                                    .push(const AndroidCameraCaptureRoute())
-                                : null,
                             errorMessage:
                                 _showPhotoError && _selectedImages.isEmpty
                                     ? context.translate(
