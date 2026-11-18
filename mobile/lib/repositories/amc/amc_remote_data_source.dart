@@ -6,7 +6,7 @@ import '../../utils/api_paths.dart';
 import '../../utils/envConfig.dart';
 import '../filestore_repository.dart';
 import 'amc_dummy_backend.dart';
-import 'amc_dummy_form_schema.dart';
+import 'amc_report_form_schema.dart';
 
 export 'amc_dummy_backend.dart' show isDummyFileStoreId;
 
@@ -142,14 +142,13 @@ class HttpAmcRemoteDataSource implements AmcRemoteDataSource {
     if (raw is! List) {
       throw Exception('MDMS v2 response missing "mdms" array');
     }
-    // DUMMY-BACKEND: until the backend uploads the Livelihood AMC form
-    // (#250) to MDMS, use the app's copy so the report can be filled.
+    // When MDMS has no Livelihood AMC form (#250), use the app's own copy.
     final hasForm = raw.any((doc) =>
-        doc is Map && doc['uniqueIdentifier'] == amcDummyFormIdentifier);
+        doc is Map && doc['uniqueIdentifier'] == amcReportFormIdentifier);
     if (!hasForm) {
-      debugPrint('MDMS has no $amcDummyFormIdentifier for '
+      debugPrint('MDMS has no $amcReportFormIdentifier for '
           '${envConfig.variables.tenantId}; using the app\'s copy.');
-      return [...raw, dummyAmcFormSchemaDoc(envConfig.variables.tenantId)];
+      return [...raw, amcReportFormSchemaDoc(envConfig.variables.tenantId)];
     }
     return raw;
   }

@@ -1,12 +1,8 @@
 import '../../model/amc/amc_site_details.dart';
 
-/// DUMMY-BACKEND: the Livelihood AMC report form (#250) as a
-/// `common-masters.AMCFormSchema` MDMS v2 record, built from "Livelihood AMC
-/// report form final field list" (PRD 5.4.4, Section 10). The dummy backend
-/// serves it, and the real data source falls back to it while MDMS has no
-/// `AssetForm.AMC_SCHEDULED_MAINTENANCE` record for the tenant. The backend
-/// uploads the same record (`data` below) to MDMS; delete this file once it
-/// has.
+/// The Livelihood AMC report form (#250) as a `common-masters.AMCFormSchema`
+/// MDMS v2 record, built from "Livelihood AMC report form final field list"
+/// (PRD 5.4.4, Section 10). The app ships this form itself.
 ///
 /// Conventions the app relies on:
 ///  * `uniqueIdentifier` / `data.name` = `AssetForm.AMC_SCHEDULED_MAINTENANCE`
@@ -21,8 +17,8 @@ import '../../model/amc/amc_site_details.dart';
 ///  * `format: custom` fields are drawn by the app: a field name ending in
 ///    `Photo` is a photo (sent as a report document, see
 ///    `amcReadingPhotoDocumentTypes`), any other is a decimal reading.
-const String amcDummySchemaCode = 'common-masters.AMCFormSchema';
-const String amcDummyFormIdentifier = 'AssetForm.AMC_SCHEDULED_MAINTENANCE';
+const String amcReportFormSchemaCode = 'common-masters.AMCFormSchema';
+const String amcReportFormIdentifier = 'AssetForm.AMC_SCHEDULED_MAINTENANCE';
 
 Map<String, dynamic> _option(String code, String name) =>
     {'code': code, 'name': name};
@@ -134,18 +130,18 @@ const _siteDetailLabels = {
   'purchaseOrderNumber': 'purchase_order_number',
 };
 
-Map<String, dynamic> dummyAmcFormSchemaDoc(String tenantId) {
+Map<String, dynamic> amcReportFormSchemaDoc(String tenantId) {
   var o = 0;
   int next() => ++o;
 
   return {
-    'id': 'dummy-amc-form-schema',
+    'id': 'amc-report-form-schema',
     'tenantId': tenantId,
-    'schemaCode': amcDummySchemaCode,
-    'uniqueIdentifier': amcDummyFormIdentifier,
+    'schemaCode': amcReportFormSchemaCode,
+    'uniqueIdentifier': amcReportFormIdentifier,
     'isActive': true,
     'data': {
-      'name': amcDummyFormIdentifier,
+      'name': amcReportFormIdentifier,
       'version': 2,
       'order': 1,
       'summary': false,

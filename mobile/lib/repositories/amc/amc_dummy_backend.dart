@@ -8,12 +8,12 @@ import 'package:synchronized/synchronized.dart';
 
 import '../../utils/api_paths.dart';
 import '../../utils/envConfig.dart';
-import 'amc_dummy_form_schema.dart';
+import 'amc_report_form_schema.dart';
 import 'amc_remote_data_source.dart';
 
 /// DUMMY-BACKEND: a fake `amc-scheduler-service` + MDMS + filestore used
 /// while `kAmcUseDummyBackend` is true. Remove this file (and
-/// `amc_dummy_form_schema.dart`) once the real backend is wired.
+/// `amc_report_form_schema.dart`) once the real backend is wired.
 ///
 /// It follows the "Livelihood AMC API Contract" (16 Nov 2026) so every
 /// screen can be exercised: visits start in each status;
@@ -326,7 +326,7 @@ class DummyAmcRemoteDataSource implements AmcRemoteDataSource {
   Future<List<dynamic>> searchAmcFormSchemaDocs(
       Map<String, dynamic> mdmsRequestBody) async {
     await Future<void>.delayed(latency);
-    return [dummyAmcFormSchemaDoc(envConfig.variables.tenantId)];
+    return [amcReportFormSchemaDoc(envConfig.variables.tenantId)];
   }
 
   @override

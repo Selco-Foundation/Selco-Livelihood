@@ -32,7 +32,7 @@ import 'package:livelihood/pages/amc/amc_home.dart';
 import 'package:livelihood/pages/home_page.dart';
 import 'package:livelihood/pages/role_selection.dart';
 import 'package:livelihood/repositories/amc/amc_dummy_backend.dart';
-import 'package:livelihood/repositories/amc/amc_dummy_form_schema.dart';
+import 'package:livelihood/repositories/amc/amc_report_form_schema.dart';
 import 'package:livelihood/repositories/amc/amc_dummy_localization.dart';
 import 'package:livelihood/repositories/amc/amc_remote_data_source.dart';
 import 'package:livelihood/repositories/amc/amc_system_status_repo.dart';
@@ -184,7 +184,7 @@ class _FakeAmcRemoteDataSource implements AmcRemoteDataSource {
   Future<List<dynamic>> searchAmcFormSchemaDocs(
       Map<String, dynamic> mdmsRequestBody) async {
     if (failSchema) throw StateError('MDMS unavailable');
-    return [dummyAmcFormSchemaDoc('livelihood')];
+    return [amcReportFormSchemaDoc('livelihood')];
   }
 
   @override
@@ -334,7 +334,7 @@ void main() {
 
     test('dummy AMC form schema loads in digit_forms_engine', () {
       final transformed =
-          transformSelcoFormMdmsDocToSchema(dummyAmcFormSchemaDoc('t'));
+          transformSelcoFormMdmsDocToSchema(amcReportFormSchemaDoc('t'));
       final schema = SchemaObject.fromJson(transformed);
       expect(schema.name, amcFormSchemaKey);
       expect(schema.pages.keys.first, amcFormFirstPage);
@@ -1117,7 +1117,7 @@ void main() {
 
   group('Livelihood AMC report form (#250)', () {
     final schema = SchemaObject.fromJson(
-        transformSelcoFormMdmsDocToSchema(dummyAmcFormSchemaDoc('t')));
+        transformSelcoFormMdmsDocToSchema(amcReportFormSchemaDoc('t')));
     Map<String, PropertySchema> fieldsOf(String page) =>
         schema.pages[page]!.properties!;
     bool isRequired(PropertySchema field) =>
