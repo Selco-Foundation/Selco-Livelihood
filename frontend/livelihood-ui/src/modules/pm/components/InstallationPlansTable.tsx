@@ -1,11 +1,10 @@
 import { translateOr, useTranslate } from "@/shared";
-import { Badge, Button, Skeleton } from "@/ui";
+import { Badge, Skeleton } from "@/ui";
 import { Link } from "@tanstack/react-router";
-import { Pencil } from "lucide-react";
 import { useInstallationPlanFacilityCounts } from "../hooks/use-installation-plan-facility-counts";
 import type { InstallationPlanStatusWrapper } from "../types/installation-plan";
 import { formatDate } from "../utils/format-date";
-import { pmCreateInstallationPlanPath, pmEditAmcPath } from "../utils/paths";
+import { pmCreateInstallationPlanPath } from "../utils/paths";
 import { formatStatusLabel } from "../utils/status-label";
 
 interface InstallationPlansTableProps {
@@ -33,7 +32,6 @@ export function InstallationPlansTable({ plans, isLoading }: Readonly<Installati
     translateOr(t, "ES_PM_END_DATE", "End Date"),
     translateOr(t, "ES_PM_NO_OF_END_USER_SITES", "No. of End user sites"),
     translateOr(t, "ES_PM_INSTALLATION_PLAN_STATUS", "Installation Plan Status"),
-    translateOr(t, "ES_PM_AMC_PLAN", "AMC Plan"),
   ];
 
   if (isLoading) {
@@ -114,14 +112,6 @@ export function InstallationPlansTable({ plans, isLoading }: Readonly<Installati
                           .replace("{{total}}", String(siteCount))}
                       </span>
                     ) : null}
-                  </td>
-                  <td className="px-5 py-4">
-                    <Button asChild variant="outline" size="sm">
-                      <Link to={pmEditAmcPath()} search={{ projectId: plan.projectId, planId: plan.id }}>
-                        <Pencil className="size-4" />
-                        {translateOr(t, "CORE_COMMON_EDIT", "Edit")}
-                      </Link>
-                    </Button>
                   </td>
                 </tr>
               );
