@@ -3,6 +3,7 @@ package org.egov.activity.service;
 import lombok.extern.slf4j.Slf4j;
 import org.egov.activity.config.ActivityConfiguration;
 import org.egov.activity.repository.VendorAssignmentRepository;
+import org.egov.activity.util.MDMSUtils;
 import org.egov.activity.util.VendorDirectory;
 import static org.egov.activity.util.ActivityConstants.INSTALLATION_REPORT_APPROVER_QC_TEAM;
 import static org.egov.activity.util.ActivityConstants.INSTALLATION_REPORT_PART_A_EDITOR;
@@ -101,6 +102,7 @@ public class VendorAssignmentService {
     private final ActivityConfiguration configuration;
     private final VendorDirectory vendorDirectory;
     private final FacilityWorkflowService workflowService;
+    private final MDMSUtils mdmsUtils;
 
     @Autowired
     public VendorAssignmentService(VendorAssignmentRepository repository,
@@ -108,13 +110,15 @@ public class VendorAssignmentService {
                                    IdGenService idGenService,
                                    ActivityConfiguration configuration,
                                    VendorDirectory vendorDirectory,
-                                   FacilityWorkflowService workflowService) {
+                                   FacilityWorkflowService workflowService,
+                                   MDMSUtils mdmsUtils) {
         this.repository = repository;
         this.producer = producer;
         this.idGenService = idGenService;
         this.configuration = configuration;
         this.vendorDirectory = vendorDirectory;
         this.workflowService = workflowService;
+        this.mdmsUtils = mdmsUtils;
     }
 
     // ------------------------------------------------------------------ read
@@ -518,6 +522,12 @@ public class VendorAssignmentService {
         List<String> reportNumbers = generateReportNumbers(requestInfo, criteria.getTenantId(),
                 assignments.size());
 
+        // The units of the technician's readings (V, A, ...). Read before any workflow write; an
+        // empty map just means the units are seeded blank as before, and the report fills them
+        // in from the same form when it is generated (BomPdfService).
+        Map<String, String> systemFieldDefaults =
+                mdmsUtils.fetchSystemFieldDefaults(requestInfo, criteria.getTenantId());
+
         // The statuses this step stores come from egov-workflow-v2, never from a literal here.
         // Assets move twice, in the order the existing ActivityAssignmentConsumer uses:
         // SCHEDULED off the start state, then ASSIGN_FIELD_STAFF so the technician can see the
@@ -554,7 +564,7 @@ public class VendorAssignmentService {
                     solutionId, scheduledAt, assetStatusById.get(activityFacilityId), now));
             bomRows.add(bomRow(criteria, submission, activityFacilityId, solutionId, assetName,
                     reportNumbers.get(index),
-                    seedBomData(submission, templateData, reportNumbers.get(index)),
+                    seedBomData(submission, templateData, reportNumbers.get(index), systemFieldDefaults),
                     displayNameCache(submission, assetName), now));
 
             // How the task becomes visible: one link row per person per asset, for the assigned
@@ -781,9 +791,19 @@ public class VendorAssignmentService {
      * across processes and JVM versions, which is exactly the property needed here.
      */
     private String assetId(VendorAssignmentCriteria criteria, VendorAssignmentSubmission submission) {
-        return deterministicId("facility-activity", criteria.getTenantId(), criteria.getFieldPlanId(),
-                submission.getFacilityId(), submission.getComponentType(),
-                String.valueOf(submission.getComponentSequence()));
+        return activityFacilityId(criteria.getTenantId(), criteria.getFieldPlanId(),
+                submission.getFacilityId(), submission.getComponentType(), submission.getComponentSequence());
+    }
+
+    /**
+     * The id vendor assignment gives an asset's activity facility. Deterministic, so other code can
+     * tell which assets belong to the same plan and site without a lookup (BomPdfService uses it
+     * to find the solar report's machines).
+     */
+    public static String activityFacilityId(String tenantId, String fieldPlanId, String facilityId,
+                                            String componentType, Integer componentSequence) {
+        return deterministicId("facility-activity", tenantId, fieldPlanId, facilityId, componentType,
+                String.valueOf(componentSequence));
     }
 
     private static String deterministicId(String... parts) {
@@ -935,11 +955,16 @@ public class VendorAssignmentService {
      * naming convention MDMS happens to use.
      *
      * <p>A SOLAR asset takes every field except the ones a machine slot owns, plus the technician's
-     * system parameters seeded empty; a MACHINE asset takes only its own slot's four.
+     * system parameters seeded empty (their read-only units seeded with the form's value); a
+     * MACHINE asset takes only its own slot's four.
+     *
+     * <p>Units must not be seeded blank: the app prefers a stored value over the form's default,
+     * so a stored "" hides "V" in the app and prints as NA in the report.
      */
     private Map<String, Object> seedBomData(VendorAssignmentSubmission submission,
                                             Map<String, Object> templateData,
-                                            String reportNumber) {
+                                            String reportNumber,
+                                            Map<String, String> systemFieldDefaults) {
         Map<String, Object> fields = repository.readMap(templateData, KEY_FIELDS);
         List<Map<String, Object>> machines = repository.readSection(templateData, KEY_MACHINE_SECTION);
         Map<String, Object> data = new LinkedHashMap<>();
@@ -957,7 +982,7 @@ public class VendorAssignmentService {
             // moment it is created: the app's form and the PDF template both see every reading
             // they will ever need, before anyone has visited the site.
             for (String name : repository.readStringList(templateData, KEY_FORM_META, KEY_SYSTEM_FIELDS)) {
-                data.putIfAbsent(name, "");
+                data.putIfAbsent(name, systemFieldDefaults.getOrDefault(name, ""));
             }
         } else {
             int position = submission.getComponentSequence() == null
