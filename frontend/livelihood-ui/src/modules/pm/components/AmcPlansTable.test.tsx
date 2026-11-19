@@ -13,6 +13,7 @@ vi.mock("@tanstack/react-router", () => ({
 
 const plan: InstallationPlanStatusWrapper = {
   plan: { id: "plan-1", tenantId: "tenant-1", projectId: "project-1", name: "IN-INS-2026-28" },
+  status: "PUBLISHED",
 };
 
 describe("AmcPlansTable", () => {
@@ -43,5 +44,16 @@ describe("AmcPlansTable", () => {
     render(<AmcPlansTable plans={[]} isLoading={false} />);
 
     expect(screen.getByText("No installation plans with AMC yet")).toBeInTheDocument();
+  });
+
+  it("leaves out draft plans", () => {
+    const draft: InstallationPlanStatusWrapper = {
+      plan: { id: "plan-2", tenantId: "tenant-1", projectId: "project-1", name: "IN-INS-2026-29" },
+      status: "DRAFT",
+    };
+    render(<AmcPlansTable plans={[plan, draft]} isLoading={false} />);
+
+    expect(screen.getByText("IN-INS-2026-28")).toBeInTheDocument();
+    expect(screen.queryByText("IN-INS-2026-29")).not.toBeInTheDocument();
   });
 });

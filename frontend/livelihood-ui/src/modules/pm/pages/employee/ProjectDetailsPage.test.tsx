@@ -86,9 +86,9 @@ describe("ProjectDetailsPage", () => {
     expect(screen.getAllByText("-").length).toBeGreaterThan(0);
   });
 
-  it("shows the Edit AMC section with an Edit button per installation plan", () => {
+  it("shows the Edit AMC section with an Edit button per published installation plan", () => {
     vi.mocked(useInstallationPlansSearch).mockReturnValue({
-      data: { plans: [{ plan: { id: "plan-1", tenantId: "tenant-1", projectId: "project-1", name: "IN-INS-2026-28" } }], totalCount: 1 },
+      data: { plans: [{ plan: { id: "plan-1", tenantId: "tenant-1", projectId: "project-1", name: "IN-INS-2026-28" }, status: "PUBLISHED" }], totalCount: 1 },
       isLoading: false,
     } as never);
 

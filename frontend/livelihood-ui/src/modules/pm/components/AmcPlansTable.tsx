@@ -4,18 +4,17 @@ import { Link } from "@tanstack/react-router";
 import { Pencil } from "lucide-react";
 import type { InstallationPlanStatusWrapper } from "../types/installation-plan";
 import { pmEditAmcPath } from "../utils/paths";
+import { isDraftStatus } from "../utils/status-label";
 
 interface AmcPlansTableProps {
   plans: InstallationPlanStatusWrapper[];
   isLoading: boolean;
 }
 
-/**
- * The "Edit AMC" section of the project page. Prototype: lists every plan of the project; once the
- * AMC API exists it should list only plans that have AMC configured.
- */
+/** The "Edit AMC" section of the project page: only published plans, since a draft has no installations yet. */
 export function AmcPlansTable({ plans, isLoading }: Readonly<AmcPlansTableProps>) {
   const { t } = useTranslate();
+  const publishedPlans = plans.filter(({ status }) => !isDraftStatus(status));
 
   return (
     <div className="space-y-4">
@@ -30,7 +29,7 @@ export function AmcPlansTable({ plans, isLoading }: Readonly<AmcPlansTableProps>
         <div className="livelihood-card p-6">
           <Skeleton className="h-32 w-full" />
         </div>
-      ) : plans.length === 0 ? (
+      ) : publishedPlans.length === 0 ? (
         <div className="livelihood-card px-6 py-12 text-center text-sm text-muted-foreground">
           {translateOr(t, "ES_PM_NO_AMC_PLANS", "No installation plans with AMC yet")}
         </div>
@@ -48,7 +47,7 @@ export function AmcPlansTable({ plans, isLoading }: Readonly<AmcPlansTableProps>
               </tr>
             </thead>
             <tbody>
-              {plans.map(({ plan }) => (
+              {publishedPlans.map(({ plan }) => (
                 <tr key={plan.id} className="border-b border-border/70 last:border-b-0 hover:bg-muted/40">
                   <td className="px-5 py-4 font-semibold text-primary">{plan.name ?? "-"}</td>
                   <td className="px-5 py-4 text-right">
