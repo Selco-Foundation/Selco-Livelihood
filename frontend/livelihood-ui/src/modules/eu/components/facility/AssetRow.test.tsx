@@ -1,21 +1,26 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useAmcFieldStaffOptions } from "../../hooks/use-amc-field-staff-options";
+import { useUpdateAmcFieldStaff } from "../../hooks/use-update-amc-field-staff";
 import { useUpdateAssetVendor } from "../../hooks/use-update-asset-vendor";
 import { useVendorOrganisationOptions } from "../../hooks/use-vendor-organisation-options";
 import { useVendorUserOptions } from "../../hooks/use-vendor-user-options";
+import type { AssetAmc } from "../../types/amc";
 import type { FacilityAsset } from "../../types/asset";
 import { AssetRow } from "./AssetRow";
 
 vi.mock("../../hooks/use-vendor-organisation-options", () => ({ useVendorOrganisationOptions: vi.fn() }));
 vi.mock("../../hooks/use-vendor-user-options", () => ({ useVendorUserOptions: vi.fn() }));
+vi.mock("../../hooks/use-amc-field-staff-options", () => ({ useAmcFieldStaffOptions: vi.fn() }));
+vi.mock("../../hooks/use-update-amc-field-staff", () => ({ useUpdateAmcFieldStaff: vi.fn() }));
 vi.mock("../../hooks/use-update-asset-vendor", () => ({ useUpdateAssetVendor: vi.fn() }));
 
-function renderRow(asset: FacilityAsset, onView = vi.fn()) {
+function renderRow(asset: FacilityAsset, onView = vi.fn(), amc?: AssetAmc) {
   return render(
     <table>
       <tbody>
-        <AssetRow asset={asset} isAlternate={false} assetTypeName={(code) => code} onView={onView} />
+        <AssetRow asset={asset} isAlternate={false} assetTypeName={(code) => code} onView={onView} amc={amc} />
       </tbody>
     </table>,
   );
@@ -30,6 +35,8 @@ const assetWithVendor: FacilityAsset = {
 };
 
 const mutateMock = vi.fn((_payload: unknown, options?: { onSuccess?: () => void }) => options?.onSuccess?.());
+
+const amcMutateMock = vi.fn((_payload: unknown, options?: { onSuccess?: () => void }) => options?.onSuccess?.());
 
 beforeEach(() => {
   vi.mocked(useVendorOrganisationOptions).mockReset();
@@ -47,6 +54,15 @@ beforeEach(() => {
     isLoading: false,
   });
   vi.mocked(useUpdateAssetVendor).mockReturnValue({ mutate: mutateMock, isPending: false } as never);
+  amcMutateMock.mockClear();
+  vi.mocked(useUpdateAmcFieldStaff).mockReturnValue({ mutate: amcMutateMock, isPending: false } as never);
+  vi.mocked(useAmcFieldStaffOptions).mockReturnValue({
+    data: [
+      { code: "fs-1", name: "Field One" },
+      { code: "fs-2", name: "Field Two" },
+    ],
+    isLoading: false,
+  } as never);
 });
 
 describe("AssetRow", () => {
@@ -158,5 +174,40 @@ describe("AssetRow", () => {
     await user.click(screen.getByRole("button", { name: "View" }));
 
     expect(onView).toHaveBeenCalledWith(assetWithVendor);
+  });
+  it("asks for the AMC field staff when the asset has a running AMC, moves the AMC, then saves the vendor", async () => {
+    vi.mocked(useVendorUserOptions).mockReturnValue({
+      options: [
+        { code: "vendor-1", name: "Vendor One" },
+        { code: "vendor-2", name: "Vendor Two" },
+      ],
+      setQuery: vi.fn(),
+      hasMore: false,
+      loadMore: vi.fn(),
+      isLoading: false,
+    });
+    const user = userEvent.setup();
+    renderRow(assetWithVendor, vi.fn(), { id: "amc-1", activityFacilityId: "af-1", assetIds: ["a1"], fieldStaffId: "fs-1" });
+
+    await user.click(screen.getByRole("button", { name: /^Vendor,/i }));
+    await user.click(screen.getByText("Vendor Two"));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(mutateMock).not.toHaveBeenCalled();
+    expect(await screen.findByText("Select the AMC field staff")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Field One/ }));
+    await user.click(screen.getByText("Field Two"));
+    const saveButtons = screen.getAllByRole("button", { name: "Save" });
+    await user.click(saveButtons[saveButtons.length - 1]);
+
+    expect(amcMutateMock).toHaveBeenCalledWith(
+      { activityFacilityId: "af-1", fieldStaffUserId: "fs-2", vendorOrgId: "org-1" },
+      expect.any(Object),
+    );
+    expect(mutateMock).toHaveBeenCalledWith(
+      { assetId: "a1", vendorId: "vendor-2", organisationId: "org-1" },
+      expect.any(Object),
+    );
   });
 });

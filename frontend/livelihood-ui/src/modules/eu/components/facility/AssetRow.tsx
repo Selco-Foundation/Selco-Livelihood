@@ -3,24 +3,31 @@ import { Button } from "@/ui";
 import { Eye, Save } from "lucide-react";
 import { useState } from "react";
 import { PaginatedSearchableSelect } from "../PaginatedSearchableSelect";
+import { useUpdateAmcFieldStaff } from "../../hooks/use-update-amc-field-staff";
 import { useUpdateAssetVendor } from "../../hooks/use-update-asset-vendor";
 import { useVendorOrganisationOptions } from "../../hooks/use-vendor-organisation-options";
 import { useVendorUserOptions } from "../../hooks/use-vendor-user-options";
+import type { AssetAmc } from "../../types/amc";
 import type { FacilityAsset } from "../../types/asset";
+import { AmcFieldStaffDialog } from "./AmcFieldStaffDialog";
 
 interface AssetRowProps {
   asset: FacilityAsset;
   isAlternate: boolean;
   assetTypeName: (assetType: string) => string;
   onView: (asset: FacilityAsset) => void;
+  /** The asset's running AMC, if any: a vendor change then also asks for its new field staff. */
+  amc?: AssetAmc;
 }
 
-export function AssetRow({ asset, isAlternate, assetTypeName, onView }: AssetRowProps) {
+export function AssetRow({ asset, isAlternate, assetTypeName, onView, amc }: AssetRowProps) {
   const { t } = useTranslate();
   const [selectedOrgId, setSelectedOrgId] = useState(asset.vendor?.organisationId ?? "");
   const [draftVendorUserId, setDraftVendorUserId] = useState<string | undefined>(undefined);
   const [savedOverrideVendorId, setSavedOverrideVendorId] = useState<string | undefined>(undefined);
   const updateAssetVendor = useUpdateAssetVendor();
+  const updateAmcFieldStaff = useUpdateAmcFieldStaff();
+  const [pickingFieldStaff, setPickingFieldStaff] = useState(false);
 
   const orgPinned =
     asset.vendor?.organisationId && asset.vendor?.organisationName
@@ -55,6 +62,26 @@ export function AssetRow({ asset, isAlternate, assetTypeName, onView }: AssetRow
 
   function handleSave() {
     if (!isDirty || !draftVendorUserId || !selectedOrgId) return;
+    if (amc) setPickingFieldStaff(true);
+    else saveVendor();
+  }
+
+  /** The AMC moves first: if it is refused nothing has changed, and the admin can simply retry. */
+  function handleFieldStaffConfirm(fieldStaffUserId: string) {
+    if (!amc) return;
+    updateAmcFieldStaff.mutate(
+      { activityFacilityId: amc.activityFacilityId, fieldStaffUserId, vendorOrgId: selectedOrgId },
+      {
+        onSuccess: () => {
+          setPickingFieldStaff(false);
+          saveVendor();
+        },
+      },
+    );
+  }
+
+  function saveVendor() {
+    if (!draftVendorUserId) return;
     updateAssetVendor.mutate(
       { assetId: asset.assetId, vendorId: draftVendorUserId, organisationId: selectedOrgId },
       {
@@ -122,6 +149,17 @@ export function AssetRow({ asset, isAlternate, assetTypeName, onView }: AssetRow
             <Save className="size-4" />
           </Button>
         </div>
+        {amc ? (
+          <AmcFieldStaffDialog
+            key={selectedOrgId}
+            open={pickingFieldStaff}
+            organizationId={selectedOrgId}
+            currentFieldStaffId={amc.fieldStaffId}
+            isPending={updateAmcFieldStaff.isPending}
+            onConfirm={handleFieldStaffConfirm}
+            onCancel={() => setPickingFieldStaff(false)}
+          />
+        ) : null}
       </td>
     </tr>
   );
