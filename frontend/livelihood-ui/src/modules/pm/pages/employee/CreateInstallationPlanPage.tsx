@@ -11,7 +11,6 @@ import {
   TechnicianAssignmentStep,
   toRows,
   toSavedAssignments,
-  type AmcApplicableValue,
   type AssignmentValue,
 } from "../../components/steps/TechnicianAssignmentStep";
 import { InstallationScopeStep, isScopeValid, type ScopeValue } from "../../components/steps/InstallationScopeStep";
@@ -25,10 +24,11 @@ import { useInstallationPlanReviewer } from "../../hooks/use-installation-plan-r
 import { useInstallationPlanScope } from "../../hooks/use-installation-plan-scope";
 import { useInstallationPlanTemplates } from "../../hooks/use-installation-plan-templates";
 import { useProjectById } from "../../hooks/use-project-by-id";
+import { useCreatePlanAmcs } from "../../hooks/use-create-plan-amcs";
 import { useSaveInstallationPlan } from "../../hooks/use-save-installation-plan";
 import { useVendorAssignmentSearch } from "../../hooks/use-vendor-assignment-search";
 import type { InstallationPlanRouteSearch } from "../../routes";
-import { getAmcApplicable, saveAmcApplicable } from "../../services/amc-applicable";
+import { rowsMissingFieldStaff, toAmcChoices, type AmcSetupValue } from "../../utils/amc-setup";
 import { publishInstallationPlan, type SavedInstallationPlan } from "../../services/installation-plan";
 import { checkInstallationScope } from "../../services/installation-scope";
 import { validateVendorAssignment } from "../../services/vendor-assignment";
@@ -72,6 +72,7 @@ export function CreateInstallationPlanPage() {
   const { data: savedScope, isLoading: isScopeLoading } = useInstallationPlanScope(planId);
   const { data: savedTemplates, isLoading: isTemplatesLoading } = useInstallationPlanTemplates(planId);
   const savePlan = useSaveInstallationPlan();
+  const createAmcs = useCreatePlanAmcs(planId);
   const queryClient = useQueryClient();
   const { data: vendorAssignmentSearch } = useVendorAssignmentSearch(planId, currentStep === 4);
   const assignmentRows = useMemo(() => toRows(vendorAssignmentSearch?.sites ?? []), [vendorAssignmentSearch]);
@@ -90,16 +91,13 @@ export function CreateInstallationPlanPage() {
   const [scope, setScope] = useState<ScopeValue>([]);
   const [templates, setTemplates] = useState<TemplateValue>([]);
   const [assignments, setAssignments] = useState<AssignmentValue>([]);
-  // Prototype: AMC applicable flags live in localStorage per plan, so they can be turned on even
-  // after publish. Deliberately not part of `assignments`, which publishInstallationPlan sends
-  // to the vendor-assignment API unchanged.
-  const [amcApplicable, setAmcApplicableState] = useState<AmcApplicableValue>(() =>
-    planId ? getAmcApplicable(planId) : {},
+  // Deliberately not part of `assignments`, which publishInstallationPlan sends to the
+  // vendor-assignment API unchanged. Prototype: kept in memory until the AMC APIs are wired.
+  const [amcSetup, setAmcSetup] = useState<AmcSetupValue>({});
+  const amcChoices = useMemo(
+    () => toAmcChoices(amcSetup, assignmentRows, assignments),
+    [amcSetup, assignmentRows, assignments],
   );
-  const setAmcApplicable = (value: AmcApplicableValue) => {
-    setAmcApplicableState(value);
-    if (planId) saveAmcApplicable(planId, value);
-  };
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmError, setConfirmError] = useState<string | undefined>(undefined);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -340,6 +338,17 @@ export function CreateInstallationPlanPage() {
       }
 
       await publishInstallationPlan(planId!, assignments, accessToken ?? undefined, authUser);
+      // The plan is published now, so a failure here must not look like a failed publish: the PM can
+      // still add the AMC from Edit AMC.
+      try {
+        await createAmcs.mutateAsync(amcChoices);
+      } catch (error) {
+        toast.error(translateOr(t, "ES_PM_AMC_CREATE_AFTER_PUBLISH_FAILED", "The plan was submitted, but the AMC could not be created"), {
+          description:
+            extractApiErrorMessage(error) ??
+            translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again."),
+        });
+      }
       // Publishing flips the plan's status to PUBLISHED, which drives the read-only
       // locking on every step. Without this the cache keeps serving the DRAFT plan.
       await queryClient.invalidateQueries({ queryKey: pmKeys.plans() });
@@ -357,6 +366,23 @@ export function CreateInstallationPlanPage() {
     } finally {
       setIsPublishing(false);
     }
+  }
+
+  /** A published plan's Save: turns AMC on for the sites the PM just switched on. */
+  function handleSaveAmc() {
+    createAmcs.mutate(amcChoices, {
+      onSuccess: () => {
+        toast.success(translateOr(t, "ES_PM_AMC_CREATED", "AMC created"));
+        setAmcSetup({});
+      },
+      onError: (error) => {
+        toast.error(translateOr(t, "ES_PM_AMC_CREATE_FAILED", "Could not create the AMC"), {
+          description:
+            extractApiErrorMessage(error) ??
+            translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again."),
+        });
+      },
+    });
   }
 
   function renderStepContent() {
@@ -419,8 +445,8 @@ export function CreateInstallationPlanPage() {
           value={assignments}
           onChange={setAssignments}
           locked={isPublished}
-          amcApplicable={amcApplicable}
-          onAmcApplicableChange={setAmcApplicable}
+          amcSetup={amcSetup}
+          onAmcSetupChange={setAmcSetup}
         />
       );
     }
@@ -441,7 +467,11 @@ export function CreateInstallationPlanPage() {
         size="sm"
         className="px-5"
         onClick={() => setConfirmOpen(true)}
-        disabled={!isAssignmentValid(assignments, assignmentRows) || isNavigationBusy}
+        disabled={
+          !isAssignmentValid(assignments, assignmentRows) ||
+          rowsMissingFieldStaff(amcSetup, assignmentRows).length > 0 ||
+          isNavigationBusy
+        }
       >
         {translateOr(t, "CORE_COMMON_SUBMIT", "Submit")}
       </Button>
@@ -522,6 +552,24 @@ export function CreateInstallationPlanPage() {
             className="px-5"
             onClick={() => void handleSavePublishedPlanDetails()}
             disabled={!(isPlanGeographyDirty || isPlanSectorsDirty) || !isPlanDetailsComplete || savePlan.isPending}
+          >
+            {translateOr(t, "CORE_COMMON_SAVE", "Save")}
+          </Button>
+        </WizardActionFooter>
+      ) : null}
+
+      {isPublished && currentStep === 4 ? (
+        <WizardActionFooter>
+          <Button
+            type="button"
+            size="sm"
+            className="px-5"
+            onClick={handleSaveAmc}
+            disabled={
+              amcChoices.length === 0 ||
+              rowsMissingFieldStaff(amcSetup, assignmentRows).length > 0 ||
+              createAmcs.isPending
+            }
           >
             {translateOr(t, "CORE_COMMON_SAVE", "Save")}
           </Button>

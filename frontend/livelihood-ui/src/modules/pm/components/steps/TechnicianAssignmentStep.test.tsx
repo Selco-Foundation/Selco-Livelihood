@@ -1,13 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useAmcFieldStaffOptions } from "../../hooks/use-amc-field-staff-options";
+import { usePlanAmcBySite } from "../../hooks/use-plan-amc-by-site";
 import { useVendorAssignmentSearch } from "../../hooks/use-vendor-assignment-search";
 import { useVendorOrganisations } from "../../hooks/use-vendor-organisations";
 import { useVendorOrgUsers } from "../../hooks/use-vendor-org-users";
 import type { VendorAssignmentSite } from "../../services/vendor-assignment";
 import {
-  amcApplicableKey,
-  applyAmcToAllSolarRows,
   isAssignmentValid,
   TechnicianAssignmentStep,
   toRows,
@@ -15,6 +15,8 @@ import {
   type TechnicianAssignmentRow,
 } from "./TechnicianAssignmentStep";
 
+vi.mock("../../hooks/use-amc-field-staff-options", () => ({ useAmcFieldStaffOptions: vi.fn() }));
+vi.mock("../../hooks/use-plan-amc-by-site", () => ({ usePlanAmcBySite: vi.fn() }));
 vi.mock("../../hooks/use-vendor-assignment-search", () => ({ useVendorAssignmentSearch: vi.fn() }));
 vi.mock("../../hooks/use-vendor-organisations", () => ({ useVendorOrganisations: vi.fn() }));
 vi.mock("../../hooks/use-vendor-org-users", () => ({ useVendorOrgUsers: vi.fn() }));
@@ -94,6 +96,8 @@ describe("TechnicianAssignmentStep", () => {
     vi.mocked(useVendorAssignmentSearch).mockReturnValue({ data: { sites } } as never);
     vi.mocked(useVendorOrganisations).mockReturnValue({ data: [{ code: "org-1", name: "Vendor Org One" }] } as never);
     vi.mocked(useVendorOrgUsers).mockReturnValue({ data: [{ code: "u1", name: "Tech One" }] } as never);
+    vi.mocked(usePlanAmcBySite).mockReturnValue({ data: {} } as never);
+    vi.mocked(useAmcFieldStaffOptions).mockReturnValue({ data: [] } as never);
   });
 
   it("renders one row per asset, grouped under the site name", () => {
@@ -132,21 +136,17 @@ describe("TechnicianAssignmentStep", () => {
   });
 });
 
-describe("applyAmcToAllSolarRows", () => {
-  it("flags every solar row and skips machine rows", () => {
-    expect(applyAmcToAllSolarRows(toRows(sites), true)).toEqual({ "f1:SOLAR:1": true });
-  });
-});
-
 describe("TechnicianAssignmentStep AMC applicable column", () => {
   beforeEach(() => {
     vi.mocked(useVendorAssignmentSearch).mockReturnValue({ data: { sites } } as never);
     vi.mocked(useVendorOrganisations).mockReturnValue({ data: [] } as never);
     vi.mocked(useVendorOrgUsers).mockReturnValue({ data: [] } as never);
+    vi.mocked(usePlanAmcBySite).mockReturnValue({ data: {} } as never);
+    vi.mocked(useAmcFieldStaffOptions).mockReturnValue({ data: [] } as never);
   });
 
   it("shows a switch for the solar asset only, defaulting to No", () => {
-    render(<TechnicianAssignmentStep planId="plan-1" value={[]} onChange={vi.fn()} onAmcApplicableChange={vi.fn()} />);
+    render(<TechnicianAssignmentStep planId="plan-1" value={[]} onChange={vi.fn()} onAmcSetupChange={vi.fn()} />);
 
     expect(screen.getByRole("switch", { name: "AMC applicable, Site One, Solar Panel" })).not.toBeChecked();
     expect(screen.queryByRole("switch", { name: "AMC applicable, Site One, Pulverizer" })).not.toBeInTheDocument();
@@ -155,36 +155,80 @@ describe("TechnicianAssignmentStep AMC applicable column", () => {
 
   it("toggling a row reports the new flag keyed by site and sequence", async () => {
     const user = userEvent.setup();
-    const onAmcApplicableChange = vi.fn();
+    const onAmcSetupChange = vi.fn();
     render(
-      <TechnicianAssignmentStep planId="plan-1" value={[]} onChange={vi.fn()} onAmcApplicableChange={onAmcApplicableChange} />,
+      <TechnicianAssignmentStep planId="plan-1" value={[]} onChange={vi.fn()} onAmcSetupChange={onAmcSetupChange} />,
     );
 
     await user.click(screen.getByRole("switch", { name: "AMC applicable, Site One, Solar Panel" }));
 
-    expect(onAmcApplicableChange).toHaveBeenCalledWith({
-      [amcApplicableKey({ facilityId: "f1", componentSequence: 1 })]: true,
-    });
+    expect(onAmcSetupChange).toHaveBeenCalledWith({ "f1:SOLAR:1": { applicable: true } });
   });
 
   it("Apply for all switches every solar row on", async () => {
     const user = userEvent.setup();
-    const onAmcApplicableChange = vi.fn();
+    const onAmcSetupChange = vi.fn();
     render(
-      <TechnicianAssignmentStep planId="plan-1" value={[]} onChange={vi.fn()} onAmcApplicableChange={onAmcApplicableChange} />,
+      <TechnicianAssignmentStep planId="plan-1" value={[]} onChange={vi.fn()} onAmcSetupChange={onAmcSetupChange} />,
     );
 
     await user.click(screen.getByRole("switch", { name: "Apply for all" }));
 
-    expect(onAmcApplicableChange).toHaveBeenCalledWith({ "f1:SOLAR:1": true });
+    expect(onAmcSetupChange).toHaveBeenCalledWith({ "f1:SOLAR:1": { applicable: true } });
   });
 
   it("keeps the AMC switches usable when the plan is locked (published)", () => {
     render(
-      <TechnicianAssignmentStep planId="plan-1" value={[]} onChange={vi.fn()} locked onAmcApplicableChange={vi.fn()} />,
+      <TechnicianAssignmentStep planId="plan-1" value={[]} onChange={vi.fn()} locked onAmcSetupChange={vi.fn()} />,
     );
 
     expect(screen.getByRole("switch", { name: "Apply for all" })).toBeEnabled();
     expect(screen.getByRole("switch", { name: "AMC applicable, Site One, Solar Panel" })).toBeEnabled();
+  });
+
+  it("shows a solar site's running AMC read-only instead of a switch", () => {
+    vi.mocked(usePlanAmcBySite).mockReturnValue({
+      data: {
+        f1: {
+          id: "amc-1",
+          status: "PENDING_ACTIVATION",
+          activityFacilityId: "af1",
+          visitFrequencyMonths: 6,
+          durationMonths: 24,
+          fieldStaff: { uuid: "s1", name: "Ravi Kumar" },
+        },
+      },
+    } as never);
+    render(<TechnicianAssignmentStep planId="plan-1" value={[]} onChange={vi.fn()} locked onAmcSetupChange={vi.fn()} />);
+
+    expect(screen.queryByRole("switch", { name: "AMC applicable, Site One, Solar Panel" })).not.toBeInTheDocument();
+    expect(screen.getByText("Pending activation")).toBeInTheDocument();
+  });
+
+  it("lists the AMC field staff of the row's organization once AMC is on", async () => {
+    const user = userEvent.setup();
+    const onAmcSetupChange = vi.fn();
+    vi.mocked(useAmcFieldStaffOptions).mockReturnValue({ data: [{ code: "s1", name: "Ravi Kumar" }] } as never);
+    render(
+      <TechnicianAssignmentStep
+        planId="plan-1"
+        value={[{ facilityId: "f1", componentType: "SOLAR", componentSequence: 1, vendorOrgId: "org-1" }]}
+        onChange={vi.fn()}
+        amcSetup={{ "f1:SOLAR:1": { applicable: true } }}
+        onAmcSetupChange={onAmcSetupChange}
+      />,
+    );
+
+    expect(useAmcFieldStaffOptions).toHaveBeenCalledWith("org-1");
+    await user.click(screen.getByRole("button", { name: "AMC field staff, Site One, Solar Panel" }));
+    await user.click(screen.getByText("Ravi Kumar"));
+    expect(onAmcSetupChange).toHaveBeenCalledWith({
+      "f1:SOLAR:1": { applicable: true, fieldStaffId: "s1", fieldStaffName: "Ravi Kumar" },
+    });
+  });
+
+  it("shows no field staff dropdown while AMC is off", () => {
+    render(<TechnicianAssignmentStep planId="plan-1" value={[]} onChange={vi.fn()} onAmcSetupChange={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /AMC field staff/ })).not.toBeInTheDocument();
   });
 });

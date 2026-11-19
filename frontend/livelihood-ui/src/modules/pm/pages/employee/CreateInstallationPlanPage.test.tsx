@@ -7,6 +7,7 @@ import { useInstallationPlanReviewer } from "../../hooks/use-installation-plan-r
 import { useInstallationPlanScope } from "../../hooks/use-installation-plan-scope";
 import { useInstallationPlanTemplates } from "../../hooks/use-installation-plan-templates";
 import { useProjectById } from "../../hooks/use-project-by-id";
+import { useCreatePlanAmcs } from "../../hooks/use-create-plan-amcs";
 import { useSaveInstallationPlan } from "../../hooks/use-save-installation-plan";
 import { useVendorAssignmentSearch } from "../../hooks/use-vendor-assignment-search";
 import { checkInstallationScope } from "../../services/installation-scope";
@@ -34,6 +35,7 @@ vi.mock("../../hooks/use-installation-plan-reviewer", () => ({ useInstallationPl
 vi.mock("../../hooks/use-installation-plan-scope", () => ({ useInstallationPlanScope: vi.fn() }));
 vi.mock("../../hooks/use-installation-plan-templates", () => ({ useInstallationPlanTemplates: vi.fn() }));
 vi.mock("../../hooks/use-save-installation-plan", () => ({ useSaveInstallationPlan: vi.fn() }));
+vi.mock("../../hooks/use-create-plan-amcs", () => ({ useCreatePlanAmcs: vi.fn() }));
 vi.mock("../../hooks/use-vendor-assignment-search", () => ({ useVendorAssignmentSearch: vi.fn() }));
 vi.mock("../../services/installation-scope", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../services/installation-scope")>();
@@ -122,15 +124,18 @@ vi.mock("../../components/steps/TechnicianAssignmentStep", async (importOriginal
     ...actual,
     TechnicianAssignmentStep: ({
       onChange,
-      onAmcApplicableChange,
+      onAmcSetupChange,
     }: {
       onChange: (v: unknown[]) => void;
-      onAmcApplicableChange?: (v: Record<string, boolean>) => void;
+      onAmcSetupChange?: (v: Record<string, unknown>) => void;
     }) => (
       <div>
         <span>Technician Assignment Step</span>
-        <button type="button" onClick={() => onAmcApplicableChange?.({ "f1:SOLAR:1": true })}>
+        <button type="button" onClick={() => onAmcSetupChange?.({ "f1:SOLAR:1": { applicable: true, fieldStaffId: "s1" } })}>
           Mark AMC Applicable
+        </button>
+        <button type="button" onClick={() => onAmcSetupChange?.({ "f1:SOLAR:1": { applicable: true } })}>
+          Mark AMC Without Field Staff
         </button>
         <button
           type="button"
@@ -165,6 +170,7 @@ beforeEach(() => {
   vi.mocked(useInstallationPlanScope).mockReturnValue({ data: [], isLoading: false } as never);
   vi.mocked(useInstallationPlanTemplates).mockReturnValue({ data: [], isLoading: false } as never);
   vi.mocked(useVendorAssignmentSearch).mockReturnValue({ data: { sites: [] } } as never);
+  vi.mocked(useCreatePlanAmcs).mockReturnValue({ mutateAsync: vi.fn(), mutate: vi.fn(), isPending: false } as never);
   vi.mocked(useSaveInstallationPlan).mockReturnValue({
     mutateAsync: vi.fn().mockResolvedValue({ plan: { id: "plan-1" } }),
     isPending: false,
@@ -369,6 +375,40 @@ describe("CreateInstallationPlanPage", () => {
     expect(await screen.findByText("Installation Plan Created!")).toBeInTheDocument();
   });
 
+  it("keeps Submit disabled while a solar row has AMC on but no AMC field staff", async () => {
+    const user = userEvent.setup();
+    mockSearchState = { projectId: "project-1", planId: "plan-1", step: 4 };
+    vi.mocked(useInstallationPlanById).mockReturnValue({
+      data: { id: "plan-1", tenantId: "tenant-1", projectId: "project-1", name: "Plan A", additionalDetails: {} },
+    } as never);
+    vi.mocked(useInstallationPlanScope).mockReturnValue({
+      data: [{ siteId: "f1", included: true, solutionCode: "SOLAR" }],
+      isLoading: false,
+    } as never);
+    vi.mocked(useInstallationPlanTemplates).mockReturnValue({
+      data: [{ solutionCode: "SOLAR", uploaded: true }],
+      isLoading: false,
+    } as never);
+    vi.mocked(useVendorAssignmentSearch).mockReturnValue({
+      data: {
+        sites: [
+          {
+            facilityId: "f1",
+            assets: [{ componentType: "SOLAR", componentSequence: 1, vendorOrgId: "org-1", vendorUserId: "u1" }],
+          },
+        ],
+      },
+    } as never);
+    renderPage();
+    expect(screen.getByRole("button", { name: "Submit" })).toBeEnabled();
+
+    await user.click(screen.getByRole("button", { name: "Mark AMC Without Field Staff" }));
+    expect(screen.getByRole("button", { name: "Submit" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Mark AMC Applicable" }));
+    expect(screen.getByRole("button", { name: "Submit" })).toBeEnabled();
+  });
+
   it("does not send the UI-only AMC applicable flags in the publish payload", async () => {
     const user = userEvent.setup();
     mockSearchState = { projectId: "project-1", planId: "plan-1", step: 4 };
@@ -400,6 +440,8 @@ describe("CreateInstallationPlanPage", () => {
       projectId: "project-1",
       additionalDetails: { status: "PUBLISHED" },
     });
+    const createAmcsMutateAsync = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(useCreatePlanAmcs).mockReturnValue({ mutateAsync: createAmcsMutateAsync, mutate: vi.fn(), isPending: false } as never);
     renderPage();
 
     await user.click(screen.getByRole("button", { name: "Mark AMC Applicable" }));
@@ -409,6 +451,9 @@ describe("CreateInstallationPlanPage", () => {
     await waitFor(() => expect(publishInstallationPlan).toHaveBeenCalled());
     const [, publishedAssignments] = vi.mocked(publishInstallationPlan).mock.calls[0];
     expect(JSON.stringify(publishedAssignments)).not.toMatch(/amc/i);
+    await waitFor(() =>
+      expect(createAmcsMutateAsync).toHaveBeenCalledWith([{ facilityId: "f1", vendorOrgId: "org-1", fieldStaffId: "s1" }]),
+    );
   });
 
   it("shows the validation errors when submitting fails vendor-assignment validation", async () => {

@@ -2,31 +2,26 @@ import { translateOr, useTranslate } from "@/shared";
 import { Input, Pagination, SearchableSelect, Switch } from "@/ui";
 import { Users } from "lucide-react";
 import { useMemo, useState } from "react";
+import { usePlanAmcBySite } from "../../hooks/use-plan-amc-by-site";
 import { useVendorAssignmentSearch } from "../../hooks/use-vendor-assignment-search";
 import { useVendorOrganisations } from "../../hooks/use-vendor-organisations";
 import { useVendorOrgUsers } from "../../hooks/use-vendor-org-users";
 import type { InstallationPlanAssignmentEntry } from "../../types/installation-plan";
 import type { VendorAssignmentSite } from "../../services/vendor-assignment";
+import {
+  amcApplicableKey,
+  isAmcApplicable,
+  withAmcApplicable,
+  withAmcApplicableForAll,
+  withAmcFieldStaff,
+  type AmcSetupValue,
+} from "../../utils/amc-setup";
+import { AmcFieldStaffSelect } from "../AmcFieldStaffSelect";
 import { StepSectionCard } from "../StepSectionCard";
 
 const DEFAULT_PAGE_SIZE = 10;
 
 export type AssignmentValue = InstallationPlanAssignmentEntry[];
-
-/** Per solar asset "AMC applicable" flags, keyed by `amcApplicableKey`. Kept apart from
- *  `AssignmentValue` on purpose: assignment entries are sent to the vendor-assignment API as-is. */
-export type AmcApplicableValue = Record<string, boolean>;
-
-export function amcApplicableKey(row: Pick<TechnicianAssignmentRow, "facilityId" | "componentSequence">): string {
-  return `${row.facilityId}:SOLAR:${row.componentSequence}`;
-}
-
-/** Sets every solar row of the plan (not only the visible page) to `applicable`. */
-export function applyAmcToAllSolarRows(rows: TechnicianAssignmentRow[], applicable: boolean): AmcApplicableValue {
-  return Object.fromEntries(
-    rows.filter((row) => row.componentType === "SOLAR").map((row) => [amcApplicableKey(row), applicable]),
-  );
-}
 
 export interface TechnicianAssignmentRow {
   facilityId: string;
@@ -100,8 +95,8 @@ interface TechnicianAssignmentStepProps {
   value: AssignmentValue;
   onChange: (value: AssignmentValue) => void;
   locked?: boolean;
-  amcApplicable?: AmcApplicableValue;
-  onAmcApplicableChange?: (value: AmcApplicableValue) => void;
+  amcSetup?: AmcSetupValue;
+  onAmcSetupChange?: (value: AmcSetupValue) => void;
 }
 
 function VendorUserSelect({
@@ -142,12 +137,14 @@ export function TechnicianAssignmentStep({
   value,
   onChange,
   locked = false,
-  amcApplicable = {},
-  onAmcApplicableChange,
+  amcSetup = {},
+  onAmcSetupChange,
 }: Readonly<TechnicianAssignmentStepProps>) {
   const { t } = useTranslate();
   const { data: searchResult } = useVendorAssignmentSearch(planId);
   const { data: organisations = [] } = useVendorOrganisations();
+  // Solar sites that already have a running AMC (published plans): shown read-only below.
+  const { data: existingAmcs = {} } = usePlanAmcBySite(planId);
   const sites = useMemo(() => searchResult?.sites ?? [], [searchResult]);
 
   // Paginated by site (end user), not by raw asset row, so a site's assets never split across
@@ -161,11 +158,14 @@ export function TechnicianAssignmentStep({
   );
 
   const rows = useMemo(() => toRows(pagedSites), [pagedSites]);
-  const allSolarRows = useMemo(() => toRows(sites).filter((row) => row.componentType === "SOLAR"), [sites]);
+  const allSolarRows = useMemo(
+    () => toRows(sites).filter((row) => row.componentType === "SOLAR" && !existingAmcs[row.facilityId]),
+    [sites, existingAmcs],
+  );
   const allSolarApplicable =
-    allSolarRows.length > 0 && allSolarRows.every((row) => amcApplicable[amcApplicableKey(row)]);
+    allSolarRows.length > 0 && allSolarRows.every((row) => isAmcApplicable(amcSetup, row));
   // Deliberately not tied to `locked`: the PM can turn AMC on for any end user after publish.
-  const amcDisabled = !onAmcApplicableChange;
+  const amcDisabled = !onAmcSetupChange;
   // Pre-counted once per render instead of a rows.filter() inside the map below, which made
   // rendering the table O(n^2) in the number of assets.
   const assetCountByFacilityId = useMemo(() => {
@@ -209,7 +209,7 @@ export function TechnicianAssignmentStep({
   }
 
   function setRowAmcApplicable(row: TechnicianAssignmentRow, applicable: boolean) {
-    onAmcApplicableChange?.({ ...amcApplicable, [amcApplicableKey(row)]: applicable });
+    onAmcSetupChange?.(withAmcApplicable(amcSetup, row, applicable));
   }
 
   function handleOrganizationChange(row: TechnicianAssignmentRow, vendorOrgId: string) {
@@ -221,6 +221,10 @@ export function TechnicianAssignmentStep({
       vendorUserName: undefined,
       vendorEmail: undefined,
     });
+    // The AMC field staff must belong to the row's organisation, so a new organisation clears it.
+    if (row.componentType === "SOLAR" && isAmcApplicable(amcSetup, row)) {
+      onAmcSetupChange?.(withAmcFieldStaff(amcSetup, row, {}));
+    }
   }
 
   return (
@@ -244,13 +248,14 @@ export function TechnicianAssignmentStep({
         ) : null}
         <div className="livelihood-card overflow-hidden">
           <div className="overflow-x-auto">
-          <table className="w-full min-w-[1300px] table-fixed border-collapse text-sm">
+          <table className="w-full min-w-[1550px] table-fixed border-collapse text-sm">
             <colgroup>
               <col className="w-[180px]" />
               <col className="w-[220px]" />
               <col className="w-[200px]" />
               <col className="w-[240px]" />
               <col className="w-[220px]" />
+              <col className="w-[240px]" />
               <col className="w-[240px]" />
             </colgroup>
             <thead>
@@ -269,7 +274,7 @@ export function TechnicianAssignmentStep({
                         checked={allSolarApplicable}
                         disabled={amcDisabled || allSolarRows.length === 0}
                         onCheckedChange={(checked) =>
-                          onAmcApplicableChange?.({ ...amcApplicable, ...applyAmcToAllSolarRows(allSolarRows, checked) })
+                          onAmcSetupChange?.(withAmcApplicableForAll(amcSetup, allSolarRows, checked))
                         }
                         aria-label={translateOr(t, "ES_PM_AMC_APPLY_FOR_ALL", "Apply for all")}
                       />
@@ -281,6 +286,7 @@ export function TechnicianAssignmentStep({
                   translateOr(t, "ES_PM_VENDOR_ORGANIZATION", "Vendor Organization"),
                   translateOr(t, "ES_PM_VENDOR", "Vendor"),
                   translateOr(t, "ES_PM_EMAIL_ID", "Email ID"),
+                  translateOr(t, "ES_PM_AMC_FIELD_STAFF", "AMC field staff"),
                 ].map((label) => (
                   <th key={label} className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {label}
@@ -294,6 +300,7 @@ export function TechnicianAssignmentStep({
                 const previousRow = rows[index - 1];
                 const startsSiteGroup = previousRow?.facilityId !== row.facilityId;
                 const siteAssetCount = assetCountByFacilityId.get(row.facilityId) ?? 1;
+                const existingAmc = row.componentType === "SOLAR" ? existingAmcs[row.facilityId] : undefined;
 
                 return (
                   <tr key={`${row.facilityId}-${row.componentType}-${row.componentSequence}`} className="border-b border-border/70">
@@ -308,15 +315,24 @@ export function TechnicianAssignmentStep({
                       </span>
                     </td>
                     <td className="px-5 py-4">
-                      {row.componentType === "SOLAR" ? (
+                      {existingAmc ? (
+                        <div className="space-y-0.5">
+                          <span className="text-sm text-foreground">{translateOr(t, "CORE_COMMON_YES", "Yes")}</span>
+                          <p className="text-xs text-muted-foreground">
+                            {existingAmc.status === "ACTIVE"
+                              ? translateOr(t, "ES_PM_AMC_STATUS_ACTIVE", "Active")
+                              : translateOr(t, "ES_PM_AMC_PENDING_ACTIVATION", "Pending activation")}
+                          </p>
+                        </div>
+                      ) : row.componentType === "SOLAR" ? (
                         <label className="flex items-center gap-2 text-sm text-foreground">
                           <Switch
-                            checked={Boolean(amcApplicable[amcApplicableKey(row)])}
+                            checked={isAmcApplicable(amcSetup, row)}
                             disabled={amcDisabled}
                             onCheckedChange={(checked) => setRowAmcApplicable(row, checked)}
                             aria-label={`${translateOr(t, "ES_PM_AMC_APPLICABLE", "AMC applicable")}, ${rowLabel(row)}`}
                           />
-                          {amcApplicable[amcApplicableKey(row)]
+                          {isAmcApplicable(amcSetup, row)
                             ? translateOr(t, "CORE_COMMON_YES", "Yes")
                             : translateOr(t, "CORE_COMMON_NO", "No")}
                         </label>
@@ -349,6 +365,19 @@ export function TechnicianAssignmentStep({
                         disabled
                         placeholder={translateOr(t, "ES_PM_EMAIL_PLACEHOLDER", "email@example.com")}
                       />
+                    </td>
+                    <td className="px-5 py-4">
+                      {row.componentType === "SOLAR" && isAmcApplicable(amcSetup, row) && !existingAmc ? (
+                        <AmcFieldStaffSelect
+                          rowLabel={rowLabel(row)}
+                          organizationId={assignment?.vendorOrgId}
+                          value={amcSetup[amcApplicableKey(row)]?.fieldStaffId ?? ""}
+                          onChange={(id, name) => onAmcSetupChange?.(withAmcFieldStaff(amcSetup, row, { id, name }))}
+                          disabled={amcDisabled}
+                        />
+                      ) : existingAmc ? (
+                        <span className="text-foreground">{existingAmc.fieldStaff?.name ?? "-"}</span>
+                      ) : null}
                     </td>
                   </tr>
                 );
