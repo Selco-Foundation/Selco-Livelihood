@@ -1245,7 +1245,7 @@ class _InstallationImagesPageState extends State<InstallationImagesPage> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  for (final requirement in requirements)
+                  for (final (index, requirement) in requirements.indexed)
                     Padding(
                       padding: const EdgeInsets.only(bottom: spacer4),
                       child: DigitCard(
@@ -1254,7 +1254,7 @@ class _InstallationImagesPageState extends State<InstallationImagesPage> {
                         children: [
                           const SizedBox(width: double.infinity),
                           Text(
-                            '${requirement.code}. '
+                            '${index + 1}. '
                             '${requirement.description}',
                             style: textTheme.bodyL.copyWith(
                               color: theme.colorTheme.primary.primary2,
