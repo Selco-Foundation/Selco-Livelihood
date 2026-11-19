@@ -8,7 +8,7 @@ import { AmcFieldStaffSelect } from "../../components/AmcFieldStaffSelect";
 import { DateField } from "../../components/DateField";
 import { StepSectionCard } from "../../components/StepSectionCard";
 import { WizardActionFooter } from "../../components/WizardActionFooter";
-import { AMC_FREQUENCY_OPTIONS, AMC_YEARS_OPTIONS } from "../../constants/amc-options";
+import { useAmcOptions } from "../../hooks/use-amc-options";
 import { useAmcSchedules } from "../../hooks/use-amc-schedules";
 import { useInstallationPlanById } from "../../hooks/use-installation-plan-by-id";
 import { useProjectById } from "../../hooks/use-project-by-id";
@@ -37,6 +37,7 @@ export function EditAmcPage() {
   const updateSchedules = useUpdateAmcSchedules(planId);
 
   const originalRows = useMemo(() => toAmcScheduleRows(response), [response]);
+  const { frequencyOptions: amcFrequencies, yearsOptions: amcYears } = useAmcOptions();
   const [rows, setRows] = useState<AmcScheduleRow[]>([]);
   const [errors, setErrors] = useState<AmcScheduleRowError[]>([]);
   const [addOpen, setAddOpen] = useState(false);
@@ -48,11 +49,11 @@ export function EditAmcPage() {
 
   const isDirty = isAmcScheduleDirty(originalRows, rows);
 
-  const frequencyOptions = AMC_FREQUENCY_OPTIONS.map((option) => ({
+  const frequencyOptions = amcFrequencies.map((option) => ({
     code: String(option.months),
     name: translateOr(t, option.labelKey, option.fallback),
   }));
-  const yearsOptions = AMC_YEARS_OPTIONS.map((option) => ({
+  const yearsOptions = amcYears.map((option) => ({
     code: String(option.years),
     name: translateOr(t, option.labelKey, option.fallback),
   }));

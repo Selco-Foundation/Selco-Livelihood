@@ -1,7 +1,8 @@
 import { extractApiErrorMessage, translateOr, useTranslate } from "@/shared";
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, SearchableSelect, toast } from "@/ui";
 import { useMemo, useState } from "react";
-import { AMC_DEFAULT_FREQUENCY_MONTHS, AMC_DEFAULT_YEARS, AMC_FREQUENCY_OPTIONS, AMC_YEARS_OPTIONS } from "../constants/amc-options";
+import { AMC_DEFAULT_FREQUENCY_MONTHS, AMC_DEFAULT_YEARS } from "../constants/amc-options";
+import { useAmcOptions } from "../hooks/use-amc-options";
 import { useCreatePlanAmcs } from "../hooks/use-create-plan-amcs";
 import { usePlanAmcBySite } from "../hooks/use-plan-amc-by-site";
 import { useVendorAssignmentSearch } from "../hooks/use-vendor-assignment-search";
@@ -18,6 +19,7 @@ export function AddAmcDialog({ planId, open, onOpenChange }: Readonly<AddAmcDial
   const { t } = useTranslate();
   const { data: assignment } = useVendorAssignmentSearch(planId);
   const { data: amcBySite = {} } = usePlanAmcBySite(planId);
+  const { frequencyOptions, yearsOptions } = useAmcOptions();
   const createAmcs = useCreatePlanAmcs(planId);
   const [facilityId, setFacilityId] = useState("");
   const [fieldStaffId, setFieldStaffId] = useState("");
@@ -78,13 +80,13 @@ export function AddAmcDialog({ planId, open, onOpenChange }: Readonly<AddAmcDial
           <SearchableSelect
             label={translateOr(t, "ES_PM_AMC_FREQUENCY", "AMC frequency")}
             value={String(frequencyMonths)}
-            options={options(AMC_FREQUENCY_OPTIONS, AMC_FREQUENCY_OPTIONS.map((option) => option.months))}
+            options={options(frequencyOptions, frequencyOptions.map((option) => option.months))}
             onChange={(option) => setFrequencyMonths(Number(option?.code ?? AMC_DEFAULT_FREQUENCY_MONTHS))}
           />
           <SearchableSelect
             label={translateOr(t, "ES_PM_AMC_YEARS", "Number of years")}
             value={String(years)}
-            options={options(AMC_YEARS_OPTIONS, AMC_YEARS_OPTIONS.map((option) => option.years))}
+            options={options(yearsOptions, yearsOptions.map((option) => option.years))}
             onChange={(option) => setYears(Number(option?.code ?? AMC_DEFAULT_YEARS))}
           />
           <div className="space-y-1.5">

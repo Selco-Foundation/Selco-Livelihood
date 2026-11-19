@@ -31,6 +31,20 @@ vi.mock("@/ui", async (importOriginal) => {
 
 vi.mock("../../hooks/use-project-by-id", () => ({ useProjectById: vi.fn() }));
 vi.mock("../../hooks/use-installation-plan-by-id", () => ({ useInstallationPlanById: vi.fn() }));
+vi.mock("../../hooks/use-amc-options", () => ({
+  useAmcOptions: () => ({
+    frequencyOptions: [
+      { months: 1, labelKey: "AMC_FREQUENCY_ONE_MONTH", fallback: "1 month" },
+      { months: 6, labelKey: "AMC_FREQUENCY_SIX_MONTHS", fallback: "6 months" },
+      { months: 12, labelKey: "AMC_FREQUENCY_ONE_YEAR", fallback: "1 year" },
+    ],
+    yearsOptions: [
+      { years: 1, labelKey: "AMC_DURATION_ONE_YEAR", fallback: "1 year" },
+      { years: 2, labelKey: "AMC_DURATION_TWO_YEARS", fallback: "2 years" },
+      { years: 3, labelKey: "AMC_DURATION_THREE_YEARS", fallback: "3 years" },
+    ],
+  }),
+}));
 vi.mock("../../hooks/use-amc-schedules", () => ({ useAmcSchedules: vi.fn() }));
 vi.mock("../../hooks/use-update-amc-schedules", () => ({ useUpdateAmcSchedules: vi.fn() }));
 
