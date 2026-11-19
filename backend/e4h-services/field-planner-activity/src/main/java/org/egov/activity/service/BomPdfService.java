@@ -353,6 +353,8 @@ public class BomPdfService {
             data.put("report_no", bom.getData().get("report_number"));
             data.put("report_po_wo_number", bom.getData().get("purchase_order_number"));
         }
+        fillBlankSystemUnits(data, requestInfo, activityFacility.getTenantId());
+        data.putAll(findMachineSlotData(requestInfo, activityFacility));
 
         Asset asset = findAssetForActivityFacility(requestInfo, activityFacility.getId(), activityFacility.getTenantId());
         Map<String, Object> assetDetails = asset.getAssetDetails() != null ? asset.getAssetDetails() : Map.of();
@@ -408,6 +410,82 @@ public class BomPdfService {
         data.put("technician_submitted_at", nowFormatted);
 
         return data;
+    }
+
+    /**
+     * Units (V, A, W, Ω, Hz) are fixed, read-only values of the shared system form, but rows
+     * seeded before vendor assignment learnt them hold "" for every unit, and the app saves that
+     * "" back. pdf-service prints a blank as NA, so any unit still blank here takes the form's value.
+     * Never overwrites a non-blank value.
+     */
+    private void fillBlankSystemUnits(Map<String, Object> data, RequestInfo requestInfo, String tenantId) {
+        Map<String, String> defaults = mdmsUtils.fetchSystemFieldDefaults(requestInfo, tenantId);
+        defaults.forEach((name, value) -> {
+            Object current = data.get(name);
+            if (current == null || String.valueOf(current).isBlank()) {
+                data.put(name, value);
+            }
+        });
+    }
+
+    /**
+     * The machine_N_* values for the report's Associated Machines table. They are not on the SOLAR
+     * row: vendor assignment gives each machine its own MACHINE asset and bom row, and only that
+     * row carries its slot's machine_N_product/make/capacity/quantity.
+     *
+     * <p>One bom search by site, then only the rows this plan created for this site: a site can
+     * hold rows from several plans, so a MACHINE row counts only when its activity facility id is
+     * the one vendor assignment derives for (tenant, plan, site, MACHINE, its sequence). Returns an
+     * empty map for a solar-only Solution, or on any lookup failure, so the report still generates.
+     */
+    private Map<String, Object> findMachineSlotData(RequestInfo requestInfo, ActivityFacility solar) {
+        Map<String, Object> machineData = new LinkedHashMap<>();
+        if (solar.getFacilityId() == null || solar.getFieldPlanId() == null) {
+            log.warn("Cannot look up machines for activityFacilityId: {} - facilityId or fieldPlanId missing",
+                    solar.getId());
+            return machineData;
+        }
+        try {
+            BomSearchRequest searchRequest = BomSearchRequest.builder()
+                    .requestInfo(requestInfo)
+                    .criteria(BomSearchCriteria.builder()
+                            .facilityId(List.of(solar.getFacilityId()))
+                            .tenantId(solar.getTenantId())
+                            .build())
+                    .build();
+            List<BillOfMaterial> boms = bomService.searchBillOfMaterials(searchRequest,
+                    activityConfiguration.getMaxLimit(), 0, solar.getTenantId(), false, null);
+            for (BillOfMaterial bom : boms == null ? List.<BillOfMaterial>of() : boms) {
+                if (bom.getData() == null || !isMachineOfSamePlan(bom, solar)) {
+                    continue;
+                }
+                bom.getData().forEach((key, value) -> {
+                    if (key.startsWith("machine_")) {
+                        machineData.put(key, value);
+                    }
+                });
+            }
+            log.info("Associated machines for activityFacilityId: {} - {} machine field(s) found",
+                    solar.getId(), machineData.size());
+        } catch (Exception e) {
+            log.error("Machine lookup failed for activityFacilityId: {} - Associated Machines left blank",
+                    solar.getId(), e);
+        }
+        return machineData;
+    }
+
+    private boolean isMachineOfSamePlan(BillOfMaterial bom, ActivityFacility solar) {
+        Map<String, Object> details = bom.getAdditionalDetails();
+        if (details == null || !COMPONENT_TYPE_MACHINE.equalsIgnoreCase(String.valueOf(details.get("componentType")))) {
+            return false;
+        }
+        Object sequence = details.get("componentSequence");
+        if (!(sequence instanceof Number)) {
+            return false;
+        }
+        String expectedId = VendorAssignmentService.activityFacilityId(solar.getTenantId(), solar.getFieldPlanId(),
+                solar.getFacilityId(), COMPONENT_TYPE_MACHINE, ((Number) sequence).intValue());
+        return expectedId.equals(bom.getActivityFacilityId());
     }
 
     /**
