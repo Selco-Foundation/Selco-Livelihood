@@ -33,7 +33,7 @@ public class StartupRunner implements CommandLineRunner {
         configMap.put("202526PASF0000395", activityConfiguration.getIccreportMultiStageProcessingMillet());
         configMap.put("202526PASF0000248", activityConfiguration.getIccreportRefrigerator());
         configMap.put("202526PASF0000387", activityConfiguration.getIccreportMultiStageProcessing());
-        configMap.put("202526PASF0000460", activityConfiguration.getIccreportTextileLighting());
+        configMap.put("202526PASF0000460", activityConfiguration.getIccreportLightManufacturing());
         configMap.put("202526PASF0000317", activityConfiguration.getIccreportRoaster());
         configMap.put("202526PASF0000371", activityConfiguration.getIccreportRiceHuller());
         configMap.put("202526PASF0000390", activityConfiguration.getIccreportOilMill());
