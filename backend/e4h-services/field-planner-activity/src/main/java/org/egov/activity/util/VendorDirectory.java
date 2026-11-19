@@ -119,6 +119,52 @@ public class VendorDirectory {
         return members;
     }
 
+    /**
+     * The organisation the given vendor user belongs to, from vendor-registry's org-user search.
+     * asset.vendorId holds a vendor user's uuid, so this is how a report gets from an asset to its
+     * vendor organisation. Returns null if userId/tenantId is blank, the user is in no organisation
+     * (or only in ones they were removed from), or the lookup fails - never throws.
+     */
+    public String organisationIdOfUser(RequestInfo requestInfo, String tenantId, String userId) {
+        if (!StringUtils.hasText(userId) || !StringUtils.hasText(tenantId)) {
+            return null;
+        }
+        try {
+            OrgUserSearchRequest searchRequest = OrgUserSearchRequest.builder()
+                    .requestInfo(withUserType(requestInfo))
+                    .criteria(OrgUserSearchCriteria.builder()
+                            .userId(List.of(userId))
+                            .tenantId(tenantId)
+                            .build())
+                    .build();
+
+            StringBuilder url = new StringBuilder(configuration.getOrgUserHost())
+                    .append(configuration.getOrgUserSearchUrl())
+                    .append("?tenantId=").append(tenantId)
+                    .append("&offset=0&limit=").append(PAGE_LIMIT);
+
+            Map<String, Object> raw = serviceRequest.fetchResult(url, searchRequest,
+                    new TypeReference<Map<String, Object>>() {
+                    });
+            OrgUserResponseSearch response = mapper.convertValue(raw, OrgUserResponseSearch.class);
+            List<OrgUserEnriched> orgUsers = response == null ? null : response.getOrgUsers();
+            if (!CollectionUtils.isEmpty(orgUsers)) {
+                for (OrgUserEnriched orgUser : orgUsers) {
+                    if (!Boolean.TRUE.equals(orgUser.getIsDeleted())
+                            && userId.equals(orgUser.getUserId())
+                            && StringUtils.hasText(orgUser.getOrganizationId())) {
+                        return orgUser.getOrganizationId();
+                    }
+                }
+            }
+            log.info("org-user search found no organisation for user {} in tenant {}", userId, tenantId);
+            return null;
+        } catch (Exception e) {
+            log.warn("Could not resolve organisation of user {} in tenant {}: {}", userId, tenantId, e.getMessage());
+            return null;
+        }
+    }
+
     /** The lookup key {@link #membersOf} returns its map under. */
     public static String key(String organisationId, String userId) {
         return organisationId + "|" + userId;
@@ -126,8 +172,8 @@ public class VendorDirectory {
 
     /**
      * The organisation's display name, resolved live from vendor-registry by id. Used wherever a
-     * report or notification needs a readable vendor name but only the id is on hand (e.g. an
-     * asset's vendorId). Returns null if organisationId/tenantId is blank, the lookup fails, or no
+     * report or notification needs a readable vendor name but only the id is on hand (e.g. a BOM's
+     * vendorOrgId; an asset's vendorId is a user, see {@link #organisationIdOfUser}). Returns null if organisationId/tenantId is blank, the lookup fails, or no
      * organisation matches - callers should render that as an empty field rather than fail the report.
      */
     public String organisationName(RequestInfo requestInfo, String tenantId, String organisationId) {
