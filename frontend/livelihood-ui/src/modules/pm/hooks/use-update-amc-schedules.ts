@@ -1,8 +1,8 @@
-import { useAuthStore } from "@/shared";
+import { tenantId as getTenantId, useAuthStore } from "@/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { updateAmcSchedules } from "../services/amc-schedule";
-import type { AmcScheduleRow, RawAmcSchedule } from "../types/amc";
-import { toRawAmcSchedules } from "../utils/amc-schedule";
+import { updateAmcConfigurations, updateAmcFieldStaff } from "../services/amc-configuration";
+import type { AmcScheduleRow } from "../types/amc";
+import { toAmcConfigurationUpdates, toAmcFieldStaffUpdates } from "../utils/amc-schedule";
 import { pmKeys } from "./query-keys";
 
 export function useUpdateAmcSchedules(planId: string | undefined) {
@@ -11,8 +11,14 @@ export function useUpdateAmcSchedules(planId: string | undefined) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ original, rows }: { original: RawAmcSchedule[]; rows: AmcScheduleRow[] }) =>
-      updateAmcSchedules(planId!, toRawAmcSchedules(original, rows), accessToken ?? undefined, user),
+    mutationFn: async ({ original, rows }: { original: AmcScheduleRow[]; rows: AmcScheduleRow[] }) => {
+      const tenantId = getTenantId();
+      const scheduleUpdates = toAmcConfigurationUpdates(original, rows, tenantId);
+      const fieldStaffUpdates = toAmcFieldStaffUpdates(original, rows, tenantId);
+      // Two all-or-nothing calls: the schedule first, then the field staff.
+      if (scheduleUpdates.length > 0) await updateAmcConfigurations(scheduleUpdates, accessToken!, user);
+      if (fieldStaffUpdates.length > 0) await updateAmcFieldStaff(fieldStaffUpdates, accessToken!, user);
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: pmKeys.planAmcSchedules(planId) }),
   });
 }

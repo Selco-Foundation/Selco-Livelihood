@@ -2,10 +2,8 @@ import { employeeHomePath, translateOr, useTranslate } from "@/shared";
 import { Button, TopBar } from "@/ui";
 import { Link, useSearch } from "@tanstack/react-router";
 import { MapPin, Plus } from "lucide-react";
-import { useMemo } from "react";
 import { AmcPlansTable } from "../../components/AmcPlansTable";
 import { InstallationPlansTable } from "../../components/InstallationPlansTable";
-import { amcDemoPlanRows, isAmcDemoProject } from "../../constants/amc-demo-project";
 import { useInstallationPlansSearch } from "../../hooks/use-installation-plans-search";
 import { useProjectById } from "../../hooks/use-project-by-id";
 import type { ProjectDetailsRouteSearch } from "../../routes";
@@ -22,15 +20,7 @@ export function ProjectDetailsPage() {
   const { data: project } = useProjectById(projectId);
   const { data, isLoading } = useInstallationPlansSearch({ projectId });
 
-  // Prototype: the AMC demo project also shows two static installation plans (one completed, one
-  // half installed) so the AMC screens can be demoed. Remove with the static AMC services.
-  const plans = useMemo(
-    () => [
-      ...(data?.plans ?? []),
-      ...(project && isAmcDemoProject(project.name) ? amcDemoPlanRows(projectId, project.tenantId) : []),
-    ],
-    [data?.plans, project, projectId],
-  );
+  const plans = data?.plans ?? [];
 
   const geography = project?.additionalDetails?.geographyDetails;
   const districtCount = geography?.districts?.length ?? 0;

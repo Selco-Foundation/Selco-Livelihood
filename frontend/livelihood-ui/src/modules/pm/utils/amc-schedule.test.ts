@@ -1,31 +1,35 @@
 import { describe, expect, it } from "vitest";
-import type { AmcScheduleRow, RawAmcSchedule } from "../types/amc";
+import type { AmcScheduleRow, RawAmcConfiguration } from "../types/amc";
 import {
   firstAmcDueDate,
   isAmcScheduleDirty,
   isPendingActivation,
+  toAmcConfigurationUpdates,
+  toAmcFieldStaffUpdates,
   toAmcScheduleRows,
-  toRawAmcSchedules,
   totalAmcActivities,
   validateAmcSchedules,
 } from "./amc-schedule";
 
-const raw: RawAmcSchedule = {
+const raw: RawAmcConfiguration = {
   id: "amc-1",
-  fieldPlanId: "plan-1",
-  facilityId: "site-1",
-  endUser: { name: "user979", mobileNumber: "9876543210" },
-  boundary: { state: "Assam", district: "Kamrup", block: "Rangia" },
-  componentType: "SOLAR",
-  installationReportFirstSubmissionDate: 900,
-  configurationStartDate: 1000,
+  status: "ACTIVE",
+  activityFacilityId: "row-1",
   visitFrequencyMonths: 6,
   durationMonths: 24,
+  configurationStartDate: 1000,
+  endUserName: "user979",
+  endUserPhone: "9876543210",
+  state: "Assam",
+  district: "Kamrup",
+  block: "Rangia",
+  installationApprovedDate: 900,
 };
 
 const row: AmcScheduleRow = {
   id: "amc-1",
-  facilityId: "site-1",
+  activityFacilityId: "row-1",
+  status: "ACTIVE",
   endUserName: "user979",
   phoneNumber: "9876543210",
   state: "Assam",
@@ -38,40 +42,86 @@ const row: AmcScheduleRow = {
 };
 
 describe("toAmcScheduleRows", () => {
-  it("maps a raw schedule into a row, converting duration months to years", () => {
-    expect(toAmcScheduleRows({ AmcSchedules: [raw] })).toEqual([row]);
+  it("maps an AMC into a row, converting duration months to years", () => {
+    expect(toAmcScheduleRows({ AmcConfigurations: [raw] })).toEqual([row]);
   });
 
   it("returns no rows for a missing response", () => {
     expect(toAmcScheduleRows(undefined)).toEqual([]);
+    expect(toAmcScheduleRows({})).toEqual([]);
   });
 
-  it("leaves blank values undefined", () => {
+  it("leaves blank values undefined and shows a dash for missing text", () => {
     const [mapped] = toAmcScheduleRows({
-      AmcSchedules: [
+      AmcConfigurations: [
         {
-          ...raw,
-          installationReportFirstSubmissionDate: null,
-          configurationStartDate: null,
+          id: "amc-2",
+          status: "ACTIVE",
+          activityFacilityId: "row-2",
           visitFrequencyMonths: null,
           durationMonths: null,
+          configurationStartDate: null,
+          installationApprovedDate: null,
+          endUserName: null,
         },
       ],
     });
 
-    expect(mapped).toMatchObject({ installedOn: undefined, startDate: undefined, frequencyMonths: undefined, years: undefined });
+    expect(mapped).toMatchObject({
+      endUserName: "-",
+      phoneNumber: "-",
+      installedOn: undefined,
+      startDate: undefined,
+      frequencyMonths: undefined,
+      years: undefined,
+    });
+  });
+
+  it("drops completed and cancelled AMCs", () => {
+    expect(
+      toAmcScheduleRows({ AmcConfigurations: [{ ...raw, status: "COMPLETED" }, { ...raw, id: "amc-3", status: "CANCELLED" }] }),
+    ).toEqual([]);
+  });
+
+  it("shows no start date for a pending AMC", () => {
+    const [mapped] = toAmcScheduleRows({
+      AmcConfigurations: [{ ...raw, status: "PENDING_ACTIVATION", configurationStartDate: 1000, installationApprovedDate: null }],
+    });
+
+    expect(mapped.startDate).toBeUndefined();
+    expect(isPendingActivation(mapped)).toBe(true);
   });
 });
 
-describe("toRawAmcSchedules", () => {
-  it("writes edited values back onto the raw schedule, converting years to months", () => {
-    expect(toRawAmcSchedules([raw], [{ ...row, frequencyMonths: 12, years: 3 }])).toEqual([
-      { ...raw, visitFrequencyMonths: 12, durationMonths: 36 },
+describe("toAmcConfigurationUpdates", () => {
+  it("sends nothing when no row changed", () => {
+    expect(toAmcConfigurationUpdates([row], [{ ...row }], "livelihood")).toEqual([]);
+  });
+
+  it("sends the minimal body for a changed row, converting years to months", () => {
+    expect(toAmcConfigurationUpdates([row], [{ ...row, frequencyMonths: 12, years: 3 }], "livelihood")).toEqual([
+      { tenantId: "livelihood", id: "amc-1", visitFrequencyMonths: 12, durationMonths: 36 },
     ]);
   });
 
-  it("keeps schedules that have no matching row unchanged", () => {
-    expect(toRawAmcSchedules([raw], [])).toEqual([raw]);
+  it("sends the start date only when it changed", () => {
+    expect(toAmcConfigurationUpdates([row], [{ ...row, startDate: 2000 }], "livelihood")).toEqual([
+      { tenantId: "livelihood", id: "amc-1", visitFrequencyMonths: 6, durationMonths: 24, configurationStartDate: 2000 },
+    ]);
+  });
+
+  it("never sends a start date for a pending AMC", () => {
+    const pending: AmcScheduleRow = { ...row, status: "PENDING_ACTIVATION", startDate: undefined, installedOn: undefined };
+    expect(toAmcConfigurationUpdates([pending], [{ ...pending, startDate: 5000, years: 3 }], "livelihood")).toEqual([
+      { tenantId: "livelihood", id: "amc-1", visitFrequencyMonths: 6, durationMonths: 36 },
+    ]);
+  });
+
+  it("skips only the rows that did not change", () => {
+    const other: AmcScheduleRow = { ...row, id: "amc-2" };
+    expect(toAmcConfigurationUpdates([row, other], [row, { ...other, years: 1 }], "livelihood")).toEqual([
+      { tenantId: "livelihood", id: "amc-2", visitFrequencyMonths: 6, durationMonths: 12 },
+    ]);
   });
 });
 
@@ -99,24 +149,14 @@ describe("validateAmcSchedules", () => {
       { id: "amc-2", endUserName: "user979", missing: ["startDate", "years"] },
     ]);
   });
-});
 
-describe("validateAmcSchedules and Pending Activation", () => {
-  const notInstalled: AmcScheduleRow = { ...row, id: "amc-3", installedOn: undefined, startDate: undefined };
+  it("allows a blank start date on a pending AMC but still requires frequency and years", () => {
+    const pending: AmcScheduleRow = { ...row, id: "amc-3", status: "PENDING_ACTIVATION", installedOn: undefined, startDate: undefined };
 
-  it("allows a blank start date while the site is not installed", () => {
-    expect(isPendingActivation(notInstalled)).toBe(true);
-    expect(validateAmcSchedules([notInstalled])).toEqual([]);
-  });
-
-  it("still requires frequency and years for a not-installed site", () => {
-    expect(validateAmcSchedules([{ ...notInstalled, years: undefined }])).toEqual([
+    expect(validateAmcSchedules([pending])).toEqual([]);
+    expect(validateAmcSchedules([{ ...pending, years: undefined }])).toEqual([
       { id: "amc-3", endUserName: "user979", missing: ["years"] },
     ]);
-  });
-
-  it("is no longer pending once a start date is set", () => {
-    expect(isPendingActivation({ ...notInstalled, startDate: 1000 })).toBe(false);
   });
 });
 
@@ -140,13 +180,27 @@ describe("firstAmcDueDate and totalAmcActivities", () => {
   });
 });
 
-describe("toAmcScheduleRows for a not-installed site", () => {
-  it("ignores a start date stored before installation", () => {
-    const [mapped] = toAmcScheduleRows({
-      AmcSchedules: [{ ...raw, installationReportFirstSubmissionDate: null, configurationStartDate: 1000 }],
-    });
+describe("field staff changes", () => {
+  const withStaff = { ...row, fieldStaffId: "s1" };
 
-    expect(mapped.startDate).toBeUndefined();
-    expect(isPendingActivation(mapped)).toBe(true);
+  it("reads the field staff and organisation off the search row", () => {
+    const [mapped] = toAmcScheduleRows({
+      AmcConfigurations: [{ ...raw, vendorId: "org-1", fieldStaff: { uuid: "s1", name: "Ravi" } }],
+    });
+    expect(mapped).toMatchObject({ vendorOrgId: "org-1", fieldStaffId: "s1", fieldStaffName: "Ravi" });
+  });
+
+  it("builds an update only for rows whose field staff changed", () => {
+    expect(toAmcFieldStaffUpdates([withStaff], [{ ...withStaff, fieldStaffId: "s2" }], "livelihood")).toEqual([
+      { tenantId: "livelihood", activityFacilityId: "row-1", fieldStaffUserId: "s2" },
+    ]);
+    expect(toAmcFieldStaffUpdates([withStaff], [{ ...withStaff }], "livelihood")).toEqual([]);
+    expect(toAmcFieldStaffUpdates([withStaff], [{ ...withStaff, fieldStaffId: "" }], "livelihood")).toEqual([]);
+  });
+
+  it("a field staff change alone makes the schedule dirty but sends no schedule update", () => {
+    const edited = { ...withStaff, fieldStaffId: "s2" };
+    expect(isAmcScheduleDirty([withStaff], [edited])).toBe(true);
+    expect(toAmcConfigurationUpdates([withStaff], [edited], "livelihood")).toEqual([]);
   });
 });

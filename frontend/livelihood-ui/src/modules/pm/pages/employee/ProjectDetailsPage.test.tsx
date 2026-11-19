@@ -97,22 +97,4 @@ describe("ProjectDetailsPage", () => {
     expect(screen.getByRole("heading", { name: "Edit AMC" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Edit, IN-INS-2026-28" })).toBeInTheDocument();
   });
-
-  it("adds the two static AMC demo plans for the demo project only", () => {
-    vi.mocked(useProjectById).mockReturnValue({
-      data: { id: "project-1", tenantId: "tenant-1", name: "JUS-12345-04-26-26", additionalDetails: {} },
-    } as never);
-
-    renderPage();
-
-    expect(screen.getAllByText("IN-INS-2026-41").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("IN-INS-2026-42").length).toBeGreaterThan(0);
-    expect(screen.getByText("4 of 8 sites installed")).toBeInTheDocument();
-  });
-
-  it("does not add demo plans to other projects", () => {
-    renderPage();
-
-    expect(screen.queryByText("IN-INS-2026-41")).not.toBeInTheDocument();
-  });
 });

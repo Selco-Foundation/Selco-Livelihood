@@ -1,10 +1,13 @@
 import { employeeHomePath, extractApiErrorMessage, translateOr, useTranslate } from "@/shared";
 import { Button, SearchableSelect, Skeleton, toast, TopBar } from "@/ui";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { Info, Sun } from "lucide-react";
+import { Info, Plus, Sun } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { AddAmcDialog } from "../../components/AddAmcDialog";
+import { AmcFieldStaffSelect } from "../../components/AmcFieldStaffSelect";
 import { DateField } from "../../components/DateField";
-import { amcDemoPlanName } from "../../constants/amc-demo-project";
+import { StepSectionCard } from "../../components/StepSectionCard";
+import { WizardActionFooter } from "../../components/WizardActionFooter";
 import { AMC_FREQUENCY_OPTIONS, AMC_YEARS_OPTIONS } from "../../constants/amc-options";
 import { useAmcSchedules } from "../../hooks/use-amc-schedules";
 import { useInstallationPlanById } from "../../hooks/use-installation-plan-by-id";
@@ -36,6 +39,7 @@ export function EditAmcPage() {
   const originalRows = useMemo(() => toAmcScheduleRows(response), [response]);
   const [rows, setRows] = useState<AmcScheduleRow[]>([]);
   const [errors, setErrors] = useState<AmcScheduleRowError[]>([]);
+  const [addOpen, setAddOpen] = useState(false);
 
   useEffect(() => {
     setRows(originalRows);
@@ -73,7 +77,7 @@ export function EditAmcPage() {
     if (validationErrors.length > 0 || !response) return;
 
     updateSchedules.mutate(
-      { original: response.AmcSchedules, rows },
+      { original: originalRows, rows },
       {
         onSuccess: () => {
           toast.success(translateOr(t, "ES_PM_AMC_SCHEDULE_SAVED", "AMC schedule saved"));
@@ -102,12 +106,12 @@ export function EditAmcPage() {
   const computedColumns = [
     translateOr(t, "ES_PM_AMC_FIRST_DUE", "First AMC due"),
     translateOr(t, "ES_PM_AMC_TOTAL", "Total AMCs"),
+    translateOr(t, "ES_PM_AMC_FIELD_STAFF", "AMC field staff"),
   ];
 
   return (
     // Bounded flex column with an inner scroll region, so the footer stays inside SidebarInset's box.
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto">
+    <div className="w-full space-y-6 pb-20">
         <TopBar
           title={translateOr(t, "ES_PM_EDIT_AMC", "Edit AMC")}
           breadcrumbs={[
@@ -122,31 +126,28 @@ export function EditAmcPage() {
           ]}
         />
 
-        <div className="livelihood-card space-y-4 p-6">
-          <div className="flex items-start gap-3">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-primary">
-              <Sun className="size-5" />
-            </span>
-            <div>
-              <h2 className="text-lg font-semibold text-ink-950">
-                {translateOr(t, "ES_PM_EDIT_AMC_SCHEDULE", "Edit AMC schedule")}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {translateOr(
-                  t,
-                  "ES_PM_EDIT_AMC_SCHEDULE_DESC",
-                  "Change the AMC start date, frequency and years for each end user",
-                )}
-              </p>
-            </div>
+        <StepSectionCard
+          icon={Sun}
+          title={translateOr(t, "ES_PM_EDIT_AMC_SCHEDULE", "Edit AMC schedule")}
+          description={translateOr(
+            t,
+            "ES_PM_EDIT_AMC_SCHEDULE_DESC",
+            "Change the AMC start date, frequency and years for each end user",
+          )}
+        >
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm">
+              <span className="font-medium text-muted-foreground">
+                {translateOr(t, "ES_PM_INSTALLATION_PLAN_CODE", "Installation Plan Code")}:
+              </span>{" "}
+              <span className="font-semibold text-foreground">{plan?.name ?? "-"}</span>
+            </p>
+            <Button type="button" variant="outline" size="sm" onClick={() => setAddOpen(true)}>
+              <Plus className="size-4" />
+              {translateOr(t, "ES_PM_ADD_AMC", "Add AMC")}
+            </Button>
           </div>
-
-          <p className="text-sm">
-            <span className="text-muted-foreground">
-              {translateOr(t, "ES_PM_INSTALLATION_PLAN_CODE", "Installation Plan Code")}:
-            </span>{" "}
-            <span className="font-semibold text-foreground">{plan?.name ?? amcDemoPlanName(planId) ?? "-"}</span>
-          </p>
 
           <div role="status" className="flex items-start gap-2 rounded-lg bg-primary/5 p-3 text-sm text-foreground">
             <Info className="mt-0.5 size-4 shrink-0 text-primary" />
@@ -186,23 +187,23 @@ export function EditAmcPage() {
               {translateOr(t, "ES_PM_NO_AMC_END_USERS", "No end users with AMC in this installation plan")}
             </p>
           ) : (
-            <div className="overflow-hidden rounded-lg border border-border">
+            <div className="livelihood-card overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1500px] border-collapse text-sm">
+                <table className="w-full min-w-[1900px] border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-border">
                       {readOnlyColumns.map((label) => (
-                        <th key={label} className="px-4 py-3 text-left text-sm font-semibold text-ink-950">
+                        <th key={label} className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
                           {label}
                         </th>
                       ))}
                       {(["startDate", "frequencyMonths", "years"] as const).map((field) => (
-                        <th key={field} className="bg-accent px-4 py-3 text-left text-sm font-semibold text-ink-950">
+                        <th key={field} className="bg-accent px-5 py-3 text-left text-sm font-semibold text-ink-950">
                           {fieldLabels[field]}
                         </th>
                       ))}
                       {computedColumns.map((label) => (
-                        <th key={label} className="px-4 py-3 text-left text-sm font-semibold text-ink-950">
+                        <th key={label} className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
                           {label}
                         </th>
                       ))}
@@ -213,17 +214,17 @@ export function EditAmcPage() {
                       const rowError = errors.find((error) => error.id === row.id);
                       return (
                         <tr key={row.id} className="border-b border-border/70 last:border-b-0">
-                          <td className="px-4 py-3 font-semibold text-foreground">{row.endUserName}</td>
-                          <td className="px-4 py-3 text-foreground">{row.phoneNumber}</td>
-                          <td className="px-4 py-3 text-foreground">{row.state}</td>
-                          <td className="px-4 py-3 text-foreground">{row.district}</td>
-                          <td className="px-4 py-3 text-foreground">{row.block}</td>
-                          <td className="px-4 py-3">
+                          <td className="px-5 py-4 font-semibold text-foreground">{row.endUserName}</td>
+                          <td className="px-5 py-4 text-foreground">{row.phoneNumber}</td>
+                          <td className="px-5 py-4 text-foreground">{row.state}</td>
+                          <td className="px-5 py-4 text-foreground">{row.district}</td>
+                          <td className="px-5 py-4 text-foreground">{row.block}</td>
+                          <td className="px-5 py-4">
                             <span className="inline-flex items-center rounded-md bg-accent px-2 py-1 text-xs font-medium text-primary">
                               {translateOr(t, "ES_PM_ASSET_SOLAR", "Solar")}
                             </span>
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
+                          <td className="px-5 py-4 whitespace-nowrap">
                             {row.installedOn ? (
                               <span className="text-foreground">
                                 {translateOr(t, "ES_PM_AMC_INSTALLED_ON", "Installed")} {formatDate(row.installedOn)}
@@ -234,15 +235,17 @@ export function EditAmcPage() {
                               </span>
                             )}
                           </td>
-                          <td className="w-[180px] bg-accent/40 px-4 py-3">
+                          <td className="w-[180px] bg-accent/40 px-5 py-4">
                             <DateField
                               hideLabel
                               label={`${fieldLabels.startDate}, ${row.endUserName}`}
-                              // PRD 5.2.2: AMC stays Pending Activation until the site's installation
-                              // report is submitted, so the start date opens only after installation.
-                              disabled={row.installedOn === undefined}
+                              // A pending AMC starts on the day its installation report is approved, so the
+                              // start date opens only once the AMC is running. The server also refuses a
+                              // change after visit 1 has been submitted.
+                              disabled={isPendingActivation(row)}
+                              minDate={row.installedOn ? new Date(row.installedOn) : undefined}
                               placeholder={
-                                row.installedOn === undefined
+                                isPendingActivation(row)
                                   ? translateOr(t, "ES_PM_AMC_AFTER_INSTALLATION", "After installation")
                                   : undefined
                               }
@@ -251,7 +254,7 @@ export function EditAmcPage() {
                               error={rowError?.missing.includes("startDate") ? fieldLabels.startDate : undefined}
                             />
                           </td>
-                          <td className="w-[170px] bg-accent/40 px-4 py-3">
+                          <td className="w-[170px] bg-accent/40 px-5 py-4">
                             <SearchableSelect
                               ariaLabel={`${fieldLabels.frequencyMonths}, ${row.endUserName}`}
                               value={row.frequencyMonths ? String(row.frequencyMonths) : ""}
@@ -263,7 +266,7 @@ export function EditAmcPage() {
                               }
                             />
                           </td>
-                          <td className="w-[150px] bg-accent/40 px-4 py-3">
+                          <td className="w-[150px] bg-accent/40 px-5 py-4">
                             <SearchableSelect
                               ariaLabel={`${fieldLabels.years}, ${row.endUserName}`}
                               value={row.years ? String(row.years) : ""}
@@ -273,7 +276,7 @@ export function EditAmcPage() {
                               onChange={(option) => updateRow(row.id, { years: option ? Number(option.code) : undefined })}
                             />
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-foreground">
+                          <td className="px-5 py-4 whitespace-nowrap text-foreground">
                             {isPendingActivation(row) ? (
                               <span className="text-xs font-medium text-muted-foreground">
                                 {translateOr(t, "ES_PM_AMC_PENDING_ACTIVATION", "Pending activation")}
@@ -282,7 +285,16 @@ export function EditAmcPage() {
                               formatDate(firstAmcDueDate(row))
                             )}
                           </td>
-                          <td className="px-4 py-3 text-foreground">{totalAmcActivities(row) ?? "-"}</td>
+                          <td className="px-5 py-4 text-foreground">{totalAmcActivities(row) ?? "-"}</td>
+                          <td className="w-[240px] px-5 py-4">
+                            <AmcFieldStaffSelect
+                              rowLabel={row.endUserName}
+                              organizationId={row.vendorOrgId}
+                              value={row.fieldStaffId ?? ""}
+                              onChange={(fieldStaffId, fieldStaffName) => updateRow(row.id, { fieldStaffId, fieldStaffName })}
+                              disabled={false}
+                            />
+                          </td>
                         </tr>
                       );
                     })}
@@ -292,9 +304,9 @@ export function EditAmcPage() {
             </div>
           )}
         </div>
-      </div>
+        </StepSectionCard>
 
-      <div className="flex shrink-0 justify-end gap-3 border-t border-border bg-background pt-4">
+      <WizardActionFooter>
         <Button asChild variant="outline" size="sm">
           <Link to={pmProjectDetailsPath()} search={{ projectId }}>
             {translateOr(t, "CORE_COMMON_BACK", "Back")}
@@ -303,7 +315,8 @@ export function EditAmcPage() {
         <Button type="button" size="sm" className="px-5" onClick={handleSave} disabled={!isDirty || updateSchedules.isPending}>
           {translateOr(t, "CORE_COMMON_SAVE", "Save")}
         </Button>
-      </div>
+      </WizardActionFooter>
+      <AddAmcDialog planId={planId} open={addOpen} onOpenChange={setAddOpen} />
     </div>
   );
 }

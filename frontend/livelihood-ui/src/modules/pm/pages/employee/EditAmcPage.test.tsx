@@ -7,7 +7,7 @@ import { useAmcSchedules } from "../../hooks/use-amc-schedules";
 import { useInstallationPlanById } from "../../hooks/use-installation-plan-by-id";
 import { useProjectById } from "../../hooks/use-project-by-id";
 import { useUpdateAmcSchedules } from "../../hooks/use-update-amc-schedules";
-import type { RawAmcSchedule } from "../../types/amc";
+import type { RawAmcConfiguration } from "../../types/amc";
 import { EditAmcPage } from "./EditAmcPage";
 
 const navigate = vi.fn();
@@ -34,15 +34,17 @@ vi.mock("../../hooks/use-installation-plan-by-id", () => ({ useInstallationPlanB
 vi.mock("../../hooks/use-amc-schedules", () => ({ useAmcSchedules: vi.fn() }));
 vi.mock("../../hooks/use-update-amc-schedules", () => ({ useUpdateAmcSchedules: vi.fn() }));
 
-function schedule(overrides: Partial<RawAmcSchedule>): RawAmcSchedule {
+function schedule(overrides: Partial<RawAmcConfiguration>): RawAmcConfiguration {
   return {
     id: "amc-1",
-    fieldPlanId: "plan-1",
-    facilityId: "site-1",
-    endUser: { name: "user979", mobileNumber: "9876543210" },
-    boundary: { state: "Assam", district: "Kamrup", block: "Rangia" },
-    componentType: "SOLAR",
-    installationReportFirstSubmissionDate: Date.UTC(2026, 10, 6),
+    status: "ACTIVE",
+    activityFacilityId: "row-1",
+    endUserName: "user979",
+    endUserPhone: "9876543210",
+    state: "Assam",
+    district: "Kamrup",
+    block: "Rangia",
+    installationApprovedDate: Date.UTC(2026, 10, 6),
     configurationStartDate: Date.UTC(2026, 10, 6),
     visitFrequencyMonths: 6,
     durationMonths: 24,
@@ -65,9 +67,10 @@ beforeEach(() => {
   navigate.mockReset();
   mutate.mockReset();
   vi.mocked(toast.success).mockReset();
+  vi.mocked(toast.error).mockReset();
   vi.mocked(useProjectById).mockReturnValue({ data: { id: "project-1", name: "JUS-12345-26-26" } } as never);
   vi.mocked(useInstallationPlanById).mockReturnValue({ data: { id: "plan-1", name: "IN-INS-2026-28" } } as never);
-  vi.mocked(useAmcSchedules).mockReturnValue({ data: { AmcSchedules: [schedule({})] }, isLoading: false } as never);
+  vi.mocked(useAmcSchedules).mockReturnValue({ data: { AmcConfigurations: [schedule({})] }, isLoading: false } as never);
   vi.mocked(useUpdateAmcSchedules).mockReturnValue({ mutate, isPending: false } as never);
 });
 
@@ -101,9 +104,9 @@ describe("EditAmcPage", () => {
   it("saves nothing and names the row when a value is missing", async () => {
     vi.mocked(useAmcSchedules).mockReturnValue({
       data: {
-        AmcSchedules: [
+        AmcConfigurations: [
           schedule({}),
-          schedule({ id: "amc-2", endUser: { name: "user980", mobileNumber: "9845012876" }, configurationStartDate: null }),
+          schedule({ id: "amc-2", endUserName: "user980", endUserPhone: "9845012876", configurationStartDate: null }),
         ],
       },
       isLoading: false,
@@ -126,7 +129,7 @@ describe("EditAmcPage", () => {
 
     expect(mutate).toHaveBeenCalledWith(
       {
-        original: [schedule({})],
+        original: [expect.objectContaining({ id: "amc-1", frequencyMonths: 6 })],
         rows: [expect.objectContaining({ id: "amc-1", frequencyMonths: 12 })],
       },
       expect.any(Object),
@@ -138,12 +141,14 @@ describe("EditAmcPage", () => {
   it("lets a not-yet-installed site keep a blank start date, shown as Pending activation", async () => {
     vi.mocked(useAmcSchedules).mockReturnValue({
       data: {
-        AmcSchedules: [
+        AmcConfigurations: [
           schedule({}),
           schedule({
             id: "amc-2",
-            endUser: { name: "user980", mobileNumber: "9845012876" },
-            installationReportFirstSubmissionDate: null,
+            status: "PENDING_ACTIVATION",
+            endUserName: "user980",
+            endUserPhone: "9845012876",
+            installationApprovedDate: null,
             configurationStartDate: null,
           }),
         ],
@@ -176,12 +181,19 @@ describe("EditAmcPage", () => {
     expect(screen.getByRole("cell", { name: "2" })).toBeInTheDocument();
   });
 
-  it("shows the plan code of a static demo plan", () => {
-    vi.mocked(useInstallationPlanById).mockReturnValue({ data: null } as never);
-    mockSearch.planId = "demo-amc-plan-partial";
+  it("shows the server's message when the save is refused", async () => {
+    mutate.mockImplementation((_variables, options: { onError: (error: unknown) => void }) =>
+      options.onError({ response: { data: { Errors: [{ code: "AMC_START_DATE_LOCKED", message: "row 1: start date is locked" }] } } }),
+    );
     renderPage();
 
-    expect(screen.getByText("IN-INS-2026-42")).toBeInTheDocument();
-    mockSearch.planId = "plan-1";
+    const user = await changeFrequencyToOneYear();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(toast.error).toHaveBeenCalledWith(
+      "Could not save the AMC schedule",
+      expect.objectContaining({ description: expect.stringContaining("start date is locked") }),
+    );
+    expect(navigate).not.toHaveBeenCalled();
   });
 });

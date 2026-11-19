@@ -1,69 +1,107 @@
 import { addMonths } from "date-fns";
 import type {
+  AmcConfigurationSearchResponse,
+  AmcConfigurationUpdate,
+  AmcFieldStaffUpdate,
   AmcScheduleField,
   AmcScheduleRow,
   AmcScheduleRowError,
-  AmcScheduleSearchResponse,
-  RawAmcSchedule,
 } from "../types/amc";
 
-export function toAmcScheduleRows(response: AmcScheduleSearchResponse | undefined): AmcScheduleRow[] {
-  return (response?.AmcSchedules ?? []).map((schedule) => ({
-    id: schedule.id,
-    facilityId: schedule.facilityId,
-    endUserName: schedule.endUser.name,
-    phoneNumber: schedule.endUser.mobileNumber,
-    state: schedule.boundary.state,
-    district: schedule.boundary.district,
-    block: schedule.boundary.block,
-    installedOn: schedule.installationReportFirstSubmissionDate ?? undefined,
-    // A start date is only meaningful once the site is installed (Pending Activation before that),
-    // so one stored against a not-installed site is ignored.
-    startDate:
-      schedule.installationReportFirstSubmissionDate === null ? undefined : (schedule.configurationStartDate ?? undefined),
-    frequencyMonths: schedule.visitFrequencyMonths ?? undefined,
-    years: schedule.durationMonths ? schedule.durationMonths / 12 : undefined,
-  }));
+/** Only running AMCs are edited; a completed or cancelled one has nothing left to change. */
+const EDITABLE_STATUSES = new Set(["PENDING_ACTIVATION", "ACTIVE"]);
+
+export function toAmcScheduleRows(response: AmcConfigurationSearchResponse | undefined): AmcScheduleRow[] {
+  return (response?.AmcConfigurations ?? [])
+    .filter((amc) => EDITABLE_STATUSES.has(amc.status))
+    .map((amc) => ({
+      id: amc.id,
+      activityFacilityId: amc.activityFacilityId,
+      status: amc.status,
+      endUserName: amc.endUserName ?? "-",
+      phoneNumber: amc.endUserPhone ?? "-",
+      state: amc.state ?? "-",
+      district: amc.district ?? "-",
+      block: amc.block ?? "-",
+      installedOn: amc.installationApprovedDate ?? undefined,
+      // A pending AMC has no start date yet: it starts on the day its installation report is approved.
+      startDate: amc.status === "ACTIVE" ? (amc.configurationStartDate ?? undefined) : undefined,
+      frequencyMonths: amc.visitFrequencyMonths ?? undefined,
+      years: amc.durationMonths ? amc.durationMonths / 12 : undefined,
+      vendorOrgId: amc.vendorId ?? undefined,
+      fieldStaffId: amc.fieldStaff?.uuid,
+      fieldStaffName: amc.fieldStaff?.name ?? undefined,
+    }));
 }
 
-/** Applies the edited rows onto the raw schedules they were loaded from, for the update call. */
-export function toRawAmcSchedules(original: RawAmcSchedule[], rows: AmcScheduleRow[]): RawAmcSchedule[] {
-  const rowsById = new Map(rows.map((row) => [row.id, row]));
-  return original.map((schedule) => {
-    const row = rowsById.get(schedule.id);
-    if (!row) return schedule;
-    return {
-      ...schedule,
-      configurationStartDate: row.startDate ?? null,
-      visitFrequencyMonths: row.frequencyMonths ?? null,
-      durationMonths: row.years ? row.years * 12 : null,
-    };
+/**
+ * The minimal `_update` body: only rows the PM changed. The start date goes with a row only when it
+ * changed (the server refuses one on a pending AMC, and locks it once visit 1 is submitted).
+ */
+export function toAmcConfigurationUpdates(
+  original: AmcScheduleRow[],
+  edited: AmcScheduleRow[],
+  tenantId: string,
+): AmcConfigurationUpdate[] {
+  const originalById = new Map(original.map((row) => [row.id, row]));
+  return edited.flatMap((row) => {
+    const before = originalById.get(row.id);
+    if (!before || !hasChanged(before, row) || !row.frequencyMonths || !row.years) return [];
+    return [
+      {
+        tenantId,
+        id: row.id,
+        visitFrequencyMonths: row.frequencyMonths,
+        durationMonths: row.years * 12,
+        ...(row.status === "ACTIVE" && row.startDate !== undefined && row.startDate !== before.startDate
+          ? { configurationStartDate: row.startDate }
+          : {}),
+      },
+    ];
   });
 }
 
 const EDITABLE_FIELDS: AmcScheduleField[] = ["startDate", "frequencyMonths", "years"];
 
+function hasChanged(before: AmcScheduleRow, after: AmcScheduleRow): boolean {
+  return EDITABLE_FIELDS.some((field) => before[field] !== after[field]);
+}
+
+/** The `field-staff/_update` rows: only AMCs whose field staff the PM changed. */
+export function toAmcFieldStaffUpdates(
+  original: AmcScheduleRow[],
+  edited: AmcScheduleRow[],
+  tenantId: string,
+): AmcFieldStaffUpdate[] {
+  const originalById = new Map(original.map((row) => [row.id, row]));
+  return edited.flatMap((row) => {
+    const before = originalById.get(row.id);
+    if (!before || !row.fieldStaffId || row.fieldStaffId === before.fieldStaffId) return [];
+    return [{ tenantId, activityFacilityId: row.activityFacilityId, fieldStaffUserId: row.fieldStaffId }];
+  });
+}
+
 export function isAmcScheduleDirty(original: AmcScheduleRow[], edited: AmcScheduleRow[]): boolean {
   const originalById = new Map(original.map((row) => [row.id, row]));
   return edited.some((row) => {
     const before = originalById.get(row.id);
-    return !before || EDITABLE_FIELDS.some((field) => before[field] !== row[field]);
+    return !before || hasChanged(before, row) || row.fieldStaffId !== before.fieldStaffId;
   });
 }
 
-/** PRD 5.2.2: an AMC with no start date and no installation report yet waits as Pending Activation. */
+/** A pending AMC starts by itself when its installation report is approved. */
 export function isPendingActivation(row: AmcScheduleRow): boolean {
-  return row.startDate === undefined && row.installedOn === undefined;
+  return row.status === "PENDING_ACTIVATION";
 }
 
 /**
- * Frequency and duration are always required. A start date is required once the site is installed;
- * before that it may stay blank (Pending Activation). A row that fails blocks the whole save.
+ * Frequency and years are always required. A running AMC always has a start date, so clearing it
+ * is an error. A pending AMC has none. A row that fails blocks the whole save.
  */
 export function validateAmcSchedules(rows: AmcScheduleRow[]): AmcScheduleRowError[] {
   return rows.flatMap((row) => {
     const missing = EDITABLE_FIELDS.filter((field) => {
-      if (field === "startDate") return row.installedOn !== undefined && row.startDate === undefined;
+      if (field === "startDate") return row.status === "ACTIVE" && row.startDate === undefined;
       return row[field] === undefined;
     });
     return missing.length > 0 ? [{ id: row.id, endUserName: row.endUserName, missing }] : [];
