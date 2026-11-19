@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SearchableSelect, type SearchableSelectOption } from "./searchable-select";
+import { TooltipProvider } from "./ui/tooltip";
 
 const options: SearchableSelectOption[] = [
   { code: "org-1", name: "Vendor One" },
@@ -109,5 +110,16 @@ describe("SearchableSelect", () => {
     await user.click(screen.getByRole("button", { name: /Vendor Two/ }));
 
     expect(screen.getByPlaceholderText("Search")).toHaveValue("");
+  });
+
+  it("with errorAsTooltip the message is on an icon, not printed below the field", () => {
+    render(
+      <TooltipProvider>
+        <SearchableSelect ariaLabel="Vendor" value="" options={options} onChange={vi.fn()} error="No staff" errorAsTooltip />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByLabelText("No staff")).toBeInTheDocument();
+    expect(screen.queryByText("No staff")).not.toBeInTheDocument();
   });
 });

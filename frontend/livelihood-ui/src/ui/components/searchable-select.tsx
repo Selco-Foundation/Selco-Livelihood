@@ -3,6 +3,7 @@ import { translateOr, useTranslate } from "@/shared";
 import { cn } from "@/ui/lib/utils";
 import { Input } from "@/ui/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/ui/components/ui/tooltip";
 import { ChevronDown, Info, Search } from "lucide-react";
 
 export interface SearchableSelectOption {
@@ -17,6 +18,8 @@ interface SearchableSelectBaseProps<TOption extends SearchableSelectOption> {
   placeholder?: string;
   disabled?: boolean;
   error?: string;
+  /** Shows the error as a red border plus an info icon beside the field (message on hover), not as text below it. */
+  errorAsTooltip?: boolean;
   onChange: (option: TOption | null) => void;
 }
 
@@ -51,6 +54,7 @@ export function SearchableSelect<TOption extends SearchableSelectOption>({
   placeholder,
   disabled = false,
   error,
+  errorAsTooltip = false,
   onChange,
 }: Readonly<SearchableSelectProps<TOption>>) {
   const [open, setOpen] = useState(false);
@@ -80,7 +84,7 @@ export function SearchableSelect<TOption extends SearchableSelectOption>({
   }, [sortedOptions, query]);
 
   return (
-    <div className="min-w-0 space-y-1.5">
+    <div className={cn("min-w-0 space-y-1.5", errorAsTooltip && "relative")}>
       {label ? (
         <label id={labelId} className="text-sm font-medium text-foreground">
           {label}
@@ -164,7 +168,17 @@ export function SearchableSelect<TOption extends SearchableSelectOption>({
           </div>
         </PopoverContent>
       </Popover>
-      {error ? (
+      {error && errorAsTooltip ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span id={errorId} tabIndex={0} aria-label={error} className="absolute top-1/2 left-full ml-1.5 -translate-y-1/2 text-destructive">
+              <Info className="size-4" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>{error}</TooltipContent>
+        </Tooltip>
+      ) : null}
+      {error && !errorAsTooltip ? (
         <p id={errorId} className="flex items-center gap-1 text-xs text-destructive">
           <Info className="size-3.5 shrink-0" />
           <span className="min-w-0 wrap-anywhere">{error}</span>

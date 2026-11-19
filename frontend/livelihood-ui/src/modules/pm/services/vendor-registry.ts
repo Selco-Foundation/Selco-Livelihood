@@ -23,7 +23,7 @@ interface RawOrganisation {
   name?: string;
 }
 
-interface RawOrgUser {
+export interface RawOrgUser {
   id?: string;
   userId?: string;
   user?: { name?: string; emailId?: string; roles?: { code?: string }[] };
@@ -84,4 +84,26 @@ export async function searchVendorOrgUsers(
       name: orgUser.user?.name ?? (orgUser.userId ?? orgUser.id)!,
       email: orgUser.user?.emailId,
     }));
+}
+
+export interface OrgUserSearchResponse {
+  OrgUsers?: RawOrgUser[];
+}
+
+/**
+ * `POST /vendor/organisation/v1/user/_search` — the members of one organisation, exactly as the
+ * server returns them (roles are on each member's `user.roles`). Callers pick the role they need.
+ */
+export async function searchOrgUsers(
+  tenantId: string,
+  organizationId: string,
+  accessToken: string,
+  user?: AuthUser | null,
+): Promise<OrgUserSearchResponse> {
+  return postSearch<OrgUserSearchResponse>(
+    "/vendor/organisation/v1/user/_search",
+    "OrgUser",
+    { tenantId, organizationIds: [organizationId] },
+    { accessToken, user, limit: BULK_PAGE_SIZE },
+  );
 }
