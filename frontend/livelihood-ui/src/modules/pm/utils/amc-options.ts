@@ -1,11 +1,13 @@
 export interface AmcFrequencyOption {
   months: number;
+  isDefault: boolean;
   labelKey: string;
   fallback: string;
 }
 
 export interface AmcYearsOption {
   years: number;
+  isDefault: boolean;
   labelKey: string;
   fallback: string;
 }
@@ -13,6 +15,7 @@ export interface AmcYearsOption {
 interface MdmsRow {
   active?: boolean;
   labelKey?: string;
+  isDefault?: boolean;
 }
 
 const plural = (count: number, unit: string) => `${count} ${unit}${count === 1 ? "" : "s"}`;
@@ -28,6 +31,7 @@ export function toAmcFrequencyOptions(masters: Record<string, unknown[]>): AmcFr
     .filter((row) => row.active !== false && Number.isInteger(row.months) && (row.months as number) > 0)
     .map((row) => ({
       months: row.months as number,
+      isDefault: row.isDefault === true,
       labelKey: row.labelKey ?? `AMC_FREQUENCY_${row.months}`,
       fallback: monthsLabel(row.months as number),
     }))
@@ -40,6 +44,7 @@ export function toAmcYearsOptions(masters: Record<string, unknown[]>): AmcYearsO
     .filter((row) => row.active !== false && Number.isInteger(row.years) && (row.years as number) > 0)
     .map((row) => ({
       years: row.years as number,
+      isDefault: row.isDefault === true,
       labelKey: row.labelKey ?? `AMC_DURATION_${row.years}`,
       fallback: plural(row.years as number, "year"),
     }))

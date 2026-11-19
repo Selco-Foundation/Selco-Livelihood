@@ -1,4 +1,3 @@
-import { AMC_DEFAULT_FREQUENCY_MONTHS, AMC_DEFAULT_YEARS } from "../constants/amc-options";
 import type { AmcConfigurationCreate, RawAmcConfiguration } from "../types/amc";
 
 /** What the PM chooses for one solar asset: AMC on or off, and the AMC field staff when on. */
@@ -97,9 +96,15 @@ export function toAmcChoices(
 /** An installation approved by QC: its AMC needs a start date. */
 const APPROVED_INSTALLATION_STATUS = "APPROVED_BY_QC_SPOC";
 
+/** The MDMS `isDefault` frequency and duration, used for a site whose choice names none. */
+export interface AmcDefaults {
+  frequencyMonths?: number;
+  years?: number;
+}
+
 /**
- * The `_create` rows for the chosen sites. Frequency and years default (6 months, 1 year; Edit AMC
- * changes them). An approved installation also gets a start date: `startDate` (today), which is
+ * The `_create` rows for the chosen sites. A choice without frequency or years takes `defaults`
+ * (Edit AMC changes them later); throws when neither is known. An approved installation also gets a start date: `startDate` (today), which is
  * never before its approval day.
  */
 export function toAmcCreateRows(
@@ -107,16 +112,22 @@ export function toAmcCreateRows(
   choices: AmcChoice[],
   tenantId: string,
   startDate: number,
+  defaults: AmcDefaults = {},
 ): AmcConfigurationCreate[] {
   return choices.flatMap((choice) => {
     const facility = facilities.find((row) => row.activityFacility.facilityId === choice.facilityId)?.activityFacility;
     if (!facility) return [];
+    const frequencyMonths = choice.frequencyMonths ?? defaults.frequencyMonths;
+    const years = choice.years ?? defaults.years;
+    if (frequencyMonths === undefined || years === undefined) {
+      throw new Error("No default AMC frequency or duration is configured");
+    }
     return [
       {
         tenantId,
         activityFacilityId: facility.id,
-        visitFrequencyMonths: choice.frequencyMonths ?? AMC_DEFAULT_FREQUENCY_MONTHS,
-        durationMonths: (choice.years ?? AMC_DEFAULT_YEARS) * 12,
+        visitFrequencyMonths: frequencyMonths,
+        durationMonths: years * 12,
         vendorOrgId: choice.vendorOrgId,
         amcFieldStaffId: choice.fieldStaffId,
         ...(facility.status === APPROVED_INSTALLATION_STATUS ? { configurationStartDate: startDate } : {}),

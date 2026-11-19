@@ -1,7 +1,6 @@
 import { extractApiErrorMessage, translateOr, useTranslate } from "@/shared";
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, SearchableSelect, toast } from "@/ui";
 import { useMemo, useState } from "react";
-import { AMC_DEFAULT_FREQUENCY_MONTHS, AMC_DEFAULT_YEARS } from "../constants/amc-options";
 import { useAmcOptions } from "../hooks/use-amc-options";
 import { useCreatePlanAmcs } from "../hooks/use-create-plan-amcs";
 import { usePlanAmcBySite } from "../hooks/use-plan-amc-by-site";
@@ -19,12 +18,12 @@ export function AddAmcDialog({ planId, open, onOpenChange }: Readonly<AddAmcDial
   const { t } = useTranslate();
   const { data: assignment } = useVendorAssignmentSearch(planId);
   const { data: amcBySite = {} } = usePlanAmcBySite(planId);
-  const { frequencyOptions, yearsOptions } = useAmcOptions();
+  const { frequencyOptions, yearsOptions, defaultFrequencyMonths, defaultYears } = useAmcOptions();
   const createAmcs = useCreatePlanAmcs(planId);
   const [facilityId, setFacilityId] = useState("");
   const [fieldStaffId, setFieldStaffId] = useState("");
-  const [frequencyMonths, setFrequencyMonths] = useState(AMC_DEFAULT_FREQUENCY_MONTHS);
-  const [years, setYears] = useState(AMC_DEFAULT_YEARS);
+  const [frequencyMonths, setFrequencyMonths] = useState<number>();
+  const [years, setYears] = useState<number>();
 
   // Solar sites with no running AMC, each with the organisation its solar asset is assigned to.
   const sites = useMemo(
@@ -79,15 +78,15 @@ export function AddAmcDialog({ planId, open, onOpenChange }: Readonly<AddAmcDial
           />
           <SearchableSelect
             label={translateOr(t, "ES_PM_AMC_FREQUENCY", "AMC frequency")}
-            value={String(frequencyMonths)}
+            value={String(frequencyMonths ?? defaultFrequencyMonths ?? "")}
             options={options(frequencyOptions, frequencyOptions.map((option) => option.months))}
-            onChange={(option) => setFrequencyMonths(Number(option?.code ?? AMC_DEFAULT_FREQUENCY_MONTHS))}
+            onChange={(option) => setFrequencyMonths(option ? Number(option.code) : undefined)}
           />
           <SearchableSelect
             label={translateOr(t, "ES_PM_AMC_YEARS", "Number of years")}
-            value={String(years)}
+            value={String(years ?? defaultYears ?? "")}
             options={options(yearsOptions, yearsOptions.map((option) => option.years))}
-            onChange={(option) => setYears(Number(option?.code ?? AMC_DEFAULT_YEARS))}
+            onChange={(option) => setYears(option ? Number(option.code) : undefined)}
           />
           <div className="space-y-1.5">
             <p className="text-sm font-medium text-foreground">{translateOr(t, "ES_PM_AMC_FIELD_STAFF", "AMC field staff")}</p>

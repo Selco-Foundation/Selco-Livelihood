@@ -59,9 +59,9 @@ describe("create rows", () => {
     expect(toAmcChoices(ready, [solar], [])).toEqual([]);
   });
 
-  it("defaults frequency and years, and leaves the start date out before approval", () => {
+  it("takes the MDMS default frequency and years, and leaves the start date out before approval", () => {
     const facilities = [{ activityFacility: { id: "af1", facilityId: "f1", status: "ASSIGNED_TO_FIELD_STAFF" } }];
-    expect(toAmcCreateRows(facilities, toAmcChoices(ready, [solar], assignments), "livelihood", 123)).toEqual([
+    expect(toAmcCreateRows(facilities, toAmcChoices(ready, [solar], assignments), "livelihood", 123, { frequencyMonths: 6, years: 1 })).toEqual([
       {
         tenantId: "livelihood",
         activityFacilityId: "af1",
@@ -82,6 +82,13 @@ describe("create rows", () => {
       123,
     );
     expect(row).toMatchObject({ configurationStartDate: 123, visitFrequencyMonths: 12, durationMonths: 24 });
+  });
+
+  it("refuses to guess when no default is configured", () => {
+    const facilities = [{ activityFacility: { id: "af1", facilityId: "f1" } }];
+    expect(() => toAmcCreateRows(facilities, toAmcChoices(ready, [solar], assignments), "livelihood", 1)).toThrow(
+      "No default AMC frequency or duration",
+    );
   });
 
   it("skips a site that has no installation row", () => {

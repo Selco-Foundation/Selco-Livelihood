@@ -16,5 +16,13 @@ export function useAmcOptions() {
     select: (masters) => ({ frequency: toAmcFrequencyOptions(masters), years: toAmcYearsOptions(masters) }),
   });
 
-  return { frequencyOptions: data?.frequency ?? [], yearsOptions: data?.years ?? [] };
+  const frequencyOptions = data?.frequency ?? [];
+  const yearsOptions = data?.years ?? [];
+  return {
+    frequencyOptions,
+    yearsOptions,
+    // The rows flagged `isDefault` in MDMS; undefined until loaded or when none is flagged.
+    defaultFrequencyMonths: frequencyOptions.find((option) => option.isDefault)?.months,
+    defaultYears: yearsOptions.find((option) => option.isDefault)?.years,
+  };
 }

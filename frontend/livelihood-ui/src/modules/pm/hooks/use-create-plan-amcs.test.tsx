@@ -11,6 +11,7 @@ vi.mock("@/shared", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/shared")>();
   return { ...actual, tenantId: () => "livelihood" };
 });
+vi.mock("./use-amc-options", () => ({ useAmcOptions: () => ({ defaultFrequencyMonths: 6, defaultYears: 1 }) }));
 vi.mock("../services/activity-facility", () => ({ searchPlanActivityFacilities: vi.fn() }));
 vi.mock("../services/amc-configuration", () => ({ createAmcConfigurations: vi.fn() }));
 
