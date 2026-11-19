@@ -29,7 +29,7 @@ import 'package:livelihood/model/response/responsemodel.dart';
 import 'package:livelihood/pages/amc/amc_home.dart';
 import 'package:livelihood/pages/home_page.dart';
 import 'package:livelihood/pages/role_selection.dart';
-import 'package:livelihood/repositories/amc/amc_report_form_schema.dart';
+import 'fixtures/amc_report_form_schema.dart';
 import 'package:livelihood/repositories/amc/amc_remote_data_source.dart';
 import 'package:livelihood/repositories/amc/amc_system_status_repo.dart';
 import 'package:livelihood/repositories/amc/scheduled_visit_repo.dart';

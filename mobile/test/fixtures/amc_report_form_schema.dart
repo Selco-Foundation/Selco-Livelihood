@@ -1,8 +1,8 @@
-import '../../model/amc/amc_site_details.dart';
+import 'package:livelihood/model/amc/amc_site_details.dart';
 
 /// The Livelihood AMC report form (#250) as a `common-masters.AMCFormSchema`
 /// MDMS v2 record, built from "Livelihood AMC report form final field list"
-/// (PRD 5.4.4, Section 10). The app ships this form itself.
+/// (PRD 5.4.4, Section 10). The app loads it from MDMS; tests use this copy.
 ///
 /// Conventions the app relies on:
 ///  * `uniqueIdentifier` / `data.name` = `AssetForm.AMC_SCHEDULED_MAINTENANCE`

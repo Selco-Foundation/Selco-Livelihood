@@ -1,11 +1,9 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 
 import '../../data/remote_client.dart';
 import '../../utils/api_paths.dart';
 import '../../utils/envConfig.dart';
 import '../filestore_repository.dart';
-import 'amc_report_form_schema.dart';
 
 /// Every call the AMC module makes to a backend. The repositories above this
 /// layer are E4H's logic, unchanged; only this transport is swappable.
@@ -121,14 +119,6 @@ class HttpAmcRemoteDataSource implements AmcRemoteDataSource {
     final raw = data['mdms'];
     if (raw is! List) {
       throw Exception('MDMS v2 response missing "mdms" array');
-    }
-    // When MDMS has no Livelihood AMC form (#250), use the app's own copy.
-    final hasForm = raw.any((doc) =>
-        doc is Map && doc['uniqueIdentifier'] == amcReportFormIdentifier);
-    if (!hasForm) {
-      debugPrint('MDMS has no $amcReportFormIdentifier for '
-          '${envConfig.variables.tenantId}; using the app\'s copy.');
-      return [...raw, amcReportFormSchemaDoc(envConfig.variables.tenantId)];
     }
     return raw;
   }
