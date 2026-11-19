@@ -134,7 +134,7 @@ describe("EditAmcPage", () => {
     expect(mutate).not.toHaveBeenCalled();
   });
 
-  it("saves the edited rows, shows a toast and returns to the project", async () => {
+  it("saves the edited rows, shows a toast and stays on the page", async () => {
     mutate.mockImplementation((_variables, options: { onSuccess: () => void }) => options.onSuccess());
     renderPage();
 
@@ -149,7 +149,7 @@ describe("EditAmcPage", () => {
       expect.any(Object),
     );
     expect(toast.success).toHaveBeenCalledWith("AMC schedule saved");
-    expect(navigate).toHaveBeenCalledWith(expect.objectContaining({ search: { projectId: "project-1" } }));
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it("lets a not-yet-installed site keep a blank start date, shown as Pending activation", async () => {

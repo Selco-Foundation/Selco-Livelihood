@@ -1,6 +1,6 @@
 import { employeeHomePath, extractApiErrorMessage, translateOr, useTranslate } from "@/shared";
 import { Button, SearchableSelect, Skeleton, toast, TopBar } from "@/ui";
-import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { Link, useSearch } from "@tanstack/react-router";
 import { Info, Plus, Sun } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AddAmcDialog } from "../../components/AddAmcDialog";
@@ -28,7 +28,6 @@ import { pmMyProjectsPath, pmProjectDetailsPath } from "../../utils/paths";
 
 export function EditAmcPage() {
   const { t } = useTranslate();
-  const navigate = useNavigate();
   const { projectId, planId } = useSearch({ strict: false }) as EditAmcRouteSearch;
 
   const { data: project } = useProjectById(projectId);
@@ -68,10 +67,6 @@ export function EditAmcPage() {
     setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)));
   }
 
-  function backToProject() {
-    void navigate({ to: pmProjectDetailsPath(), search: { projectId } });
-  }
-
   function handleSave() {
     const validationErrors = validateAmcSchedules(rows);
     setErrors(validationErrors);
@@ -82,7 +77,6 @@ export function EditAmcPage() {
       {
         onSuccess: () => {
           toast.success(translateOr(t, "ES_PM_AMC_SCHEDULE_SAVED", "AMC schedule saved"));
-          backToProject();
         },
         onError: (error) => {
           toast.error(translateOr(t, "ES_PM_AMC_SCHEDULE_SAVE_FAILED", "Could not save the AMC schedule"), {
