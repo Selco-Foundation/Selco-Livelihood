@@ -6,17 +6,25 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 EnvironmentConfiguration envConfig = EnvironmentConfiguration.instance;
 
-/// Joins [baseUrl] and [relativePath] into a single http(s) URL, trimming
-/// duplicate slashes at the seam. Returns null if [relativePath] is empty or
-/// the resulting URL isn't http/https (e.g. the env var was never set).
+/// Returns absolute HTTP(S) URLs directly, or joins relative paths to [baseUrl].
+/// Returns null for empty values or unsupported URL schemes.
 Uri? buildEnvironmentUrl(String baseUrl, String relativePath) {
-  if (relativePath.trim().isEmpty) return null;
+  final path = relativePath.trim();
+  if (path.isEmpty) return null;
+
+  final configuredUri = Uri.tryParse(path);
+  if (configuredUri == null) return null;
+  if (configuredUri.hasScheme) {
+    return configuredUri.scheme == 'http' || configuredUri.scheme == 'https'
+        ? configuredUri
+        : null;
+  }
 
   final trimmedBase = baseUrl.endsWith('/')
       ? baseUrl.substring(0, baseUrl.length - 1)
       : baseUrl;
   final trimmedPath =
-      relativePath.startsWith('/') ? relativePath.substring(1) : relativePath;
+      path.startsWith('/') ? path.substring(1) : path;
 
   final uri = Uri.tryParse('$trimmedBase/$trimmedPath');
   if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
