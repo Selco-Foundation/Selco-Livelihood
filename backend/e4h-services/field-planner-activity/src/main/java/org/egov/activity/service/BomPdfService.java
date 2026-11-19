@@ -11,6 +11,7 @@ import org.egov.activity.web.models.*;
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.tracer.model.CustomException;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -214,7 +215,7 @@ public class BomPdfService {
         data.put("technician_contact_no", technicianMobile);
         data.put("technician_registered_mobile", technicianMobile);
         data.put("technician_vendor_organisation",
-                vendorDirectory.organisationName(requestInfo, activityFacility.getTenantId(), asset.getVendorId()));
+                resolveVendorOrganisationName(requestInfo, activityFacility.getTenantId(), asset, null));
         data.put("technician_submitted_at", nowFormatted);
 
         data.put("handover_trained_end_user", yesNo(assetDetails.get("trainedEndUser")));
@@ -406,10 +407,54 @@ public class BomPdfService {
         data.put("technician_contact_no", technicianMobile);
         data.put("technician_registered_mobile", technicianMobile);
         data.put("technician_vendor_organisation",
-                vendorDirectory.organisationName(requestInfo, activityFacility.getTenantId(), asset.getVendorId()));
+                resolveVendorOrganisationName(requestInfo, activityFacility.getTenantId(), asset, bom));
         data.put("technician_submitted_at", nowFormatted);
 
         return data;
+    }
+
+    /**
+     * The vendor organisation printed under "Submitted by". asset.vendorId is the vendor user's uuid,
+     * not an organisation id, so it is resolved in this order:
+     * <ol>
+     *   <li>the organisation the asset's vendor user belongs to;</li>
+     *   <li>the BOM's vendorOrgId, set at vendor assignment (Solar reports only - the machine report has no BOM);</li>
+     *   <li>asset.vendorId read as an organisation id, for assets written before vendorId held a user;</li>
+     *   <li>the organisation name stored on the BOM at vendor assignment.</li>
+     * </ol>
+     * Null (rendered as NA) only when none of these resolve; never fails the report.
+     */
+    private String resolveVendorOrganisationName(RequestInfo requestInfo, String tenantId, Asset asset, BillOfMaterial bom) {
+        String vendorId = asset != null ? asset.getVendorId() : null;
+
+        String organisationId = vendorDirectory.organisationIdOfUser(requestInfo, tenantId, vendorId);
+        if (!StringUtils.hasText(organisationId) && bom != null) {
+            organisationId = bom.getVendorOrgId();
+        }
+        String name = StringUtils.hasText(organisationId)
+                ? vendorDirectory.organisationName(requestInfo, tenantId, organisationId)
+                : null;
+
+        if (!StringUtils.hasText(name) && StringUtils.hasText(vendorId) && !vendorId.equals(organisationId)) {
+            name = vendorDirectory.organisationName(requestInfo, tenantId, vendorId);
+        }
+        if (!StringUtils.hasText(name)) {
+            name = storedVendorOrgName(bom);
+        }
+        if (!StringUtils.hasText(name)) {
+            log.warn("No vendor organisation resolved for asset {} (vendorId {}), BOM {}",
+                    asset != null ? asset.getAssetId() : null, vendorId, bom != null ? bom.getId() : null);
+        }
+        return name;
+    }
+
+    /** The organisation name vendor assignment stored on the BOM, or null. */
+    private String storedVendorOrgName(BillOfMaterial bom) {
+        if (bom == null || bom.getAdditionalDetails() == null) {
+            return null;
+        }
+        Object storedName = bom.getAdditionalDetails().get("vendorOrgName");
+        return storedName != null && StringUtils.hasText(String.valueOf(storedName)) ? String.valueOf(storedName) : null;
     }
 
     /**
