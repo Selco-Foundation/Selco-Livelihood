@@ -3,30 +3,23 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuthStore } from "@/shared";
-import {
-  approveAmcReport,
-  getAmcReport,
-  searchAmcProjects,
-  searchAmcReports,
-  sendAmcReportForRework,
-} from "../services/amc-reports";
-import type { AmcReport } from "../types/amc-report";
-import { useAmcProjects } from "./use-amc-projects";
+import { searchAmcProjectSummaries, searchAmcVisits, updateAmcVisitWorkflow } from "../services/amc-visits";
+import type { RawAmcVisit } from "../types/amc-visit";
+import { useAmcProject, useAmcProjects } from "./use-amc-projects";
 import { useAmcReport } from "./use-amc-report";
-import { useAmcReportFilterSource, useAmcReports } from "./use-amc-reports";
+import { useAmcReports } from "./use-amc-reports";
 import { useApproveAmcReport, useSendAmcReportForRework } from "./use-amc-review-actions";
 
-vi.mock("../services/amc-reports", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../services/amc-reports")>();
-  return {
-    ...actual,
-    searchAmcReports: vi.fn(),
-    getAmcReport: vi.fn(),
-    searchAmcProjects: vi.fn(),
-    approveAmcReport: vi.fn(),
-    sendAmcReportForRework: vi.fn(),
-  };
-});
+vi.mock("@/shared", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/shared")>()),
+  tenantId: () => "livelihood",
+}));
+vi.mock("../services/amc-visits", () => ({
+  searchAmcVisits: vi.fn(),
+  searchAmcProjectSummaries: vi.fn(),
+  updateAmcVisitWorkflow: vi.fn(),
+  searchVendorOrganisations: vi.fn(),
+}));
 
 function createWrapper() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -36,9 +29,10 @@ function createWrapper() {
 }
 
 const reviewer = { uuid: "u1", roles: [{ code: "AMC_REVIEWER" }] };
-const report = { id: "r1", endUserName: "user979" } as AmcReport;
+const visit: RawAmcVisit = { id: "v1", status: "PENDING_APPROVAL", facility: { facility_name: "name1" }, visitNumber: 1 };
 
 beforeEach(() => {
+  vi.mocked(searchAmcVisits).mockReset();
   useAuthStore.setState({ accessToken: "token-1", user: reviewer });
 });
 
@@ -47,83 +41,89 @@ afterEach(() => {
 });
 
 describe("useAmcReports", () => {
-  it("searches with the given criteria", async () => {
-    vi.mocked(searchAmcReports).mockResolvedValue({ AmcReports: [report], totalCount: 1 });
+  it("searches one page on the server and maps the visits", async () => {
+    vi.mocked(searchAmcVisits).mockResolvedValue({ ScheduledVisits: [visit], TotalCount: 11 });
 
-    const { result } = renderHook(() => useAmcReports({ tab: "pending", states: ["Assam"] }), {
+    const { result } = renderHook(() => useAmcReports({ tab: "pending", states: ["KA"], offset: 10, limit: 10 }), {
       wrapper: createWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(searchAmcReports).toHaveBeenCalledWith({ tab: "pending", states: ["Assam"] }, "token-1", reviewer);
-    expect(result.current.data?.totalCount).toBe(1);
+    expect(searchAmcVisits).toHaveBeenCalledWith(
+      expect.objectContaining({ tenantId: "livelihood", statuses: ["PENDING_APPROVAL"], states: ["KA"] }),
+      { limit: 10, offset: 10 },
+      "token-1",
+      reviewer,
+    );
+    expect(result.current.data).toMatchObject({ totalCount: 11, reports: [{ id: "v1", endUserName: "name1" }] });
   });
 
   it("does not search for a user without the AMC reviewer role", () => {
     useAuthStore.setState({ accessToken: "token-1", user: { uuid: "u2", roles: [{ code: "PROJECT_MANAGER" }] } });
-    vi.mocked(searchAmcReports).mockClear();
 
     renderHook(() => useAmcReports({ tab: "pending" }), { wrapper: createWrapper() });
 
-    expect(searchAmcReports).not.toHaveBeenCalled();
-  });
-});
-
-describe("useAmcReportFilterSource", () => {
-  it("returns every report on the tab, unfiltered", async () => {
-    vi.mocked(searchAmcReports).mockResolvedValue({ AmcReports: [report], totalCount: 1 });
-
-    const { result } = renderHook(() => useAmcReportFilterSource("auto", "p1"), { wrapper: createWrapper() });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(searchAmcReports).toHaveBeenCalledWith({ tab: "auto", projectId: "p1" }, "token-1", reviewer);
-    expect(result.current.data).toEqual([report]);
+    expect(searchAmcVisits).not.toHaveBeenCalled();
   });
 });
 
 describe("useAmcReport", () => {
-  it("returns the single report, or null when not found", async () => {
-    vi.mocked(getAmcReport).mockResolvedValueOnce({ AmcReports: [report], totalCount: 1 });
-    const found = renderHook(() => useAmcReport("r1"), { wrapper: createWrapper() });
-    await waitFor(() => expect(found.result.current.data).toEqual(report));
+  it("reads one visit with its site details, or null when not found", async () => {
+    vi.mocked(searchAmcVisits).mockResolvedValueOnce({ ScheduledVisits: [visit], TotalCount: 1 });
+    const found = renderHook(() => useAmcReport("v1"), { wrapper: createWrapper() });
+    await waitFor(() => expect(found.result.current.data?.id).toBe("v1"));
+    expect(searchAmcVisits).toHaveBeenCalledWith(
+      { tenantId: "livelihood", ids: ["v1"], includeSiteDetails: true },
+      { limit: 1, offset: 0 },
+      "token-1",
+      reviewer,
+    );
 
-    vi.mocked(getAmcReport).mockResolvedValueOnce({ AmcReports: [], totalCount: 0 });
-    const missing = renderHook(() => useAmcReport("r9"), { wrapper: createWrapper() });
+    vi.mocked(searchAmcVisits).mockResolvedValueOnce({ ScheduledVisits: [], TotalCount: 0 });
+    const missing = renderHook(() => useAmcReport("v9"), { wrapper: createWrapper() });
     await waitFor(() => expect(missing.result.current.isSuccess).toBe(true));
     expect(missing.result.current.data).toBeNull();
   });
 });
 
-describe("useAmcProjects", () => {
-  it("returns the project summaries", async () => {
-    vi.mocked(searchAmcProjects).mockResolvedValue({
-      AmcProjects: [
-        { projectId: "p1", projectName: "P1", states: [], districts: [], blocks: [], pendingCount: 1, breachedCount: 0, autoApprovedCount: 2 },
-      ],
+describe("useAmcProjects / useAmcProject", () => {
+  it("pages the project summaries and finds one project by id", async () => {
+    vi.mocked(searchAmcProjectSummaries).mockResolvedValue({
+      ProjectSummaries: [{ projectId: "p1", projectName: "P1", pendingCount: 2 }],
+      TotalCount: 1,
     });
 
-    const { result } = renderHook(() => useAmcProjects(), { wrapper: createWrapper() });
+    const list = renderHook(() => useAmcProjects({ offset: 0, limit: 10 }), { wrapper: createWrapper() });
+    await waitFor(() => expect(list.result.current.data?.projects[0]).toMatchObject({ projectId: "p1", pendingCount: 2 }));
 
-    await waitFor(() => expect(result.current.data?.[0].projectId).toBe("p1"));
+    const one = renderHook(() => useAmcProject("p1"), { wrapper: createWrapper() });
+    await waitFor(() => expect(one.result.current.data?.projectName).toBe("P1"));
+    expect(searchAmcProjectSummaries).toHaveBeenCalledWith({ projectIds: ["p1"], offset: 0, limit: 1 }, "token-1", reviewer);
   });
 });
 
 describe("review action hooks", () => {
   it("approves a report", async () => {
-    vi.mocked(approveAmcReport).mockResolvedValue({ AmcReports: [], totalCount: 0 });
+    vi.mocked(updateAmcVisitWorkflow).mockResolvedValue({});
     const { result } = renderHook(() => useApproveAmcReport(), { wrapper: createWrapper() });
 
-    await act(() => result.current.mutateAsync("r1"));
+    await act(() => result.current.mutateAsync("v1"));
 
-    expect(approveAmcReport).toHaveBeenCalledWith("r1", "token-1", reviewer);
+    expect(updateAmcVisitWorkflow).toHaveBeenCalledWith("v1", "APPROVE", null, "token-1", reviewer);
   });
 
-  it("sends a report for rework with the reason", async () => {
-    vi.mocked(sendAmcReportForRework).mockResolvedValue({ AmcReports: [], totalCount: 0 });
+  it("sends a report for rework with the reasons as a JSON comment", async () => {
+    vi.mocked(updateAmcVisitWorkflow).mockResolvedValue({});
     const { result } = renderHook(() => useSendAmcReportForRework(), { wrapper: createWrapper() });
 
-    await act(() => result.current.mutateAsync({ reportId: "r1", reason: "Fix photo" }));
+    await act(() => result.current.mutateAsync({ reportId: "v1", reasons: [{ reason: "OTHERS", comment: "Retake" }] }));
 
-    expect(sendAmcReportForRework).toHaveBeenCalledWith("r1", "Fix photo", "token-1", reviewer);
+    expect(updateAmcVisitWorkflow).toHaveBeenCalledWith(
+      "v1",
+      "REJECT",
+      '[{"reason":"OTHERS","comment":"Retake"}]',
+      "token-1",
+      reviewer,
+    );
   });
 });

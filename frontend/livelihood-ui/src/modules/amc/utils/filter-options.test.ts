@@ -1,40 +1,48 @@
 import { describe, expect, it } from "vitest";
-import type { AmcReport } from "../types/amc-report";
-import { buildAmcFilterOptions, pruneAmcGeography } from "./filter-options";
+import { buildGeographyOptions, pruneAmcGeography, toVendorOptions } from "./filter-options";
 
-function report(state: string, district: string, block: string, vendorName: string): AmcReport {
-  return { state, district, block, vendorName } as AmcReport;
-}
+const hierarchy = {
+  states: [{ code: "KA", parentCode: "IN" }, { code: "AS", parentCode: "IN" }],
+  districts: [{ code: "KA_HV", parentCode: "KA" }, { code: "AS_BK", parentCode: "AS" }],
+  blocks: [{ code: "KA_HV_1", parentCode: "KA_HV" }, { code: "AS_BK_1", parentCode: "AS_BK" }],
+};
+const nameOf = (code: string) => `name-${code}`;
 
-const reports = [
-  report("Assam", "Kamrup", "Rangia", "Vendor B"),
-  report("Assam", "Barpeta", "Sorbhog", "Vendor A"),
-  report("Karnataka", "Mandya", "Maddur", "Vendor A"),
-];
-
-describe("buildAmcFilterOptions", () => {
-  it("lists every distinct vendor and state, sorted", () => {
-    const options = buildAmcFilterOptions(reports, { states: [], districts: [] });
-
-    expect(options.vendors.map((option) => option.code)).toEqual(["Vendor A", "Vendor B"]);
-    expect(options.states.map((option) => option.code)).toEqual(["Assam", "Karnataka"]);
+describe("buildGeographyOptions", () => {
+  it("lists every level when nothing is selected", () => {
+    const options = buildGeographyOptions(hierarchy, { states: [], districts: [] }, nameOf);
+    expect(options.states.map((option) => option.code)).toEqual(["AS", "KA"]);
+    expect(options.blocks).toHaveLength(2);
   });
 
-  it("narrows districts to the selected states and blocks to the selected districts", () => {
-    const options = buildAmcFilterOptions(reports, { states: ["Assam"], districts: ["Kamrup"] });
+  it("narrows districts to the chosen states and blocks to the chosen districts", () => {
+    const options = buildGeographyOptions(hierarchy, { states: ["KA"], districts: [] }, nameOf);
+    expect(options.districts).toEqual([{ code: "KA_HV", name: "name-KA_HV" }]);
+    expect(options.blocks.map((option) => option.code)).toEqual(["KA_HV_1"]);
+  });
 
-    expect(options.districts.map((option) => option.code)).toEqual(["Barpeta", "Kamrup"]);
-    expect(options.blocks.map((option) => option.code)).toEqual(["Rangia"]);
+  it("drops selections that no longer fit", () => {
+    const options = buildGeographyOptions(hierarchy, { states: ["KA"], districts: [] }, nameOf);
+    expect(pruneAmcGeography({ districts: ["AS_BK"], blocks: ["KA_HV_1"] }, options)).toEqual({
+      districts: [],
+      blocks: ["KA_HV_1"],
+    });
   });
 });
 
-describe("pruneAmcGeography", () => {
-  it("drops selected districts and blocks that are no longer offered", () => {
-    const options = buildAmcFilterOptions(reports, { states: ["Karnataka"], districts: [] });
-
-    expect(pruneAmcGeography({ districts: ["Kamrup", "Mandya"], blocks: ["Rangia", "Maddur"] }, options)).toEqual({
-      districts: ["Mandya"],
-      blocks: ["Maddur"],
-    });
+describe("toVendorOptions", () => {
+  it("keeps active organisations, by id and sorted by name", () => {
+    expect(
+      toVendorOptions({
+        organisations: [
+          { id: "2", name: "Zed", orgStatus: "ACTIVE" },
+          { id: "1", name: "Alpha", orgStatus: "ACTIVE" },
+          { id: "3", name: "Gone", orgStatus: "INACTIVE" },
+        ],
+      }),
+    ).toEqual([
+      { code: "1", name: "Alpha" },
+      { code: "2", name: "Zed" },
+    ]);
   });
 });

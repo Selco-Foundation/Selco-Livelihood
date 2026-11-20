@@ -1,19 +1,16 @@
-import { translateOr, useDebouncedValue, useTranslate } from "@/shared";
+import { translateOr, useBoundaryHierarchy, useDebouncedValue, useTranslate } from "@/shared";
 import { Tabs, TabsList, TabsTrigger } from "@/ui";
-import { useEffect, useMemo, useState } from "react";
-import { useAmcReportFilterSource, useAmcReports } from "../hooks/use-amc-reports";
+import { useAmcReportFilterOptions, useAmcReports } from "../hooks/use-amc-reports";
+import {
+  amcReportListKey,
+  INITIAL_AMC_REPORT_LIST_STATE,
+  useAmcReportListStore,
+  type AmcReportListState,
+} from "../stores/report-list-store";
 import type { AmcReportTab } from "../types/amc-report";
-import { buildAmcFilterOptions, pruneAmcGeography } from "../utils/filter-options";
-import { AmcReportFilter, EMPTY_AMC_REPORT_FILTERS, type AmcReportFilterState } from "./AmcReportFilter";
+import { buildGeographyOptions, pruneAmcGeography } from "../utils/filter-options";
+import { AmcReportFilter, type AmcReportFilterState } from "./AmcReportFilter";
 import { AmcReportTable } from "./AmcReportTable";
-
-const DEFAULT_PAGE_SIZE = 10;
-
-// The Pending Approval tab holds every report that went to manual review, so it opens filtered to
-// the ones still waiting (what the PRD's "Report Status" filter can then widen).
-function initialFilters(tab: AmcReportTab): AmcReportFilterState {
-  return tab === "pending" ? { ...EMPTY_AMC_REPORT_FILTERS, statuses: ["PENDING_APPROVAL"] } : EMPTY_AMC_REPORT_FILTERS;
-}
 
 interface AmcReportListProps {
   tab: AmcReportTab;
@@ -24,44 +21,38 @@ interface AmcReportListProps {
 /** Report-Specific view body: tabs, filters, search and the paged table. */
 export function AmcReportList({ tab, onTabChange, projectId }: Readonly<AmcReportListProps>) {
   const { t } = useTranslate();
-  const [filters, setFilters] = useState<AmcReportFilterState>(() => initialFilters(tab));
-  const [searchText, setSearchText] = useState("");
-  const debouncedSearch = useDebouncedValue(searchText);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-
-  useEffect(() => {
-    setFilters(initialFilters(tab));
-    setSearchText("");
-    setCurrentPage(0);
-  }, [tab]);
-
-  const { data: filterSource = [] } = useAmcReportFilterSource(tab, projectId);
-  const options = useMemo(
-    () => buildAmcFilterOptions(filterSource, { states: filters.states, districts: filters.districts }),
-    [filterSource, filters.states, filters.districts],
+  const listKey = amcReportListKey(projectId, tab);
+  const { filters, searchText, currentPage, pageSize } = useAmcReportListStore(
+    (state) => state.lists[listKey] ?? INITIAL_AMC_REPORT_LIST_STATE,
   );
+  const updateList = useAmcReportListStore((state) => state.update);
+  const update = (patch: Partial<AmcReportListState>) => updateList(listKey, patch);
+  const debouncedSearch = useDebouncedValue(searchText);
+
+  // Pending tab opens on the reports waiting for review; its "Report Status" filter picks another.
+  const options = useAmcReportFilterOptions({ states: filters.states, districts: filters.districts });
+  const { data: hierarchy } = useBoundaryHierarchy();
+  const pending = tab === "pending";
 
   const { data, isLoading } = useAmcReports({
     tab,
     projectId,
-    vendors: filters.vendors,
+    vendorIds: filters.vendors,
     states: filters.states,
     districts: filters.districts,
     blocks: filters.blocks,
-    statuses: tab === "pending" ? filters.statuses : undefined,
-    slaBreachedOnly: tab === "pending" ? filters.slaBreachedOnly : undefined,
-    submittedFrom: tab === "pending" ? filters.submittedFrom : undefined,
-    submittedTo: tab === "pending" ? filters.submittedTo : undefined,
+    status: pending ? filters.status : undefined,
+    slaBreachedOnly: pending ? filters.slaBreachedOnly : undefined,
+    submittedFrom: pending ? filters.submittedFrom : undefined,
+    submittedTo: pending ? filters.submittedTo : undefined,
     searchText: debouncedSearch,
     offset: currentPage * pageSize,
     limit: pageSize,
   });
 
   function handleFilterChange(next: AmcReportFilterState) {
-    const nextOptions = buildAmcFilterOptions(filterSource, { states: next.states, districts: next.districts });
-    setFilters(pruneAmcGeography(next, nextOptions));
-    setCurrentPage(0);
+    const nextOptions = buildGeographyOptions(hierarchy, { states: next.states, districts: next.districts }, (code) => code);
+    update({ filters: pruneAmcGeography(next, nextOptions), currentPage: 0 });
   }
 
   return (
@@ -79,24 +70,19 @@ export function AmcReportList({ tab, onTabChange, projectId }: Readonly<AmcRepor
         filters={filters}
         searchText={searchText}
         onFilterChange={handleFilterChange}
-        onSearchTextChange={(value) => {
-          setSearchText(value);
-          setCurrentPage(0);
-        }}
+        onSearchTextChange={(value) => update({ searchText: value, currentPage: 0 })}
       />
 
       <AmcReportTable
-        tab={tab}
-        reports={data?.AmcReports ?? []}
+        showSla={pending && filters.status === "PENDING_APPROVAL"}
+        projectId={projectId}
+        reports={data?.reports ?? []}
         totalCount={data?.totalCount ?? 0}
         isLoading={isLoading}
         currentPage={currentPage}
         pageSize={pageSize}
-        onPageChange={setCurrentPage}
-        onPageSizeChange={(size) => {
-          setPageSize(size);
-          setCurrentPage(0);
-        }}
+        onPageChange={(page) => update({ currentPage: page })}
+        onPageSizeChange={(size) => update({ pageSize: size, currentPage: 0 })}
       />
     </div>
   );

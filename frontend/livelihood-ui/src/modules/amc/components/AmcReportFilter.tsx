@@ -20,7 +20,8 @@ export interface AmcReportFilterState {
   states: string[];
   districts: string[];
   blocks: string[];
-  statuses: AmcReportStatus[];
+  /** Pending tab only: one report status at a time (see utils/visit-criteria.ts). */
+  status: AmcReportStatus;
   slaBreachedOnly: boolean;
   submittedFrom?: number;
   submittedTo?: number;
@@ -31,12 +32,12 @@ export const EMPTY_AMC_REPORT_FILTERS: AmcReportFilterState = {
   states: [],
   districts: [],
   blocks: [],
-  statuses: [],
+  status: "PENDING_APPROVAL",
   slaBreachedOnly: false,
 };
 
-type ListCategory = "vendors" | "states" | "districts" | "blocks" | "statuses";
-type Category = ListCategory | "sla";
+type ListCategory = "vendors" | "states" | "districts" | "blocks";
+type Category = ListCategory | "status" | "sla";
 
 interface AmcReportFilterProps {
   tab: AmcReportTab;
@@ -64,7 +65,7 @@ export function AmcReportFilter({
   const statusOptions: AmcFilterOption[] = [
     { code: "PENDING_APPROVAL", name: translateOr(t, "ES_AMC_STATUS_PENDING_APPROVAL", "Pending approval") },
     { code: "REJECTED", name: translateOr(t, "ES_AMC_STATUS_REJECTED", "Sent for rework") },
-    { code: "APPROVED", name: translateOr(t, "ES_AMC_STATUS_APPROVED", "Approved") },
+    { code: "APPROVED", name: translateOr(t, "ES_AMC_STATUS_APPROVED_BY_REVIEWER", "Approved by reviewer") },
   ];
 
   // The Auto-Approved tab only filters by vendor and geography (PRD 5.5.6).
@@ -75,8 +76,11 @@ export function AmcReportFilter({
     { key: "blocks", label: translateOr(t, "CS_BLOCK", "Block"), options: options.blocks },
     ...(tab === "pending"
       ? [
-          { key: "statuses" as const, label: translateOr(t, "ES_AMC_REPORT_STATUS", "Report Status"), options: statusOptions },
-          { key: "sla" as const, label: translateOr(t, "ES_AMC_SLA_BREACHED", "SLA Breached") },
+          { key: "status" as const, label: translateOr(t, "ES_AMC_REPORT_STATUS", "Report Status"), options: statusOptions },
+          // Only a report still waiting for review has an SLA.
+          ...(filters.status === "PENDING_APPROVAL"
+            ? [{ key: "sla" as const, label: translateOr(t, "ES_AMC_SLA_BREACHED", "SLA Breached") }]
+            : []),
         ]
       : []),
   ];
@@ -100,7 +104,7 @@ export function AmcReportFilter({
     filters.states.length > 0 ||
     filters.districts.length > 0 ||
     filters.blocks.length > 0 ||
-    filters.statuses.length > 0 ||
+    filters.status !== "PENDING_APPROVAL" ||
     filters.slaBreachedOnly ||
     Boolean(filters.submittedFrom || filters.submittedTo);
 
@@ -175,8 +179,20 @@ export function AmcReportFilter({
                             <label key={option.code} className="flex cursor-pointer items-center gap-2 text-sm font-semibold">
                               <Checkbox
                                 className="size-5 rounded-md border-2 border-primary"
-                                checked={(filters[active.key as ListCategory] as string[]).includes(option.code)}
-                                onCheckedChange={() => toggleOption(active.key as ListCategory, option.code)}
+                                checked={
+                                  active.key === "status"
+                                    ? filters.status === option.code
+                                    : (filters[active.key as ListCategory] as string[]).includes(option.code)
+                                }
+                                onCheckedChange={() =>
+                                  active.key === "status"
+                                    ? onFilterChange({
+                                        ...filters,
+                                        status: option.code as AmcReportStatus,
+                                        slaBreachedOnly: option.code === "PENDING_APPROVAL" && filters.slaBreachedOnly,
+                                      })
+                                    : toggleOption(active.key as ListCategory, option.code)
+                                }
                               />
                               {option.name}
                             </label>

@@ -1,5 +1,5 @@
-import type { AmcReportStatus } from "../types/amc-report";
-import { amcSlaState } from "../utils/sla";
+import type { AmcSla } from "../types/amc-report";
+import { amcSlaTone } from "../utils/sla";
 
 const TONE_CLASS = {
   ok: "livelihood-sla-badge",
@@ -7,19 +7,11 @@ const TONE_CLASS = {
   breached: "livelihood-sla-badge-urgent",
 } as const;
 
-interface AmcSlaBadgeProps {
-  latestSubmissionDate: number;
-  status: AmcReportStatus;
-  now?: number;
-}
-
-/** Remaining review days; only meaningful while a report waits in Pending Approval. A breach is
- *  shown by the red tone and the zero/negative count alone (no text label, per client). */
-export function AmcSlaBadge({ latestSubmissionDate, status, now }: Readonly<AmcSlaBadgeProps>) {
-  if (status !== "PENDING_APPROVAL") {
+/** Review days left, from the server; only set while a report waits for review. A breach is shown
+ *  by the red tone and the zero/negative count alone (no text label, per client). */
+export function AmcSlaBadge({ sla }: Readonly<{ sla?: AmcSla }>) {
+  if (!sla) {
     return <span className="livelihood-sla-badge-muted">-</span>;
   }
-
-  const sla = amcSlaState(latestSubmissionDate, now);
-  return <span className={TONE_CLASS[sla.tone]}>{sla.remainingDays}</span>;
+  return <span className={TONE_CLASS[amcSlaTone(sla)]}>{sla.daysRemaining}</span>;
 }

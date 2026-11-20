@@ -29,18 +29,23 @@ function renderPage() {
 beforeEach(() => {
   useAuthStore.setState({ accessToken: "token-1", user: { uuid: "u1", roles: [{ code: "AMC_REVIEWER" }] } });
   vi.mocked(useAmcProjects).mockReturnValue({
-    data: [
-      {
-        projectId: "amc-proj-1",
-        projectName: "JUS-12345-26-26",
-        states: ["Assam"],
-        districts: ["Kamrup", "Barpeta"],
-        blocks: ["Rangia"],
-        pendingCount: 3,
-        breachedCount: 1,
-        autoApprovedCount: 2,
-      },
-    ],
+    data: {
+      totalCount: 1,
+      projects: [
+        {
+          projectId: "amc-proj-1",
+          projectName: "JUS-12345-26-26",
+          states: ["Assam"],
+          districts: ["Kamrup", "Barpeta"],
+          blocks: ["Rangia"],
+          pendingCount: 3,
+          breachedCount: 1,
+          autoApprovedCount: 2,
+          reviewerApprovedCount: 0,
+          reworkCount: 0,
+        },
+      ],
+    },
     isLoading: false,
   } as never);
 });

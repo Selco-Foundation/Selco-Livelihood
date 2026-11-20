@@ -3,14 +3,15 @@ import {
   Accordion,
   AccordionContent,
   AccordionItem,
+  Button,
   cn,
   LabeledValueRows,
   SectionImageGrid,
   toast,
   TopBar,
 } from "@/ui";
-import { useParams } from "@tanstack/react-router";
-import { AlertTriangle, ChevronDown } from "lucide-react";
+import { useParams, useSearch } from "@tanstack/react-router";
+import { AlertTriangle, ChevronDown, FileDown } from "lucide-react";
 import { Accordion as AccordionPrimitive } from "radix-ui";
 import { useState } from "react";
 import { AmcReviewActionBar } from "../../components/AmcReviewActionBar";
@@ -19,12 +20,16 @@ import { AmcSlaBadge } from "../../components/AmcSlaBadge";
 import { AmcStatusBadge } from "../../components/AmcStatusBadge";
 import { ConfirmApproveDialog } from "../../components/ConfirmApproveDialog";
 import { ReworkReasonDialog } from "../../components/ReworkReasonDialog";
-import { useAmcReport } from "../../hooks/use-amc-report";
+import { useAmcProject } from "../../hooks/use-amc-projects";
+import { useAmcRejectionReasons } from "../../hooks/use-amc-rejection-reasons";
+import { useAmcFileUrls, useAmcReport } from "../../hooks/use-amc-report";
 import { useApproveAmcReport, useSendAmcReportForRework } from "../../hooks/use-amc-review-actions";
 import type { AmcReport } from "../../types/amc-report";
+import type { AmcReworkReason } from "../../types/amc-visit";
 import { hasAmcReviewerAccess } from "../../utils/access";
 import { formatAmcDate } from "../../utils/date";
-import { amcReportsPath } from "../../utils/paths";
+import type { AmcReportDetailRouteSearch } from "../../routes";
+import { amcProjectReportsPath, amcProjectsPath, amcReportsPath } from "../../utils/paths";
 
 // Card padding and type scale follow the IR review page (ActivityInfoCard, AuditTrailTimeline,
 // ReviewSectionsAccordion), so the two review screens look the same.
@@ -40,7 +45,7 @@ function InfoItem({ label, children }: Readonly<{ label: string; children: React
   );
 }
 
-function ReportSummary({ report }: Readonly<{ report: AmcReport }>) {
+function ReportSummary({ report, projectName }: Readonly<{ report: AmcReport; projectName?: string }>) {
   const { t } = useTranslate();
   return (
     <div className={cn(CARD, "grid gap-6 sm:grid-cols-2 lg:grid-cols-4")}>
@@ -50,8 +55,9 @@ function ReportSummary({ report }: Readonly<{ report: AmcReport }>) {
         {report.state} / {report.district} / {report.block}
       </InfoItem>
       <InfoItem label={translateOr(t, "ES_AMC_VENDOR", "Vendor")}>{report.vendorName}</InfoItem>
+      <InfoItem label={translateOr(t, "ES_AMC_FIELD_STAFF", "AMC field staff")}>{report.fieldStaffName}</InfoItem>
       <InfoItem label={translateOr(t, "ES_AMC_NUMBER", "AMC No.")}>
-        {report.amcNumber} / {report.totalAmcs}
+        {report.visitNumber} / {report.totalVisits ?? "-"}
       </InfoItem>
       <InfoItem label={translateOr(t, "ES_AMC_SCHEDULED_DATE", "Scheduled AMC date")}>
         {formatAmcDate(report.scheduledDate)}
@@ -65,19 +71,24 @@ function ReportSummary({ report }: Readonly<{ report: AmcReport }>) {
       <InfoItem label={translateOr(t, "ES_AMC_REPORT_STATUS", "Report Status")}>
         <AmcStatusBadge status={report.status} approvedBy={report.approvedBy} />
       </InfoItem>
-      <InfoItem label={translateOr(t, "ES_AMC_SLA_DAYS_REMAINING", "SLA days remaining")}>
-        <AmcSlaBadge latestSubmissionDate={report.latestSubmissionDate} status={report.status} />
-      </InfoItem>
-      <InfoItem label={translateOr(t, "ES_AMC_PLAN_CODE", "Installation plan")}>{report.planCode}</InfoItem>
-      <InfoItem label={translateOr(t, "ES_AMC_PROJECT", "Project")}>{report.projectName}</InfoItem>
+      {report.sla ? (
+        <InfoItem label={translateOr(t, "ES_AMC_SLA_DAYS_REMAINING", "SLA days remaining")}>
+          <AmcSlaBadge sla={report.sla} />
+        </InfoItem>
+      ) : null}
+      <InfoItem label={translateOr(t, "ES_AMC_PROJECT", "Project")}>{projectName ?? "-"}</InfoItem>
     </div>
   );
 }
 
 function SystemStatus({ report }: Readonly<{ report: AmcReport }>) {
   const { t } = useTranslate();
-  const yesNo = (value: boolean) =>
-    value ? translateOr(t, "CORE_COMMON_YES", "Yes") : translateOr(t, "CORE_COMMON_NO", "No");
+  const yesNo = (value: boolean | undefined) =>
+    value === undefined
+      ? "-"
+      : value
+        ? translateOr(t, "CORE_COMMON_YES", "Yes")
+        : translateOr(t, "CORE_COMMON_NO", "No");
   return (
     <div className={cn(CARD, "space-y-4")}>
       <h2 className={CARD_TITLE}>{translateOr(t, "ES_AMC_SYSTEM_STATUS", "System status")}</h2>
@@ -86,7 +97,7 @@ function SystemStatus({ report }: Readonly<{ report: AmcReport }>) {
           {yesNo(report.systemInUse)}
         </InfoItem>
         <InfoItem label={translateOr(t, "ES_AMC_SYSTEM_FUNCTIONAL", "Is the system functional?")}>
-          <span className={report.systemFunctional ? undefined : "text-destructive"}>
+          <span className={report.systemFunctional === false ? "text-destructive" : undefined}>
             {yesNo(report.systemFunctional)}
           </span>
         </InfoItem>
@@ -98,7 +109,7 @@ function SystemStatus({ report }: Readonly<{ report: AmcReport }>) {
 function FailedParameters({ report }: Readonly<{ report: AmcReport }>) {
   const { t } = useTranslate();
   const failed = report.ruleResults.filter((result) => !result.passed);
-  if (failed.length === 0) return null;
+  if (failed.length === 0 || report.approvedBy === "SYSTEM") return null;
   return (
     <div className={cn(CARD, "border border-destructive/40")}>
       <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold text-destructive">
@@ -106,7 +117,11 @@ function FailedParameters({ report }: Readonly<{ report: AmcReport }>) {
         {translateOr(t, "ES_AMC_NOT_AUTO_APPROVED", "Why this report was not auto-approved")}
       </h2>
       <p className="mb-4 text-sm text-ink-600">
-        {translateOr(t, "ES_AMC_NOT_AUTO_APPROVED_DESC", "These readings are outside the accepted range.")}
+        {translateOr(
+          t,
+          "ES_AMC_NOT_AUTO_APPROVED_DESC",
+          "These readings are outside the accepted range, or were not entered.",
+        )}
       </p>
       <ul className="space-y-2">
         {failed.map((result) => (
@@ -143,8 +158,9 @@ function SectionCard({ value, title, children }: Readonly<{ value: string; title
   );
 }
 
-function FormSections({ report }: Readonly<{ report: AmcReport }>) {
+function FormSections({ report, fileUrls }: Readonly<{ report: AmcReport; fileUrls: Record<string, string> }>) {
   const { t } = useTranslate();
+  const photos = report.photos.filter((photo) => fileUrls[photo.fileStoreId]);
   return (
     <div className="space-y-4">
       {report.sections.map((section) => (
@@ -154,13 +170,25 @@ function FormSections({ report }: Readonly<{ report: AmcReport }>) {
           </div>
         </SectionCard>
       ))}
-      <SectionCard value="photo" title={translateOr(t, "ES_AMC_PHOTO_SECTION", "Photo")}>
-        <SectionImageGrid
-          titleKey="ES_AMC_VERIFICATION_PHOTO"
-          title="Field staff with end user at the system"
-          images={[{ url: report.photoUrl }]}
-        />
-      </SectionCard>
+      {report.photos.length > 0 ? (
+        <SectionCard value="photos" title={translateOr(t, "ES_AMC_PHOTO_SECTION", "Photos")}>
+          <div className="space-y-3">
+            {photos.map((photo) => (
+              <SectionImageGrid
+                key={photo.fileStoreId}
+                titleKey={photo.titleKey}
+                title={photo.title}
+                images={[{ url: fileUrls[photo.fileStoreId] }]}
+              />
+            ))}
+            {photos.length < report.photos.length ? (
+              <p className="text-sm text-muted-foreground">
+                {translateOr(t, "CORE_COMMON_LOADING", "Loading...")}
+              </p>
+            ) : null}
+          </div>
+        </SectionCard>
+      ) : null}
     </div>
   );
 }
@@ -169,7 +197,15 @@ export function AmcReportDetailPage() {
   const { t } = useTranslate();
   const user = useAuthStore((state) => state.user);
   const { reportId } = useParams({ strict: false }) as { reportId: string };
+  const { projectId: fromProjectId } = useSearch({ strict: false }) as AmcReportDetailRouteSearch;
   const { data: report, isLoading } = useAmcReport(reportId);
+  const { data: project } = useAmcProject(report?.projectId ?? fromProjectId);
+  const { data: reasonOptions = [] } = useAmcRejectionReasons();
+  const fileStoreIds = report
+    ? [...report.photos.map((photo) => photo.fileStoreId), ...(report.reportPdfFileStoreId ? [report.reportPdfFileStoreId] : [])]
+    : [];
+  const { data: fileUrls = {} } = useAmcFileUrls(fileStoreIds);
+  const pdfUrl = report?.reportPdfFileStoreId ? fileUrls[report.reportPdfFileStoreId] : undefined;
   const approve = useApproveAmcReport();
   const sendForRework = useSendAmcReportForRework();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -198,9 +234,13 @@ export function AmcReportDetailPage() {
     });
   }
 
-  function handleRework(reason: string) {
+  function reasonName(code: string) {
+    return reasonOptions.find((option) => option.code === code)?.name ?? code;
+  }
+
+  function handleRework(reasons: AmcReworkReason[]) {
     sendForRework.mutate(
-      { reportId, reason },
+      { reportId, reasons },
       {
         onSuccess: () => {
           setReworkOpen(false);
@@ -229,7 +269,12 @@ export function AmcReportDetailPage() {
           title={report?.endUserName ?? ""}
           breadcrumbs={[
             { label: translateOr(t, "CORE_COMMON_OVERVIEW", "Overview"), to: employeeHomePath() },
-            { label: translateOr(t, "ES_AMC_REPORTS", "AMC Reports"), to: amcReportsPath() },
+            ...(fromProjectId
+              ? [
+                  { label: translateOr(t, "ES_AMC_PROJECTS", "AMC Projects"), to: amcProjectsPath() },
+                  { label: project?.projectName ?? "-", to: amcProjectReportsPath(fromProjectId) },
+                ]
+              : [{ label: translateOr(t, "ES_AMC_REPORTS", "AMC Reports"), to: amcReportsPath() }]),
             { label: report?.endUserName ?? "" },
           ]}
         />
@@ -244,11 +289,28 @@ export function AmcReportDetailPage() {
           </p>
         ) : (
           <>
-            <ReportSummary report={report} />
+            {report.reportPdfFileStoreId ? (
+              <div className="flex justify-end">
+                <Button asChild={Boolean(pdfUrl)} variant="outline" size="sm" disabled={!pdfUrl}>
+                  {pdfUrl ? (
+                    <a href={pdfUrl} target="_blank" rel="noreferrer">
+                      <FileDown className="size-4" />
+                      {translateOr(t, "ES_AMC_DOWNLOAD_REPORT", "Download report PDF")}
+                    </a>
+                  ) : (
+                    <span>
+                      <FileDown className="size-4" />
+                      {translateOr(t, "ES_AMC_DOWNLOAD_REPORT", "Download report PDF")}
+                    </span>
+                  )}
+                </Button>
+              </div>
+            ) : null}
+            <ReportSummary report={report} projectName={project?.projectName} />
             <SystemStatus report={report} />
             <FailedParameters report={report} />
-            <FormSections report={report} />
-            <AmcReviewHistory history={report.history} />
+            <FormSections report={report} fileUrls={fileUrls} />
+            <AmcReviewHistory history={report.history} reasonName={reasonName} />
           </>
         )}
       </div>
@@ -273,6 +335,7 @@ export function AmcReportDetailPage() {
       <ReworkReasonDialog
         open={reworkOpen}
         isSubmitting={isSubmitting}
+        reasonOptions={reasonOptions}
         onOpenChange={setReworkOpen}
         onSubmit={handleRework}
       />

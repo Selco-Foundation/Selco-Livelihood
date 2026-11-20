@@ -3,13 +3,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuthStore } from "@/shared";
-import { searchAmcReports } from "../services/amc-reports";
+import { searchAmcVisits } from "../services/amc-visits";
 import { useAmcReportCount } from "./use-amc-report-count";
 
-vi.mock("../services/amc-reports", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../services/amc-reports")>()),
-  searchAmcReports: vi.fn(),
+vi.mock("@/shared", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/shared")>()),
+  tenantId: () => "livelihood",
 }));
+vi.mock("../services/amc-visits", () => ({ searchAmcVisits: vi.fn() }));
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -17,7 +18,7 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 beforeEach(() => {
-  vi.mocked(searchAmcReports).mockClear();
+  vi.mocked(searchAmcVisits).mockReset();
   useAuthStore.setState({ accessToken: "t", user: { roles: [{ code: "AMC_REVIEWER" }] } });
 });
 
@@ -26,15 +27,18 @@ afterEach(() => {
 });
 
 describe("useAmcReportCount", () => {
-  it("adds the reviewer and auto-approved totals", async () => {
-    vi.mocked(searchAmcReports).mockImplementation(async (criteria) => ({
-      AmcReports: [],
-      totalCount: criteria.tab === "auto" ? 4 : 11,
-    }));
+  it("counts every submitted report with one count query", async () => {
+    vi.mocked(searchAmcVisits).mockResolvedValue({ ScheduledVisits: [], TotalCount: 13 });
 
     const { result } = renderHook(() => useAmcReportCount(), { wrapper });
 
-    await waitFor(() => expect(result.current.data).toBe(15));
+    await waitFor(() => expect(result.current.data).toBe(13));
+    expect(searchAmcVisits).toHaveBeenCalledWith(
+      { tenantId: "livelihood", statuses: ["PENDING_APPROVAL", "REJECTED", "APPROVED"], isCountQuery: true },
+      { limit: 1, offset: 0 },
+      "t",
+      expect.anything(),
+    );
   });
 
   it("does not search without reviewer access", () => {
@@ -42,6 +46,6 @@ describe("useAmcReportCount", () => {
 
     renderHook(() => useAmcReportCount(), { wrapper });
 
-    expect(searchAmcReports).not.toHaveBeenCalled();
+    expect(searchAmcVisits).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,5 @@
-import type { AmcReport } from "../types/amc-report";
+import type { BoundaryHierarchy, BoundaryNode } from "@/shared";
+import type { RawVendorOrganisation } from "../services/amc-visits";
 
 export interface AmcFilterOption {
   code: string;
@@ -12,34 +13,43 @@ export interface AmcFilterOptions {
   blocks: AmcFilterOption[];
 }
 
-function toOptions(values: string[]): AmcFilterOption[] {
-  return [...new Set(values)].sort((a, b) => a.localeCompare(b)).map((value) => ({ code: value, name: value }));
+function byParent(nodes: BoundaryNode[] | undefined, parentCodes: string[]): BoundaryNode[] {
+  return (nodes ?? []).filter((node) => parentCodes.length === 0 || parentCodes.includes(node.parentCode));
 }
 
 /**
- * Filter options derived from the reports themselves (prototype: no boundary/vendor masters yet).
- * Districts follow the selected states and blocks follow the selected districts, like IR's cascade.
+ * State, district and block options from the boundary tree, sent to the search as codes. Districts
+ * follow the selected states and blocks follow the selected districts. `nameOf` turns a code into
+ * its display name.
  */
-export function buildAmcFilterOptions(
-  reports: AmcReport[],
+export function buildGeographyOptions(
+  hierarchy: BoundaryHierarchy | undefined,
   selection: { states: string[]; districts: string[] },
-): AmcFilterOptions {
-  const inStates = reports.filter((report) => !selection.states.length || selection.states.includes(report.state));
-  const inDistricts = inStates.filter(
-    (report) => !selection.districts.length || selection.districts.includes(report.district),
-  );
+  nameOf: (code: string) => string,
+): Pick<AmcFilterOptions, "states" | "districts" | "blocks"> {
+  const toOptions = (nodes: BoundaryNode[]) =>
+    nodes.map((node) => ({ code: node.code, name: nameOf(node.code) })).sort((a, b) => a.name.localeCompare(b.name));
+  const districts = byParent(hierarchy?.districts, selection.states);
+  const blocks = byParent(hierarchy?.blocks, selection.districts.length ? selection.districts : districts.map((node) => node.code));
   return {
-    vendors: toOptions(reports.map((report) => report.vendorName)),
-    states: toOptions(reports.map((report) => report.state)),
-    districts: toOptions(inStates.map((report) => report.district)),
-    blocks: toOptions(inDistricts.map((report) => report.block)),
+    states: toOptions(hierarchy?.states ?? []),
+    districts: toOptions(districts),
+    blocks: toOptions(selection.states.length || selection.districts.length ? blocks : (hierarchy?.blocks ?? [])),
   };
+}
+
+/** Active vendor organisations, by id (the visit search filters by organisation id). */
+export function toVendorOptions(response: { organisations?: RawVendorOrganisation[] } | undefined): AmcFilterOption[] {
+  return (response?.organisations ?? [])
+    .filter((org) => org.id && org.orgStatus !== "INACTIVE")
+    .map((org) => ({ code: org.id!, name: org.name ?? org.id! }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Drops selected districts/blocks that no longer fit the narrowed parent selection. */
 export function pruneAmcGeography<T extends { districts: string[]; blocks: string[] }>(
   filters: T,
-  options: AmcFilterOptions,
+  options: Pick<AmcFilterOptions, "districts" | "blocks">,
 ): T {
   const districtCodes = new Set(options.districts.map((option) => option.code));
   const blockCodes = new Set(options.blocks.map((option) => option.code));

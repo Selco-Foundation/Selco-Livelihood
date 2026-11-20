@@ -3,26 +3,52 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ReworkReasonDialog } from "./ReworkReasonDialog";
 
+const reasonOptions = [
+  { code: "UPLOADED_IMAGES_NOT_CLEAR", name: "Uploaded images are not clear" },
+  { code: "OTHERS", name: "Others" },
+];
+
+function renderDialog(onSubmit = vi.fn()) {
+  render(
+    <ReworkReasonDialog open isSubmitting={false} reasonOptions={reasonOptions} onOpenChange={vi.fn()} onSubmit={onSubmit} />,
+  );
+  return onSubmit;
+}
+
 describe("ReworkReasonDialog", () => {
-  it("does not submit without a reason and says why", async () => {
+  it("needs at least one reason", async () => {
     const user = userEvent.setup();
-    const onSubmit = vi.fn();
-    render(<ReworkReasonDialog open isSubmitting={false} onOpenChange={vi.fn()} onSubmit={onSubmit} />);
+    const onSubmit = renderDialog();
 
     await user.click(screen.getByRole("button", { name: "Send for Rework" }));
 
+    expect(screen.getByText("Select at least one reason for rework")).toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(screen.getByText("Please enter a reason for rework")).toBeInTheDocument();
   });
 
-  it("submits the trimmed reason", async () => {
+  it("needs a comment for Others", async () => {
     const user = userEvent.setup();
-    const onSubmit = vi.fn();
-    render(<ReworkReasonDialog open isSubmitting={false} onOpenChange={vi.fn()} onSubmit={onSubmit} />);
+    const onSubmit = renderDialog();
 
-    await user.type(screen.getByLabelText(/Reason/), "  Retake the photo  ");
+    await user.click(screen.getByText("Others"));
     await user.click(screen.getByRole("button", { name: "Send for Rework" }));
 
-    expect(onSubmit).toHaveBeenCalledWith("Retake the photo");
+    expect(screen.getByText('Please add a comment for "Others"')).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("sends each chosen reason with its own comment", async () => {
+    const user = userEvent.setup();
+    const onSubmit = renderDialog();
+
+    await user.click(screen.getByText("Uploaded images are not clear"));
+    await user.click(screen.getByText("Others"));
+    await user.type(screen.getByRole("textbox", { name: "Comment, Others" }), "Retake the SPD photo");
+    await user.click(screen.getByRole("button", { name: "Send for Rework" }));
+
+    expect(onSubmit).toHaveBeenCalledWith([
+      { reason: "UPLOADED_IMAGES_NOT_CLEAR" },
+      { reason: "OTHERS", comment: "Retake the SPD photo" },
+    ]);
   });
 });

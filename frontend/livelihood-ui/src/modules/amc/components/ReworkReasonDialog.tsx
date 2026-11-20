@@ -1,6 +1,7 @@
-import { translateOr, useTranslate } from "@/shared";
+import { isOtherReason, translateOr, useTranslate, type RejectionReasonOption } from "@/shared";
 import {
   Button,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -9,36 +10,68 @@ import {
   DialogTitle,
 } from "@/ui";
 import { useEffect, useState } from "react";
+import type { AmcReworkReason } from "../types/amc-visit";
 
-const MAX_REASON_LENGTH = 500;
+const MAX_COMMENT_LENGTH = 500;
 
 interface ReworkReasonDialogProps {
   open: boolean;
   isSubmitting: boolean;
+  /** MDMS `AMC.RejectionReasons`. */
+  reasonOptions: RejectionReasonOption[];
   onOpenChange: (open: boolean) => void;
-  onSubmit: (reason: string) => void;
+  onSubmit: (reasons: AmcReworkReason[]) => void;
 }
 
-/** The rejection reason is mandatory (PRD 5.5.2) and is shown to the vendor in their Inbox. */
-export function ReworkReasonDialog({ open, isSubmitting, onOpenChange, onSubmit }: Readonly<ReworkReasonDialogProps>) {
+/**
+ * At least one reason is required, each with an optional comment; "Others" needs a comment
+ * (the server refuses it otherwise). The field staff sees the reasons in their Inbox.
+ */
+export function ReworkReasonDialog({
+  open,
+  isSubmitting,
+  reasonOptions,
+  onOpenChange,
+  onSubmit,
+}: Readonly<ReworkReasonDialogProps>) {
   const { t } = useTranslate();
-  const [reason, setReason] = useState("");
+  // Selected reason codes, each with its comment.
+  const [selected, setSelected] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (open) {
-      setReason("");
+      setSelected({});
       setError("");
     }
   }, [open]);
 
+  function toggle(code: string, checked: boolean) {
+    setError("");
+    setSelected((current) => {
+      const next = { ...current };
+      if (checked) next[code] = "";
+      else delete next[code];
+      return next;
+    });
+  }
+
   function handleSubmit() {
-    const trimmed = reason.trim();
-    if (!trimmed) {
-      setError(translateOr(t, "ES_AMC_REWORK_REASON_REQUIRED", "Please enter a reason for rework"));
+    const chosen = reasonOptions.filter((option) => option.code in selected);
+    if (chosen.length === 0) {
+      setError(translateOr(t, "ES_AMC_REWORK_REASON_REQUIRED", "Select at least one reason for rework"));
       return;
     }
-    onSubmit(trimmed);
+    if (chosen.some((option) => isOtherReason(option) && !selected[option.code].trim())) {
+      setError(translateOr(t, "ES_AMC_OTHER_REASON_COMMENT_REQUIRED", "Please add a comment for \"Others\""));
+      return;
+    }
+    onSubmit(
+      chosen.map((option) => {
+        const comment = selected[option.code].trim();
+        return comment ? { reason: option.code, comment } : { reason: option.code };
+      }),
+    );
   }
 
   return (
@@ -50,33 +83,53 @@ export function ReworkReasonDialog({ open, isSubmitting, onOpenChange, onSubmit 
             {translateOr(
               t,
               "ES_AMC_REWORK_DESCRIPTION",
-              "The vendor will see this reason and can correct and resubmit the report.",
+              "The field staff will see these reasons and can correct and resubmit the report.",
             )}
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-1.5">
-          <label htmlFor="amc-rework-reason" className="text-sm font-medium text-ink-950">
-            {translateOr(t, "ES_AMC_REWORK_REASON", "Reason")}
-            <span className="text-destructive"> *</span>
-          </label>
-          <textarea
-            id="amc-rework-reason"
-            maxLength={MAX_REASON_LENGTH}
-            className="min-h-[100px] w-full rounded border border-ink-300 bg-card px-3 py-2 text-sm placeholder:text-ink-300"
-            placeholder={translateOr(t, "ES_AMC_REWORK_REASON_PLACEHOLDER", "Explain what the vendor needs to fix")}
-            value={reason}
-            onChange={(event) => {
-              setReason(event.target.value);
-              setError("");
-            }}
-          />
-          <div className="flex justify-between text-xs">
-            <span className="text-destructive">{error}</span>
-            <span className="text-muted-foreground">
-              {reason.length}/{MAX_REASON_LENGTH}
-            </span>
-          </div>
+        <div className="max-h-[50vh] space-y-3 overflow-y-auto pr-1">
+          {reasonOptions.map((option) => {
+            const checked = option.code in selected;
+            const inputId = `amc-rework-${option.code}`;
+            return (
+              <div key={option.code} className="space-y-2">
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-ink-950">
+                  <Checkbox
+                    className="size-5 rounded-md border-2 border-primary"
+                    checked={checked}
+                    onCheckedChange={(value) => toggle(option.code, value === true)}
+                  />
+                  {option.name}
+                </label>
+                {checked ? (
+                  <textarea
+                    id={inputId}
+                    aria-label={`${translateOr(t, "ES_AMC_REWORK_COMMENT", "Comment")}, ${option.name}`}
+                    maxLength={MAX_COMMENT_LENGTH}
+                    className="min-h-[64px] w-full rounded border border-ink-300 bg-card px-3 py-2 text-sm placeholder:text-ink-300"
+                    placeholder={
+                      isOtherReason(option)
+                        ? translateOr(t, "ES_AMC_REWORK_COMMENT_REQUIRED_PLACEHOLDER", "Explain what needs to be fixed (required)")
+                        : translateOr(t, "ES_AMC_REWORK_COMMENT_PLACEHOLDER", "Add details (optional)")
+                    }
+                    value={selected[option.code]}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setError("");
+                      setSelected((current) => ({ ...current, [option.code]: value }));
+                    }}
+                  />
+                ) : null}
+              </div>
+            );
+          })}
+          {reasonOptions.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {translateOr(t, "ES_AMC_REWORK_REASONS_LOADING", "Loading reasons...")}
+            </p>
+          ) : null}
         </div>
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <DialogFooter>
           <Button type="button" variant="outline" size="sm" disabled={isSubmitting} onClick={() => onOpenChange(false)}>
             {translateOr(t, "CORE_COMMON_CANCEL", "Cancel")}

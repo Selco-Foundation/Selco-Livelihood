@@ -5,7 +5,7 @@ import type { AmcFilterOptions } from "../utils/filter-options";
 import { AmcReportFilter, EMPTY_AMC_REPORT_FILTERS } from "./AmcReportFilter";
 
 const options: AmcFilterOptions = {
-  vendors: [{ code: "Surya Power Solutions", name: "Surya Power Solutions" }],
+  vendors: [{ code: "org-1", name: "Surya Power Solutions" }],
   states: [{ code: "Assam", name: "Assam" }],
   districts: [{ code: "Kamrup", name: "Kamrup" }],
   blocks: [{ code: "Rangia", name: "Rangia" }],
@@ -55,7 +55,19 @@ describe("AmcReportFilter", () => {
     await user.click(screen.getByRole("button", { name: /Filters/ }));
     await user.click(screen.getByRole("checkbox"));
 
-    expect(onFilterChange).toHaveBeenCalledWith({ ...EMPTY_AMC_REPORT_FILTERS, vendors: ["Surya Power Solutions"] });
+    expect(onFilterChange).toHaveBeenCalledWith({ ...EMPTY_AMC_REPORT_FILTERS, vendors: ["org-1"] });
+  });
+
+  it("picks one report status at a time and hides the SLA filter for other statuses", async () => {
+    const user = userEvent.setup();
+    const onFilterChange = vi.fn();
+    renderFilter("pending", onFilterChange);
+
+    await user.click(screen.getByRole("button", { name: /Filters/ }));
+    await user.click(screen.getByRole("button", { name: "Report Status" }));
+    await user.click(screen.getByText("Sent for rework"));
+
+    expect(onFilterChange).toHaveBeenCalledWith({ ...EMPTY_AMC_REPORT_FILTERS, status: "REJECTED", slaBreachedOnly: false });
   });
 
   it("passes search text through", async () => {

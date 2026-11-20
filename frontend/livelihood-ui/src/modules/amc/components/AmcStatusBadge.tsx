@@ -26,9 +26,20 @@ export function AmcStatusBadge({ status, approvedBy }: Readonly<AmcStatusBadgePr
       </Badge>
     );
   }
+  if (status === "PENDING_APPROVAL") {
+    return (
+      <Badge variant="secondary" className="bg-accent text-primary">
+        {translateOr(t, "ES_AMC_STATUS_PENDING_APPROVAL", "Pending approval")}
+      </Badge>
+    );
+  }
+  // A visit not yet submitted (SCHEDULED) or waiting for the end user's code: not in the reviewer
+  // lists, but a direct link can still open one.
   return (
-    <Badge variant="secondary" className="bg-accent text-primary">
-      {translateOr(t, "ES_AMC_STATUS_PENDING_APPROVAL", "Pending approval")}
+    <Badge variant="outline">
+      {status === "PENDING_OTP_APPROVAL"
+        ? translateOr(t, "ES_AMC_STATUS_PENDING_OTP_APPROVAL", "Waiting for service code")
+        : translateOr(t, "ES_AMC_STATUS_SCHEDULED", "Scheduled")}
     </Badge>
   );
 }

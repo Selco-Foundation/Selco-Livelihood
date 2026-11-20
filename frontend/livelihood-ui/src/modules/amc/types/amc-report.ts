@@ -1,5 +1,7 @@
-export type AmcReportStatus = "PENDING_APPROVAL" | "APPROVED" | "REJECTED";
-export type AmcApprovedBy = "SYSTEM" | "REVIEWER";
+import type { AmcApprovedBy, AmcVisitStatus } from "./amc-visit";
+
+export type { AmcApprovedBy } from "./amc-visit";
+export type AmcReportStatus = AmcVisitStatus;
 
 /** Pending Approval tab = reports that went to manual review; Auto-Approved tab = approved by the system. */
 export type AmcReportTab = "pending" | "auto";
@@ -27,55 +29,68 @@ export interface AmcReportSection {
   fields: AmcReportField[];
 }
 
-export type AmcReportHistoryAction =
-  | "SUBMITTED"
-  | "RESUBMITTED"
-  | "AUTO_APPROVED"
-  | "SENT_TO_REVIEW"
-  | "APPROVED"
-  | "SENT_FOR_REWORK";
+export interface AmcReportPhoto {
+  documentType: string;
+  fileStoreId: string;
+  titleKey: string;
+  title: string;
+}
 
 export interface AmcReportHistoryEntry {
-  action: AmcReportHistoryAction;
+  /** The workflow action, e.g. SUBMIT_VISIT_REPORT, SUBMIT_OTP, APPROVE, REJECT. */
+  action: string;
   actor: string;
-  date: number;
+  date?: number;
+  /** Rework reasons (codes) and their comment, for a REJECT step. */
+  reasons: { code: string; comment?: string }[];
+  /** Free-text comment of any other step. */
   comment?: string;
 }
 
+export interface AmcSla {
+  daysRemaining: number;
+  breached: boolean;
+}
+
+/** One AMC visit report as the reviewer screens show it. */
 export interface AmcReport {
   id: string;
-  projectId: string;
-  projectName: string;
-  planCode: string;
+  projectId?: string;
   endUserName: string;
   endUserPhone: string;
   state: string;
   district: string;
   block: string;
   vendorName: string;
-  amcNumber: number;
-  totalAmcs: number;
-  scheduledDate: number;
-  firstSubmissionDate: number;
-  latestSubmissionDate: number;
+  fieldStaffName: string;
+  visitNumber: number;
+  totalVisits?: number;
+  scheduledDate?: number;
+  firstSubmissionDate?: number;
+  latestSubmissionDate?: number;
   status: AmcReportStatus;
   approvedBy?: AmcApprovedBy;
-  systemInUse: boolean;
-  systemFunctional: boolean;
+  /** Only while the report waits for review. */
+  sla?: AmcSla;
+  systemInUse?: boolean;
+  systemFunctional?: boolean;
   ruleResults: AmcRuleResult[];
   sections: AmcReportSection[];
-  photoUrl: string;
+  photos: AmcReportPhoto[];
   history: AmcReportHistoryEntry[];
+  reportPdfFileStoreId?: string;
 }
 
+/** What the reports list asks for; `utils/visit-criteria.ts` turns it into the visit search. */
 export interface AmcReportSearchCriteria {
   tab: AmcReportTab;
   projectId?: string;
-  vendors?: string[];
+  vendorIds?: string[];
   states?: string[];
   districts?: string[];
   blocks?: string[];
-  statuses?: AmcReportStatus[];
+  /** Pending tab only: one of PENDING_APPROVAL (default), REJECTED, APPROVED (by a reviewer). */
+  status?: AmcReportStatus;
   slaBreachedOnly?: boolean;
   submittedFrom?: number;
   submittedTo?: number;
@@ -84,8 +99,8 @@ export interface AmcReportSearchCriteria {
   limit?: number;
 }
 
-export interface AmcReportSearchResponse {
-  AmcReports: AmcReport[];
+export interface AmcReportPage {
+  reports: AmcReport[];
   totalCount: number;
 }
 
@@ -98,8 +113,6 @@ export interface AmcProjectSummary {
   pendingCount: number;
   breachedCount: number;
   autoApprovedCount: number;
-}
-
-export interface AmcProjectSearchResponse {
-  AmcProjects: AmcProjectSummary[];
+  reviewerApprovedCount: number;
+  reworkCount: number;
 }

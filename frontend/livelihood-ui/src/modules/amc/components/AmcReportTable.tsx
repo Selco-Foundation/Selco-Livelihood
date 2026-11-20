@@ -1,13 +1,16 @@
 import { translateOr, useTranslate } from "@/shared";
 import { Pagination, Skeleton } from "@/ui";
 import { useNavigate } from "@tanstack/react-router";
-import type { AmcReport, AmcReportTab } from "../types/amc-report";
+import type { AmcReport } from "../types/amc-report";
 import { amcReportDetailPath } from "../utils/paths";
 import { AmcSlaBadge } from "./AmcSlaBadge";
 import { AmcStatusBadge } from "./AmcStatusBadge";
 
 interface AmcReportTableProps {
-  tab: AmcReportTab;
+  /** Only reports waiting for review have an SLA. */
+  showSla: boolean;
+  /** Set when listing one project's reports, so the report's breadcrumb leads back to it. */
+  projectId?: string;
   reports: AmcReport[];
   totalCount: number;
   isLoading: boolean;
@@ -18,7 +21,8 @@ interface AmcReportTableProps {
 }
 
 export function AmcReportTable({
-  tab,
+  showSla,
+  projectId,
   reports,
   totalCount,
   isLoading,
@@ -39,7 +43,7 @@ export function AmcReportTable({
     translateOr(t, "ES_AMC_NUMBER", "AMC No."),
     translateOr(t, "ES_AMC_REPORT_STATUS", "Report Status"),
     translateOr(t, "ES_AMC_VENDOR", "Vendor"),
-    ...(tab === "pending" ? [translateOr(t, "ES_AMC_SLA_DAYS_REMAINING", "SLA days remaining")] : []),
+    ...(showSla ? [translateOr(t, "ES_AMC_SLA_DAYS_REMAINING", "SLA days remaining")] : []),
   ];
 
   if (isLoading) {
@@ -76,7 +80,9 @@ export function AmcReportTable({
               {reports.map((report, index) => (
                 <tr
                   key={report.id}
-                  onClick={() => void navigate({ to: amcReportDetailPath(report.id) })}
+                  onClick={() =>
+                    void navigate({ to: amcReportDetailPath(report.id), search: projectId ? { projectId } : {} })
+                  }
                   className={
                     "cursor-pointer border-b border-border/70 hover:bg-muted/40" + (index % 2 === 1 ? " bg-accent" : "")
                   }
@@ -87,15 +93,15 @@ export function AmcReportTable({
                   <td className="px-5 py-4 text-foreground">{report.district}</td>
                   <td className="px-5 py-4 text-foreground">{report.block}</td>
                   <td className="px-5 py-4 text-foreground">
-                    {report.amcNumber} / {report.totalAmcs}
+                    {report.visitNumber} / {report.totalVisits ?? "-"}
                   </td>
                   <td className="px-5 py-4">
                     <AmcStatusBadge status={report.status} approvedBy={report.approvedBy} />
                   </td>
                   <td className="px-5 py-4 text-foreground">{report.vendorName}</td>
-                  {tab === "pending" ? (
+                  {showSla ? (
                     <td className="px-5 py-4">
-                      <AmcSlaBadge latestSubmissionDate={report.latestSubmissionDate} status={report.status} />
+                      <AmcSlaBadge sla={report.sla} />
                     </td>
                   ) : null}
                 </tr>

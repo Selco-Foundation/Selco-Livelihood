@@ -2,7 +2,7 @@ import { employeeHomePath, translateOr, useAuthStore, useTranslate } from "@/sha
 import { TopBar } from "@/ui";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { AmcReportList } from "../../components/AmcReportList";
-import { useAmcProjects } from "../../hooks/use-amc-projects";
+import { useAmcProject } from "../../hooks/use-amc-projects";
 import type { AmcReportsRouteSearch } from "../../routes";
 import { hasAmcReviewerAccess } from "../../utils/access";
 import { amcProjectReportsPath, amcProjectsPath } from "../../utils/paths";
@@ -13,8 +13,8 @@ export function AmcProjectReportsPage() {
   const user = useAuthStore((state) => state.user);
   const { projectId } = useParams({ strict: false }) as { projectId: string };
   const { tab = "pending" } = useSearch({ strict: false }) as AmcReportsRouteSearch;
-  const { data: projects = [] } = useAmcProjects();
-  const projectName = projects.find((project) => project.projectId === projectId)?.projectName ?? "-";
+  const { data: project } = useAmcProject(projectId);
+  const projectName = project?.projectName ?? "-";
 
   if (!hasAmcReviewerAccess(user?.roles)) return null;
 

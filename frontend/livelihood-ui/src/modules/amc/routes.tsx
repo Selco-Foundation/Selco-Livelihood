@@ -15,6 +15,15 @@ export interface AmcReportsRouteSearch {
   tab?: AmcReportTab;
 }
 
+export interface AmcReportDetailRouteSearch {
+  /** The project whose list the report was opened from, for the breadcrumb. */
+  projectId?: string;
+}
+
+function validateReportDetailSearch(search: Record<string, unknown>): AmcReportDetailRouteSearch {
+  return typeof search.projectId === "string" && search.projectId ? { projectId: search.projectId } : {};
+}
+
 function validateReportsSearch(search: Record<string, unknown>): AmcReportsRouteSearch {
   return { tab: search.tab === "auto" ? "auto" : "pending" };
 }
@@ -78,6 +87,7 @@ export function createAmcRoutes(employeeLayoutRoute: AnyRoute) {
   const reportDetailRoute = createRoute({
     getParentRoute: () => amcParentRoute,
     path: reportDetailPath,
+    validateSearch: validateReportDetailSearch,
     component: AmcReportDetailPage,
   });
 
