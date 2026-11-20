@@ -6,7 +6,7 @@ import '../../repositories/amc/scheduled_visit_repo.dart';
 
 part 'scheduled_visit.freezed.dart';
 
-/// Ported from E4H: paginated AMC visit lists (10 per page) with
+/// Paginated AMC visit lists (10 per page) with
 /// load-more, refresh and stale-response protection.
 class ScheduledVisitBloc
     extends Bloc<ScheduledVisitEvent, ScheduledVisitState> {

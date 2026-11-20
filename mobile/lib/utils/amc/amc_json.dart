@@ -1,4 +1,4 @@
-// JSON helpers ported from E4H `lib/utils/utils.dart`, kept free of UI
+// JSON helpers, kept free of UI
 // imports so Isar collections and the background isolate can use them.
 
 dynamic jsonSafe(dynamic v) {

@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 import '../../utils/extensions.dart';
 import '../../utils/i18_key_constants.dart' as i18;
 
-/// E4H `widgets/facility_list_controls.dart`: pull-to-refresh wrapper and
+/// Ported from E4H. Pull-to-refresh wrapper and
 /// the search + sort/bookmark card of the AMC lists.
 class RefreshableFacilityList extends StatelessWidget {
   final Future<void> Function() onRefresh;

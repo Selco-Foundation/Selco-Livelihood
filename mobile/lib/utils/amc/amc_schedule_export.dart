@@ -9,7 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../model/amc/amc_schedule.dart';
 
-/// #252 Download Schedule: the schedule as an Excel (.xlsx) file, built on
+/// Download Schedule: the schedule as an Excel (.xlsx) file, built on
 /// the device from the same visits the screen shows.
 
 const String amcScheduleSheetName = 'AMC Schedule';

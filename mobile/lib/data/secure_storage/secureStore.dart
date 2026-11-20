@@ -13,7 +13,6 @@ class _SecureStorageKeys {
   static const String accessInfo = 'accessInfo';
   static const String loginConsentAccepted = 'loginConsentAccepted';
   static const String assetRegistryConfig = 'assetRegistryConfig';
-  // AMC keys, named exactly as in E4H's `secureStore.dart`.
   static const String amcFormConfigsRaw = 'amcFormConfigsRaw';
   static const String formSchemas = 'forms_schemas';
   static const String individualId = 'individualId';
@@ -102,7 +101,7 @@ class SecureStore {
     return await storage.read(key: _SecureStorageKeys.assetRegistryConfig);
   }
 
-  // ---- AMC (ported from E4H `data/secure_storage/secureStore.dart`) ----
+  // ---- AMC ----
 
   Future<void> setSelectedIndividual(String? id) async {
     await storage.write(key: _SecureStorageKeys.individualId, value: id);
@@ -125,7 +124,7 @@ class SecureStore {
     return await storage.read(key: _SecureStorageKeys.amcFormConfigsRaw);
   }
 
-  /// Transformed form schemas keyed by schema name (E4H `forms_schemas`).
+  /// Transformed form schemas keyed by schema name.
   Future<void> setFormSchemas(Map<String, dynamic> schemas) async {
     await storage.write(
       key: _SecureStorageKeys.formSchemas,

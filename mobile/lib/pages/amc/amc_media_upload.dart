@@ -33,17 +33,15 @@ import '../../widgets/workflow_rejection_reasons.dart';
 
 /// Ported from E4H `pages/amc_media_upload.dart`: photos (with GPS) for the
 /// AMC report. Read-only (photos only) when opened from the inbox/submitted
-/// lists. When correcting a rejected report (#251, Installation App
+/// lists. When correcting a rejected report (Installation App
 /// rectification) the reviewer's reasons are shown above the photos, with a
-/// "Complete before resubmitting" card while something is missing; E4H's
-/// tick-every-reason checklist is not used.
+/// "Complete before resubmitting" card while something is missing.
 ///
-/// #248: this is the mandatory verification photograph screen (field staff
+/// This is the mandatory verification photograph screen (field staff
 /// with the end user in front of the solar system). At least one photo is
 /// required. "Save and Next" stores the photos on the device with the
-/// report, confirms the save, then (as in E4H) hands the report to the
-/// background service and opens the completion-code (OTP) screen once it is
-/// submitted. If submitting fails (e.g. offline) the report stays in Data
+/// report, confirms the save, then hands the report to the background
+/// service and opens the completion-code (OTP) screen once it is submitted. If submitting fails (e.g. offline) the report stays in Data
 /// Sync for retry.
 @RoutePage()
 class AmcMediaUploadPage extends StatefulWidget {
@@ -149,7 +147,7 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
       }
     } else {
       final visitReport = scheduledVisit?.visitReport;
-      // #250: reading photos are the form's; this screen shows only the
+      // Reading photos are the form's; this screen shows only the
       // verification photograph(s).
       final docs = (visitReport?.documents ?? const [])
           .where((doc) => !isAmcReadingPhotoDocument(doc.documentType))
@@ -449,7 +447,7 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
                           const Center(child: CircularProgressIndicator())
                       ]),
                       const SizedBox(height: spacer4),
-                      // #251: Installation App's "Complete before
+                      // Installation App's "Complete before
                       // resubmitting" card. The form pages and pre-questions
                       // already enforce their required fields, so only the
                       // photograph can still be missing here.

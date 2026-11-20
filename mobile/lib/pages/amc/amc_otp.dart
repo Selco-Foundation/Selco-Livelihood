@@ -83,7 +83,7 @@ class _AmcOtpPageState extends State<AmcOtpPage> {
             );
           },
           submitSuccess: (status) {
-            // #249: say where the report went, from the status the server
+            // Say where the report went, from the status the server
             // returned (approved -> Inbox, otherwise Pending Approval).
             final messageKey = switch (status) {
               'APPROVED' => i18.amcOtp.reportApproved,

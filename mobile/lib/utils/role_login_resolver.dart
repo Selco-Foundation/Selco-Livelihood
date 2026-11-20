@@ -2,8 +2,8 @@
 
 import '../model/response/responsemodel.dart';
 
-/// Ported from E4H `lib/utils/utils.dart` (`USER_TYPES`). Kept with E4H's
-/// exact values because AMC caches/bookmarks are keyed by `USER_TYPES.AMC.name`.
+/// Values must not change: AMC caches/bookmarks are keyed by
+/// `USER_TYPES.AMC.name`.
 enum USER_TYPES { SUPERVISOR, FIELD_STAFF, AMC, ASSESSOR }
 
 const amcFieldStaffRoleCode = 'AMC_FIELD_STAFF';
@@ -11,10 +11,8 @@ const amcFieldStaffRoleCode = 'AMC_FIELD_STAFF';
 const installationReportPartAEditorRoleCode =
     'INSTALLATION_REPORT_PART_A_EDITOR';
 
-/// Ported from E4H `lib/utils/role_login_resolver.dart`. E4H also resolves
-/// a supervisor (Part B) installation option and an Assessment module; this
-/// app has neither flow yet, so only the Installation (Part A) and AMC
-/// options are resolved here.
+/// Only the Installation (Part A) and AMC options are resolved here; this
+/// app has no supervisor (Part B) installation or Assessment flow yet.
 enum RoleSelectionOption { staff, amc }
 
 extension RoleSelectionOptionX on RoleSelectionOption {

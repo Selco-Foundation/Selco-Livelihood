@@ -15,7 +15,7 @@ import '../../utils/background_service.dart'
 
 part 'scheduled_visit_submission.freezed.dart';
 
-/// Ported from E4H: hands the AMC report submission (photo upload +
+/// Hands the AMC report submission (photo upload +
 /// `SUBMIT_VISIT_REPORT`) to the background service and reports its
 /// done/error events back to the media screen.
 class ScheduleVisitSubmitBloc

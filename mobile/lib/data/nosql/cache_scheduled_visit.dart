@@ -6,7 +6,7 @@ import '../../model/amc/scheduled_visit.dart';
 
 part 'cache_scheduled_visit.g.dart';
 
-/// Offline copy of `asset-amc/v1/visit/_search` results. Ported from E4H.
+/// Offline copy of `asset-amc/v1/visit/_search` results.
 @Collection()
 class CacheScheduledVisit {
   Id id = Isar.autoIncrement;

@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../repositories/amc/amc_system_status_repo.dart';
 
-/// Sends queued AMC "system not functional" updates (#247) once the device
+/// Sends queued AMC "system not functional" updates once the device
 /// is online:
 ///  * when the app starts,
 ///  * whenever connectivity comes back while the app is running,

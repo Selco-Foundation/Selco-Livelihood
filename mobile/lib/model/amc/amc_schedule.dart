@@ -2,7 +2,7 @@ import '../../utils/amc/amc_utils.dart' show amcVisitLocality;
 import 'amc_site_details.dart';
 import 'scheduled_visit.dart';
 
-/// #252 View Schedule: the periods the vendor can choose, in days from
+/// View Schedule: the periods the vendor can choose, in days from
 /// today. Only up to 30 days, the same limit as New Report
 /// ([amcSubmissionWindowDays]), so the schedule never lists a visit that
 /// cannot be reported on yet.

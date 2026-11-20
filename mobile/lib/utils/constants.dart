@@ -42,7 +42,7 @@ class Constants {
           CacheSubmissionJobSchema,
           CachePendingSubmissionSchema,
           CacheAssetCountSchema,
-          // AMC (ported from E4H)
+          // AMC
           CacheScheduledVisitSchema,
           CacheAmcDocSchema,
           CacheScheduleVisitFormValuesSchema,

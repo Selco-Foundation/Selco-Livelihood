@@ -14,7 +14,7 @@ import '../../utils/i18_key_constants.dart' as i18;
 import '../../widgets/amc/amc_back_navigation_help_header.dart';
 import '../../widgets/workflow_rejection_reasons.dart';
 
-/// Pre-report status check (#247), shown after an AMC card is selected and
+/// Pre-report status check, shown after an AMC card is selected and
 /// before the report form:
 ///   1. "Is the end user using the system?"  Yes / No
 ///   2. "Is the system functional?"          Yes / No (solar system only)
@@ -199,7 +199,7 @@ class _AmcSystemStatusPageState extends State<AmcSystemStatusPage> {
           ],
         ),
         children: [
-          // #251: reviewer's reasons while correcting a rejected report.
+          // Reviewer's reasons while correcting a rejected report.
           if (widget.origin == FormOrigin.submitForApproval)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: spacer2),

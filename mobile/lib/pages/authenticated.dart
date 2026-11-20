@@ -26,9 +26,8 @@ class AuthenticatedScreenWrapper extends StatelessWidget {
             create: (_) => DigitScannerBloc(const DigitScannerState()),
           ),
           BlocProvider<FormsBloc>(create: (_) => FormsBloc()),
-          // AMC blocs (E4H provides these at its app root / authenticated
-          // wrapper). Lazily created, so installation screens and widget
-          // tests never construct them.
+          // AMC blocs. Lazily created, so installation screens and widget tests
+          // never construct them.
           BlocProvider<ReportTypeBloc>(create: (_) => ReportTypeBloc()),
           BlocProvider<InboxTypeBloc>(create: (_) => InboxTypeBloc()),
           BlocProvider<SelectedScheduledVisitBloc>(

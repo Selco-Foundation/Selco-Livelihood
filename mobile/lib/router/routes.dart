@@ -28,7 +28,7 @@ class Routes {
   static const pdfViewer = 'pdf-viewer';
   static const syncLoading = 'sync-loading';
 
-  // Role selection + AMC (paths as in E4H).
+  // Role selection + AMC.
   static const roleSelection = 'role-selection';
   static const amcHome = 'amc-home';
   static const amcReportHome = 'amc-report-home';

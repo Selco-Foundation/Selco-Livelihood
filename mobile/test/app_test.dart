@@ -2802,7 +2802,7 @@ void main() {
   });
 
   testWidgets(
-      'image uploader explains a blocked gallery/camera and allows retry (#248)',
+      'image uploader explains a blocked gallery/camera and allows retry',
       (tester) async {
     setMobileViewport(tester, const Size(390, 844));
     var selected = <SolarFileRef>[];

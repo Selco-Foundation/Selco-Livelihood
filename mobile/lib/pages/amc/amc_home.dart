@@ -16,7 +16,7 @@ import '../../widgets/home_item_card.dart';
 
 /// Ported from E4H `pages/amc_home.dart`: the AMC module's home. Loads the
 /// AMC form schema from MDMS behind a blocking gate, then offers
-/// "AMC Report", "Data Sync" and "View Schedule" (#252).
+/// "AMC Report", "Data Sync" and "View Schedule".
 @RoutePage()
 class AmcHomePage extends StatefulWidget {
   const AmcHomePage({super.key});
@@ -29,7 +29,7 @@ class _AmcHomePageState extends State<AmcHomePage> {
   @override
   void initState() {
     super.initState();
-    // #247: send any queued "system not functional" updates (e.g. after
+    // Send any queued "system not functional" updates (e.g. after
     // logging in while already online).
     AmcSystemStatusSync.instance.flush();
   }
@@ -55,7 +55,6 @@ class _AmcHomePageState extends State<AmcHomePage> {
         'label': context.translate(i18.amcHome.dataSync),
         'onPressed': () => context.router.push(const AmcDraftRoute()),
       },
-      // #252
       {
         'key': 'amc-home-view-schedule',
         'icon': Icons.calendar_month_outlined,

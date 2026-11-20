@@ -22,6 +22,7 @@ import '../../repositories/amc/amc_form_schema_repo.dart';
 import '../../router/app_router.dart';
 import '../../utils/amc/amc_rejection_reasons.dart';
 import '../../utils/amc/amc_utils.dart';
+import '../../utils/dynamic_form_schema.dart';
 import '../../utils/extensions.dart';
 import '../../utils/i18_key_constants.dart' as i18;
 import '../../utils/role_login_resolver.dart';
@@ -129,7 +130,7 @@ class _AmcDynamicFormPageState extends State<AmcDynamicFormPage> {
             : null;
 
         if (chosen != null && chosen.isNotEmpty) {
-          final transformed = transformSelcoFormMdmsDocToSchema(chosen);
+          final transformed = transformBomMdmsRecordToSchema(chosen);
           final uid = chosen['uniqueIdentifier']?.toString();
           if (uid != null && uid.isNotEmpty) {
             transformed['uniqueIdentifier'] = uid;
@@ -166,7 +167,7 @@ class _AmcDynamicFormPageState extends State<AmcDynamicFormPage> {
       widget.origin == FormOrigin.inboxSummary ||
       widget.origin == FormOrigin.submitted;
 
-  /// #250: widgets for the page's `format: custom` fields (decimal readings
+  /// Widgets for the page's `format: custom` fields (decimal readings
   /// and reading photos), which the forms engine draws from `childrens`.
   List<Map<String, Widget>> _customFields(
       BuildContext context, PropertySchema pageSchema) {
@@ -356,7 +357,7 @@ class _AmcDynamicFormPageState extends State<AmcDynamicFormPage> {
             Future.microtask(_ensureSchemaLoaded);
             return const Center(child: CircularProgressIndicator());
           }
-          // #250: conditional fields decided once for this visit's site.
+          // Conditional fields decided once for this visit's site.
           final pageSchema = resolveAmcVisibility(
               schemaObject, widget.pageName, _projectInitialKV);
 
@@ -625,7 +626,7 @@ class _AmcDynamicFormPageState extends State<AmcDynamicFormPage> {
                   ),
                 ),
                 const SizedBox(height: spacer3),
-                // #251: reviewer's reasons while correcting a rejected report.
+                // Reviewer's reasons while correcting a rejected report.
                 if (widget.origin == FormOrigin.submitForApproval)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(
@@ -647,8 +648,7 @@ class _AmcDynamicFormPageState extends State<AmcDynamicFormPage> {
                             .headingXl
                             .copyWith(color: theme.colorTheme.primary.primary2),
                       ),
-                    // #250 (PRD 5.4.4): the N/A note at the top of every
-                    // section.
+                    // PRD 5.4.4: the N/A note at the top of every section.
                     InfoCard(
                       key: const ValueKey('amc-form-na-note'),
                       title: '',

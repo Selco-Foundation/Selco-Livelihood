@@ -9,8 +9,7 @@ export 'amc_support_models.dart';
 part 'scheduled_visit.freezed.dart';
 part 'scheduled_visit.g.dart';
 
-/// AMC scheduled visit models, ported from E4H
-/// `lib/model/scheduled_visit/scheduled_visit.dart`. JSON shapes match the
+/// AMC scheduled visit models. JSON shapes match the
 /// `asset-amc/v1/visit/_search` response.
 @freezed
 class ScheduledVisitSearchResponse with _$ScheduledVisitSearchResponse {
@@ -204,7 +203,7 @@ class ScheduledVisitSearchCriteria with _$ScheduledVisitSearchCriteria {
   static const String INCLUDE_SITE_DETAILS = 'includeSiteDetails';
   static const String SORT_BY = 'sortBy';
 
-  /// `searchCriteria` body of `asset-amc/v1/visit/_search`, as built by E4H.
+  /// `searchCriteria` body of `asset-amc/v1/visit/_search`.
   Map<String, dynamic> toApiMap() {
     final out = <String, dynamic>{};
     if (tenantId != null) out[TENANT_ID] = tenantId;
@@ -268,7 +267,7 @@ class EpochDateTimeConverter implements JsonConverter<DateTime?, Object?> {
   Object? toJson(DateTime? date) => date?.millisecondsSinceEpoch;
 }
 
-/// E4H's `version` is a String in the model but the backend may send a
+/// `version` is a String in the model but the backend may send a
 /// number; accept either.
 class AnyToStringConverter implements JsonConverter<String?, Object?> {
   const AnyToStringConverter();
@@ -280,8 +279,8 @@ class AnyToStringConverter implements JsonConverter<String?, Object?> {
   Object? toJson(String? value) => value;
 }
 
-/// E4H `WorkflowFlexConverter` (renamed: this app's installation model
-/// already declares one).
+/// Named `Amc*` because this app's installation model already declares a
+/// `WorkflowFlexConverter`.
 class AmcWorkflowFlexConverter implements JsonConverter<AmcWorkflow?, Object?> {
   const AmcWorkflowFlexConverter();
 
@@ -372,7 +371,6 @@ class AmcAuditDetailsConverter
   Object? toJson(AmcAuditDetails? value) => value?.toJson();
 }
 
-/// E4H `FacilityConverter`.
 class AmcFacilityConverter implements JsonConverter<AmcFacility?, Object?> {
   const AmcFacilityConverter();
 
@@ -437,8 +435,8 @@ extension ScheduledVisitDelay on ScheduledVisit {
 }
 
 /// What the visit cards show. The Livelihood search returns the site name
-/// and place names on the visit itself; E4H's only on the facility, so
-/// both are read.
+/// and place names on the visit itself, but they may be only on the
+/// facility, so both are read.
 extension ScheduledVisitDisplay on ScheduledVisit {
   String get displayFacilityName =>
       (facility?.facilityName?.trim().isNotEmpty ?? false)
@@ -446,7 +444,7 @@ extension ScheduledVisitDisplay on ScheduledVisit {
           : facilityName ?? '';
 
   /// Visits in the whole AMC: the server's `totalVisits`, else worked out
-  /// from the AMC's duration and frequency (E4H).
+  /// from the AMC's duration and frequency.
   int? get amcTotalVisits {
     if (totalVisits != null) return totalVisits;
     final duration = amcConfiguration?.durationMonths;

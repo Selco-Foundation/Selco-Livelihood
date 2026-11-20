@@ -3,8 +3,8 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'user_type.freezed.dart';
 
-/// Ported from E4H `lib/blocs/user_type/user_type.dart`: remembers which
-/// module (Installation staff / AMC) the user entered after login.
+/// Remembers which module (Installation staff / AMC) the user entered after
+/// login.
 @freezed
 class UserTypeState with _$UserTypeState {
   const factory UserTypeState.initial() = UserTypeInitial;

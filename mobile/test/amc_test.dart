@@ -18,6 +18,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:livelihood/blocs/localization/app_localization.dart';
 import 'package:livelihood/data/nosql/localization.dart' show Localization;
+import 'package:livelihood/data/network_manager.dart';
 import 'package:livelihood/blocs/amc_otp/amc_otp.dart';
 import 'package:livelihood/main.dart';
 import 'package:livelihood/model/amc/amc_schedule.dart';
@@ -39,6 +40,7 @@ import 'package:livelihood/utils/amc/amc_module_readiness.dart';
 import 'package:livelihood/utils/amc/amc_rejection_reasons.dart';
 import 'package:livelihood/utils/amc/amc_schedule_export.dart';
 import 'package:livelihood/utils/amc/amc_utils.dart';
+import 'package:livelihood/utils/dynamic_form_schema.dart';
 import 'package:livelihood/utils/envConfig.dart';
 import 'package:livelihood/utils/i18_key_constants.dart' as i18;
 import 'package:livelihood/utils/role_login_resolver.dart';
@@ -119,8 +121,17 @@ class _MemorySystemStatusQueue implements AmcSystemStatusQueueStore {
       items = [...value];
 }
 
+/// A failed request as it reaches the repositories: classified by the app's
+/// `NetworkErrorNormalizerInterceptor`.
 DioException _dioError({int? status}) {
   final options = RequestOptions(path: '/status');
+  final code = status == null
+      ? LoginErrorCode.connectionFailed
+      : status == 401
+          ? LoginErrorCode.invalidCredentials
+          : status >= 500
+              ? LoginErrorCode.serverError
+              : LoginErrorCode.unknown;
   return DioException(
     requestOptions: options,
     type: status == null
@@ -129,6 +140,7 @@ DioException _dioError({int? status}) {
     response: status == null
         ? null
         : Response(requestOptions: options, statusCode: status),
+    error: AppNetworkException(code),
   );
 }
 
@@ -186,8 +198,6 @@ class _FakeAmcRemoteDataSource implements AmcRemoteDataSource {
   @override
   Future<String> uploadFile(String localFilePath) async => 'fake-filestore-id';
 
-  @override
-  Future<List<int>?> downloadFile(String fileStoreId) async => null;
 }
 
 /// A visit as the AMC visit search returns it, due [days] days from now.
@@ -294,7 +304,7 @@ const _readingTexts = {
   'AMC_FORM_NA': 'Not applicable',
 };
 
-/// #252: serves the View Schedule screen without Isar or a server.
+/// Serves the View Schedule screen without Isar or a server.
 class _FakeScheduleRepository extends ScheduledVisitRepository {
   _FakeScheduleRepository(this.respond);
 
@@ -384,7 +394,7 @@ void main() {
     });
   });
 
-  group('AMC helpers (E4H parity)', () {
+  group('AMC helpers', () {
     test('formatAmcNumber and boundary locality', () {
       expect(formatAmcNumber(2, 12, 3), '2 / 4');
       expect(formatAmcNumber(null, 12, 5), '--- / ---');
@@ -397,7 +407,7 @@ void main() {
 
     test('AMC report form loads in digit_forms_engine', () {
       final transformed =
-          transformSelcoFormMdmsDocToSchema(amcReportFormSchemaDoc('t'));
+          transformBomMdmsRecordToSchema(amcReportFormSchemaDoc('t'));
       final schema = SchemaObject.fromJson(transformed);
       expect(schema.name, amcFormSchemaKey);
       expect(schema.pages.keys.first, amcFormFirstPage);
@@ -710,7 +720,7 @@ void main() {
     expect(doc['geoLocation'], containsPair('latitude', '12.1'));
   });
 
-  group('AMC completion code verification (#249)', () {
+  group('AMC completion code verification', () {
     late _FakeAmcRemoteDataSource fake;
     late bool online;
     late List<ScheduledVisit> cached;
@@ -805,17 +815,17 @@ void main() {
     });
   });
 
-  group('AMC rejection reasons (#251)', () {
-    test('E4H JSON list, installation objects, strings and plain text', () {
-      final e4h = parseAmcRejectionComment(jsonEncode([
+  group('AMC rejection reasons', () {
+    test('JSON list, installation objects, strings and plain text', () {
+      final jsonList = parseAmcRejectionComment(jsonEncode([
         {'reason': 'Photos are not clear', 'comment': 'Retake in daylight.'},
         {'reason': 'Battery details missing'},
       ]));
-      expect(e4h.map((c) => c.reason), [
+      expect(jsonList.map((c) => c.reason), [
         'Photos are not clear',
         'Battery details missing',
       ]);
-      expect(e4h.first.details, 'Retake in daylight.');
+      expect(jsonList.first.details, 'Retake in daylight.');
 
       final installation = parseAmcRejectionComment([
         {
@@ -888,9 +898,9 @@ void main() {
     });
   });
 
-  group('Livelihood AMC report form (#250)', () {
+  group('Livelihood AMC report form', () {
     final schema = SchemaObject.fromJson(
-        transformSelcoFormMdmsDocToSchema(amcReportFormSchemaDoc('t')));
+        transformBomMdmsRecordToSchema(amcReportFormSchemaDoc('t')));
     Map<String, PropertySchema> fieldsOf(String page) =>
         schema.pages[page]!.properties!;
     bool isRequired(PropertySchema field) =>
@@ -1400,7 +1410,7 @@ void main() {
     });
   });
 
-  group('AMC View Schedule (#252)', () {
+  group('AMC View Schedule', () {
     // 17 Nov 2026, 10:30 on the device's calendar.
     final now = DateTime(2026, 11, 17, 10, 30);
     ScheduledVisit visit(String id, DateTime? date,
@@ -1711,7 +1721,7 @@ void main() {
       expect(
           find.byKey(const ValueKey('amc-mdms-loading-dialog')), findsNothing);
       expect(AmcModuleReadiness.isReady, isTrue);
-      // The AMC form schema was cached for offline use, as in E4H.
+      // The AMC form schema was cached for offline use.
       expect(_secureStorageValues.keys, contains('amcFormConfigsRaw'));
       expect(_secureStorageValues['individualId'], 'amc.user');
     });

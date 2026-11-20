@@ -93,7 +93,7 @@ class _AmcSelectFacilityPageState extends State<AmcSelectFacilityPage>
       _reloadBookmarks();
       return;
     }
-    // Search clears Newest/Oldest (E4H behaviour) but keeps "AMC delayed",
+    // Search clears Newest/Oldest but keeps "AMC delayed",
     // so a search while delayed is on only searches delayed activities.
     context.read<ScheduledVisitBloc>().add(
           ScheduledVisitEvent.loadInitial(
@@ -311,7 +311,7 @@ class _AmcSelectFacilityPageState extends State<AmcSelectFacilityPage>
                                                           .select(FormOrigin
                                                               .overallSummary));
 
-                                              // #247: status questions first,
+                                              // Status questions first,
                                               // then the report form.
                                               await context.router.push(
                                                 AmcSystemStatusRoute(

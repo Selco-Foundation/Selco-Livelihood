@@ -14,7 +14,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:reactive_forms/reactive_forms.dart';
 
@@ -23,17 +22,14 @@ import '../../data/network_manager.dart';
 import '../../model/amc/amc_site_details.dart';
 import '../../model/amc/scheduled_visit.dart';
 import '../../repositories/amc/amc_dynamic_form_repo.dart';
+import '../../model/solar_installation_draft.dart';
 import '../../repositories/amc/amc_remote_data_source.dart';
+import '../../repositories/installation_cache_repo.dart';
 import '../../router/app_router.dart';
-import '../envConfig.dart';
 import '../extensions.dart';
 import '../i18_key_constants.dart' as i18;
 import '../role_login_resolver.dart';
 export 'amc_json.dart';
-
-/// AMC helpers ported from E4H `lib/utils/utils.dart` and its small
-/// neighbours (`report_date_label.dart`, `facility_list_filter.dart`,
-/// `repositories/cache_fallback.dart`). Behaviour is kept identical to E4H.
 
 String formatAmcNumber(
   int? visitNumber,
@@ -67,11 +63,11 @@ enum WORKFLOW_STATUS_AMC_FIELD_STAFF {
 
 enum FormOrigin { overallSummary, inboxSummary, submitForApproval, submitted }
 
-/// E4H uses 1 for every facility list (this app's installation lists use 3).
+/// AMC facility lists search from 1 character (installation lists use 3).
 const int minFacilitySearchQueryLength = 1;
 
-/// The AMC report form, as named in E4H (`AssetForm.AMC_SCHEDULED_MAINTENANCE`
-/// MDMS document). Livelihood's form (#250) starts with the Report Header.
+/// The AMC report form (`AssetForm.AMC_SCHEDULED_MAINTENANCE` MDMS
+/// document). Livelihood's form starts with the Report Header.
 const String amcFormSchemaKey = 'AssetForm.AMC_SCHEDULED_MAINTENANCE';
 const String amcFormFirstPage = 'Report_Header';
 
@@ -80,7 +76,7 @@ const String amcFormFirstPage = 'Report_Header';
 /// on fields, which the form's conditional readings need.
 const String amcFormMdmsSchemaCode = 'common-masters.AMCReportFormSchema';
 
-/// #250: a `format: custom` form field whose name ends in `Photo` is a
+/// A `format: custom` form field whose name ends in `Photo` is a
 /// reading photo (its value is a local path, or a filestore id once
 /// uploaded); any other custom field is a decimal reading.
 bool isAmcReadingPhotoField(String fieldName) => fieldName.endsWith('Photo');
@@ -207,7 +203,7 @@ class BoundaryCodeLocality {
 
 /// The visit's state, district and block. Livelihood's visit search sends
 /// them ready to show; otherwise they are read from the facility's
-/// boundary code (E4H).
+/// boundary code.
 BoundaryCodeLocality amcVisitLocality(ScheduledVisit visit) {
   final parsed = parseBoundaryCodeLocality(visit.facility?.boundaryCode);
   String pick(String? value, String fallback) =>
@@ -252,60 +248,29 @@ bool isValidUuid(String value) {
   return uuidRegex.hasMatch(value);
 }
 
-final Map<String, File> _fileCache = {};
-
-String get fileStoreFileUrl =>
-    '${envConfig.variables.baseUrl}filestore/v1/files/file?tenantId=${envConfig.variables.tenantId}&fileStoreId=';
-
-/// E4H `getCachedFile`: a filestore id is downloaded once into app-support
-/// `filestore/<scope>/<id>` and reused; a local path is returned as-is.
-/// The download goes through [amcRemoteDataSource].
+/// A filestore id is downloaded once through the shared media cache
+/// ([InstallationCacheRepository.resolveMedia]) and reused; a local path is
+/// returned as-is. Null when neither can be read.
 Future<File?> getCachedFile(String idOrPath) async {
-  final isRemote = isValidUuid(idOrPath);
-  final cacheKey = isRemote ? '$fileStoreFileUrl$idOrPath' : idOrPath;
-  final cached = _fileCache[cacheKey];
-  if (cached != null && await cached.exists()) return cached;
-  _fileCache.remove(cacheKey);
-
-  if (isRemote) {
-    File? temporary;
+  if (idOrPath.isEmpty) return null;
+  if (isValidUuid(idOrPath)) {
     try {
-      final dir = await getApplicationSupportDirectory();
-      final scope = base64Url.encode(utf8.encode(fileStoreFileUrl));
-      final file = File(p.join(dir.path, 'filestore', scope, idOrPath));
-      if (await file.exists()) {
-        _fileCache[cacheKey] = file;
-        return file;
-      }
-      final bytes = await amcRemoteDataSource.downloadFile(idOrPath);
-      if (bytes != null) {
-        await file.parent.create(recursive: true);
-        temporary = File(
-            '${file.path}.${DateTime.now().microsecondsSinceEpoch}.tmp');
-        await temporary.writeAsBytes(bytes, flush: true);
-        await temporary.rename(file.path);
-        _fileCache[cacheKey] = file;
-        return file;
-      }
+      return File(await installationCacheRepository.resolveMedia(SolarFileRef(
+        name: idOrPath,
+        path: idOrPath,
+        kind: SolarFileKind.image,
+        remoteId: idOrPath,
+      )));
     } catch (_) {
       // Missing downloads remain unavailable; other media can still load.
-    } finally {
-      if (temporary != null && await temporary.exists()) {
-        await temporary.delete();
-      }
+      return null;
     }
   }
-
   final file = File(idOrPath);
-  if (await file.exists()) {
-    _fileCache[cacheKey] = file;
-    return file;
-  }
-
-  return null;
+  return await file.exists() ? file : null;
 }
 
-/// E4H `getFilestoreUrl`: uploads a local file and returns its filestore id;
+/// Uploads a local file and returns its filestore id;
 /// an id is returned unchanged.
 Future<String> getFilestoreUrl(String idOrPath) async {
   String photoId = idOrPath;
@@ -316,102 +281,6 @@ Future<String> getFilestoreUrl(String idOrPath) async {
     }
   }
   return photoId;
-}
-
-Map<String, dynamic> transformSelcoFormMdmsDocToSchema(
-    Map<String, dynamic> mdmsDoc) {
-  final data = (mdmsDoc['data'] as Map?) ?? const <String, dynamic>{};
-
-  final name = (data['name'] ??
-          mdmsDoc['schemaCode'] ??
-          mdmsDoc['uniqueIdentifier'] ??
-          'Form')
-      .toString();
-  final version = (data['version'] ?? 1);
-  final order = data['order'] ?? 0;
-  final summary = data['summary'] ?? false;
-
-  final pagesArr = (data['pages'] as List?) ?? const <dynamic>[];
-  final pagesMap = <String, dynamic>{};
-  for (final p in pagesArr) {
-    if (p is! Map) continue;
-    final page = Map<String, dynamic>.from(p);
-    final pageKey =
-        (page['page'] ?? page['name'] ?? 'page_${pagesMap.length + 1}')
-            .toString();
-
-    final propsArr = (page['properties'] as List?) ?? const <dynamic>[];
-    final propsMap = <String, dynamic>{};
-    for (var i = 0; i < propsArr.length; i++) {
-      final raw = propsArr[i];
-      if (raw is! Map) continue;
-      final prop = Map<String, dynamic>.from(raw);
-      final key = (prop['fieldName'] ?? 'field_${i + 1}').toString();
-
-      propsMap[key] = {
-        'type': prop['type'],
-        'schemaCode': prop['schemaCode'],
-        'label': prop['label'],
-        'order': prop['order'],
-        'value': prop['value'],
-        'format': prop['format'],
-        'section': prop['section'],
-        'sectionDescription': prop['sectionDescription'],
-        'hidden': prop['hidden'],
-        'readOnly': prop['readOnly'],
-        'displayOnly': prop['displayOnly'],
-        'deleteFlag': prop['deleteFlag'],
-        'isMultiSelect': prop['isMultiSelect'],
-        'includeInForm': prop['includeInForm'],
-        'includeInSummary': prop['includeInSummary'],
-        'systemDate': prop['systemDate'],
-        'charCount': prop['charCount'],
-        'startDate': prop['startDate'],
-        'endDate': prop['endDate'],
-        'minValue': prop['minValue'],
-        'maxValue': prop['maxValue'],
-        'minLength': prop['minLength'],
-        'maxLength': prop['maxLength'],
-        'tooltip': prop['tooltip'],
-        'helpText': prop['helpText'],
-        'prefixText': prop['prefixText'],
-        'infoText': prop['infoText'],
-        'innerLabel': prop['innerLabel'],
-        'suffixText': prop['suffixText'],
-        'errorMessage': prop['errorMessage'],
-        'enums': prop['enums'],
-        'validations': prop['validations'],
-        'displayBehavior': prop['displayBehavior'],
-        'conditions': prop['conditions'],
-        'navigateTo': prop['navigateTo'],
-        'visibilityCondition': prop['visibilityCondition'],
-        'conditionalNavigateTo': prop['conditionalNavigateTo'],
-        'autoFillCondition': prop['autoFillCondition'],
-        'fieldName': key,
-      };
-    }
-
-    pagesMap[pageKey] = {
-      'page': pageKey,
-      'type': page['type'] ?? 'object',
-      'label': page['label'],
-      'order': page['order'],
-      'actionLabel': page['actionLabel'],
-      'description': page['description'],
-      'navigateTo': page['navigateTo'],
-      'visibilityCondition': page['visibilityCondition'],
-      'conditionalNavigateTo': page['conditionalNavigateTo'],
-      'properties': propsMap,
-    };
-  }
-
-  return {
-    'name': name,
-    'version': version,
-    'order': order,
-    'summary': summary,
-    'pages': pagesMap,
-  };
 }
 
 Map<String, dynamic> injectValuesIntoRawDoc({
@@ -593,10 +462,9 @@ bool isLastPage({required SchemaObject schema, required String pageName}) {
   return lastKey == pageName;
 }
 
-/// E4H: local saved answers first, then the server's submitted responses.
-/// #250: the Site Details fields and the site's battery/system type are then
-/// filled from the visit (E4H's `{"faults_observed": "YES"}` default is gone
-/// with E4H's form).
+/// Local saved answers first, then the server's submitted responses.
+/// The Site Details fields and the site's battery/system type are then
+/// filled from the visit.
 Future<Map<String, dynamic>> buildInitialAmcValues({
   required BuildContext context,
   required ScheduledVisit scheduledVisit,
@@ -621,7 +489,7 @@ Future<Map<String, dynamic>> buildInitialAmcValues({
   return withAmcSiteDetails(initialValues, scheduledVisit);
 }
 
-/// #250: [pageName]'s schema with each field's `visibilityCondition`
+/// [pageName]'s schema with each field's `visibilityCondition`
 /// decided once, against [values] (the visit's saved answers and site
 /// details): a field whose condition fails is hidden, one whose condition
 /// holds loses the condition.
@@ -666,7 +534,7 @@ digit_property_schema.PropertySchema resolveAmcVisibility(
 bool isAmcFormInput(digit_property_schema.PropertySchema field) =>
     field.hidden != true || field.includeInForm == true;
 
-/// [values] with the visit's Site Details (#250) on top.
+/// [values] with the visit's Site Details on top.
 Map<String, dynamic> withAmcSiteDetails(
         Map<String, dynamic>? values, ScheduledVisit visit) =>
     {
@@ -711,8 +579,7 @@ String normalizeFriendlyNetworkErrorMessage(
   return cleaned;
 }
 
-/// E4H `handleSessionExpired`, routed through this app's unauthenticated
-/// wrapper.
+/// Session expiry, routed through this app's unauthenticated wrapper.
 void handleSessionExpired(BuildContext context) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content: Text(context.translate(i18.common.sessionExpired))),
@@ -725,8 +592,7 @@ void handleSessionExpired(BuildContext context) {
   );
 }
 
-/// E4H `repositories/cache_fallback.dart`. This app's
-/// `NetworkErrorNormalizerInterceptor` rewrites `DioException.message`, so
+/// This app's `NetworkErrorNormalizerInterceptor` rewrites `DioException.message`, so
 /// the status-code checks are what actually match here.
 bool isAuthenticationFailure(Object error) =>
     error is DioException &&
@@ -764,7 +630,6 @@ bool matchesFacilityName(String? name, String? query) {
   return search.isEmpty || (name ?? '').toLowerCase().contains(search);
 }
 
-/// E4H `utils/facility_list_filter.dart`.
 List<T> filterFacilityList<T>(
   Iterable<T> records, {
   required String query,
@@ -794,7 +659,7 @@ List<T> filterFacilityList<T>(
   return result;
 }
 
-/// E4H `utils/report_date_label.dart`: fallbacks for the newer workflow date
+/// Fallbacks for the newer workflow date
 /// labels until server translations exist.
 String reportDateLabel(String key, String Function(String) translate) {
   final translated = translate(key);
@@ -804,5 +669,5 @@ String reportDateLabel(String key, String Function(String) translate) {
   return translated;
 }
 
-/// E4H checks connectivity before saving a bookmark.
+/// Checks connectivity before saving a bookmark.
 Future<void> ensureOnlineOrThrow() => NetworkService().ensureOnlineOrThrow();

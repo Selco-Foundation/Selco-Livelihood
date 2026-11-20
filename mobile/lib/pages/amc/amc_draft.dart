@@ -108,7 +108,7 @@ class _AmcDraftPageState extends State<AmcDraftPage>
       context
           .read<SelectedAmcOriginBloc>()
           .add(SelectedAmcOriginEvent.select(origin));
-      // #247: status questions first, then the report form.
+      // Status questions first, then the report form.
       await context.router
           .push(AmcSystemStatusRoute(scheduledVisit: visit, origin: origin));
     }

@@ -6,7 +6,7 @@ import '../../utils/envConfig.dart';
 import '../filestore_repository.dart';
 
 /// Every call the AMC module makes to a backend. The repositories above this
-/// layer are E4H's logic, unchanged; only this transport is swappable.
+/// layer stay the same; only this transport is swappable.
 abstract class AmcRemoteDataSource {
   /// `POST asset-amc/v1/visit/_search?tenantId&limit&offset`
   /// body `{searchCriteria: {...}}` → `{ScheduledVisits: [...], TotalCount}`.
@@ -25,7 +25,7 @@ abstract class AmcRemoteDataSource {
   /// `POST asset-amc/v1/visit/_resend_otp` body `{visitId}`.
   Future<void> resendVisitOtp(String visitId);
 
-  /// Pre-report system status (#247): sent when a non-functional status is
+  /// Pre-report system status: sent when a non-functional status is
   /// saved, so the backend can email the Program POC.
   Future<void> updateSystemStatus(Map<String, dynamic> body);
 
@@ -34,12 +34,8 @@ abstract class AmcRemoteDataSource {
   Future<List<dynamic>> searchAmcFormSchemaDocs(
       Map<String, dynamic> mdmsRequestBody);
 
-  /// `POST filestore/v1/files` (module `Incident`, as E4H) → `fileStoreId`.
+  /// `POST filestore/v1/files` (module `Incident`) → `fileStoreId`.
   Future<String> uploadFile(String localFilePath);
-
-  /// `GET filestore/v1/files/file?tenantId&fileStoreId` → file bytes, or
-  /// null when the file can't be fetched.
-  Future<List<int>?> downloadFile(String fileStoreId);
 }
 
 AmcRemoteDataSource amcRemoteDataSource = HttpAmcRemoteDataSource();
@@ -129,21 +125,4 @@ class HttpAmcRemoteDataSource implements AmcRemoteDataSource {
   @override
   Future<String> uploadFile(String localFilePath) =>
       filestoreRepository.upload(localFilePath, module: 'Incident');
-
-  @override
-  Future<List<int>?> downloadFile(String fileStoreId) async {
-    // E4H fetches this public URL with a plain HTTP GET (no auth headers).
-    final response = await Dio().get<List<int>>(
-      '${envConfig.variables.baseUrl}${ApiPaths.fileStoreFile}',
-      queryParameters: {
-        'tenantId': envConfig.variables.tenantId,
-        'fileStoreId': fileStoreId,
-      },
-      options: Options(
-        responseType: ResponseType.bytes,
-        validateStatus: (status) => status != null,
-      ),
-    );
-    return response.statusCode == 200 ? response.data : null;
-  }
 }

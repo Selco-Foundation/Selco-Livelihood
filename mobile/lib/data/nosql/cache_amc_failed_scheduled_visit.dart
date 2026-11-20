@@ -3,7 +3,7 @@ import 'package:isar/isar.dart';
 part 'cache_amc_failed_scheduled_visit.g.dart';
 
 /// Visits whose background submission failed; disables "Submit for
-/// approval" on the visit card. Ported from E4H.
+/// approval" on the visit card.
 @Collection()
 class CacheAmcFailedScheduledVisit {
   Id id = Isar.autoIncrement;

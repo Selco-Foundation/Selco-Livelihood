@@ -3,7 +3,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'inbox_type.freezed.dart';
 
-/// Ported from E4H: the selected AMC inbox tab.
+/// The selected AMC inbox tab.
 @freezed
 class InboxTypeState with _$InboxTypeState {
   const factory InboxTypeState.submitted() = InboxTypeSubmitted;

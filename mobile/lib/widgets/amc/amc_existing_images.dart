@@ -8,9 +8,8 @@ import 'package:path/path.dart' as p;
 import '../../model/solar_installation_draft.dart';
 import '../../router/app_router.dart';
 
-/// Read-only photo row of the AMC media screen: the image half of E4H's
-/// `ExistingFilesOrLoader` (AMC only ever shows images, already resolved to
-/// local files). Tapping opens this app's image viewer.
+/// Read-only photo row of the AMC media screen. AMC only ever shows images,
+/// already resolved to local files. Tapping opens the app's image viewer.
 class AmcExistingImages extends StatelessWidget {
   const AmcExistingImages({super.key, required this.paths});
 

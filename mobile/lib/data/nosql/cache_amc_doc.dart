@@ -7,8 +7,7 @@ import '../../utils/amc/amc_json.dart';
 part 'cache_amc_doc.g.dart';
 
 /// AMC report form (raw MDMS doc with the entered values) saved per visit.
-/// Ported from E4H `data/nosql/cache_amc_doc.dart`; its presence turns the
-/// visit card's action into "Resume report".
+/// Its presence turns the visit card's action into "Resume report".
 @collection
 class CacheAmcDoc {
   Id id = Isar.autoIncrement;

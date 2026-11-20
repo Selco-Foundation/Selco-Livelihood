@@ -5,7 +5,7 @@ import '../../model/amc/scheduled_visit.dart';
 
 part 'selected_scheduled_visit.freezed.dart';
 
-/// Ported from E4H: the visit the AMC screens are currently working on.
+/// The visit the AMC screens are currently working on.
 class SelectedScheduledVisitBloc
     extends Bloc<SelectedScheduledVisitEvent, SelectedScheduledVisitState> {
   SelectedScheduledVisitBloc()

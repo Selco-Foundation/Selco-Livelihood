@@ -14,9 +14,8 @@ import '../../utils/envConfig.dart';
 import 'amc_bookmark_repo.dart';
 import 'amc_remote_data_source.dart';
 
-/// Ported from E4H `lib/repositories/scheduled_visit_repo.dart`. The only
-/// change is that requests go through [amcRemoteDataSource]
-/// and Isar is resolved from `Constants().isar` instead of a bloc field.
+/// Requests go through [amcRemoteDataSource]; Isar is resolved from
+/// `Constants().isar`.
 
 Future<Isar> amcIsar() => Constants().isar;
 
@@ -32,7 +31,7 @@ class PaginatedScheduledVisits {
   });
 }
 
-/// #252 View Schedule: the visits of the chosen period, earliest due first.
+/// View Schedule: the visits of the chosen period, earliest due first.
 class AmcScheduleResult {
   final List<ScheduledVisit> visits;
 
@@ -74,7 +73,7 @@ class ScheduledVisitRemoteRepository {
     return ScheduledVisitSearchResponse.fromJson(response);
   }
 
-  /// #252: every not-started (`SCHEDULED`) visit of the logged-in field
+  /// Every not-started (`SCHEDULED`) visit of the logged-in field
   /// staff, with site details, earliest due first, page by page. The
   /// backend creates a visit only after the previous one is done, so this
   /// is about one row per AMC.
@@ -116,7 +115,7 @@ class ScheduledVisitRemoteRepository {
   /// or null if the response did not include it.
   ///
   /// Body as in the AMC API contract: `SUBMIT_VISIT_REPORT` sends the
-  /// answers, the documents and the pre-report system status (#247);
+  /// answers, the documents and the pre-report system status;
   /// `SUBMIT_OTP` sends only the code, so the saved report is untouched.
   Future<ScheduledVisit?> updateVisitWorkflow({
     required String visitId,
@@ -307,7 +306,7 @@ class ScheduledVisitRepository {
     }
   }
 
-  /// #252 View Schedule: `SCHEDULED` visits due from today to the end of the
+  /// View Schedule: `SCHEDULED` visits due from today to the end of the
   /// [days]-day period. Fetched fresh each time, so reassigned or re-dated
   /// visits show at once; without a connection the last saved copy is
   /// used ([AmcScheduleResult.fromCache]). Throws when neither is
@@ -611,7 +610,7 @@ class PrefilledScheduledVisitRepository {
     return result;
   }
 
-  /// E4H's "prefilled" rule: a visit whose report was submitted from this
+  /// The "prefilled" rule: a visit whose report was submitted from this
   /// device is hidden from SCHEDULED and shown at the top of
   /// PENDING_OTP_APPROVAL, even if the server still says SCHEDULED.
   List<ScheduledVisit> filterByPrefilledRules({

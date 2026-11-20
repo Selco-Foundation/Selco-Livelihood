@@ -1,7 +1,7 @@
 import 'package:digit_ui_components/theme/spacers.dart';
 import 'package:flutter/material.dart';
 
-/// E4H `loadingIndicator()`.
+/// Ported from E4H.
 Widget loadingIndicator() => const Center(
       child: Center(
         child: Padding(

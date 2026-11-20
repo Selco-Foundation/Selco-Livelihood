@@ -5,7 +5,7 @@ import 'package:digit_ui_components/theme/spacers.dart';
 import 'package:digit_ui_components/widgets/molecules/digit_card.dart';
 import 'package:flutter/material.dart';
 
-/// E4H `ReportCard`: the menu cards on the AMC report home.
+/// Ported from E4H. The menu cards on the AMC report home.
 class ReportCard extends StatelessWidget {
   final IconData icon;
   final String heading;

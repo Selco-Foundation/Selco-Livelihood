@@ -11,7 +11,7 @@ const installationReport = InstallationReport();
 const scanner = Scanner();
 const syncLoading = SyncLoading();
 
-// AMC (ported from E4H). Key strings are E4H's exactly, so E4H's uploaded
+// AMC. Key strings must stay exactly as they are, so the uploaded
 // localization messages apply unchanged.
 const amcCommon = AmcCommon();
 const amcHome = AmcHome();
@@ -328,8 +328,8 @@ class Scanner {
   String get scannerUnavailable => 'SCANNER_UNAVAILABLE';
 }
 
-/// E4H `Common` keys used by the AMC screens (E4H uses `CORE_COMMON_*`
-/// strings where this app's own [Common] uses `COMMON_*`).
+/// `Common` keys used by the AMC screens (`CORE_COMMON_*` strings, where
+/// this app's own [Common] uses `COMMON_*`).
 class AmcCommon {
   const AmcCommon();
 
@@ -376,7 +376,7 @@ class AmcHome {
   String get viewSchedule => 'AMC_HOME_VIEW_SCHEDULE';
 }
 
-/// #252 View Schedule. `{days}`, `{count}`, `{date}` and `{path}` are
+/// View Schedule. `{days}`, `{count}`, `{date}` and `{path}` are
 /// replaced in the app.
 class AmcScheduleText {
   const AmcScheduleText();
@@ -433,7 +433,7 @@ class AmcDynamicForm {
   String get loading => 'AMC_DYNAMIC_FORM_LOADING';
 }
 
-/// Livelihood AMC report form (#250). The field labels, section headings and
+/// Livelihood AMC report form. The field labels, section headings and
 /// options are in the form's MDMS record (`AMC_FORM_*`).
 class AmcFormText {
   const AmcFormText();
@@ -442,7 +442,7 @@ class AmcFormText {
   String get photoRequired => 'AMC_FORM_PHOTO_REQUIRED';
 }
 
-/// Pre-report system status questions (#247).
+/// Pre-report system status questions.
 class AmcSystemStatusText {
   const AmcSystemStatusText();
 
@@ -470,7 +470,7 @@ class AmcOtp {
   String get amcOtpMaskedPhone => 'AMC_OTP_MASKED_PHONE';
   String get amcOtpNetworkWarning => 'AMC_OTP_NETWORK_WARNING';
 
-  // #249: verification outcome and actionable errors.
+  // Verification outcome and actionable errors.
   String get offline => 'AMC_OTP_OFFLINE';
   String get serverUnreachable => 'AMC_OTP_SERVER_UNREACHABLE';
   String get invalidCode => 'AMC_OTP_INVALID_CODE';
@@ -479,7 +479,6 @@ class AmcOtp {
   String get reportApproved => 'AMC_OTP_REPORT_APPROVED';
   String get reportSentForReview => 'AMC_OTP_REPORT_SENT_FOR_REVIEW';
 
-  /// E4H `login.otpPlaceholder`.
   String get otpPlaceholder => 'OTP_PLACEHOLDER';
 }
 
@@ -504,7 +503,7 @@ class AmcMediaUpload {
 
   String get selfieInstruction => 'AMC_MEDIA_UPLOAD_SELFIE_INSTRUCTION';
 
-  // #248: mandatory verification photograph.
+  // Mandatory verification photograph.
   String get verificationPhotoTitle =>
       'AMC_MEDIA_UPLOAD_VERIFICATION_PHOTO_TITLE';
   String get verificationPhotoInstruction =>

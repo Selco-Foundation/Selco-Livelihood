@@ -3,7 +3,7 @@ import 'package:isar/isar.dart';
 part 'cache_prefilled_scheduled_visit.g.dart';
 
 /// Visits whose report was submitted from this device and now await the
-/// completion code (OTP). Ported from E4H.
+/// completion code (OTP).
 @Collection()
 class CachePrefilledScheduledVisit {
   Id id = Isar.autoIncrement;

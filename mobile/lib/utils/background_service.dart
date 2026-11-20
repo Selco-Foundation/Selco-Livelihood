@@ -44,7 +44,7 @@ const String kEvtDone = 'submission_done';
 const String kEvtError = 'submission_error';
 const String kEvtReady = 'service_ready';
 
-// AMC visit report submission (ported from E4H `utils/background_service.dart`).
+// AMC visit report submission.
 const String kMethodSubmitVisit = 'submit_schedule_visit';
 const String kEvtScheduleVisitDone = 'schedule_visit_done';
 const String kEvtScheduleVisitError = 'schedule_visit_error';
@@ -188,7 +188,7 @@ class BackgroundServiceController {
 
     const channelTimeout = Duration(seconds: 5);
     if (!await service.isRunning().timeout(channelTimeout)) {
-      // As in E4H: listen for "ready" before starting the service, and keep
+      // Listen for "ready" before starting the service, and keep
       // listening until it arrives. A cold-started isolate can take well over
       // a second to register its listeners, so the sends below can be lost;
       // the re-send on "ready" is what delivers the request then. (This used
@@ -288,9 +288,9 @@ void onStart(ServiceInstance service) async {
       service.invoke(kEvtScheduleVisitDone, {'scheduledVisitId': visitId});
     } catch (e) {
       debugPrint('[BG] _performScheduleVisitSubmission failed: $e');
-      // Kept as in E4H: the thrown message is 'Form not filled', so this
+      // The thrown message is 'Form not filled', so this
       // FORM_NOT_FILLED branch never matches and the generic text is shown.
-      // #249: say why it failed and what to do; the report stays saved.
+      // Say why it failed and what to do; the report stays saved.
       final server = amcServerError(e);
       final String msg;
       if (e.toString().contains('FORM_NOT_FILLED')) {
@@ -317,7 +317,7 @@ void onStart(ServiceInstance service) async {
   service.invoke(kEvtReady);
 }
 
-/// E4H `_performScheduleVisitSubmission`: reads the visit's cached answers
+/// Reads the visit's cached answers
 /// and photos, uploads each photo, then sends `SUBMIT_VISIT_REPORT` and marks
 /// the visit as "prefilled" (awaiting the completion code).
 Future<void> _performScheduleVisitSubmission({
@@ -353,7 +353,7 @@ Future<void> _performScheduleVisitSubmission({
     final fileStoreId = await getFilestoreUrl(media.filePath);
 
     // This screen only takes the verification photograph; its cached
-    // `itemType` is E4H's generic 'image'.
+    // `itemType` is the generic 'image'.
     visitDocuments.add(
       AmcDocument(
         documentType: amcVerificationPhotoDocumentType,
@@ -368,7 +368,7 @@ Future<void> _performScheduleVisitSubmission({
     );
   }
 
-  // #250: reading photos (`*Photo` answers) are uploaded too and sent as
+  // Reading photos (`*Photo` answers) are uploaded too and sent as
   // report documents of their own type (AMC_PHOTO_NE_PCU, ...).
   for (final key in answers.keys.where(isAmcReadingPhotoField).toList()) {
     final value = answers[key]?.toString().trim() ?? '';
@@ -387,7 +387,7 @@ Future<void> _performScheduleVisitSubmission({
   }
   final responses = amcResponsesForSubmit(answers);
 
-  // Pre-report system status answers (#247), sent with the report.
+  // Pre-report system status answers, sent with the report.
   final reportAdditionalDetails = await AmcSystemStatusRepository()
       .reportAdditionalDetails(scheduledVisitId);
 
@@ -398,7 +398,7 @@ Future<void> _performScheduleVisitSubmission({
     visitDocuments: visitDocuments,
     reportAdditionalDetails: reportAdditionalDetails,
   );
-  // #249: keep the cached copy in step with the server (now awaiting the
+  // Keep the cached copy in step with the server (now awaiting the
   // completion code), so lists are right even before the next refresh.
   if (updated != null) {
     try {

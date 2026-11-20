@@ -7,8 +7,8 @@ import '../../repositories/amc/scheduled_visit_repo.dart';
 
 part 'cache_amc_media_upload.freezed.dart';
 
-/// Ported from E4H: CRUD over the photos picked on the AMC media screen.
-/// Isar is resolved per event (E4H injects it in the constructor).
+/// CRUD over the photos picked on the AMC media screen.
+/// Isar is resolved per event.
 class CacheAmcMediaUploadBloc
     extends Bloc<CacheAmcMediaUploadEvent, CacheAmcMediaUploadState> {
   CacheAmcMediaUploadBloc({Future<Isar> Function()? isar})

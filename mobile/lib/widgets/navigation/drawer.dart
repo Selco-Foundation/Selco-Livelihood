@@ -16,8 +16,7 @@ import '../privacy_policy/policy_dialog_launcher.dart';
 /// The hamburger-menu side drawer, ported from E4H's `CustomDrawer`
 /// (`lib/widgets/navigation/drawer.dart`). Trimmed for this app: no
 /// Profile page or offline-connectivity popup. "Home" re-resolves the
-/// user's module from their roles (Installation / AMC / role selection),
-/// as E4H does.
+/// user's module from their roles (Installation / AMC / role selection).
 class CustomDrawer extends StatelessWidget {
   const CustomDrawer({super.key});
 

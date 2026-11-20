@@ -9,9 +9,8 @@ import '../../utils/amc/amc_json.dart';
 import '../../utils/constants.dart';
 import '../../utils/envConfig.dart';
 
-/// Ported from E4H `AmcDynamicFormRepository`
-/// (`lib/repositories/dynamic_form_repo.dart`). E4H passes the Isar handle
-/// in; here it is resolved from `Constants().isar` unless one is supplied.
+/// The Isar handle is resolved from `Constants().isar` unless one is
+/// supplied.
 class AmcDynamicFormRepository {
   AmcDynamicFormRepository({Isar? isar}) : _isarOverride = isar;
 
@@ -162,7 +161,7 @@ class AmcDynamicFormRepository {
   }
 
   /// "Resume" once a form is saved locally for the visit, else "Start".
-  /// (E4H passes a `FormOrigin`; only inbox/submitted origins short-circuit.)
+  /// Read-only (inbox/submitted) origins always get "Start".
   Future<String> resolveFormActionLabel({
     required String scheduledVisitId,
     required String schemaKey,

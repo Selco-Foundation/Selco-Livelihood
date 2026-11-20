@@ -13,7 +13,7 @@ import '../../utils/extensions.dart';
 import '../../utils/i18_key_constants.dart' as i18;
 import '../image_uploader.dart';
 
-/// #250: the AMC form's `format: custom` fields, which `digit_forms_engine`
+/// The AMC form's `format: custom` fields, which `digit_forms_engine`
 /// has no widget for: a decimal reading (its number field takes whole
 /// numbers only) and a per-reading photo. Both bind to the field's form
 /// control, so the engine's required/visibility rules still apply.

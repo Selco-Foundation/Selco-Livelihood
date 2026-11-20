@@ -3,7 +3,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'report_type.freezed.dart';
 
-/// Ported from E4H: which AMC report list the user opened.
+/// Which AMC report list the user opened.
 class ReportTypeBloc extends Bloc<ReportTypeEvent, ReportTypeState> {
   ReportTypeBloc() : super(const ReportTypeState.initial()) {
     on<ReportTypeSelected>(_onTypeSelected);

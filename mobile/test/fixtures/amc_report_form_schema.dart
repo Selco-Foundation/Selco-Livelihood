@@ -1,7 +1,7 @@
 import 'package:livelihood/model/amc/amc_site_details.dart';
 import 'package:livelihood/utils/amc/amc_utils.dart';
 
-/// The Livelihood AMC report form (#250) as an `amcFormMdmsSchemaCode`
+/// The Livelihood AMC report form as an `amcFormMdmsSchemaCode`
 /// MDMS v2 record, built from "Livelihood AMC report form final field list"
 /// (PRD 5.4.4, Section 10). The app loads it from MDMS; tests use this copy.
 ///
@@ -32,7 +32,7 @@ final _yesNo = [_option('YES', 'COMMON_YES'), _option('NO', 'COMMON_NO')];
 final _yesNoNa = [..._yesNo, _option('NA', 'AMC_FORM_NA')];
 
 /// `AMC_FORM_<label>`: the localisation key, kept from the first version of
-/// the form (#250), whose field names were snake_case.
+/// the form, whose field names were snake_case.
 String _label(String label) => 'AMC_FORM_${label.toUpperCase()}';
 
 Map<String, dynamic> _readOnly(String field, String label, int order) => {

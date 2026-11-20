@@ -3,7 +3,7 @@ import 'package:isar/isar.dart';
 part 'cache_schedule_visit_form_values.g.dart';
 
 /// Flat `{fieldName: value}` AMC answers per visit, sent as
-/// `visitReport.responses`. Ported from E4H.
+/// `visitReport.responses`.
 @collection
 class CacheScheduleVisitFormValues {
   Id id = Isar.autoIncrement;

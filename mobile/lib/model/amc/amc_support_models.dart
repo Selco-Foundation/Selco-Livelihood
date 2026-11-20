@@ -2,14 +2,12 @@
 
 import 'dart:convert';
 
-/// Plain-JSON ports of the E4H models an AMC `ScheduledVisit` embeds
-/// (E4H `Facility`, `Workflow`, `WorkflowAuditDetails`, `Document`,
-/// `GeoLocation`, `Transaction`, `Comment`, `AuditDetails`). E4H's versions
-/// are Isar `@Embedded`/dart_mappable classes shared with its installation
-/// module; this app's installation models of the same names have different
-/// fields, so AMC keeps its own `Amc*` copies with E4H's JSON shapes.
+/// Plain-JSON models an AMC `ScheduledVisit` embeds (`Facility`, `Workflow`,
+/// `WorkflowAuditDetails`, `Document`, `GeoLocation`, `Transaction`,
+/// `Comment`, `AuditDetails`). This app's installation models of the same
+/// names have different fields, so AMC keeps its own `Amc*` copies.
 
-/// E4H `Facility` (only the fields AMC reads are typed; the rest are kept
+/// Facility (only the fields AMC reads are typed; the rest are kept
 /// in [raw] so a cached/bookmarked visit round-trips unchanged).
 class AmcFacility {
   AmcFacility({
@@ -34,7 +32,7 @@ class AmcFacility {
   final String? facility_poc_phone;
   final Map<String, dynamic> raw;
 
-  /// Reads E4H's snake_case keys and the Livelihood visit search's
+  /// Reads both snake_case keys and the Livelihood visit search's
   /// camelCase ones (`facility.facilityPocPhone`).
   factory AmcFacility.fromMap(Map<String, dynamic> m) {
     String? read(String snake, String camel) =>
@@ -65,7 +63,6 @@ class AmcFacility {
       };
 }
 
-/// E4H `WorkflowAuditDetails`.
 class AmcWorkflowAuditDetails {
   AmcWorkflowAuditDetails({
     this.createdBy,
@@ -107,7 +104,6 @@ class AmcWorkflowAuditDetails {
       };
 }
 
-/// E4H `GeoLocation`.
 class AmcGeoLocation {
   AmcGeoLocation({this.latitude, this.longitude, this.additionalDetailsJson});
 
@@ -136,7 +132,6 @@ class AmcGeoLocation {
       };
 }
 
-/// E4H `Document`.
 class AmcDocument {
   AmcDocument({
     this.id,
@@ -195,7 +190,7 @@ class AmcDocument {
       };
 }
 
-/// E4H `Workflow` (a process instance). Keeps the full raw JSON because AMC
+/// A workflow process instance. Keeps the full raw JSON because AMC
 /// reads rejection reasons from `rawJson['comment']`.
 class AmcWorkflow {
   AmcWorkflow({
@@ -253,7 +248,7 @@ class AmcWorkflow {
   }
 }
 
-/// E4H `Comment`. Rejection comments are JSON strings
+/// Rejection comments are JSON strings
 /// `{"reason": ..., "comment": ...}`.
 class AmcComment {
   AmcComment({
@@ -313,7 +308,6 @@ class AmcComment {
       };
 }
 
-/// E4H `Transaction`.
 class AmcTransaction {
   AmcTransaction({
     this.transactionId,
@@ -347,7 +341,7 @@ class AmcTransaction {
       };
 }
 
-/// E4H `AuditDetails` (note the `lastModified` key, as in E4H).
+/// Audit details (note the `lastModified` key).
 class AmcAuditDetails {
   AmcAuditDetails({
     this.createdBy,

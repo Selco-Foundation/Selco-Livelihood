@@ -3,7 +3,7 @@ import 'package:isar/isar.dart';
 part 'cache_amc_media_upload.g.dart';
 
 /// Photos picked on the AMC media screen, uploaded by the background
-/// submission. Ported from E4H.
+/// submission.
 @Collection()
 class CacheAmcMediaUpload {
   Id id = Isar.autoIncrement;

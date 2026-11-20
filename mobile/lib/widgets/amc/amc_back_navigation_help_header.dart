@@ -6,7 +6,7 @@ import '../../router/app_router.dart';
 import '../../utils/extensions.dart';
 import '../../utils/i18_key_constants.dart' as i18;
 
-/// E4H `BackNavigationHelpHeaderWidget`, used by every AMC screen.
+/// Ported from E4H. The back/help header used by every AMC screen.
 class BackNavigationHelpHeaderWidget extends StatelessWidget {
   final bool showHelp;
   final bool showBackNavigation;

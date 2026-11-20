@@ -5,7 +5,7 @@ import '../../utils/amc/amc_utils.dart';
 
 part 'selected_amc_origin.freezed.dart';
 
-/// Ported from E4H: which screen opened the AMC form/media flow
+/// Which screen opened the AMC form/media flow
 /// (`FormOrigin`), deciding read-only vs editable and the footer action.
 class SelectedAmcOriginBloc
     extends Bloc<SelectedAmcOriginEvent, SelectedAmcOriginState> {

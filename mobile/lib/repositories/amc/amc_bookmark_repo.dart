@@ -6,10 +6,8 @@ import '../../model/amc/scheduled_visit.dart';
 import '../../utils/envConfig.dart';
 import '../../utils/role_login_resolver.dart';
 
-/// Ported from E4H `lib/repositories/report_bookmark_repo.dart` (the generic
-/// base and its AMC subclass; the installation subclass is not used here).
-/// Bookmarks live in secure storage under
-/// `reportBookmarks:[kind, tenant, user, userType]`, as in E4H.
+/// Generic report-bookmark base and its AMC subclass. Bookmarks live in
+/// secure storage under `reportBookmarks:[kind, tenant, user, userType]`.
 abstract class ReportBookmarkRepository<T> {
   static final _lock = Lock();
   final SecureStore storage;

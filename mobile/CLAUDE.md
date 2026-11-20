@@ -36,7 +36,8 @@ Package name `livelihood`. Built on eGov DIGIT packages (`digit_ui_components`, 
 - Backend not ready → put it behind the dummy switch, mark it `// DUMMY-BACKEND`, and list it as a question for the backend team. Do not write backend code.
 - Inject repositories through optional constructor params (`{ScheduledVisitRepository? repository}`) so tests can pass fakes.
 - Guard async UI/bloc work against stale responses (request counter pattern, see the View Schedule page).
-- Comments explain *why*; reference the ticket number (`/// #252 View Schedule: ...`).
+- Comments explain *why*. No ticket numbers in code or test names. Don't compare with E4H in comments (the platforms are independent); a short "Ported from E4H." note is allowed only in pages and widgets.
+- Reuse existing helpers (e.g. `transformBomMdmsRecordToSchema`, `installationCacheRepository.resolveMedia`, the shared Dio interceptors' `AppNetworkException` codes) instead of adding AMC copies.
 
 ## Done means
 1. codegen re-run if annotations changed, 2. `flutter analyze` clean for touched files, 3. related tests pass / new test added for logic, 4. short summary: files changed + anything left as a backend question.

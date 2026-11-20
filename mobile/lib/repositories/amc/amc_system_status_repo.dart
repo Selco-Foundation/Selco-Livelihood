@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -13,7 +12,7 @@ import '../../utils/envConfig.dart';
 import 'amc_dynamic_form_repo.dart';
 import 'amc_remote_data_source.dart';
 
-/// Pre-report "system status" answers for one AMC activity (#247):
+/// Pre-report "system status" answers for one AMC activity:
 /// "Is the end user using the system?" and "Is the system functional?".
 ///
 /// They are not part of the MDMS form. They are kept on the device until the
@@ -114,18 +113,24 @@ class _SecureStorageQueueStore implements AmcSystemStatusQueueStore {
       SecureStore().storage.write(key: _key, value: jsonEncode(items));
 }
 
-/// True when a failed request should be queued and retried later: no
-/// response at all (offline, DNS, timeout), a server error (5xx), or an
-/// auth/rate-limit status. A 4xx rejection is final.
+/// Failures worth queueing and retrying later, as classified by the shared
+/// `NetworkErrorNormalizerInterceptor`. A 401 is retried because the update
+/// can go through once the user logs in again.
+const Set<LoginErrorCode> _retryableErrorCodes = {
+  LoginErrorCode.noNetwork,
+  LoginErrorCode.noInternet,
+  LoginErrorCode.connectionFailed,
+  LoginErrorCode.requestTimeout,
+  LoginErrorCode.serverError,
+  LoginErrorCode.invalidCredentials,
+};
+
+/// True when a failed request should be queued and retried later; any other
+/// rejection by the server is final.
 bool isRetryableSystemStatusError(Object error) {
-  if (error is DioException) {
-    final status = error.response?.statusCode;
-    if (status == null) return true;
-    return status >= 500 || status == 401 || status == 408 || status == 429;
-  }
-  return error is NetworkException ||
-      error is SocketException ||
-      error is TimeoutException;
+  final cause = error is DioException ? error.error : error;
+  return cause is AppNetworkException &&
+      _retryableErrorCodes.contains(cause.code);
 }
 
 Future<bool> _defaultIsOnline() async {

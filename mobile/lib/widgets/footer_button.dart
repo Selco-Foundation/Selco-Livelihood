@@ -15,7 +15,7 @@ class FooterButton extends StatelessWidget {
   final VoidCallback onPressed;
   final bool isDisabled;
 
-  /// E4H's AMC screens use this footer without the trailing arrow.
+  /// Whether to show the trailing arrow (the AMC screens hide it).
   final bool showSuffixIcon;
 
   @override

@@ -122,7 +122,7 @@ class AppRouter extends _$AppRouter {
             AutoRoute(page: SyncLoadingRoute.page, path: Routes.syncLoading),
             AutoRoute(
                 page: RoleSelectionRoute.page, path: Routes.roleSelection),
-            // AMC (ported from E4H)
+            // AMC
             AutoRoute(page: AmcHomeRoute.page, path: Routes.amcHome),
             AutoRoute(
                 page: AmcReportHomeRoute.page, path: Routes.amcReportHome),

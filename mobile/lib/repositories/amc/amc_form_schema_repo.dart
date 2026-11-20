@@ -5,10 +5,11 @@ import 'package:flutter/foundation.dart';
 
 import '../../data/secure_storage/secureStore.dart';
 import '../../utils/amc/amc_utils.dart';
+import '../../utils/dynamic_form_schema.dart';
 import '../../utils/envConfig.dart';
 import 'amc_remote_data_source.dart';
 
-/// The AMC form-schema half of E4H's `AppInitRepo`
+/// AMC form-schema loading
 /// (`searchAMCFormConfigsRaw`, `_searchCachedRawDocs`, `loadByName`,
 /// `loadByUniqueIdentifier`, `upsertTransformedSchema`). The form comes only
 /// from MDMS (`amcFormMdmsSchemaCode`); secure storage keeps the raw
@@ -21,8 +22,7 @@ class AmcFormSchemaRepository {
 
   AmcRemoteDataSource get _remote => _dataSource ?? amcRemoteDataSource;
 
-  /// The app's tenant (`livelihood`). E4H hard-coded `in`; the AMC API
-  /// contract asks for the Livelihood tenant.
+  /// The app's tenant (`livelihood`), as the AMC API contract asks.
   static String get amcFormMdmsTenantId => envConfig.variables.tenantId;
 
   static Map<String, dynamic> amcFormMdmsRequest() => {
@@ -174,7 +174,7 @@ class AmcFormSchemaRepository {
     await storage.setFormSchemas(existing);
   }
 
-  /// E4H `AmcHomePage._prefetchAmcSchemas`: fetch (or fall back to the cached
+  /// Fetch (or fall back to the cached
   /// copy), transform and store every AMC form schema.
   Future<void> prefetchAmcSchemas({bool Function()? isCancelled}) async {
     List<Map<String, dynamic>> rawDocs;
@@ -186,7 +186,7 @@ class AmcFormSchemaRepository {
     }
     for (final doc in rawDocs) {
       if (isCancelled?.call() == true) return;
-      final transformed = transformSelcoFormMdmsDocToSchema(doc);
+      final transformed = transformBomMdmsRecordToSchema(doc);
       final uniqueId = doc['uniqueIdentifier']?.toString();
       if (uniqueId != null && uniqueId.isNotEmpty) {
         transformed['uniqueIdentifier'] = uniqueId;

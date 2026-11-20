@@ -15,7 +15,7 @@ import '../../utils/i18_key_constants.dart' as i18;
 import '../../widgets/amc/amc_back_navigation_help_header.dart';
 import '../../widgets/amc/facility_list_controls.dart';
 
-/// #252 View Schedule: the logged-in vendor's AMC visits due in the next
+/// View Schedule: the logged-in vendor's AMC visits due in the next
 /// 10, 20 or 30 days, and the same list as an Excel file. Read-only: a
 /// visit is reported on from New AMC Report.
 @RoutePage()

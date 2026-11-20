@@ -18,10 +18,9 @@ part 'authbloc.freezed.dart';
 
 /// A user is allowed into the app only when their roles grant at least one
 /// module this app supports: Installation (this code) or AMC
-/// (`AMC_FIELD_STAFF`). E4H itself never rejects a login on role grounds —
-/// role codes there only steer post-login routing between modules (see
-/// `RoleLoginResolver`) — but this app has no fallback module, so users with
-/// neither role are rejected outright.
+/// (`AMC_FIELD_STAFF`). Role codes also steer post-login routing between
+/// modules (see `RoleLoginResolver`), but the app has no fallback module, so
+/// users with neither role are rejected outright.
 const String kInstallationReportPartAEditorRoleCode =
     installationReportPartAEditorRoleCode;
 
@@ -68,7 +67,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       await Future.wait([
         secureStore.setAccessToken(response.access_token),
         secureStore.setAccessInfo(response),
-        // E4H stores the user name as the "selected individual"; AMC records
+        // The user name is stored as the "selected individual"; AMC records
         // it as `assignUserUuid` on locally saved visit forms.
         secureStore.setSelectedIndividual(userRequest.userName),
       ]);

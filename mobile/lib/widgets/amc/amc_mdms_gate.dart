@@ -5,7 +5,7 @@ import '../../utils/amc/amc_module_readiness.dart';
 import '../../utils/extensions.dart';
 import '../../utils/i18_key_constants.dart' as i18;
 
-/// E4H `MdmsGate(module: MdmsModule.amc, load: ...)`: blocks the AMC home
+/// Ported from E4H. Blocks the AMC home
 /// behind a non-dismissible "loading app data" dialog until the AMC form
 /// schema has loaded; a failure shows "Something went wrong" + Retry and
 /// keeps the user out. Readiness lasts for the auth session

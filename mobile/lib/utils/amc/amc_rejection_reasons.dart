@@ -3,14 +3,14 @@ import 'dart:convert';
 import '../../model/activity_facility_workflow/activity_facility_workflow.dart';
 import '../../model/amc/scheduled_visit.dart';
 
-/// Reviewer's rejection reasons for a `REJECTED` AMC visit (#251), as the
+/// Reviewer's rejection reasons for a `REJECTED` AMC visit, as the
 /// Installation App's [WorkflowComment]s so they render with its
 /// `WorkflowRejectionReasons` panel (rectification reused as-is, PRD 5.2.8).
 ///
-/// Read from the latest workflow step's `comment` (as E4H does). The
+/// Read from the latest workflow step's `comment`. The
 /// Livelihood reviewer's format is not confirmed yet, so all of these are
 /// accepted:
-///  * E4H web reviewer: a JSON list string `[{"reason", "comment"}]`;
+///  * web reviewer: a JSON list string `[{"reason", "comment"}]`;
 ///  * Installation-style objects, optionally with `reasonCode`,
 ///    `sectionLabel`, `assetType`, or an already-encoded `commentMessage`;
 ///  * a list of plain strings, or a single plain-text comment.

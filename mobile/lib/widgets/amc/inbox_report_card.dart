@@ -13,9 +13,8 @@ import '../../utils/i18_key_constants.dart' as i18;
 import 'report_bookmarks.dart';
 import 'report_detail_row.dart';
 
-/// E4H `InboxReportCard` (AMC usage: `isAmc: true`). E4H wraps it in a
-/// rectification-aware card; AMC visits are never rectification sites, so
-/// the plain card is used.
+/// Ported from E4H (AMC usage: `isAmc: true`). AMC visits are never
+/// rectification sites, so the plain card is used.
 class InboxReportCard extends StatelessWidget {
   final bool isBookmarked;
   final bool isSavingBookmark;

@@ -6,7 +6,7 @@ import '../model/response/responsemodel.dart';
 import '../router/app_router.dart';
 import 'role_login_resolver.dart';
 
-/// E4H's post-login routing (`pages/login.dart` `_navigateAuthenticated`):
+/// Post-login routing:
 /// several modules → role selection, AMC only → AMC home, otherwise the
 /// installation Home. Shared by Login and Welcome (auto-login).
 void navigateAfterLogin(BuildContext context, UserRequest userRequest) {
@@ -43,8 +43,8 @@ void navigateAfterLogin(BuildContext context, UserRequest userRequest) {
   );
 }
 
-/// E4H drawer "Home": re-resolves the user's module from their roles
-/// (`widgets/navigation/drawer.dart`). Runs inside the authenticated router.
+/// Drawer "Home": re-resolves the user's module from their roles. Runs
+/// inside the authenticated router.
 void navigateToModuleHome(BuildContext context, List<Roles> roles) {
   final resolution = RoleLoginResolver.resolveRoles(roles);
 

@@ -2,7 +2,7 @@ import 'package:intl/intl.dart';
 
 import 'scheduled_visit.dart';
 
-/// Site Details fields of the AMC report form (#250, field list 2.1–2.7),
+/// Site Details fields of the AMC report form (field list 2.1–2.7),
 /// in display order. They are auto-fetched and read-only, and are not sent
 /// back with the report (the backend already has them).
 const List<String> amcSiteDetailFields = [

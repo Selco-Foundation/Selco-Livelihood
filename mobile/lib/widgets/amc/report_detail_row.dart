@@ -2,7 +2,7 @@ import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:digit_ui_components/theme/spacers.dart';
 import 'package:flutter/material.dart';
 
-/// E4H `ReportDetailRow`: a label/value row on the AMC visit cards.
+/// Ported from E4H. A label/value row on the AMC visit cards.
 class ReportDetailRow extends StatelessWidget {
   final String label;
   final Widget value;

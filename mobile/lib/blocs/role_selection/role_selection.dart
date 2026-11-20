@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../model/response/responsemodel.dart';
 import '../../utils/role_login_resolver.dart';
 
-/// Ported from E4H `lib/blocs/role_selection/role_selection.dart`.
 class RoleSelectionState {
   const RoleSelectionState({
     required this.availableRoles,

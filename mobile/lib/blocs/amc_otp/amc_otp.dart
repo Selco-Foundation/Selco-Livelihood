@@ -13,12 +13,12 @@ import '../../utils/role_login_resolver.dart';
 
 part 'amc_otp.freezed.dart';
 
-/// Ported from E4H: verifies the AMC service completion code (OTP) the
+/// Verifies the AMC service completion code (OTP) the
 /// facility contact received (`workflow/_update` action `SUBMIT_OTP`) and
 /// resends it (`_resend_otp`). On success all local data for the visit is
 /// cleared.
 ///
-/// #249: both need connectivity (checked first); failures say what to do
+/// Both need connectivity (checked first); failures say what to do
 /// next (wrong code / offline / server reason) and never clear saved data;
 /// success reports the status the server returned (APPROVED or sent for
 /// review) and stores it in the visit cache straight away.
@@ -46,9 +46,9 @@ class AmcOtpBloc extends Bloc<AmcOtpEvent, AmcOtpState> {
   static const String CLEANUP_ERROR = "Cleanup Error";
   static const String ERROR_CLEARING_CACHE = "Error clearing cache for";
 
-  /// Wrong-code error codes: Livelihood's AMC service sends
-  /// `AMC_INVALID_SERVICE_CODE`; E4H's sent `ERROR_OTP_GENERATION` ("OTP
-  /// validation unsuccessful").
+  /// Wrong-code error codes: the AMC service sends
+  /// `AMC_INVALID_SERVICE_CODE`; `ERROR_OTP_GENERATION` means "OTP
+  /// validation unsuccessful".
   static const Set<String> invalidCodeErrors = {
     'AMC_INVALID_SERVICE_CODE',
     'ERROR_OTP_GENERATION',
@@ -136,7 +136,7 @@ Future<bool> _defaultIsOnline() async {
 Future<void> _defaultCacheVisit(ScheduledVisit visit) =>
     ScheduledVisitRepository().cacheVisit(visit);
 
-/// E4H's post-verification cleanup of the visit's local data.
+/// Post-verification cleanup of the visit's local data.
 Future<void> _defaultClearLocalData(String visitId) async {
   const tag = AmcOtpBloc.CLEANUP_ERROR;
   const clearing = AmcOtpBloc.ERROR_CLEARING_CACHE;
