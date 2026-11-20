@@ -40,7 +40,7 @@ export function buildActivityReviewDetail(
   return {
     activity,
     sections,
-    auditTrail: buildAuditTrail(row.workflow, row.transactions, reasonOptions),
+    auditTrail: buildAuditTrail(row.workflow, row.transactions, reasonOptions, installationImageCriteria),
     sectionDocuments: buildSectionDocuments(sections, latestDocuments),
     workflowDocuments: latestDocuments,
   };
