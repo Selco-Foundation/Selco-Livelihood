@@ -121,6 +121,82 @@ describe("ComplaintTimelineSection", () => {
     expect(screen.getByText("9999999999")).toBeInTheDocument();
   });
 
+  describe("creator on the create checkpoint", () => {
+    const ivrComplaint = (): ComplaintDetailsData => {
+      const details = complaintDetails();
+      details.incident.entryChannel = "IVR_WHATSAPP";
+      details.incident.reporter = { name: "Bhuvan", mobileNumber: "6361782350" };
+      return details;
+    };
+    const serviceAccount = { name: "Priya Venkatesh", mobileNumber: "9000000000" };
+
+    it.each(["CREATE", "AUTO_ASSIGN"])(
+      "shows the reporter instead of the service account for an IVR ticket's %s checkpoint",
+      (action) => {
+        render(
+          <ComplaintTimelineSection
+            timeline={[{ performedAction: action, assigner: serviceAccount }]}
+            complaintDetails={ivrComplaint()}
+            workflowDetails={workflowDetails()}
+            onActionComplete={vi.fn()}
+          />,
+        );
+
+        expect(screen.getByText("Bhuvan")).toBeInTheDocument();
+        expect(screen.getByText("6361782350")).toBeInTheDocument();
+        expect(screen.getByText("via IVR / WhatsApp")).toBeInTheDocument();
+        expect(screen.queryByText("Priya Venkatesh")).not.toBeInTheDocument();
+      },
+    );
+
+    it("keeps the assigner on later checkpoints of an IVR ticket", () => {
+      render(
+        <ComplaintTimelineSection
+          timeline={[{ performedAction: "RESOLVE", assigner: { name: "Vendor User" } }]}
+          complaintDetails={ivrComplaint()}
+          workflowDetails={workflowDetails()}
+          onActionComplete={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByText("Vendor User")).toBeInTheDocument();
+      expect(screen.queryByText("via IVR / WhatsApp")).not.toBeInTheDocument();
+    });
+
+    it("keeps the assigner on the create checkpoint of a non-IVR ticket", () => {
+      const details = complaintDetails();
+      details.incident.entryChannel = "POC_MANUAL";
+      details.incident.reporter = { name: "Bhuvan" };
+      render(
+        <ComplaintTimelineSection
+          timeline={[{ performedAction: "CREATE", assigner: { name: "POC User" } }]}
+          complaintDetails={details}
+          workflowDetails={workflowDetails()}
+          onActionComplete={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByText("POC User")).toBeInTheDocument();
+      expect(screen.queryByText("Bhuvan")).not.toBeInTheDocument();
+    });
+
+    it("falls back to the assigner when an IVR ticket has no reporter name", () => {
+      const details = ivrComplaint();
+      details.incident.reporter = {};
+      render(
+        <ComplaintTimelineSection
+          timeline={[{ performedAction: "CREATE", assigner: serviceAccount }]}
+          complaintDetails={details}
+          workflowDetails={workflowDetails()}
+          onActionComplete={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByText("Priya Venkatesh")).toBeInTheDocument();
+      expect(screen.queryByText("via IVR / WhatsApp")).not.toBeInTheDocument();
+    });
+  });
+
   it("shows the out-of-scope reason for an OUT_OF_SCOPE checkpoint", () => {
     const timeline: WorkflowTimelineCheckpoint[] = [{ performedAction: "OUT_OF_SCOPE" }];
     render(

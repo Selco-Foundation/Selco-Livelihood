@@ -10,6 +10,8 @@ import { FormSectionCard } from "../create/FormSectionCard";
 import { ComplaintActionBar } from "./ComplaintActionBar";
 import { ComplaintMediaList } from "./ComplaintMediaList";
 
+const IVR_ENTRY_CHANNEL = "IVR_WHATSAPP";
+
 interface ComplaintTimelineSectionProps {
   timeline: WorkflowTimelineCheckpoint[];
   complaintDetails: ComplaintDetailsData;
@@ -31,7 +33,22 @@ function TimelineCaption({
   const declineReasons = [...(additional?.declineReason ?? [])].reverse();
 
   const action = checkpoint.performedAction;
-  const isCreateCheckpoint = action === "APPLY" || action === "CREATE";
+  const isCreateCheckpoint =
+    action === "APPLY" || action === "CREATE" || action === "AUTO_ASSIGN";
+
+  // IVR/WhatsApp tickets are submitted by the IVR backend's service account, so
+  // the workflow assigner is that account, not the end user who actually raised
+  // the ticket — show the reporter on the create step instead.
+  const reporter = complaintDetails.incident.reporter;
+  const showReporterAsCreator =
+    isCreateCheckpoint &&
+    complaintDetails.incident.entryChannel === IVR_ENTRY_CHANNEL &&
+    Boolean(reporter?.name);
+  const creatorName = showReporterAsCreator ? reporter?.name : checkpoint.assigner?.name;
+  const creatorMobile = showReporterAsCreator
+    ? reporter?.mobileNumber
+    : checkpoint.assigner?.mobileNumber;
+
   let reasonText: string | null = null;
   let reasonLabel: string | null = null;
 
@@ -50,9 +67,10 @@ function TimelineCaption({
       {checkpoint.auditDetails?.lastModified ? (
         <p>{checkpoint.auditDetails.lastModified}</p>
       ) : null}
-      {checkpoint.assigner?.name ? <p>{checkpoint.assigner.name}</p> : null}
-      {checkpoint.assigner?.mobileNumber ? (
-        <p>{checkpoint.assigner.mobileNumber}</p>
+      {creatorName ? <p>{creatorName}</p> : null}
+      {creatorMobile ? <p>{creatorMobile}</p> : null}
+      {showReporterAsCreator ? (
+        <p>{translateOr(t, "TIMELINE_VIA_IVR_WHATSAPP", "via IVR / WhatsApp")}</p>
       ) : null}
 
       {reasonText ? (
