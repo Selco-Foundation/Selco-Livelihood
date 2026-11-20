@@ -328,6 +328,48 @@ describe("buildAuditTrail", () => {
     expect(result[0].sectionReasons).toBeUndefined();
   });
 
+  it("labels an installation-image section with its criterion's MDMS short title", () => {
+    const transactions: ActivityTransaction[] = [
+      {
+        processInstanceId: "wf-1",
+        comments: [{ assetType: "INSTALLATION_IMAGE_1", commentMessage: JSON.stringify({ comment: "blurry" }) }],
+      },
+    ];
+    const criteria = [{ code: "1", description: "Clear image of solar panels…", shortTitle: "Solar Panel" }];
+    const result = buildAuditTrail([{ id: "wf-1" }], transactions, [], criteria);
+    expect(result[0].sectionReasons?.[0]).toMatchObject({
+      sectionId: "INSTALLATION_IMAGE_1",
+      sectionLabel: "Solar Panel",
+    });
+  });
+
+  it("matches a mixed-case criterion code against the uppercased assetType", () => {
+    const transactions: ActivityTransaction[] = [
+      { processInstanceId: "wf-1", comments: [{ assetType: "INSTALLATION_IMAGE_AJB", commentMessage: "{}" }] },
+    ];
+    const criteria = [{ code: "ajb", description: "AJB photo", shortTitle: "AJB" }];
+    const result = buildAuditTrail([{ id: "wf-1" }], transactions, [], criteria);
+    expect(result[0].sectionReasons?.[0].sectionLabel).toBe("AJB");
+  });
+
+  it("falls back to the humanized id for an installation-image code with no criterion or no short title", () => {
+    const transactions: ActivityTransaction[] = [
+      {
+        processInstanceId: "wf-1",
+        comments: [
+          { assetType: "INSTALLATION_IMAGE_7", commentMessage: "{}" },
+          { assetType: "INSTALLATION_IMAGE_2", commentMessage: "{}" },
+        ],
+      },
+    ];
+    const criteria = [{ code: "2", description: "A long description that must not be used as a heading" }];
+    const result = buildAuditTrail([{ id: "wf-1" }], transactions, [], criteria);
+    expect(result[0].sectionReasons?.map((section) => section.sectionLabel)).toEqual([
+      "Installation Image 7",
+      "Installation Image 2",
+    ]);
+  });
+
   it("returns an empty audit trail when there is no workflow history", () => {
     expect(buildAuditTrail(undefined, [], [])).toEqual([]);
   });
