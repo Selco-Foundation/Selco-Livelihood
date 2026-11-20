@@ -16,6 +16,9 @@ export interface RawInstallationImageCriterion {
 export interface InstallationImageCriterion {
   code: string;
   description: string;
+  /** MDMS `short_title` — the short heading (e.g. "Solar Panel") the mobile
+   * app and the audit trail show; `description` is the long capture hint. */
+  shortTitle?: string;
 }
 
 /** Pure — extracts and shapes the criteria list from the MDMS master's raw
@@ -35,5 +38,6 @@ export function mapInstallationImageCriteria(
     .map((criterion) => ({
       code: criterion.code,
       description: criterion.description ?? criterion.code,
+      shortTitle: criterion.short_title?.trim() || undefined,
     }));
 }
