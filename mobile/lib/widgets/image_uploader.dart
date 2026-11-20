@@ -1,6 +1,7 @@
 import 'package:digit_ui_components/digit_components.dart';
 import 'package:digit_ui_components/theme/digit_extended_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../utils/extensions.dart';
@@ -160,6 +161,18 @@ class _ImageUploaderState extends State<ImageUploader> {
         images.addAll(additions);
       });
       _notify();
+    } on PlatformException catch (e) {
+      // image_picker reports a blocked camera/photo library as
+      // `camera_access_denied` / `photo_access_denied`. Tapping the upload
+      // box again retries.
+      if (mounted) {
+        final key = !e.code.endsWith('access_denied')
+            ? i18.machineForm.mediaPickerError
+            : source == ImageSource.camera
+                ? i18.machineForm.cameraPermissionRequired
+                : i18.machineForm.galleryPermissionRequired;
+        setState(() => localError = context.translate(key));
+      }
     } catch (_) {
       if (mounted) {
         setState(() =>

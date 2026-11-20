@@ -1,12 +1,19 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' show DartPluginRegistrant;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:isar/isar.dart';
 
+import '../data/nosql/cache_amc_media_upload.dart';
+import '../data/nosql/cache_schedule_visit_form_values.dart';
 import '../data/secure_storage/secureStore.dart';
+import '../model/amc/scheduled_visit.dart';
+import '../repositories/amc/amc_system_status_repo.dart';
+import '../repositories/amc/scheduled_visit_repo.dart';
 import '../model/asset/asset_submission.dart';
 import '../model/bom/bom.dart';
 import '../model/document/submission_document.dart';
@@ -18,6 +25,15 @@ import '../repositories/installation_cache_repo.dart';
 import '../repositories/operation_progress_repo.dart';
 import '../repositories/pending_submission_repository.dart';
 import '../repositories/vendor_org_repository.dart';
+import 'amc/amc_utils.dart'
+    show
+        amcServerError,
+        getFilestoreUrl,
+        isAmcConnectivityError,
+        isAmcReadingPhotoField,
+        amcVerificationPhotoDocumentType,
+        amcReadingPhotoDocumentType,
+        amcResponsesForSubmit;
 import 'envConfig.dart';
 import 'operation_progress.dart';
 import 'submission_error.dart';
@@ -27,6 +43,11 @@ const String kMethodSubmit = 'submit';
 const String kEvtDone = 'submission_done';
 const String kEvtError = 'submission_error';
 const String kEvtReady = 'service_ready';
+
+// AMC visit report submission.
+const String kMethodSubmitVisit = 'submit_schedule_visit';
+const String kEvtScheduleVisitDone = 'schedule_visit_done';
+const String kEvtScheduleVisitError = 'schedule_visit_error';
 
 const String _svcChannelId = 'asset_submission_channel';
 const String _svcChannelName = 'Asset Submission';
@@ -149,6 +170,42 @@ class BackgroundServiceController {
       send();
     }
   }
+
+  /// AMC: uploads the visit's cached photos and submits its cached form
+  /// answers (`SUBMIT_VISIT_REPORT`) in the background isolate. Same
+  /// start/re-kick pattern as [enqueueSubmission].
+  Future<void> enqueueScheduleVisitSubmission({
+    required String scheduledVisitId,
+    required String userType,
+  }) async {
+    final service = FlutterBackgroundService();
+    final reqId = DateTime.now().microsecondsSinceEpoch.toString();
+    void send() => service.invoke(kMethodSubmitVisit, {
+          'scheduledVisitId': scheduledVisitId,
+          'userType': userType,
+          'reqId': reqId,
+        });
+
+    const channelTimeout = Duration(seconds: 5);
+    if (!await service.isRunning().timeout(channelTimeout)) {
+      // Listen for "ready" before starting the service, and keep
+      // listening until it arrives. A cold-started isolate can take well over
+      // a second to register its listeners, so the sends below can be lost;
+      // the re-send on "ready" is what delivers the request then. (This used
+      // to be cancelled after 200 ms, leaving the submit stuck on loading.)
+      final ready = service.on(kEvtReady).first;
+      await service.startService().timeout(channelTimeout);
+      unawaited(ready
+          .timeout(const Duration(minutes: 1))
+          .then((_) => send())
+          .catchError((_) {}));
+      send();
+      Timer(const Duration(milliseconds: 200), send);
+    } else {
+      await ensureAndroidNotificationPermission();
+      send();
+    }
+  }
 }
 
 @pragma('vm:entry-point')
@@ -207,7 +264,152 @@ void onStart(ServiceInstance service) async {
     }
   });
 
+  String? lastHandledVisitReqId;
+  service.on(kMethodSubmitVisit).listen((payload) async {
+    final visitId = payload?['scheduledVisitId'] as String?;
+    final userType = payload?['userType'] as String?;
+    final reqId = payload?['reqId'] as String?;
+    if (visitId == null || userType == null) return;
+    if (reqId != null && reqId == lastHandledVisitReqId) return;
+    lastHandledVisitReqId = reqId;
+
+    if (service is AndroidServiceInstance) {
+      await service.setForegroundNotificationInfo(
+        title: 'Submitting visit report',
+        content: 'Preparing visit submission…',
+      );
+    }
+
+    try {
+      await _performScheduleVisitSubmission(
+        scheduledVisitId: visitId,
+        userType: userType,
+      );
+      service.invoke(kEvtScheduleVisitDone, {'scheduledVisitId': visitId});
+    } catch (e) {
+      debugPrint('[BG] _performScheduleVisitSubmission failed: $e');
+      // The thrown message is 'Form not filled', so this
+      // FORM_NOT_FILLED branch never matches and the generic text is shown.
+      // Say why it failed and what to do; the report stays saved.
+      final server = amcServerError(e);
+      final String msg;
+      if (e.toString().contains('FORM_NOT_FILLED')) {
+        msg =
+            'Visit form is not filled yet. Please fill the AMC form before submitting.';
+      } else if ((server?.message ?? '').isNotEmpty) {
+        msg = 'The report was not submitted: ${server!.message} '
+            'Your report is saved on this device.';
+      } else if (isAmcConnectivityError(e)) {
+        msg = 'Could not reach the server. Your report is saved on this '
+            'device. Connect to the internet and submit it again from '
+            'New Report.';
+      } else {
+        msg = 'Something went wrong while submitting the visit report. '
+            'Your report is saved on this device; please try again.';
+      }
+      service.invoke(kEvtScheduleVisitError, {
+        'scheduledVisitId': visitId,
+        'message': msg,
+      });
+    }
+  });
+
   service.invoke(kEvtReady);
+}
+
+/// Reads the visit's cached answers
+/// and photos, uploads each photo, then sends `SUBMIT_VISIT_REPORT` and marks
+/// the visit as "prefilled" (awaiting the completion code).
+Future<void> _performScheduleVisitSubmission({
+  required String scheduledVisitId,
+  required String userType,
+}) async {
+  final Isar isar = await amcIsar();
+  final form = await isar.cacheScheduleVisitFormValues
+      .where()
+      .scheduledVisitIdEqualTo(scheduledVisitId)
+      .filter()
+      .userTypeEqualTo(userType)
+      .findFirst();
+
+  if (form == null || form.dataJson.trim().isEmpty) {
+    throw Exception('Form not filled');
+  }
+
+  final answers = jsonDecode(form.dataJson) as Map<String, dynamic>;
+
+  final cachedMedia = await isar.cacheAmcMediaUploads
+      .where()
+      .scheduledVisitIdEqualTo(scheduledVisitId)
+      .filter()
+      .userTypeEqualTo(userType)
+      .findAll();
+
+  final visitDocuments = <AmcDocument>[];
+
+  for (final media in cachedMedia) {
+    if (media.filePath.isEmpty) continue;
+
+    final fileStoreId = await getFilestoreUrl(media.filePath);
+
+    // This screen only takes the verification photograph; its cached
+    // `itemType` is the generic 'image'.
+    visitDocuments.add(
+      AmcDocument(
+        documentType: amcVerificationPhotoDocumentType,
+        fileStore: fileStoreId,
+        documentUid: 'DOC-AMC-$amcVerificationPhotoDocumentType-'
+            '${DateTime.now().millisecondsSinceEpoch}',
+        geoLocation: AmcGeoLocation(
+          latitude: media.latitude,
+          longitude: media.longitude,
+        ),
+      ),
+    );
+  }
+
+  // Reading photos (`*Photo` answers) are uploaded too and sent as
+  // report documents of their own type (AMC_PHOTO_NE_PCU, ...).
+  for (final key in answers.keys.where(isAmcReadingPhotoField).toList()) {
+    final value = answers[key]?.toString().trim() ?? '';
+    if (value.isEmpty) continue;
+    final fileStoreId = await getFilestoreUrl(value);
+    if (fileStoreId.startsWith('/')) {
+      throw Exception('A reading photo is missing from this device.');
+    }
+    final documentType = amcReadingPhotoDocumentType(key);
+    visitDocuments.add(AmcDocument(
+      documentType: documentType,
+      fileStore: fileStoreId,
+      documentUid:
+          'DOC-AMC-$documentType-${DateTime.now().millisecondsSinceEpoch}',
+    ));
+  }
+  final responses = amcResponsesForSubmit(answers);
+
+  // Pre-report system status answers, sent with the report.
+  final reportAdditionalDetails = await AmcSystemStatusRepository()
+      .reportAdditionalDetails(scheduledVisitId);
+
+  final remote = ScheduledVisitRemoteRepository();
+  final updated = await remote.updateVisitWorkflow(
+    visitId: scheduledVisitId,
+    responses: responses,
+    visitDocuments: visitDocuments,
+    reportAdditionalDetails: reportAdditionalDetails,
+  );
+  // Keep the cached copy in step with the server (now awaiting the
+  // completion code), so lists are right even before the next refresh.
+  if (updated != null) {
+    try {
+      await ScheduledVisitRepository(isar: isar).cacheVisit(updated);
+    } catch (e) {
+      debugPrint('[BG] could not cache the submitted visit: $e');
+    }
+  }
+
+  await PrefilledScheduledVisitRepository(isar)
+      .addOrTouch(scheduledVisitId: scheduledVisitId, userType: userType);
 }
 
 Future<void> _reportStage({

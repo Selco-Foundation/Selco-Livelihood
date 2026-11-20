@@ -2802,6 +2802,54 @@ void main() {
   });
 
   testWidgets(
+      'image uploader explains a blocked gallery/camera and allows retry',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 844));
+    var selected = <SolarFileRef>[];
+    var denied = true;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DigitTheme.instance.mobileTheme,
+        home: Scaffold(
+          body: ImageUploader(
+            initialImages: selected,
+            allowMultiples: true,
+            pickMedia: (_, source) async {
+              if (denied) {
+                throw PlatformException(
+                  code: source == ImageSource.camera
+                      ? 'camera_access_denied'
+                      : 'photo_access_denied',
+                );
+              }
+              return XFile('/tmp/verification.jpg');
+            },
+            onImagesSelected: (files) => selected = files,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('image-uploader-empty')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('image-uploader-files')));
+    await tester.pumpAndSettle();
+    expect(find.text(AppLocalizations.translateCached(
+        i18.machineForm.galleryPermissionRequired)), findsOneWidget);
+    expect(selected, isEmpty);
+
+    // Retry after access is granted: the upload box is still there.
+    denied = false;
+    await tester.tap(find.byKey(const ValueKey('image-uploader-empty')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('image-uploader-files')));
+    await tester.pumpAndSettle();
+    expect(selected.map((f) => f.path), ['/tmp/verification.jpg']);
+    expect(find.text(AppLocalizations.translateCached(
+        i18.machineForm.galleryPermissionRequired)), findsNothing);
+  });
+
+  testWidgets(
       'multiple image uploader bulk-selects and clamps to remaining slots', (
     tester,
   ) async {

@@ -80,7 +80,9 @@ class AppLocalizations {
         (medium) => medium.code == localizedValues,
       );
 
-      return index != -1 ? _localizedStrings[index].message : localizedValues;
+      return index != -1
+          ? _localizedStrings[index].message
+          : localizedValues;
     }
   }
 

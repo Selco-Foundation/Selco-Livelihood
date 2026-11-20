@@ -27,4 +27,17 @@ class Routes {
   static const videoViewer = 'video-viewer';
   static const pdfViewer = 'pdf-viewer';
   static const syncLoading = 'sync-loading';
+
+  // Role selection + AMC.
+  static const roleSelection = 'role-selection';
+  static const amcHome = 'amc-home';
+  static const amcReportHome = 'amc-report-home';
+  static const amcSelectFacility = 'amc-select-facility';
+  static const amcDynamicForm = 'amc-dynamic-form';
+  static const amcSystemStatus = 'amc-system-status';
+  static const amcOtp = 'amc-otp';
+  static const amcDraft = 'amc-draft';
+  static const amcInbox = 'amc-inbox';
+  static const amcViewSchedule = 'amc-view-schedule';
+  static const amcMediaUpload = 'amc-media-upload';
 }
