@@ -226,9 +226,27 @@ export function buildSectionDocuments(
   return sectionDocuments;
 }
 
+/** A rejection comment's assetType for an image-checklist section is
+ * `INSTALLATION_IMAGE_<criterion code>` — show that criterion's MDMS
+ * `short_title` (what the mobile app shows), not the humanized id. The long
+ * `description` is deliberately not a fallback: it's a capture hint, too long
+ * for a heading. */
+function auditSectionLabel(sectionId: string, criteria: InstallationImageCriterion[]): string {
+  const prefix = `${INSTALLATION_IMAGE_PREFIX}_`;
+  if (sectionId.startsWith(prefix)) {
+    const code = sectionId.slice(prefix.length).toUpperCase();
+    const shortTitle = criteria.find((criterion) => criterion.code.toUpperCase() === code)?.shortTitle;
+    if (shortTitle) {
+      return shortTitle;
+    }
+  }
+  return humanize(sectionId);
+}
+
 function buildSectionReasons(
   transaction: ActivityTransaction | undefined,
   reasonOptions: RejectionReasonOption[],
+  installationImageCriteria: InstallationImageCriterion[],
 ): AuditSectionReasons[] {
   if (!transaction?.comments?.length) {
     return [];
@@ -256,7 +274,7 @@ function buildSectionReasons(
 
   return Array.from(bySection.entries()).map(([sectionId, reasons]) => ({
     sectionId,
-    sectionLabel: humanize(sectionId),
+    sectionLabel: auditSectionLabel(sectionId, installationImageCriteria),
     reasons,
   }));
 }
@@ -265,6 +283,7 @@ export function buildAuditTrail(
   workflow: ActivityWorkflowEntry[] | undefined,
   transactions: ActivityTransaction[] | undefined,
   reasonOptions: RejectionReasonOption[],
+  installationImageCriteria: InstallationImageCriterion[] = [],
 ): ActivityAuditCheckpoint[] {
   const transactionByProcessInstanceId = new Map(
     (transactions ?? [])
@@ -277,7 +296,7 @@ export function buildAuditTrail(
   // order, latest at the top.
   return (workflow ?? []).map((entry, index) => {
     const transaction = entry.id ? transactionByProcessInstanceId.get(entry.id) : undefined;
-    const sectionReasons = buildSectionReasons(transaction, reasonOptions);
+    const sectionReasons = buildSectionReasons(transaction, reasonOptions, installationImageCriteria);
 
     return {
       id: entry.id ?? `checkpoint-${index}`,
