@@ -93,7 +93,7 @@ class _AmcOtpPageState extends State<AmcOtpPage> {
             ctx.showSnackBar(
               SnackBar(content: Text(context.translate(messageKey))),
             );
-            ctx.router.push(const AmcHomeRoute());
+            backToAmcHome(ctx);
           },
           failure: (messageKey, serverMessage) {
             final text = context.translate(messageKey);

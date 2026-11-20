@@ -210,6 +210,9 @@ class _AmcSystemStatusPageState extends State<AmcSystemStatusPage> {
               ),
             ),
           DigitCard(
+            // Full width like the form pages; otherwise the card shrinks to
+            // its text.
+            width: double.infinity,
             margin: const EdgeInsets.all(spacer2),
             children: [
               Text(

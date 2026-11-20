@@ -579,6 +579,17 @@ String normalizeFriendlyNetworkErrorMessage(
   return cleaned;
 }
 
+/// Returns to the AMC Home already in the stack, closing the report screens
+/// on top of it, so Back from AMC Home does not reopen a submitted report.
+void backToAmcHome(BuildContext context) {
+  final router = context.router;
+  if (router.stack.any((route) => route.name == AmcHomeRoute.name)) {
+    router.popUntilRouteWithName(AmcHomeRoute.name);
+  } else {
+    router.replaceAll([const AmcHomeRoute()]);
+  }
+}
+
 /// Session expiry, routed through this app's unauthenticated wrapper.
 void handleSessionExpired(BuildContext context) {
   ScaffoldMessenger.of(context).showSnackBar(

@@ -366,14 +366,15 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
                       await _onSaveAndNext();
                       break;
                     default:
-                      context.router.push(const AmcHomeRoute());
+                      backToAmcHome(context);
                   }
                 },
               ),
               children: [
                 Padding(
+                  // Same side inset as the form pages' cards.
                   padding: const EdgeInsets.symmetric(
-                      vertical: spacer2, horizontal: spacer4),
+                      vertical: spacer2, horizontal: spacer2),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
