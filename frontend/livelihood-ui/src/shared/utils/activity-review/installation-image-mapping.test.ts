@@ -28,6 +28,22 @@ describe("mapInstallationImageCriteria", () => {
     ]);
   });
 
+  it("maps short_title to a trimmed shortTitle, leaving it undefined when blank", () => {
+    const masters = {
+      InstallationImages: [
+        {
+          InstallationImage: [
+            { code: "1", description: "Long hint", short_title: " Solar Panel " },
+            { code: "2", description: "Long hint", short_title: "  " },
+            { code: "3", description: "Long hint" },
+          ],
+        },
+      ],
+    };
+    const result = mapInstallationImageCriteria(masters);
+    expect(result.map((criterion) => criterion.shortTitle)).toEqual(["Solar Panel", undefined, undefined]);
+  });
+
   it("drops entries without a code", () => {
     const masters = {
       InstallationImages: [
