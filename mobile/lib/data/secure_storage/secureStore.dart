@@ -112,7 +112,7 @@ class SecureStore {
     return await storage.read(key: _SecureStorageKeys.individualId);
   }
 
-  /// Raw `common-masters.AMCFormSchema` MDMS v2 documents, the AMC form's
+  /// Raw AMC form schema (`amcFormMdmsSchemaCode`) MDMS v2 documents, the AMC form's
   /// offline fallback.
   Future<void> setAMCFormConfigsRaw(List<Map<String, dynamic>> list) async {
     await storage.write(

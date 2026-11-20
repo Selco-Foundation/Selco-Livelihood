@@ -11,7 +11,7 @@ import 'amc_remote_data_source.dart';
 /// The AMC form-schema half of E4H's `AppInitRepo`
 /// (`searchAMCFormConfigsRaw`, `_searchCachedRawDocs`, `loadByName`,
 /// `loadByUniqueIdentifier`, `upsertTransformedSchema`). The form comes only
-/// from MDMS (`common-masters.AMCFormSchema`); secure storage keeps the raw
+/// from MDMS (`amcFormMdmsSchemaCode`); secure storage keeps the raw
 /// docs and the transformed schema as the offline fallback.
 class AmcFormSchemaRepository {
   AmcFormSchemaRepository({AmcRemoteDataSource? dataSource})
@@ -28,7 +28,7 @@ class AmcFormSchemaRepository {
   static Map<String, dynamic> amcFormMdmsRequest() => {
         'MdmsCriteria': {
           'tenantId': amcFormMdmsTenantId,
-          'schemaCode': 'common-masters.AMCFormSchema',
+          'schemaCode': amcFormMdmsSchemaCode,
           'moduleDetails': <dynamic>[],
         },
       };

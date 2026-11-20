@@ -1,6 +1,7 @@
 import 'package:livelihood/model/amc/amc_site_details.dart';
+import 'package:livelihood/utils/amc/amc_utils.dart';
 
-/// The Livelihood AMC report form (#250) as a `common-masters.AMCFormSchema`
+/// The Livelihood AMC report form (#250) as an `amcFormMdmsSchemaCode`
 /// MDMS v2 record, built from "Livelihood AMC report form final field list"
 /// (PRD 5.4.4, Section 10). The app loads it from MDMS; tests use this copy.
 ///
@@ -17,7 +18,7 @@ import 'package:livelihood/model/amc/amc_site_details.dart';
 ///  * `format: custom` fields are drawn by the app: a field name ending in
 ///    `Photo` is a photo (sent as a report document, see
 ///    `amcReadingPhotoDocumentTypes`), any other is a decimal reading.
-const String amcReportFormSchemaCode = 'common-masters.AMCFormSchema';
+const String amcReportFormSchemaCode = amcFormMdmsSchemaCode;
 const String amcReportFormIdentifier = 'AssetForm.AMC_SCHEDULED_MAINTENANCE';
 
 Map<String, dynamic> _option(String code, String name) =>

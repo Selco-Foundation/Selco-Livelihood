@@ -29,7 +29,7 @@ abstract class AmcRemoteDataSource {
   /// saved, so the backend can email the Program POC.
   Future<void> updateSystemStatus(Map<String, dynamic> body);
 
-  /// `POST egov-mdms-service/v2/_search` for `common-masters.AMCFormSchema`;
+  /// `POST egov-mdms-service/v2/_search` for the AMC form schema (`amcFormMdmsSchemaCode`);
   /// returns the `mdms` array.
   Future<List<dynamic>> searchAmcFormSchemaDocs(
       Map<String, dynamic> mdmsRequestBody);

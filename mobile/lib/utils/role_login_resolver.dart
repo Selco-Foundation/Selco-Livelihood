@@ -8,12 +8,6 @@ enum USER_TYPES { SUPERVISOR, FIELD_STAFF, AMC, ASSESSOR }
 
 const amcFieldStaffRoleCode = 'AMC_FIELD_STAFF';
 
-/// TEMP-AMC-ACCESS: while `true`, field staff (`INSTALLATION_REPORT_PART_A_EDITOR`)
-/// are treated as also having `AMC_FIELD_STAFF`, so they get the role
-/// selection screen (Installation / AMC) after login — for testing AMC before
-/// the AMC role is assigned to users. Set to `false` (or delete it) once
-/// roles are assigned properly. Mutable only so tests can switch it.
-bool tempGrantAmcToFieldStaff = true;
 const installationReportPartAEditorRoleCode =
     'INSTALLATION_REPORT_PART_A_EDITOR';
 
@@ -113,8 +107,8 @@ class RoleLoginResolver {
   static List<RoleSelectionOption> _moduleOptions(Iterable<String?> roleCodes) {
     final codes = roleCodes.whereType<String>().toSet();
     final isFieldStaff = codes.contains(installationReportPartAEditorRoleCode);
-    final hasAmc = codes.contains(amcFieldStaffRoleCode) ||
-        (tempGrantAmcToFieldStaff && isFieldStaff);
+    // Only `AMC_FIELD_STAFF` opens AMC: the PRD's one mobile AMC role.
+    final hasAmc = codes.contains(amcFieldStaffRoleCode);
     return [
       if (isFieldStaff) RoleSelectionOption.staff,
       if (hasAmc) RoleSelectionOption.amc,

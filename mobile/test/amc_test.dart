@@ -353,17 +353,6 @@ void main() {
   setUp(() {
     _secureStorageValues.clear();
     AmcModuleReadiness.invalidate();
-    tempGrantAmcToFieldStaff = false;
-    addTearDown(() => tempGrantAmcToFieldStaff = true);
-  });
-
-  test('TEMP: field staff also get AMC while the testing access is on', () {
-    tempGrantAmcToFieldStaff = true;
-    final r = RoleLoginResolver.resolveRoleCodes(
-        [installationReportPartAEditorRoleCode]);
-    expect(r.requiresSelection, isTrue);
-    expect(r.selectionOptions,
-        [RoleSelectionOption.staff, RoleSelectionOption.amc]);
   });
 
   group('RoleLoginResolver', () {

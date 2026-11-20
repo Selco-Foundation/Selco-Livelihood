@@ -75,6 +75,11 @@ const int minFacilitySearchQueryLength = 1;
 const String amcFormSchemaKey = 'AssetForm.AMC_SCHEDULED_MAINTENANCE';
 const String amcFormFirstPage = 'Report_Header';
 
+/// MDMS v2 schema that holds the AMC report form. Livelihood's own schema:
+/// unlike `common-masters.AMCFormSchema`, it allows `visibilityCondition`
+/// on fields, which the form's conditional readings need.
+const String amcFormMdmsSchemaCode = 'common-masters.AMCReportFormSchema';
+
 /// #250: a `format: custom` form field whose name ends in `Photo` is a
 /// reading photo (its value is a local path, or a filestore id once
 /// uploaded); any other custom field is a decimal reading.
