@@ -1,4 +1,4 @@
-import { translateOr, useAuthStore, useTranslate } from "@/shared";
+import { extractApiErrorMessage, translateOr, useAuthStore, useTranslate } from "@/shared";
 import { Button, SearchableSelect } from "@/ui";
 import { useMutation } from "@tanstack/react-query";
 import { Files, Trash2 } from "lucide-react";
@@ -13,6 +13,8 @@ import type {
   ComplaintDetailsData,
   MdmsReasonOption,
 } from "../../types/incident-details";
+import { useAssignVendorAmc } from "../../hooks/use-assign-vendor-amc";
+import { updateAmcFieldStaff } from "../../services/amc";
 import { uploadIncidentFile } from "../../services/file-upload";
 import { fetchVendorOptions } from "../../services/vendor";
 import {
@@ -201,9 +203,27 @@ export function ComplaintActionDialog({
   const [selectedReason, setSelectedReason] = useState<MdmsReasonOption | null>(null);
   const [vendorOptions, setVendorOptions] = useState<SelectOption[]>([]);
   const [selectedVendor, setSelectedVendor] = useState<SelectOption | null>(null);
+  const [pickedAmcFieldStaff, setPickedAmcFieldStaff] = useState<string>();
   const [uploads, setUploads] = useState<UploadedMediaEntry[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Moving the ticket's asset to another vendor must also move its running AMC (if any) to a field
+  // staff of that vendor's organisation; the backend does not link the two.
+  const assignVendorAmc = useAssignVendorAmc(
+    {
+      tenantId: complaintDetails.tenantId,
+      facilityId: complaintDetails.incident.facilityId,
+      assetId: complaintDetails.incident.assetId,
+    },
+    selectedVendor?.code,
+    Boolean(actionConfig?.requiresVendorAssignee),
+  );
+  const { amc, vendorOrgId, fieldStaffOptions } = assignVendorAmc;
+  // Keep the AMC's current field staff when they also work for the new vendor's organisation.
+  const amcFieldStaffId =
+    pickedAmcFieldStaff ??
+    (fieldStaffOptions.some((option) => option.code === amc?.fieldStaffId) ? amc?.fieldStaffId : undefined);
 
   useEffect(() => {
     if (!actionConfig?.reasonMaster || !accessToken) {
@@ -257,8 +277,28 @@ export function ComplaintActionDialog({
       if (actionConfig.requiresVendorAssignee && !selectedVendor) {
         throw new Error("VENDOR_REQUIRED");
       }
+      if (amc && !amcFieldStaffId) {
+        throw new Error("AMC_FIELD_STAFF_REQUIRED");
+      }
       if (actionConfig.documents === "required" && uploads.length === 0) {
         throw new Error("FILES_REQUIRED");
+      }
+
+      // The AMC moves first: if that is refused, nothing has changed and the POC can retry.
+      if (amc && amcFieldStaffId && vendorOrgId) {
+        await updateAmcFieldStaff(
+          [
+            {
+              tenantId: complaintDetails.tenantId,
+              activityFacilityId: amc.activityFacilityId,
+              fieldStaffUserId: amcFieldStaffId,
+              vendorOrgId,
+            },
+          ],
+          complaintDetails.tenantId,
+          accessToken,
+          user,
+        );
       }
 
       return updateIncidentAction({
@@ -305,7 +345,10 @@ export function ComplaintActionDialog({
                 ? translateOr(t, "WF_REASON_REQUIRED", "Please select a reason")
                 : code === "VENDOR_REQUIRED"
                   ? translateOr(t, "WF_VENDOR_REQUIRED", "Please select a vendor")
-                  : translateOr(t, "CS_COMMON_SOMETHING_WENT_WRONG", "Something went wrong!");
+                  : code === "AMC_FIELD_STAFF_REQUIRED"
+                    ? translateOr(t, "WF_AMC_FIELD_STAFF_REQUIRED", "Please select the AMC field staff")
+                    : (extractApiErrorMessage(mutationError) ??
+                      translateOr(t, "CS_COMMON_SOMETHING_WENT_WRONG", "Something went wrong!"));
       setError(message);
     },
   });
@@ -456,8 +499,37 @@ export function ComplaintActionDialog({
               required
               value={selectedVendor?.code ?? ""}
               options={vendorOptions}
-              onChange={setSelectedVendor}
+              onChange={(option) => {
+                setSelectedVendor(option);
+                setPickedAmcFieldStaff(undefined);
+              }}
             />
+          ) : null}
+
+          {actionConfig.requiresVendorAssignee && amc ? (
+            <div className="space-y-1.5">
+              <SearchableSelect
+                label={translateOr(t, "WF_AMC_FIELD_STAFF_LABEL", "AMC field staff")}
+                required
+                value={amcFieldStaffId ?? ""}
+                options={fieldStaffOptions}
+                disabled={!selectedVendor}
+                placeholder={translateOr(t, "WF_SELECT_AMC_FIELD_STAFF", "Select AMC field staff")}
+                onChange={(option) => setPickedAmcFieldStaff(option?.code ?? "")}
+                error={
+                  selectedVendor && !assignVendorAmc.isFieldStaffLoading && fieldStaffOptions.length === 0
+                    ? translateOr(t, "WF_AMC_FIELD_STAFF_NONE", "No AMC field staff in this vendor's organization")
+                    : undefined
+                }
+              />
+              <p className="text-xs text-ink-400">
+                {translateOr(
+                  t,
+                  "WF_AMC_FIELD_STAFF_HINT",
+                  "This asset has an AMC. Its upcoming visits move to the field staff you pick from the new vendor's organization.",
+                )}
+              </p>
+            </div>
           ) : null}
 
           <div className="space-y-1.5">
@@ -508,7 +580,7 @@ export function ComplaintActionDialog({
           <Button
             type="button"
             size="sm"
-            disabled={mutation.isPending || isUploading}
+            disabled={mutation.isPending || isUploading || (Boolean(actionConfig.requiresVendorAssignee) && assignVendorAmc.isAmcLoading)}
             onClick={() => {
               setError(null);
               mutation.mutate();

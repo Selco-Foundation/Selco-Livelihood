@@ -13,6 +13,8 @@ vi.mock("../../services/workflow", async (importOriginal) => {
   return { ...actual, fetchReasonOptions: vi.fn(), updateIncidentAction: vi.fn() };
 });
 vi.mock("../../services/vendor", () => ({ fetchVendorOptions: vi.fn() }));
+vi.mock("../../services/amc", () => ({ updateAmcFieldStaff: vi.fn() }));
+vi.mock("../../hooks/use-assign-vendor-amc", () => ({ useAssignVendorAmc: vi.fn() }));
 vi.mock("../../services/file-upload", () => ({
   uploadIncidentFile: vi.fn(),
   uploadIncidentVideo: vi.fn(),
@@ -21,6 +23,10 @@ vi.mock("../../services/file-upload", () => ({
 import { fetchReasonOptions, updateIncidentAction } from "../../services/workflow";
 import { fetchVendorOptions } from "../../services/vendor";
 import { uploadIncidentFile } from "../../services/file-upload";
+import { updateAmcFieldStaff } from "../../services/amc";
+import { useAssignVendorAmc } from "../../hooks/use-assign-vendor-amc";
+
+const NO_AMC = { amc: null, isAmcLoading: false, vendorOrgId: undefined, fieldStaffOptions: [], isFieldStaffLoading: false };
 
 const authedUser = { uuid: "user-1", roles: [{ code: "COMPLAINT_RESOLVER" }] };
 
@@ -86,6 +92,8 @@ beforeEach(() => {
   vi.mocked(fetchReasonOptions).mockReset().mockResolvedValue({});
   vi.mocked(fetchVendorOptions).mockReset().mockResolvedValue([]);
   vi.mocked(uploadIncidentFile).mockReset().mockResolvedValue({ fileStoreId: "fs-1" });
+  vi.mocked(useAssignVendorAmc).mockReset().mockReturnValue(NO_AMC);
+  vi.mocked(updateAmcFieldStaff).mockReset().mockResolvedValue({});
   vi.mocked(updateIncidentAction)
     .mockReset()
     .mockResolvedValue({ IncidentWrappers: [{ incident: {}, workflow: {} } as never] });
@@ -361,6 +369,71 @@ describe("ComplaintActionDialog", () => {
       expect(
         await screen.findByText("Could not load vendors. Please try again."),
       ).toBeInTheDocument();
+    });
+
+    it("needs the AMC field staff when the ticket's asset has a running AMC, and moves the AMC before the ticket", async () => {
+      vi.mocked(fetchVendorOptions).mockResolvedValue([{ code: "vendor-1", name: "Vendor One" }]);
+      vi.mocked(useAssignVendorAmc).mockReturnValue({
+        amc: { id: "amc-1", activityFacilityId: "af-1", assetIds: ["Ast/1"], fieldStaffId: "old-fs" },
+        isAmcLoading: false,
+        vendorOrgId: "org-9",
+        fieldStaffOptions: [{ code: "fs-9", name: "Field Nine" }],
+        isFieldStaffLoading: false,
+      });
+      const user = userEvent.setup();
+      renderDialog({ action: "ASSIGN_VENDOR", complaintDetails: defaultComplaintDetails({ facilityId: "ED/1", assetId: "Ast/1" }) });
+
+      await user.click(selectTriggerFor("Assign to vendor"));
+      await user.click(await screen.findByText("Vendor One"));
+      await user.click(screen.getByRole("button", { name: "Submit" }));
+      expect(await screen.findByText("Please select the AMC field staff")).toBeInTheDocument();
+      expect(updateIncidentAction).not.toHaveBeenCalled();
+
+      await user.click(selectTriggerFor("AMC field staff"));
+      await user.click(screen.getByText("Field Nine"));
+      await user.click(screen.getByRole("button", { name: "Submit" }));
+
+      await waitFor(() => expect(updateIncidentAction).toHaveBeenCalledTimes(1));
+      expect(updateAmcFieldStaff).toHaveBeenCalledWith(
+        [{ tenantId: "tenant-1", activityFacilityId: "af-1", fieldStaffUserId: "fs-9", vendorOrgId: "org-9" }],
+        "tenant-1",
+        "token-1",
+        authedUser,
+      );
+      expect(vi.mocked(updateAmcFieldStaff).mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(updateIncidentAction).mock.invocationCallOrder[0],
+      );
+    });
+
+    it("does not touch the ticket when the AMC move is refused, and shows the server's message", async () => {
+      vi.mocked(fetchVendorOptions).mockResolvedValue([{ code: "vendor-1", name: "Vendor One" }]);
+      vi.mocked(useAssignVendorAmc).mockReturnValue({
+        amc: { id: "amc-1", activityFacilityId: "af-1", assetIds: ["Ast/1"], fieldStaffId: "fs-9" },
+        isAmcLoading: false,
+        vendorOrgId: "org-9",
+        fieldStaffOptions: [{ code: "fs-9", name: "Field Nine" }],
+        isFieldStaffLoading: false,
+      });
+      vi.mocked(updateAmcFieldStaff).mockRejectedValue({
+        isAxiosError: true,
+        response: { data: { Errors: [{ code: "AMC_COMPLETED", message: "This AMC is completed" }] } },
+      });
+      const user = userEvent.setup();
+      renderDialog({ action: "ASSIGN_VENDOR", complaintDetails: defaultComplaintDetails({ facilityId: "ED/1", assetId: "Ast/1" }) });
+
+      await user.click(selectTriggerFor("Assign to vendor"));
+      await user.click(await screen.findByText("Vendor One"));
+      // The AMC's current field staff also works for the new organisation, so it is kept.
+      await user.click(screen.getByRole("button", { name: "Submit" }));
+
+      expect(await screen.findByText("This AMC is completed")).toBeInTheDocument();
+      expect(updateIncidentAction).not.toHaveBeenCalled();
+    });
+
+    it("shows no AMC field staff picker when the asset has no running AMC", () => {
+      renderDialog({ action: "ASSIGN_VENDOR" });
+
+      expect(screen.queryByText("AMC field staff")).not.toBeInTheDocument();
     });
 
     it("does not fetch vendor options when the ticket has no boundary code", () => {

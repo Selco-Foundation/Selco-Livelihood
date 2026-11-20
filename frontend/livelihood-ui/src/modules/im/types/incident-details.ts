@@ -21,6 +21,9 @@ export interface Incident {
   district?: string;
   block?: string;
   boundaryCode?: string;
+  /** The end user site and the (top-level) asset the ticket was raised on. */
+  facilityId?: string;
+  assetId?: string;
   comments?: string;
   phcSubType?: string;
   filedDate?: number;
