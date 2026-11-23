@@ -45,7 +45,7 @@ export function AmcFieldStaffDialog({
           )}
         </p>
         {warnVendorChange ? (
-          <p role="note" className="rounded-lg bg-warning p-3 text-sm text-warning-foreground">
+          <p role="note" className="rounded-lg bg-warning p-3 text-sm text-foreground">
             {amcVendorChangeWarning(t)}
           </p>
         ) : null}
