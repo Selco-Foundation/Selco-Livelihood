@@ -155,7 +155,7 @@ describe("EditAmcPage", () => {
       },
       expect.any(Object),
     );
-    expect(toast.success).toHaveBeenCalledWith("AMC schedule saved");
+    expect(toast.success).toHaveBeenCalledWith("AMC schedule saved", { description: undefined });
     expect(navigate).not.toHaveBeenCalled();
   });
 
@@ -203,6 +203,25 @@ describe("EditAmcPage", () => {
 
     expect(screen.getByText("06 Nov 2027")).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "2" })).toBeInTheDocument();
+  });
+
+  it("shows each AMC's vendor, and says what a field staff change did to the visits", async () => {
+    vi.mocked(useAmcSchedules).mockReturnValue({
+      data: { configurations: [schedule({ vendorName: "Bright Future" })], visits: [] },
+      isLoading: false,
+    } as never);
+    mutate.mockImplementation((_variables, options: { onSuccess: (results: unknown) => void }) =>
+      options.onSuccess([{ activityFacilityId: "row-1", outcome: "CHANGED", visitsMoved: 1, visitsReset: 0 }]),
+    );
+    renderPage();
+    expect(screen.getByText("Bright Future")).toBeInTheDocument();
+
+    const user = await changeFrequencyToOneYear();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(toast.success).toHaveBeenCalledWith("AMC schedule saved", {
+      description: "Visits moved to the new field staff: 1",
+    });
   });
 
   it("names the end user when the save is refused", async () => {

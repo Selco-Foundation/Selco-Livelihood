@@ -51,6 +51,7 @@ export interface AmcScheduleRow {
   frequencyMonths?: number;
   years?: number;
   vendorOrgId?: string;
+  vendorName?: string;
   fieldStaffId?: string;
   fieldStaffName?: string;
   /** Visits of this AMC already submitted at least once: they lock the start date and set the minimum total. */

@@ -3,6 +3,9 @@ export interface AssetAmc {
   id: string;
   activityFacilityId: string;
   assetIds: string[];
+  /** Active AMCs have visits; a pending one has none yet. */
+  isActive?: boolean;
+  vendorOrgId?: string;
   fieldStaffId?: string;
   fieldStaffName?: string;
 }
@@ -10,6 +13,7 @@ export interface AssetAmc {
 export interface RawFacilityAmc {
   id: string;
   status: string;
+  vendorId?: string | null;
   activityFacilityId: string;
   fieldStaff?: { uuid?: string; name?: string | null } | null;
   assetsAmc?: { assetId?: string }[] | null;

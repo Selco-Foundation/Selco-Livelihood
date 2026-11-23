@@ -1,4 +1,5 @@
-import { extractApiErrorMessage, translateOr } from "@/shared";
+import { extractApiErrorMessage } from "../api/errors";
+import { translateOr } from "../i18n/translate-or";
 
 /** One row of an AMC error: the server writes `row N (<id>), <field>: <reason>`. */
 export interface AmcErrorRow {
@@ -14,7 +15,7 @@ export const AMC_INSTALLATION_NOT_READY = "AMC_INSTALLATION_NOT_READY";
 /** Thrown when MDMS flags no default frequency or duration. */
 export const AMC_DEFAULTS_MISSING = "AMC_DEFAULTS_MISSING";
 
-/** AMC error code -> what the PM reads. The localization key is `ES_PM_ERR_<code>`. */
+/** AMC error code -> what the user reads. The localization key is `ES_AMC_ERR_<code>`. */
 const AMC_ERROR_TEXT: Record<string, string> = {
   DUPLICATE_AMC_CONFIGURATION: "an AMC is already running",
   DUPLICATE_ACTIVITY_FACILITY: "the same installation is listed twice",
@@ -51,7 +52,7 @@ export function parseAmcErrorRows(message: string): AmcErrorRow[] {
 }
 
 /**
- * An AMC API error as the PM should read it: every error, with the end users it is about
+ * An AMC API error as the user should read it: every error, with the end users it is about
  * (`nameOf` a row) instead of row numbers and ids. Falls back to the server's own message for any
  * other error; undefined when there is none.
  */
@@ -61,7 +62,7 @@ export function amcErrorText(
   nameOf: (row: AmcErrorRow) => string | undefined = () => undefined,
 ): string | undefined {
   const textOf = (code: string) =>
-    Object.hasOwn(AMC_ERROR_TEXT, code) ? translateOr(t, `ES_PM_ERR_${code}`, AMC_ERROR_TEXT[code]) : undefined;
+    Object.hasOwn(AMC_ERROR_TEXT, code) ? translateOr(t, `ES_AMC_ERR_${code}`, AMC_ERROR_TEXT[code]) : undefined;
   const body = (error as { response?: { data?: { Errors?: unknown } } } | undefined)?.response?.data;
   const apiErrors = Array.isArray(body?.Errors) ? (body.Errors as { code?: string; message?: string }[]) : [];
 

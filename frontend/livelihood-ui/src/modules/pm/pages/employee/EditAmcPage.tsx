@@ -1,4 +1,4 @@
-import { employeeHomePath, translateOr, useTranslate } from "@/shared";
+import { amcErrorText, amcFieldStaffChangeText, employeeHomePath, translateOr, useTranslate } from "@/shared";
 import { Button, SearchableSelect, Skeleton, toast, TopBar } from "@/ui";
 import { Link, useSearch } from "@tanstack/react-router";
 import { Info, Plus, Power, Sun } from "lucide-react";
@@ -23,7 +23,6 @@ import type {
   AmcScheduleRow,
   AmcScheduleRowError,
 } from "../../types/amc";
-import { amcErrorText } from "../../utils/amc-errors";
 import {
   firstAmcDueDate,
   isAmcRunning,
@@ -128,8 +127,10 @@ export function EditAmcPage() {
     updateSchedules.mutate(
       { original: originalRows, rows },
       {
-        onSuccess: () => {
-          toast.success(translateOr(t, "ES_PM_AMC_SCHEDULE_SAVED", "AMC schedule saved"));
+        onSuccess: (fieldStaffResults) => {
+          toast.success(translateOr(t, "ES_PM_AMC_SCHEDULE_SAVED", "AMC schedule saved"), {
+            description: amcFieldStaffChangeText(fieldStaffResults, t),
+          });
         },
         onError: (error) => {
           toast.error(translateOr(t, "ES_PM_AMC_SCHEDULE_SAVE_FAILED", "Could not save the AMC schedule"), {
@@ -155,6 +156,7 @@ export function EditAmcPage() {
   const computedColumns = [
     translateOr(t, "ES_PM_AMC_FIRST_DUE", "First AMC due"),
     translateOr(t, "ES_PM_AMC_TOTAL", "Total AMCs"),
+    translateOr(t, "ES_PM_AMC_VENDOR", "Vendor"),
     translateOr(t, "ES_PM_AMC_FIELD_STAFF", "AMC field staff"),
     translateOr(t, "ES_PM_ACTIONS", "Actions"),
   ];
@@ -246,7 +248,7 @@ export function EditAmcPage() {
           ) : (
             <div className="livelihood-card overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[2150px] border-collapse text-sm">
+                <table className="w-full min-w-[2330px] border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-border">
                       {readOnlyColumns.map((label) => (
@@ -373,6 +375,7 @@ export function EditAmcPage() {
                             )}
                           </td>
                           <td className="px-5 py-4 text-foreground">{totalAmcActivities(row) ?? "-"}</td>
+                          <td className="px-5 py-4 text-foreground">{row.vendorName ?? "-"}</td>
                           <td className="w-[240px] px-5 py-4">
                             <AmcFieldStaffSelect
                               rowLabel={row.endUserName}

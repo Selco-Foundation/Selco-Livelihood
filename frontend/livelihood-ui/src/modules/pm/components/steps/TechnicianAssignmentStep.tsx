@@ -1,4 +1,4 @@
-import { translateOr, useTranslate } from "@/shared";
+import { amcErrorText, translateOr, useTranslate } from "@/shared";
 import { Input, Pagination, SearchableSelect, Switch, toast } from "@/ui";
 import { Users } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -9,7 +9,6 @@ import { useVendorOrganisations } from "../../hooks/use-vendor-organisations";
 import { useVendorOrgUsers } from "../../hooks/use-vendor-org-users";
 import type { InstallationPlanAssignmentEntry } from "../../types/installation-plan";
 import type { VendorAssignmentSite } from "../../services/vendor-assignment";
-import { amcErrorText } from "../../utils/amc-errors";
 import {
   amcApplicableKey,
   isAmcApplicable,

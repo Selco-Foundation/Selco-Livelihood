@@ -1,4 +1,4 @@
-import { apiClient, tenantId as getTenantId } from "@/shared";
+import { apiClient, tenantId as getTenantId, type AmcFieldStaffUpdateResponse } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
 import type { AuthUser } from "@/shared/stores/auth-store";
 import type {
@@ -67,8 +67,8 @@ export async function updateAmcFieldStaff(
   updates: AmcFieldStaffUpdate[],
   accessToken: string,
   user?: AuthUser | null,
-): Promise<{ AmcFieldStaffUpdates?: { activityFacilityId: string; outcome?: string }[] }> {
-  const { data } = await apiClient.post<{ AmcFieldStaffUpdates?: { activityFacilityId: string; outcome?: string }[] }>(
+): Promise<AmcFieldStaffUpdateResponse> {
+  const { data } = await apiClient.post<AmcFieldStaffUpdateResponse>(
     "/asset-amc/v1/configuration/field-staff/_update",
     {
       RequestInfo: createRequestInfo(accessToken, user),

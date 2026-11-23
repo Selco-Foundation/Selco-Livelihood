@@ -187,7 +187,7 @@ describe("AssetRow", () => {
       isLoading: false,
     });
     const user = userEvent.setup();
-    renderRow(assetWithVendor, vi.fn(), { id: "amc-1", activityFacilityId: "af-1", assetIds: ["a1"], fieldStaffId: "fs-1" });
+    renderRow(assetWithVendor, vi.fn(), { id: "amc-1", activityFacilityId: "af-1", assetIds: ["a1"], fieldStaffId: "fs-1", isActive: true, vendorOrgId: "org-1" });
 
     await user.click(screen.getByRole("button", { name: /^Vendor,/i }));
     await user.click(screen.getByText("Vendor Two"));
@@ -195,6 +195,7 @@ describe("AssetRow", () => {
 
     expect(mutateMock).not.toHaveBeenCalled();
     expect(await screen.findByText("Select the AMC field staff")).toBeInTheDocument();
+    expect(screen.queryByText(/The AMC moves to another vendor/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Field One/ }));
     await user.click(screen.getByText("Field Two"));
@@ -209,5 +210,27 @@ describe("AssetRow", () => {
       { assetId: "a1", vendorId: "vendor-2", organisationId: "org-1" },
       expect.any(Object),
     );
+  });
+
+  it.each([
+    { isActive: true, warned: true },
+    { isActive: false, warned: false },
+  ])("warns about open visits when an AMC of another organisation moves (active: $isActive)", async ({ isActive, warned }) => {
+    vi.mocked(useVendorUserOptions).mockReturnValue({
+      options: [{ code: "vendor-2", name: "Vendor Two" }],
+      setQuery: vi.fn(),
+      hasMore: false,
+      loadMore: vi.fn(),
+      isLoading: false,
+    });
+    const user = userEvent.setup();
+    renderRow(assetWithVendor, vi.fn(), { id: "amc-1", activityFacilityId: "af-1", assetIds: ["a1"], isActive, vendorOrgId: "org-0" });
+
+    await user.click(screen.getByRole("button", { name: /^Vendor,/i }));
+    await user.click(screen.getByText("Vendor Two"));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("Select the AMC field staff")).toBeInTheDocument();
+    expect(screen.queryAllByText(/The AMC moves to another vendor/)).toHaveLength(warned ? 1 : 0);
   });
 });

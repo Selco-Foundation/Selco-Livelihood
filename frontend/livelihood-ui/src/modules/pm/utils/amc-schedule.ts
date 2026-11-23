@@ -55,6 +55,7 @@ export function toAmcScheduleRows(source: AmcScheduleSource | undefined): AmcSch
       frequencyMonths: amc.visitFrequencyMonths ?? undefined,
       years: amc.durationMonths ? amc.durationMonths / 12 : undefined,
       vendorOrgId: amc.vendorId ?? undefined,
+      vendorName: amc.vendorName ?? undefined,
       fieldStaffId: amc.fieldStaff?.uuid,
       fieldStaffName: amc.fieldStaff?.name ?? undefined,
       submittedVisits: submittedByAmc.get(amc.id) ?? 0,

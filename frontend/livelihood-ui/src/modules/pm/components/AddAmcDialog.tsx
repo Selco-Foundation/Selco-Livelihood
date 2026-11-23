@@ -1,11 +1,10 @@
-import { translateOr, useTranslate } from "@/shared";
+import { amcErrorText, translateOr, useTranslate } from "@/shared";
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, SearchableSelect, toast } from "@/ui";
 import { useMemo, useState } from "react";
 import { useAmcOptions } from "../hooks/use-amc-options";
 import { useCreatePlanAmcs } from "../hooks/use-create-plan-amcs";
 import { usePlanAmcBySite } from "../hooks/use-plan-amc-by-site";
 import { useVendorAssignmentSearch } from "../hooks/use-vendor-assignment-search";
-import { amcErrorText } from "../utils/amc-errors";
 import { AmcFieldStaffSelect } from "./AmcFieldStaffSelect";
 
 interface AddAmcDialogProps {

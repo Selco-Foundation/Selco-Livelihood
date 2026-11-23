@@ -155,6 +155,7 @@ export function AssetRow({ asset, isAlternate, assetTypeName, onView, amc }: Ass
             open={pickingFieldStaff}
             organizationId={selectedOrgId}
             currentFieldStaffId={amc.fieldStaffId}
+            warnVendorChange={Boolean(amc.isActive) && amc.vendorOrgId !== selectedOrgId}
             isPending={updateAmcFieldStaff.isPending}
             onConfirm={handleFieldStaffConfirm}
             onCancel={() => setPickingFieldStaff(false)}

@@ -1,4 +1,12 @@
-import { extractApiErrorMessage, translateOr, useAuthStore, useTranslate, employeeHomePath } from "@/shared";
+import {
+  amcErrorText,
+  employeeHomePath,
+  extractApiErrorMessage,
+  translateOr,
+  useAuthStore,
+  useTranslate,
+  type AmcErrorRow,
+} from "@/shared";
 import { Button, toast, TopBar } from "@/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
@@ -28,7 +36,6 @@ import { useCreatePlanAmcs } from "../../hooks/use-create-plan-amcs";
 import { useSaveInstallationPlan } from "../../hooks/use-save-installation-plan";
 import { useVendorAssignmentSearch } from "../../hooks/use-vendor-assignment-search";
 import type { InstallationPlanRouteSearch } from "../../routes";
-import { amcErrorText, type AmcErrorRow } from "../../utils/amc-errors";
 import { rowsMissingFieldStaff, toAmcChoices, type AmcSetupValue } from "../../utils/amc-setup";
 import { publishInstallationPlan, type SavedInstallationPlan } from "../../services/installation-plan";
 import { checkInstallationScope } from "../../services/installation-scope";

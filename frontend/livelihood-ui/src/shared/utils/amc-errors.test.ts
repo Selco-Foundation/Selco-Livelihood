@@ -43,7 +43,7 @@ describe("amcErrorText", () => {
   });
 
   it("prefers the localized text", () => {
-    const localized = (key: string) => (key === "ES_PM_ERR_AMC_COMPLETED" ? "translated" : key);
+    const localized = (key: string) => (key === "ES_AMC_ERR_AMC_COMPLETED" ? "translated" : key);
     expect(amcErrorText(apiError({ code: "AMC_COMPLETED", message: "row 1 (a), id: x" }), localized, () => "Priya")).toBe(
       "Priya: translated",
     );

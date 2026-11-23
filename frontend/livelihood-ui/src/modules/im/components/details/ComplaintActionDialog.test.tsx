@@ -405,7 +405,7 @@ describe("ComplaintActionDialog", () => {
       );
     });
 
-    it("does not touch the ticket when the AMC move is refused, and shows the server's message", async () => {
+    it("does not touch the ticket when the AMC move is refused, and shows a clear message", async () => {
       vi.mocked(fetchVendorOptions).mockResolvedValue([{ code: "vendor-1", name: "Vendor One" }]);
       vi.mocked(useAssignVendorAmc).mockReturnValue({
         amc: { id: "amc-1", activityFacilityId: "af-1", assetIds: ["Ast/1"], fieldStaffId: "fs-9" },
@@ -426,8 +426,25 @@ describe("ComplaintActionDialog", () => {
       // The AMC's current field staff also works for the new organisation, so it is kept.
       await user.click(screen.getByRole("button", { name: "Submit" }));
 
-      expect(await screen.findByText("This AMC is completed")).toBeInTheDocument();
+      expect(await screen.findByText("The AMC is completed and can't be changed")).toBeInTheDocument();
       expect(updateIncidentAction).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      { name: "an active AMC moving to another organisation", isActive: true, vendorOrgId: "org-1", warned: true },
+      { name: "an AMC staying with its organisation", isActive: true, vendorOrgId: "org-9", warned: false },
+      { name: "a pending AMC, which has no visits", isActive: false, vendorOrgId: "org-1", warned: false },
+    ])("warns about the visits only for a real move: $name", ({ isActive, vendorOrgId, warned }) => {
+      vi.mocked(useAssignVendorAmc).mockReturnValue({
+        amc: { id: "amc-1", activityFacilityId: "af-1", assetIds: ["Ast/1"], isActive, vendorOrgId },
+        isAmcLoading: false,
+        vendorOrgId: "org-9",
+        fieldStaffOptions: [],
+        isFieldStaffLoading: false,
+      });
+      renderDialog({ action: "ASSIGN_VENDOR" });
+
+      expect(screen.queryAllByText(/The AMC moves to another vendor/)).toHaveLength(warned ? 1 : 0);
     });
 
     it("shows no AMC field staff picker when the asset has no running AMC", () => {

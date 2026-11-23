@@ -1,4 +1,4 @@
-import { apiClient, postSearch, type AuthUser } from "@/shared";
+import { apiClient, postSearch, type AmcFieldStaffUpdateResponse, type AuthUser } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
 import type { AmcFieldStaffUpdate, FacilityAmcSearchResponse, OrgUserSearchResponse } from "../types/amc";
 
@@ -44,8 +44,8 @@ export async function updateAmcFieldStaff(
   tenantId: string,
   accessToken: string,
   user?: AuthUser | null,
-): Promise<unknown> {
-  const { data } = await apiClient.post(
+): Promise<AmcFieldStaffUpdateResponse> {
+  const { data } = await apiClient.post<AmcFieldStaffUpdateResponse>(
     "/asset-amc/v1/configuration/field-staff/_update",
     { RequestInfo: createRequestInfo(accessToken, user), AmcFieldStaffUpdates: updates },
     { params: { tenantId } },

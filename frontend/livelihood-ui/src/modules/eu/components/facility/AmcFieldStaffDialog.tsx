@@ -1,4 +1,4 @@
-import { translateOr, useTranslate } from "@/shared";
+import { amcVendorChangeWarning, translateOr, useTranslate } from "@/shared";
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, SearchableSelect } from "@/ui";
 import { useState } from "react";
 import { useAmcFieldStaffOptions } from "../../hooks/use-amc-field-staff-options";
@@ -9,6 +9,8 @@ interface AmcFieldStaffDialogProps {
   organizationId: string;
   /** The AMC's current field staff, kept as the pick when they belong to the new organisation. */
   currentFieldStaffId?: string;
+  /** The AMC is active and moves to another organisation: its open visits may restart. */
+  warnVendorChange: boolean;
   isPending: boolean;
   onConfirm: (fieldStaffId: string) => void;
   onCancel: () => void;
@@ -19,6 +21,7 @@ export function AmcFieldStaffDialog({
   open,
   organizationId,
   currentFieldStaffId,
+  warnVendorChange,
   isPending,
   onConfirm,
   onCancel,
@@ -41,6 +44,11 @@ export function AmcFieldStaffDialog({
             "This asset has a running AMC. Choose who looks after it in the new vendor organization.",
           )}
         </p>
+        {warnVendorChange ? (
+          <p role="note" className="rounded-lg bg-warning p-3 text-sm text-warning-foreground">
+            {amcVendorChangeWarning(t)}
+          </p>
+        ) : null}
         <SearchableSelect
           label={translateOr(t, "ASSET_AMC_FIELD_STAFF", "AMC field staff")}
           value={fieldStaffId ?? ""}

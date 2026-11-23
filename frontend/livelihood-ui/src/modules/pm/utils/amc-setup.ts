@@ -1,4 +1,4 @@
-import { AMC_DEFAULTS_MISSING, AMC_INSTALLATION_NOT_READY } from "./amc-errors";
+import { AMC_DEFAULTS_MISSING, AMC_INSTALLATION_NOT_READY } from "@/shared";
 import type { AmcConfigurationCreate, RawAmcConfiguration } from "../types/amc";
 
 /** What the PM chooses for one solar asset: AMC on or off, and the AMC field staff when on. */

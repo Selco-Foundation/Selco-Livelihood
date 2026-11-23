@@ -1,5 +1,13 @@
-import { extractApiErrorMessage, translateOr, useAuthStore, useTranslate } from "@/shared";
-import { Button, SearchableSelect } from "@/ui";
+import {
+  amcErrorText,
+  amcFieldStaffChangeText,
+  amcVendorChangeWarning,
+  hasAmcFieldStaffChanged,
+  translateOr,
+  useAuthStore,
+  useTranslate,
+} from "@/shared";
+import { Button, SearchableSelect, toast } from "@/ui";
 import { useMutation } from "@tanstack/react-query";
 import { Files, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -286,7 +294,7 @@ export function ComplaintActionDialog({
 
       // The AMC moves first: if that is refused, nothing has changed and the POC can retry.
       if (amc && amcFieldStaffId && vendorOrgId) {
-        await updateAmcFieldStaff(
+        const { AmcFieldStaffUpdates: results } = await updateAmcFieldStaff(
           [
             {
               tenantId: complaintDetails.tenantId,
@@ -299,6 +307,12 @@ export function ComplaintActionDialog({
           accessToken,
           user,
         );
+        // Told now, not after the ticket: the AMC has moved even if the ticket action then fails.
+        if (hasAmcFieldStaffChanged(results)) {
+          toast.success(translateOr(t, "ES_AMC_FIELD_STAFF_CHANGED", "AMC field staff changed"), {
+            description: amcFieldStaffChangeText(results, t),
+          });
+        }
       }
 
       return updateIncidentAction({
@@ -347,7 +361,7 @@ export function ComplaintActionDialog({
                   ? translateOr(t, "WF_VENDOR_REQUIRED", "Please select a vendor")
                   : code === "AMC_FIELD_STAFF_REQUIRED"
                     ? translateOr(t, "WF_AMC_FIELD_STAFF_REQUIRED", "Please select the AMC field staff")
-                    : (extractApiErrorMessage(mutationError) ??
+                    : (amcErrorText(mutationError, t) ??
                       translateOr(t, "CS_COMMON_SOMETHING_WENT_WRONG", "Something went wrong!"));
       setError(message);
     },
@@ -529,6 +543,11 @@ export function ComplaintActionDialog({
                   "This asset has an AMC. Its upcoming visits move to the field staff you pick from the new vendor's organization.",
                 )}
               </p>
+              {amc.isActive && vendorOrgId && vendorOrgId !== amc.vendorOrgId ? (
+                <p role="note" className="rounded-lg bg-warning p-3 text-sm text-warning-foreground">
+                  {amcVendorChangeWarning(t)}
+                </p>
+              ) : null}
             </div>
           ) : null}
 

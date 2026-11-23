@@ -13,6 +13,8 @@ export function toAssetAmcs(response: FacilityAmcSearchResponse | undefined): As
       id: amc.id,
       activityFacilityId: amc.activityFacilityId,
       assetIds: (amc.assetsAmc ?? []).flatMap((entry) => (entry.assetId ? [entry.assetId] : [])),
+      isActive: amc.status === "ACTIVE",
+      vendorOrgId: amc.vendorId ?? undefined,
       fieldStaffId: amc.fieldStaff?.uuid,
       fieldStaffName: amc.fieldStaff?.name ?? undefined,
     }));
