@@ -701,10 +701,15 @@ def create_asset_payloads(
     brand_val = val("brandID")
     brand_code = None if is_blank(brand_val) else resolve_mdms_value(asset_schema, "Brand ID", brand_val)
 
-    # System is an MDMS dropdown (asset-registry.SystemSchema, nested); optional,
-    # defaults to the baseline non-solar code when left blank.
+    # The system type: an MDMS dropdown (asset-registry.SystemSchema, nested); optional, defaults
+    # to LIVELIHOOD, i.e. not known, when left blank. Its column is found by code, so it can be
+    # renamed in MDMS.
     system_val = val("system")
-    system_code = "LIVELIHOOD" if is_blank(system_val) else resolve_mdms_value(asset_schema, "System", system_val)
+    if is_blank(system_val):
+        system_code = "LIVELIHOOD"
+    else:
+        system_column = next(c.get("name") for c in asset_schema if c.get("code") == "system")
+        system_code = resolve_mdms_value(asset_schema, system_column, str(system_val).strip())
 
     # Vendor Code (username) resolves to the vendor user's UUID so im-services can
     # directly assign the incident ticket to that specific person (isUuid → true path).
@@ -766,6 +771,9 @@ def create_asset_payloads(
             solar_asset["serialNumber"] = f"{asset['facilityID']}-{SOLAR_SERIAL_SUFFIX}"
         if asset.get("boundaryCode"):
             solar_asset["boundaryCode"] = asset["boundaryCode"]
+        # Both belong to the same system. Not sent when the row gives no system type.
+        if not is_blank(system_val):
+            solar_asset["system"] = system_code
         payloads.append({
             "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
             "assetDetail": {"Asset": solar_asset},
