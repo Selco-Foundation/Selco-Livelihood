@@ -91,6 +91,7 @@ public class VendorAssignmentService {
     private static final String FIELD_REPORT_NUMBER = "report_number";
     private static final String FIELD_TENDER_NUMBER = "tender_number";
     private static final String FIELD_PURCHASE_ORDER_NUMBER = "purchase_order_number";
+    private static final String FIELD_SYSTEM_TYPE = "system_type";
 
     /** How long create() will wait for the published rows to appear before saying so. ~3s. */
     private static final int PERSIST_WAIT_ATTEMPTS = 20;
@@ -961,10 +962,10 @@ public class VendorAssignmentService {
      * <p>Units must not be seeded blank: the app prefers a stored value over the form's default,
      * so a stored "" hides "V" in the app and prints as NA in the report.
      */
-    private Map<String, Object> seedBomData(VendorAssignmentSubmission submission,
-                                            Map<String, Object> templateData,
-                                            String reportNumber,
-                                            Map<String, String> systemFieldDefaults) {
+    Map<String, Object> seedBomData(VendorAssignmentSubmission submission,
+                                    Map<String, Object> templateData,
+                                    String reportNumber,
+                                    Map<String, String> systemFieldDefaults) {
         Map<String, Object> fields = repository.readMap(templateData, KEY_FIELDS);
         List<Map<String, Object>> machines = repository.readSection(templateData, KEY_MACHINE_SECTION);
         Map<String, Object> data = new LinkedHashMap<>();
@@ -1007,6 +1008,9 @@ public class VendorAssignmentService {
         data.put(FIELD_TENDER_NUMBER, fields.getOrDefault(FIELD_TENDER_NUMBER, ""));
         data.put(FIELD_PURCHASE_ORDER_NUMBER, fields.getOrDefault(FIELD_PURCHASE_ORDER_NUMBER, ""));
         data.put(FIELD_REPORT_NUMBER, reportNumber == null ? "" : reportNumber);
+        // On every asset: a machine belongs to the same Solution as its solar system, and the app
+        // sends this value as the asset's system type.
+        data.put(FIELD_SYSTEM_TYPE, fields.getOrDefault(FIELD_SYSTEM_TYPE, ""));
         return data;
     }
 
