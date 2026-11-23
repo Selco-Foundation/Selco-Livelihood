@@ -989,9 +989,8 @@ public class ScheduledVisitService {
                             return null;
                         }
                         List<AutoApproval.Rule> rules = amcMdmsOptions.autoApprovalRules(tenantId, requestInfo);
-                        // System type: no source holds it yet (open point P5), so every site is "unknown" (case e).
                         Map<String, Object> result = AutoApproval.evaluate(rules,
-                                visit.getVisitReport() != null ? visit.getVisitReport().getResponses() : null, null, now);
+                                visit.getVisitReport() != null ? visit.getVisitReport().getResponses() : null, siteSystemType(visit), now);
                         log.info("Auto-approval rules for visit {}: passed={} ({} rules)", visit.getId(), result.get("passed"), rules.size());
                         return result;
                     }
@@ -1074,6 +1073,22 @@ public class ScheduledVisitService {
                 });
         log.info("Service code verified for visit {}: {} -> status {}", existingVisit.getId(), actionTaken[0], existingVisit.getStatus());
         return saved[0];
+    }
+
+    /** From site details, the one place that knows it (null until it has a source, P5); null = unknown system type. */
+    private String siteSystemType(ScheduledVisit visit) {
+        String row = visit.getActivityFacilityId() != null ? visit.getActivityFacilityId()
+                : (visit.getAmcConfiguration() != null ? visit.getAmcConfiguration().getActivityFacilityId() : null);
+        if (row == null) {
+            return null;
+        }
+        try {
+            Map<String, Object> site = siteDetailsReader.read(List.of(row)).get(row);
+            return site == null ? null : (String) site.get("systemType");
+        } catch (RuntimeException e) {
+            log.warn("System type not read for visit {}: {}", visit.getId(), e.getMessage());
+            return null;
+        }
     }
 
     /**
