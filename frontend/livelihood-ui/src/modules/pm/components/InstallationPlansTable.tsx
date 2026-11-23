@@ -53,7 +53,7 @@ export function InstallationPlansTable({ plans, isLoading }: Readonly<Installati
   return (
     <div className="livelihood-card overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1120px] border-collapse text-sm">
+        <table className="w-full min-w-[1000px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border">
               {columns.map((column) => (
@@ -65,10 +65,7 @@ export function InstallationPlansTable({ plans, isLoading }: Readonly<Installati
           </thead>
           <tbody>
             {plans.map(({ plan, status }, index) => {
-              const isDemo = plan.additionalDetails?.isAmcDemo === true;
-              const siteCount = isDemo
-                ? Number(plan.additionalDetails?.demoSiteCount ?? 0)
-                : ((plan.id ? facilityCounts[plan.id] : undefined) ?? 0);
+              const siteCount = (plan.id ? facilityCounts[plan.id] : undefined) ?? 0;
 
               return (
                 <tr
@@ -76,23 +73,13 @@ export function InstallationPlansTable({ plans, isLoading }: Readonly<Installati
                   className={"border-b border-border/70 hover:bg-muted/40" + (index % 2 === 1 ? " bg-accent" : "")}
                 >
                   <td className="px-5 py-4">
-                    {isDemo ? (
-                      // Static demo plan: it has no backend record, so there is no plan wizard to open.
-                      <span className="inline-flex items-center gap-2 font-semibold text-primary">
-                        {plan.name ?? "-"}
-                        <Badge variant="outline" className="text-xs font-normal text-muted-foreground">
-                          {translateOr(t, "ES_PM_DEMO", "Demo")}
-                        </Badge>
-                      </span>
-                    ) : (
-                      <Link
-                        to={pmCreateInstallationPlanPath()}
-                        search={{ projectId: plan.projectId, planId: plan.id, step: 1 }}
-                        className="font-semibold text-primary hover:underline"
-                      >
-                        {plan.name ?? "-"}
-                      </Link>
-                    )}
+                    <Link
+                      to={pmCreateInstallationPlanPath()}
+                      search={{ projectId: plan.projectId, planId: plan.id, step: 1 }}
+                      className="font-semibold text-primary hover:underline"
+                    >
+                      {plan.name ?? "-"}
+                    </Link>
                   </td>
                   <td className="px-5 py-4">
                     <Badge variant="secondary" className="bg-accent text-primary">
@@ -103,16 +90,7 @@ export function InstallationPlansTable({ plans, isLoading }: Readonly<Installati
                   <td className="px-5 py-4 text-foreground">{formatDate(plan.startDate)}</td>
                   <td className="px-5 py-4 text-foreground">{formatDate(plan.endDate)}</td>
                   <td className="px-5 py-4 text-foreground">{siteCount}</td>
-                  <td className="px-5 py-4 text-foreground">
-                    {formatStatusLabel(t, status)}
-                    {isDemo && status !== "COMPLETED" ? (
-                      <span className="block text-xs text-muted-foreground">
-                        {translateOr(t, "ES_PM_N_OF_M_INSTALLED", "{{installed}} of {{total}} sites installed")
-                          .replace("{{installed}}", String(plan.additionalDetails?.demoInstalledCount ?? 0))
-                          .replace("{{total}}", String(siteCount))}
-                      </span>
-                    ) : null}
-                  </td>
+                  <td className="px-5 py-4 text-foreground">{formatStatusLabel(t, status)}</td>
                 </tr>
               );
             })}

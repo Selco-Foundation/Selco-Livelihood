@@ -100,7 +100,7 @@ export function CreateInstallationPlanPage() {
   const [templates, setTemplates] = useState<TemplateValue>([]);
   const [assignments, setAssignments] = useState<AssignmentValue>([]);
   // Deliberately not part of `assignments`, which publishInstallationPlan sends to the
-  // vendor-assignment API unchanged. Prototype: kept in memory until the AMC APIs are wired.
+  // vendor-assignment API unchanged. The AMCs are created from it after the publish.
   const [amcSetup, setAmcSetup] = useState<AmcSetupValue>({});
   const amcChoices = useMemo(
     () => toAmcChoices(amcSetup, assignmentRows, assignments),
