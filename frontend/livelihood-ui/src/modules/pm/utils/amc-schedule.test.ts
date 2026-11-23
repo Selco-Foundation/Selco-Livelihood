@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { AmcScheduleRow, RawAmcConfiguration } from "../types/amc";
+import type { AmcScheduleRow, AmcScheduleSource, RawAmcConfiguration } from "../types/amc";
 import {
   firstAmcDueDate,
   isAmcScheduleDirty,
   isPendingActivation,
+  isStartDateLocked,
   toAmcConfigurationUpdates,
   toAmcFieldStaffUpdates,
   toAmcScheduleRows,
@@ -39,21 +40,27 @@ const row: AmcScheduleRow = {
   startDate: 1000,
   frequencyMonths: 6,
   years: 2,
+  submittedVisits: 0,
 };
+
+const source = (configurations: RawAmcConfiguration[], visits: AmcScheduleSource["visits"] = []): AmcScheduleSource => ({
+  configurations,
+  visits,
+});
 
 describe("toAmcScheduleRows", () => {
   it("maps an AMC into a row, converting duration months to years", () => {
-    expect(toAmcScheduleRows({ AmcConfigurations: [raw] })).toEqual([row]);
+    expect(toAmcScheduleRows(source([raw]))).toEqual([row]);
   });
 
   it("returns no rows for a missing response", () => {
     expect(toAmcScheduleRows(undefined)).toEqual([]);
-    expect(toAmcScheduleRows({})).toEqual([]);
+    expect(toAmcScheduleRows(source([]))).toEqual([]);
   });
 
   it("leaves blank values undefined and shows a dash for missing text", () => {
-    const [mapped] = toAmcScheduleRows({
-      AmcConfigurations: [
+    const [mapped] = toAmcScheduleRows(
+      source([
         {
           id: "amc-2",
           status: "ACTIVE",
@@ -64,8 +71,8 @@ describe("toAmcScheduleRows", () => {
           installationApprovedDate: null,
           endUserName: null,
         },
-      ],
-    });
+      ]),
+    );
 
     expect(mapped).toMatchObject({
       endUserName: "-",
@@ -77,16 +84,30 @@ describe("toAmcScheduleRows", () => {
     });
   });
 
-  it("drops completed and cancelled AMCs", () => {
-    expect(
-      toAmcScheduleRows({ AmcConfigurations: [{ ...raw, status: "COMPLETED" }, { ...raw, id: "amc-3", status: "CANCELLED" }] }),
-    ).toEqual([]);
+  it("keeps one row per site: the running AMC, else the completed one, with its start date", () => {
+    const completed = { ...raw, id: "amc-old", status: "COMPLETED" as const };
+    expect(toAmcScheduleRows(source([completed, raw])).map((mapped) => mapped.id)).toEqual(["amc-1"]);
+    expect(toAmcScheduleRows(source([completed]))).toEqual([
+      expect.objectContaining({ id: "amc-old", status: "COMPLETED", startDate: 1000 }),
+    ]);
+  });
+
+  it("counts each AMC's visits that were submitted at least once", () => {
+    const [mapped] = toAmcScheduleRows(
+      source([raw], [
+        { id: "v1", amcConfigurationId: "amc-1", status: "APPROVED", firstSubmissionDate: 1 },
+        { id: "v2", amcConfigurationId: "amc-1", status: "REJECTED", firstSubmissionDate: 2 },
+        { id: "v3", amcConfigurationId: "amc-1", status: "SCHEDULED", firstSubmissionDate: null },
+        { id: "v4", amcConfigurationId: "amc-9", status: "APPROVED", firstSubmissionDate: 3 },
+      ]),
+    );
+    expect(mapped.submittedVisits).toBe(2);
   });
 
   it("shows no start date for a pending AMC", () => {
-    const [mapped] = toAmcScheduleRows({
-      AmcConfigurations: [{ ...raw, status: "PENDING_ACTIVATION", configurationStartDate: 1000, installationApprovedDate: null }],
-    });
+    const [mapped] = toAmcScheduleRows(
+      source([{ ...raw, status: "PENDING_ACTIVATION", configurationStartDate: 1000, installationApprovedDate: null }]),
+    );
 
     expect(mapped.startDate).toBeUndefined();
     expect(isPendingActivation(mapped)).toBe(true);
@@ -146,7 +167,7 @@ describe("validateAmcSchedules", () => {
 
   it("lists each row that lost a value, with the missing fields", () => {
     expect(validateAmcSchedules([row, { ...row, id: "amc-2", startDate: undefined, years: undefined }])).toEqual([
-      { id: "amc-2", endUserName: "user979", missing: ["startDate", "years"] },
+      { id: "amc-2", endUserName: "user979", missing: ["startDate", "years"], problems: [] },
     ]);
   });
 
@@ -155,8 +176,32 @@ describe("validateAmcSchedules", () => {
 
     expect(validateAmcSchedules([pending])).toEqual([]);
     expect(validateAmcSchedules([{ ...pending, years: undefined }])).toEqual([
-      { id: "amc-3", endUserName: "user979", missing: ["years"] },
+      { id: "amc-3", endUserName: "user979", missing: ["years"], problems: [] },
     ]);
+  });
+
+  it("refuses fewer visits than are already submitted", () => {
+    expect(validateAmcSchedules([{ ...row, submittedVisits: 3, frequencyMonths: 12, years: 2 }])).toEqual([
+      { id: "amc-1", endUserName: "user979", missing: [], problems: [{ kind: "TOTAL_BELOW_SUBMITTED", submitted: 3 }] },
+    ]);
+    expect(validateAmcSchedules([{ ...row, submittedVisits: 3, frequencyMonths: 6, years: 2 }])).toEqual([]);
+  });
+
+  it("refuses years that are not a whole number of visits", () => {
+    expect(validateAmcSchedules([{ ...row, frequencyMonths: 5, years: 1 }])[0].problems).toEqual([{ kind: "NOT_WHOLE_VISITS" }]);
+  });
+
+  it("skips completed AMCs, which can't be edited", () => {
+    expect(validateAmcSchedules([{ ...row, status: "COMPLETED", years: undefined }])).toEqual([]);
+  });
+});
+
+describe("isStartDateLocked", () => {
+  it("opens the start date only on an active AMC with no submitted visit", () => {
+    expect(isStartDateLocked(row)).toBe(false);
+    expect(isStartDateLocked({ ...row, submittedVisits: 1 })).toBe(true);
+    expect(isStartDateLocked({ ...row, status: "PENDING_ACTIVATION" })).toBe(true);
+    expect(isStartDateLocked({ ...row, status: "COMPLETED" })).toBe(true);
   });
 });
 
@@ -184,9 +229,7 @@ describe("field staff changes", () => {
   const withStaff = { ...row, fieldStaffId: "s1" };
 
   it("reads the field staff and organisation off the search row", () => {
-    const [mapped] = toAmcScheduleRows({
-      AmcConfigurations: [{ ...raw, vendorId: "org-1", fieldStaff: { uuid: "s1", name: "Ravi" } }],
-    });
+    const [mapped] = toAmcScheduleRows(source([{ ...raw, vendorId: "org-1", fieldStaff: { uuid: "s1", name: "Ravi" } }]));
     expect(mapped).toMatchObject({ vendorOrgId: "org-1", fieldStaffId: "s1", fieldStaffName: "Ravi" });
   });
 

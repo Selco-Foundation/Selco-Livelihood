@@ -98,3 +98,23 @@ export async function createAmcConfigurations(
   );
   return data;
 }
+
+/**
+ * `POST /asset-amc/v1/configuration/_delete` — turns AMCs off (status CANCELLED). Their visits not yet
+ * submitted are removed; submitted reports stay and can still be reviewed. A completed AMC is refused.
+ */
+export async function deleteAmcConfigurations(
+  configurations: { tenantId: string; id: string }[],
+  accessToken: string,
+  user?: AuthUser | null,
+): Promise<{ AmcConfigurations?: RawAmcConfiguration[] }> {
+  const { data } = await apiClient.post<{ AmcConfigurations?: RawAmcConfiguration[] }>(
+    "/asset-amc/v1/configuration/_delete",
+    {
+      RequestInfo: createRequestInfo(accessToken, user),
+      AmcConfigurations: configurations,
+    },
+    { params: { tenantId: getTenantId() } },
+  );
+  return data;
+}

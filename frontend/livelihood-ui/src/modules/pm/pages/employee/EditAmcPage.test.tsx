@@ -6,6 +6,7 @@ import { toast } from "@/ui";
 import { useAmcSchedules } from "../../hooks/use-amc-schedules";
 import { useInstallationPlanById } from "../../hooks/use-installation-plan-by-id";
 import { useProjectById } from "../../hooks/use-project-by-id";
+import { useTurnOffAmc } from "../../hooks/use-turn-off-amc";
 import { useUpdateAmcSchedules } from "../../hooks/use-update-amc-schedules";
 import type { RawAmcConfiguration } from "../../types/amc";
 import { EditAmcPage } from "./EditAmcPage";
@@ -47,6 +48,9 @@ vi.mock("../../hooks/use-amc-options", () => ({
 }));
 vi.mock("../../hooks/use-amc-schedules", () => ({ useAmcSchedules: vi.fn() }));
 vi.mock("../../hooks/use-update-amc-schedules", () => ({ useUpdateAmcSchedules: vi.fn() }));
+vi.mock("../../hooks/use-turn-off-amc", () => ({ useTurnOffAmc: vi.fn() }));
+
+const turnOff = vi.fn();
 
 function schedule(overrides: Partial<RawAmcConfiguration>): RawAmcConfiguration {
   return {
@@ -84,8 +88,10 @@ beforeEach(() => {
   vi.mocked(toast.error).mockReset();
   vi.mocked(useProjectById).mockReturnValue({ data: { id: "project-1", name: "JUS-12345-26-26" } } as never);
   vi.mocked(useInstallationPlanById).mockReturnValue({ data: { id: "plan-1", name: "IN-INS-2026-28" } } as never);
-  vi.mocked(useAmcSchedules).mockReturnValue({ data: { AmcConfigurations: [schedule({})] }, isLoading: false } as never);
+  vi.mocked(useAmcSchedules).mockReturnValue({ data: { configurations: [schedule({})], visits: [] }, isLoading: false } as never);
   vi.mocked(useUpdateAmcSchedules).mockReturnValue({ mutate, isPending: false } as never);
+  turnOff.mockReset();
+  vi.mocked(useTurnOffAmc).mockReturnValue({ mutate: turnOff, isPending: false } as never);
 });
 
 async function changeFrequencyToOneYear(endUserName = "user979") {
@@ -118,9 +124,10 @@ describe("EditAmcPage", () => {
   it("saves nothing and names the row when a value is missing", async () => {
     vi.mocked(useAmcSchedules).mockReturnValue({
       data: {
-        AmcConfigurations: [
+        visits: [],
+        configurations: [
           schedule({}),
-          schedule({ id: "amc-2", endUserName: "user980", endUserPhone: "9845012876", configurationStartDate: null }),
+          schedule({ id: "amc-2", activityFacilityId: "row-2", endUserName: "user980", endUserPhone: "9845012876", configurationStartDate: null }),
         ],
       },
       isLoading: false,
@@ -155,10 +162,12 @@ describe("EditAmcPage", () => {
   it("lets a not-yet-installed site keep a blank start date, shown as Pending activation", async () => {
     vi.mocked(useAmcSchedules).mockReturnValue({
       data: {
-        AmcConfigurations: [
+        visits: [],
+        configurations: [
           schedule({}),
           schedule({
             id: "amc-2",
+            activityFacilityId: "row-2",
             status: "PENDING_ACTIVATION",
             endUserName: "user980",
             endUserPhone: "9845012876",
@@ -172,7 +181,8 @@ describe("EditAmcPage", () => {
     renderPage();
 
     expect(screen.getByText("Not installed yet")).toBeInTheDocument();
-    expect(screen.getByText("Pending activation")).toBeInTheDocument();
+    // Once as the AMC status, once in place of the first due date.
+    expect(screen.getAllByText("Pending activation")).toHaveLength(2);
     expect(screen.getByRole("button", { name: "AMC start date, user980" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "AMC start date, user980" })).toHaveTextContent("After installation");
     expect(screen.getByRole("button", { name: "AMC start date, user979" })).toBeEnabled();
@@ -209,5 +219,51 @@ describe("EditAmcPage", () => {
       expect.objectContaining({ description: expect.stringContaining("start date is locked") }),
     );
     expect(navigate).not.toHaveBeenCalled();
+  });
+  it("turns an AMC off after the confirmation, then shows a toast", async () => {
+    turnOff.mockImplementation((_id, options: { onSuccess: () => void }) => options.onSuccess());
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Turn off AMC, user979" }));
+    expect(turnOff).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Turn off AMC" }));
+
+    expect(turnOff).toHaveBeenCalledWith("amc-1", expect.any(Object));
+    expect(toast.success).toHaveBeenCalledWith("AMC turned off");
+  });
+
+  it("locks the start date once a visit is submitted, and refuses fewer visits than that", async () => {
+    vi.mocked(useAmcSchedules).mockReturnValue({
+      data: {
+        configurations: [schedule({})],
+        visits: [
+          { id: "v1", amcConfigurationId: "amc-1", firstSubmissionDate: 1 },
+          { id: "v2", amcConfigurationId: "amc-1", firstSubmissionDate: 2 },
+          { id: "v3", amcConfigurationId: "amc-1", firstSubmissionDate: 3 },
+        ],
+      },
+      isLoading: false,
+    } as never);
+    renderPage();
+
+    expect(screen.getByText("Locked: visit 1 is submitted")).toBeInTheDocument();
+    const user = await changeFrequencyToOneYear();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(screen.getByText(/3 visits are already submitted/)).toBeInTheDocument();
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it("shows a completed AMC read-only, without Turn off", () => {
+    vi.mocked(useAmcSchedules).mockReturnValue({
+      data: { configurations: [schedule({ status: "COMPLETED" })], visits: [] },
+      isLoading: false,
+    } as never);
+    renderPage();
+
+    expect(screen.getByText("Completed")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "AMC frequency, user979" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Turn off AMC, user979" })).not.toBeInTheDocument();
   });
 });

@@ -17,6 +17,8 @@ import {
 
 vi.mock("../../hooks/use-amc-field-staff-options", () => ({ useAmcFieldStaffOptions: vi.fn() }));
 vi.mock("../../hooks/use-plan-amc-by-site", () => ({ usePlanAmcBySite: vi.fn() }));
+vi.mock("../../hooks/use-turn-off-amc", () => ({ useTurnOffAmc: () => ({ mutate: turnOffMutate, isPending: false }) }));
+const turnOffMutate = vi.fn();
 vi.mock("../../hooks/use-vendor-assignment-search", () => ({ useVendorAssignmentSearch: vi.fn() }));
 vi.mock("../../hooks/use-vendor-organisations", () => ({ useVendorOrganisations: vi.fn() }));
 vi.mock("../../hooks/use-vendor-org-users", () => ({ useVendorOrgUsers: vi.fn() }));
@@ -186,7 +188,8 @@ describe("TechnicianAssignmentStep AMC applicable column", () => {
     expect(screen.getByRole("switch", { name: "AMC applicable, Site One, Solar Panel" })).toBeEnabled();
   });
 
-  it("shows a solar site's running AMC read-only instead of a switch", () => {
+  it("shows a solar site's running AMC as a switched-on switch that turns it off after confirmation", async () => {
+    const user = userEvent.setup();
     vi.mocked(usePlanAmcBySite).mockReturnValue({
       data: {
         f1: {
@@ -201,8 +204,14 @@ describe("TechnicianAssignmentStep AMC applicable column", () => {
     } as never);
     render(<TechnicianAssignmentStep planId="plan-1" value={[]} onChange={vi.fn()} locked onAmcSetupChange={vi.fn()} />);
 
-    expect(screen.queryByRole("switch", { name: "AMC applicable, Site One, Solar Panel" })).not.toBeInTheDocument();
+    const amcSwitch = screen.getByRole("switch", { name: "AMC applicable, Site One, Solar Panel" });
+    expect(amcSwitch).toBeChecked();
     expect(screen.getByText("Pending activation")).toBeInTheDocument();
+
+    await user.click(amcSwitch);
+    expect(turnOffMutate).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Turn off AMC" }));
+    expect(turnOffMutate).toHaveBeenCalledWith("amc-1", expect.any(Object));
   });
 
   it("lists the AMC field staff of the row's organization once AMC is on", async () => {

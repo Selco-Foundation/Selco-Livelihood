@@ -1,8 +1,9 @@
-import { translateOr, useTranslate } from "@/shared";
-import { Input, Pagination, SearchableSelect, Switch } from "@/ui";
+import { extractApiErrorMessage, translateOr, useTranslate } from "@/shared";
+import { Input, Pagination, SearchableSelect, Switch, toast } from "@/ui";
 import { Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { usePlanAmcBySite } from "../../hooks/use-plan-amc-by-site";
+import { useTurnOffAmc } from "../../hooks/use-turn-off-amc";
 import { useVendorAssignmentSearch } from "../../hooks/use-vendor-assignment-search";
 import { useVendorOrganisations } from "../../hooks/use-vendor-organisations";
 import { useVendorOrgUsers } from "../../hooks/use-vendor-org-users";
@@ -18,6 +19,7 @@ import {
 } from "../../utils/amc-setup";
 import { AmcFieldStaffSelect } from "../AmcFieldStaffSelect";
 import { StepSectionCard } from "../StepSectionCard";
+import { TurnOffAmcDialog } from "../TurnOffAmcDialog";
 
 const DEFAULT_PAGE_SIZE = 10;
 
@@ -143,8 +145,28 @@ export function TechnicianAssignmentStep({
   const { t } = useTranslate();
   const { data: searchResult } = useVendorAssignmentSearch(planId);
   const { data: organisations = [] } = useVendorOrganisations();
-  // Solar sites that already have a running AMC (published plans): shown read-only below.
+  // Solar sites that already have a running AMC (published plans): their switch only turns it off.
   const { data: existingAmcs = {} } = usePlanAmcBySite(planId);
+  const turnOffAmc = useTurnOffAmc(planId);
+  const [turnOffTarget, setTurnOffTarget] = useState<{ amcId: string; endUserName: string } | null>(null);
+
+  function handleTurnOff() {
+    if (!turnOffTarget) return;
+    turnOffAmc.mutate(turnOffTarget.amcId, {
+      onSuccess: () => {
+        toast.success(translateOr(t, "ES_PM_AMC_TURNED_OFF", "AMC turned off"));
+        setTurnOffTarget(null);
+      },
+      onError: (error) => {
+        toast.error(translateOr(t, "ES_PM_AMC_TURN_OFF_FAILED", "Could not turn the AMC off"), {
+          description:
+            extractApiErrorMessage(error) ??
+            translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again."),
+        });
+        setTurnOffTarget(null);
+      },
+    });
+  }
   const sites = useMemo(() => searchResult?.sites ?? [], [searchResult]);
 
   // Paginated by site (end user), not by raw asset row, so a site's assets never split across
@@ -317,7 +339,18 @@ export function TechnicianAssignmentStep({
                     <td className="px-5 py-4">
                       {existingAmc ? (
                         <div className="space-y-0.5">
-                          <span className="text-sm text-foreground">{translateOr(t, "CORE_COMMON_YES", "Yes")}</span>
+                          <label className="flex items-center gap-2 text-sm text-foreground">
+                            <Switch
+                              checked
+                              // Switching off asks for confirmation, then turns the running AMC off.
+                              disabled={amcDisabled || turnOffAmc.isPending}
+                              onCheckedChange={(checked) =>
+                                !checked && setTurnOffTarget({ amcId: existingAmc.id, endUserName: row.siteName })
+                              }
+                              aria-label={`${translateOr(t, "ES_PM_AMC_APPLICABLE", "AMC applicable")}, ${rowLabel(row)}`}
+                            />
+                            {translateOr(t, "CORE_COMMON_YES", "Yes")}
+                          </label>
                           <p className="text-xs text-muted-foreground">
                             {existingAmc.status === "ACTIVE"
                               ? translateOr(t, "ES_PM_AMC_STATUS_ACTIVE", "Active")
@@ -398,6 +431,12 @@ export function TechnicianAssignmentStep({
           />
         ) : null}
       </div>
+      <TurnOffAmcDialog
+        endUserName={turnOffTarget?.endUserName ?? null}
+        isPending={turnOffAmc.isPending}
+        onCancel={() => setTurnOffTarget(null)}
+        onConfirm={handleTurnOff}
+      />
     </StepSectionCard>
   );
 }

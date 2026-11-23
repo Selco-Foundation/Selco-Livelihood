@@ -1,24 +1,34 @@
 import { employeeHomePath, extractApiErrorMessage, translateOr, useTranslate } from "@/shared";
 import { Button, SearchableSelect, Skeleton, toast, TopBar } from "@/ui";
 import { Link, useSearch } from "@tanstack/react-router";
-import { Info, Plus, Sun } from "lucide-react";
+import { Info, Plus, Power, Sun } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AddAmcDialog } from "../../components/AddAmcDialog";
 import { AmcFieldStaffSelect } from "../../components/AmcFieldStaffSelect";
 import { DateField } from "../../components/DateField";
 import { StepSectionCard } from "../../components/StepSectionCard";
+import { TurnOffAmcDialog } from "../../components/TurnOffAmcDialog";
 import { WizardActionFooter } from "../../components/WizardActionFooter";
 import { useAmcOptions } from "../../hooks/use-amc-options";
 import { useAmcSchedules } from "../../hooks/use-amc-schedules";
 import { useInstallationPlanById } from "../../hooks/use-installation-plan-by-id";
 import { useProjectById } from "../../hooks/use-project-by-id";
+import { useTurnOffAmc } from "../../hooks/use-turn-off-amc";
 import { useUpdateAmcSchedules } from "../../hooks/use-update-amc-schedules";
 import type { EditAmcRouteSearch } from "../../routes";
-import type { AmcScheduleField, AmcScheduleRow, AmcScheduleRowError } from "../../types/amc";
+import type {
+  AmcConfigurationStatus,
+  AmcScheduleField,
+  AmcScheduleProblem,
+  AmcScheduleRow,
+  AmcScheduleRowError,
+} from "../../types/amc";
 import {
   firstAmcDueDate,
+  isAmcRunning,
   isAmcScheduleDirty,
   isPendingActivation,
+  isStartDateLocked,
   toAmcScheduleRows,
   totalAmcActivities,
   validateAmcSchedules,
@@ -40,6 +50,8 @@ export function EditAmcPage() {
   const [rows, setRows] = useState<AmcScheduleRow[]>([]);
   const [errors, setErrors] = useState<AmcScheduleRowError[]>([]);
   const [addOpen, setAddOpen] = useState(false);
+  const [turnOffRow, setTurnOffRow] = useState<AmcScheduleRow | null>(null);
+  const turnOffAmc = useTurnOffAmc(planId);
 
   useEffect(() => {
     setRows(originalRows);
@@ -62,6 +74,41 @@ export function EditAmcPage() {
     frequencyMonths: translateOr(t, "ES_PM_AMC_FREQUENCY", "AMC frequency"),
     years: translateOr(t, "ES_PM_AMC_YEARS", "Number of years"),
   };
+
+  const statusLabels: Record<AmcConfigurationStatus, string> = {
+    PENDING_ACTIVATION: translateOr(t, "ES_PM_AMC_PENDING_ACTIVATION", "Pending activation"),
+    ACTIVE: translateOr(t, "ES_PM_AMC_STATUS_ACTIVE", "Active"),
+    COMPLETED: translateOr(t, "ES_PM_AMC_STATUS_COMPLETED", "Completed"),
+    CANCELLED: translateOr(t, "ES_PM_AMC_STATUS_CANCELLED", "Turned off"),
+  };
+
+  function problemText(problem: AmcScheduleProblem): string {
+    return problem.kind === "NOT_WHOLE_VISITS"
+      ? translateOr(t, "ES_PM_AMC_NOT_WHOLE_VISITS", "the years must be a whole number of visits at this frequency")
+      : translateOr(
+          t,
+          "ES_PM_AMC_TOTAL_BELOW_SUBMITTED",
+          "{count} visits are already submitted; choose years and frequency that give at least {count}",
+        ).replaceAll("{count}", String(problem.submitted));
+  }
+
+  function handleTurnOff() {
+    if (!turnOffRow) return;
+    turnOffAmc.mutate(turnOffRow.id, {
+      onSuccess: () => {
+        toast.success(translateOr(t, "ES_PM_AMC_TURNED_OFF", "AMC turned off"));
+        setTurnOffRow(null);
+      },
+      onError: (error) => {
+        toast.error(translateOr(t, "ES_PM_AMC_TURN_OFF_FAILED", "Could not turn the AMC off"), {
+          description:
+            extractApiErrorMessage(error) ??
+            translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again."),
+        });
+        setTurnOffRow(null);
+      },
+    });
+  }
 
   function updateRow(id: string, patch: Partial<AmcScheduleRow>) {
     setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)));
@@ -97,11 +144,13 @@ export function EditAmcPage() {
     translateOr(t, "CS_BLOCK", "Block"),
     translateOr(t, "ES_PM_ASSET", "Asset"),
     translateOr(t, "ES_PM_AMC_INSTALLATION", "Installation"),
+    translateOr(t, "ES_PM_AMC_STATUS", "AMC status"),
   ];
   const computedColumns = [
     translateOr(t, "ES_PM_AMC_FIRST_DUE", "First AMC due"),
     translateOr(t, "ES_PM_AMC_TOTAL", "Total AMCs"),
     translateOr(t, "ES_PM_AMC_FIELD_STAFF", "AMC field staff"),
+    translateOr(t, "ES_PM_ACTIONS", "Actions"),
   ];
 
   return (
@@ -167,8 +216,15 @@ export function EditAmcPage() {
               <ul className="list-disc pl-5 text-foreground">
                 {errors.map((error) => (
                   <li key={error.id}>
-                    {error.endUserName}: {error.missing.map((field) => fieldLabels[field]).join(", ")}{" "}
-                    {translateOr(t, "ES_PM_AMC_IS_REQUIRED", "is required")}
+                    {error.endUserName}:{" "}
+                    {[
+                      ...(error.missing.length > 0
+                        ? [
+                            `${error.missing.map((field) => fieldLabels[field]).join(", ")} ${translateOr(t, "ES_PM_AMC_IS_REQUIRED", "is required")}`,
+                          ]
+                        : []),
+                      ...error.problems.map(problemText),
+                    ].join("; ")}
                   </li>
                 ))}
               </ul>
@@ -184,7 +240,7 @@ export function EditAmcPage() {
           ) : (
             <div className="livelihood-card overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1900px] border-collapse text-sm">
+                <table className="w-full min-w-[2150px] border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-border">
                       {readOnlyColumns.map((label) => (
@@ -207,6 +263,8 @@ export function EditAmcPage() {
                   <tbody>
                     {rows.map((row) => {
                       const rowError = errors.find((error) => error.id === row.id);
+                      const running = isAmcRunning(row);
+                      const dateLocked = isStartDateLocked(row);
                       return (
                         <tr key={row.id} className="border-b border-border/70 last:border-b-0">
                           <td className="px-5 py-4 font-semibold text-foreground">{row.endUserName}</td>
@@ -230,6 +288,17 @@ export function EditAmcPage() {
                               </span>
                             )}
                           </td>
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <span
+                              className={
+                                running
+                                  ? "inline-flex items-center rounded-md bg-accent px-2 py-1 text-xs font-medium text-primary"
+                                  : "inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground"
+                              }
+                            >
+                              {statusLabels[row.status]}
+                            </span>
+                          </td>
                           <td className="w-[180px] bg-accent/40 px-5 py-4">
                             <DateField
                               hideLabel
@@ -237,7 +306,7 @@ export function EditAmcPage() {
                               // A pending AMC starts on the day its installation report is approved, so the
                               // start date opens only once the AMC is running. The server also refuses a
                               // change after visit 1 has been submitted.
-                              disabled={isPendingActivation(row)}
+                              disabled={dateLocked}
                               minDate={row.installedOn ? new Date(row.installedOn) : undefined}
                               placeholder={
                                 isPendingActivation(row)
@@ -248,14 +317,24 @@ export function EditAmcPage() {
                               onChange={(startDate) => updateRow(row.id, { startDate })}
                               error={rowError?.missing.includes("startDate") ? fieldLabels.startDate : undefined}
                             />
+                            {running && !isPendingActivation(row) && row.submittedVisits > 0 ? (
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {translateOr(t, "ES_PM_AMC_START_LOCKED", "Locked: visit 1 is submitted")}
+                              </p>
+                            ) : null}
                           </td>
                           <td className="w-[170px] bg-accent/40 px-5 py-4">
                             <SearchableSelect
                               ariaLabel={`${fieldLabels.frequencyMonths}, ${row.endUserName}`}
+                              disabled={!running}
                               value={row.frequencyMonths ? String(row.frequencyMonths) : ""}
                               options={frequencyOptions}
                               placeholder={translateOr(t, "ES_COMMON_SELECT_PLACEHOLDER", "Select")}
-                              error={rowError?.missing.includes("frequencyMonths") ? fieldLabels.frequencyMonths : undefined}
+                              error={
+                                rowError?.missing.includes("frequencyMonths") || (rowError?.problems.length ?? 0) > 0
+                                  ? fieldLabels.frequencyMonths
+                                  : undefined
+                              }
                               onChange={(option) =>
                                 updateRow(row.id, { frequencyMonths: option ? Number(option.code) : undefined })
                               }
@@ -264,10 +343,15 @@ export function EditAmcPage() {
                           <td className="w-[150px] bg-accent/40 px-5 py-4">
                             <SearchableSelect
                               ariaLabel={`${fieldLabels.years}, ${row.endUserName}`}
+                              disabled={!running}
                               value={row.years ? String(row.years) : ""}
                               options={yearsOptions}
                               placeholder={translateOr(t, "ES_COMMON_SELECT_PLACEHOLDER", "Select")}
-                              error={rowError?.missing.includes("years") ? fieldLabels.years : undefined}
+                              error={
+                                rowError?.missing.includes("years") || (rowError?.problems.length ?? 0) > 0
+                                  ? fieldLabels.years
+                                  : undefined
+                              }
                               onChange={(option) => updateRow(row.id, { years: option ? Number(option.code) : undefined })}
                             />
                           </td>
@@ -276,8 +360,10 @@ export function EditAmcPage() {
                               <span className="text-xs font-medium text-muted-foreground">
                                 {translateOr(t, "ES_PM_AMC_PENDING_ACTIVATION", "Pending activation")}
                               </span>
-                            ) : (
+                            ) : running ? (
                               formatDate(firstAmcDueDate(row))
+                            ) : (
+                              "-"
                             )}
                           </td>
                           <td className="px-5 py-4 text-foreground">{totalAmcActivities(row) ?? "-"}</td>
@@ -287,8 +373,32 @@ export function EditAmcPage() {
                               organizationId={row.vendorOrgId}
                               value={row.fieldStaffId ?? ""}
                               onChange={(fieldStaffId, fieldStaffName) => updateRow(row.id, { fieldStaffId, fieldStaffName })}
-                              disabled={false}
+                              disabled={!running}
                             />
+                          </td>
+                          <td className="px-5 py-4">
+                            {running ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive"
+                                // Turning off reloads the table, which would drop unsaved edits on other rows.
+                                disabled={isDirty || turnOffAmc.isPending}
+                                title={
+                                  isDirty
+                                    ? translateOr(t, "ES_PM_AMC_SAVE_FIRST", "Save your changes before turning an AMC off")
+                                    : undefined
+                                }
+                                aria-label={`${translateOr(t, "ES_PM_AMC_TURN_OFF", "Turn off AMC")}, ${row.endUserName}`}
+                                onClick={() => setTurnOffRow(row)}
+                              >
+                                <Power className="size-4" />
+                                {translateOr(t, "ES_PM_AMC_TURN_OFF_SHORT", "Turn off")}
+                              </Button>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
                           </td>
                         </tr>
                       );
@@ -312,6 +422,12 @@ export function EditAmcPage() {
         </Button>
       </WizardActionFooter>
       <AddAmcDialog planId={planId} open={addOpen} onOpenChange={setAddOpen} />
+      <TurnOffAmcDialog
+        endUserName={turnOffRow?.endUserName ?? null}
+        isPending={turnOffAmc.isPending}
+        onCancel={() => setTurnOffRow(null)}
+        onConfirm={handleTurnOff}
+      />
     </div>
   );
 }
