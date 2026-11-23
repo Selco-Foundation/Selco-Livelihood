@@ -21,12 +21,23 @@ class WorkflowRejectionReasons extends StatelessWidget {
   final Key? surfaceKey;
   final bool showSectionLabel;
 
-  String _reason(WorkflowComment comment, int index) {
-    final reason = comment.reason;
-    if (reason?.isNotEmpty == true) return reason!;
-    final code = comment.reasonCode;
+  /// A localisation code such as `READINGS_NOT_CORRECT`, as opposed to text
+  /// a reviewer typed.
+  static bool _isLocalizationCode(String value) =>
+      value == value.toUpperCase() && !value.contains(' ');
+
+  /// The reason's text. AMC reviewers send only codes, translated from the
+  /// localisation messages; typed text is shown as it is. An unknown code
+  /// is shown as the code.
+  String _reason(BuildContext context, WorkflowComment comment, int index) {
+    final reason = comment.reason?.trim();
+    if (reason?.isNotEmpty == true) {
+      return _isLocalizationCode(reason!) ? context.translate(reason) : reason;
+    }
+    final code = comment.reasonCode?.trim();
     if (code?.isNotEmpty == true) {
-      return assetMdmsRepository.rejectionReasonName(code!) ?? code;
+      return assetMdmsRepository.rejectionReasonName(code!) ??
+          context.translate(code);
     }
     return 'Reason ${index + 1}';
   }
@@ -58,9 +69,9 @@ class WorkflowRejectionReasons extends StatelessWidget {
       }
     }
 
-    final isLocalizationCode = sectionLabel == sectionLabel.toUpperCase() &&
-        !sectionLabel.contains(' ');
-    return isLocalizationCode ? context.translate(sectionLabel) : sectionLabel;
+    return _isLocalizationCode(sectionLabel)
+        ? context.translate(sectionLabel)
+        : sectionLabel;
   }
 
   Widget _reasonCard(
@@ -96,7 +107,7 @@ class WorkflowRejectionReasons extends StatelessWidget {
             horizontal: spacer3,
           ),
           child: Text(
-            _reason(comment, index),
+            _reason(context, comment, index),
             style: textTheme.label.copyWith(
               color: theme.colorTheme.primary.primary2,
             ),

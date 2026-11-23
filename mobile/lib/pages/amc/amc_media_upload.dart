@@ -61,6 +61,10 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
   double? _latitude;
   double? _longitude;
   List<String>? existingImagePaths;
+  // Downloaded copy path -> filestore id for photos already on the server
+  // (a rejected report's). They are saved by id so the submit reuses them;
+  // re-uploading the downloaded copy fails because it has no image extension.
+  final Map<String, String> _fileStoreIdByPath = {};
   StreamSubscription<LocationState>? _locSub;
 
   bool _showPhotoError = false;
@@ -137,6 +141,7 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
       final futures = cacheEntries.map((e) async {
         final file = await getCachedFile(e.filePath);
         if (file == null) return null;
+        if (isValidUuid(e.filePath)) _fileStoreIdByPath[file.path] = e.filePath;
         return File(file.path);
       }).toList();
 
@@ -164,8 +169,12 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
       }
 
       final futures = docs.map((e) async {
-        final file = await getCachedFile(e.fileStore ?? '');
+        final fileStoreId = e.fileStore ?? '';
+        final file = await getCachedFile(fileStoreId);
         if (file == null) return null;
+        if (isValidUuid(fileStoreId)) {
+          _fileStoreIdByPath[file.path] = fileStoreId;
+        }
         return File(file.path);
       }).toList();
 
@@ -206,7 +215,8 @@ class _AmcMediaUploadPageState extends State<AmcMediaUploadPage> {
 
     final entries = <CacheAmcMediaUpload>[];
     for (final file in _selectedImages) {
-      final copied = await copyFileToLocalDir(File(file.path));
+      final copied = _fileStoreIdByPath[file.path] ??
+          await copyFileToLocalDir(File(file.path));
       entries.add(CacheAmcMediaUpload(
         scheduledVisitId: visitId,
         itemNumber: file.path,
