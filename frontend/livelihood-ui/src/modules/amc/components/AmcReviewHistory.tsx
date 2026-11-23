@@ -40,7 +40,7 @@ export function AmcReviewHistory({ history, reasonName }: Readonly<AmcReviewHist
               <span
                 className={cn("mt-1.5 size-2.5 shrink-0 rounded-full", isRework ? "bg-destructive" : "bg-primary")}
               />
-              <div className="space-y-0.5 text-sm">
+              <div className="min-w-0 space-y-0.5 text-sm wrap-anywhere">
                 <p className={cn("font-semibold", isRework ? "text-destructive" : "text-ink-950")}>
                   {label ? translateOr(t, label.key, label.fallback) : entry.action}
                 </p>

@@ -24,7 +24,7 @@ export function LabeledValueRows({ items, labelWidthClassName = "w-40" }: Labele
           <span className={cn(labelWidthClassName, "shrink-0 font-semibold text-ink-950")}>
             {translateOr(t, item.labelKey, item.label)}
           </span>
-          <span className="text-ink-950">
+          <span className="min-w-0 flex-1 basis-40 wrap-anywhere text-ink-950">
             {item.valueKey ? translateOr(t, item.valueKey, item.value) : item.value}
           </span>
         </div>
