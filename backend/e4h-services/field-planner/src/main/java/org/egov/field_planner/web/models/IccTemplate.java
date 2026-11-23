@@ -37,4 +37,8 @@ public class IccTemplate {
 
     @JsonProperty("fileStoreId")
     private String fileStoreId = null;
+
+    /** The Solution's system type code, e.g. AC or DC; null when it has none. */
+    @JsonProperty("systemType")
+    private String systemType = null;
 }

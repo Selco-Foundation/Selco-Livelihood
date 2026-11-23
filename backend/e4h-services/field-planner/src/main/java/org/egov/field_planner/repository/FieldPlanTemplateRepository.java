@@ -42,7 +42,8 @@ public class FieldPlanTemplateRepository {
 
     private static final String SELECT_ICC =
             "SELECT icc.id AS icc_id, icc.tenant_id AS icc_tenantId, icc.solution_code AS icc_solutionCode, "
-                    + "icc.solution_name AS icc_solutionName, icc.filestoreid AS icc_fileStoreId "
+                    + "icc.solution_name AS icc_solutionName, icc.filestoreid AS icc_fileStoreId, "
+                    + "icc.system_type AS icc_systemType "
                     + "FROM icc_templates icc WHERE icc.tenant_id = ? AND icc.solution_code IS NOT NULL ";
 
     private final JdbcTemplate jdbcTemplate;
