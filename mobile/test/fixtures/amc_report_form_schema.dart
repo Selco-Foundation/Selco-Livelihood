@@ -203,7 +203,6 @@ Map<String, dynamic> amcReportFormSchemaDoc(String tenantId) {
           },
         ]),
 
-        // 4. Observation points (19, all required)
         () {
           o = 0;
           return _page('Observation_Points', 4, 'AMC_FORM_OBSERVATION_POINTS', [
