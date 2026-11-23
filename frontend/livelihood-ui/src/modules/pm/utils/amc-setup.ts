@@ -1,3 +1,4 @@
+import { AMC_DEFAULTS_MISSING, AMC_INSTALLATION_NOT_READY } from "./amc-errors";
 import type { AmcConfigurationCreate, RawAmcConfiguration } from "../types/amc";
 
 /** What the PM chooses for one solar asset: AMC on or off, and the AMC field staff when on. */
@@ -103,7 +104,8 @@ export interface AmcDefaults {
 }
 
 /**
- * The `_create` rows for the chosen sites. A choice without frequency or years takes `defaults`
+ * The `_create` rows for the chosen sites, one per choice in the same order (the server's error rows
+ * are matched back by position). Throws when a site has no installation row yet. A choice without frequency or years takes `defaults`
  * (Edit AMC changes them later); throws when neither is known. An approved installation also gets a start date: `startDate` (today), which is
  * never before its approval day.
  */
@@ -114,24 +116,22 @@ export function toAmcCreateRows(
   startDate: number,
   defaults: AmcDefaults = {},
 ): AmcConfigurationCreate[] {
-  return choices.flatMap((choice) => {
+  return choices.map((choice) => {
     const facility = facilities.find((row) => row.activityFacility.facilityId === choice.facilityId)?.activityFacility;
-    if (!facility) return [];
+    if (!facility) throw new Error(AMC_INSTALLATION_NOT_READY);
     const frequencyMonths = choice.frequencyMonths ?? defaults.frequencyMonths;
     const years = choice.years ?? defaults.years;
     if (frequencyMonths === undefined || years === undefined) {
-      throw new Error("No default AMC frequency or duration is configured");
+      throw new Error(AMC_DEFAULTS_MISSING);
     }
-    return [
-      {
-        tenantId,
-        activityFacilityId: facility.id,
-        visitFrequencyMonths: frequencyMonths,
-        durationMonths: years * 12,
-        vendorOrgId: choice.vendorOrgId,
-        amcFieldStaffId: choice.fieldStaffId,
-        ...(facility.status === APPROVED_INSTALLATION_STATUS ? { configurationStartDate: startDate } : {}),
-      },
-    ];
+    return {
+      tenantId,
+      activityFacilityId: facility.id,
+      visitFrequencyMonths: frequencyMonths,
+      durationMonths: years * 12,
+      vendorOrgId: choice.vendorOrgId,
+      amcFieldStaffId: choice.fieldStaffId,
+      ...(facility.status === APPROVED_INSTALLATION_STATUS ? { configurationStartDate: startDate } : {}),
+    };
   });
 }

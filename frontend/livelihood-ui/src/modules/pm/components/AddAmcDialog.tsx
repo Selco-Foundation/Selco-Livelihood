@@ -1,10 +1,11 @@
-import { extractApiErrorMessage, translateOr, useTranslate } from "@/shared";
+import { translateOr, useTranslate } from "@/shared";
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, SearchableSelect, toast } from "@/ui";
 import { useMemo, useState } from "react";
 import { useAmcOptions } from "../hooks/use-amc-options";
 import { useCreatePlanAmcs } from "../hooks/use-create-plan-amcs";
 import { usePlanAmcBySite } from "../hooks/use-plan-amc-by-site";
 import { useVendorAssignmentSearch } from "../hooks/use-vendor-assignment-search";
+import { amcErrorText } from "../utils/amc-errors";
 import { AmcFieldStaffSelect } from "./AmcFieldStaffSelect";
 
 interface AddAmcDialogProps {
@@ -52,7 +53,7 @@ export function AddAmcDialog({ planId, open, onOpenChange }: Readonly<AddAmcDial
       onError: (error) => {
         toast.error(translateOr(t, "ES_PM_AMC_CREATE_FAILED", "Could not create the AMC"), {
           description:
-            extractApiErrorMessage(error) ??
+            amcErrorText(error, t, () => site.name) ??
             translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again."),
         });
       },

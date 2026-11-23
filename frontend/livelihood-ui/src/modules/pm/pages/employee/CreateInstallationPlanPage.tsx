@@ -28,6 +28,7 @@ import { useCreatePlanAmcs } from "../../hooks/use-create-plan-amcs";
 import { useSaveInstallationPlan } from "../../hooks/use-save-installation-plan";
 import { useVendorAssignmentSearch } from "../../hooks/use-vendor-assignment-search";
 import type { InstallationPlanRouteSearch } from "../../routes";
+import { amcErrorText, type AmcErrorRow } from "../../utils/amc-errors";
 import { rowsMissingFieldStaff, toAmcChoices, type AmcSetupValue } from "../../utils/amc-setup";
 import { publishInstallationPlan, type SavedInstallationPlan } from "../../services/installation-plan";
 import { checkInstallationScope } from "../../services/installation-scope";
@@ -345,7 +346,7 @@ export function CreateInstallationPlanPage() {
       } catch (error) {
         toast.error(translateOr(t, "ES_PM_AMC_CREATE_AFTER_PUBLISH_FAILED", "The plan was submitted, but the AMC could not be created"), {
           description:
-            extractApiErrorMessage(error) ??
+            amcErrorText(error, t, amcRowName) ??
             translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again."),
         });
       }
@@ -368,6 +369,12 @@ export function CreateInstallationPlanPage() {
     }
   }
 
+  /** The end user of an error row: the create rows are sent in the order of the choices. */
+  function amcRowName(row: AmcErrorRow): string | undefined {
+    const facilityId = amcChoices[row.index]?.facilityId;
+    return assignmentRows.find((entry) => entry.facilityId === facilityId)?.siteName;
+  }
+
   /** A published plan's Save: turns AMC on for the sites the PM just switched on. */
   function handleSaveAmc() {
     createAmcs.mutate(amcChoices, {
@@ -378,7 +385,7 @@ export function CreateInstallationPlanPage() {
       onError: (error) => {
         toast.error(translateOr(t, "ES_PM_AMC_CREATE_FAILED", "Could not create the AMC"), {
           description:
-            extractApiErrorMessage(error) ??
+            amcErrorText(error, t, amcRowName) ??
             translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again."),
         });
       },

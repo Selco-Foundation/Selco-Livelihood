@@ -87,11 +87,13 @@ describe("create rows", () => {
   it("refuses to guess when no default is configured", () => {
     const facilities = [{ activityFacility: { id: "af1", facilityId: "f1" } }];
     expect(() => toAmcCreateRows(facilities, toAmcChoices(ready, [solar], assignments), "livelihood", 1)).toThrow(
-      "No default AMC frequency or duration",
+      "AMC_DEFAULTS_MISSING",
     );
   });
 
-  it("skips a site that has no installation row", () => {
-    expect(toAmcCreateRows([], [{ facilityId: "f1", vendorOrgId: "o", fieldStaffId: "s" }], "livelihood", 1)).toEqual([]);
+  it("refuses a site that has no installation row yet, rather than dropping it", () => {
+    expect(() =>
+      toAmcCreateRows([], [{ facilityId: "f1", vendorOrgId: "o", fieldStaffId: "s" }], "livelihood", 1),
+    ).toThrow("AMC_INSTALLATION_NOT_READY");
   });
 });

@@ -1,4 +1,4 @@
-import { extractApiErrorMessage, translateOr, useTranslate } from "@/shared";
+import { translateOr, useTranslate } from "@/shared";
 import { Input, Pagination, SearchableSelect, Switch, toast } from "@/ui";
 import { Users } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -9,6 +9,7 @@ import { useVendorOrganisations } from "../../hooks/use-vendor-organisations";
 import { useVendorOrgUsers } from "../../hooks/use-vendor-org-users";
 import type { InstallationPlanAssignmentEntry } from "../../types/installation-plan";
 import type { VendorAssignmentSite } from "../../services/vendor-assignment";
+import { amcErrorText } from "../../utils/amc-errors";
 import {
   amcApplicableKey,
   isAmcApplicable,
@@ -160,7 +161,7 @@ export function TechnicianAssignmentStep({
       onError: (error) => {
         toast.error(translateOr(t, "ES_PM_AMC_TURN_OFF_FAILED", "Could not turn the AMC off"), {
           description:
-            extractApiErrorMessage(error) ??
+            amcErrorText(error, t, () => turnOffTarget.endUserName) ??
             translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again."),
         });
         setTurnOffTarget(null);

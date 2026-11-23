@@ -1,4 +1,4 @@
-import { employeeHomePath, extractApiErrorMessage, translateOr, useTranslate } from "@/shared";
+import { employeeHomePath, translateOr, useTranslate } from "@/shared";
 import { Button, SearchableSelect, Skeleton, toast, TopBar } from "@/ui";
 import { Link, useSearch } from "@tanstack/react-router";
 import { Info, Plus, Power, Sun } from "lucide-react";
@@ -23,6 +23,7 @@ import type {
   AmcScheduleRow,
   AmcScheduleRowError,
 } from "../../types/amc";
+import { amcErrorText } from "../../utils/amc-errors";
 import {
   firstAmcDueDate,
   isAmcRunning,
@@ -92,6 +93,11 @@ export function EditAmcPage() {
         ).replaceAll("{count}", String(problem.submitted));
   }
 
+  /** The end user of an error row: `_update` and `_delete` name the AMC, `field-staff/_update` the installation. */
+  function rowName(id: string | undefined): string | undefined {
+    return originalRows.find((row) => row.id === id || row.activityFacilityId === id)?.endUserName;
+  }
+
   function handleTurnOff() {
     if (!turnOffRow) return;
     turnOffAmc.mutate(turnOffRow.id, {
@@ -102,7 +108,7 @@ export function EditAmcPage() {
       onError: (error) => {
         toast.error(translateOr(t, "ES_PM_AMC_TURN_OFF_FAILED", "Could not turn the AMC off"), {
           description:
-            extractApiErrorMessage(error) ??
+            amcErrorText(error, t, (row) => rowName(row.id)) ??
             translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again."),
         });
         setTurnOffRow(null);
@@ -128,7 +134,7 @@ export function EditAmcPage() {
         onError: (error) => {
           toast.error(translateOr(t, "ES_PM_AMC_SCHEDULE_SAVE_FAILED", "Could not save the AMC schedule"), {
             description:
-              extractApiErrorMessage(error) ??
+              amcErrorText(error, t, (row) => rowName(row.id)) ??
               translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again."),
           });
         },

@@ -205,9 +205,9 @@ describe("EditAmcPage", () => {
     expect(screen.getByRole("cell", { name: "2" })).toBeInTheDocument();
   });
 
-  it("shows the server's message when the save is refused", async () => {
+  it("names the end user when the save is refused", async () => {
     mutate.mockImplementation((_variables, options: { onError: (error: unknown) => void }) =>
-      options.onError({ response: { data: { Errors: [{ code: "AMC_START_DATE_LOCKED", message: "row 1: start date is locked" }] } } }),
+      options.onError({ response: { data: { Errors: [{ code: "AMC_START_DATE_LOCKED", message: "row 1 (amc-1), configurationStartDate: start date is locked" }] } } }),
     );
     renderPage();
 
@@ -216,7 +216,7 @@ describe("EditAmcPage", () => {
 
     expect(toast.error).toHaveBeenCalledWith(
       "Could not save the AMC schedule",
-      expect.objectContaining({ description: expect.stringContaining("start date is locked") }),
+      { description: "user979: the start date can't change once visit 1 is submitted" },
     );
     expect(navigate).not.toHaveBeenCalled();
   });
