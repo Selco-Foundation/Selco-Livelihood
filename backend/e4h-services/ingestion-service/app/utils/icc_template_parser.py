@@ -36,10 +36,11 @@ COL_MAKE = 3
 COL_CAPACITY = 4
 COL_QUANTITY = 5
 
-# Header block labels, read for the two values the Project Manager may set.
+# Header block labels: the two values the Project Manager may set, and the Solution's own two.
 LABEL_TENDER = "tender no"
 LABEL_PURCHASE_ORDER = "purchase/work order no"
 LABEL_BUNDLE_CODE = "bundle"
+LABEL_SYSTEM_TYPE = "system type"
 
 ANNOTATION_HEADERS = ("status", "error")
 STATUS_PASSED = "PASSED"
@@ -71,6 +72,10 @@ class ParsedTemplate(NamedTuple):
     # The SYSTEM FUNCTIONALITY PARAMETERS header, where the Project Manager's part of the sheet
     # ends. None when the sheet has no such section.
     technician_row: Optional[int] = None
+    # The Solution's system type, under its Bundle / Item Code. The row is None in a template from
+    # before it was added; the value is None when the Solution has no system type.
+    system_type: Optional[str] = None
+    system_type_row: Optional[int] = None
 
 
 def _text(value: Any) -> str:
@@ -110,6 +115,7 @@ def parse_worksheet(sheet: Worksheet) -> ParsedTemplate:
     line_items: List[LineItem] = []
     tender_number = purchase_order_number = bundle_code = None
     tender_row = purchase_order_row = technician_row = None
+    system_type = system_type_row = None
     section: Optional[str] = None
     category = ""
 
@@ -128,6 +134,9 @@ def parse_worksheet(sheet: Worksheet) -> ParsedTemplate:
                 purchase_order_row = row[0].row
             elif LABEL_BUNDLE_CODE in lowered:
                 bundle_code = _text(second) or None
+            elif lowered.startswith(LABEL_SYSTEM_TYPE):
+                system_type = _text(second) or None
+                system_type_row = row[0].row
 
         if label:
             found = _is_section_header(label)
@@ -160,7 +169,8 @@ def parse_worksheet(sheet: Worksheet) -> ParsedTemplate:
         f"Parsed template sheet {sheet.title!r}: {sum(1 for i in line_items if i.section == 'solar')} "
         f"solar and {sum(1 for i in line_items if i.section == 'machine')} machine line items")
     return ParsedTemplate(line_items, tender_number, purchase_order_number, bundle_code,
-                          tender_row, purchase_order_row, technician_row)
+                          tender_row, purchase_order_row, technician_row,
+                          system_type, system_type_row)
 
 
 def _validate_quantity(raw: Any) -> Optional[str]:
@@ -297,6 +307,20 @@ def read_only_errors(uploaded: ParsedTemplate, blank: ParsedTemplate) -> Dict[in
                 f"Product can't be changed - it must be '{original.product}'. "
                 f"Download the template again.")
     return row_errors
+
+
+def system_type_error(uploaded: ParsedTemplate, blank: ParsedTemplate) -> Optional[str]:
+    """Why the uploaded System Type is not acceptable, or None.
+
+    It is read-only, like the Product. A workbook downloaded before the row existed has nothing to
+    compare and is accepted; what gets stored is the blank template's value either way.
+    """
+    if uploaded.system_type_row is None or blank.system_type_row is None:
+        return None
+    if _comparable(uploaded.system_type or "") == _comparable(blank.system_type or ""):
+        return None
+    expected = f"it must be '{blank.system_type}'" if blank.system_type else "it must be blank"
+    return f"System Type can't be changed - {expected}. Download the template again."
 
 
 def _comparable(value: str) -> str:
