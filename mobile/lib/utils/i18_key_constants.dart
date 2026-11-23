@@ -80,6 +80,7 @@ class Login {
   String get login => 'LOGIN_TITLE';
   String get userId => 'LOGIN_USER_ID';
   String get password => 'LOGIN_PASSWORD';
+  String get rememberMe => 'LOGIN_REMEMBER_ME';
   String get consentPrefix => 'LOGIN_CONSENT_PREFIX';
   String get privacyPolicy => 'LOGIN_PRIVACY_POLICY';
   String get consentConnector => 'LOGIN_CONSENT_CONNECTOR';

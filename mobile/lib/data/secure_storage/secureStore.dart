@@ -11,6 +11,7 @@ class _SecureStorageKeys {
   static const String appConfig = 'appConfig';
   static const String accessToken = 'accessToken';
   static const String accessInfo = 'accessInfo';
+  static const String loginAutofillEnabled = 'loginAutofillEnabled';
   static const String loginConsentAccepted = 'loginConsentAccepted';
   static const String assetRegistryConfig = 'assetRegistryConfig';
 }
@@ -71,6 +72,18 @@ class SecureStore {
 
   Future deleteAccessInfo() async {
     await storage.delete(key: _SecureStorageKeys.accessInfo);
+  }
+
+  Future<bool> hasEnabledLoginAutofill() async {
+    return await storage.read(key: _SecureStorageKeys.loginAutofillEnabled) ==
+        'true';
+  }
+
+  Future<void> setLoginAutofillEnabled() async {
+    await storage.write(
+      key: _SecureStorageKeys.loginAutofillEnabled,
+      value: 'true',
+    );
   }
 
   Future<bool> hasAcceptedLoginConsent() async {
