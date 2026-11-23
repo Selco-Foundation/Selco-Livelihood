@@ -3,6 +3,7 @@ package org.egov.asset.web.validator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.egov.asset.service.AssetService;
+import org.egov.asset.service.LivelihoodSystemResolver;
 import org.egov.asset.util.*;
 import org.egov.asset.web.models.*;
 import org.apache.commons.lang.StringUtils;
@@ -32,14 +33,18 @@ public class AssetValidator {
 
     private final AssetService assetService;
 
+    private final LivelihoodSystemResolver livelihoodSystemResolver;
+
     private ObjectMapper mapper = new ObjectMapper();
 
 
     @Autowired
-    public AssetValidator(MdmsUtil mdmsUtil, FacilityUtil facilityUtil, AssetService assetService) {
+    public AssetValidator(MdmsUtil mdmsUtil, FacilityUtil facilityUtil, AssetService assetService,
+                          LivelihoodSystemResolver livelihoodSystemResolver) {
         this.mdmsUtil = mdmsUtil;
         this.facilityUtil = facilityUtil;
         this.assetService = assetService;
+        this.livelihoodSystemResolver = livelihoodSystemResolver;
     }
 
     /**
@@ -50,6 +55,11 @@ public class AssetValidator {
      */
     public void validateCreateAsset(AssetCreateRequest request) {
         Asset asset = request.getAssetDetail().getAsset();
+        // Before the parent/child checks: a unit must have its parent's value. A unit added to an
+        // existing parent takes the parent's, in validateChildOfExistingParent.
+        if (isLivelihoodTenant(asset.getTenantId()) && StringUtils.isBlank(asset.getParentId())) {
+            livelihoodSystemResolver.resolveWithUnits(asset, request.getRequestInfo());
+        }
         if (!CollectionUtils.isEmpty(asset.getChildren())) {
             validateParentWithChildren(asset);
         } else if (StringUtils.isNotBlank(asset.getParentId())) {
@@ -104,6 +114,9 @@ public class AssetValidator {
             Asset parent = parents.get(0);
             if (StringUtils.isNotBlank(parent.getParentId())) {
                 errorMap.put(ERR_ASSET_HIERARCHY, "Parent asset " + parent.getAssetId() + " is itself a child");
+            }
+            if (isLivelihoodTenant(child.getTenantId()) && StringUtils.isNotBlank(parent.getSystem())) {
+                child.setSystem(parent.getSystem());
             }
             inheritFromParent(child, parent, errorMap);
         }
@@ -573,6 +586,10 @@ public class AssetValidator {
         Asset existing = existingAssets.get(0);
         mergeMissingFieldsForUpdate(asset, existing);
         if (isLivelihoodTenant(asset.getTenantId())) {
+            if (StringUtils.isBlank(asset.getActivityFacilityID())) {
+                asset.setActivityFacilityID(existing.getActivityFacilityID());
+            }
+            livelihoodSystemResolver.resolve(asset, body.getRequestInfo());
             validateLivelihoodAsset(asset, errorMap);
             if (!errorMap.isEmpty()) {
                 throw new CustomException(errorMap);
