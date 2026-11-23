@@ -240,6 +240,27 @@ describe("EditAmcPage", () => {
     );
     expect(navigate).not.toHaveBeenCalled();
   });
+  it("asks before a save that completes an AMC, and saves only when confirmed", async () => {
+    const visit = (id: string) => ({ id, amcConfigurationId: "amc-1", status: "APPROVED", firstSubmissionDate: 1 });
+    vi.mocked(useAmcSchedules).mockReturnValue({
+      data: { configurations: [schedule({})], visits: [visit("v1"), visit("v2")] },
+      isLoading: false,
+    } as never);
+    renderPage();
+    const user = await changeFrequencyToOneYear();
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("Complete the AMC?")).toBeInTheDocument();
+    expect(screen.getByText(/completed as soon as you save/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(mutate).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.click(await screen.findByRole("button", { name: "Save and complete" }));
+    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Complete the AMC?")).not.toBeInTheDocument();
+  });
+
   it("opens the visits of an AMC, with the saved schedule", async () => {
     renderPage();
     const user = userEvent.setup();

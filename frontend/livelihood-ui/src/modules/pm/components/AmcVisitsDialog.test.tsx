@@ -18,6 +18,7 @@ const row: AmcScheduleRow = {
   frequencyMonths: 6,
   years: 2,
   submittedVisits: 1,
+  approvedVisits: 0,
 };
 
 function mockVisits(data: unknown[], rest = {}) {

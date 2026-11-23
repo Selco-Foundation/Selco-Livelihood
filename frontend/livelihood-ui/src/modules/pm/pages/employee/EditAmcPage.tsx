@@ -4,6 +4,7 @@ import { Link, useSearch } from "@tanstack/react-router";
 import { Info, ListChecks, Plus, Power, Sun } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AddAmcDialog } from "../../components/AddAmcDialog";
+import { AmcCompletionDialog } from "../../components/AmcCompletionDialog";
 import { AmcFieldStaffSelect } from "../../components/AmcFieldStaffSelect";
 import { AmcVisitsDialog } from "../../components/AmcVisitsDialog";
 import { DateField } from "../../components/DateField";
@@ -18,6 +19,7 @@ import { useTurnOffAmc } from "../../hooks/use-turn-off-amc";
 import { useUpdateAmcSchedules } from "../../hooks/use-update-amc-schedules";
 import type { EditAmcRouteSearch } from "../../routes";
 import type {
+  AmcCompletion,
   AmcConfigurationStatus,
   AmcScheduleField,
   AmcScheduleProblem,
@@ -25,6 +27,7 @@ import type {
   AmcScheduleRowError,
 } from "../../types/amc";
 import {
+  findAmcCompletions,
   firstAmcDueDate,
   isAmcRunning,
   isAmcScheduleDirty,
@@ -52,6 +55,7 @@ export function EditAmcPage() {
   const [errors, setErrors] = useState<AmcScheduleRowError[]>([]);
   const [addOpen, setAddOpen] = useState(false);
   const [turnOffRow, setTurnOffRow] = useState<AmcScheduleRow | null>(null);
+  const [completions, setCompletions] = useState<AmcCompletion[]>([]);
   const [visitsRow, setVisitsRow] = useState<AmcScheduleRow | null>(null);
   const turnOffAmc = useTurnOffAmc(planId);
 
@@ -126,6 +130,13 @@ export function EditAmcPage() {
     setErrors(validationErrors);
     if (validationErrors.length > 0 || !response) return;
 
+    const ending = findAmcCompletions(originalRows, rows);
+    if (ending.length > 0) setCompletions(ending);
+    else save();
+  }
+
+  function save() {
+    setCompletions([]);
     updateSchedules.mutate(
       { original: originalRows, rows },
       {
@@ -443,6 +454,7 @@ export function EditAmcPage() {
         </Button>
       </WizardActionFooter>
       <AddAmcDialog planId={planId} open={addOpen} onOpenChange={setAddOpen} />
+      <AmcCompletionDialog completions={completions} onCancel={() => setCompletions([])} onConfirm={save} />
       <AmcVisitsDialog row={visitsRow} onClose={() => setVisitsRow(null)} />
       <TurnOffAmcDialog
         endUserName={turnOffRow?.endUserName ?? null}

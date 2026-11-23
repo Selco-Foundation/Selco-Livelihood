@@ -43,6 +43,7 @@ const row: AmcScheduleRow = {
   frequencyMonths: 6,
   years: 2,
   submittedVisits: 0,
+  approvedVisits: 0,
 };
 
 beforeEach(() => {

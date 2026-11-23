@@ -1,5 +1,6 @@
 import { addMonths } from "date-fns";
 import type {
+  AmcCompletion,
   AmcConfigurationStatus,
   AmcConfigurationUpdate,
   AmcFieldStaffUpdate,
@@ -34,9 +35,13 @@ function onePerSite(configurations: RawAmcConfiguration[]): RawAmcConfiguration[
 
 export function toAmcScheduleRows(source: AmcScheduleSource | undefined): AmcScheduleRow[] {
   const submittedByAmc = new Map<string, number>();
+  const approvedByAmc = new Map<string, number>();
   for (const visit of source?.visits ?? []) {
     if (visit.amcConfigurationId && visit.firstSubmissionDate) {
       submittedByAmc.set(visit.amcConfigurationId, (submittedByAmc.get(visit.amcConfigurationId) ?? 0) + 1);
+      if (visit.status === "APPROVED") {
+        approvedByAmc.set(visit.amcConfigurationId, (approvedByAmc.get(visit.amcConfigurationId) ?? 0) + 1);
+      }
     }
   }
   return onePerSite(source?.configurations ?? [])
@@ -59,6 +64,7 @@ export function toAmcScheduleRows(source: AmcScheduleSource | undefined): AmcSch
       fieldStaffId: amc.fieldStaff?.uuid,
       fieldStaffName: amc.fieldStaff?.name ?? undefined,
       submittedVisits: submittedByAmc.get(amc.id) ?? 0,
+      approvedVisits: approvedByAmc.get(amc.id) ?? 0,
     }));
 }
 
@@ -154,6 +160,23 @@ export function validateAmcSchedules(rows: AmcScheduleRow[]): AmcScheduleRowErro
     return missing.length > 0 || problems.length > 0
       ? [{ id: row.id, endUserName: row.endUserName, missing, problems }]
       : [];
+  });
+}
+
+/**
+ * The edits that end an AMC: the total drops to the visits already submitted, so the server removes
+ * the upcoming visit and completes the AMC, now or once its last report is approved. A completed AMC
+ * can't be reopened, so the PM is asked first.
+ */
+export function findAmcCompletions(original: AmcScheduleRow[], edited: AmcScheduleRow[]): AmcCompletion[] {
+  const originalById = new Map(original.map((row) => [row.id, row]));
+  return edited.flatMap((row) => {
+    const before = originalById.get(row.id);
+    const total = totalAmcActivities(row);
+    const totalBefore = before && totalAmcActivities(before);
+    if (!isAmcRunning(row) || row.submittedVisits === 0 || total !== row.submittedVisits) return [];
+    if (totalBefore !== undefined && total >= totalBefore) return [];
+    return [{ id: row.id, endUserName: row.endUserName, completesNow: row.approvedVisits === row.submittedVisits }];
   });
 }
 

@@ -56,6 +56,16 @@ export interface AmcScheduleRow {
   fieldStaffName?: string;
   /** Visits of this AMC already submitted at least once: they lock the start date and set the minimum total. */
   submittedVisits: number;
+  /** How many of the submitted visits are approved. */
+  approvedVisits: number;
+}
+
+/** An edit that leaves an AMC with no further visits: it completes now, or once its reports are approved. */
+export interface AmcCompletion {
+  id: string;
+  endUserName: string;
+  /** Every submitted visit is already approved, so saving completes the AMC at once. */
+  completesNow: boolean;
 }
 
 /** One visit of an AMC in the PM's visit list. */

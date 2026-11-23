@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AmcScheduleRow, AmcScheduleSource, RawAmcConfiguration } from "../types/amc";
 import {
+  findAmcCompletions,
   firstAmcDueDate,
   isAmcScheduleDirty,
   isPendingActivation,
@@ -41,6 +42,7 @@ const row: AmcScheduleRow = {
   frequencyMonths: 6,
   years: 2,
   submittedVisits: 0,
+  approvedVisits: 0,
 };
 
 const source = (configurations: RawAmcConfiguration[], visits: AmcScheduleSource["visits"] = []): AmcScheduleSource => ({
@@ -245,5 +247,35 @@ describe("field staff changes", () => {
     const edited = { ...withStaff, fieldStaffId: "s2" };
     expect(isAmcScheduleDirty([withStaff], [edited])).toBe(true);
     expect(toAmcConfigurationUpdates([withStaff], [edited], "livelihood")).toEqual([]);
+  });
+});
+
+describe("findAmcCompletions", () => {
+  // 2 years every 6 months: 4 visits, 2 of them submitted.
+  const before: AmcScheduleRow = {
+    ...row,
+    id: "amc-9",
+    status: "ACTIVE",
+    frequencyMonths: 6,
+    years: 2,
+    submittedVisits: 2,
+    approvedVisits: 2,
+  };
+  const fewer = { ...before, years: 1 };
+
+  it("finds an AMC that completes at once, and one that waits for its reports", () => {
+    expect(findAmcCompletions([before], [fewer])).toEqual([
+      { id: "amc-9", endUserName: before.endUserName, completesNow: true },
+    ]);
+    expect(findAmcCompletions([{ ...before, approvedVisits: 1 }], [{ ...fewer, approvedVisits: 1 }])[0].completesNow).toBe(
+      false,
+    );
+  });
+
+  it("ignores edits that leave visits, do not lower the total, or touch an AMC without submissions", () => {
+    expect(findAmcCompletions([before], [{ ...before, frequencyMonths: 12, years: 3 }])).toEqual([]);
+    const last = { ...before, years: 1, approvedVisits: 1 };
+    expect(findAmcCompletions([last], [{ ...last, fieldStaffId: "other" }])).toEqual([]);
+    expect(findAmcCompletions([{ ...before, submittedVisits: 0 }], [{ ...fewer, submittedVisits: 0 }])).toEqual([]);
   });
 });
