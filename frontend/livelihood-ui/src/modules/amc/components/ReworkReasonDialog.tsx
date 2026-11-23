@@ -8,9 +8,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  cn,
 } from "@/ui";
 import { useEffect, useState } from "react";
 import type { AmcReworkReason } from "../types/amc-visit";
+import { reworkCharactersLeft } from "../utils/rework";
 
 const MAX_COMMENT_LENGTH = 500;
 
@@ -56,8 +58,14 @@ export function ReworkReasonDialog({
     });
   }
 
+  const chosen = reasonOptions.filter((option) => option.code in selected);
+  const reasons: AmcReworkReason[] = chosen.map((option) => {
+    const comment = selected[option.code].trim();
+    return comment ? { reason: option.code, comment } : { reason: option.code };
+  });
+  const charactersLeft = reworkCharactersLeft(reasons);
+
   function handleSubmit() {
-    const chosen = reasonOptions.filter((option) => option.code in selected);
     if (chosen.length === 0) {
       setError(translateOr(t, "ES_AMC_REWORK_REASON_REQUIRED", "Select at least one reason for rework"));
       return;
@@ -66,12 +74,7 @@ export function ReworkReasonDialog({
       setError(translateOr(t, "ES_AMC_OTHER_REASON_COMMENT_REQUIRED", "Please add a comment for \"Others\""));
       return;
     }
-    onSubmit(
-      chosen.map((option) => {
-        const comment = selected[option.code].trim();
-        return comment ? { reason: option.code, comment } : { reason: option.code };
-      }),
-    );
+    onSubmit(reasons);
   }
 
   return (
@@ -129,12 +132,27 @@ export function ReworkReasonDialog({
             </p>
           ) : null}
         </div>
+        {chosen.length > 0 ? (
+          <p aria-live="polite" className={cn("text-sm", charactersLeft < 0 ? "text-destructive" : "text-muted-foreground")}>
+            {charactersLeft < 0
+              ? translateOr(
+                  t,
+                  "ES_AMC_REWORK_TOO_LONG",
+                  "The comments are too long together. Remove {count} characters.",
+                ).replace("{count}", String(-charactersLeft))
+              : translateOr(
+                  t,
+                  "ES_AMC_REWORK_CHARACTERS_LEFT",
+                  "{count} characters left for all comments together",
+                ).replace("{count}", String(charactersLeft))}
+          </p>
+        ) : null}
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <DialogFooter>
           <Button type="button" variant="outline" size="sm" disabled={isSubmitting} onClick={() => onOpenChange(false)}>
             {translateOr(t, "CORE_COMMON_CANCEL", "Cancel")}
           </Button>
-          <Button type="button" variant="destructive" size="sm" disabled={isSubmitting} onClick={handleSubmit}>
+          <Button type="button" variant="destructive" size="sm" disabled={isSubmitting || charactersLeft < 0} onClick={handleSubmit}>
             {translateOr(t, "ES_AMC_SEND_FOR_REWORK", "Send for Rework")}
           </Button>
         </DialogFooter>

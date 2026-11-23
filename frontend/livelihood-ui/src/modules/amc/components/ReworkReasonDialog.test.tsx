@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ReworkReasonDialog } from "./ReworkReasonDialog";
@@ -50,5 +50,24 @@ describe("ReworkReasonDialog", () => {
       { reason: "UPLOADED_IMAGES_NOT_CLEAR" },
       { reason: "OTHERS", comment: "Retake the SPD photo" },
     ]);
+  });
+
+  it("does not send comments that are too long together, and says how much to remove", async () => {
+    const user = userEvent.setup();
+    const longReasons = ["A", "B", "OTHERS"].map((code) => ({ code, name: `Reason ${code}` }));
+    const onSubmit = vi.fn();
+    render(<ReworkReasonDialog open isSubmitting={false} reasonOptions={longReasons} onOpenChange={vi.fn()} onSubmit={onSubmit} />);
+    for (const { name } of longReasons) {
+      await user.click(screen.getByText(name));
+      fireEvent.change(screen.getByRole("textbox", { name: `Comment, ${name}` }), { target: { value: "x".repeat(400) } });
+    }
+
+    expect(screen.getByText(/^The comments are too long together\. Remove \d+ characters\.$/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send for Rework" })).toBeDisabled();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Comment, Reason A" }), { target: { value: "" } });
+    expect(screen.getByText(/characters left for all comments together$/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Send for Rework" }));
+    expect(onSubmit).toHaveBeenCalledOnce();
   });
 });

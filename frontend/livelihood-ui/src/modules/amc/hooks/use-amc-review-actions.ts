@@ -2,6 +2,7 @@ import { useAuthStore } from "@/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateAmcVisitWorkflow } from "../services/amc-visits";
 import type { AmcReworkReason } from "../types/amc-visit";
+import { toReworkComment } from "../utils/rework";
 import { amcKeys } from "./query-keys";
 
 export function useApproveAmcReport() {
@@ -24,7 +25,7 @@ export function useSendAmcReportForRework() {
 
   return useMutation({
     mutationFn: ({ reportId, reasons }: { reportId: string; reasons: AmcReworkReason[] }) =>
-      updateAmcVisitWorkflow(reportId, "REJECT", JSON.stringify(reasons), accessToken!, user),
+      updateAmcVisitWorkflow(reportId, "REJECT", toReworkComment(reasons), accessToken!, user),
     onSettled: () => queryClient.invalidateQueries({ queryKey: amcKeys.all }),
   });
 }
