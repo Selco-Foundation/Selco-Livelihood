@@ -101,10 +101,10 @@ describe("toAmcReport", () => {
     expect(report.photos.map((photo) => photo.fileStoreId)).toEqual(["f1", "f2"]);
   });
 
-  it("gives the history oldest first, with the rework reasons parsed", () => {
-    expect(report.history.map((entry) => entry.action)).toEqual(["SCHEDULE", "SUBMIT_VISIT_REPORT", "REJECT"]);
-    expect(report.history[0].comment).toBe("AMC visit 2 created");
-    expect(report.history[2].reasons).toEqual([{ code: "OTHERS", comment: "Retake" }]);
+  it("gives the history latest first, with the rework reasons parsed", () => {
+    expect(report.history.map((entry) => entry.action)).toEqual(["REJECT", "SUBMIT_VISIT_REPORT", "SCHEDULE"]);
+    expect(report.history[2].comment).toBe("AMC visit 2 created");
+    expect(report.history[0].reasons).toEqual([{ code: "OTHERS", comment: "Retake" }]);
   });
 });
 

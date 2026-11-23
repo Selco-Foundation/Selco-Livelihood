@@ -157,11 +157,11 @@ function toHistoryEntry(step: RawAmcProcessInstance): AmcReportHistoryEntry {
   };
 }
 
-/** Workflow history, oldest first. */
+/** Workflow history, latest first. */
 export function toReportHistory(visit: RawAmcVisit): AmcReportHistoryEntry[] {
   return (visit.processInstances ?? [])
     .map(toHistoryEntry)
-    .sort((a, b) => (a.date ?? 0) - (b.date ?? 0));
+    .sort((a, b) => (b.date ?? 0) - (a.date ?? 0));
 }
 
 function endUserName(visit: RawAmcVisit): string {
