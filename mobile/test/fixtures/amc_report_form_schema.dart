@@ -203,7 +203,6 @@ Map<String, dynamic> amcReportFormSchemaDoc(String tenantId) {
           },
         ]),
 
-        // 4. Observation points (20, all required)
         () {
           o = 0;
           return _page('Observation_Points', 4, 'AMC_FORM_OBSERVATION_POINTS', [
@@ -245,15 +244,10 @@ Map<String, dynamic> amcReportFormSchemaDoc(String tenantId) {
             _radio('obsEarthElectrodesBuried', 'earthing_electrodes_buried',
                 next(), _yesNo),
             // 4G Cable management
-            // TODO(backend): the contract has no keys for 4.17 (lugs used)
-            // and 4.19 (lugs insulated), and lists `obsCablesDamaged`, which
-            // no question asks. The two keys below are the app's own.
-            _radio('obsCableLugsUsed', 'cable_lugs_used', next(), _yesNo,
+            _radio('obsCablesCrimped', 'cables_secure_crimped', next(), _yesNo,
                 section: 'AMC_FORM_SECTION_CABLE_MANAGEMENT'),
-            _radio('obsCablesCrimped', 'cable_lugs_crimped', next(), _yesNo),
-            _radio('obsCableLugsInsulated', 'cable_lugs_insulated', next(),
-                _yesNo),
-            _radio('obsMc4Intact', 'mc4_interlocked', next(), _yesNoNa),
+            _radio('obsCablesDamaged', 'cables_damaged', next(), _yesNo),
+            _radio('obsMc4Intact', 'mc4_intact', next(), _yesNoNa),
           ]);
         }(),
 

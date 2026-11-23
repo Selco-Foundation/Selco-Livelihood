@@ -69,6 +69,7 @@ class AmcDecimalReadingField extends StatelessWidget {
           label: label,
           isRequired: isRequired,
           capitalizedFirstLetter: false,
+          charCondition: true,
           child: DigitTextFormInput(
             initialValue: control.value?.toString(),
             readOnly: readOnly,
@@ -163,6 +164,7 @@ class _AmcReadingPhotoFieldState extends State<AmcReadingPhotoField> {
           label: widget.label,
           isRequired: widget.isRequired,
           capitalizedFirstLetter: false,
+          charCondition: true,
           child: _loading
               ? const Padding(
                   padding: EdgeInsets.all(16),

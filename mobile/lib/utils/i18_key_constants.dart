@@ -390,6 +390,7 @@ class AmcScheduleText {
   String get phone => 'AMC_SCHEDULE_PHONE';
   String get scheduledDate => 'AMC_SCHEDULE_SCHEDULED_DATE';
   String get machines => 'AMC_SCHEDULE_MACHINES';
+  String get machineNotInstalled => 'AMC_SCHEDULE_MACHINE_NOT_INSTALLED';
   String get empty => 'AMC_SCHEDULE_EMPTY';
   String get loadFailed => 'AMC_SCHEDULE_LOAD_FAILED';
   String get offline => 'AMC_SCHEDULE_OFFLINE';

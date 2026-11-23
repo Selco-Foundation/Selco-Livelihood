@@ -54,18 +54,20 @@ List<ScheduledVisit> amcScheduleVisits(
 
 /// Names of the machines installed with the end user, from the visit's
 /// `siteDetails.machines` (each `{activityFacilityId, solutionId, status,
-/// name}`; `name` already joins the machine's asset names). Falls back to
-/// the solution id when a machine has no asset name yet.
-List<String> amcMachineNames(Map<String, dynamic>? siteDetails) {
+/// name}`; `name` already joins the machine's asset names). A machine with
+/// no asset name has not been installed yet and is shown as [notInstalled].
+List<String> amcMachineNames(
+  Map<String, dynamic>? siteDetails, {
+  required String notInstalled,
+}) {
   final machines = siteDetails?['machines'];
   if (machines is! List) return const [];
   final names = <String>[];
   for (final machine in machines) {
     final String? name;
     if (machine is Map) {
-      name = [machine['name'], machine['solutionId']]
-          .map((v) => v?.toString().trim() ?? '')
-          .firstWhere((v) => v.isNotEmpty, orElse: () => '');
+      final assetName = machine['name']?.toString().trim() ?? '';
+      name = assetName.isEmpty ? notInstalled : assetName;
     } else {
       name = machine?.toString().trim();
     }
@@ -100,7 +102,12 @@ class AmcScheduleEntry {
 
   /// Uses the same end user name and phone as the report's Site Details,
   /// and the same state/district/block as the visit cards.
-  factory AmcScheduleEntry.fromVisit(ScheduledVisit visit) {
+  /// [machineNotInstalled] is the translated text for a machine with no
+  /// asset name.
+  factory AmcScheduleEntry.fromVisit(
+    ScheduledVisit visit, {
+    required String machineNotInstalled,
+  }) {
     final site = AmcSiteDetails.fromVisit(visit);
     final locality = amcVisitLocality(visit);
     return AmcScheduleEntry(
@@ -111,7 +118,8 @@ class AmcScheduleEntry {
       district: locality.district,
       block: locality.block,
       scheduledDate: visit.scheduledDate!.toLocal(),
-      machines: amcMachineNames(visit.siteDetails),
+      machines:
+          amcMachineNames(visit.siteDetails, notInstalled: machineNotInstalled),
     );
   }
 }

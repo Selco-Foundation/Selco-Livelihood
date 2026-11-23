@@ -38,6 +38,7 @@ import 'package:livelihood/repositories/auth_repo.dart';
 import 'package:livelihood/router/app_router.dart';
 import 'package:livelihood/utils/amc/amc_module_readiness.dart';
 import 'package:livelihood/utils/amc/amc_rejection_reasons.dart';
+import 'package:livelihood/widgets/workflow_rejection_reasons.dart';
 import 'package:livelihood/utils/amc/amc_schedule_export.dart';
 import 'package:livelihood/utils/amc/amc_utils.dart';
 import 'package:livelihood/utils/dynamic_form_schema.dart';
@@ -197,7 +198,6 @@ class _FakeAmcRemoteDataSource implements AmcRemoteDataSource {
 
   @override
   Future<String> uploadFile(String localFilePath) async => 'fake-filestore-id';
-
 }
 
 /// A visit as the AMC visit search returns it, due [days] days from now.
@@ -296,6 +296,8 @@ class _VisitsBackend extends _FakeAmcRemoteDataSource {
 const _readingTexts = {
   'AMC_FORM_BATTERY_SPECIFIC_GRAVITY':
       'Battery specific gravity, measured through hydrometer',
+  'AMC_FORM_INVERTER_OUTPUT_VOLTAGE': 'Inverter output voltage, with solar '
+      'and grid disconnected and battery connected (V)',
   'AMC_FORM_SOLAR_SPD': 'Solar SPD',
   'AMC_FORM_SOLAR_SPD_PHOTO': 'Solar SPD photo',
   'AMC_FORM_GRID_SPD': 'Grid input SPD',
@@ -859,6 +861,50 @@ void main() {
       expect(parseAmcRejectionComment('  '), isEmpty);
     });
 
+    testWidgets('reason codes are shown translated, comments as typed',
+        (tester) async {
+      AppLocalizations.debugSeedLocalizations([
+        Localization()
+          ..code = 'READINGS_NOT_CORRECT'
+          ..message = 'Battery/panel/inverter readings are not correct'
+          ..module = 'rainmaker-amc'
+          ..locale = 'en_IN',
+        Localization()
+          ..code = 'OTHERS'
+          ..message = 'Others (always comes with a comment)'
+          ..module = 'rainmaker-amc'
+          ..locale = 'en_IN',
+      ]);
+      addTearDown(() => AppLocalizations.debugSeedLocalizations(const []));
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: WorkflowRejectionReasons(
+              comments: parseAmcRejectionComment(jsonEncode([
+                {
+                  'reason': 'READINGS_NOT_CORRECT',
+                  'comment': 'PCU voltage photo does not match the reading.',
+                },
+                {'reasonCode': 'OTHERS', 'comment': 'Site not cleaned.'},
+                {'reason': 'NOT_A_KNOWN_CODE'},
+                {'reason': 'Typed by the reviewer'},
+              ])),
+            ),
+          ),
+        ),
+      ));
+
+      expect(find.text('Battery/panel/inverter readings are not correct'),
+          findsOneWidget);
+      expect(find.text('PCU voltage photo does not match the reading.'),
+          findsOneWidget);
+      expect(find.text('Others (always comes with a comment)'), findsOneWidget);
+      expect(find.text('Site not cleaned.'), findsOneWidget);
+      expect(find.text('NOT_A_KNOWN_CODE'), findsOneWidget);
+      expect(find.text('Typed by the reviewer'), findsOneWidget);
+    });
+
     test('read from the latest workflow step of a REJECTED visit only', () {
       ScheduledVisit visit(String status, Object? comment) =>
           ScheduledVisit.fromJson({
@@ -951,9 +997,8 @@ void main() {
         'obsDownConductorConduit',
         'obsEarthCableContact',
         'obsEarthElectrodesBuried',
-        'obsCableLugsUsed',
         'obsCablesCrimped',
-        'obsCableLugsInsulated',
+        'obsCablesDamaged',
         'obsMc4Intact',
       ]);
       expect(fieldsOf('Capture_Readings').keys, [
@@ -1206,6 +1251,11 @@ void main() {
       expect(_label('Grid input SPD photo'), findsNothing);
       expect(find.byType(AmcDecimalReadingField), findsNWidgets(3));
       expect(find.byType(AmcReadingPhotoField), findsNWidgets(3));
+      // Long reading labels are shown in full, not cut at 64 characters.
+      expect(
+          _label('Inverter output voltage, with solar and grid disconnected '
+              'and battery connected (V)'),
+          findsOneWidget);
       expect(find.text('Good'), findsOneWidget);
       // Only fields that apply have inputs, so only they are validated.
       final form = ReactiveForm.of(
@@ -1458,13 +1508,18 @@ void main() {
             'machines': [
               {'name': 'Sewing Machine', 'solutionId': 'S1'},
               {'name': ' ', 'solutionId': 'SOL-CHAFF'},
-              {'name': null, 'solutionId': null},
+              {'name': null, 'solutionId': 'SOL-OIL'},
               'Oil Expeller',
             ],
-          }),
-          ['Sewing Machine', 'SOL-CHAFF', 'Oil Expeller']);
-      expect(amcMachineNames({'machines': null}), isEmpty);
-      expect(amcMachineNames(null), isEmpty);
+          }, notInstalled: 'Machine not installed'),
+          [
+            'Sewing Machine',
+            'Machine not installed',
+            'Machine not installed',
+            'Oil Expeller',
+          ]);
+      expect(amcMachineNames({'machines': null}, notInstalled: '-'), isEmpty);
+      expect(amcMachineNames(null, notInstalled: '-'), isEmpty);
     });
 
     group('fetched from the visit search', () {
@@ -1501,7 +1556,8 @@ void main() {
       test('a row has the screen fields and the machines', () async {
         final visits = await remote.fetchAllScheduled();
         final entry = AmcScheduleEntry.fromVisit(
-            visits.firstWhere((v) => v.id == 'v-15'));
+            visits.firstWhere((v) => v.id == 'v-15'),
+            machineNotInstalled: 'Machine not installed');
         expect(entry.endUserName, 'Ramesh Kumar');
         expect(entry.phone, '9845000012');
         expect(entry.state, 'Karnataka');
