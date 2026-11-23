@@ -82,7 +82,7 @@ describe("toAmcReport", () => {
     expect(sections.REPORT_HEADER).toEqual([expect.objectContaining({ label: "Date of visit", value: "20 Nov 2026" })]);
     expect(sections.PCU[0].value).toBe("Solar - Battery - Grid");
     expect(sections.OBSERVATIONS.map((item) => [item.label, item.value])).toEqual([
-      ["Solar panel: are the panels clean?", "Yes"],
+      ["Are the panels clean?", "Yes"],
       ["Cable lugs used", "No"],
     ]);
     expect(sections.READINGS[0].value).toBe("5 V");
@@ -92,8 +92,8 @@ describe("toAmcReport", () => {
 
   it("lists the applicable rules with a readable reading", () => {
     expect(report.ruleResults.map((rule) => [rule.label, rule.reading, rule.passed])).toEqual([
-      ["Grid input (AC) SPD", "Not entered", false],
-      ["Neutral to earth voltage at PCU output", "5 V", true],
+      ["Grid input SPD", "Not entered", false],
+      ["Neutral to earth voltage at PCU output (V)", "5 V", true],
     ]);
   });
 

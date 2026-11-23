@@ -60,7 +60,7 @@ function siteSection(visit: RawAmcVisit): AmcReportSection {
       field("installationDate", "Date of installation", site.installationDate ? formatDay(site.installationDate) : "-"),
       field("block", "Taluk / Block", visit.block ?? "-"),
       field("district", "District", visit.district ?? "-"),
-      field("purchaseOrderNumber", "Purchase order number", site.purchaseOrderNumber ?? "-"),
+      field("purchaseOrderNumber", "Purchase order no", site.purchaseOrderNumber ?? "-"),
       field("batteryType", "Battery type", site.batteryType ?? "-"),
       field("systemType", "System type", site.systemType ?? "-"),
     ],
