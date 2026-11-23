@@ -466,6 +466,91 @@ def add_row_specific_dropdown_to_excel(
     )
 
 
+DEPENDENT_LISTS_SHEET = "_SolutionLists"
+
+
+def add_row_specific_dependent_dropdown_to_excel(
+        file_path: str,
+        sheet_name: str,
+        parent_header: str,
+        column_header: str,
+        options_by_row: Dict[int, Dict[str, List[str]]],
+) -> None:
+    """A dropdown that offers the options of the value chosen in another column of the same row,
+    with lists that also differ per row.
+
+    The Solution column needs both: a site's Solutions depend on its sector and state, and the list
+    then narrows to the System Type chosen beside it. `options_by_row` maps a 0-based data-row
+    position (0 -> spreadsheet row 2) to {parent value: allowed values}.
+
+    Same technique as add_dependent_boundary_dropdowns, on a very-hidden sheet `_SolutionLists`:
+    each distinct {parent value: options} set gets a map SL_M_<n> of parent value -> list name, and
+    each list is named SL_L_<n>. A row validates against INDIRECT(IFERROR(VLOOKUP(parent cell)),
+    "SL_NONE")), so any number of parent values works, and the list is empty until one is chosen.
+    """
+    rows_by_options: Dict[tuple, List[int]] = {}
+    for position, options in options_by_row.items():
+        key = tuple((parent, tuple(values)) for parent, values in (options or {}).items() if values)
+        if key:
+            rows_by_options.setdefault(key, []).append(position)
+    if not rows_by_options:
+        return
+
+    wb = load_workbook(file_path)
+    ws = wb[sheet_name]
+    letters = {cell.value: cell.column_letter for cell in ws[1] if cell.value is not None}
+    parent_col, column = letters.get(parent_header), letters.get(column_header)
+    if not parent_col or not column:
+        logger.warning(f"'{parent_header}' or '{column_header}' not found in sheet '{sheet_name}'")
+        return
+
+    if DEPENDENT_LISTS_SHEET in wb.sheetnames:
+        del wb[DEPENDENT_LISTS_SHEET]
+    lists = wb.create_sheet(DEPENDENT_LISTS_SHEET)
+    lists.sheet_state = "veryHidden"
+    ref_sheet = quote_sheetname(DEPENDENT_LISTS_SHEET)
+
+    def define(name: str, ref: str) -> None:
+        if name in wb.defined_names:
+            del wb.defined_names[name]
+        wb.defined_names[name] = DefinedName(name, attr_text=f"{ref_sheet}!{ref}")
+
+    # A1 stays empty: what a row offers until its parent value is chosen.
+    define("SL_NONE", "$A$1")
+    map_row, next_col, list_no = 0, 4, 0   # maps in B:C, lists from column D
+    for map_no, (options, positions) in enumerate(rows_by_options.items(), start=1):
+        first_map_row = map_row + 1
+        for parent, values in options:
+            list_no += 1
+            letter = get_column_letter(next_col)
+            for row, value in enumerate(values, start=1):
+                _write_text(lists, row, next_col, value)
+            define(f"SL_L_{list_no}", f"${letter}$1:${letter}${len(values)}")
+            next_col += 1
+            map_row += 1
+            _write_text(lists, map_row, 2, parent)
+            lists.cell(row=map_row, column=3, value=f"SL_L_{list_no}")
+        define(f"SL_M_{map_no}", f"$B${first_map_row}:$C${map_row}")
+
+        # The relative row is read from the topmost cell of the validation, so it must match it.
+        positions = sorted(positions)
+        dv = DataValidation(
+            type="list",
+            formula1=f'INDIRECT(IFERROR(VLOOKUP(${parent_col}{positions[0] + 2},SL_M_{map_no},2,FALSE),"SL_NONE"))',
+            allow_blank=True, showErrorMessage=True, showInputMessage=True)
+        dv.error = f"Please select a {column_header} from the list for the chosen {parent_header}"
+        dv.errorTitle = "Invalid Entry"
+        dv.prompt = f"Select the {parent_header} first, then a {column_header} from the dropdown"
+        dv.promptTitle = f"Select {column_header}"
+        for position in positions:
+            dv.add(f"{column}{position + 2}")
+        ws.add_data_validation(dv)
+
+    wb.save(file_path)
+    logger.info(f"Added '{column_header}' by '{parent_header}' dropdowns to '{sheet_name}': "
+                f"{len(rows_by_options)} distinct sets, {list_no} lists")
+
+
 def lock_cells_in_excel(
         file_path: str,
         sheet_name: str,

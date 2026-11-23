@@ -36,8 +36,9 @@ from app.utils.file_utils import create_temp_file, cleanup_temp_file
 from app.utils.mdms_client import MDMSClient
 from app.utils.project_service_client import ProjectServiceClient
 from app.utils.field_plan_locks import build_project_lock_map, lock_status_label, solution_names_by_code
-from app.utils.solution_eligibility import build_solution_options_by_row, \
-    clear_solution_column_dropdown, partition_scope_candidates
+from app.utils.solution_eligibility import SYSTEM_TYPE_COLUMN, build_solution_options_by_row, \
+    clear_solution_column_dropdown, group_by_system_type, partition_scope_candidates, \
+    system_type_labels_by_solution_name
 from app.utils.state_sunshine_hours_repository import fetch_state_sunshine_hours
 from app.utils.vendor_registry_client import VendorRegistryClient
 import os, tempfile, zipfile, qrcode, shutil
@@ -601,6 +602,23 @@ async def get_facility_ingestion_template_with_data(
                            "installation plan, or has no Solution available for its sector and "
                            "state. Change the geography or sectors on the plan.")
 
+        # Only when the sheet has the column: without it the sheet works as it did before.
+        label_by_solution_name = {}
+        with_system_type = any(c.get("name") == SYSTEM_TYPE_COLUMN for c in facility_schema)
+        if with_system_type:
+            try:
+                label_by_solution_name = system_type_labels_by_solution_name(
+                    solutions,
+                    FieldPlanServiceClient(fieldPlan_service_url).search_solution_system_types(request_info))
+            except Exception as e:
+                # Carrying on would show every Solution under "Others".
+                logger.error(f"Could not read the Solutions' system types: {e}", exc_info=True)
+                cleanup_temp_file(output_file_path)
+                raise HTTPException(
+                    status_code=502,
+                    detail="Could not read the system types of the Solutions, so the installation scope "
+                           "sheet cannot be prepared. Please try again.")
+
         solution_name_by_code = solution_names_by_code(solutions)
         existing_solution_name_by_facility_id = {
             facility_id: solution_name_by_code.get(solution_id, "")
@@ -631,6 +649,45 @@ async def get_facility_ingestion_template_with_data(
         # Exactly one Solution per site, filtered per row by that site's state.
         facility_schema = clear_solution_column_dropdown(facility_schema)
 
+        # Frozen rows show their locked choice; everything else falls back to a Solution already
+        # chosen for this plan's own (still-editable) scope, if any -- the dropdown stays live for
+        # those, this only pre-fills the starting value.
+        solution_by_row = {
+            p: (
+                f.get("locked_solution_name")
+                or existing_solution_name_by_facility_id.get(f.get("facility_id"), "")
+            )
+            for p, f in enumerate(all_facilities)
+        }
+        per_row_column_values = {
+            "Solution": solution_by_row,
+            "Lock Status": lock_status_by_row,
+            # Each site's own sector, not a plan-wide constant -- a plan may span
+            # several. Set explicitly rather than relying on the schema column's MDMS
+            # code happening to map to facility_type.
+            "Sector": {
+                p: (f.get("facility_type") or "") for p, f in enumerate(all_facilities)
+            },
+        }
+        freeze_columns = ["Include in Installation Plan", "Solution"]
+        row_specific_dropdowns = {"Solution": solution_options_by_row}
+        dependent_dropdowns = None
+        if with_system_type:
+            # Sector and sunshine hours have already narrowed the Solutions; the System Type the
+            # Project Manager picks narrows them further.
+            groups_by_row = {
+                position: group_by_system_type(names, label_by_solution_name)
+                for position, names in solution_options_by_row.items()
+            }
+            row_specific_dropdowns = {
+                SYSTEM_TYPE_COLUMN: {position: list(groups) for position, groups in groups_by_row.items()}
+            }
+            dependent_dropdowns = {"Solution": (SYSTEM_TYPE_COLUMN, groups_by_row)}
+            per_row_column_values[SYSTEM_TYPE_COLUMN] = {
+                p: label_by_solution_name.get(name, "") for p, name in solution_by_row.items()
+            }
+            freeze_columns.append(SYSTEM_TYPE_COLUMN)
+
         try:
             facility_service.generate_template_file_with_data(
                 output_path=output_file_path,
@@ -640,27 +697,10 @@ async def get_facility_ingestion_template_with_data(
                 type="fieldplan",
                 extra_append_rows=0,
                 optimize_for_performance=True,
-                row_specific_dropdowns={"Solution": solution_options_by_row},
-                per_row_column_values={
-                    # Frozen rows show their locked choice; everything else falls back to a
-                    # Solution already chosen for this plan's own (still-editable) scope, if any --
-                    # the dropdown stays live for those, this only pre-fills the starting value.
-                    "Solution": {
-                        p: (
-                            f.get("locked_solution_name")
-                            or existing_solution_name_by_facility_id.get(f.get("facility_id"), "")
-                        )
-                        for p, f in enumerate(all_facilities)
-                    },
-                    "Lock Status": lock_status_by_row,
-                    # Each site's own sector, not a plan-wide constant -- a plan may span
-                    # several. Set explicitly rather than relying on the schema column's MDMS
-                    # code happening to map to facility_type.
-                    "Sector": {
-                        p: (f.get("facility_type") or "") for p, f in enumerate(all_facilities)
-                    },
-                },
-                freeze_columns=["Include in Installation Plan", "Solution"],
+                row_specific_dropdowns=row_specific_dropdowns,
+                dependent_dropdowns=dependent_dropdowns,
+                per_row_column_values=per_row_column_values,
+                freeze_columns=freeze_columns,
                 freeze_row_positions=freeze_row_positions,
                 boundary_localization_map=boundary_localization_map,
             )

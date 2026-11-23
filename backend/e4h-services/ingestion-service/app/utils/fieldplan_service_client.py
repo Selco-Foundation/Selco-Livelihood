@@ -1,5 +1,5 @@
 import json
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 import requests
 
@@ -235,6 +235,25 @@ class FieldPlanServiceClient:
             record.get("solutionCode"): record.get("fileStoreId")
             for record in response.json().get("IccTemplates", [])
             if record.get("solutionCode") and record.get("fileStoreId")
+        }
+
+    def search_solution_system_types(self, request_info: RequestInfo) -> Dict[str, Optional[str]]:
+        """{solution_code: system type code, or None when the Solution has none}.
+
+        Same endpoint and same owner as search_blank_templates: field-planner's icc_templates is
+        where a Solution's system type is kept.
+        """
+        url = f"{self.fieldPlan_service_url}/field-planner/v1/field-plan-templates/blank/_search"
+        payload = {
+            "RequestInfo": request_info.model_dump(by_alias=True, exclude_none=True),
+            "tenantId": LIVELIHOOD_TENANT_ID,
+        }
+        response = requests.post(url, headers={"Content-Type": "application/json"}, json=payload)
+        response.raise_for_status()
+        return {
+            record.get("solutionCode"): (record.get("systemType") or "").strip() or None
+            for record in response.json().get("IccTemplates", [])
+            if record.get("solutionCode")
         }
 
     def create_field_plan_template(self, request_info: RequestInfo, fieldplan_id: str,

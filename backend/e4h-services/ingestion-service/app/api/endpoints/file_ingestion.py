@@ -37,6 +37,7 @@ from app.utils.field_plan_locks import build_project_lock_map, solution_codes_by
 from app.utils.icc_template_parser import annotate_worksheet, first_data_sheet, parse_worksheet, \
     read_only_errors, to_sections, validate_line_items
 from app.ingest.icc_template_service import fetch_blank_template
+from app.utils.solution_eligibility import SYSTEM_TYPE_COLUMN, system_type_labels_by_solution_name
 from app.ingest.bom_form_catalog import BomFormError, load_solution_forms, structural_errors
 from app.ingest.bom_field_mapper import build_field_map
 from fastapi import APIRouter, File, Form, UploadFile, HTTPException, BackgroundTasks, Depends
@@ -2591,6 +2592,20 @@ async def validate_facilities_excel_sheet(
                            f"{fieldplan_id}, so scope changes cannot be validated safely: {e}")
 
         solutions = mdms_client.fetch_installation_solutions(request_info_obj)
+        # Read from field-planner, not from the workbook's own lists, which can be edited.
+        system_type_label_by_solution_name = None
+        if fieldPlan_service_url and any(
+                c in df.columns for c in (SYSTEM_TYPE_COLUMN, f"{SYSTEM_TYPE_COLUMN} (Mandatory)")):
+            try:
+                system_type_label_by_solution_name = system_type_labels_by_solution_name(
+                    solutions,
+                    FieldPlanServiceClient(fieldPlan_service_url).search_solution_system_types(request_info_obj))
+            except Exception as e:
+                logger.error(f"Could not read the Solutions' system types: {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=502,
+                    detail="Could not read the system types of the Solutions, so this scope sheet cannot "
+                           "be validated. Please try again.")
         state_by_facility_id, sector_by_facility_id, boundary_code_by_facility_id = (
             _facility_states_and_sectors_from_sheet(
                 df, boundary_data_df, facility_client, request_info_obj
@@ -2618,6 +2633,7 @@ async def validate_facilities_excel_sheet(
             plan_is_published=plan_is_published,
             allowed_site_ids=allowed_site_ids,
             project_site_ids=project_site_ids,
+            system_type_label_by_solution_name=system_type_label_by_solution_name,
         )
 
         # A sheet that selects nothing is a mistake, not a no-op. Frozen rows carry
