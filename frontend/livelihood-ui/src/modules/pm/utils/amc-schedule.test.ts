@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AmcScheduleRow, AmcScheduleSource, RawAmcConfiguration } from "../types/amc";
 import {
+  areAmcUpdatesSaved,
   firstAmcDueDate,
   isAmcScheduleDirty,
   isPendingActivation,
@@ -245,5 +246,32 @@ describe("field staff changes", () => {
     const edited = { ...withStaff, fieldStaffId: "s2" };
     expect(isAmcScheduleDirty([withStaff], [edited])).toBe(true);
     expect(toAmcConfigurationUpdates([withStaff], [edited], "livelihood")).toEqual([]);
+  });
+});
+
+describe("areAmcUpdatesSaved", () => {
+  const saved: RawAmcConfiguration = {
+    id: "amc-1",
+    activityFacilityId: "row-1",
+    status: "ACTIVE",
+    visitFrequencyMonths: 6,
+    durationMonths: 12,
+    configurationStartDate: Date.UTC(2026, 10, 5, 18, 30),
+    fieldStaff: { uuid: "s1" },
+  };
+  const update = { tenantId: "livelihood", id: "amc-1", visitFrequencyMonths: 6, durationMonths: 12 };
+
+  it("compares frequency, years and the start day", () => {
+    expect(areAmcUpdatesSaved([saved], [update], [])).toBe(true);
+    expect(areAmcUpdatesSaved([saved], [{ ...update, durationMonths: 24 }], [])).toBe(false);
+    expect(areAmcUpdatesSaved([saved], [{ ...update, configurationStartDate: Date.UTC(2026, 10, 6) }], [])).toBe(true);
+    expect(areAmcUpdatesSaved([saved], [{ ...update, configurationStartDate: Date.UTC(2026, 10, 8) }], [])).toBe(false);
+  });
+
+  it("compares the field staff, and is not saved while the AMC is missing", () => {
+    const staff = { tenantId: "livelihood", activityFacilityId: "row-1", fieldStaffUserId: "s1" };
+    expect(areAmcUpdatesSaved([saved], [], [staff])).toBe(true);
+    expect(areAmcUpdatesSaved([saved], [], [{ ...staff, fieldStaffUserId: "s2" }])).toBe(false);
+    expect(areAmcUpdatesSaved([], [update], [])).toBe(false);
   });
 });
