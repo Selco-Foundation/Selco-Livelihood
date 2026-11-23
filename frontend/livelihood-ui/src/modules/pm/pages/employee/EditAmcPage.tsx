@@ -64,6 +64,8 @@ export function EditAmcPage() {
     setErrors([]);
   }, [originalRows]);
 
+  // A link with a missing or unknown plan id; undefined while the plan is loading.
+  const planNotFound = !planId || plan === null;
   const isDirty = isAmcScheduleDirty(originalRows, rows);
 
   const frequencyOptions = amcFrequencies.map((option) => ({
@@ -208,7 +210,7 @@ export function EditAmcPage() {
               </span>{" "}
               <span className="font-semibold text-foreground">{plan?.name ?? "-"}</span>
             </p>
-            <Button type="button" variant="outline" size="sm" onClick={() => setAddOpen(true)}>
+            <Button type="button" variant="outline" size="sm" disabled={planNotFound} onClick={() => setAddOpen(true)}>
               <Plus className="size-4" />
               {translateOr(t, "ES_PM_ADD_AMC", "Add AMC")}
             </Button>
@@ -252,7 +254,11 @@ export function EditAmcPage() {
             </div>
           ) : null}
 
-          {isLoading ? (
+          {planNotFound ? (
+            <p role="alert" className="py-8 text-center text-sm text-destructive">
+              {translateOr(t, "ES_PM_INSTALLATION_PLAN_NOT_FOUND", "This installation plan could not be found.")}
+            </p>
+          ) : isLoading ? (
             <Skeleton className="h-64 w-full" />
           ) : rows.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
@@ -346,6 +352,7 @@ export function EditAmcPage() {
                           </td>
                           <td className="w-[170px] bg-accent/40 px-5 py-4">
                             <SearchableSelect
+                              keepOrder
                               ariaLabel={`${fieldLabels.frequencyMonths}, ${row.endUserName}`}
                               disabled={!running}
                               value={row.frequencyMonths ? String(row.frequencyMonths) : ""}
@@ -363,6 +370,7 @@ export function EditAmcPage() {
                           </td>
                           <td className="w-[150px] bg-accent/40 px-5 py-4">
                             <SearchableSelect
+                              keepOrder
                               ariaLabel={`${fieldLabels.years}, ${row.endUserName}`}
                               disabled={!running}
                               value={row.years ? String(row.years) : ""}

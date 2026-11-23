@@ -57,6 +57,21 @@ describe("SearchableSelect", () => {
     expect(screen.queryByText("Vendor One")).not.toBeInTheDocument();
   });
 
+  it("keeps the given order when asked to", async () => {
+    const user = userEvent.setup();
+    const ordered: SearchableSelectOption[] = [
+      { code: "1", name: "1 month" },
+      { code: "6", name: "6 months" },
+      { code: "12", name: "1 year" },
+    ];
+    render(<SearchableSelect label="Frequency" value="" options={ordered} keepOrder onChange={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /Frequency/ }));
+
+    const names = screen.getAllByRole("button").map((button) => button.textContent);
+    expect(names.filter((name) => ordered.some((option) => option.name === name))).toEqual(["1 month", "6 months", "1 year"]);
+  });
+
   it("renders options sorted by name, ascending, regardless of the input order", async () => {
     const user = userEvent.setup();
     const unsorted: SearchableSelectOption[] = [

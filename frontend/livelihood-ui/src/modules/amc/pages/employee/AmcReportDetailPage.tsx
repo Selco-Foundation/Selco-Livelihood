@@ -1,4 +1,4 @@
-import { employeeHomePath, extractApiErrorMessage, translateOr, useAuthStore, useTranslate } from "@/shared";
+import { amcErrorText, employeeHomePath, translateOr, useAuthStore, useTranslate } from "@/shared";
 import {
   Accordion,
   AccordionContent,
@@ -218,7 +218,7 @@ export function AmcReportDetailPage() {
   const canReview = report?.status === "PENDING_APPROVAL";
 
   function errorDescription(error: unknown) {
-    return extractApiErrorMessage(error) ?? translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again.");
+    return amcErrorText(error, t) ?? translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again.");
   }
 
   function handleApprove() {

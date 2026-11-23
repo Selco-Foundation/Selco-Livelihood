@@ -77,12 +77,14 @@ export function AddAmcDialog({ planId, open, onOpenChange }: Readonly<AddAmcDial
             }}
           />
           <SearchableSelect
+            keepOrder
             label={translateOr(t, "ES_PM_AMC_FREQUENCY", "AMC frequency")}
             value={String(frequencyMonths ?? defaultFrequencyMonths ?? "")}
             options={options(frequencyOptions, frequencyOptions.map((option) => option.months))}
             onChange={(option) => setFrequencyMonths(option ? Number(option.code) : undefined)}
           />
           <SearchableSelect
+            keepOrder
             label={translateOr(t, "ES_PM_AMC_YEARS", "Number of years")}
             value={String(years ?? defaultYears ?? "")}
             options={options(yearsOptions, yearsOptions.map((option) => option.years))}

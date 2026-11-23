@@ -261,6 +261,13 @@ describe("EditAmcPage", () => {
     expect(screen.queryByText("Complete the AMC?")).not.toBeInTheDocument();
   });
 
+  it("says when the installation plan is not found", () => {
+    vi.mocked(useInstallationPlanById).mockReturnValue({ data: null } as never);
+    renderPage();
+    expect(screen.getByRole("alert")).toHaveTextContent("This installation plan could not be found.");
+    expect(screen.getByRole("button", { name: "Add AMC" })).toBeDisabled();
+  });
+
   it("opens the visits of an AMC, with the saved schedule", async () => {
     renderPage();
     const user = userEvent.setup();

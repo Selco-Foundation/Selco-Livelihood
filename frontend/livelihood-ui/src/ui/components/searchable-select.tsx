@@ -20,6 +20,8 @@ interface SearchableSelectBaseProps<TOption extends SearchableSelectOption> {
   error?: string;
   /** Shows the error as a red border plus an info icon beside the field (message on hover), not as text below it. */
   errorAsTooltip?: boolean;
+  /** Keeps the given order (e.g. 1 month, 6 months, 1 year) instead of sorting by name. */
+  keepOrder?: boolean;
   onChange: (option: TOption | null) => void;
 }
 
@@ -55,6 +57,7 @@ export function SearchableSelect<TOption extends SearchableSelectOption>({
   disabled = false,
   error,
   errorAsTooltip = false,
+  keepOrder = false,
   onChange,
 }: Readonly<SearchableSelectProps<TOption>>) {
   const [open, setOpen] = useState(false);
@@ -68,8 +71,8 @@ export function SearchableSelect<TOption extends SearchableSelectOption>({
   const resolvedPlaceholder = placeholder ?? translateOr(t, "ES_COMMON_SELECT_PLACEHOLDER", "Select");
 
   const sortedOptions = useMemo(
-    () => [...options].sort((a, b) => a.name.localeCompare(b.name)),
-    [options],
+    () => (keepOrder ? options : [...options].sort((a, b) => a.name.localeCompare(b.name))),
+    [options, keepOrder],
   );
 
   const selectedOption = useMemo(
