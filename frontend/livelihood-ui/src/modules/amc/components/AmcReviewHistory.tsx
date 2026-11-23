@@ -7,7 +7,7 @@ import { formatAmcDate } from "../utils/date";
 const ACTION_LABELS: Record<string, { key: string; fallback: string }> = {
   SCHEDULE: { key: "ES_AMC_HISTORY_SCHEDULED", fallback: "Visit scheduled" },
   SUBMIT_VISIT_REPORT: { key: "ES_AMC_HISTORY_SUBMITTED", fallback: "Report submitted" },
-  SUBMIT_OTP: { key: "ES_AMC_HISTORY_CODE_VERIFIED", fallback: "Service code verified" },
+  SUBMIT_OTP: { key: "ES_AMC_HISTORY_CODE_VERIFIED", fallback: "Pending Approval" },
   AUTO_APPROVE: { key: "ES_AMC_HISTORY_AUTO_APPROVED", fallback: "Auto-approved" },
   APPROVE: { key: "ES_AMC_HISTORY_APPROVED", fallback: "Approved" },
   REJECT: { key: "ES_AMC_HISTORY_SENT_FOR_REWORK", fallback: "Sent for rework" },
