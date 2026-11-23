@@ -118,37 +118,6 @@ export function toAmcFieldStaffUpdates(
   });
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-/**
- * Whether the searched AMCs already show a save. The server stores the start date as the start of
- * the IST day, so it counts as saved within a day of what was sent.
- */
-export function areAmcUpdatesSaved(
-  saved: RawAmcConfiguration[],
-  scheduleUpdates: AmcConfigurationUpdate[],
-  fieldStaffUpdates: AmcFieldStaffUpdate[],
-): boolean {
-  const byId = new Map(saved.map((amc) => [amc.id, amc]));
-  return (
-    scheduleUpdates.every((update) => {
-      const amc = byId.get(update.id);
-      return (
-        amc?.visitFrequencyMonths === update.visitFrequencyMonths &&
-        amc.durationMonths === update.durationMonths &&
-        (update.configurationStartDate === undefined ||
-          Math.abs((amc.configurationStartDate ?? 0) - update.configurationStartDate) < DAY_MS)
-      );
-    }) &&
-    fieldStaffUpdates.every((update) =>
-      saved.some(
-        (amc) =>
-          amc.activityFacilityId === update.activityFacilityId && amc.fieldStaff?.uuid === update.fieldStaffUserId,
-      ),
-    )
-  );
-}
-
 export function isAmcScheduleDirty(original: AmcScheduleRow[], edited: AmcScheduleRow[]): boolean {
   const originalById = new Map(original.map((row) => [row.id, row]));
   return edited.some((row) => {

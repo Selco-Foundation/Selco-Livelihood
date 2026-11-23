@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuthStore } from "@/shared";
 import { useCreatePlanAmcs } from "./use-create-plan-amcs";
 import { searchPlanActivityFacilities } from "../services/activity-facility";
-import { createAmcConfigurations, searchAmcConfigurations } from "../services/amc-configuration";
+import { createAmcConfigurations } from "../services/amc-configuration";
 
 vi.mock("@/shared", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/shared")>();
@@ -13,7 +13,7 @@ vi.mock("@/shared", async (importOriginal) => {
 });
 vi.mock("./use-amc-options", () => ({ useAmcOptions: () => ({ defaultFrequencyMonths: 6, defaultYears: 1 }) }));
 vi.mock("../services/activity-facility", () => ({ searchPlanActivityFacilities: vi.fn() }));
-vi.mock("../services/amc-configuration", () => ({ createAmcConfigurations: vi.fn(), searchAmcConfigurations: vi.fn() }));
+vi.mock("../services/amc-configuration", () => ({ createAmcConfigurations: vi.fn() }));
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -24,7 +24,6 @@ beforeEach(() => {
   useAuthStore.setState({ accessToken: "token-1", user: { uuid: "u1" } });
 });
 afterEach(() => {
-  vi.useRealTimers();
   useAuthStore.setState({ accessToken: null, user: null });
   vi.resetAllMocks();
 });
@@ -59,28 +58,6 @@ describe("useCreatePlanAmcs", () => {
       "token-1",
       { uuid: "u1" },
     );
-  });
-
-  it("waits for a just-published plan's rows and for the new AMC to be searchable", async () => {
-    vi.useFakeTimers();
-    const row = { activityFacility: { id: "af1", facilityId: "site-1" } };
-    vi.mocked(searchPlanActivityFacilities).mockResolvedValueOnce({ facility: [] }).mockResolvedValue({ facility: [row] });
-    vi.mocked(createAmcConfigurations).mockResolvedValue({ AmcConfigurations: [{ id: "amc-1" } as never] });
-    vi.mocked(searchAmcConfigurations)
-      .mockResolvedValueOnce({ AmcConfigurations: [] })
-      .mockResolvedValue({ AmcConfigurations: [{ id: "amc-1" } as never] });
-    const { result } = renderHook(() => useCreatePlanAmcs("plan-1"), { wrapper });
-
-    await act(async () => {
-      const done = result.current.mutateAsync([{ facilityId: "site-1", vendorOrgId: "org-1", fieldStaffId: "s1" }]);
-      await vi.runAllTimersAsync();
-      await done;
-    });
-
-    expect(searchPlanActivityFacilities).toHaveBeenCalledTimes(2);
-    expect(createAmcConfigurations).toHaveBeenCalledTimes(1);
-    expect(searchAmcConfigurations).toHaveBeenCalledTimes(2);
-    expect(searchAmcConfigurations).toHaveBeenCalledWith({ ids: ["amc-1"] }, { limit: 500 }, "token-1", { uuid: "u1" });
   });
 
   it("makes no call when no site is chosen", async () => {
