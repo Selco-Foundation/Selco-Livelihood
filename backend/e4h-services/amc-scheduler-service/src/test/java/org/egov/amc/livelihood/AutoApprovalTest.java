@@ -60,8 +60,8 @@ class AutoApprovalTest {
 
     @Test
     void allInRangePasses() {
-        assertTrue(passes(good(), null));
-        Map<String, Object> res = AutoApproval.evaluate(RULES, good(), null, 99L);
+        assertTrue(passes(good(), "DC"));
+        Map<String, Object> res = AutoApproval.evaluate(RULES, good(), "DC", 99L);
         assertEquals(99L, res.get("evaluatedAt"));
         assertEquals("less than 7 V", ruleResult(res, "NE_VOLTAGE_PCU_OUTPUT").get("acceptedRange"));
         assertEquals("215 to 250 V", ruleResult(res, "INVERTER_OUTPUT_VOLTAGE").get("acceptedRange"));
@@ -108,10 +108,10 @@ class AutoApprovalTest {
         assertEquals("NOT_A_NUMBER", AutoApproval.judge(lt, "12 volts"));
         Map<String, Object> r = good();
         r.remove("inverterOutputVoltage");
-        assertFalse(passes(r, null), "case (b): a rule for all systems without a reading fails");
+        assertFalse(passes(r, "DC"), "case (b): a rule for all systems without a reading fails");
         r = good();
         r.put("neVoltageGridInput", "N/A");
-        assertFalse(passes(r, null), "case (c): DC off-grid N/A on grid input -> reviewer");
+        assertFalse(passes(r, "DC"), "case (c): DC off-grid N/A on grid input -> reviewer");
     }
 
     @Test
@@ -136,25 +136,82 @@ class AutoApprovalTest {
     }
 
     @Test
-    void unknownSystemTypeJudgesWhicheverSpdAnswerWasGiven() {
-        // one answer: judged; the other skipped
-        Map<String, Object> res = AutoApproval.evaluate(RULES, good(), null, 1L);
-        assertTrue((Boolean) res.get("passed"));
-        assertEquals(false, ruleResult(res, "GRID_SPD_STATUS").get("applicable"));
-        // both answered: both judged
+    void unknownSystemTypeNeverPasses() {
         Map<String, Object> both = good();
-        both.put("gridSpdStatus", "FAILED");
-        assertFalse(passes(both, "LIVELIHOOD"));
         both.put("gridSpdStatus", "WORKING");
-        assertTrue(passes(both, ""));
-        // neither answered: fail
+        for (String type : new String[]{null, "", " ", "LIVELIHOOD"}) {
+            Map<String, Object> res = AutoApproval.evaluate(RULES, both, type, 1L);
+            assertFalse((Boolean) res.get("passed"), "every answer good, type " + type);
+            assertNull(res.get("systemType"));
+            assertEquals(true, ruleResult(res, "GRID_SPD_STATUS").get("passed"), "still judged for the reviewer");
+        }
+        // the app asks neither SPD question: both show as missing to the reviewer
         Map<String, Object> none = good();
         none.remove("solarSpdStatus");
-        Map<String, Object> r = AutoApproval.evaluate(RULES, none, null, 1L);
-        assertFalse((Boolean) r.get("passed"));
-        assertEquals("MISSING", ruleResult(r, "SOLAR_SPD_STATUS").get("reason"));
-        assertEquals("MISSING", ruleResult(r, "GRID_SPD_STATUS").get("reason"));
-        assertNull(r.get("systemType"));
+        Map<String, Object> res = AutoApproval.evaluate(RULES, none, null, 1L);
+        assertFalse((Boolean) res.get("passed"));
+        assertEquals("MISSING", ruleResult(res, "SOLAR_SPD_STATUS").get("reason"));
+        assertEquals("MISSING", ruleResult(res, "GRID_SPD_STATUS").get("reason"));
+    }
+
+    @Test
+    void systemTypeWithoutItsOwnRuleNeverPasses() {
+        Map<String, Object> both = good();
+        both.put("gridSpdStatus", "WORKING");
+        for (String type : List.of("ACC", "SOLAR", "WIND")) {
+            Map<String, Object> res = AutoApproval.evaluate(RULES, both, type, 1L);
+            assertFalse((Boolean) res.get("passed"), type);
+            assertEquals(type, res.get("systemType"));
+        }
+    }
+
+    /** The client's rules: Solar SPD for DC, Grid SPD for AC, the rest for every system type. */
+    @Test
+    void acAndDcCheckOnlyTheirOwnSpd() {
+        List<AutoApproval.Rule> rules = withSpdTypes(List.of("DC"), List.of("AC"));
+        Map<String, Object> ac = good();
+        ac.put("solarSpdStatus", "FAILED");
+        ac.put("gridSpdStatus", "WORKING");
+        assertEquals(true, AutoApproval.evaluate(rules, ac, "AC", 1L).get("passed"), "Solar SPD is ignored on AC");
+        ac.put("gridSpdStatus", "FAILED");
+        assertEquals(false, AutoApproval.evaluate(rules, ac, "AC", 1L).get("passed"));
+        ac.remove("gridSpdStatus");
+        assertEquals(false, AutoApproval.evaluate(rules, ac, "AC", 1L).get("passed"), "Grid SPD not answered");
+
+        Map<String, Object> dc = good();
+        dc.put("gridSpdStatus", "FAILED");
+        assertEquals(true, AutoApproval.evaluate(rules, dc, "DC", 1L).get("passed"), "Grid SPD is ignored on DC");
+        dc.put("inverterOutputVoltage", 12);
+        assertEquals(false, AutoApproval.evaluate(rules, dc, "DC", 1L).get("passed"), "rules 1 to 5 apply to DC too");
+    }
+
+    @Test
+    void newSystemTypeIsJudgedOnceARuleNamesIt() {
+        List<AutoApproval.Rule> rules = withSpdTypes(List.of("DC", "HYBRID"), List.of("AC", "HYBRID"));
+        Map<String, Object> hybrid = good();
+        assertEquals(false, AutoApproval.evaluate(rules, hybrid, "HYBRID", 1L).get("passed"), "needs both SPD answers");
+        hybrid.put("gridSpdStatus", "WORKING");
+        assertEquals(true, AutoApproval.evaluate(rules, hybrid, "HYBRID", 1L).get("passed"));
+    }
+
+    @Test
+    void withoutSystemSpecificRulesOnlyAnUnknownTypeIsHeldBack() {
+        List<AutoApproval.Rule> common = RULES.stream().filter(AutoApproval.Rule::forAllSystemTypes).toList();
+        assertEquals(true, AutoApproval.evaluate(common, good(), "AC", 1L).get("passed"));
+        assertEquals(false, AutoApproval.evaluate(common, good(), null, 1L).get("passed"));
+    }
+
+    private static List<AutoApproval.Rule> withSpdTypes(List<String> solar, List<String> grid) {
+        return RULES.stream().map(r -> switch (r.code()) {
+            case "SOLAR_SPD_STATUS" -> retype(r, solar);
+            case "GRID_SPD_STATUS" -> retype(r, grid);
+            default -> r;
+        }).toList();
+    }
+
+    private static AutoApproval.Rule retype(AutoApproval.Rule r, List<String> types) {
+        return new AutoApproval.Rule(r.code(), r.fieldName(), r.labelKey(), r.operator(), r.min(), r.max(), r.value(), r.unit(),
+                r.acceptedRangeKey(), types);
     }
 
     @Test

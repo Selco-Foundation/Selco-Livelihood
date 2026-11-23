@@ -15,8 +15,9 @@ import java.util.Map;
  * <ul>
  *   <li>(a) rule not for the site's system type: skipped</li>
  *   <li>(b) reading missing / blank: fail; (c) "N/A": fail; (d) numeric rule, not a number: fail</li>
- *   <li>(e) system type unknown (blank or LIVELIHOOD): the system-specific rules (SPD) are judged on whichever
- *       answer was given; none answered: fail. Rules for all system types run as normal.</li>
+ *   <li>(e) system type unknown (blank or LIVELIHOOD), or not covered by any system-specific rule (a new type
+ *       without its own rule yet, or a typing mistake): never passes. Every rule is still judged, so the reviewer
+ *       sees the readings.</li>
  * </ul>
  * Operators: LT (reading &lt; max), BETWEEN (min &le; reading &le; max), EQ (same text, case-insensitive; true/false = YES/NO).
  */
@@ -53,7 +54,7 @@ public final class AutoApproval {
         return out;
     }
 
-    /** Site system type unknown: no source holds it yet (open point P5). */
+    /** The installation's Solution has no system type. */
     public static boolean unknownSystemType(String systemType) {
         return systemType == null || systemType.isBlank() || "LIVELIHOOD".equalsIgnoreCase(systemType.trim());
     }
@@ -67,27 +68,20 @@ public final class AutoApproval {
 
     /**
      * @return {evaluatedAt, passed, systemType, rules:[{code, fieldName, label, labelKey, reading, unit, acceptedRange,
-     *         acceptedRangeKey, applicable, passed, reason}]}; passed = every applicable rule passed (and at least one applied)
+     *         acceptedRangeKey, applicable, passed, reason}]}; passed = the system type is covered and every applicable rule passed
      */
     public static Map<String, Object> evaluate(List<Rule> rules, Map<String, Object> responses, String systemType, long now) {
         boolean unknown = unknownSystemType(systemType);
-        // (e): with an unknown system type, the system-specific rules apply where an answer was given;
-        // when none of them was answered, all of them apply (and fail as missing).
-        boolean anySystemSpecificAnswered = rules.stream().anyMatch(r -> !r.forAllSystemTypes() && present(reading(responses, r)));
+        // (e): without a rule for this system type nothing would check its own parts (SPD), so it must not pass.
+        boolean covered = !unknown && (rules.stream().allMatch(Rule::forAllSystemTypes)
+                || rules.stream().anyMatch(r -> !r.forAllSystemTypes() && appliesTo(r, systemType)));
 
         List<Map<String, Object>> results = new ArrayList<>();
         boolean allPassed = true;
         int applied = 0;
         for (Rule r : rules) {
             Object reading = reading(responses, r);
-            boolean applicable;
-            if (r.forAllSystemTypes()) {
-                applicable = true;
-            } else if (unknown) {
-                applicable = !anySystemSpecificAnswered || present(reading);
-            } else {
-                applicable = r.appliesToSystemTypes().stream().anyMatch(p -> matches(p, systemType));
-            }
+            boolean applicable = r.forAllSystemTypes() || !covered || appliesTo(r, systemType);
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("code", r.code());
             m.put("fieldName", r.fieldName());
@@ -112,10 +106,14 @@ public final class AutoApproval {
         }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("evaluatedAt", now);
-        out.put("passed", allPassed && applied > 0);
+        out.put("passed", covered && allPassed && applied > 0);
         out.put("systemType", unknown ? null : systemType);
         out.put("rules", results);
         return out;
+    }
+
+    private static boolean appliesTo(Rule r, String systemType) {
+        return r.appliesToSystemTypes().stream().anyMatch(p -> matches(p, systemType));
     }
 
     /** null = pass, else why it failed. */
