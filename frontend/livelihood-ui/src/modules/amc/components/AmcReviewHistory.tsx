@@ -28,7 +28,7 @@ export function AmcReviewHistory({ history, reasonName }: Readonly<AmcReviewHist
 
   return (
     <div className="livelihood-card space-y-4 px-6 py-5 lg:px-7">
-      <h2 className="text-sm font-semibold text-ink-950">
+      <h2 className="text-lg font-bold text-ink-950">
         {translateOr(t, "ES_AMC_REVIEW_HISTORY", "Submission and review history")}
       </h2>
       <ol className="space-y-4">

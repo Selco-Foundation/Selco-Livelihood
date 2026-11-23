@@ -34,7 +34,7 @@ import { amcProjectReportsPath, amcProjectsPath, amcReportsPath } from "../../ut
 // Card padding and type scale follow the IR review page (ActivityInfoCard, AuditTrailTimeline,
 // ReviewSectionsAccordion), so the two review screens look the same.
 const CARD = "livelihood-card px-6 py-5 lg:px-7";
-const CARD_TITLE = "text-sm font-semibold text-ink-950";
+const CARD_TITLE = "text-lg font-bold text-ink-950";
 
 function InfoItem({ label, children }: Readonly<{ label: string; children: React.ReactNode }>) {
   return (
@@ -112,7 +112,7 @@ function FailedParameters({ report }: Readonly<{ report: AmcReport }>) {
   if (failed.length === 0 || report.approvedBy === "SYSTEM") return null;
   return (
     <div className={cn(CARD, "border border-destructive/40")}>
-      <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold text-destructive">
+      <h2 className="mb-1 flex items-center gap-2 text-lg font-bold text-destructive">
         <AlertTriangle className="size-4" />
         {translateOr(t, "ES_AMC_NOT_AUTO_APPROVED", "Why this report was not auto-approved")}
       </h2>
@@ -147,7 +147,7 @@ function SectionCard({ value, title, children }: Readonly<{ value: string; title
     <Accordion type="multiple" defaultValue={[value]} className="livelihood-card px-4 lg:px-5">
       <AccordionItem value={value}>
         <AccordionPrimitive.Header className="flex items-center justify-between gap-3 py-4">
-          <AccordionPrimitive.Trigger className="flex flex-1 items-center gap-2 text-left text-sm font-semibold text-ink-950 outline-none [&[data-state=open]>svg]:rotate-180">
+          <AccordionPrimitive.Trigger className="flex flex-1 items-center gap-2 text-left text-lg font-bold text-ink-950 outline-none [&[data-state=open]>svg]:rotate-180">
             {title}
             <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform" />
           </AccordionPrimitive.Trigger>
