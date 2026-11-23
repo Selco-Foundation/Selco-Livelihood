@@ -57,7 +57,8 @@ class LivelihoodReportPdfDataTest {
                 .configurationStartDate(AmcScheduleAndPlanTest.day(2026, 11, 16))
                 .configurationEndDate(AmcScheduleAndPlanTest.day(2027, 11, 16)).build();
         return new Input(visit, report, facility, cfg, "KhushVendor", "Assam Solar Livelihood 2026",
-                "Assam", "Baksa", "Dhamdhama", "AMC Field Staff", step);
+                "Assam", "Baksa", "Dhamdhama", "AMC Field Staff", "9876543210",
+                Map.of("installationDate", AmcScheduleAndPlanTest.day(2025, 8, 14), "pinCode", "781354", "purchaseOrderNumber", "PO/2025/0412"), step);
     }
 
     static Step submit() {
@@ -145,6 +146,75 @@ class LivelihoodReportPdfDataTest {
         assertEquals("Photo unclear: Retake the SPD photo; Others: Earthing 'loose'", d.get("step_comment"));
         assertEquals("01-05-2027", d.get("first_submission_date"));
         assertEquals("02-05-2027", d.get("latest_submission_date"), "not a submit: stored date");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void clientFormatAtSubmit() {
+        VisitReport report = report();
+        report.getResponses().put("visitDate", "2026-11-06");
+        report.getResponses().put("obsCablesCrimped", "YES");
+        report.getResponses().put("obsCableLugsUsed", "NO");
+        report.setOtpVerifiedAt(1L); // left over from before the rework: not this submit's verification
+        Map<String, Object> d = LivelihoodReportPdfData.build(input(report, submit()));
+        assertEquals("06 Nov 2026", d.get("visit_date"));
+        assertEquals("Ravi 'RK' Kumar", d.get("service_by"));
+        assertEquals("9876543210", d.get("service_by_phone"), "not entered: the field staff's own mobile");
+        assertEquals("14 Aug 2025", d.get("installation_date"));
+        assertEquals("781354", d.get("pin_code"));
+        assertEquals("PO/2025/0412", d.get("purchase_order_number"));
+        assertEquals("Solar-Battery-Grid", d.get("pcu_priority"));
+        assertEquals("Yes", d.get("obs_2"));
+        assertEquals("ans", d.get("obs_2_style"));
+        assertEquals("N/A", d.get("obs_3"));
+        assertEquals("plain", d.get("obs_3_style"));
+        assertEquals("Yes", d.get("obs_17"));
+        assertEquals("-", d.get("obs_18"), "4.18 not answered: never another question's answer");
+        assertEquals("Cleaned panels (all) re-tightened (AJB)", d.get("vendor_remarks"));
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) d.get("reading_rows");
+        assertEquals(9, rows.size(), "no grid SPD in the report: the client's 9 rows");
+        assertEquals("3 V", rows.get(0).get("value"));
+        assertEquals("1", rows.get(0).get("p_ne_pcu"));
+        assertEquals("1", rows.get(0).get("photo"));
+        assertEquals("ans", rows.get(0).get("style"));
+        assertEquals("plain", rows.get(8).get("style"));
+        assertEquals("", rows.get(0).get("p_ne_grid"));
+        assertEquals("", rows.get(1).get("p_ne_grid"), "photo missing: no image drawn");
+        assertEquals("Working", rows.get(7).get("value"));
+        assertEquals("Pending", d.get("verification_status"));
+        assertEquals("-", d.get("verification_id"));
+        assertEquals("01 May 2027, 11:05", d.get("submitted_at"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void clientFormatAfterVerificationAndGridSpdRows() {
+        long verified = AmcScheduleAndPlanTest.ist(2027, 5, 1, 11, 42);
+        VisitReport report = report();
+        report.getResponses().put("gridSpdStatus", "FAILED");
+        report.getResponses().put("obsCablesDamaged", "NO");
+        report.setOtpVerifiedAt(verified);
+        Input in = input(report, new Step("APPROVE", "APPROVED", "AMC Reviewer", AmcScheduleAndPlanTest.ist(2027, 5, 3, 9, 0), null));
+        in.visit().setAdditionalDetails(Map.of("reportPdf", Map.of("visitStatus", "PENDING_OTP_APPROVAL",
+                "generatedAt", AmcScheduleAndPlanTest.ist(2027, 5, 1, 11, 5))));
+        Map<String, Object> d = LivelihoodReportPdfData.build(in);
+        assertEquals("01 May 2027, 11:42", d.get("verified_at"));
+        assertEquals("Success", d.get("verification_status"));
+        assertTrue(String.valueOf(d.get("verification_id")).matches("SF-UV-20270501-[0-9A-Z]{6}"), String.valueOf(d.get("verification_id")));
+        assertEquals(d.get("verification_id"), LivelihoodReportPdfData.build(in).get("verification_id"));
+        assertEquals("01 May 2027, 11:05", d.get("submitted_at"));
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) d.get("reading_rows");
+        assertEquals("No", d.get("obs_18"), "answer as given");
+        assertEquals(11, rows.size());
+        assertEquals("Failed", rows.get(9).get("value"));
+    }
+
+    @Test
+    void autoApprovalIsTheVerification() {
+        long now = AmcScheduleAndPlanTest.ist(2027, 5, 1, 11, 42);
+        Map<String, Object> d = LivelihoodReportPdfData.build(input(report(), new Step("AUTO_APPROVE", "APPROVED", "System", now, null)));
+        assertEquals("01 May 2027, 11:42", d.get("verified_at"));
+        assertEquals(LivelihoodReportPdfData.verificationId("a32dbef8-70c8-38b7-adce-8a451c7ae7c2", now), d.get("verification_id"));
     }
 
     /** Writes the request the code sends, for the dev test to post to pdf-service (tests/step2_3.sh). */

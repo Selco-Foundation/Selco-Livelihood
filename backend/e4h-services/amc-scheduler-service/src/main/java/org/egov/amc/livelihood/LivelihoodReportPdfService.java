@@ -33,7 +33,7 @@ import java.util.stream.Stream;
 /**
  * The one place every report step makes its PDF (LLD §6.10): submit/resubmit, auto-approve, approve, reject.
  * Strict: no file back from pdf-service means {@code AMC_PDF_GENERATION_FAILED}, and the caller saves nothing.
- * Name look-ups (vendor, project, boundary) are best-effort: a failed look-up prints "-" rather than failing the step.
+ * Name look-ups (vendor, project, boundary, site details) are best-effort: a failed look-up prints "-" rather than failing the step.
  */
 @Service
 @Slf4j
@@ -48,12 +48,14 @@ public class LivelihoodReportPdfService {
     private final AmcConfigurationValidator projects;
     private final BoundaryUtil boundaryUtil;
     private final BoundaryLocalizationUtil boundaryNames;
+    private final SiteDetailsReader siteDetailsReader;
     private final ObjectMapper mapper;
 
     public LivelihoodReportPdfService(AMCServiceConfiguration config, ServiceRequestRepository requestRepository,
                                       AmcConfigurationRepository configurationRepository, VendorOrgDirectory vendors,
                                       AmcConfigurationValidator projects, BoundaryUtil boundaryUtil,
-                                      BoundaryLocalizationUtil boundaryNames, @Qualifier("objectMapper") ObjectMapper mapper) {
+                                      BoundaryLocalizationUtil boundaryNames, SiteDetailsReader siteDetailsReader,
+                                      @Qualifier("objectMapper") ObjectMapper mapper) {
         this.config = config;
         this.requestRepository = requestRepository;
         this.configurationRepository = configurationRepository;
@@ -61,6 +63,7 @@ public class LivelihoodReportPdfService {
         this.projects = projects;
         this.boundaryUtil = boundaryUtil;
         this.boundaryNames = boundaryNames;
+        this.siteDetailsReader = siteDetailsReader;
         this.mapper = mapper;
     }
 
@@ -112,7 +115,26 @@ public class LivelihoodReportPdfService {
         String[] names = boundary(site, requestInfo);
         return LivelihoodReportPdfData.build(new Input(visit, report, site, cfg,
                 vendorName(vendorId, visit.getTenantId(), requestInfo), projectName(projectId, visit.getTenantId(), requestInfo),
-                names[0], names[1], names[2], fieldStaffName, step));
+                names[0], names[1], names[2], fieldStaffName, fieldStaffMobile(visit),
+                siteDetails(cfg != null ? cfg.getActivityFacilityId() : null), step));
+    }
+
+    private static String fieldStaffMobile(ScheduledVisit visit) {
+        Map<String, Object> staff = VisitReadFields.fieldStaff(visit);
+        return staff == null ? null : (String) staff.get("mobile");
+    }
+
+    /** Installation date, PIN code and purchase order number; empty when unknown. */
+    private Map<String, Object> siteDetails(String activityFacilityId) {
+        if (activityFacilityId == null) {
+            return Map.of();
+        }
+        try {
+            return siteDetailsReader.read(List.of(activityFacilityId)).getOrDefault(activityFacilityId, Map.of());
+        } catch (RuntimeException e) {
+            log.warn("AMC PDF: site details look-up failed for {}: {}", activityFacilityId, e.getMessage());
+            return Map.of();
+        }
     }
 
     /** Includes turned-off AMCs: a reviewer may act on a report after the AMC was cancelled. */

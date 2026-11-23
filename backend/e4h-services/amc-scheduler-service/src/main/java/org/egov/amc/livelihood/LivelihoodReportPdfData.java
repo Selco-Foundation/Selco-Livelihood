@@ -8,8 +8,14 @@ import org.egov.amc.web.models.ScheduledVisit;
 import org.egov.amc.web.models.VisitReport;
 import org.egov.amc.web.models.VisitReportDocument;
 
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,7 +30,8 @@ import static org.egov.amc.livelihood.LivelihoodAmc.IST;
  * Pure: every look-up (vendor, project, boundary names, field staff) is done by the caller.
  * <p>
  * The keys here are the contract with Configs-Livelihood {@code pdf-service/data-config/amc-report.json}.
- * The layout is a placeholder until the client's PDF format arrives; only the config files change then.
+ * The layout is the client's AMC_Report_Format_Final ({@link #clientFormat}). The other keys belong to the earlier
+ * placeholder layout, kept so that this service and the config can be deployed in either order.
  * <p>
  * pdf-service pastes values into a JSON template and re-parses it, so every value is a plain string
  * with no double quotes, backslashes, brackets or braces ({@link #clean}).
@@ -40,6 +47,8 @@ public final class LivelihoodReportPdfData {
     static final String NONE = "-";
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd-MM-yyyy");
     private static final DateTimeFormatter DAY_TIME = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
+    private static final DateTimeFormatter CLIENT_DAY = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH);
+    private static final DateTimeFormatter CLIENT_DAY_TIME = DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm", Locale.ENGLISH);
     private static final ObjectMapper JSON = new ObjectMapper();
 
     /** The workflow step this PDF is made for. {@code comment} may be D8's JSON list [{reason, comment}]. */
@@ -48,7 +57,7 @@ public final class LivelihoodReportPdfData {
 
     public record Input(ScheduledVisit visit, VisitReport report, Facility facility, AmcConfiguration configuration,
                         String vendorName, String projectName, String state, String district, String block,
-                        String fieldStaffName, Step step) {
+                        String fieldStaffName, String fieldStaffMobile, Map<String, Object> siteDetails, Step step) {
     }
 
     public static Map<String, Object> build(Input in) {
@@ -102,7 +111,160 @@ public final class LivelihoodReportPdfData {
                 d.put(key, id);
             }
         });
+        d.putAll(clientFormat(in));
         return d;
+    }
+
+    // ---- client format (AMC_Report_Format_Final) ------------------------------------------------
+
+    /**
+     * Section 4, in the client's order: data key -> form answer. A question the report has no answer for prints "-"; it
+     * must not borrow another question's answer.
+     */
+    static final Map<String, String> OBSERVATIONS = observations();
+
+    static Map<String, Object> clientFormat(Input in) {
+        VisitReport report = in.report();
+        Map<String, Object> answers = report != null && report.getResponses() != null ? report.getResponses() : Map.of();
+        Map<String, Object> site = in.siteDetails() != null ? in.siteDetails() : Map.of();
+        Map<String, Object> d = new LinkedHashMap<>();
+
+        d.put("visit_date", visitDate(answers.get("visitDate")));
+        d.put("service_by", clean(answers.get("serviceBy") != null ? answers.get("serviceBy") : in.fieldStaffName()));
+        d.put("service_by_phone", clean(answers.get("serviceByPhone") != null ? answers.get("serviceByPhone") : in.fieldStaffMobile()));
+        d.put("installation_date", site.get("installationDate") instanceof Number n ? format(n.longValue(), CLIENT_DAY) : NONE);
+        d.put("pin_code", clean(site.get("pinCode")));
+        d.put("purchase_order_number", clean(site.get("purchaseOrderNumber")));
+        d.put("pcu_priority", clean(priority(answers.get("pcuPriority"))));
+        d.put("panels_per_string", clean(value(answers.get("panelsPerString"))));
+        OBSERVATIONS.forEach((key, answer) -> {
+            String text = clean(value(answers.get(answer)));
+            d.put(key, text);
+            d.put(key + "_style", answerStyle(text));
+        });
+        d.put("reading_rows", readingRows(report, answers));
+        d.put("vendor_remarks", clean(answers.get("vendorRemarks")));
+        d.put("end_user_remarks", clean(answers.get("endUserRemarks")));
+
+        Long verifiedAt = verifiedAt(in);
+        d.put("verified_at", format(verifiedAt, CLIENT_DAY_TIME));
+        d.put("verification_status", verifiedAt == null ? "Pending" : "Success");
+        d.put("verification_id", verifiedAt == null ? NONE : verificationId(in.visit().getId(), verifiedAt));
+        d.put("technician_mobile", clean(in.fieldStaffMobile()));
+        d.put("submitted_at", format(submittedAt(in, verifiedAt), CLIENT_DAY_TIME));
+        return d;
+    }
+
+    /** 5.1 to 5.9 always; the grid SPD rows (AC systems) only when the report has them. */
+    static List<Map<String, Object>> readingRows(VisitReport report, Map<String, Object> a) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        rows.add(reading(report, "5.1", "Neutral to earth voltage at PCU output (V)", volts(a.get("neVoltagePcuOutput")), "AMC_PHOTO_NE_PCU"));
+        rows.add(reading(report, "5.2", "Neutral to earth voltage for grid input (V)", volts(a.get("neVoltageGridInput")), "AMC_PHOTO_NE_GRID"));
+        rows.add(reading(report, "5.3", "Inverter output voltage, with solar and grid disconnected and battery connected (V)",
+                volts(a.get("inverterOutputVoltage")), null));
+        rows.add(reading(report, "5.4", "Earthing electrode available", value(a.get("earthingElectrodeAvailable")), null));
+        rows.add(reading(report, "5.5", "Earthing wire connected to earth pit", value(a.get("earthingWireConnected")), null));
+        rows.add(reading(report, "5.6", "Battery specific gravity, measured through hydrometer", value(a.get("batterySpecificGravity")), null));
+        rows.add(reading(report, "5.7", "Action taken (for specific gravity)", a.get("batterySpecificGravityAction"), null));
+        rows.add(reading(report, "5.8", "Solar SPD", value(a.get("solarSpdStatus")), "AMC_PHOTO_SOLAR_SPD"));
+        rows.add(reading(report, "5.9", "Solar SPD action taken", a.get("solarSpdAction"), null));
+        if (a.get("gridSpdStatus") != null || firstFileStoreId(report, "AMC_PHOTO_GRID_SPD") != null) {
+            rows.add(reading(report, "5.10", "Grid input SPD", value(a.get("gridSpdStatus")), "AMC_PHOTO_GRID_SPD"));
+            rows.add(reading(report, "5.11", "Grid input SPD action taken", a.get("gridSpdAction"), null));
+        }
+        return rows;
+    }
+
+    /** The template draws the photo whose flag is "1"; "" is false in the template. */
+    private static Map<String, Object> reading(VisitReport report, String no, String label, Object value, String photoType) {
+        String photo = photoType != null && firstFileStoreId(report, photoType) != null ? photoType : null;
+        String text = clean(value);
+        return row("no", no, "label", label, "value", text, "style", answerStyle(text), "photo", photo == null ? "" : "1",
+                "p_ne_pcu", "AMC_PHOTO_NE_PCU".equals(photo) ? "1" : "",
+                "p_ne_grid", "AMC_PHOTO_NE_GRID".equals(photo) ? "1" : "",
+                "p_solar_spd", "AMC_PHOTO_SOLAR_SPD".equals(photo) ? "1" : "",
+                "p_grid_spd", "AMC_PHOTO_GRID_SPD".equals(photo) ? "1" : "");
+    }
+
+    /** Template style: real answers are bold, "-" and "N/A" are not. */
+    private static String answerStyle(String text) {
+        return NONE.equals(text) || "N/A".equals(text) ? "plain" : "ans";
+    }
+
+    private static String volts(Object v) {
+        String s = value(v);
+        return v instanceof Number || s.matches("-?\\d+(\\.\\d+)?") ? s + " V" : s;
+    }
+
+    private static String priority(Object v) {
+        return switch (String.valueOf(v)) {
+            case "SOLAR_BATTERY_GRID" -> "Solar-Battery-Grid";
+            case "SOLAR_GRID_BATTERY" -> "Solar-Grid-Battery";
+            default -> value(v);
+        };
+    }
+
+    /** The app sends yyyy-MM-dd; anything else is shown as typed. */
+    private static String visitDate(Object v) {
+        try {
+            return v == null ? NONE : LocalDate.parse(String.valueOf(v)).format(CLIENT_DAY);
+        } catch (DateTimeParseException e) {
+            return clean(v);
+        }
+    }
+
+    /** When the end user's code was verified; null before that (the submit PDF is made before the code is entered). */
+    private static Long verifiedAt(Input in) {
+        String action = in.step().action();
+        if ("SUBMIT_VISIT_REPORT".equals(action)) {
+            return null;
+        }
+        if ("AUTO_APPROVE".equals(action)) {
+            return in.step().actedAt(); // kept only if the code turns out right
+        }
+        Long at = in.report() != null ? in.report().getOtpVerifiedAt() : null;
+        return LivelihoodAmc.isSet(at) ? at : null;
+    }
+
+    /** The submit time: now on submit, else when the submit-step PDF was made, else the code verification. */
+    private static Long submittedAt(Input in, Long verifiedAt) {
+        if ("SUBMIT_VISIT_REPORT".equals(in.step().action())) {
+            return in.step().actedAt();
+        }
+        Map<String, Object> details = in.visit().getAdditionalDetails();
+        if (details != null && details.get("reportPdf") instanceof Map<?, ?> pdf
+                && "PENDING_OTP_APPROVAL".equals(pdf.get("visitStatus")) && pdf.get("generatedAt") instanceof Number n) {
+            return n.longValue();
+        }
+        return verifiedAt;
+    }
+
+    /** SF-UV-YYYYMMDD-XXXXXX, as on the installation report: the same verification always gives the same id. */
+    static String verificationId(String visitId, long verifiedAt) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest((visitId + "|" + verifiedAt).getBytes(StandardCharsets.UTF_8));
+            String code = new BigInteger(1, digest).mod(BigInteger.valueOf(36).pow(6)).toString(36).toUpperCase(Locale.ROOT);
+            return "SF-UV-" + Instant.ofEpochMilli(verifiedAt).atZone(IST).toLocalDate().format(DateTimeFormatter.BASIC_ISO_DATE)
+                    + "-" + "0".repeat(6 - code.length()) + code;
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is not available", e);
+        }
+    }
+
+    private static String format(Long epochMillis, DateTimeFormatter f) {
+        return LivelihoodAmc.isSet(epochMillis) ? Instant.ofEpochMilli(epochMillis).atZone(IST).format(f) : NONE;
+    }
+
+    private static Map<String, String> observations() {
+        String[] answers = {"obsPanelCablesTied", "obsPanelsClean", "obsMmsRusting", "obsNutsBoltsRusting", "obsAjbMounted",
+                "obsBatteryTerminalsClean", "obsPetroleumJelly", "obsFloatIndicators", "obsDistilledWaterLevel", "obsPcuCablesIntact",
+                "obsLaInsulation", "obsLaFixed", "obsGiStripsInsulated", "obsDownConductorConduit", "obsEarthCableContact",
+                "obsEarthElectrodesBuried", "obsCablesCrimped", "obsCablesDamaged", "obsMc4Intact"};
+        Map<String, String> m = new LinkedHashMap<>();
+        for (int i = 0; i < answers.length; i++) {
+            m.put("obs_" + (i + 1), answers[i]);
+        }
+        return java.util.Collections.unmodifiableMap(m);
     }
 
     // ---- sections -----------------------------------------------------------------------------

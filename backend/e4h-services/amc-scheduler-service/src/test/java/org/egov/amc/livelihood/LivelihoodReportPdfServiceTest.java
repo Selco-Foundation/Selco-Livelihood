@@ -39,6 +39,7 @@ class LivelihoodReportPdfServiceTest {
     AmcConfigurationValidator projects = mock(AmcConfigurationValidator.class);
     BoundaryUtil boundaries = mock(BoundaryUtil.class);
     BoundaryLocalizationUtil names = mock(BoundaryLocalizationUtil.class);
+    SiteDetailsReader sites = mock(SiteDetailsReader.class);
     LivelihoodReportPdfService service;
     RequestInfo ri = RequestInfo.builder().build();
     LivelihoodReportPdfData.Step step = LivelihoodReportPdfDataTest.submit();
@@ -50,9 +51,9 @@ class LivelihoodReportPdfServiceTest {
         when(config.getPdfServiceHost()).thenReturn("http://pdf-service.core:8080");
         when(config.getPdfServiceCreateUrl()).thenReturn("/pdf-service/v1/_create");
         when(configs.getAmcConfiguration(any(), anyInt(), anyInt(), anyString(), any(), any()))
-                .thenReturn(List.of(AmcConfiguration.builder().id("cfg").vendorId("org-1").durationMonths(12).visitFrequencyMonths(6).build()));
+                .thenReturn(List.of(AmcConfiguration.builder().id("cfg").activityFacilityId("fa-1").vendorId("org-1").durationMonths(12).visitFrequencyMonths(6).build()));
         when(vendors.findOrgs(any(), anyString(), any())).thenReturn(Map.of("org-1", new VendorOrgDirectory.VendorOrg("org-1", "VENDOR", true, "KhushVendor")));
-        service = new LivelihoodReportPdfService(config, http, configs, vendors, projects, boundaries, names, new ObjectMapper());
+        service = new LivelihoodReportPdfService(config, http, configs, vendors, projects, boundaries, names, sites, new ObjectMapper());
     }
 
     ScheduledVisit visit() {
@@ -75,6 +76,16 @@ class LivelihoodReportPdfServiceTest {
         assertEquals("1 of 2", amc.get("amc_number"));
         // turned-off AMCs are included in the configuration look-up
         verify(configs).getAmcConfiguration(any(), eq(1), eq(0), eq("livelihood"), eq(true), any());
+    }
+
+    @Test
+    void siteDetailsFromTheInstallationRowAndAFailedLookUpPrintsDashes() {
+        when(sites.read(List.of("fa-1"))).thenReturn(Map.of("fa-1", Map.of("pinCode", "781354", "purchaseOrderNumber", "PO/1")));
+        Map<String, Object> d = service.buildData(ri, visit(), LivelihoodReportPdfDataTest.report(), null, "FS", step);
+        assertEquals("781354", d.get("pin_code"));
+        assertEquals("PO/1", d.get("purchase_order_number"));
+        when(sites.read(any())).thenThrow(new RuntimeException("db down"));
+        assertEquals("-", service.buildData(ri, visit(), LivelihoodReportPdfDataTest.report(), null, "FS", step).get("pin_code"));
     }
 
     @Test
