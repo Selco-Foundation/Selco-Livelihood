@@ -253,7 +253,7 @@ export function TechnicianAssignmentStep({
   return (
     <StepSectionCard
       icon={Users}
-      title={translateOr(t, "ES_PM_TECHNICIAN_ASSIGNMENT", "Technician Assignment")}
+      title={translateOr(t, "ES_PM_TECHNICIAN_ASSIGNMENT_AMC", "Technician assignment and AMC")}
       description={translateOr(
         t,
         "ES_PM_TECHNICIAN_ASSIGNMENT_DESC",

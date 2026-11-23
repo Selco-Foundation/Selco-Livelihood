@@ -54,7 +54,7 @@ export function CreateInstallationPlanPage() {
     { label: translateOr(t, "ES_PM_PLAN_DETAILS_STEP", "Plan Details") },
     { label: translateOr(t, "ES_PM_INSTALLATION_SCOPE_STEP", "Installation Scope") },
     { label: translateOr(t, "ES_PM_TEMPLATE_STEP", "Template") },
-    { label: translateOr(t, "ES_PM_TECHNICIAN_ASSIGNMENT_STEP", "Technician Assignment") },
+    { label: translateOr(t, "ES_PM_TECHNICIAN_ASSIGNMENT_AMC_STEP", "Technician assignment and AMC") },
   ];
   // The route's path is computed at runtime via contextPath(), so there's no
   // static `Route` export to use the fully-typed search API here — read/

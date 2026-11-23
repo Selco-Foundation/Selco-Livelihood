@@ -266,7 +266,7 @@ describe("CreateInstallationPlanPage", () => {
 
     // With no scope yet, maxAccessibleStep is 2 -- step 3/4 stay disabled.
     expect(screen.getByRole("tab", { name: /Template/i })).toBeDisabled();
-    expect(screen.getByRole("tab", { name: /Technician Assignment/i })).toBeDisabled();
+    expect(screen.getByRole("tab", { name: /Technician assignment and AMC/ })).toBeDisabled();
   });
 
   function planDetailsProps() {
