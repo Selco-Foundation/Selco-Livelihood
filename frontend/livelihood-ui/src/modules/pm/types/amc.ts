@@ -58,12 +58,29 @@ export interface AmcScheduleRow {
   submittedVisits: number;
 }
 
-/** One visit as `/asset-amc/v1/visit/_search` returns it (only what Edit AMC reads). */
+/** One visit of an AMC in the PM's visit list. */
+export interface AmcVisitRow {
+  id: string;
+  number: number;
+  status?: string;
+  autoApproved: boolean;
+  dueDate?: number;
+  submittedDate?: number;
+  fieldStaffName?: string;
+  isOverdue: boolean;
+}
+
+/** One visit as `/asset-amc/v1/visit/_search` returns it (only what the PM screens read). */
 export interface RawAmcVisitSummary {
   id: string;
   amcConfigurationId?: string;
   status?: string;
   firstSubmissionDate?: number | null;
+  latestSubmissionDate?: number | null;
+  scheduledDate?: number | null;
+  visitNumber?: number;
+  approvedBy?: "SYSTEM" | "REVIEWER" | null;
+  fieldStaff?: { name?: string | null } | null;
 }
 
 export interface AmcVisitSearchResponse {

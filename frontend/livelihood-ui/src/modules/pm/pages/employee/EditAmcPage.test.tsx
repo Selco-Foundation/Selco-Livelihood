@@ -48,6 +48,7 @@ vi.mock("../../hooks/use-amc-options", () => ({
 }));
 vi.mock("../../hooks/use-amc-schedules", () => ({ useAmcSchedules: vi.fn() }));
 vi.mock("../../hooks/use-update-amc-schedules", () => ({ useUpdateAmcSchedules: vi.fn() }));
+vi.mock("../../hooks/use-amc-visits", () => ({ useAmcVisits: () => ({ data: [], isLoading: false, isError: false }) }));
 vi.mock("../../hooks/use-turn-off-amc", () => ({ useTurnOffAmc: vi.fn() }));
 
 const turnOff = vi.fn();
@@ -239,6 +240,13 @@ describe("EditAmcPage", () => {
     );
     expect(navigate).not.toHaveBeenCalled();
   });
+  it("opens the visits of an AMC, with the saved schedule", async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "View visits, user979" }));
+    expect(await screen.findByText("AMC visits of user979")).toBeInTheDocument();
+  });
+
   it("turns an AMC off after the confirmation, then shows a toast", async () => {
     turnOff.mockImplementation((_id, options: { onSuccess: () => void }) => options.onSuccess());
     const user = userEvent.setup();

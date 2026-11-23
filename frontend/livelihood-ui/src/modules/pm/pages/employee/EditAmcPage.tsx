@@ -1,10 +1,11 @@
 import { amcErrorText, amcFieldStaffChangeText, employeeHomePath, translateOr, useTranslate } from "@/shared";
 import { Button, SearchableSelect, Skeleton, toast, TopBar } from "@/ui";
 import { Link, useSearch } from "@tanstack/react-router";
-import { Info, Plus, Power, Sun } from "lucide-react";
+import { Info, ListChecks, Plus, Power, Sun } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AddAmcDialog } from "../../components/AddAmcDialog";
 import { AmcFieldStaffSelect } from "../../components/AmcFieldStaffSelect";
+import { AmcVisitsDialog } from "../../components/AmcVisitsDialog";
 import { DateField } from "../../components/DateField";
 import { StepSectionCard } from "../../components/StepSectionCard";
 import { TurnOffAmcDialog } from "../../components/TurnOffAmcDialog";
@@ -51,6 +52,7 @@ export function EditAmcPage() {
   const [errors, setErrors] = useState<AmcScheduleRowError[]>([]);
   const [addOpen, setAddOpen] = useState(false);
   const [turnOffRow, setTurnOffRow] = useState<AmcScheduleRow | null>(null);
+  const [visitsRow, setVisitsRow] = useState<AmcScheduleRow | null>(null);
   const turnOffAmc = useTurnOffAmc(planId);
 
   useEffect(() => {
@@ -248,7 +250,7 @@ export function EditAmcPage() {
           ) : (
             <div className="livelihood-card overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[2330px] border-collapse text-sm">
+                <table className="w-full min-w-[2460px] border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-border">
                       {readOnlyColumns.map((label) => (
@@ -386,6 +388,17 @@ export function EditAmcPage() {
                             />
                           </td>
                           <td className="px-5 py-4">
+                            <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              aria-label={`${translateOr(t, "ES_PM_AMC_VIEW_VISITS", "View visits")}, ${row.endUserName}`}
+                              onClick={() => setVisitsRow(originalRows.find((saved) => saved.id === row.id) ?? row)}
+                            >
+                              <ListChecks className="size-4" />
+                              {translateOr(t, "ES_PM_AMC_VIEW_VISITS", "View visits")}
+                            </Button>
                             {running ? (
                               <Button
                                 type="button"
@@ -405,9 +418,8 @@ export function EditAmcPage() {
                                 <Power className="size-4" />
                                 {translateOr(t, "ES_PM_AMC_TURN_OFF_SHORT", "Turn off")}
                               </Button>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
+                            ) : null}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -431,6 +443,7 @@ export function EditAmcPage() {
         </Button>
       </WizardActionFooter>
       <AddAmcDialog planId={planId} open={addOpen} onOpenChange={setAddOpen} />
+      <AmcVisitsDialog row={visitsRow} onClose={() => setVisitsRow(null)} />
       <TurnOffAmcDialog
         endUserName={turnOffRow?.endUserName ?? null}
         isPending={turnOffAmc.isPending}

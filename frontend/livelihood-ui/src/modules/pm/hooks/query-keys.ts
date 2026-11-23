@@ -36,6 +36,7 @@ export const pmKeys = {
   planGeographyLocks: (planId: string | undefined) => [...pmKeys.plan(planId), "geography-locks"] as const,
   planFacilityCounts: (planIds: string[]) => [...pmKeys.plans(), "facility-counts", planIds] as const,
   planAmcBySite: (planId: string | undefined) => [...pmKeys.plan(planId), "amc-by-site"] as const,
+  amcVisits: (amcId: string | undefined) => [...pmKeys.all, "amc-visits", amcId] as const,
   amcOptions: () => [...pmKeys.all, "amc-options"] as const,
   amcFieldStaff: (organizationId: string | undefined) => [...pmKeys.all, "amc-field-staff", organizationId] as const,
   planAmcSchedules: (planId: string | undefined) => [...pmKeys.plan(planId), "amc-schedules"] as const,
