@@ -1508,13 +1508,18 @@ void main() {
             'machines': [
               {'name': 'Sewing Machine', 'solutionId': 'S1'},
               {'name': ' ', 'solutionId': 'SOL-CHAFF'},
-              {'name': null, 'solutionId': null},
+              {'name': null, 'solutionId': 'SOL-OIL'},
               'Oil Expeller',
             ],
-          }),
-          ['Sewing Machine', 'SOL-CHAFF', 'Oil Expeller']);
-      expect(amcMachineNames({'machines': null}), isEmpty);
-      expect(amcMachineNames(null), isEmpty);
+          }, notInstalled: 'Machine not installed'),
+          [
+            'Sewing Machine',
+            'Machine not installed',
+            'Machine not installed',
+            'Oil Expeller',
+          ]);
+      expect(amcMachineNames({'machines': null}, notInstalled: '-'), isEmpty);
+      expect(amcMachineNames(null, notInstalled: '-'), isEmpty);
     });
 
     group('fetched from the visit search', () {
@@ -1551,7 +1556,8 @@ void main() {
       test('a row has the screen fields and the machines', () async {
         final visits = await remote.fetchAllScheduled();
         final entry = AmcScheduleEntry.fromVisit(
-            visits.firstWhere((v) => v.id == 'v-15'));
+            visits.firstWhere((v) => v.id == 'v-15'),
+            machineNotInstalled: 'Machine not installed');
         expect(entry.endUserName, 'Ramesh Kumar');
         expect(entry.phone, '9845000012');
         expect(entry.state, 'Karnataka');

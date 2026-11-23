@@ -102,7 +102,12 @@ class _AmcViewSchedulePageState extends State<AmcViewSchedulePage> {
     setState(() => _downloading = true);
     try {
       final bytes = buildAmcScheduleWorkbook(
-        entries: visits.map(AmcScheduleEntry.fromVisit).toList(),
+        entries: [
+          for (final visit in visits)
+            AmcScheduleEntry.fromVisit(visit,
+                machineNotInstalled:
+                    _text(i18.amcSchedule.machineNotInstalled)),
+        ],
         headers: [
           _text(i18.amcSchedule.endUserName),
           _text(i18.amcSchedule.phone),
@@ -297,7 +302,9 @@ class _AmcViewSchedulePageState extends State<AmcViewSchedulePage> {
               padding: const EdgeInsets.only(bottom: spacer2),
               child: _ScheduleCard(
                 key: ValueKey('amc-schedule-${visit.id}'),
-                entry: AmcScheduleEntry.fromVisit(visit),
+                entry: AmcScheduleEntry.fromVisit(visit,
+                    machineNotInstalled:
+                        _text(i18.amcSchedule.machineNotInstalled)),
                 text: _text,
               ),
             ),
