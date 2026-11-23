@@ -30,15 +30,11 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _userIdController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _passwordFocusNode = FocusNode();
 
   bool _rememberMe = false;
   bool _hasEnabledAutofill = false;
   bool _isAutofillStatusLoading = true;
   bool _shouldSaveAutofillOnAuthentication = false;
-
-  bool get _autofillEnabled =>
-      !_isAutofillStatusLoading && (_hasEnabledAutofill || _rememberMe);
 
   bool _consentAccepted = false;
   bool _isConsentStatusLoading = true;
@@ -68,22 +64,16 @@ class _LoginPageState extends State<LoginPage> {
     });
   }
 
-  void _setRememberMe(bool value) {
-    // A field focused before opt-in has a non-autofill input connection.
-    // Close it before rebuilding, then attach with both fields enabled.
-    FocusManager.instance.primaryFocus?.unfocus();
-    if (!value) TextInput.finishAutofillContext(shouldSave: false);
-    setState(() => _rememberMe = value);
-    if (value) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_rememberMe || !_autofillEnabled) return;
-        _passwordFocusNode.requestFocus();
-      });
-    }
-  }
+  void _setRememberMe(bool value) => setState(() => _rememberMe = value);
 
+  /// The fields always carry autofill hints, so Android's autofill session
+  /// is attached from the first keystroke. Remember me only decides whether
+  /// a successful login commits the session (save prompt) or cancels it.
   Future<void> _saveAutofillAfterAuthentication() async {
-    if (!_shouldSaveAutofillOnAuthentication) return;
+    if (!_shouldSaveAutofillOnAuthentication) {
+      TextInput.finishAutofillContext(shouldSave: false);
+      return;
+    }
     if (!_hasEnabledAutofill) {
       try {
         await SecureStore().setLoginAutofillEnabled();
@@ -129,7 +119,6 @@ class _LoginPageState extends State<LoginPage> {
   void dispose() {
     _userIdController.dispose();
     _passwordController.dispose();
-    _passwordFocusNode.dispose();
     super.dispose();
   }
 
@@ -155,7 +144,7 @@ class _LoginPageState extends State<LoginPage> {
     final canSubmitConsent =
         !_isConsentStatusLoading && (_hasAcceptedConsent || _consentAccepted);
     if (!userIdMissing && !passwordMissing && canSubmitConsent) {
-      _shouldSaveAutofillOnAuthentication = _autofillEnabled;
+      _shouldSaveAutofillOnAuthentication = _hasEnabledAutofill || _rememberMe;
       _shouldPersistConsentOnAuthentication =
           !_hasAcceptedConsent && _consentAccepted;
       FocusManager.instance.primaryFocus?.unfocus();
@@ -234,7 +223,7 @@ class _LoginPageState extends State<LoginPage> {
                       child: LoginCredentialInput(
                         key: const ValueKey('user-id-field'),
                         controller: _userIdController,
-                        autofillEnabled: _autofillEnabled,
+                        autofillEnabled: true,
                         errorMessage: _userIdError,
                         onChanged: _clearUserIdError,
                       ),
@@ -246,8 +235,7 @@ class _LoginPageState extends State<LoginPage> {
                         isPassword: true,
                         key: const ValueKey('password-field'),
                         controller: _passwordController,
-                        focusNode: _passwordFocusNode,
-                        autofillEnabled: _autofillEnabled,
+                        autofillEnabled: true,
                         errorMessage: _passwordError,
                         onChanged: _clearPasswordError,
                       ),

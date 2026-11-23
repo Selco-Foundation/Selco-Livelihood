@@ -886,8 +886,7 @@ void main() {
     expect(_secureStorageValues, isNot(contains('loginConsentAccepted')));
   });
 
-  testWidgets('remember me enables autofill only while selected',
-      (tester) async {
+  testWidgets('login fields always carry autofill hints', (tester) async {
     await pumpLogin(tester);
     Iterable<TextField> inputs() => tester.widgetList<TextField>(
           find.descendant(
@@ -895,25 +894,26 @@ void main() {
             matching: find.byType(TextField),
           ),
         );
-    expect(inputs().every((field) => field.autofillHints == null), isTrue);
+    void expectHints() {
+      expect(inputs().first.autofillHints, [AutofillHints.username]);
+      expect(inputs().last.autofillHints, [AutofillHints.password]);
+    }
+
+    expectHints();
     expect(find.text(tr(i18.login.rememberMe)), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('remember-me-checkbox')));
     await tester.pump();
-    expect(inputs().first.autofillHints, [AutofillHints.username]);
-    expect(inputs().last.autofillHints, [AutofillHints.password]);
+    expectHints();
     expect(_secureStorageValues, isNot(contains('loginAutofillEnabled')));
-    await tester.tap(find.byKey(const ValueKey('remember-me-checkbox')));
-    await tester.pump();
-    expect(inputs().every((field) => field.autofillHints == null), isTrue);
   });
 
   for (final scenario in [
-    (approved: true, optIn: true, optOut: false),
-    (approved: false, optIn: true, optOut: false),
-    (approved: true, optIn: false, optOut: false),
-    (approved: true, optIn: true, optOut: true),
+    (approved: true, optIn: true),
+    (approved: true, optIn: false),
+    (approved: false, optIn: true),
+    (approved: false, optIn: false),
   ]) {
-    testWidgets('credentials entered before remember me: $scenario',
+    testWidgets('remember me decides the autofill commit: $scenario',
         (tester) async {
       loginAuthRepository = _StubAuthRepository(
         (body) async => _cannedLoginResponse(approved: scenario.approved),
@@ -930,61 +930,61 @@ void main() {
             ),
             key == 'user-id-field' ? 'demo.user' : 'password');
       }
-      tester.testTextInput.log.clear();
       if (scenario.optIn) {
         await tester.tap(find.byKey(const ValueKey('remember-me-checkbox')));
-        await tester.pumpAndSettle();
-        final calls = tester.testTextInput.log;
-        final attachIndex = calls.indexWhere((call) =>
-            call.method == 'TextInput.setClient' &&
-            (call.arguments[1] as Map)['fields'] != null);
-        expect(attachIndex, greaterThanOrEqualTo(0));
-        final fields = calls[attachIndex].arguments[1]['fields'] as List;
-        expect(fields, hasLength(2));
-        final valuesByHint = {
-          for (final field in fields)
-            (field['autofill']['hints'] as List).single: field['autofill']
-                ['editingValue']['text'],
-        };
-        expect(valuesByHint, {
-          AutofillHints.username: 'demo.user',
-          AutofillHints.password: 'password',
-        });
-        expect(
-            calls.indexWhere(
-                (call) => call.method == 'TextInput.requestAutofill'),
-            greaterThan(attachIndex));
+        await tester.pump();
       }
-      if (scenario.optOut) {
-        await tester.tap(find.byKey(const ValueKey('remember-me-checkbox')));
-        await tester.pumpAndSettle();
-        expect(
-            tester.testTextInput.log.any((call) =>
-                call.method == 'TextInput.finishAutofillContext' &&
-                call.arguments == false),
-            isTrue);
-      }
+      tester.testTextInput.log.clear();
       await tester.tap(find.byKey(const ValueKey('login-button')));
       await tester.pumpAndSettle();
-      final commits = tester.testTextInput.log.where((call) =>
-          call.method == 'TextInput.finishAutofillContext' &&
-          call.arguments == true);
-      expect(
-          commits,
-          scenario.optIn && !scenario.optOut && scenario.approved
-              ? hasLength(1)
-              : isEmpty);
-      if (scenario.optIn && !scenario.optOut && scenario.approved) {
-        final calls = tester.testTextInput.log;
-        expect(
-            calls.indexWhere((call) =>
-                call.method == 'TextInput.finishAutofillContext' &&
-                call.arguments == true),
-            greaterThan(calls.indexWhere(
-                (call) => call.method == 'TextInput.requestAutofill')));
+      List<Object?> finishArgs() => tester.testTextInput.log
+          .where((call) => call.method == 'TextInput.finishAutofillContext')
+          .map((call) => call.arguments)
+          .toList();
+      if (!scenario.approved) {
+        // Session stays open for a retry; nothing is committed.
+        expect(finishArgs(), isNot(contains(true)));
+        expect(find.byType(LoginPage), findsOneWidget);
+        return;
       }
+      // The explicit commit/cancel comes first; the AutofillGroup's own
+      // dispose cancel (when the login page leaves) may follow it.
+      expect(finishArgs().first, scenario.optIn);
+      expect(finishArgs().where((arg) => arg == true),
+          hasLength(scenario.optIn ? 1 : 0));
+      expect(_secureStorageValues['loginAutofillEnabled'],
+          scenario.optIn ? 'true' : null);
+      expect(find.byType(HomePage), findsOneWidget);
     });
   }
+
+  testWidgets('returning remember me user commits framework autofill',
+      (tester) async {
+    _secureStorageValues['loginAutofillEnabled'] = 'true';
+    _secureStorageValues['loginConsentAccepted'] = 'true';
+    loginAuthRepository = _StubAuthRepository(
+      (body) async => _cannedLoginResponse(approved: true),
+    );
+    addTearDown(() => loginAuthRepository = HttpAuthRepository());
+    await pumpLogin(tester);
+    for (final key in ['user-id-field', 'password-field']) {
+      await tester.enterText(
+          find.descendant(
+            of: find.byKey(ValueKey(key)),
+            matching: find.byType(EditableText),
+          ),
+          key == 'user-id-field' ? 'demo.user' : 'password');
+    }
+    tester.testTextInput.log.clear();
+    await tester.tap(find.byKey(const ValueKey('login-button')));
+    await tester.pumpAndSettle();
+    expect(
+        tester.testTextInput.log.where((call) =>
+            call.method == 'TextInput.finishAutofillContext' &&
+            call.arguments == true),
+        hasLength(1));
+    expect(find.byType(HomePage), findsOneWidget);
+  });
 
   testWidgets('saved remember me hides checkbox and enables autofill',
       (tester) async {
@@ -998,15 +998,11 @@ void main() {
     expect(input.autofillHints, [AutofillHints.username]);
   });
 
-  testWidgets('remember me read failure disables autofill', (tester) async {
+  testWidgets('remember me read failure asks for opt-in again',
+      (tester) async {
     _secureStorageReadFailureKey = 'loginAutofillEnabled';
     await pumpLogin(tester);
     expect(find.byKey(const ValueKey('remember-me-checkbox')), findsOneWidget);
-    final input = tester.widget<TextField>(find.descendant(
-      of: find.byKey(const ValueKey('user-id-field')),
-      matching: find.byType(TextField),
-    ));
-    expect(input.autofillHints, isNull);
   });
 
   for (final scenario in [
