@@ -107,13 +107,26 @@ public final class LivelihoodSystemStatus {
         return m;
     }
 
-    /** {{key}} -> value, "-" when blank; {@code html} escapes the values. */
+    /** {{key}} -> value, "-" when blank; {@code html} escapes the values and makes the result plain ASCII. */
     static String fill(String template, Map<String, String> fields, boolean html) {
         String out = template == null ? "" : template;
         for (Map.Entry<String, String> e : fields.entrySet()) {
             String value = e.getValue() == null || e.getValue().isBlank() ? "-" : e.getValue().trim();
             out = out.replace("{{" + e.getKey() + "}}", html ? HtmlUtils.htmlEscape(value, "UTF-8") : value);
         }
-        return out;
+        return html ? asciiHtml(out) : out;
+    }
+
+    /** The mail service does not send HTML as UTF-8, so other characters arrive as "\uFFFD"; as codes they arrive intact. */
+    private static String asciiHtml(String html) {
+        StringBuilder b = new StringBuilder(html.length());
+        html.codePoints().forEach(c -> {
+            if (c < 128) {
+                b.append((char) c);
+            } else {
+                b.append("&#").append(c).append(';');
+            }
+        });
+        return b.toString();
     }
 }

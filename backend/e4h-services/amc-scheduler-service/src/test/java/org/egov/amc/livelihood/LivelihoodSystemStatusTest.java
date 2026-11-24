@@ -89,7 +89,12 @@ class LivelihoodSystemStatusTest {
         for (String key : List.of("end_user_name", "end_user_phone", "state", "district", "block", "vendor_name")) {
             f.put(key, "x");
         }
-        assertFalse(LivelihoodSystemStatus.fill(BODY, f, true).contains("{{"));
+        f.put("end_user_name", "\u0928\u0940\u092A\u0947");
+        String html = LivelihoodSystemStatus.fill(BODY, f, true);
+        assertFalse(html.contains("{{"));
+        assertTrue(html.chars().allMatch(c -> c < 128), "the mail service breaks other characters");
+        assertTrue(html.contains("&#2344;&#2368;&#2346;&#2375;"));
+        assertTrue(html.contains("&#183; SELCO Foundation"));
         assertEquals("-", LivelihoodSystemStatus.fill("{{total_amc}}", LivelihoodSystemStatus.amcFields(v, null, 1L), true));
     }
 
