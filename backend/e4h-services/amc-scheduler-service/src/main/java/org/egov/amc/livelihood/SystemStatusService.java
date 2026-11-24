@@ -145,7 +145,7 @@ public class SystemStatusService {
         }
     }
 
-    /** Compiled from the client's amc-non-functional-email.mjml next to it. */
+    /** The client's email template. */
     static String readTemplate() {
         try (InputStream in = new ClassPathResource("templates/amc-non-functional-email.html").getInputStream()) {
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
