@@ -1,6 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { translateOr } from "@/shared";
 
@@ -57,8 +56,7 @@ function mockUseCreateIncidentForm(
     isImageUploading: false,
     isVideoUploading: false,
     disableUpload: true,
-    duplicateTickets: [],
-    setDuplicateTickets: vi.fn(),
+    existingTicket: null,
     canSubmit: false,
     submitError: null,
     setSubmitError: vi.fn(),
@@ -117,17 +115,5 @@ describe("CreateIncidentPage", () => {
   it("renders the create ticket form driven by useCreateIncidentForm", () => {
     renderPage();
     expect(screen.getByRole("button", { name: /Submit ticket/ })).toBeInTheDocument();
-  });
-
-  it("passes this page's inbox path through to the form, used when the duplicate-tickets dialog is cancelled", async () => {
-    const user = userEvent.setup();
-    mockUseCreateIncidentForm({
-      duplicateTickets: [{ ticketId: "inc-9", ticketTenantId: "tenant-1" }],
-    });
-    renderPage();
-
-    await user.click(screen.getByRole("button", { name: "No" }));
-
-    expect(mockNavigate).toHaveBeenCalledWith({ to: "/livelihood-ui/employee/im/inbox" });
   });
 });

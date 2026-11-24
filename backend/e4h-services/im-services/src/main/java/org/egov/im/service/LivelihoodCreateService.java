@@ -29,7 +29,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.egov.im.util.IMConstants.*;
 
@@ -42,13 +41,21 @@ public class LivelihoodCreateService {
             "vendorUserUuid", "vendorEmployeeUuid", "assignedVendorUserId", "vendorUserId"
     );
 
-    private static final Set<String> OPEN_DUPLICATE_STATUSES = Set.of(
-            "PENDING_FOR_RESOLUTION",
-            "OUT_OF_SCOPE_PENDING_POC",
-            "OUT_OF_SCOPE_PENDING_VENDOR",
-            "OUT_OF_WARRANTY_PENDING_VENDOR",
-            "RESOLVED"
+    /**
+     * Active / unresolved LivelihoodIncident states. RESOLVED and the CLOSED_* states are deliberately
+     * excluded: once an issue is resolved or closed, the end user may raise a fresh ticket for it.
+     */
+    static final Set<String> ACTIVE_DUPLICATE_STATUSES = Set.of(
+            LIVELIHOOD_PENDING_FOR_RESOLUTION,
+            LIVELIHOOD_OUT_OF_SCOPE_PENDING_POC,
+            LIVELIHOOD_OUT_OF_SCOPE_PENDING_VENDOR,
+            LIVELIHOOD_OUT_OF_WARRANTY_PENDING_VENDOR
     );
+
+    static final String DUPLICATE_TICKET_CODE = "DUPLICATE_TICKET";
+    static final String IVR_DUPLICATE_TICKET_CODE = "IVR_DUPLICATE_TICKET";
+    static final String DUPLICATE_TICKET_MESSAGE =
+            "You already have a ticket raised for this asset with the same issue. Please refer to the existing ticket: ";
 
     private final IMRepository imRepository;
     private final AssetRegistryUtil assetRegistryUtil;
@@ -112,6 +119,7 @@ public class LivelihoodCreateService {
         workflow.setAction(resolveCreateWorkflowAction(request.getRequestInfo()));
 
         enrichEntryMetadata(request);
+        rejectDuplicate(request);
     }
 
     private void validateVerificationDocuments(Workflow workflow) {
@@ -197,7 +205,6 @@ public class LivelihoodCreateService {
         // so the reporter is the facility's end user, verified against the caller's phone number.
         if (ENTRY_CHANNEL_IVR_WHATSAPP.equalsIgnoreCase(incident.getEntryChannel())) {
             resolveIvrEndUser(request);
-            rejectIvrDuplicate(incident);
             return;
         }
 
@@ -261,30 +268,72 @@ public class LivelihoodCreateService {
     }
 
     /**
-     * The web app warns about an open ticket for the same asset and issue type and lets the user decide;
-     * IVR has no one to confirm, so the duplicate is rejected and the existing ticket id returned instead.
-     * Uses the same open statuses as the web check (livelihood-ui OPEN_DUPLICATE_APPLICATION_STATUSES).
+     * Blocks a duplicate ticket on every channel (Web direct, POC on-behalf, IVR/WhatsApp): an active ticket
+     * for the same end user + asset + issue type already exists. A different issue type or a different
+     * asset is allowed, and so is a new ticket once the earlier one is RESOLVED or CLOSED.
+     * <p>
+     * Runs after {@link #enrichEntryMetadata} so the end user is already resolved for POC and IVR creates.
+     * Web: the message ends with the existing ticket number (code DUPLICATE_TICKET).
+     * IVR: code IVR_DUPLICATE_TICKET, message also carries the current status for the IVR to announce.
      */
-    private void rejectIvrDuplicate(Incident incident) {
-        RequestSearchCriteria criteria = RequestSearchCriteria.builder()
+    void rejectDuplicate(IncidentRequest request) {
+        Incident incident = request.getIncident();
+        String endUserUuid = resolveEndUserUuid(request);
+
+        RequestSearchCriteria.RequestSearchCriteriaBuilder criteria = RequestSearchCriteria.builder()
                 .tenantId(incident.getTenantId())
-                .assetIds(Set.of(incident.getAssetId()))
+                .assetIds(Set.of(incident.getAssetId().trim()))
                 .incidentType(Set.of(incident.getIncidentType().trim()))
-                .applicationStatus(OPEN_DUPLICATE_STATUSES)
+                .applicationStatus(ACTIVE_DUPLICATE_STATUSES)
                 .offset(0)
-                .limit(5)
-                .build();
-        List<Incident> open = imRepository.getIncidents(criteria);
-        if (CollectionUtils.isEmpty(open)) {
+                .limit(1);
+        if (endUserUuid != null) {
+            criteria.userIds(Set.of(endUserUuid));
+        } else {
+            // Each asset belongs to one facility with one end user, so asset + issue type is still the right key.
+            log.warn("Duplicate check without end user uuid | assetId={}", incident.getAssetId());
+        }
+
+        List<Incident> active = imRepository.getIncidents(criteria.build());
+        if (CollectionUtils.isEmpty(active)) {
             return;
         }
-        String existingIds = open.stream()
-                .map(Incident::getIncidentId)
-                .collect(Collectors.joining(", "));
-        throw new CustomException(
-                "IVR_DUPLICATE_TICKET",
-                "An open ticket already exists for this asset and issue type: " + existingIds
-        );
+
+        Incident existing = active.get(0); // newest first (ORDER BY createdtime DESC)
+        log.info("Duplicate ticket blocked | existing={} status={} assetId={} incidentType={} channel={}",
+                existing.getIncidentId(), existing.getApplicationStatus(), incident.getAssetId(),
+                incident.getIncidentType(), incident.getEntryChannel());
+
+        if (ENTRY_CHANNEL_IVR_WHATSAPP.equalsIgnoreCase(incident.getEntryChannel())) {
+            throw new CustomException(
+                    IVR_DUPLICATE_TICKET_CODE,
+                    "A ticket already exists for this asset with the same issue: " + existing.getIncidentId()
+                            + ". Current status: " + existing.getApplicationStatus()
+            );
+        }
+        throw new CustomException(DUPLICATE_TICKET_CODE, DUPLICATE_TICKET_MESSAGE + existing.getIncidentId());
+    }
+
+    /**
+     * The end user the ticket is raised for, i.e. what will be stored as {@code accountId}:
+     * POC/IVR creates already set it to the facility COMPLAINANT; a direct web create is raised by the
+     * logged-in end user, sent as {@code reporter.uuid}.
+     */
+    private String resolveEndUserUuid(IncidentRequest request) {
+        Incident incident = request.getIncident();
+        if (StringUtils.isNotBlank(incident.getAccountId())) {
+            return incident.getAccountId().trim();
+        }
+        if (incident.getReporter() != null && StringUtils.isNotBlank(incident.getReporter().getUuid())) {
+            return incident.getReporter().getUuid().trim();
+        }
+        RequestInfo requestInfo = request.getRequestInfo();
+        if (requestInfo != null && requestInfo.getUserInfo() != null
+                && StringUtils.isNotBlank(requestInfo.getUserInfo().getUuid()) && !isPocUser(requestInfo)
+                && !isSystemUser(requestInfo)) {
+            return requestInfo.getUserInfo().getUuid();
+        }
+        return null;
     }
 
     /** Compares the last 10 digits, so "+91 63617 82350" and "6361782350" match. */

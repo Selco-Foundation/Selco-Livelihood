@@ -37,6 +37,6 @@ export interface CreateIncidentResponse {
     incident?: { incidentId?: string };
     workflow?: { action?: string };
   }>;
-  Errors?: Array<{ message?: string }>;
+  Errors?: Array<{ code?: string; message?: string }>;
   message?: string;
 }

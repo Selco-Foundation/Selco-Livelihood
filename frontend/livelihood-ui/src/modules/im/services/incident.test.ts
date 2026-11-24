@@ -4,7 +4,6 @@ import {
   buildCreateIncidentPayload,
   buildVerificationDocuments,
   createIncident,
-  searchPotentialDuplicates,
   type CreateIncidentInput,
 } from "./incident";
 import type { LivelihoodAsset, LivelihoodFacility } from "../types/facility-asset";
@@ -197,76 +196,5 @@ describe("createIncident", () => {
     const result = await createIncident(buildInput());
 
     expect(result).toEqual({ Errors: [{ message: "CREATE_FAILED" }] });
-  });
-});
-
-describe("searchPotentialDuplicates", () => {
-  beforeEach(() => {
-    vi.mocked(apiClient.post).mockReset();
-  });
-
-  it("searches the inbox scoped to the facility/incidentType/open-duplicate statuses", async () => {
-    vi.mocked(apiClient.post).mockResolvedValue({ data: { items: [], totalCount: 0 } });
-
-    await searchPotentialDuplicates(
-      "tenant-1",
-      { state: ["s1"] },
-      "facility-1",
-      "NOT_WORKING",
-      "token-1",
-      null,
-    );
-
-    const body = vi.mocked(apiClient.post).mock.calls[0][1] as {
-      inbox: { moduleSearchCriteria: Record<string, unknown>; processSearchCriteria: Record<string, unknown> };
-    };
-    expect(body.inbox.moduleSearchCriteria).toMatchObject({
-      facility: ["facility-1"],
-      incidentType: ["NOT_WORKING"],
-    });
-    expect(body.inbox.processSearchCriteria).toMatchObject({
-      businessService: ["LivelihoodIncident"],
-    });
-  });
-
-  it("maps inbox items to ticketId/ticketTenantId, filtering out items without an incidentId", async () => {
-    vi.mocked(apiClient.post).mockResolvedValue({
-      data: {
-        items: [
-          { businessObject: { incident: { incidentId: "t1", tenantId: "tenant-2" } } },
-          { businessObject: { incident: { incidentId: "" } } },
-          { businessObject: {} },
-        ],
-        totalCount: 3,
-      },
-    });
-
-    const result = await searchPotentialDuplicates(
-      "tenant-1",
-      {},
-      "facility-1",
-      "NOT_WORKING",
-      "token-1",
-      null,
-    );
-
-    expect(result).toEqual([{ ticketId: "t1", ticketTenantId: "tenant-2" }]);
-  });
-
-  it("falls back ticketTenantId to the given tenantId when the incident has none", async () => {
-    vi.mocked(apiClient.post).mockResolvedValue({
-      data: { items: [{ businessObject: { incident: { incidentId: "t1" } } }], totalCount: 1 },
-    });
-
-    const result = await searchPotentialDuplicates(
-      "tenant-1",
-      {},
-      "facility-1",
-      "NOT_WORKING",
-      "token-1",
-      null,
-    );
-
-    expect(result).toEqual([{ ticketId: "t1", ticketTenantId: "tenant-1" }]);
   });
 });

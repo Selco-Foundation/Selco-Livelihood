@@ -38,7 +38,11 @@ vi.mock("../services/file-upload", async (importOriginal) => {
 });
 vi.mock("../services/incident", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/incident")>();
-  return { ...actual, createIncident: vi.fn(), searchPotentialDuplicates: vi.fn() };
+  return { ...actual, createIncident: vi.fn() };
+});
+vi.mock("../services/inbox", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/inbox")>();
+  return { ...actual, searchInbox: vi.fn() };
 });
 vi.mock("../services/mdms", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/mdms")>();
@@ -48,7 +52,8 @@ vi.mock("../services/mdms", async (importOriginal) => {
 import { searchFacilitiesByJurisdiction } from "../services/facility-search";
 import { searchAssetsForFacility } from "../services/asset-search";
 import { uploadIncidentFile, uploadIncidentVideo } from "../services/file-upload";
-import { createIncident, searchPotentialDuplicates } from "../services/incident";
+import { createIncident } from "../services/incident";
+import { searchInbox } from "../services/inbox";
 import { fetchServiceDefsForMenuPath } from "../services/mdms";
 
 const DRAFT_STORAGE_KEY = "livelihood-im-create-draft";
@@ -99,7 +104,7 @@ beforeEach(() => {
   vi.mocked(uploadIncidentFile).mockReset().mockResolvedValue({ fileStoreId: "fs-1" });
   vi.mocked(uploadIncidentVideo).mockReset().mockResolvedValue({ fileStoreId: "fv-1" });
   vi.mocked(createIncident).mockReset().mockResolvedValue({ IncidentWrappers: [{ incident: { incidentId: "INC-1" } }] });
-  vi.mocked(searchPotentialDuplicates).mockReset().mockResolvedValue([]);
+  vi.mocked(searchInbox).mockReset().mockResolvedValue({ items: [], totalCount: 0 });
   vi.mocked(fetchServiceDefsForMenuPath).mockReset().mockResolvedValue([]);
   sessionStorage.clear();
 });
@@ -272,43 +277,119 @@ describe("useCreateIncidentForm - complaint type options", () => {
   });
 });
 
+function inboxWith(incidents: Array<{ incidentId: string; assetId: string }>) {
+  return {
+    items: incidents.map((incident) => ({
+      businessObject: {
+        incident: {
+          ...incident,
+          incidentType: "SVC1",
+          applicationStatus: "PENDING_FOR_RESOLUTION",
+          tenantId: "tenant-1",
+        },
+      },
+    })),
+    totalCount: incidents.length,
+  };
+}
+
+function selectEndUserAssetAndIssue(
+  result: { current: ReturnType<typeof useCreateIncidentForm> },
+  assetId = "asset-1",
+) {
+  act(() => result.current.handleEndUserChange(facility({ facilityId: "f1" })));
+  act(() => result.current.handleAssetChange(asset({ assetId })));
+  act(() => result.current.handleComplaintTypeChange(complaintType));
+}
+
 describe("useCreateIncidentForm - duplicate ticket detection", () => {
-  it("looks up potential duplicate tickets once both end user and complaint type are set", async () => {
+  it("does not look up duplicates until end user, asset and issue type are all selected", async () => {
     useAuthStore.setState({ accessToken: "token-1", employeeTenantId: "tenant-1", user: authedUser });
-    useJurisdictionStore.setState({ boundaries: { district: ["D1"] }, hrmsUser: null });
-    vi.mocked(searchPotentialDuplicates).mockResolvedValue([{ ticketId: "T1", ticketTenantId: "tenant-1" }]);
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useCreateIncidentForm("/im"), { wrapper });
 
     act(() => result.current.handleEndUserChange(facility({ facilityId: "f1" })));
     act(() => result.current.handleComplaintTypeChange(complaintType));
 
+    expect(searchInbox).not.toHaveBeenCalled();
+    expect(result.current.existingTicket).toBeNull();
+  });
+
+  it("finds the active ticket for the same end user, asset and issue type and blocks submit", async () => {
+    useAuthStore.setState({ accessToken: "token-1", employeeTenantId: "tenant-1", user: authedUser });
+    useJurisdictionStore.setState({ boundaries: { district: ["D1"] }, hrmsUser: null });
+    vi.mocked(searchInbox).mockResolvedValue(inboxWith([{ incidentId: "T1", assetId: "asset-1" }]));
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useCreateIncidentForm("/im"), { wrapper });
+
+    selectEndUserAssetAndIssue(result);
+
     await waitFor(() =>
-      expect(result.current.duplicateTickets).toEqual([{ ticketId: "T1", ticketTenantId: "tenant-1" }]),
+      expect(result.current.existingTicket).toEqual({ ticketId: "T1", ticketTenantId: "tenant-1" }),
     );
-    expect(searchPotentialDuplicates).toHaveBeenCalledWith(
+    expect(result.current.canSubmit).toBe(false);
+    expect(searchInbox).toHaveBeenCalledWith(
       "tenant-1",
       { district: ["D1"] },
-      "f1",
-      "SVC1",
+      expect.objectContaining({ facility: "f1", incidentType: "SVC1" }),
       "token-1",
       authedUser,
     );
   });
 
-  it("resets duplicate tickets to empty when the complaint type is cleared", async () => {
+  it("allows the ticket when the active one with that issue type is on a different asset", async () => {
     useAuthStore.setState({ accessToken: "token-1", employeeTenantId: "tenant-1", user: authedUser });
-    vi.mocked(searchPotentialDuplicates).mockResolvedValue([{ ticketId: "T1", ticketTenantId: "tenant-1" }]);
+    vi.mocked(searchInbox).mockResolvedValue(inboxWith([{ incidentId: "T1", assetId: "asset-2" }]));
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useCreateIncidentForm("/im"), { wrapper });
 
-    act(() => result.current.handleEndUserChange(facility({ facilityId: "f1" })));
-    act(() => result.current.handleComplaintTypeChange(complaintType));
-    await waitFor(() => expect(result.current.duplicateTickets.length).toBe(1));
+    selectEndUserAssetAndIssue(result);
+
+    await waitFor(() => expect(searchInbox).toHaveBeenCalled());
+    expect(result.current.existingTicket).toBeNull();
+    expect(result.current.canSubmit).toBe(true);
+  });
+
+  it("clears the existing ticket when the asset is changed", async () => {
+    useAuthStore.setState({ accessToken: "token-1", employeeTenantId: "tenant-1", user: authedUser });
+    vi.mocked(searchInbox).mockResolvedValue(inboxWith([{ incidentId: "T1", assetId: "asset-1" }]));
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useCreateIncidentForm("/im"), { wrapper });
+
+    selectEndUserAssetAndIssue(result);
+    await waitFor(() => expect(result.current.existingTicket).not.toBeNull());
 
     act(() => result.current.handleAssetChange(null));
 
-    await waitFor(() => expect(result.current.duplicateTickets).toEqual([]));
+    expect(result.current.existingTicket).toBeNull();
+  });
+
+  it("shows the existing ticket instead of a submit error when the backend rejects the create as a duplicate", async () => {
+    useAuthStore.setState({ accessToken: "token-1", employeeTenantId: "tenant-1", user: authedUser });
+    vi.mocked(createIncident).mockResolvedValue({
+      Errors: [
+        {
+          code: "DUPLICATE_TICKET",
+          message:
+            "You already have a ticket raised for this asset with the same issue. Please refer to the existing ticket: LH-9",
+        },
+      ],
+    });
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useCreateIncidentForm("/im"), { wrapper });
+
+    selectEndUserAssetAndIssue(result);
+    result.current.createMutation.mutate();
+
+    await waitFor(() =>
+      expect(result.current.existingTicket).toEqual({ ticketId: "LH-9", ticketTenantId: "tenant-1" }),
+    );
+    expect(result.current.submitError).toBeNull();
+    expect(result.current.canSubmit).toBe(false);
+
+    act(() => result.current.handleComplaintTypeChange({ ...complaintType, key: "SVC2", code: "SVC2" }));
+
+    expect(result.current.existingTicket).toBeNull();
   });
 });
 
