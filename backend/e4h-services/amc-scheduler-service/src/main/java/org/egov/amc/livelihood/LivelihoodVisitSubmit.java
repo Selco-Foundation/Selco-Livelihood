@@ -173,6 +173,18 @@ public final class LivelihoodVisitSubmit {
         return a.getUser() != null && a.getUser().getName() != null ? a.getUser().getName() : null;
     }
 
+    /** When the report was submitted, kept through the later PDFs; null when unknown (no submit-step PDF). */
+    static Long submittedAt(Map<String, Object> additionalDetails) {
+        if (additionalDetails == null || !(additionalDetails.get("reportPdf") instanceof Map<?, ?> pdf)) {
+            return null;
+        }
+        if (pdf.get("submittedAt") instanceof Number n) {
+            return n.longValue();
+        }
+        // PDFs stored before submittedAt was kept
+        return STATUS_PENDING_OTP_APPROVAL.equals(pdf.get("visitStatus")) && pdf.get("generatedAt") instanceof Number n ? n.longValue() : null;
+    }
+
     /** systemStatus from the report (the app sends it there) and the latest PDF (LLD §6.10). */
     static Map<String, Object> withSubmitDetails(Map<String, Object> current, VisitReport report, String pdf, String status, long now) {
         Map<String, Object> out = current == null ? new LinkedHashMap<>() : new LinkedHashMap<>(current);
@@ -185,6 +197,10 @@ public final class LivelihoodVisitSubmit {
             reportPdf.put("fileStoreId", pdf);
             reportPdf.put("visitStatus", status);
             reportPdf.put("generatedAt", now);
+            Long submittedAt = STATUS_PENDING_OTP_APPROVAL.equals(status) ? Long.valueOf(now) : submittedAt(out);
+            if (submittedAt != null) {
+                reportPdf.put("submittedAt", submittedAt);
+            }
             out.put("reportPdf", reportPdf);
         }
         return out;

@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -45,6 +46,7 @@ class LivelihoodCodeVerifyTest {
         ProcessInstance pi = new ProcessInstance();
         pi.setState(State.builder().state("PENDING_APPROVAL").build());
         when(s.transition(anyString(), any())).thenReturn(pi);
+        when(s.makePdf(anyString(), any(), anyLong())).thenReturn("pdf-2");
         return s;
     }
 
@@ -54,8 +56,9 @@ class LivelihoodCodeVerifyTest {
         ScheduledVisit v = LivelihoodCodeVerify.run(waiting(), FS, " 1234 ", NOW, s);
 
         InOrder o = inOrder(s);
+        o.verify(s).makePdf(eq("SUBMIT_OTP"), any(), eq(NOW));
         o.verify(s).codeIsValid("9678335201", "1234");
-        o.verify(s).transition("SUBMIT_OTP", null);
+        o.verify(s).transition("SUBMIT_OTP", "pdf-2");
         o.verify(s).save(any(), any(), any());
         o.verify(s).createNextVisit(any(), anyLong());
         assertEquals("PENDING_APPROVAL", v.getStatus());
@@ -64,6 +67,28 @@ class LivelihoodCodeVerifyTest {
         assertEquals(NOW, v.getVisitReport().getOtpVerifiedAt());
         assertNull(v.getVisitReport().getOtpReference(), "the typed code is never saved");
         verify(s).createNextVisit(v, NOW);
+        assertEquals("pdf-2", ((java.util.Map<?, ?>) v.getAdditionalDetails().get("reportPdf")).get("fileStoreId"));
+    }
+
+    @Test
+    void pdfFailureLeavesTheCodeUnused() {
+        LivelihoodCodeVerify.Steps s = steps(true);
+        when(s.makePdf(anyString(), any(), anyLong())).thenThrow(new CustomException("AMC_PDF_GENERATION_FAILED", "x"));
+        assertThrows(CustomException.class, () -> LivelihoodCodeVerify.run(waiting(), FS, "1234", NOW, s));
+        verify(s, never()).codeIsValid(anyString(), anyString());
+        verify(s, never()).save(any(), any(), any());
+    }
+
+    @Test
+    void theSubmitTimeIsKeptThroughLaterPdfs() {
+        java.util.Map<String, Object> d = LivelihoodVisitSubmit.withSubmitDetails(null, null, "p1", "PENDING_OTP_APPROVAL", 10L);
+        d = LivelihoodVisitSubmit.withSubmitDetails(d, null, "p2", "PENDING_APPROVAL", 20L);
+        d = LivelihoodVisitSubmit.withSubmitDetails(d, null, "p3", "REJECTED", 30L);
+        assertEquals(10L, LivelihoodVisitSubmit.submittedAt(d));
+        d = LivelihoodVisitSubmit.withSubmitDetails(d, null, "p4", "PENDING_OTP_APPROVAL", 40L);
+        assertEquals(40L, LivelihoodVisitSubmit.submittedAt(d), "a resubmission has its own time");
+        assertEquals(7L, LivelihoodVisitSubmit.submittedAt(java.util.Map.of("reportPdf",
+                java.util.Map.of("visitStatus", "PENDING_OTP_APPROVAL", "generatedAt", 7L))), "stored before submittedAt was kept");
     }
 
     @Test

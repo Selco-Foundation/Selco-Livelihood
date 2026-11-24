@@ -170,7 +170,7 @@ class LivelihoodVisitSubmitTest {
         assertEquals("kept", v.getAdditionalDetails().get("note"));
         assertEquals(Map.of("isSystemInUse", true, "isSystemFunctional", true), v.getAdditionalDetails().get("systemStatus"));
         Map<String, Object> pdf = (Map<String, Object>) v.getAdditionalDetails().get("reportPdf");
-        assertEquals(Map.of("fileStoreId", "fs-pdf", "visitStatus", "PENDING_OTP_APPROVAL", "generatedAt", now), pdf);
+        assertEquals(Map.of("fileStoreId", "fs-pdf", "visitStatus", "PENDING_OTP_APPROVAL", "generatedAt", now, "submittedAt", now), pdf);
     }
 
     @Test

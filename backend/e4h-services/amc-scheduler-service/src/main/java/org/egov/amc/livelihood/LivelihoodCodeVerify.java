@@ -13,7 +13,8 @@ import java.util.Map;
  * <ol>
  *   <li>checks: caller is the visit's active field staff; visit is PENDING_OTP_APPROVAL; a code was sent; phone</li>
  *   <li>(a) auto-approval rules on the saved report (no side effects; skipped when switched off)</li>
- *   <li>(b) all rules pass: the "Approved" PDF (strict; a failure leaves the code unused for a retry)</li>
+ *   <li>(b) the PDF with the verification on it, "Approved" or "Pending approval" (strict; a failure leaves the code
+ *       unused for a retry)</li>
  *   <li>(c) validate the code (egov-otp must say validationSuccessful; with the OTP bypass only the default code)</li>
  *   <li>(d) workflow AUTO_APPROVE as the system user (-> APPROVED) or SUBMIT_OTP (-> PENDING_APPROVAL)</li>
  *   <li>(e) save: First Submission Date once, Latest always, otpVerifiedAt, autoApproval, approved_by = SYSTEM,
@@ -36,8 +37,8 @@ public final class LivelihoodCodeVerify {
         /** The rule result ({passed, rules, ...}), or null when auto-approval is switched off. */
         Map<String, Object> evaluateRules(ScheduledVisit visit, long now);
 
-        /** The "Approved" PDF fileStoreId, or null when the PDF is switched off. */
-        String makeApprovedPdf(ScheduledVisit visit, long now);
+        /** The fileStoreId of the PDF for AUTO_APPROVE or SUBMIT_OTP, or null when the PDF is switched off. */
+        String makePdf(String action, ScheduledVisit visit, long now);
 
         /** true only when the code is right; never throws for a wrong code. */
         boolean codeIsValid(String phone, String code);
@@ -75,16 +76,17 @@ public final class LivelihoodCodeVerify {
         Map<String, Object> auto = steps.evaluateRules(visit, now);                          // (a)
         boolean approve = auto != null && Boolean.TRUE.equals(auto.get("passed"));
         if (auto != null) {
-            // in memory only until (e): the "Approved" PDF shows the readings
+            // in memory only until (e): the PDF shows the readings
             Map<String, Object> details = visit.getAdditionalDetails() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(visit.getAdditionalDetails());
             details.put("autoApproval", auto);
             visit.setAdditionalDetails(details);
         }
-        String pdf = approve ? steps.makeApprovedPdf(visit, now) : null;                     // (b)
+        String action = approve ? AUTO_APPROVE : SUBMIT_OTP;
+        String pdf = steps.makePdf(action, visit, now);                                      // (b)
         if (!steps.codeIsValid(phone, code.trim())) {                                        // (c)
             throw new CustomException(AMC_INVALID_SERVICE_CODE, "The service code is not correct");
         }
-        ProcessInstance pi = steps.transition(approve ? AUTO_APPROVE : SUBMIT_OTP, pdf);     // (d)
+        ProcessInstance pi = steps.transition(action, pdf);                                  // (d)
 
         boolean firstVerification = !LivelihoodAmc.isSet(visit.getFirstSubmissionDate());    // (e)
         if (firstVerification) {

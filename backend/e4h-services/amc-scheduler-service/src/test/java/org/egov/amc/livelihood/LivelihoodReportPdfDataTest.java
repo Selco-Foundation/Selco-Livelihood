@@ -217,6 +217,16 @@ class LivelihoodReportPdfDataTest {
         assertEquals(LivelihoodReportPdfData.verificationId("a32dbef8-70c8-38b7-adce-8a451c7ae7c2", now), d.get("verification_id"));
     }
 
+    @Test
+    void aVerifiedReportWaitingForReviewShowsTheVerification() {
+        long now = AmcScheduleAndPlanTest.ist(2027, 5, 1, 11, 42);
+        Map<String, Object> d = LivelihoodReportPdfData.build(input(report(), new Step("SUBMIT_OTP", "PENDING_APPROVAL", "Field Staff", now, null)));
+        assertEquals("Pending approval", d.get("report_status"));
+        assertEquals("Success", d.get("verification_status"));
+        assertEquals("01 May 2027, 11:42", d.get("verified_at"));
+        assertEquals(LivelihoodReportPdfData.verificationId("a32dbef8-70c8-38b7-adce-8a451c7ae7c2", now), d.get("verification_id"));
+    }
+
     /** Writes the request the code sends, for the dev test to post to pdf-service (tests/step2_3.sh). */
     @Test
     void writesSampleRequestForTheDevTest() throws Exception {

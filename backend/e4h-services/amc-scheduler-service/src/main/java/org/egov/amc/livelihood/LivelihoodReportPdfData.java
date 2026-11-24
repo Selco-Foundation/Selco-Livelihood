@@ -85,8 +85,8 @@ public final class LivelihoodReportPdfData {
         d.put("scheduled_date", day(visit.getScheduledDate()));
         d.put("amc_start_date", day(cfg != null ? cfg.getConfigurationStartDate() : null));
         d.put("amc_end_date", day(cfg != null ? cfg.getConfigurationEndDate() : null));
-        // submit, and auto-approval (the code verification that stamps the dates happens in the same request)
-        boolean submitting = "SUBMIT_VISIT_REPORT".equals(step.action()) || "AUTO_APPROVE".equals(step.action());
+        // submit, and the code verification, which stamps the dates in the same request
+        boolean submitting = "SUBMIT_VISIT_REPORT".equals(step.action()) || verifying(step.action());
         Long first = visit.getFirstSubmissionDate() != null ? visit.getFirstSubmissionDate() : (submitting ? step.actedAt() : null);
         Long latest = submitting ? step.actedAt() : visit.getLatestSubmissionDate();
         d.put("first_submission_date", day(first));
@@ -219,11 +219,16 @@ public final class LivelihoodReportPdfData {
         if ("SUBMIT_VISIT_REPORT".equals(action)) {
             return null;
         }
-        if ("AUTO_APPROVE".equals(action)) {
+        if (verifying(action)) {
             return in.step().actedAt(); // kept only if the code turns out right
         }
         Long at = in.report() != null ? in.report().getOtpVerifiedAt() : null;
         return LivelihoodAmc.isSet(at) ? at : null;
+    }
+
+    /** The two steps the end user's code can lead to. */
+    private static boolean verifying(String action) {
+        return LivelihoodCodeVerify.AUTO_APPROVE.equals(action) || LivelihoodCodeVerify.SUBMIT_OTP.equals(action);
     }
 
     /** The submit time: now on submit, else when the submit-step PDF was made, else the code verification. */
@@ -231,12 +236,8 @@ public final class LivelihoodReportPdfData {
         if ("SUBMIT_VISIT_REPORT".equals(in.step().action())) {
             return in.step().actedAt();
         }
-        Map<String, Object> details = in.visit().getAdditionalDetails();
-        if (details != null && details.get("reportPdf") instanceof Map<?, ?> pdf
-                && "PENDING_OTP_APPROVAL".equals(pdf.get("visitStatus")) && pdf.get("generatedAt") instanceof Number n) {
-            return n.longValue();
-        }
-        return verifiedAt;
+        Long submittedAt = LivelihoodVisitSubmit.submittedAt(in.visit().getAdditionalDetails());
+        return submittedAt != null ? submittedAt : verifiedAt;
     }
 
     /** SF-UV-YYYYMMDD-XXXXXX, as on the installation report: the same verification always gives the same id. */
@@ -360,6 +361,7 @@ public final class LivelihoodReportPdfData {
         }
         return switch (action) {
             case "SUBMIT_VISIT_REPORT" -> "Submitted by field staff";
+            case "SUBMIT_OTP" -> "Code verified";
             case "AUTO_APPROVE" -> "Auto-approved";
             case "APPROVE" -> "Approved by reviewer";
             case "REJECT" -> "Sent for rework by reviewer";

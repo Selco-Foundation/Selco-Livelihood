@@ -32,7 +32,7 @@ class AutoApproveFlowTest {
     LivelihoodCodeVerify.Steps steps(Map<String, Object> rules, boolean codeOk) {
         LivelihoodCodeVerify.Steps s = mock(LivelihoodCodeVerify.Steps.class);
         when(s.evaluateRules(any(), anyLong())).thenReturn(rules);
-        when(s.makeApprovedPdf(any(), anyLong())).thenReturn("fs-approved");
+        when(s.makePdf(any(), any(), anyLong())).thenReturn("fs-pdf");
         when(s.codeIsValid(anyString(), anyString())).thenReturn(codeOk);
         ProcessInstance approved = new ProcessInstance();
         approved.setState(State.builder().state("APPROVED").build());
@@ -51,16 +51,16 @@ class AutoApproveFlowTest {
 
         InOrder o = inOrder(s);
         o.verify(s).evaluateRules(any(), eq(NOW));
-        o.verify(s).makeApprovedPdf(any(), eq(NOW));
+        o.verify(s).makePdf(eq("AUTO_APPROVE"), any(), eq(NOW));
         o.verify(s).codeIsValid(anyString(), eq("1234"));
-        o.verify(s).transition("AUTO_APPROVE", "fs-approved");
+        o.verify(s).transition("AUTO_APPROVE", "fs-pdf");
         o.verify(s).save(any(), any(), eq(PASSED));
         o.verify(s).createNextVisit(any(), eq(NOW));
         o.verify(s).completeIfAllApproved(any());
         assertEquals("APPROVED", v.getStatus());
         assertEquals("SYSTEM", v.getApprovedBy());
         assertEquals(PASSED, v.getAdditionalDetails().get("autoApproval"));
-        assertEquals("fs-approved", ((Map<String, Object>) v.getAdditionalDetails().get("reportPdf")).get("fileStoreId"));
+        assertEquals("fs-pdf", ((Map<String, Object>) v.getAdditionalDetails().get("reportPdf")).get("fileStoreId"));
         assertEquals(NOW, v.getFirstSubmissionDate());
     }
 
@@ -68,8 +68,8 @@ class AutoApproveFlowTest {
     void aFailedRuleGoesToAReviewerWithTheResultKept() {
         LivelihoodCodeVerify.Steps s = steps(FAILED, true);
         ScheduledVisit v = LivelihoodCodeVerify.run(LivelihoodCodeVerifyTest.waiting(), LivelihoodCodeVerifyTest.FS, "1234", NOW, s);
-        verify(s, never()).makeApprovedPdf(any(), anyLong());
-        verify(s).transition("SUBMIT_OTP", null);
+        verify(s).makePdf(eq("SUBMIT_OTP"), any(), eq(NOW));
+        verify(s).transition("SUBMIT_OTP", "fs-pdf");
         verify(s, never()).completeIfAllApproved(any());
         assertEquals("PENDING_APPROVAL", v.getStatus());
         assertNull(v.getApprovedBy());
@@ -80,14 +80,14 @@ class AutoApproveFlowTest {
     void switchedOffIsTheReviewerPath() {
         LivelihoodCodeVerify.Steps s = steps(null, true);
         ScheduledVisit v = LivelihoodCodeVerify.run(LivelihoodCodeVerifyTest.waiting(), LivelihoodCodeVerifyTest.FS, "1234", NOW, s);
-        verify(s).transition("SUBMIT_OTP", null);
+        verify(s).transition("SUBMIT_OTP", "fs-pdf");
         assertNull(v.getAdditionalDetails().get("autoApproval"));
     }
 
     @Test
     void pdfFailureLeavesTheCodeUnused() {
         LivelihoodCodeVerify.Steps s = steps(PASSED, true);
-        when(s.makeApprovedPdf(any(), anyLong())).thenThrow(new CustomException("AMC_PDF_GENERATION_FAILED", "x"));
+        when(s.makePdf(any(), any(), anyLong())).thenThrow(new CustomException("AMC_PDF_GENERATION_FAILED", "x"));
         ScheduledVisit v = LivelihoodCodeVerifyTest.waiting();
         assertThrows(CustomException.class, () -> LivelihoodCodeVerify.run(v, LivelihoodCodeVerifyTest.FS, "1234", NOW, s));
         verify(s, never()).codeIsValid(anyString(), anyString());

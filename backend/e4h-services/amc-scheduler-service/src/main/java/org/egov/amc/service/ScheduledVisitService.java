@@ -969,7 +969,7 @@ public class ScheduledVisitService {
     }
 
     /**
-     * Livelihood SUBMIT_OTP (LLD §6.3, §6.8): rules, "Approved" PDF if all pass, validate the code, AUTO_APPROVE (system
+     * Livelihood SUBMIT_OTP (LLD §6.3, §6.8): rules, PDF, validate the code, AUTO_APPROVE (system
      * user) or SUBMIT_OTP, save the submission dates, then the next visit and the completion check. The order lives in
      * {@link LivelihoodCodeVerify#run}. Fixes E4H's gaps: a missing phone or a code egov-otp does not confirm
      * (isValidationSuccessful false, or an error) is refused with AMC_INVALID_SERVICE_CODE.
@@ -996,10 +996,13 @@ public class ScheduledVisitService {
                     }
 
                     @Override
-                    public String makeApprovedPdf(ScheduledVisit visit, long now) {
+                    public String makePdf(String action, ScheduledVisit visit, long now) {
+                        boolean approve = LivelihoodCodeVerify.AUTO_APPROVE.equals(action);
+                        String fieldStaff = LivelihoodReview.fieldStaffName(visit);
                         return livelihoodReportPdfService.generate(requestInfo, visit, visit.getVisitReport(), visit.getFacility(),
-                                LivelihoodReview.fieldStaffName(visit), new LivelihoodReportPdfData.Step(LivelihoodCodeVerify.AUTO_APPROVE,
-                                        LivelihoodReview.STATUS_APPROVED, "System (auto-approved)", now, null));
+                                fieldStaff, new LivelihoodReportPdfData.Step(action,
+                                        approve ? LivelihoodReview.STATUS_APPROVED : LivelihoodReview.STATUS_PENDING_APPROVAL,
+                                        approve ? "System (auto-approved)" : fieldStaff, now, null));
                     }
 
                     @Override

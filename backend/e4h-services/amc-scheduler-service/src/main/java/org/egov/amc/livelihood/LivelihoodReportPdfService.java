@@ -31,7 +31,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 /**
- * The one place every report step makes its PDF (LLD §6.10): submit/resubmit, auto-approve, approve, reject.
+ * The one place every report step makes its PDF (LLD §6.10): submit/resubmit, code verification, approve, reject.
  * Strict: no file back from pdf-service means {@code AMC_PDF_GENERATION_FAILED}, and the caller saves nothing.
  * Name look-ups (vendor, project, boundary, site details) are best-effort: a failed look-up prints "-" rather than failing the step.
  */
