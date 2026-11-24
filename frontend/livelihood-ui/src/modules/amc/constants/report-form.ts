@@ -110,6 +110,6 @@ export const AMC_ANSWER_LABELS: Record<string, string> = {
   GOOD: "Good",
   OK: "OK",
   BAD: "Bad",
-  SOLAR_BATTERY_GRID: "Solar - Battery - Grid",
-  SOLAR_GRID_BATTERY: "Solar - Grid - Battery",
+  SOLAR_BATTERY_GRID: "Solar-Battery-Grid",
+  SOLAR_GRID_BATTERY: "Solar-Grid-Battery",
 };
