@@ -9,7 +9,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { searchAssetsForFacility } from "../services/asset-search";
 import { searchFacilitiesByJurisdiction } from "../services/facility-search";
 import { uploadIncidentFile, uploadIncidentVideo } from "../services/file-upload";
-import { createIncident, searchPotentialDuplicates } from "../services/incident";
+import { searchInbox } from "../services/inbox";
+import { createIncident } from "../services/incident";
 import { fetchServiceDefsForMenuPath } from "../services/mdms";
 import type {
   CreateIncidentFormValues,
@@ -19,6 +20,12 @@ import type {
 } from "../types/create-incident";
 import type { LivelihoodAsset, LivelihoodFacility } from "../types/facility-asset";
 import { buildUploadedDocuments } from "../utils/create-incident-documents";
+import {
+  buildDuplicateTicketFilters,
+  existingTicketFromCreateError,
+  findActiveDuplicateTicket,
+  type ExistingTicket,
+} from "../utils/duplicate-ticket";
 import { buildFacilitySearchCriteria } from "../utils/jurisdiction-facility-criteria";
 import {
   MAX_COMMENT_LENGTH,
@@ -114,9 +121,10 @@ export function useCreateIncidentForm(inboxPath: string) {
   const [videoUploads, setVideoUploads] = useState<UploadedMediaEntry[]>([]);
   const [isImageUploading, setIsImageUploading] = useState(false);
   const [isVideoUploading, setIsVideoUploading] = useState(false);
-  const [duplicateTickets, setDuplicateTickets] = useState<
-    Array<{ ticketId: string; ticketTenantId: string }>
-  >([]);
+  // Set when the backend rejects the create as a duplicate the inbox check missed
+  // (e.g. the existing ticket isn't indexed yet); cleared on any selection change.
+  const [rejectedAsDuplicateOf, setRejectedAsDuplicateOf] =
+    useState<ExistingTicket | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [disableUpload, setDisableUpload] = useState(true);
   const [submittedResponse, setSubmittedResponse] =
@@ -239,29 +247,41 @@ export function useCreateIncidentForm(inboxPath: string) {
     });
   }, [accessToken, form.asset?.assetTypeId, t, user]);
 
-  useEffect(() => {
-    if (!form.endUser?.facilityId || !form.complaintType?.key) {
-      setDuplicateTickets([]);
-      return;
-    }
+  const duplicateFacilityId = form.endUser?.facilityId;
+  const duplicateAssetId = form.asset?.assetId;
+  const duplicateIncidentType = form.complaintType?.key;
 
-    const jurisdiction = boundaries ?? { country: ["-"] };
-    void searchPotentialDuplicates(
-      employeeTenantId!,
-      jurisdiction,
-      form.endUser.facilityId,
-      form.complaintType.key,
-      accessToken!,
-      user,
-    ).then(setDuplicateTickets);
-  }, [
-    accessToken,
-    boundaries,
-    employeeTenantId,
-    form.complaintType,
-    form.endUser,
-    user,
-  ]);
+  const duplicateTicketQuery = useQuery({
+    queryKey: [
+      "create-incident-duplicate-ticket",
+      employeeTenantId,
+      duplicateFacilityId,
+      duplicateAssetId,
+      duplicateIncidentType,
+    ],
+    enabled: Boolean(
+      accessToken &&
+        employeeTenantId &&
+        duplicateFacilityId &&
+        duplicateAssetId &&
+        duplicateIncidentType,
+    ),
+    staleTime: 0,
+    queryFn: () =>
+      searchInbox(
+        employeeTenantId!,
+        boundaries ?? { country: ["-"] },
+        buildDuplicateTicketFilters(duplicateFacilityId!, duplicateIncidentType!),
+        accessToken!,
+        user,
+      ),
+    select: (response) =>
+      findActiveDuplicateTicket(response, duplicateAssetId!, employeeTenantId!),
+  });
+
+  const existingTicket: ExistingTicket | null =
+    rejectedAsDuplicateOf ??
+    (duplicateAssetId && duplicateIncidentType ? (duplicateTicketQuery.data ?? null) : null);
 
   const uploadFiles = useCallback(
     async (files: FileList, kind: UploadedMediaEntry["kind"]) => {
@@ -360,10 +380,11 @@ export function useCreateIncidentForm(inboxPath: string) {
       form.endUser &&
         form.asset &&
         form.complaintType &&
+        !existingTicket &&
         !isImageUploading &&
         !isVideoUploading,
     );
-  }, [form, isImageUploading, isVideoUploading]);
+  }, [form, existingTicket, isImageUploading, isVideoUploading]);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -392,6 +413,11 @@ export function useCreateIncidentForm(inboxPath: string) {
     },
     onSuccess: async (response) => {
       if (!response?.IncidentWrappers) {
+        const duplicateOf = existingTicketFromCreateError(response, employeeTenantId ?? "");
+        if (duplicateOf) {
+          setRejectedAsDuplicateOf(duplicateOf);
+          return;
+        }
         const message =
           response?.Errors?.[0]?.message ??
           response?.message ??
@@ -407,6 +433,7 @@ export function useCreateIncidentForm(inboxPath: string) {
   });
 
   const clearForm = useCallback(() => {
+    setRejectedAsDuplicateOf(null);
     setForm(EMPTY_FORM);
     setFieldErrors({});
     setImageUploads([]);
@@ -458,6 +485,7 @@ export function useCreateIncidentForm(inboxPath: string) {
   };
 
   const handleEndUserChange = (facility: LivelihoodFacility | null) => {
+    setRejectedAsDuplicateOf(null);
     setForm((prev) => ({
       ...prev,
       endUser: facility,
@@ -476,6 +504,7 @@ export function useCreateIncidentForm(inboxPath: string) {
   };
 
   const handleAssetChange = (asset: LivelihoodAsset | null) => {
+    setRejectedAsDuplicateOf(null);
     setForm((prev) => ({
       ...prev,
       asset,
@@ -489,6 +518,7 @@ export function useCreateIncidentForm(inboxPath: string) {
   };
 
   const handleComplaintTypeChange = (complaintType: SelectOption | null) => {
+    setRejectedAsDuplicateOf(null);
     updateField("complaintType", complaintType);
     if (complaintType) {
       setDisableUpload(false);
@@ -516,8 +546,7 @@ export function useCreateIncidentForm(inboxPath: string) {
     isImageUploading,
     isVideoUploading,
     disableUpload,
-    duplicateTickets,
-    setDuplicateTickets,
+    existingTicket,
     canSubmit,
     submitError,
     setSubmitError,

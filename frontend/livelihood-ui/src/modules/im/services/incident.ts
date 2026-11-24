@@ -1,18 +1,12 @@
 import { apiClient, type AuthUser } from "@/shared";
 import { createRequestInfo } from "@/shared/api/request-info";
-import type { JurisdictionBoundaries } from "@/shared";
 import type {
   CreateIncidentResponse,
   SelectOption,
   VerificationDocument,
 } from "../types/create-incident";
 import type { LivelihoodAsset, LivelihoodFacility } from "../types/facility-asset";
-import {
-  LIVELIHOOD_INCIDENT_BUSINESS_SERVICE,
-  OPEN_DUPLICATE_APPLICATION_STATUSES,
-} from "../constants/workflow";
 import { hasRole } from "../utils/access";
-import { searchInbox } from "./inbox";
 
 export interface CreateIncidentInput {
   tenantId: string;
@@ -24,8 +18,6 @@ export interface CreateIncidentInput {
   user: AuthUser;
   accessToken: string;
 }
-
-const DUPLICATE_STATUSES = OPEN_DUPLICATE_APPLICATION_STATUSES;
 
 export function buildVerificationDocuments(
   uploadedDocuments: VerificationDocument[],
@@ -136,36 +128,4 @@ export async function createIncident(
     };
     return axiosError.response?.data ?? { Errors: [{ message: "CREATE_FAILED" }] };
   }
-}
-
-export async function searchPotentialDuplicates(
-  tenantId: string,
-  jurisdiction: JurisdictionBoundaries,
-  facilityId: string,
-  incidentType: string,
-  accessToken: string,
-  user: AuthUser | null | undefined,
-) {
-  const data = await searchInbox(
-    tenantId,
-    jurisdiction,
-    {
-      limit: 100,
-      offset: 0,
-      services: [LIVELIHOOD_INCIDENT_BUSINESS_SERVICE],
-      sortOrder: "DESC",
-      facility: facilityId,
-      incidentType,
-      applicationStatus: DUPLICATE_STATUSES,
-    },
-    accessToken,
-    user,
-  );
-
-  return (data.items ?? [])
-    .map((item) => ({
-      ticketId: item.businessObject?.incident?.incidentId ?? "",
-      ticketTenantId: item.businessObject?.incident?.tenantId ?? tenantId,
-    }))
-    .filter((ticket) => ticket.ticketId);
 }

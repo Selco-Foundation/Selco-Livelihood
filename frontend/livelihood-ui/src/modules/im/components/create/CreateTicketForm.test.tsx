@@ -78,8 +78,7 @@ function baseState(overrides: Record<string, unknown> = {}) {
     isImageUploading: false,
     isVideoUploading: false,
     disableUpload: true,
-    duplicateTickets: [],
-    setDuplicateTickets: vi.fn(),
+    existingTicket: null,
     canSubmit: false,
     submitError: null,
     setSubmitError: vi.fn(),
@@ -436,39 +435,20 @@ describe("CreateTicketForm - submit flow", () => {
   });
 });
 
-describe("CreateTicketForm - duplicate tickets dialog", () => {
-  it("shows the duplicate tickets dialog when duplicateTickets is non-empty", () => {
-    renderForm({ duplicateTickets: [{ ticketId: "T1", ticketTenantId: "tenant-1" }] });
+describe("CreateTicketForm - existing ticket notice", () => {
+  it("shows the existing ticket notice with a link to that ticket", () => {
+    renderForm({ existingTicket: { ticketId: "T1", ticketTenantId: "tenant-1" } });
 
-    expect(screen.getByText("Potential Duplicate Tickets Found")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "You already have a ticket raised for this asset with the same issue.",
+    );
+    expect(screen.getByRole("link", { name: "T1" })).toBeInTheDocument();
   });
 
-  it("hides the duplicate tickets dialog when duplicateTickets is empty", () => {
-    renderForm({ duplicateTickets: [] });
+  it("shows no notice when there is no existing ticket", () => {
+    renderForm({ existingTicket: null });
 
-    expect(screen.queryByText("Potential Duplicate Tickets Found")).not.toBeInTheDocument();
-  });
-
-  it("calls setDuplicateTickets with [] when continuing", async () => {
-    const user = userEvent.setup();
-    const setDuplicateTickets = vi.fn();
-    renderForm({
-      duplicateTickets: [{ ticketId: "T1", ticketTenantId: "tenant-1" }],
-      setDuplicateTickets,
-    });
-
-    await user.click(screen.getByRole("button", { name: "Yes" }));
-
-    expect(setDuplicateTickets).toHaveBeenCalledWith([]);
-  });
-
-  it("navigates to the inboxPath when cancelling", async () => {
-    const user = userEvent.setup();
-    renderForm({ duplicateTickets: [{ ticketId: "T1", ticketTenantId: "tenant-1" }] });
-
-    await user.click(screen.getByRole("button", { name: "No" }));
-
-    expect(mockNavigate).toHaveBeenCalledWith({ to: "/im/inbox" });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
 

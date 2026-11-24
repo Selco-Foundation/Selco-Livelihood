@@ -63,15 +63,20 @@ describe("TERMINAL_APPLICATION_STATUSES", () => {
 });
 
 describe("OPEN_DUPLICATE_APPLICATION_STATUSES", () => {
-  it("is a comma-joined string of exactly the non-terminal, non-closed statuses", () => {
+  it("is a comma-joined string of exactly the active (unresolved) statuses", () => {
     expect(OPEN_DUPLICATE_APPLICATION_STATUSES).toBe(
       [
         APPLICATION_STATUS.PENDING_FOR_RESOLUTION,
         APPLICATION_STATUS.OUT_OF_SCOPE_PENDING_POC,
         APPLICATION_STATUS.OUT_OF_SCOPE_PENDING_VENDOR,
         APPLICATION_STATUS.OUT_OF_WARRANTY_PENDING_VENDOR,
-        APPLICATION_STATUS.RESOLVED,
       ].join(","),
+    );
+  });
+
+  it("excludes RESOLVED, so an issue can be raised again once it is resolved", () => {
+    expect(OPEN_DUPLICATE_APPLICATION_STATUSES.split(",")).not.toContain(
+      APPLICATION_STATUS.RESOLVED,
     );
   });
 

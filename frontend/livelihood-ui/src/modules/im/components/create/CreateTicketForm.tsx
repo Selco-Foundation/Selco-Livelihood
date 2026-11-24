@@ -8,10 +8,9 @@ import {
   Send,
   Video,
 } from "lucide-react";
-import { useNavigate } from "@tanstack/react-router";
 import { createPortal } from "react-dom";
 import { useCreateIncidentForm } from "../../hooks/use-create-incident-form";
-import { DuplicateTicketsDialog } from "./DuplicateTicketsDialog";
+import { ExistingTicketNotice } from "./ExistingTicketNotice";
 import { FormSectionCard } from "./FormSectionCard";
 import { MediaUploadZone } from "./MediaUploadZone";
 import { TicketSubmittedDialog } from "./TicketSubmittedDialog";
@@ -21,7 +20,6 @@ interface CreateTicketFormProps {
 }
 
 export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
-  const navigate = useNavigate();
   const {
     t,
     translateOr,
@@ -42,8 +40,7 @@ export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
     isImageUploading,
     isVideoUploading,
     disableUpload,
-    duplicateTickets,
-    setDuplicateTickets,
+    existingTicket,
     canSubmit,
     submitError,
     setSubmitError,
@@ -85,14 +82,6 @@ export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
             document.body,
           )
         : null}
-
-      {duplicateTickets.length > 0 ? (
-        <DuplicateTicketsDialog
-          tickets={duplicateTickets}
-          onContinue={() => setDuplicateTickets([])}
-          onCancel={() => void navigate({ to: inboxPath })}
-        />
-      ) : null}
 
       {submittedIncidentId ? (
         <TicketSubmittedDialog incidentId={submittedIncidentId} inboxPath={inboxPath} />
@@ -174,6 +163,11 @@ export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
               onChange={(option) => handleComplaintTypeChange(option)}
             />
           </div>
+          {existingTicket ? (
+            <div className="mt-4">
+              <ExistingTicketNotice ticket={existingTicket} />
+            </div>
+          ) : null}
         </FormSectionCard>
 
         <FormSectionCard

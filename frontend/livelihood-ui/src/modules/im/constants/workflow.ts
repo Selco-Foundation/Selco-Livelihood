@@ -47,12 +47,13 @@ export const TERMINAL_APPLICATION_STATUSES = [
   APPLICATION_STATUS.CLOSED_AFTER_DECLINE,
 ] as const;
 
+// RESOLVED is left out on purpose: once an issue is resolved the end user may
+// raise it again. Must match im-services LivelihoodCreateService.ACTIVE_DUPLICATE_STATUSES.
 export const OPEN_DUPLICATE_APPLICATION_STATUSES = [
   APPLICATION_STATUS.PENDING_FOR_RESOLUTION,
   APPLICATION_STATUS.OUT_OF_SCOPE_PENDING_POC,
   APPLICATION_STATUS.OUT_OF_SCOPE_PENDING_VENDOR,
   APPLICATION_STATUS.OUT_OF_WARRANTY_PENDING_VENDOR,
-  APPLICATION_STATUS.RESOLVED,
 ].join(",");
 
 /** Unassigned tickets visible to these roles for SLA display. */
