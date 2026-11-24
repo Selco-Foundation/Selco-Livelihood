@@ -106,15 +106,13 @@ public class LivelihoodReportPdfService {
 
     Map<String, Object> buildData(RequestInfo requestInfo, ScheduledVisit visit, VisitReport report, Facility facility,
                                   String fieldStaffName, Step step) {
-        AmcConfiguration cfg = visit.getAmcConfiguration() != null ? visit.getAmcConfiguration()
-                : loadConfiguration(visit.getAmcConfigurationId(), visit.getTenantId());
+        AmcConfiguration cfg = configuration(visit);
         Facility site = facility != null ? facility : visit.getFacility();
-        String vendorId = visit.getVendorId() != null ? visit.getVendorId() : (cfg != null ? cfg.getVendorId() : null);
         String projectId = visit.getProjectId() != null ? visit.getProjectId() : (cfg != null ? cfg.getProjectId() : null);
 
         String[] names = boundary(site, requestInfo);
         return LivelihoodReportPdfData.build(new Input(visit, report, site, cfg,
-                vendorName(vendorId, visit.getTenantId(), requestInfo), projectName(projectId, visit.getTenantId(), requestInfo),
+                vendorName(visit, cfg, requestInfo), projectName(projectId, visit.getTenantId(), requestInfo),
                 names[0], names[1], names[2], fieldStaffName, fieldStaffMobile(visit),
                 siteDetails(cfg != null ? cfg.getActivityFacilityId() : null), step));
     }
@@ -137,6 +135,12 @@ public class LivelihoodReportPdfService {
         }
     }
 
+    /** The visit's AMC; null when it has none. */
+    AmcConfiguration configuration(ScheduledVisit visit) {
+        return visit.getAmcConfiguration() != null ? visit.getAmcConfiguration()
+                : loadConfiguration(visit.getAmcConfigurationId(), visit.getTenantId());
+    }
+
     /** Includes turned-off AMCs: a reviewer may act on a report after the AMC was cancelled. */
     private AmcConfiguration loadConfiguration(String configurationId, String tenantId) {
         if (configurationId == null) {
@@ -149,7 +153,10 @@ public class LivelihoodReportPdfService {
         return found == null || found.isEmpty() ? null : found.get(0);
     }
 
-    private String vendorName(String orgId, String tenantId, RequestInfo requestInfo) {
+    /** The visit's vendor organisation, else the AMC's; null when unknown. */
+    String vendorName(ScheduledVisit visit, AmcConfiguration cfg, RequestInfo requestInfo) {
+        String orgId = visit.getVendorId() != null ? visit.getVendorId() : (cfg != null ? cfg.getVendorId() : null);
+        String tenantId = visit.getTenantId();
         if (orgId == null) {
             return null;
         }

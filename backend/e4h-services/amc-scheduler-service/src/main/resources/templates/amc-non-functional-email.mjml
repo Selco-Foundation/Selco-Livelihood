@@ -1,0 +1,137 @@
+<mjml>
+  <!--
+    Setu colour scheme (from the Technician App Prototype)
+    Header green  #0E4D3A   Primary green   #1B6B30
+    Soft green    #E3F6EA   Warning bg      #FFF4D6 / text #7A4F00
+    Error red     #B42318   Body text       #1F2937
+    Muted text    #6B7280   Border          #E5E7EB   Page bg #FAFAFA
+    Font: Inter
+  -->
+  <mj-head>
+    <mj-title>Solar system non-functional – {{end_user_name}}</mj-title>
+    <mj-preview>System non-functional. Please raise a ticket for {{end_user_name}}, {{block}}, {{district}}.</mj-preview>
+    <mj-font name="Inter" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700" />
+    <mj-attributes>
+      <mj-all font-family="Inter, Arial, Helvetica, sans-serif" />
+      <mj-text font-size="14px" line-height="22px" color="#1F2937" />
+      <mj-section padding="0" />
+    </mj-attributes>
+    <mj-style>
+      .detail-label { color: #6B7280; }
+      .detail-value { font-weight: 600; color: #1F2937; }
+    </mj-style>
+  </mj-head>
+
+  <mj-body background-color="#FAFAFA" width="600px">
+
+    <!-- Header (app header green) -->
+    <mj-section background-color="#0E4D3A" padding="18px 24px">
+      <mj-column>
+        <mj-text font-size="20px" font-weight="700" color="#ffffff" padding="0">
+          Setu4Livelihoods <span style="font-size:13px;font-weight:400;color:#BFE3CA;">&nbsp;|&nbsp; AMC</span>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Alert box (app warning banner) -->
+    <mj-section background-color="#FFF4D6" padding="14px 24px">
+      <mj-column>
+        <mj-text font-size="16px" font-weight="700" color="#7A4F00" padding="0">
+          &#9888;&nbsp; System non-functional. Please raise a ticket.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Intro -->
+    <mj-section background-color="#ffffff" padding="24px 24px 8px 24px">
+      <mj-column>
+        <mj-text padding="0 0 12px 0">Dear Program Team,</mj-text>
+        <mj-text padding="0 0 16px 0">
+          During an AMC visit, the vendor has reported that the solar system below is not working.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- End user details -->
+    <mj-section background-color="#ffffff" padding="0 24px">
+      <mj-column>
+        <mj-text font-size="13px" font-weight="700" color="#0E4D3A" text-transform="uppercase" letter-spacing="0.5px" padding="0 0 6px 0">
+          End user details
+        </mj-text>
+        <mj-divider border-width="2px" border-color="#1B6B30" padding="0" />
+        <mj-table padding="8px 0 16px 0" font-size="14px">
+          <tr>
+            <td class="detail-label" style="padding:6px 0;width:35%;">Name</td>
+            <td class="detail-value" style="padding:6px 0;">{{end_user_name}}</td>
+          </tr>
+          <tr>
+            <td class="detail-label" style="padding:6px 0;">Phone</td>
+            <td class="detail-value" style="padding:6px 0;">{{end_user_phone}}</td>
+          </tr>
+          <tr>
+            <td class="detail-label" style="padding:6px 0;">State</td>
+            <td class="detail-value" style="padding:6px 0;">{{state}}</td>
+          </tr>
+          <tr>
+            <td class="detail-label" style="padding:6px 0;">District</td>
+            <td class="detail-value" style="padding:6px 0;">{{district}}</td>
+          </tr>
+          <tr>
+            <td class="detail-label" style="padding:6px 0;">Block</td>
+            <td class="detail-value" style="padding:6px 0;">{{block}}</td>
+          </tr>
+        </mj-table>
+      </mj-column>
+    </mj-section>
+
+    <!-- AMC details -->
+    <mj-section background-color="#ffffff" padding="0 24px">
+      <mj-column>
+        <mj-text font-size="13px" font-weight="700" color="#0E4D3A" text-transform="uppercase" letter-spacing="0.5px" padding="0 0 6px 0">
+          AMC details
+        </mj-text>
+        <mj-divider border-width="2px" border-color="#1B6B30" padding="0" />
+        <mj-table padding="8px 0 16px 0" font-size="14px">
+          <tr>
+            <td class="detail-label" style="padding:6px 0;width:35%;">Vendor</td>
+            <td class="detail-value" style="padding:6px 0;">{{vendor_name}}</td>
+          </tr>
+          <tr>
+            <td class="detail-label" style="padding:6px 0;">AMC activity</td>
+            <td class="detail-value" style="padding:6px 0;">{{amc_number}} of {{total_amc}}</td>
+          </tr>
+          <tr>
+            <td class="detail-label" style="padding:6px 0;">Scheduled date</td>
+            <td class="detail-value" style="padding:6px 0;">{{scheduled_amc_date}}</td>
+          </tr>
+          <tr>
+            <td class="detail-label" style="padding:6px 0;">Reported on</td>
+            <td class="detail-value" style="padding:6px 0;">{{reported_date_time}}</td>
+          </tr>
+        </mj-table>
+      </mj-column>
+    </mj-section>
+
+    <!-- Closing line -->
+    <mj-section background-color="#ffffff" padding="0 24px 24px 24px">
+      <mj-column>
+        <mj-text padding="0">
+          Please raise a ticket for this system so that it can be followed up.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Footer -->
+    <mj-section padding="16px 24px">
+      <mj-column>
+        <mj-text font-size="12px" color="#6B7280" line-height="18px" padding="0">
+          This is an automated message from the Setu4Livelihoods AMC Module. Please do not reply to this email.
+        </mj-text>
+        <mj-text font-size="12px" color="#0E4D3A" padding="8px 0 0 0">
+          Regards,<br /><b>Setu4Livelihoods</b> · SELCO Foundation
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+  </mj-body>
+</mjml>

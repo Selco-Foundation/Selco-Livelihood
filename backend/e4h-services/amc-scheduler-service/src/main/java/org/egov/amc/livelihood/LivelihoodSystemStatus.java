@@ -1,8 +1,10 @@
 package org.egov.amc.livelihood;
 
+import org.egov.amc.web.models.AmcConfiguration;
 import org.egov.amc.web.models.ScheduledVisit;
 import org.egov.amc.web.models.ScheduledVisitAssignment;
 import org.egov.tracer.model.CustomException;
+import org.springframework.web.util.HtmlUtils;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -27,6 +29,8 @@ public final class LivelihoodSystemStatus {
 
     public static final String AMC_PROGRAM_POC_EMAIL_NOT_CONFIGURED = "AMC_PROGRAM_POC_EMAIL_NOT_CONFIGURED";
     public static final String AMC_INVALID_SYSTEM_STATUS = "AMC_INVALID_SYSTEM_STATUS";
+    /** The title of the client's email template. */
+    static final String EMAIL_SUBJECT = "Solar system non-functional \u2013 {{end_user_name}}";
     public static final Set<String> OPEN_STATUSES = Set.of("SCHEDULED", "PENDING_OTP_APPROVAL", "REJECTED");
 
     public interface Steps {
@@ -38,7 +42,7 @@ public final class LivelihoodSystemStatus {
         /** UPDATE ... SET non_functional_notified_at = now WHERE ... IS NULL; true for the one caller that wins. */
         boolean claim(long now);
 
-        /** {name, phone, state, district, block}; read only when an email is sent. */
+        /** The {{placeholders}} of the email; read only when an email is sent. */
         Map<String, String> emailFields();
 
         void sendEmail(List<String> to, String subject, String body);
@@ -68,7 +72,7 @@ public final class LivelihoodSystemStatus {
             }
             if (steps.claim(now)) {
                 Map<String, String> f = steps.emailFields();
-                steps.sendEmail(to, fill(subjectTemplate, f), fill(bodyTemplate, f));
+                steps.sendEmail(to, fill(subjectTemplate, f, false), fill(bodyTemplate, f, true));
                 sent = true;
             }
         }
@@ -92,11 +96,24 @@ public final class LivelihoodSystemStatus {
         return Boolean.TRUE.equals(visit.getIsActive()) && OPEN_STATUSES.contains(visit.getStatus());
     }
 
-    static String fill(String template, Map<String, String> fields) {
+    /** The email's AMC details; the vendor name is added by the caller. */
+    static Map<String, String> amcFields(ScheduledVisit visit, AmcConfiguration cfg, long reportedAt) {
+        boolean known = cfg != null && cfg.getDurationMonths() != null && cfg.getVisitFrequencyMonths() != null && cfg.getVisitFrequencyMonths() != 0;
+        Map<String, String> m = new LinkedHashMap<>();
+        m.put("amc_number", visit.getVisitNumber() == null ? null : String.valueOf(visit.getVisitNumber()));
+        m.put("total_amc", known ? String.valueOf(AmcSchedule.totalVisits(cfg.getDurationMonths(), cfg.getVisitFrequencyMonths())) : null);
+        m.put("scheduled_amc_date", LivelihoodReportPdfData.format(visit.getScheduledDate(), LivelihoodReportPdfData.CLIENT_DAY));
+        m.put("reported_date_time", LivelihoodReportPdfData.format(reportedAt, LivelihoodReportPdfData.CLIENT_DAY_TIME));
+        return m;
+    }
+
+    /** {{key}} -> value, "-" when blank; {@code html} escapes the values. */
+    static String fill(String template, Map<String, String> fields, boolean html) {
         String out = template == null ? "" : template;
         for (Map.Entry<String, String> e : fields.entrySet()) {
-            out = out.replace("{" + e.getKey() + "}", e.getValue() == null || e.getValue().isBlank() ? "-" : e.getValue());
+            String value = e.getValue() == null || e.getValue().isBlank() ? "-" : e.getValue().trim();
+            out = out.replace("{{" + e.getKey() + "}}", html ? HtmlUtils.htmlEscape(value, "UTF-8") : value);
         }
-        return out.replace("\\n", "\n");
+        return out;
     }
 }

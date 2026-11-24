@@ -47,8 +47,8 @@ public final class LivelihoodReportPdfData {
     static final String NONE = "-";
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd-MM-yyyy");
     private static final DateTimeFormatter DAY_TIME = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
-    private static final DateTimeFormatter CLIENT_DAY = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH);
-    private static final DateTimeFormatter CLIENT_DAY_TIME = DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm", Locale.ENGLISH);
+    static final DateTimeFormatter CLIENT_DAY = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH);
+    static final DateTimeFormatter CLIENT_DAY_TIME = DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm", Locale.ENGLISH);
     private static final ObjectMapper JSON = new ObjectMapper();
 
     /** The workflow step this PDF is made for. {@code comment} may be D8's JSON list [{reason, comment}]. */
@@ -252,7 +252,7 @@ public final class LivelihoodReportPdfData {
         }
     }
 
-    private static String format(Long epochMillis, DateTimeFormatter f) {
+    static String format(Long epochMillis, DateTimeFormatter f) {
         return LivelihoodAmc.isSet(epochMillis) ? Instant.ofEpochMilli(epochMillis).atZone(IST).format(f) : NONE;
     }
 

@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.egov.amc.config.AMCServiceConfiguration;
 import org.egov.amc.repository.ScheduledVisitRepository;
 import org.egov.amc.util.FacilityPocPhoneUtil;
+import org.egov.amc.web.models.AmcConfiguration;
 import org.egov.amc.web.models.Facility;
 import org.egov.amc.web.models.ScheduledVisit;
 import org.egov.amc.web.models.ScheduledVisitSearchCriteria;
@@ -11,9 +12,14 @@ import org.egov.amc.web.models.ScheduledVisitSearchRequest;
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.common.producer.Producer;
 import org.egov.tracer.model.CustomException;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -43,6 +49,7 @@ public class SystemStatusService {
     private final FacilityPocPhoneUtil phones;
     private final Producer producer;
     private final JdbcTemplate jdbcTemplate;
+    private final String emailHtml = readTemplate();
 
     public SystemStatusService(AMCServiceConfiguration config, ScheduledVisitRepository visitRepository, SystemUserProvider systemUser,
                                AmcMdmsOptions mdmsOptions, LivelihoodReportPdfService names, FacilityPocPhoneUtil phones,
@@ -58,6 +65,7 @@ public class SystemStatusService {
     }
 
     public LivelihoodSystemStatus.Result update(String tenantId, String visitId, Boolean inUse, Boolean functional, RequestInfo caller) {
+        long now = System.currentTimeMillis();
         if (visitId == null || visitId.isBlank()) {
             throw new CustomException("AMC_VISIT_NOT_FOUND", "visitId is required");
         }
@@ -71,8 +79,8 @@ public class SystemStatusService {
         ScheduledVisit visit = found.get(0);
         String by = caller != null && caller.getUserInfo() != null ? caller.getUserInfo().getUuid() : null;
 
-        LivelihoodSystemStatus.Result r = LivelihoodSystemStatus.run(visit, by, inUse, functional, System.currentTimeMillis(),
-                config.getNonFunctionalEmailSubject(), config.getNonFunctionalEmailBody(), new LivelihoodSystemStatus.Steps() {
+        LivelihoodSystemStatus.Result r = LivelihoodSystemStatus.run(visit, by, inUse, functional, now,
+                LivelihoodSystemStatus.EMAIL_SUBJECT, emailHtml, new LivelihoodSystemStatus.Steps() {
                     @Override
                     public List<String> pocEmails() {
                         return mdmsOptions.programPocEmails(tenant, sys);
@@ -98,11 +106,14 @@ public class SystemStatusService {
                         }
                         String[] b = names.boundary(f, sys);
                         Map<String, String> m = new LinkedHashMap<>();
-                        m.put("name", f != null ? f.getFacilityName() : null);
-                        m.put("phone", f != null ? f.getFacilityPocPhone() : null);
+                        m.put("end_user_name", f != null ? f.getFacilityName() : null);
+                        m.put("end_user_phone", f != null ? f.getFacilityPocPhone() : null);
                         m.put("state", b[0]);
                         m.put("district", b[1]);
                         m.put("block", b[2]);
+                        AmcConfiguration cfg = configuration(visit);
+                        m.put("vendor_name", names.vendorName(visit, cfg, sys));
+                        m.putAll(LivelihoodSystemStatus.amcFields(visit, cfg, now));
                         return m;
                     }
 
@@ -112,6 +123,7 @@ public class SystemStatusService {
                         email.put("emailTo", new LinkedHashSet<>(to));
                         email.put("subject", subject);
                         email.put("body", body);
+                        email.put("isHTML", true);
                         email.put("tenantId", tenant);
                         Map<String, Object> request = new HashMap<>();
                         request.put("requestInfo", new HashMap<>());
@@ -121,5 +133,24 @@ public class SystemStatusService {
                 });
         log.info("System status for visit {}: inUse={} functional={} stored={} emailSent={}", visitId, inUse, functional, r.stored(), r.emailSent());
         return r;
+    }
+
+    /** Best effort: the visit is already claimed, so a failed look-up must not lose the email. */
+    private AmcConfiguration configuration(ScheduledVisit visit) {
+        try {
+            return names.configuration(visit);
+        } catch (RuntimeException e) {
+            log.warn("AMC not read for the non-functional email of visit {}: {}", visit.getId(), e.getMessage());
+            return null;
+        }
+    }
+
+    /** Compiled from the client's amc-non-functional-email.mjml next to it. */
+    static String readTemplate() {
+        try (InputStream in = new ClassPathResource("templates/amc-non-functional-email.html").getInputStream()) {
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 }
