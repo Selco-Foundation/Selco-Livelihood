@@ -90,7 +90,11 @@ export function toReportSections(visit: RawAmcVisit): AmcReportSection[] {
     fields: others.map((key) => field(key, humanize(key), formatAnswer(responses[key]))),
   });
 
-  return [siteSection(visit), ...sections.filter((section) => section.fields.length > 0)];
+  // Same order as the client's form: report header, site details, then the rest
+  const filled = sections.filter((section) => section.fields.length > 0);
+  const header = filled.filter((section) => section.code === "REPORT_HEADER");
+  const rest = filled.filter((section) => section.code !== "REPORT_HEADER");
+  return [...header, siteSection(visit), ...rest];
 }
 
 const FORM_FIELDS = new Map(AMC_FORM_SECTIONS.flatMap((section) => section.fields).map((formField) => [formField.key, formField]));

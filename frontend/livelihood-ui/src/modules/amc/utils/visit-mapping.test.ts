@@ -78,7 +78,7 @@ describe("toAmcReport", () => {
 
   it("groups the answers like the form, with readable values, and keeps unknown keys", () => {
     const sections = Object.fromEntries(report.sections.map((section) => [section.code, section.fields]));
-    expect(Object.keys(sections)).toEqual(["SITE_DETAILS", "REPORT_HEADER", "PCU", "OBSERVATIONS", "READINGS", "OTHER"]);
+    expect(Object.keys(sections)).toEqual(["REPORT_HEADER", "SITE_DETAILS", "PCU", "OBSERVATIONS", "READINGS", "OTHER"]);
     expect(sections.REPORT_HEADER).toEqual([expect.objectContaining({ label: "Date of visit", value: "20 Nov 2026" })]);
     expect(sections.PCU[0].value).toBe("Solar - Battery - Grid");
     expect(sections.OBSERVATIONS.map((item) => [item.label, item.value])).toEqual([
