@@ -18,7 +18,7 @@ function rawVisit(overrides: Partial<RawAmcVisit> = {}): RawAmcVisit {
     status: "PENDING_APPROVAL",
     slaDaysRemaining: 7,
     slaBreached: false,
-    siteDetails: { batteryType: "Lithium", installationDate: Date.UTC(2026, 10, 19) },
+    siteDetails: { pinCode: "560078", batteryType: "Lithium", installationDate: Date.UTC(2026, 10, 19) },
     visitReport: {
       responses: {
         visitDate: "2026-11-20",
@@ -88,6 +88,7 @@ describe("toAmcReport", () => {
     expect(sections.READINGS[0].value).toBe("5 V");
     expect(sections.OTHER).toEqual([expect.objectContaining({ label: "New field", value: "abc" })]);
     expect(sections.SITE_DETAILS).toContainEqual(expect.objectContaining({ label: "Battery type", value: "Lithium" }));
+    expect(sections.SITE_DETAILS).toContainEqual(expect.objectContaining({ label: "PIN code", value: "560078" }));
   });
 
   it("lists the applicable rules with a readable reading", () => {
