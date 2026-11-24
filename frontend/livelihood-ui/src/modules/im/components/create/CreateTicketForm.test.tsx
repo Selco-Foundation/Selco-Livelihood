@@ -443,12 +443,23 @@ describe("CreateTicketForm - existing ticket notice", () => {
       "You already have a ticket raised for this asset with the same issue.",
     );
     expect(screen.getByRole("link", { name: "T1" })).toBeInTheDocument();
+    expect(screen.getByText("Cannot proceed while ticket T1 is active")).toBeInTheDocument();
   });
 
   it("shows no notice when there is no existing ticket", () => {
     renderForm({ existingTicket: null });
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Cannot proceed while ticket/)).not.toBeInTheDocument();
+  });
+
+  it("links View inbox back to the inbox", () => {
+    renderForm();
+
+    expect(screen.getByRole("link", { name: "View inbox" })).toHaveAttribute(
+      "href",
+      "/im/inbox",
+    );
   });
 });
 

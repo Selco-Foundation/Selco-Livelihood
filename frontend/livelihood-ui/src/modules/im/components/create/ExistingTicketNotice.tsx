@@ -1,23 +1,33 @@
 import { contextPath, translateOr, useTranslate } from "@/shared";
+import { Button } from "@/ui";
 import { Link } from "@tanstack/react-router";
-import { CircleAlert } from "lucide-react";
+import { ArrowRight, TriangleAlert } from "lucide-react";
 import type { ExistingTicket } from "../../utils/duplicate-ticket";
 
 interface ExistingTicketNoticeProps {
   readonly ticket: ExistingTicket;
 }
 
+function existingTicketPath(ticket: ExistingTicket): string {
+  return `/${contextPath()}/employee/im/complaint/details/${ticket.ticketId}/${ticket.ticketTenantId}`;
+}
+
 export function ExistingTicketNotice({ ticket }: ExistingTicketNoticeProps) {
   const { t } = useTranslate();
-  const detailsPath = `/${contextPath()}/employee/im/complaint/details/${ticket.ticketId}/${ticket.ticketTenantId}`;
+  const detailsPath = existingTicketPath(ticket);
 
   return (
     <div
       role="alert"
-      className="flex gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+      className="flex flex-col gap-3 rounded-lg border border-warning-foreground/30 bg-warning/60 px-4 py-3 sm:flex-row sm:items-center"
     >
-      <CircleAlert className="mt-0.5 size-4 shrink-0" />
-      <p className="min-w-0 wrap-anywhere">
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-warning text-warning-foreground">
+        <TriangleAlert className="size-4" />
+      </span>
+      <p className="min-w-0 flex-1 text-sm text-foreground/80 wrap-anywhere">
+        <span className="font-semibold text-foreground">
+          {translateOr(t, "IM_DUPLICATE_TICKET_DETECTED", "Duplicate Ticket Detected:")}
+        </span>{" "}
         {translateOr(
           t,
           "IM_DUPLICATE_TICKET_EXISTS",
@@ -26,11 +36,21 @@ export function ExistingTicketNotice({ ticket }: ExistingTicketNoticeProps) {
         <Link
           to={detailsPath}
           target="_blank"
-          className="font-medium underline underline-offset-2 hover:no-underline"
+          className="font-semibold text-foreground underline underline-offset-2 hover:no-underline"
         >
           {ticket.ticketId}
-        </Link>
+        </Link>{" "}
+        <span className="inline-flex items-center gap-1 rounded-full border border-success-foreground/20 bg-success px-2 py-0.5 align-middle text-xs font-medium text-success-foreground">
+          <span className="size-1.5 rounded-full bg-success-foreground" aria-hidden />
+          {translateOr(t, "IM_TICKET_IN_PROGRESS", "In Progress")}
+        </span>
       </p>
+      <Button asChild size="sm" className="shrink-0 gap-1.5">
+        <Link to={detailsPath} target="_blank">
+          {translateOr(t, "IM_VIEW_TICKET", "View Ticket")} {ticket.ticketId}
+          <ArrowRight className="size-4" />
+        </Link>
+      </Button>
     </div>
   );
 }

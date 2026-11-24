@@ -17,7 +17,7 @@ describe("ExistingTicketNotice", () => {
     render(<ExistingTicketNotice ticket={{ ticketId: "LH-1", ticketTenantId: "tenant-1" }} />);
 
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "You already have a ticket raised for this asset with the same issue. Please refer to the existing ticket: LH-1",
+      "Duplicate Ticket Detected: You already have a ticket raised for this asset with the same issue. Please refer to the existing ticket: LH-1 In Progress",
     );
     const link = screen.getByRole("link", { name: "LH-1" });
     expect(link).toHaveAttribute(
@@ -25,5 +25,14 @@ describe("ExistingTicketNotice", () => {
       `/${contextPath()}/employee/im/complaint/details/LH-1/tenant-1`,
     );
     expect(link).toHaveAttribute("target", "_blank");
+  });
+
+  it("offers a View Ticket button that opens the same ticket", () => {
+    render(<ExistingTicketNotice ticket={{ ticketId: "LH-1", ticketTenantId: "tenant-1" }} />);
+
+    expect(screen.getByRole("link", { name: "View Ticket LH-1" })).toHaveAttribute(
+      "href",
+      `/${contextPath()}/employee/im/complaint/details/LH-1/tenant-1`,
+    );
   });
 });

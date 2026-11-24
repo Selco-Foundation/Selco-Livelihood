@@ -1,5 +1,6 @@
 import { Button, SearchableSelect } from "@/ui";
 import {
+  Ban,
   Camera,
   Factory,
   FileText,
@@ -8,6 +9,7 @@ import {
   Send,
   Video,
 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { createPortal } from "react-dom";
 import { useCreateIncidentForm } from "../../hooks/use-create-incident-form";
 import { ExistingTicketNotice } from "./ExistingTicketNotice";
@@ -163,11 +165,6 @@ export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
               onChange={(option) => handleComplaintTypeChange(option)}
             />
           </div>
-          {existingTicket ? (
-            <div className="mt-4">
-              <ExistingTicketNotice ticket={existingTicket} />
-            </div>
-          ) : null}
         </FormSectionCard>
 
         <FormSectionCard
@@ -256,16 +253,35 @@ export function CreateTicketForm({ inboxPath }: CreateTicketFormProps) {
           </p>
         ) : null}
 
-        <div className="flex justify-end">
-          <Button
-            type="submit"
-            size="sm"
-            className="gap-2"
-            disabled={!canSubmit || createMutation.isPending}
-          >
-            <Send className="size-4" />
-            {translateOr(t, "FILE_INCIDENT", "Submit ticket")}
-          </Button>
+        {existingTicket ? <ExistingTicketNotice ticket={existingTicket} /> : null}
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+          {existingTicket ? (
+            <p className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-destructive sm:mr-auto">
+              <Ban className="size-4 shrink-0" />
+              <span className="wrap-anywhere">
+                {translateOr(
+                  t,
+                  "IM_DUPLICATE_CANNOT_PROCEED",
+                  "Cannot proceed while ticket {ticketId} is active",
+                ).replace("{ticketId}", existingTicket.ticketId)}
+              </span>
+            </p>
+          ) : null}
+          <div className="flex justify-end gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link to={inboxPath}>{translateOr(t, "ES_IM_VIEW_INBOX", "View inbox")}</Link>
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              className="gap-2"
+              disabled={!canSubmit || createMutation.isPending}
+            >
+              <Send className="size-4" />
+              {translateOr(t, "FILE_INCIDENT", "Submit ticket")}
+            </Button>
+          </div>
         </div>
       </form>
     </>
