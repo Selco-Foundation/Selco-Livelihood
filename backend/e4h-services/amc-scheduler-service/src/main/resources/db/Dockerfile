@@ -17,7 +17,7 @@ FROM eclipse-temurin:17-jre-alpine as flywaydl
 
 RUN apk update && apk add --no-cache wget && \
     mkdir -p /flyway/flyway-cli && \
-    wget -O /flyway/flyway-cli/flyway-commandline-9.22.3.tar.gz https://repo1.maven.org/maven2/org/flywaydb/flyway-commandline/9.22.3/flyway-commandline-9.22.3-linux-x64.tar.gz && \
+    wget --max-redirect=0 -O /flyway/flyway-cli/flyway-commandline-9.22.3.tar.gz https://repo1.maven.org/maven2/org/flywaydb/flyway-commandline/9.22.3/flyway-commandline-9.22.3-linux-x64.tar.gz && \
     tar -xzf /flyway/flyway-cli/flyway-commandline-9.22.3.tar.gz -C /flyway/flyway-cli && \
     rm /flyway/flyway-cli/flyway-commandline-9.22.3.tar.gz && \
     rm -rf /flyway/flyway-cli/flyway-9.22.3/jre /flyway/flyway-cli/flyway-9.22.3/licenses /flyway/flyway-cli/flyway-9.22.3/assets /flyway/flyway-cli/flyway-9.22.3/README.txt
