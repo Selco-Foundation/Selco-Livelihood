@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/shared/api/client";
-import { searchVendorOrgUsers, searchVendorOrganisations } from "./vendor-registry";
+import { searchOrgUsers, searchVendorOrgUsers, searchVendorOrganisations } from "./vendor-registry";
 
 vi.mock("@/shared/api/client", () => ({ apiClient: { post: vi.fn(), get: vi.fn() } }));
 
@@ -128,5 +128,16 @@ describe("searchVendorOrgUsers", () => {
       expect.objectContaining({ OrgUser: { tenantId: "tenant-1", organizationIds: ["org-1"] } }),
       expect.anything(),
     );
+  });
+});
+
+describe("searchOrgUsers", () => {
+  it("posts the organisation id and returns the members verbatim, roles untouched", async () => {
+    const response = { OrgUsers: [{ userId: "u1", user: { roles: [{ code: "AMC_FIELD_STAFF" }] } }] };
+    vi.mocked(apiClient.post).mockResolvedValue({ data: response });
+
+    await expect(searchOrgUsers("t1", "org-1", "token")).resolves.toEqual(response);
+    expect(vi.mocked(apiClient.post).mock.calls.at(-1)?.[0]).toBe("/vendor/organisation/v1/user/_search");
+    expect(JSON.stringify(vi.mocked(apiClient.post).mock.calls.at(-1)?.[1])).toContain('"organizationIds":["org-1"]');
   });
 });

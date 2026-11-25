@@ -16,3 +16,7 @@ export function pmProjectDetailsPath() {
 export function pmCreateInstallationPlanPath() {
   return `/${contextPath()}${PM_ROUTES.createInstallationPlan}`;
 }
+
+export function pmEditAmcPath() {
+  return `/${contextPath()}${PM_ROUTES.editAmc}`;
+}

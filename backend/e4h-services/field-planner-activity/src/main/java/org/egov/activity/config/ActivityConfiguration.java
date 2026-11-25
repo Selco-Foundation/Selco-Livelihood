@@ -331,6 +331,13 @@ public class ActivityConfiguration {
     @Value("${egov.amc.scheduler.visit.generate.url}")
     private String amcVisitGenerateUrl;
 
+    /** Livelihood: approving an installation report starts its AMC via _activate (AMC LLD §9). false = old E4H bulk call. */
+    @Value("${egov.amc.livelihood.activate.enabled:true}")
+    private boolean amcLivelihoodActivateEnabled;
+
+    @Value("${egov.amc.scheduler.activate.url:/asset-amc/v1/configuration/_activate}")
+    private String amcActivateUrl;
+
     // pdf-service template key for MACHINE-component installation reports (fixed, not solution-dependent).
     @Value("${machine.installation.report.pdf.key:machine_installation_report}")
     private String machineInstallationReportKey;

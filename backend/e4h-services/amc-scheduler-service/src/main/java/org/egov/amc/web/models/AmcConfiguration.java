@@ -1,5 +1,6 @@
 package org.egov.amc.web.models;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 import org.egov.common.contract.models.AuditDetails;
 import org.egov.common.models.project.Project;
@@ -20,6 +21,9 @@ public class AmcConfiguration {
     private Facility facility;
     private String projectId;
     private Project project;
+    // Groups this configuration under an AmcPlan for the project. Nullable: configurations created
+    // before AmcPlan existed are not backfilled.
+    private String amcPlanId;
     private List<AssetAmc> assetsAmc;
     private List<Map<String, Object>> assetTypes;
     private List<AmcConfigurationAssignment> assignments;
@@ -28,9 +32,35 @@ public class AmcConfiguration {
     private Long configurationStartDate;
     private Long configurationEndDate;
     private String status; // ACTIVE, EXPIRED, CANCELLED
+    // Soft-delete flag, distinct from `status`: status is the contract's lifecycle (an EXPIRED
+    // configuration is still a real, visible record), isActive is whether the record exists at all.
+    // Set on create, cleared by _delete; searches hide anything with isActive = false.
+    @JsonProperty("isActive")
+    private Boolean isActive;
+    private Map<String, Object> geographyDetails = null;
     private Map<String, Object> additionalDetails;
     private AuditDetails auditDetails;
     private Integer totalVisits;
     private Integer completedVisits;
+
+    // ---- Livelihood (LLD 07 §6.3) ----
+    // The SOLAR installation row (facility_activities.id) this AMC belongs to: one running AMC per row.
+    private String activityFacilityId;
+    // Create request only: the vendor org and the ONE named AMC field staff. The server stores
+    // vendorId = vendorOrgId and a single assignment for amcFieldStaffId; these two are not persisted as such.
+    private String vendorOrgId;
+    private String amcFieldStaffId;
+
+    // ---- Livelihood config search enrichment, read time only (LLD §6.9) ----
+    private String endUserName;
+    private String endUserPhone;
+    private String state;
+    private String district;
+    private String block;
+    /** The SOLAR installation row's completed_at (approval), read live, not stored. */
+    private Long installationApprovedDate;
+    private String vendorName;
+    /** The active assignee: {uuid, name, mobile}. */
+    private Map<String, Object> fieldStaff;
 }
 

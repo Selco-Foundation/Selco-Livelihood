@@ -269,7 +269,9 @@ export function AppShell() {
           <LanguageSwitcher compact />
         </header>
 
-        <SidebarInset className="min-h-0 flex-1 [scrollbar-gutter:stable] overflow-y-auto bg-page px-4 py-4 lg:rounded-tl-[48px] lg:rounded-bl-[48px] lg:pt-12 lg:pr-8 lg:pb-10 lg:pl-8">
+        {/* A page that scrolls in its own inner region (data-inner-scroll) doesn't overflow this box,
+            so the reserved gutter is dropped and its scrollbar can sit at the right edge. */}
+        <SidebarInset className="min-h-0 flex-1 [scrollbar-gutter:stable] has-[[data-inner-scroll]]:[scrollbar-gutter:auto] overflow-y-auto bg-page px-4 py-4 lg:rounded-tl-[48px] lg:rounded-bl-[48px] lg:pt-12 lg:pr-8 lg:pb-10 lg:pl-8">
           <Outlet />
         </SidebarInset>
       </div>

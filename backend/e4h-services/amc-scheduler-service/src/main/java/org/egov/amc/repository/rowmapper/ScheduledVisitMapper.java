@@ -38,9 +38,14 @@ public class ScheduledVisitMapper implements RowMapper<ScheduledVisit> {
         visit.setProjectId(rs.getString("sv_project_id"));
         visit.setVisitNumber(rs.getInt("sv_visit_number"));
         visit.setScheduledDate(rs.getLong("sv_scheduled_date"));
-        visit.setActualVisitDate(rs.getLong("sv_actual_visit_date"));
-        visit.setLastVisitDate(rs.getLong("sv_last_scheduled_visit_date"));
+        // actual_visit_date is nullable and stays NULL until the visit report is submitted.
+        // ResultSet.getLong maps SQL NULL to 0, which would defeat the null guards downstream
+        // (the AMC report PDF would render epoch 0 as 01-01-1970), so read it as a true null.
+        visit.setActualVisitDate(getNullableLong(rs, "sv_actual_visit_date"));
+        // NULL stays null (review A14): getLong alone would turn it into 0 and the update would write 0.
+        visit.setLastVisitDate(getNullableLong(rs, "sv_last_scheduled_visit_date"));
         visit.setStatus(rs.getString("sv_status"));
+        visit.setIsActive(rs.getBoolean("sv_is_active"));
 
         // visit_report (JSONB → POJO)
         String visitReportJson = rs.getString("sv_visit_report");
@@ -52,6 +57,23 @@ public class ScheduledVisitMapper implements RowMapper<ScheduledVisit> {
                 throw new SQLException("Error parsing visit_report JSON", e);
             }
         }
+
+        // additional_details (JSONB → Map). E4H never read it, so every update wiped it (review A4).
+        String additionalDetailsJson = rs.getString("sv_additional_details");
+        if (additionalDetailsJson != null) {
+            try {
+                visit.setAdditionalDetails(objectMapper.readValue(additionalDetailsJson,
+                        new TypeReference<Map<String, Object>>() {}));
+            } catch (Exception e) {
+                throw new SQLException("Error parsing scheduled visit additional_details JSON", e);
+            }
+        }
+
+        // Livelihood columns (LLD 07 §7.1)
+        visit.setVendorId(rs.getString("sv_vendor_id"));
+        visit.setFirstSubmissionDate(getNullableLong(rs, "sv_first_submission_date"));
+        visit.setLatestSubmissionDate(getNullableLong(rs, "sv_latest_submission_date"));
+        visit.setApprovedBy(rs.getString("sv_approved_by"));
 
         // Audit
         AuditDetails auditDetails = new AuditDetails();
@@ -66,6 +88,7 @@ public class ScheduledVisitMapper implements RowMapper<ScheduledVisit> {
         amc.setId(rs.getString("amc_id"));
         amc.setTenantId(rs.getString("amc_tenant_id"));
         amc.setVendorId(rs.getString("amc_vendor_id"));
+        amc.setActivityFacilityId(rs.getString("amc_activity_facility_id"));
         amc.setFacilityId(rs.getString("amc_facility_id"));
         amc.setProjectId(rs.getString("amc_project_id"));
         amc.setDurationMonths(rs.getInt("amc_duration_months"));
@@ -74,6 +97,7 @@ public class ScheduledVisitMapper implements RowMapper<ScheduledVisit> {
         amc.setConfigurationEndDate(rs.getLong("amc_configuration_end_date"));
         amc.setStatus(rs.getString("amc_status"));
         amc.setAssetTypes(getAssetTypes("amc_asset_types", rs));
+        amc.setGeographyDetails(getGeographyDetails("amc_geography_details", rs));
 
         visit.setAmcConfiguration(amc);
 
@@ -130,6 +154,32 @@ public class ScheduledVisitMapper implements RowMapper<ScheduledVisit> {
         }
 
         return visit;
+    }
+
+    /**
+     * Read a nullable BIGINT column, preserving SQL NULL as {@code null} instead of collapsing it
+     * to 0 the way {@link ResultSet#getLong(String)} does on its own.
+     */
+    private Long getNullableLong(ResultSet rs, String columnName) throws SQLException {
+        long value = rs.getLong(columnName);
+        return rs.wasNull() ? null : value;
+    }
+
+    /**
+     * Convert JSONB column into Map<String,Object>
+     */
+    private Map<String, Object> getGeographyDetails(String columnName, ResultSet rs) throws SQLException {
+        Object obj = rs.getObject(columnName);
+        if (obj == null) {
+            return null;
+        }
+        String json = (obj instanceof PGobject) ? ((PGobject) obj).getValue() : obj.toString();
+        try {
+            return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
+        } catch (IOException e) {
+//            log.error("Failed to parse geography_details JSON for column: {}", columnName, e);
+            throw new CustomException("PARSING ERROR", "Failed to parse geographyDetails");
+        }
     }
 
     /**

@@ -7,6 +7,7 @@ import type { FacilityAsset } from "../../types/asset";
 import { FacilityAssetTab } from "./FacilityAssetTab";
 
 vi.mock("../../hooks/use-asset-type-options", () => ({ useAssetTypeOptions: vi.fn() }));
+vi.mock("../../hooks/use-facility-amcs", () => ({ useFacilityAmcs: () => ({ data: [] }) }));
 vi.mock("../../hooks/use-facility-assets", () => ({ useFacilityAssets: vi.fn() }));
 vi.mock("./AssetRow", () => ({
   AssetRow: ({ asset, onView }: { asset: FacilityAsset; onView: (asset: FacilityAsset) => void }) => (
