@@ -1,4 +1,4 @@
-FROM eclipse-temurin:17-jdk-alpine as builder
+FROM eclipse-temurin:17-jdk-alpine AS builder
 
 ARG JAR_FILE
 
@@ -13,7 +13,7 @@ RUN mkdir -p /migrations && \
     rm -rf BOOT-INF /tmp/amc-service.jar
 
 #flyway
-FROM eclipse-temurin:17-jre-alpine as flywaydl
+FROM eclipse-temurin:17-jre-alpine AS flywaydl
 
 RUN apk update && apk add --no-cache wget && \
     mkdir -p /flyway/flyway-cli && \
