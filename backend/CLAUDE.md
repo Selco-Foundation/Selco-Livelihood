@@ -100,7 +100,7 @@ uv run -m app.main      # needs .env and kubectl port-forwards
 
 ## Running locally
 
-Services depend on other DIGIT services and on Postgres and Kafka; some also need Elasticsearch. Follow each service's `LOCALSETUP.md`:
+Services depend on other DIGIT services and on Postgres and Kafka; some also need Elasticsearch. Follow the service's `LOCALSETUP.md` if present:
 1. Run `kubectl port-forward -n egov <dependency> <port>:8080` for each dependency.
 2. In `application.properties`, point the `*.host` properties (`egov.mdms.host`, `egov.user.host`, `egov.workflow.host`, …) and `spring.datasource.url` / `spring.flyway.url` at them.
 
@@ -111,4 +111,9 @@ Services depend on other DIGIT services and on Postgres and Kafka; some also nee
 - **Writes are async via egov-persister**: services usually don't write to the database directly. They publish to a Kafka topic, and the persister writes using the service's persister YAML. `*-indexer` topics feed Elasticsearch. When you add a DB column, update the Flyway migration, persister YAML, row mapper and query builder together.
 - **State transitions** go through **egov-workflow-v2**. Roles and actions come from workflow and MDMS.
 - **Master data** comes from **MDMS v2** at runtime. Don't hard-code values that MDMS provides.
-- **DB migrations**: Flyway, in `src/main/resources/db/migration/main` (SQL). im-services also has Java migrations in `src/main/java/db/migration/main`. Name files `V<yyyyMMddHHmmss>__desc`. In deployment they run with `outOfOrder=true` from a separate `<service>-db` image (`src/main/resources/db/Dockerfile` + `migrate.sh`), so a new migration must not depend on strict version ordering.
+- **DB migrations**: Flyway, in `src/main/resources/db/migration/main` (SQL). im-services also has Java migrations in `src/main/java/db/migration/main`. Name files `V<yyyyMMddHHmmss>__desc` (rms-service uses sequential `V<n>__`; follow the service's existing style). In deployment, where present, they run with `outOfOrder=true` from a separate `<service>-db` image (`src/main/resources/db/Dockerfile` + `migrate.sh`), so a new migration must not depend on strict version ordering.
+
+## Working efficiently
+
+- Never read `target/`, `*.jar`, or `.docx`/`.xlsx`/`.png` files in `docs/`. Don't scan across services; go straight to the service directory and grep.
+- Before using a Java/Spring API, check that service's `pom.xml` (legacy services are Java 8 / `javax.*`).
