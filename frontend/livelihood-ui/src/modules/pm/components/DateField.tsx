@@ -19,6 +19,11 @@ interface DateFieldProps {
   error?: string;
   minDate?: Date;
   maxDate?: Date;
+  /** For table cells, where the column header already names the field: the label is kept for
+   *  screen readers only and the trigger is named by `label` instead. */
+  hideLabel?: boolean;
+  /** Trigger text when no date is picked; defaults to "Select date". */
+  placeholder?: string;
 }
 
 export function DateField({
@@ -30,6 +35,8 @@ export function DateField({
   error,
   minDate,
   maxDate,
+  hideLabel = false,
+  placeholder,
 }: Readonly<DateFieldProps>) {
   const { t } = useTranslate();
   const [open, setOpen] = useState(false);
@@ -49,7 +56,7 @@ export function DateField({
 
   return (
     <div className="min-w-0 space-y-1.5">
-      <label className="text-sm font-medium text-foreground">
+      <label className={cn("text-sm font-medium text-foreground", hideLabel && "sr-only")}>
         {label}
         {required ? <span className="text-destructive"> *</span> : null}
       </label>
@@ -60,6 +67,7 @@ export function DateField({
             size="sm"
             variant="outline"
             disabled={disabled}
+            aria-label={hideLabel ? label : undefined}
             className={cn(
               "w-full justify-start gap-2 text-left font-normal",
               !selectedDate && "text-muted-foreground",
@@ -67,7 +75,9 @@ export function DateField({
             )}
           >
             <CalendarIcon className="size-4" />
-            {selectedDate ? format(selectedDate, "dd MMM yyyy") : translateOr(t, "ES_PM_SELECT_DATE", "Select date")}
+            {selectedDate
+              ? format(selectedDate, "dd MMM yyyy")
+              : (placeholder ?? translateOr(t, "ES_PM_SELECT_DATE", "Select date"))}
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-auto p-0">

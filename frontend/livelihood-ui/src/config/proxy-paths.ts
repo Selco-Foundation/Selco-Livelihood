@@ -12,6 +12,7 @@ export const API_PROXY_PATHS = [
   "/egov-workflow-v2",
   "/filestore",
   "/asset-registry",
+  "/asset-amc",
   "/activity",
   "/project",
   "/field-planner",

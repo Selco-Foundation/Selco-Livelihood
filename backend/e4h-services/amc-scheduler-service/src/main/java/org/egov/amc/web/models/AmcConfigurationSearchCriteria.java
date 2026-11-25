@@ -13,7 +13,10 @@ public class AmcConfigurationSearchCriteria {
     private List<String> ids;
     private List<String> vendorIds;
     private List<String> facilityIds;
+    // Livelihood: SOLAR installation rows (facility_activities.id)
+    private List<String> activityFacilityIds;
     private List<String> projectIds;
+    private List<String> amcPlanIds;
     private List<String> statuses;
     private String activeOnDate;
     private Long configurationStartDate;

@@ -219,4 +219,17 @@ export {
   type ActivityTransactionComment,
   type ActivityWorkflowEntry,
 } from "./utils/activity-review/activity-workflow-mapping";
+export {
+  AMC_DEFAULTS_MISSING,
+  AMC_INSTALLATION_NOT_READY,
+  amcErrorText,
+  type AmcErrorRow,
+} from "./utils/amc-errors";
+export {
+  amcFieldStaffChangeText,
+  amcVendorChangeWarning,
+  hasAmcFieldStaffChanged,
+  type AmcFieldStaffResult,
+  type AmcFieldStaffUpdateResponse,
+} from "./utils/amc-field-staff-change";
 export type { ModuleDefinition, ModuleOverview, NavItem } from "./modules/types";

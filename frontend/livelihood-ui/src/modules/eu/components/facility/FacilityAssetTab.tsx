@@ -3,8 +3,10 @@ import { Skeleton } from "@/ui";
 import { useState } from "react";
 import { CategoryFilterPopover, type FilterCategoryDef } from "../CategoryFilterPopover";
 import { useAssetTypeOptions } from "../../hooks/use-asset-type-options";
+import { useFacilityAmcs } from "../../hooks/use-facility-amcs";
 import { useFacilityAssets } from "../../hooks/use-facility-assets";
 import { EMPTY_ASSET_FILTERS, type AssetFilters, type FacilityAsset } from "../../types/asset";
+import { findAssetAmc } from "../../utils/amc";
 import { AssetDetailDialog } from "./AssetDetailDialog";
 import { AssetRow } from "./AssetRow";
 
@@ -24,6 +26,7 @@ export function FacilityAssetTab({ facilityId }: FacilityAssetTabProps) {
 
   const { assetTypes } = useAssetTypeOptions();
   const { data: assets, isLoading, isError, error } = useFacilityAssets(facilityId, filters);
+  const { data: amcs = [] } = useFacilityAmcs(facilityId);
 
   const serialNumberOptions = (assets ?? [])
     .flatMap((asset) => [asset, ...(asset.children ?? [])])
@@ -119,6 +122,7 @@ export function FacilityAssetTab({ facilityId }: FacilityAssetTabProps) {
                     isAlternate={index % 2 === 1}
                     assetTypeName={assetTypeName}
                     onView={setViewingAsset}
+                    amc={findAssetAmc(amcs, asset.assetId)}
                   />
                 ))}
               </tbody>

@@ -219,6 +219,10 @@
     @apply inline-flex min-w-[2rem] items-center justify-center rounded-full bg-destructive/10 px-2.5 py-0.5 text-sm font-medium text-destructive;
   }
 
+  .livelihood-sla-badge-warning {
+    @apply inline-flex min-w-[2rem] items-center justify-center rounded-full bg-warning px-2.5 py-0.5 text-sm font-medium text-warning-foreground;
+  }
+
   .livelihood-sla-badge-muted {
     @apply inline-flex min-w-[2rem] items-center justify-center rounded-full bg-muted px-2.5 py-0.5 text-sm text-muted-foreground;
   }

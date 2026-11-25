@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SearchableSelect, type SearchableSelectOption } from "./searchable-select";
+import { TooltipProvider } from "./ui/tooltip";
 
 const options: SearchableSelectOption[] = [
   { code: "org-1", name: "Vendor One" },
@@ -54,6 +55,21 @@ describe("SearchableSelect", () => {
 
     expect(screen.getByText("Vendor Two")).toBeInTheDocument();
     expect(screen.queryByText("Vendor One")).not.toBeInTheDocument();
+  });
+
+  it("keeps the given order when asked to", async () => {
+    const user = userEvent.setup();
+    const ordered: SearchableSelectOption[] = [
+      { code: "1", name: "1 month" },
+      { code: "6", name: "6 months" },
+      { code: "12", name: "1 year" },
+    ];
+    render(<SearchableSelect label="Frequency" value="" options={ordered} keepOrder onChange={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /Frequency/ }));
+
+    const names = screen.getAllByRole("button").map((button) => button.textContent);
+    expect(names.filter((name) => ordered.some((option) => option.name === name))).toEqual(["1 month", "6 months", "1 year"]);
   });
 
   it("renders options sorted by name, ascending, regardless of the input order", async () => {
@@ -109,5 +125,16 @@ describe("SearchableSelect", () => {
     await user.click(screen.getByRole("button", { name: /Vendor Two/ }));
 
     expect(screen.getByPlaceholderText("Search")).toHaveValue("");
+  });
+
+  it("with errorAsTooltip the message is on an icon, not printed below the field", () => {
+    render(
+      <TooltipProvider>
+        <SearchableSelect ariaLabel="Vendor" value="" options={options} onChange={vi.fn()} error="No staff" errorAsTooltip />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByLabelText("No staff")).toBeInTheDocument();
+    expect(screen.queryByText("No staff")).not.toBeInTheDocument();
   });
 });

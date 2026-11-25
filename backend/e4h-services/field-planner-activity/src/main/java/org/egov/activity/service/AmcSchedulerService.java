@@ -37,6 +37,29 @@ public class AmcSchedulerService {
     }
 
     /**
+     * Livelihood: starts the AMC of an approved installation row (AMC service {@code _activate}, AMC LLD §9).
+     * Called for every approved row: a row with no pending AMC (machine, or AMC not applicable) is a no-op there.
+     * {@code approvedAt} is passed because the approval itself is saved through Kafka, so the AMC service can't read
+     * it yet. Best effort: never throws, so an AMC failure can't fail the approval; ops run {@code _activate-pending}
+     * to start anything missed.
+     */
+    public void activateLivelihoodAmc(String tenantId, String activityFacilityId, Long approvedAt, RequestInfo requestInfo) {
+        try {
+            Map<String, Object> body = new HashMap<>();
+            body.put(REQUEST_INFO, requestInfo);
+            body.put("tenantId", tenantId);
+            body.put("activityFacilityId", activityFacilityId);
+            body.put("approvedAt", approvedAt);
+            StringBuilder url = new StringBuilder(activityConfiguration.getAmcSchedulerHost()).append(activityConfiguration.getAmcActivateUrl());
+            Object response = serviceRequest.fetchResult(url, body);
+            Object outcome = response instanceof Map<?, ?> m ? m.get("outcome") : null;
+            log.info("AMC _activate for activity facility {}: {}", activityFacilityId, outcome);
+        } catch (Exception e) {
+            log.error("AMC _activate failed for activity facility {} (run _activate-pending later): {}", activityFacilityId, e.getMessage(), e);
+        }
+    }
+
+    /**
      * Process installation completion side effects
      *
      * @param projectId Project ID where installation was completed

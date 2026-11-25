@@ -35,6 +35,11 @@ export const pmKeys = {
   planVendorAssignment: (planId: string | undefined) => [...pmKeys.plan(planId), "vendor-assignment"] as const,
   planGeographyLocks: (planId: string | undefined) => [...pmKeys.plan(planId), "geography-locks"] as const,
   planFacilityCounts: (planIds: string[]) => [...pmKeys.plans(), "facility-counts", planIds] as const,
+  planAmcBySite: (planId: string | undefined) => [...pmKeys.plan(planId), "amc-by-site"] as const,
+  amcVisits: (amcId: string | undefined) => [...pmKeys.all, "amc-visits", amcId] as const,
+  amcOptions: () => [...pmKeys.all, "amc-options"] as const,
+  amcFieldStaff: (organizationId: string | undefined) => [...pmKeys.all, "amc-field-staff", organizationId] as const,
+  planAmcSchedules: (planId: string | undefined) => [...pmKeys.plan(planId), "amc-schedules"] as const,
 
   // Reference data — tenant-wide, not scoped to one project or plan.
   /** `boundaryCodes` is the caller's pre-sorted, comma-joined code list, so the key stays
