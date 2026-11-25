@@ -174,9 +174,9 @@ export function SearchableSelect<TOption extends SearchableSelectOption>({
       {error && errorAsTooltip ? (
         <Tooltip>
           <TooltipTrigger asChild>
-            <span id={errorId} tabIndex={0} aria-label={error} className="absolute top-1/2 left-full ml-1.5 -translate-y-1/2 text-destructive">
+            <button type="button" id={errorId} aria-label={error} className="absolute top-1/2 left-full ml-1.5 -translate-y-1/2 text-destructive">
               <Info className="size-4" />
-            </span>
+            </button>
           </TooltipTrigger>
           <TooltipContent>{error}</TooltipContent>
         </Tooltip>
