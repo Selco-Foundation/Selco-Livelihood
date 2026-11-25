@@ -32,11 +32,10 @@ Package name `livelihood`. Built on eGov DIGIT packages (`digit_ui_components`, 
 
 ## Conventions
 - All user-visible text: `context.translate(i18.<group>.<key>)`, keys in `lib/utils/i18_key_constants.dart` (imported `as i18`). No hard-coded strings.
-- AMC code is ported from E4H (`../../E4H_Digital_Platform/mobile`): keep E4H key strings and behaviour (bugs included) unless the task says to change them.
 - Backend not ready → put it behind the dummy switch, mark it `// DUMMY-BACKEND`, and list it as a question for the backend team. Do not write backend code.
 - Inject repositories through optional constructor params (`{ScheduledVisitRepository? repository}`) so tests can pass fakes.
 - Guard async UI/bloc work against stale responses (request counter pattern, see the View Schedule page).
-- Comments explain *why*. No ticket numbers in code or test names. Don't compare with E4H in comments (the platforms are independent); a short "Ported from E4H." note is allowed only in pages and widgets.
+- Comments explain *why*. No ticket numbers in code or test names.
 - Reuse existing helpers (e.g. `transformBomMdmsRecordToSchema`, `installationCacheRepository.resolveMedia`, the shared Dio interceptors' `AppNetworkException` codes) instead of adding AMC copies.
 
 ## Done means
