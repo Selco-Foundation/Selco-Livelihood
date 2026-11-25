@@ -3,14 +3,14 @@ import type { AssetAmc, FacilityAmcSearchResponse, OrgUserSearchResponse } from 
 /** The role the backend requires of an AMC's field staff. */
 export const AMC_FIELD_STAFF_ROLE = "AMC_FIELD_STAFF";
 
-const RUNNING_STATUSES = ["PENDING_ACTIVATION", "ACTIVE"];
+const RUNNING_STATUSES = new Set(["PENDING_ACTIVATION", "ACTIVE"]);
 
 /** The running AMC that covers the ticket's asset, if any. */
 export function findRunningAssetAmc(response: FacilityAmcSearchResponse | undefined, assetId: string | undefined): AssetAmc | null {
   if (!assetId) return null;
   const amc = (response?.AmcConfigurations ?? []).find(
     (config) =>
-      RUNNING_STATUSES.includes(config.status) && (config.assetsAmc ?? []).some((entry) => entry.assetId === assetId),
+      RUNNING_STATUSES.has(config.status) && (config.assetsAmc ?? []).some((entry) => entry.assetId === assetId),
   );
   return amc
     ? {

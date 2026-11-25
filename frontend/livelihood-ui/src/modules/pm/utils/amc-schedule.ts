@@ -24,7 +24,10 @@ export function isAmcRunning(row: Pick<AmcScheduleRow, "status">): boolean {
  * had an AMC (a new one can be started with Add AMC).
  */
 function onePerSite(configurations: RawAmcConfiguration[]): RawAmcConfiguration[] {
-  const rank = (amc: RawAmcConfiguration) => (isAmcRunning(amc) ? 0 : amc.status === "COMPLETED" ? 1 : 2);
+  const rank = (amc: RawAmcConfiguration) => {
+    if (isAmcRunning(amc)) return 0;
+    return amc.status === "COMPLETED" ? 1 : 2;
+  };
   const bySite = new Map<string, RawAmcConfiguration>();
   for (const amc of configurations) {
     const kept = bySite.get(amc.activityFacilityId);

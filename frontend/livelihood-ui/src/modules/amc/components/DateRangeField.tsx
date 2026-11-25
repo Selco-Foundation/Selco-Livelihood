@@ -26,9 +26,8 @@ export function DateRangeField({ label, value, onChange }: Readonly<DateRangeFie
   const to = value.to ? new Date(value.to) : undefined;
   const hasValue = Boolean(from || to);
 
-  const text = from
-    ? `${format(from, "dd MMM yyyy")} - ${to ? format(to, "dd MMM yyyy") : "…"}`
-    : label;
+  const toText = to ? format(to, "dd MMM yyyy") : "…";
+  const text = from ? `${format(from, "dd MMM yyyy")} - ${toText}` : label;
 
   return (
     <div className="flex items-center gap-1">

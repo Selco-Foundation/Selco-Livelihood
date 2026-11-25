@@ -57,7 +57,8 @@ export function AmcProjectsPage() {
         <div className="livelihood-card p-6">
           <Skeleton className="h-48 w-full" />
         </div>
-      ) : projects.length === 0 ? (
+      ) : null}
+      {!isLoading && projects.length === 0 ? (
         <div className="livelihood-card px-6 py-12 text-center text-sm text-muted-foreground">
           {translateOr(
             t,
@@ -65,7 +66,8 @@ export function AmcProjectsPage() {
             "No projects with AMC reports yet",
           )}
         </div>
-      ) : (
+      ) : null}
+      {!isLoading && projects.length > 0 ? (
         <div className="space-y-4">
           <div className="livelihood-card overflow-hidden">
             <div className="overflow-x-auto">
@@ -142,7 +144,7 @@ export function AmcProjectsPage() {
             }}
           />
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

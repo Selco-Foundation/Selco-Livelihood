@@ -15,7 +15,8 @@ export function toVisitSearchCriteria(criteria: AmcReportSearchCriteria, tenantI
   return {
     tenantId,
     statuses: pending ? [status] : ["APPROVED"],
-    ...(pending ? (status === "APPROVED" ? { approvedBy: "REVIEWER" as const } : {}) : { approvedBy: "SYSTEM" as const }),
+    ...(pending ? {} : { approvedBy: "SYSTEM" as const }),
+    ...(pending && status === "APPROVED" ? { approvedBy: "REVIEWER" as const } : {}),
     ...(criteria.projectId ? { projectsIds: [criteria.projectId] } : {}),
     vendorIds: nonEmpty(criteria.vendorIds),
     states: nonEmpty(criteria.states),

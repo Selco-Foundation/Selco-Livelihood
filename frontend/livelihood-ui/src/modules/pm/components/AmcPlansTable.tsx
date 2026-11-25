@@ -29,11 +29,13 @@ export function AmcPlansTable({ plans, isLoading }: Readonly<AmcPlansTableProps>
         <div className="livelihood-card p-6">
           <Skeleton className="h-32 w-full" />
         </div>
-      ) : publishedPlans.length === 0 ? (
+      ) : null}
+      {!isLoading && publishedPlans.length === 0 ? (
         <div className="livelihood-card px-6 py-12 text-center text-sm text-muted-foreground">
           {translateOr(t, "ES_PM_NO_AMC_PLANS", "No installation plans with AMC yet")}
         </div>
-      ) : (
+      ) : null}
+      {!isLoading && publishedPlans.length > 0 ? (
         <div className="livelihood-card overflow-hidden">
           <table className="w-full border-collapse text-sm">
             <thead>
@@ -67,7 +69,7 @@ export function AmcPlansTable({ plans, isLoading }: Readonly<AmcPlansTableProps>
             </tbody>
           </table>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

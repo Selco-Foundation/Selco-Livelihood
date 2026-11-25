@@ -23,7 +23,7 @@ export interface PlanActivityFacilitySearchResponse {
  */
 export async function searchPlanActivityFacilities(
   criteria: { fieldPlanIds: string[]; componentTypes?: string[] },
-  options: { limit?: number; offset?: number } = {},
+  options: { limit?: number; offset?: number },
   accessToken: string,
   user?: AuthUser | null,
 ): Promise<PlanActivityFacilitySearchResponse> {

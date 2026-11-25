@@ -20,7 +20,7 @@ interface AssetRowProps {
   amc?: AssetAmc;
 }
 
-export function AssetRow({ asset, isAlternate, assetTypeName, onView, amc }: AssetRowProps) {
+export function AssetRow({ asset, isAlternate, assetTypeName, onView, amc }: Readonly<AssetRowProps>) {
   const { t } = useTranslate();
   const [selectedOrgId, setSelectedOrgId] = useState(asset.vendor?.organisationId ?? "");
   const [draftVendorUserId, setDraftVendorUserId] = useState<string | undefined>(undefined);

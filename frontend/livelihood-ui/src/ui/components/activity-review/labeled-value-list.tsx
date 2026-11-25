@@ -10,7 +10,7 @@ interface LabeledValueRowsProps {
 
 /** Just the label/value rows, no title or box — for composing inside a
  * shared sub-section box alongside other content (e.g. an item's images). */
-export function LabeledValueRows({ items, labelWidthClassName = "w-40" }: LabeledValueRowsProps) {
+export function LabeledValueRows({ items, labelWidthClassName = "w-40" }: Readonly<LabeledValueRowsProps>) {
   const { t } = useTranslate();
 
   if (items.length === 0) {

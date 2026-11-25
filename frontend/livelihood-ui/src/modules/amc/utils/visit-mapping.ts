@@ -174,7 +174,7 @@ function endUserName(visit: RawAmcVisit): string {
 }
 
 function optionalBoolean(value: boolean | null | undefined): boolean | undefined {
-  return value === null || value === undefined ? undefined : value;
+  return value ?? undefined;
 }
 
 export function toAmcReport(visit: RawAmcVisit): AmcReport {

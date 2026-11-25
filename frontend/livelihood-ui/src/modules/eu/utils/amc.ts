@@ -3,12 +3,12 @@ import type { AssetAmc, FacilityAmcSearchResponse } from "../types/amc";
 /** The role the backend requires of an AMC's field staff. */
 export const AMC_FIELD_STAFF_ROLE = "AMC_FIELD_STAFF";
 
-const RUNNING_STATUSES = ["PENDING_ACTIVATION", "ACTIVE"];
+const RUNNING_STATUSES = new Set(["PENDING_ACTIVATION", "ACTIVE"]);
 
 /** The running AMCs of a facility, each with the ids of the assets it covers. */
 export function toAssetAmcs(response: FacilityAmcSearchResponse | undefined): AssetAmc[] {
   return (response?.AmcConfigurations ?? [])
-    .filter((amc) => RUNNING_STATUSES.includes(amc.status))
+    .filter((amc) => RUNNING_STATUSES.has(amc.status))
     .map((amc) => ({
       id: amc.id,
       activityFacilityId: amc.activityFacilityId,

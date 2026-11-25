@@ -339,30 +339,24 @@ export function ComplaintActionDialog({
       await onComplete();
     },
     onError: (mutationError: Error) => {
-      const code = mutationError.message;
+      const messages = new Map([
+        ["COMMENT_REQUIRED", translateOr(t, "WF_COMMENT_REQUIRED", "Please enter a comment")],
+        [
+          "COMMENT_TOO_LONG",
+          translateOr(t, "WF_COMMENT_MAX_LENGTH", "Comments cannot exceed {MAX_COUNT} characters.").replace(
+            "{MAX_COUNT}",
+            String(MAX_COMMENT_LENGTH),
+          ),
+        ],
+        ["FILES_REQUIRED", translateOr(t, "WF_QUOTATION_REQUIRED", "Please upload a quotation document")],
+        ["REASON_REQUIRED", translateOr(t, "WF_REASON_REQUIRED", "Please select a reason")],
+        ["VENDOR_REQUIRED", translateOr(t, "WF_VENDOR_REQUIRED", "Please select a vendor")],
+        ["AMC_FIELD_STAFF_REQUIRED", translateOr(t, "WF_AMC_FIELD_STAFF_REQUIRED", "Please select the AMC field staff")],
+      ]);
       const message =
-        code === "COMMENT_REQUIRED"
-          ? translateOr(t, "WF_COMMENT_REQUIRED", "Please enter a comment")
-          : code === "COMMENT_TOO_LONG"
-            ? translateOr(
-                t,
-                "WF_COMMENT_MAX_LENGTH",
-                "Comments cannot exceed {MAX_COUNT} characters.",
-              ).replace("{MAX_COUNT}", String(MAX_COMMENT_LENGTH))
-            : code === "FILES_REQUIRED"
-              ? translateOr(
-                  t,
-                  "WF_QUOTATION_REQUIRED",
-                  "Please upload a quotation document",
-                )
-              : code === "REASON_REQUIRED"
-                ? translateOr(t, "WF_REASON_REQUIRED", "Please select a reason")
-                : code === "VENDOR_REQUIRED"
-                  ? translateOr(t, "WF_VENDOR_REQUIRED", "Please select a vendor")
-                  : code === "AMC_FIELD_STAFF_REQUIRED"
-                    ? translateOr(t, "WF_AMC_FIELD_STAFF_REQUIRED", "Please select the AMC field staff")
-                    : (amcErrorText(mutationError, t) ??
-                      translateOr(t, "CS_COMMON_SOMETHING_WENT_WRONG", "Something went wrong!"));
+        messages.get(mutationError.message) ??
+        amcErrorText(mutationError, t) ??
+        translateOr(t, "CS_COMMON_SOMETHING_WENT_WRONG", "Something went wrong!");
       setError(message);
     },
   });

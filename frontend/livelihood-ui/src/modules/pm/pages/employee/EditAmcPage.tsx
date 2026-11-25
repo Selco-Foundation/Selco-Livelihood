@@ -40,6 +40,18 @@ import {
 import { formatDate } from "../../utils/format-date";
 import { pmMyProjectsPath, pmProjectDetailsPath } from "../../utils/paths";
 
+function FirstAmcDue({ row }: Readonly<{ row: AmcScheduleRow }>) {
+  const { t } = useTranslate();
+  if (isPendingActivation(row)) {
+    return (
+      <span className="text-xs font-medium text-muted-foreground">
+        {translateOr(t, "ES_PM_AMC_PENDING_ACTIVATION", "Pending activation")}
+      </span>
+    );
+  }
+  return <>{isAmcRunning(row) ? formatDate(firstAmcDueDate(row)) : "-"}</>;
+}
+
 export function EditAmcPage() {
   const { t } = useTranslate();
   const { projectId, planId } = useSearch({ strict: false }) as EditAmcRouteSearch;
@@ -66,6 +78,7 @@ export function EditAmcPage() {
 
   // A link with a missing or unknown plan id; undefined while the plan is loading.
   const planNotFound = !planId || plan === null;
+  const rowsReady = !planNotFound && !isLoading;
   const isDirty = isAmcScheduleDirty(originalRows, rows);
 
   const frequencyOptions = amcFrequencies.map((option) => ({
@@ -216,7 +229,7 @@ export function EditAmcPage() {
             </Button>
           </div>
 
-          <div role="status" className="flex items-start gap-2 rounded-lg bg-primary/5 p-3 text-sm text-foreground">
+          <output className="flex items-start gap-2 rounded-lg bg-primary/5 p-3 text-sm text-foreground">
             <Info className="mt-0.5 size-4 shrink-0 text-primary" />
             <span>
               {translateOr(
@@ -225,7 +238,7 @@ export function EditAmcPage() {
                 "End-user details are for reference and cannot be edited. The AMC start date can be set once the end user's installation is complete. Save becomes active once you change a value. The assigned vendor is changed from the Admin module.",
               )}
             </span>
-          </div>
+          </output>
 
           {errors.length > 0 ? (
             <div role="alert" className="space-y-1 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm">
@@ -258,13 +271,14 @@ export function EditAmcPage() {
             <p role="alert" className="py-8 text-center text-sm text-destructive">
               {translateOr(t, "ES_PM_INSTALLATION_PLAN_NOT_FOUND", "This installation plan could not be found.")}
             </p>
-          ) : isLoading ? (
-            <Skeleton className="h-64 w-full" />
-          ) : rows.length === 0 ? (
+          ) : null}
+          {!planNotFound && isLoading ? <Skeleton className="h-64 w-full" /> : null}
+          {rowsReady && rows.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
               {translateOr(t, "ES_PM_NO_AMC_END_USERS", "No end users with AMC in this installation plan")}
             </p>
-          ) : (
+          ) : null}
+          {rowsReady && rows.length > 0 ? (
             <div className="livelihood-card overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[2460px] border-collapse text-sm">
@@ -385,15 +399,7 @@ export function EditAmcPage() {
                             />
                           </td>
                           <td className="px-5 py-4 whitespace-nowrap text-foreground">
-                            {isPendingActivation(row) ? (
-                              <span className="text-xs font-medium text-muted-foreground">
-                                {translateOr(t, "ES_PM_AMC_PENDING_ACTIVATION", "Pending activation")}
-                              </span>
-                            ) : running ? (
-                              formatDate(firstAmcDueDate(row))
-                            ) : (
-                              "-"
-                            )}
+                            <FirstAmcDue row={row} />
                           </td>
                           <td className="px-5 py-4 text-foreground">{totalAmcActivities(row) ?? "-"}</td>
                           <td className="px-5 py-4 text-foreground">{row.vendorName ?? "-"}</td>
@@ -447,7 +453,7 @@ export function EditAmcPage() {
                 </table>
               </div>
             </div>
-          )}
+          ) : null}
         </div>
         </StepSectionCard>
 

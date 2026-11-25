@@ -357,7 +357,8 @@ export function TechnicianAssignmentStep({
                               : translateOr(t, "ES_PM_AMC_PENDING_ACTIVATION", "Pending activation")}
                           </p>
                         </div>
-                      ) : row.componentType === "SOLAR" ? (
+                      ) : null}
+                      {!existingAmc && row.componentType === "SOLAR" ? (
                         <label className="flex items-center gap-2 text-sm text-foreground">
                           <Switch
                             checked={isAmcApplicable(amcSetup, row)}
@@ -408,7 +409,8 @@ export function TechnicianAssignmentStep({
                           onChange={(id, name) => onAmcSetupChange?.(withAmcFieldStaff(amcSetup, row, { id, name }))}
                           disabled={amcDisabled}
                         />
-                      ) : existingAmc ? (
+                      ) : null}
+                      {existingAmc ? (
                         <span className="text-foreground">{existingAmc.fieldStaff?.name ?? "-"}</span>
                       ) : null}
                     </td>

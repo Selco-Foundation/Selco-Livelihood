@@ -23,7 +23,7 @@ export interface AmcConfigurationSearchCriteria {
  */
 export async function searchAmcConfigurations(
   criteria: AmcConfigurationSearchCriteria,
-  options: { limit?: number; offset?: number } = {},
+  options: { limit?: number; offset?: number },
   accessToken: string,
   user?: AuthUser | null,
 ): Promise<AmcConfigurationSearchResponse> {

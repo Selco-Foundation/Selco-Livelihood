@@ -83,12 +83,10 @@ function ReportSummary({ report, projectName }: Readonly<{ report: AmcReport; pr
 
 function SystemStatus({ report }: Readonly<{ report: AmcReport }>) {
   const { t } = useTranslate();
-  const yesNo = (value: boolean | undefined) =>
-    value === undefined
-      ? "-"
-      : value
-        ? translateOr(t, "CORE_COMMON_YES", "Yes")
-        : translateOr(t, "CORE_COMMON_NO", "No");
+  const yesNo = (value: boolean | undefined) => {
+    if (value === undefined) return "-";
+    return value ? translateOr(t, "CORE_COMMON_YES", "Yes") : translateOr(t, "CORE_COMMON_NO", "No");
+  };
   return (
     <div className={cn(CARD, "space-y-4")}>
       <h2 className={CARD_TITLE}>{translateOr(t, "ES_AMC_SYSTEM_STATUS", "System status")}</h2>
@@ -193,6 +191,27 @@ function FormSections({ report, fileUrls }: Readonly<{ report: AmcReport; fileUr
   );
 }
 
+function ReportPdfButton({ pdfUrl }: Readonly<{ pdfUrl: string | undefined }>) {
+  const { t } = useTranslate();
+  return (
+    <div className="flex justify-end">
+      <Button asChild={Boolean(pdfUrl)} variant="outline" size="sm" disabled={!pdfUrl}>
+        {pdfUrl ? (
+          <a href={pdfUrl} target="_blank" rel="noreferrer">
+            <FileDown className="size-4" />
+            {translateOr(t, "ES_AMC_DOWNLOAD_REPORT", "Download report PDF")}
+          </a>
+        ) : (
+          <span>
+            <FileDown className="size-4" />
+            {translateOr(t, "ES_AMC_DOWNLOAD_REPORT", "Download report PDF")}
+          </span>
+        )}
+      </Button>
+    </div>
+  );
+}
+
 export function AmcReportDetailPage() {
   const { t } = useTranslate();
   const user = useAuthStore((state) => state.user);
@@ -283,36 +302,22 @@ export function AmcReportDetailPage() {
           <div className="flex min-h-[200px] items-center justify-center text-sm text-muted-foreground">
             {translateOr(t, "CORE_COMMON_LOADING", "Loading...")}
           </div>
-        ) : !report ? (
+        ) : null}
+        {!isLoading && !report ? (
           <p className="text-sm text-muted-foreground">
             {translateOr(t, "ES_AMC_REPORT_NOT_FOUND", "This AMC report could not be found.")}
           </p>
-        ) : (
+        ) : null}
+        {!isLoading && report ? (
           <>
-            {report.reportPdfFileStoreId ? (
-              <div className="flex justify-end">
-                <Button asChild={Boolean(pdfUrl)} variant="outline" size="sm" disabled={!pdfUrl}>
-                  {pdfUrl ? (
-                    <a href={pdfUrl} target="_blank" rel="noreferrer">
-                      <FileDown className="size-4" />
-                      {translateOr(t, "ES_AMC_DOWNLOAD_REPORT", "Download report PDF")}
-                    </a>
-                  ) : (
-                    <span>
-                      <FileDown className="size-4" />
-                      {translateOr(t, "ES_AMC_DOWNLOAD_REPORT", "Download report PDF")}
-                    </span>
-                  )}
-                </Button>
-              </div>
-            ) : null}
+            {report.reportPdfFileStoreId ? <ReportPdfButton pdfUrl={pdfUrl} /> : null}
             <ReportSummary report={report} projectName={project?.projectName} />
             <SystemStatus report={report} />
             <FailedParameters report={report} />
             <FormSections report={report} fileUrls={fileUrls} />
             <AmcReviewHistory history={report.history} reasonName={reasonName} />
           </>
-        )}
+        ) : null}
       </div>
 
       {canReview ? (
