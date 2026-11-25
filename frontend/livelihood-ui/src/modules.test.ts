@@ -7,12 +7,12 @@ import { enabledModules, getModuleNavItems, getModuleOverviews, rootRoute } from
 // inside each module's createXModule/createXRoutes, which is covered by
 // core/im/ir's own routes.test.tsx and index.test.ts files.
 describe("enabledModules", () => {
-  it("assembles core, pm, im, ir, and eu modules, in that order", () => {
-    expect(enabledModules.map((module) => module.id)).toEqual(["core", "pm", "im", "ir", "eu"]);
+  it("assembles core, pm, im, ir, eu, org and amc modules, in that order", () => {
+    expect(enabledModules.map((module) => module.id)).toEqual(["core", "pm", "im", "ir", "eu", "org", "amc"]);
   });
 
-  it("gives each module the order its own factory defines (core=0, pm=0, im=1, ir=2, eu=3)", () => {
-    expect(enabledModules.map((module) => module.order)).toEqual([0, 0, 1, 2, 3]);
+  it("gives each module the order its own factory defines (core=0, pm=0, im=1, ir=2, eu=3, org=4, amc=5)", () => {
+    expect(enabledModules.map((module) => module.order)).toEqual([0, 0, 1, 2, 3, 4, 5]);
   });
 
   it("wires core's employeeLayoutRoute as the parent for pm's, im's, ir's, and eu's own parent route", () => {

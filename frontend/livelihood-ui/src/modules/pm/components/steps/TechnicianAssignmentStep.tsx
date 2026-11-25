@@ -1,13 +1,25 @@
-import { translateOr, useTranslate } from "@/shared";
-import { Input, Pagination, SearchableSelect } from "@/ui";
+import { amcErrorText, translateOr, useTranslate } from "@/shared";
+import { Input, Pagination, SearchableSelect, Switch, toast } from "@/ui";
 import { Users } from "lucide-react";
 import { useMemo, useState } from "react";
+import { usePlanAmcBySite } from "../../hooks/use-plan-amc-by-site";
+import { useTurnOffAmc } from "../../hooks/use-turn-off-amc";
 import { useVendorAssignmentSearch } from "../../hooks/use-vendor-assignment-search";
 import { useVendorOrganisations } from "../../hooks/use-vendor-organisations";
 import { useVendorOrgUsers } from "../../hooks/use-vendor-org-users";
 import type { InstallationPlanAssignmentEntry } from "../../types/installation-plan";
 import type { VendorAssignmentSite } from "../../services/vendor-assignment";
+import {
+  amcApplicableKey,
+  isAmcApplicable,
+  withAmcApplicable,
+  withAmcApplicableForAll,
+  withAmcFieldStaff,
+  type AmcSetupValue,
+} from "../../utils/amc-setup";
+import { AmcFieldStaffSelect } from "../AmcFieldStaffSelect";
 import { StepSectionCard } from "../StepSectionCard";
+import { TurnOffAmcDialog } from "../TurnOffAmcDialog";
 
 const DEFAULT_PAGE_SIZE = 10;
 
@@ -85,6 +97,8 @@ interface TechnicianAssignmentStepProps {
   value: AssignmentValue;
   onChange: (value: AssignmentValue) => void;
   locked?: boolean;
+  amcSetup?: AmcSetupValue;
+  onAmcSetupChange?: (value: AmcSetupValue) => void;
 }
 
 function VendorUserSelect({
@@ -119,10 +133,40 @@ function VendorUserSelect({
   );
 }
 
-export function TechnicianAssignmentStep({ planId, planCode, value, onChange, locked = false }: Readonly<TechnicianAssignmentStepProps>) {
+export function TechnicianAssignmentStep({
+  planId,
+  planCode,
+  value,
+  onChange,
+  locked = false,
+  amcSetup = {},
+  onAmcSetupChange,
+}: Readonly<TechnicianAssignmentStepProps>) {
   const { t } = useTranslate();
   const { data: searchResult } = useVendorAssignmentSearch(planId);
   const { data: organisations = [] } = useVendorOrganisations();
+  // Solar sites that already have a running AMC (published plans): their switch only turns it off.
+  const { data: existingAmcs = {} } = usePlanAmcBySite(planId);
+  const turnOffAmc = useTurnOffAmc(planId);
+  const [turnOffTarget, setTurnOffTarget] = useState<{ amcId: string; endUserName: string } | null>(null);
+
+  function handleTurnOff() {
+    if (!turnOffTarget) return;
+    turnOffAmc.mutate(turnOffTarget.amcId, {
+      onSuccess: () => {
+        toast.success(translateOr(t, "ES_PM_AMC_TURNED_OFF", "AMC turned off"));
+        setTurnOffTarget(null);
+      },
+      onError: (error) => {
+        toast.error(translateOr(t, "ES_PM_AMC_TURN_OFF_FAILED", "Could not turn the AMC off"), {
+          description:
+            amcErrorText(error, t, () => turnOffTarget.endUserName) ??
+            translateOr(t, "ES_SOMETHING_WRONG", "Something went wrong. Please try again."),
+        });
+        setTurnOffTarget(null);
+      },
+    });
+  }
   const sites = useMemo(() => searchResult?.sites ?? [], [searchResult]);
 
   // Paginated by site (end user), not by raw asset row, so a site's assets never split across
@@ -136,6 +180,14 @@ export function TechnicianAssignmentStep({ planId, planCode, value, onChange, lo
   );
 
   const rows = useMemo(() => toRows(pagedSites), [pagedSites]);
+  const allSolarRows = useMemo(
+    () => toRows(sites).filter((row) => row.componentType === "SOLAR" && !existingAmcs[row.facilityId]),
+    [sites, existingAmcs],
+  );
+  const allSolarApplicable =
+    allSolarRows.length > 0 && allSolarRows.every((row) => isAmcApplicable(amcSetup, row));
+  // Deliberately not tied to `locked`: the PM can turn AMC on for any end user after publish.
+  const amcDisabled = !onAmcSetupChange;
   // Pre-counted once per render instead of a rows.filter() inside the map below, which made
   // rendering the table O(n^2) in the number of assets.
   const assetCountByFacilityId = useMemo(() => {
@@ -178,6 +230,10 @@ export function TechnicianAssignmentStep({ planId, planCode, value, onChange, lo
     ]);
   }
 
+  function setRowAmcApplicable(row: TechnicianAssignmentRow, applicable: boolean) {
+    onAmcSetupChange?.(withAmcApplicable(amcSetup, row, applicable));
+  }
+
   function handleOrganizationChange(row: TechnicianAssignmentRow, vendorOrgId: string) {
     const organization = organisations.find((item) => item.code === vendorOrgId);
     updateAssignment(row, {
@@ -187,12 +243,16 @@ export function TechnicianAssignmentStep({ planId, planCode, value, onChange, lo
       vendorUserName: undefined,
       vendorEmail: undefined,
     });
+    // The AMC field staff must belong to the row's organisation, so a new organisation clears it.
+    if (row.componentType === "SOLAR" && isAmcApplicable(amcSetup, row)) {
+      onAmcSetupChange?.(withAmcFieldStaff(amcSetup, row, {}));
+    }
   }
 
   return (
     <StepSectionCard
       icon={Users}
-      title={translateOr(t, "ES_PM_TECHNICIAN_ASSIGNMENT", "Technician Assignment")}
+      title={translateOr(t, "ES_PM_TECHNICIAN_ASSIGNMENT_AMC", "Technician assignment and AMC")}
       description={translateOr(
         t,
         "ES_PM_TECHNICIAN_ASSIGNMENT_DESC",
@@ -210,22 +270,45 @@ export function TechnicianAssignmentStep({ planId, planCode, value, onChange, lo
         ) : null}
         <div className="livelihood-card overflow-hidden">
           <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] table-fixed border-collapse text-sm">
+          <table className="w-full min-w-[1550px] table-fixed border-collapse text-sm">
             <colgroup>
               <col className="w-[180px]" />
               <col className="w-[220px]" />
+              <col className="w-[200px]" />
               <col className="w-[240px]" />
               <col className="w-[220px]" />
+              <col className="w-[240px]" />
               <col className="w-[240px]" />
             </colgroup>
             <thead>
               <tr className="border-b border-border">
+                {[translateOr(t, "ES_PM_END_USER", "End user"), translateOr(t, "ES_PM_ASSET", "Asset")].map((label) => (
+                  <th key={label} className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                    {label}
+                  </th>
+                ))}
+                <th className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
+                  <div className="space-y-1.5">
+                    <span className="block">{translateOr(t, "ES_PM_AMC_APPLICABLE", "AMC applicable")}</span>
+                    <label className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
+                      <Switch
+                        size="sm"
+                        checked={allSolarApplicable}
+                        disabled={amcDisabled || allSolarRows.length === 0}
+                        onCheckedChange={(checked) =>
+                          onAmcSetupChange?.(withAmcApplicableForAll(amcSetup, allSolarRows, checked))
+                        }
+                        aria-label={translateOr(t, "ES_PM_AMC_APPLY_FOR_ALL", "Apply for all")}
+                      />
+                      {translateOr(t, "ES_PM_AMC_APPLY_FOR_ALL", "Apply for all")}
+                    </label>
+                  </div>
+                </th>
                 {[
-                  translateOr(t, "ES_PM_END_USER", "End user"),
-                  translateOr(t, "ES_PM_ASSET", "Asset"),
                   translateOr(t, "ES_PM_VENDOR_ORGANIZATION", "Vendor Organization"),
                   translateOr(t, "ES_PM_VENDOR", "Vendor"),
                   translateOr(t, "ES_PM_EMAIL_ID", "Email ID"),
+                  translateOr(t, "ES_PM_AMC_FIELD_STAFF", "AMC field staff"),
                 ].map((label) => (
                   <th key={label} className="px-5 py-3 text-left text-sm font-semibold text-ink-950">
                     {label}
@@ -239,6 +322,7 @@ export function TechnicianAssignmentStep({ planId, planCode, value, onChange, lo
                 const previousRow = rows[index - 1];
                 const startsSiteGroup = previousRow?.facilityId !== row.facilityId;
                 const siteAssetCount = assetCountByFacilityId.get(row.facilityId) ?? 1;
+                const existingAmc = row.componentType === "SOLAR" ? existingAmcs[row.facilityId] : undefined;
 
                 return (
                   <tr key={`${row.facilityId}-${row.componentType}-${row.componentSequence}`} className="border-b border-border/70">
@@ -251,6 +335,42 @@ export function TechnicianAssignmentStep({ planId, planCode, value, onChange, lo
                       <span className="inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs font-medium text-foreground">
                         {row.assetName}
                       </span>
+                    </td>
+                    <td className="px-5 py-4">
+                      {existingAmc ? (
+                        <div className="space-y-0.5">
+                          <label className="flex items-center gap-2 text-sm text-foreground">
+                            <Switch
+                              checked
+                              // Switching off asks for confirmation, then turns the running AMC off.
+                              disabled={amcDisabled || turnOffAmc.isPending}
+                              onCheckedChange={(checked) =>
+                                !checked && setTurnOffTarget({ amcId: existingAmc.id, endUserName: row.siteName })
+                              }
+                              aria-label={`${translateOr(t, "ES_PM_AMC_APPLICABLE", "AMC applicable")}, ${rowLabel(row)}`}
+                            />
+                            {translateOr(t, "CORE_COMMON_YES", "Yes")}
+                          </label>
+                          <p className="text-xs text-muted-foreground">
+                            {existingAmc.status === "ACTIVE"
+                              ? translateOr(t, "ES_PM_AMC_STATUS_ACTIVE", "Active")
+                              : translateOr(t, "ES_PM_AMC_PENDING_ACTIVATION", "Pending activation")}
+                          </p>
+                        </div>
+                      ) : null}
+                      {!existingAmc && row.componentType === "SOLAR" ? (
+                        <label className="flex items-center gap-2 text-sm text-foreground">
+                          <Switch
+                            checked={isAmcApplicable(amcSetup, row)}
+                            disabled={amcDisabled}
+                            onCheckedChange={(checked) => setRowAmcApplicable(row, checked)}
+                            aria-label={`${translateOr(t, "ES_PM_AMC_APPLICABLE", "AMC applicable")}, ${rowLabel(row)}`}
+                          />
+                          {isAmcApplicable(amcSetup, row)
+                            ? translateOr(t, "CORE_COMMON_YES", "Yes")
+                            : translateOr(t, "CORE_COMMON_NO", "No")}
+                        </label>
+                      ) : null}
                     </td>
                     <td className="px-5 py-4">
                       <SearchableSelect
@@ -280,6 +400,20 @@ export function TechnicianAssignmentStep({ planId, planCode, value, onChange, lo
                         placeholder={translateOr(t, "ES_PM_EMAIL_PLACEHOLDER", "email@example.com")}
                       />
                     </td>
+                    <td className="px-5 py-4">
+                      {row.componentType === "SOLAR" && isAmcApplicable(amcSetup, row) && !existingAmc ? (
+                        <AmcFieldStaffSelect
+                          rowLabel={rowLabel(row)}
+                          organizationId={assignment?.vendorOrgId}
+                          value={amcSetup[amcApplicableKey(row)]?.fieldStaffId ?? ""}
+                          onChange={(id, name) => onAmcSetupChange?.(withAmcFieldStaff(amcSetup, row, { id, name }))}
+                          disabled={amcDisabled}
+                        />
+                      ) : null}
+                      {existingAmc ? (
+                        <span className="text-foreground">{existingAmc.fieldStaff?.name ?? "-"}</span>
+                      ) : null}
+                    </td>
                   </tr>
                 );
               })}
@@ -299,6 +433,12 @@ export function TechnicianAssignmentStep({ planId, planCode, value, onChange, lo
           />
         ) : null}
       </div>
+      <TurnOffAmcDialog
+        endUserName={turnOffTarget?.endUserName ?? null}
+        isPending={turnOffAmc.isPending}
+        onCancel={() => setTurnOffTarget(null)}
+        onConfirm={handleTurnOff}
+      />
     </StepSectionCard>
   );
 }

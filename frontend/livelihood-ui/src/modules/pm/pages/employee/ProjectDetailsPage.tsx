@@ -2,6 +2,7 @@ import { employeeHomePath, translateOr, useTranslate } from "@/shared";
 import { Button, TopBar } from "@/ui";
 import { Link, useSearch } from "@tanstack/react-router";
 import { MapPin, Plus } from "lucide-react";
+import { AmcPlansTable } from "../../components/AmcPlansTable";
 import { InstallationPlansTable } from "../../components/InstallationPlansTable";
 import { useInstallationPlansSearch } from "../../hooks/use-installation-plans-search";
 import { useProjectById } from "../../hooks/use-project-by-id";
@@ -18,6 +19,8 @@ export function ProjectDetailsPage() {
 
   const { data: project } = useProjectById(projectId);
   const { data, isLoading } = useInstallationPlansSearch({ projectId });
+
+  const plans = data?.plans ?? [];
 
   const geography = project?.additionalDetails?.geographyDetails;
   const districtCount = geography?.districts?.length ?? 0;
@@ -102,8 +105,10 @@ export function ProjectDetailsPage() {
             </Link>
           </Button>
         </div>
-        <InstallationPlansTable plans={data?.plans ?? []} isLoading={isLoading} />
+        <InstallationPlansTable plans={plans} isLoading={isLoading} />
       </div>
+
+      <AmcPlansTable plans={plans} isLoading={isLoading} />
     </div>
   );
 }
