@@ -164,7 +164,9 @@ export {
 export { componentTypeLabel } from "./utils/activity-review/component-type";
 export {
   mapInstallationImageCriteria,
+  selectInstallationImageCriteria,
   type InstallationImageCriterion,
+  type InstallationImageSelection,
   type RawInstallationImageCriterion,
 } from "./utils/activity-review/installation-image-mapping";
 export {

@@ -42,6 +42,7 @@ export function buildActivityDetail(
     solarAssetSections,
     machineAssetData,
     installationImageCriteria,
+    { solutionId: activityFacility?.solutionId, documents: latestDocuments },
   );
 
   return {
