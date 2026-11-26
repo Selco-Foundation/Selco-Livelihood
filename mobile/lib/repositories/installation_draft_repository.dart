@@ -311,6 +311,11 @@ class InstallationDraftRepository {
       if (_isCanonicalSolarBom(draft, bom)) canonical = bom;
     }
     if (canonical == null) return;
+    // The backend type owns image applicability, including a missing value.
+    draft.mergedBom.remove('system_type');
+    if (canonical.data.containsKey('system_type')) {
+      draft.mergedBom['system_type'] = canonical.data['system_type'];
+    }
     for (final type in SolarAssetType.values) {
       final fields = type.bomFields;
       for (final key in {
@@ -375,7 +380,8 @@ class InstallationDraftRepository {
     draft.bomFormNames
       ..clear()
       ..addAll(_mdmsRepository.formsFor(draft.solutionId));
-    draft.installationRequirements = _mdmsRepository.installationImages;
+    draft.installationRequirements =
+        _mdmsRepository.installationImagesFor(draft.installationSystemType);
   }
 
   void _hydrateComponent(

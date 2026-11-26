@@ -149,6 +149,25 @@ class AssetMdmsRepository {
     return result;
   }
 
+  List<InstallationImageRequirement> installationImagesFor(String? systemCode) {
+    final items = installationImages;
+    final code = systemCode?.trim() ?? '';
+    if (code.isEmpty) return items;
+
+    final matching =
+        items.where((item) => item.systemTypeEntry(code) != null).toList();
+    if (matching.isEmpty) return items;
+
+    // Group by order so equal-order items retain their MDMS sequence.
+    final byOrder = <num, List<InstallationImageRequirement>>{};
+    for (final item in matching) {
+      final order = item.systemTypeEntry(code)!.order;
+      (byOrder[order] ??= []).add(item);
+    }
+    final orders = byOrder.keys.toList()..sort();
+    return [for (final order in orders) ...byOrder[order]!];
+  }
+
   String? rejectionReasonName(String code) {
     final normalizedCode = code.trim().toUpperCase();
     for (final reason in _memory?.installation?.rejectionReasons ??

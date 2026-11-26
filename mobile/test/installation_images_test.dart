@@ -1,0 +1,160 @@
+import 'dart:async';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:livelihood/blocs/installation_images/installation_images.dart';
+import 'package:livelihood/model/activity_facility/activity_facility.dart';
+import 'package:livelihood/model/activity_facility_workflow/activity_facility_workflow.dart';
+import 'package:livelihood/model/bom/bom.dart';
+import 'package:livelihood/model/mdms/asset_registry_response.dart';
+import 'package:livelihood/model/mdms/common_masters.dart';
+import 'package:livelihood/model/solar_installation_draft.dart';
+import 'package:livelihood/repositories/asset_mdms_repository.dart';
+import 'package:livelihood/repositories/installation_draft_repository.dart';
+import 'package:livelihood/repositories/installation_images_repository.dart';
+
+Map<String, dynamic> requirement(String code, Map<String, num> types,
+        {bool active = true}) =>
+    {
+      'code': code,
+      'active': active,
+      'required_count': 1,
+      'system_types': [
+        for (final entry in types.entries)
+          {'code': entry.key, 'order': entry.value},
+      ],
+    };
+
+AssetMdmsRepository mdms() => AssetMdmsRepository(
+      initial: AssetRegistryMdmsResponse(
+        commonMasters: CommonMastersModule(installationImages: [
+          {
+            'data': {
+              'InstallationImage': [
+                requirement('shared', {'DC': 2, 'AC': 1}),
+                requirement('dc-first', {'DC': 1}),
+                requirement('dc-tie', {'DC': 1}),
+                requirement('ac-only', {'AC': 2}),
+                requirement('inactive', {'DC': 0}, active: false),
+              ],
+            },
+          },
+          {
+            'isActive': false,
+            'data': requirement('disabled-record', {'DC': 0})
+          },
+        ]),
+      ),
+    );
+
+SolarInstallationDraft draft() => SolarInstallationDraft(
+      workflow: const ActivityFacilityWorkflow(
+        activityFacility: ActivityFacility(),
+      ),
+      mode: SolarWorkflowMode.newReport,
+    );
+
+List<String> codes(List<InstallationImageRequirement> items) =>
+    items.map((item) => item.code).toList();
+
+class PendingImagesRepository extends InstallationImagesRepository {
+  final requests = <String, Completer<List<InstallationImageRequirement>>>{};
+
+  @override
+  Future<List<InstallationImageRequirement>> fetch({
+    required String systemCode,
+    bool forceRefresh = false,
+  }) =>
+      (requests[systemCode] = Completer()).future;
+}
+
+void main() {
+  test('filters active categories and preserves MDMS order for ties', () {
+    final repository = mdms();
+    expect(codes(repository.installationImagesFor(' dc ')),
+        ['dc-first', 'dc-tie', 'shared']);
+    expect(
+        codes(repository.installationImagesFor('AC')), ['shared', 'ac-only']);
+    for (final type in [null, '', ' ', 'unknown']) {
+      expect(codes(repository.installationImagesFor(type)),
+          ['shared', 'dc-first', 'dc-tie', 'ac-only']);
+    }
+    expect(AssetMdmsRepository().installationImagesFor('DC'), isEmpty);
+  });
+
+  test('image repository uses the shared selector, including empty type',
+      () async {
+    final repository = InstallationImagesRepository(mdmsRepository: mdms());
+    expect(codes(await repository.fetch(systemCode: 'DC')),
+        ['dc-first', 'dc-tie', 'shared']);
+    expect(codes(await repository.fetch(systemCode: '')), hasLength(4));
+  });
+
+  test('fresh solar type replaces stale values and ignores MACHINE rows', () {
+    final repository = InstallationDraftRepository(mdmsRepository: mdms());
+    final value = draft()..mergedBom['system_type'] = 'AC';
+    repository.applyFreshBomDerivedValues(value, const [
+      BillOfMaterial(data: {'system_type': ' dc '}),
+      BillOfMaterial(
+        data: {'system_type': 'AC'},
+        additionalDetails: {'componentType': 'MACHINE'},
+      ),
+    ]);
+    repository.applyBomDerivedValues(value);
+    expect(value.installationSystemType, 'DC');
+    expect(value.systemCode, 'SOLAR');
+    expect(codes(value.installationRequirements),
+        ['dc-first', 'dc-tie', 'shared']);
+
+    repository.applyFreshBomDerivedValues(value, const []);
+    expect(value.installationSystemType, 'DC');
+    repository.applyFreshBomDerivedValues(value, const [BillOfMaterial()]);
+    repository.applyBomDerivedValues(value);
+    expect(value.installationSystemType, isNull);
+    expect(value.installationRequirements, hasLength(4));
+  });
+
+  test('changing type reuses saved categories and updates completion', () {
+    final repository = InstallationDraftRepository(mdmsRepository: mdms());
+    final value = draft()..mergedBom['system_type'] = 'AC';
+    const file = SolarFileRef(
+      name: 'saved',
+      path: 'saved',
+      remoteId: 'saved',
+      kind: SolarFileKind.image,
+    );
+    value.installationMedia.addAll({
+      'shared': [file],
+      'ac-only': [file]
+    });
+    repository.applyBomDerivedValues(value);
+    expect(value.installationImagesComplete, isTrue);
+    value.mergedBom['system_type'] = 'DC';
+    repository.applyBomDerivedValues(value);
+    expect(value.installationImagesComplete, isFalse);
+    expect(value.installationMedia['shared'], [file]);
+    expect(value.installationMedia['ac-only'], [file]);
+  });
+
+  test('late results and errors cannot restore the previous type', () async {
+    final repository = PendingImagesRepository();
+    final bloc = InstallationImagesBloc(repository: repository);
+    addTearDown(bloc.close);
+    bloc.add(const FetchInstallationImages(systemCode: 'DC'));
+    await Future<void>.delayed(Duration.zero);
+    bloc.add(const FetchInstallationImages(systemCode: 'AC'));
+    await Future<void>.delayed(Duration.zero);
+    repository.requests['AC']!.complete(mdms().installationImagesFor('AC'));
+    await Future<void>.delayed(Duration.zero);
+    repository.requests['DC']!.completeError(Exception('old request failed'));
+    await Future<void>.delayed(Duration.zero);
+    expect(codes((bloc.state as InstallationImagesLoaded).items),
+        ['shared', 'ac-only']);
+
+    bloc.add(const FetchInstallationImages(systemCode: 'unknown'));
+    await Future<void>.delayed(Duration.zero);
+    expect(bloc.state, isA<InstallationImagesLoading>());
+    repository.requests['unknown']!.completeError(Exception('failed'));
+    await Future<void>.delayed(Duration.zero);
+    expect(bloc.state, isA<InstallationImagesError>());
+  });
+}

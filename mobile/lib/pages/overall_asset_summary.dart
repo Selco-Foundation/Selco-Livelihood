@@ -1079,13 +1079,13 @@ class _InstallationImagesPageState extends State<InstallationImagesPage> {
   void initState() {
     super.initState();
     _bloc = InstallationImagesBloc(initialItems: _requirements);
-    _fetchRequirementsIfResolved();
+    _fetchRequirements();
     unawaited(_hydrateDraft());
   }
 
-  void _fetchRequirementsIfResolved() {
-    final systemCode = widget.draft.systemCode?.trim() ?? '';
-    if (systemCode.isEmpty || _requestedSystemCode == systemCode) return;
+  void _fetchRequirements() {
+    final systemCode = widget.draft.installationSystemType ?? '';
+    if (_requestedSystemCode == systemCode) return;
     _requestedSystemCode = systemCode;
     _bloc.add(FetchInstallationImages(systemCode: systemCode));
   }
@@ -1100,7 +1100,7 @@ class _InstallationImagesPageState extends State<InstallationImagesPage> {
       // media remains usable if backend snapshot hydration is unavailable.
     }
     if (!mounted) return;
-    _fetchRequirementsIfResolved();
+    _fetchRequirements();
     setState(() {});
   }
 
@@ -1234,7 +1234,7 @@ class _InstallationImagesPageState extends State<InstallationImagesPage> {
                       type: DigitButtonType.primary,
                       size: DigitButtonSize.large,
                       onPressed: () => _bloc.add(FetchInstallationImages(
-                        systemCode: widget.draft.systemCode ?? '',
+                        systemCode: widget.draft.installationSystemType ?? '',
                         forceRefresh: true,
                       )),
                     ),

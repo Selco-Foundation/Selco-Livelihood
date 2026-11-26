@@ -24,6 +24,6 @@ class InstallationImagesRepository {
         await _appInitRepo.searchAssetRegistry();
       }
     }
-    return _mdmsRepository.installationImages;
+    return _mdmsRepository.installationImagesFor(systemCode);
   }
 }

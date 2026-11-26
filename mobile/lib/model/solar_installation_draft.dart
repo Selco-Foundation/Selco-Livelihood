@@ -282,6 +282,9 @@ class SolarInstallationDraft {
   bool isSectionSubmitted(String section) =>
       submittedSections.contains(section.trim().toLowerCase());
 
+  String? get installationSystemType =>
+      mergedBom['system_type']?.toString().trim().toUpperCase();
+
   String? systemCode;
   String? solutionId;
   String? remoteBomId;

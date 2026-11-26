@@ -54,20 +54,27 @@ class InstallationImagesBloc
   }
 
   final InstallationImagesRepository _repository;
+  String? _systemCode;
+  int _requestId = 0;
 
   Future<void> _onFetch(
     FetchInstallationImages event,
     Emitter<InstallationImagesState> emit,
   ) async {
+    final requestId = ++_requestId;
+    final systemCode = event.systemCode.trim().toUpperCase();
     final previous = state;
-    final hasUsableCache =
-        previous is InstallationImagesLoaded && previous.items.isNotEmpty;
+    final hasUsableCache = _systemCode == systemCode &&
+        previous is InstallationImagesLoaded &&
+        previous.items.isNotEmpty;
+    _systemCode = systemCode;
     if (!hasUsableCache) emit(const InstallationImagesLoading());
     try {
       final items = await _repository.fetch(
         systemCode: event.systemCode,
         forceRefresh: event.forceRefresh,
       );
+      if (requestId != _requestId) return;
       if (items.isEmpty) {
         if (!hasUsableCache) {
           emit(const InstallationImagesError(
@@ -78,6 +85,7 @@ class InstallationImagesBloc
         emit(InstallationImagesLoaded(items));
       }
     } catch (_) {
+      if (requestId != _requestId) return;
       if (!hasUsableCache) {
         emit(const InstallationImagesError(
           'Failed to load installation image configuration. Please try again.',
