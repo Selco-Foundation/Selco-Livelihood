@@ -20,6 +20,7 @@ import java.util.Map;
  *       sees the readings.</li>
  * </ul>
  * Operators: LT (reading &lt; max), BETWEEN (min &le; reading &le; max), EQ (same text, case-insensitive; true/false = YES/NO).
+ * An EQ value may list several accepted answers separated by commas: "WORKING,NOT_AVAILABLE".
  */
 public final class AutoApproval {
 
@@ -142,7 +143,7 @@ public final class AutoApproval {
                 return ok ? null : "OUT_OF_RANGE";
             }
             case "EQ":
-                return r.value() != null && r.value().trim().equalsIgnoreCase(asText(reading)) ? null : "NOT_EQUAL";
+                return acceptedValues(r).stream().anyMatch(v -> v.equalsIgnoreCase(asText(reading))) ? null : "NOT_EQUAL";
             default:
                 return "UNKNOWN_OPERATOR";
         }
@@ -154,7 +155,8 @@ public final class AutoApproval {
             case "LT" -> r.max() == null ? null : "less than " + r.max().stripTrailingZeros().toPlainString() + unit;
             case "BETWEEN" -> r.min() == null || r.max() == null ? null
                     : r.min().stripTrailingZeros().toPlainString() + " to " + r.max().stripTrailingZeros().toPlainString() + unit;
-            case "EQ" -> r.value() == null ? null : LivelihoodReportPdfData.humanize(r.value());
+            case "EQ" -> r.value() == null ? null
+                    : String.join(" or ", acceptedValues(r).stream().map(LivelihoodReportPdfData::humanize).toList());
             default -> null;
         };
     }
@@ -181,6 +183,19 @@ public final class AutoApproval {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    /** The EQ value split on commas, blanks dropped. */
+    static List<String> acceptedValues(Rule r) {
+        List<String> out = new ArrayList<>();
+        if (r.value() != null) {
+            for (String v : r.value().split(",")) {
+                if (!v.isBlank()) {
+                    out.add(v.trim());
+                }
+            }
+        }
+        return out;
     }
 
     private static String asText(Object reading) {

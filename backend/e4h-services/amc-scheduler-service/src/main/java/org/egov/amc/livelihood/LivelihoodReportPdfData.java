@@ -157,9 +157,10 @@ public final class LivelihoodReportPdfData {
     }
 
     /**
-     * 5.1 to 5.11 always. A reading that does not apply prints N/A: Solar SPD on an AC system, Grid SPD on a DC system,
-     * and specific gravity when it was not asked (not a lead acid battery). For any other system type an SPD prints its
-     * answer, or N/A without one.
+     * 5.1 to 5.11 always. A reading that does not apply prints N/A: Grid SPD on a DC system, and specific gravity when
+     * it was not asked (not a lead acid battery). Solar SPD is asked on every system (#276): it prints its answer, "-"
+     * on a DC report without one, and N/A on any other report without one (AC reports sent before #276 never had it).
+     * For any other system type Grid SPD prints its answer, or N/A without one.
      */
     static List<Map<String, Object>> readingRows(VisitReport report, Map<String, Object> a, String systemType) {
         List<Map<String, Object>> rows = new ArrayList<>();
@@ -174,7 +175,7 @@ public final class LivelihoodReportPdfData {
                 gravity ? value(a.get("batterySpecificGravity")) : NOT_APPLICABLE, null));
         rows.add(reading(report, "5.7", "Action taken (for specific gravity)",
                 gravity ? a.get("batterySpecificGravityAction") : NOT_APPLICABLE, null));
-        boolean solar = spdApplies("DC", "AC", systemType, a.get("solarSpdStatus"));
+        boolean solar = spdApplies("DC", null, systemType, a.get("solarSpdStatus"));
         rows.add(reading(report, "5.8", "Solar SPD", solar ? value(a.get("solarSpdStatus")) : NOT_APPLICABLE,
                 solar ? "AMC_PHOTO_SOLAR_SPD" : null));
         rows.add(reading(report, "5.9", "Solar SPD action taken", solar ? a.get("solarSpdAction") : NOT_APPLICABLE, null));
@@ -185,13 +186,13 @@ public final class LivelihoodReportPdfData {
         return rows;
     }
 
-    /** ownType: the system type this SPD belongs to; otherType: the one it never applies to. */
+    /** ownType: the system type this SPD is always asked on; otherType: the one it never applies to, or null. */
     private static boolean spdApplies(String ownType, String otherType, String systemType, Object answer) {
         String type = systemType == null ? "" : systemType.trim();
         if (ownType.equalsIgnoreCase(type)) {
             return true;
         }
-        return !otherType.equalsIgnoreCase(type) && answered(answer);
+        return (otherType == null || !otherType.equalsIgnoreCase(type)) && answered(answer);
     }
 
     private static boolean answered(Object v) {

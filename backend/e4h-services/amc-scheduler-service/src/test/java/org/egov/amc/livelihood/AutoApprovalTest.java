@@ -185,6 +185,53 @@ class AutoApprovalTest {
         assertEquals(false, AutoApproval.evaluate(rules, dc, "DC", 1L).get("passed"), "rules 1 to 5 apply to DC too");
     }
 
+    /** #276: Solar SPD on every system, Grid SPD on AC only and "Not available" accepted. */
+    @Test
+    void solarSpdOnEverySystemAndGridSpdNotAvailablePasses() {
+        List<AutoApproval.Rule> rules = withSpdTypes(List.of("AC", "DC"), List.of("AC")).stream()
+                .map(r -> r.code().equals("GRID_SPD_STATUS") ? revalue(r, "WORKING,NOT_AVAILABLE") : r).toList();
+        Map<String, Object> ac = good();
+        ac.put("gridSpdStatus", "NOT_AVAILABLE");
+        assertEquals(true, AutoApproval.evaluate(rules, ac, "AC", 1L).get("passed"), "Grid SPD not available");
+        ac.put("gridSpdStatus", "working");
+        assertEquals(true, AutoApproval.evaluate(rules, ac, "AC", 1L).get("passed"));
+        ac.put("gridSpdStatus", "FAILED");
+        assertEquals(false, AutoApproval.evaluate(rules, ac, "AC", 1L).get("passed"));
+        ac.put("gridSpdStatus", "NOT_AVAILABLE");
+        ac.put("solarSpdStatus", "FAILED");
+        assertEquals(false, AutoApproval.evaluate(rules, ac, "AC", 1L).get("passed"), "Solar SPD now judged on AC");
+        ac.remove("solarSpdStatus");
+        assertEquals(false, AutoApproval.evaluate(rules, ac, "AC", 1L).get("passed"), "Solar SPD missing on AC");
+
+        Map<String, Object> dc = good();
+        assertEquals(true, AutoApproval.evaluate(rules, dc, "DC", 1L).get("passed"), "DC still covered, no Grid SPD");
+        dc.put("solarSpdStatus", "FAILED");
+        assertEquals(false, AutoApproval.evaluate(rules, dc, "DC", 1L).get("passed"));
+
+        Map<String, Object> all = good();
+        all.put("gridSpdStatus", "NOT_AVAILABLE");
+        assertEquals(false, AutoApproval.evaluate(rules, all, null, 1L).get("passed"), "unknown type still to a reviewer");
+        assertEquals(false, AutoApproval.evaluate(rules, all, "WIND", 1L).get("passed"), "type no rule names");
+        assertEquals("Working or Not available",
+                ruleResult(AutoApproval.evaluate(rules, all, "AC", 1L), "GRID_SPD_STATUS").get("acceptedRange"));
+    }
+
+    @Test
+    void eqAcceptsAnyListedValue() {
+        AutoApproval.Rule r = revalue(RULES.get(6), " WORKING , ,NOT_AVAILABLE");
+        assertEquals(List.of("WORKING", "NOT_AVAILABLE"), AutoApproval.acceptedValues(r));
+        assertNull(AutoApproval.judge(r, "not_available"));
+        assertNull(AutoApproval.judge(r, "WORKING"));
+        assertEquals("NOT_EQUAL", AutoApproval.judge(r, "WORKING,NOT_AVAILABLE"), "the whole list is not an answer");
+        assertEquals("NOT_EQUAL", AutoApproval.judge(revalue(r, null), "WORKING"));
+        assertEquals("NOT_EQUAL", AutoApproval.judge(revalue(r, " , "), "WORKING"));
+    }
+
+    private static AutoApproval.Rule revalue(AutoApproval.Rule r, String value) {
+        return new AutoApproval.Rule(r.code(), r.fieldName(), r.labelKey(), r.operator(), r.min(), r.max(), value, r.unit(),
+                r.acceptedRangeKey(), r.appliesToSystemTypes());
+    }
+
     @Test
     void newSystemTypeIsJudgedOnceARuleNamesIt() {
         List<AutoApproval.Rule> rules = withSpdTypes(List.of("DC", "HYBRID"), List.of("AC", "HYBRID"));
