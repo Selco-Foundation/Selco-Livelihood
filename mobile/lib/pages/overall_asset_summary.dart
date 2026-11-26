@@ -1068,7 +1068,7 @@ class InstallationImagesPage extends StatefulWidget {
 class _InstallationImagesPageState extends State<InstallationImagesPage> {
   bool _isSubmitting = false;
   late final InstallationImagesBloc _bloc;
-  String? _requestedSystemCode;
+  (String, String)? _requestedSelection;
 
   List<InstallationImageRequirement> get _requirements =>
       widget.draft.installationRequirements;
@@ -1083,9 +1083,14 @@ class _InstallationImagesPageState extends State<InstallationImagesPage> {
 
   void _fetchRequirements() {
     final systemCode = widget.draft.installationSystemType ?? '';
-    if (_requestedSystemCode == systemCode) return;
-    _requestedSystemCode = systemCode;
-    _bloc.add(FetchInstallationImages(systemCode: systemCode));
+    final solutionCode = widget.draft.solutionId?.trim().toUpperCase() ?? '';
+    final selection = (systemCode, solutionCode);
+    if (_requestedSelection == selection) return;
+    _requestedSelection = selection;
+    _bloc.add(FetchInstallationImages(
+      systemCode: systemCode,
+      solutionCode: solutionCode,
+    ));
   }
 
   Future<void> _hydrateDraft() async {
@@ -1233,6 +1238,7 @@ class _InstallationImagesPageState extends State<InstallationImagesPage> {
                       size: DigitButtonSize.large,
                       onPressed: () => _bloc.add(FetchInstallationImages(
                         systemCode: widget.draft.installationSystemType ?? '',
+                        solutionCode: widget.draft.solutionId,
                         forceRefresh: true,
                       )),
                     ),

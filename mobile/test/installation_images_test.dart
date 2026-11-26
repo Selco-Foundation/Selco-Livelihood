@@ -62,12 +62,153 @@ class PendingImagesRepository extends InstallationImagesRepository {
   @override
   Future<List<InstallationImageRequirement>> fetch({
     required String systemCode,
+    String? solutionCode,
     bool forceRefresh = false,
   }) =>
-      (requests[systemCode] = Completer()).future;
+      (requests[(solutionCode?.isEmpty ?? true)
+              ? systemCode
+              : '$systemCode/$solutionCode'] = Completer())
+          .future;
 }
 
 void main() {
+  test('solution lists preserve legacy entries and restrict explicit matches',
+      () {
+    final legacy = InstallationImageRequirement.fromJson({'code': 'legacy'});
+    final empty = InstallationImageRequirement.fromJson(
+        {'code': 'empty', 'solution_codes': <String>[]});
+    final restricted = InstallationImageRequirement.fromJson({
+      'code': 'restricted',
+      'solution_codes': ['  SOLUTION-A  ', 'solution-b'],
+    });
+    expect(restricted.solutionCodes, ['SOLUTION-A', 'solution-b']);
+    for (final solution in [null, '', 'unknown']) {
+      expect(legacy.appliesToSolution(solution), isTrue);
+      expect(empty.appliesToSolution(solution), isTrue);
+      expect(restricted.appliesToSolution(solution), isFalse);
+    }
+    expect(restricted.appliesToSolution(' solution-a '), isTrue);
+    expect(restricted.appliesToSolution('SOLUTION-B'), isTrue);
+  });
+
+  test('system fallbacks cannot bypass solution restrictions', () async {
+    final repository = AssetMdmsRepository(
+      initial: AssetRegistryMdmsResponse(
+        commonMasters: CommonMastersModule(installationImages: [
+          {
+            'InstallationImage': [
+              requirement('legacy', {'DC': 3}),
+              {
+                ...requirement('first', {'DC': 1}),
+                'solution_codes': ['A']
+              },
+              {
+                ...requirement('tie', {'DC': 1}),
+                'solution_codes': ['A']
+              },
+              {
+                ...requirement('other', {'DC': 2}),
+                'solution_codes': ['B']
+              },
+            ],
+          },
+        ]),
+      ),
+    );
+    expect(codes(repository.installationImagesFor('DC', solutionCode: ' a ')),
+        ['first', 'tie', 'legacy']);
+    for (final system in [null, '', 'unknown']) {
+      expect(codes(repository.installationImagesFor(system, solutionCode: 'A')),
+          ['legacy', 'first', 'tie']);
+    }
+    for (final solution in [null, '', 'unlisted']) {
+      expect(
+          codes(repository.installationImagesFor('DC', solutionCode: solution)),
+          ['legacy']);
+    }
+    final images = InstallationImagesRepository(mdmsRepository: repository);
+    expect(codes(await images.fetch(systemCode: 'DC', solutionCode: 'B')),
+        ['other', 'legacy']);
+  });
+
+  test('draft uses the activity solution for DC and AC exceptions', () {
+    const milking = '202526PASF0000110';
+    const eri = '202526PASF0000141';
+    const printer = '202526PASF0000540';
+    const pulverizer = '202526PASF0000379';
+    final repository = InstallationDraftRepository(
+      mdmsRepository: AssetMdmsRepository(
+        initial: AssetRegistryMdmsResponse(
+          commonMasters: CommonMastersModule(installationImages: [
+            {
+              'InstallationImage': [
+                {
+                  ...requirement('isolator', {'AC': 4, 'DC': 4}),
+                  'solution_codes': [milking, printer, pulverizer]
+                },
+                {
+                  ...requirement('ajb', {'AC': 6}),
+                  'solution_codes': [pulverizer]
+                },
+                {
+                  ...requirement('rms', {'AC': 13, 'DC': 13}),
+                  'solution_codes': [milking, eri, printer, pulverizer],
+                  'required': false
+                },
+              ]
+            },
+          ]),
+        ),
+      ),
+    );
+    for (final (solution, system, expected) in [
+      (milking, 'DC', ['isolator', 'rms']),
+      (eri, 'DC', ['rms']),
+      (printer, 'AC', ['isolator', 'rms']),
+      (pulverizer, 'AC', ['isolator', 'ajb', 'rms']),
+      ('unknown', 'AC', <String>[]),
+    ]) {
+      final value = SolarInstallationDraft(
+        workflow: ActivityFacilityWorkflow(
+          activityFacility: ActivityFacility(solutionId: solution),
+        ),
+        mode: SolarWorkflowMode.newReport,
+      )..mergedBom['system_type'] = system;
+      repository.applyBomDerivedValues(value);
+      expect(codes(value.installationRequirements), expected);
+      if (expected.isNotEmpty) {
+        expect(value.installationRequirements.last.isRequired, isFalse);
+      }
+    }
+  });
+
+  test('changing solution within one system discards stale responses',
+      () async {
+    final repository = PendingImagesRepository();
+    final bloc = InstallationImagesBloc(repository: repository);
+    addTearDown(bloc.close);
+    bloc.add(
+        const FetchInstallationImages(systemCode: 'AC', solutionCode: 'A'));
+    await Future<void>.delayed(Duration.zero);
+    bloc.add(
+        const FetchInstallationImages(systemCode: 'AC', solutionCode: 'B'));
+    await Future<void>.delayed(Duration.zero);
+    final current = mdms().installationImagesFor('AC');
+    repository.requests['AC/B']!.complete(current);
+    await Future<void>.delayed(Duration.zero);
+    repository.requests['AC/A']!.complete(mdms().installationImagesFor('DC'));
+    await Future<void>.delayed(Duration.zero);
+    expect((bloc.state as InstallationImagesLoaded).items, current);
+
+    bloc.add(
+        const FetchInstallationImages(systemCode: 'AC', solutionCode: 'C'));
+    await Future<void>.delayed(Duration.zero);
+    expect(bloc.state, isA<InstallationImagesLoading>());
+    repository.requests['AC/C']!.complete([]);
+    await Future<void>.delayed(Duration.zero);
+    expect(bloc.state, isA<InstallationImagesError>());
+  });
+
   test('required flag defaults to mandatory and controls description and count',
       () {
     final raw = {
@@ -232,7 +373,7 @@ void main() {
     bloc.add(const FetchInstallationImages(systemCode: 'unknown'));
     await Future<void>.delayed(Duration.zero);
     expect(bloc.state, isA<InstallationImagesLoading>());
-    repository.requests['unknown']!.completeError(Exception('failed'));
+    repository.requests['UNKNOWN']!.completeError(Exception('failed'));
     await Future<void>.delayed(Duration.zero);
     expect(bloc.state, isA<InstallationImagesError>());
   });

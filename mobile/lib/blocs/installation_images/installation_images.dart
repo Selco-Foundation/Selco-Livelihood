@@ -10,10 +10,12 @@ sealed class InstallationImagesEvent {
 class FetchInstallationImages extends InstallationImagesEvent {
   const FetchInstallationImages({
     required this.systemCode,
+    this.solutionCode,
     this.forceRefresh = false,
   });
 
   final String systemCode;
+  final String? solutionCode;
   final bool forceRefresh;
 }
 
@@ -54,7 +56,7 @@ class InstallationImagesBloc
   }
 
   final InstallationImagesRepository _repository;
-  String? _systemCode;
+  (String, String)? _selection;
   int _requestId = 0;
 
   Future<void> _onFetch(
@@ -63,22 +65,25 @@ class InstallationImagesBloc
   ) async {
     final requestId = ++_requestId;
     final systemCode = event.systemCode.trim().toUpperCase();
+    final solutionCode = event.solutionCode?.trim().toUpperCase() ?? '';
+    final selection = (systemCode, solutionCode);
     final previous = state;
-    final hasUsableCache = _systemCode == systemCode &&
+    final hasUsableCache = _selection == selection &&
         previous is InstallationImagesLoaded &&
         previous.items.isNotEmpty;
-    _systemCode = systemCode;
+    _selection = selection;
     if (!hasUsableCache) emit(const InstallationImagesLoading());
     try {
       final items = await _repository.fetch(
-        systemCode: event.systemCode,
+        systemCode: systemCode,
+        solutionCode: solutionCode,
         forceRefresh: event.forceRefresh,
       );
       if (requestId != _requestId) return;
       if (items.isEmpty) {
         if (!hasUsableCache) {
           emit(const InstallationImagesError(
-            'No active installation image configuration was found for this system.',
+            'No active installation image configuration was found for this system and solution.',
           ));
         }
       } else {

@@ -380,8 +380,10 @@ class InstallationDraftRepository {
     draft.bomFormNames
       ..clear()
       ..addAll(_mdmsRepository.formsFor(draft.solutionId));
-    draft.installationRequirements =
-        _mdmsRepository.installationImagesFor(draft.installationSystemType);
+    draft.installationRequirements = _mdmsRepository.installationImagesFor(
+      draft.installationSystemType,
+      solutionCode: draft.solutionId,
+    );
   }
 
   void _hydrateComponent(

@@ -229,6 +229,7 @@ class InstallationImageRequirement {
     this.active = true,
     this.shortTitle,
     this.systemTypes = const [],
+    this.solutionCodes = const [],
   });
 
   final String code;
@@ -238,6 +239,7 @@ class InstallationImageRequirement {
   final bool active;
   final String? shortTitle;
   final List<InstallationImageSystemType> systemTypes;
+  final List<String> solutionCodes;
 
   factory InstallationImageRequirement.fromJson(Map<String, dynamic> json) =>
       InstallationImageRequirement(
@@ -247,11 +249,22 @@ class InstallationImageRequirement {
         isRequired: json['required'] != false,
         active: json['active'] != false && json['isActive'] != false,
         shortTitle: json['short_title']?.toString(),
+        solutionCodes: (json['solution_codes'] as List<dynamic>? ?? const [])
+            .whereType<String>()
+            .map((code) => code.trim())
+            .where((code) => code.isNotEmpty)
+            .toList(),
         systemTypes: _maps(json['system_types'])
             .map(InstallationImageSystemType.fromJson)
             .where((value) => value.code.isNotEmpty)
             .toList(),
       );
+
+  bool appliesToSolution(String? solutionCode) {
+    final normalized = solutionCode?.trim().toUpperCase();
+    return solutionCodes.isEmpty ||
+        solutionCodes.any((code) => code.trim().toUpperCase() == normalized);
+  }
 
   bool get allowMultiples => requiredCount > 1;
 

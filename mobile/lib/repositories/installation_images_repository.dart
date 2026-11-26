@@ -14,6 +14,7 @@ class InstallationImagesRepository {
 
   Future<List<InstallationImageRequirement>> fetch({
     required String systemCode,
+    String? solutionCode,
     bool forceRefresh = false,
   }) async {
     if (forceRefresh) {
@@ -24,6 +25,9 @@ class InstallationImagesRepository {
         await _appInitRepo.searchAssetRegistry();
       }
     }
-    return _mdmsRepository.installationImagesFor(systemCode);
+    return _mdmsRepository.installationImagesFor(
+      systemCode,
+      solutionCode: solutionCode,
+    );
   }
 }

@@ -149,23 +149,30 @@ class AssetMdmsRepository {
     return result;
   }
 
-  List<InstallationImageRequirement> installationImagesFor(String? systemCode) {
+  List<InstallationImageRequirement> installationImagesFor(
+    String? systemCode, {
+    String? solutionCode,
+  }) {
     final items = installationImages;
     final code = systemCode?.trim() ?? '';
-    if (code.isEmpty) return items;
-
-    final matching =
-        items.where((item) => item.systemTypeEntry(code) != null).toList();
-    if (matching.isEmpty) return items;
-
-    // Group by order so equal-order items retain their MDMS sequence.
-    final byOrder = <num, List<InstallationImageRequirement>>{};
-    for (final item in matching) {
-      final order = item.systemTypeEntry(code)!.order;
-      (byOrder[order] ??= []).add(item);
+    final matching = code.isEmpty
+        ? <InstallationImageRequirement>[]
+        : items.where((item) => item.systemTypeEntry(code) != null).toList();
+    List<InstallationImageRequirement> selected = items;
+    if (matching.isNotEmpty) {
+      // Group by order so equal-order items retain their MDMS sequence.
+      final byOrder = <num, List<InstallationImageRequirement>>{};
+      for (final item in matching) {
+        final order = item.systemTypeEntry(code)!.order;
+        (byOrder[order] ??= []).add(item);
+      }
+      final orders = byOrder.keys.toList()..sort();
+      selected = [for (final order in orders) ...byOrder[order]!];
     }
-    final orders = byOrder.keys.toList()..sort();
-    return [for (final order in orders) ...byOrder[order]!];
+    // System fallback must never bypass explicit solution restrictions.
+    return selected
+        .where((item) => item.appliesToSolution(solutionCode))
+        .toList();
   }
 
   String? rejectionReasonName(String code) {
