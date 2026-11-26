@@ -13,6 +13,9 @@ public class ActivityConstants {
     public static final String MASTER_INSTALLATION_IMAGES = "InstallationImages";
     public static final String INSTALLATION_IMAGE_FIELD = "InstallationImage";
     public static final String INSTALLATION_IMAGE_DOCUMENT_TYPE_PREFIX = "INSTALLATION_IMAGE-";
+    /** ICC report photos keyed by their MDMS question code (INSTALLATION_PHOTO-6 = question 6), read by the
+     * per-solution layouts. Distinct from INSTALLATION_IMAGE- so it never collides with the positional entries. */
+    public static final String INSTALLATION_PHOTO_DOCUMENT_TYPE_PREFIX = "INSTALLATION_PHOTO-";
     public static final String INSTALLATION_IMAGE_SYSTEM_TYPES_FIELD = "system_types";
     //location
     public static final String DRAFT_STATUS = "DRAFT";

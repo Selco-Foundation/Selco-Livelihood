@@ -28,6 +28,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.egov.activity.util.ActivityConstants.INSTALLATION_IMAGE_DOCUMENT_TYPE_PREFIX;
+import static org.egov.activity.util.ActivityConstants.INSTALLATION_PHOTO_DOCUMENT_TYPE_PREFIX;
 import static org.egov.activity.util.ActivityConstants.TENANTID;
 
 @Service
@@ -273,37 +274,48 @@ public class BomService {
         List<InstallationImageMaster> installationImages =
                 installationImagesForSystem(request.getRequestInfo(), request.getSolution());
 
-        // Every image required by this system type gets an entry so its documentName always renders,
-        // even when no matching upload exists - fileStoreIds is just empty in that case.
-        //
-        // The pdf-service data-config for every bom_* report looks up each section by POSITION -
-        // "installation_image_1_title" reads documents[documentType=='INSTALLATION_IMAGE-1'],
-        // "_2_title" reads '-2', and so on sequentially. It does NOT know about MDMS codes at all.
-        // So the emitted documentType here must be the 1-based position of this image within THIS
-        // system type's sorted list (INSTALLATION_IMAGE-1, -2, -3, ...), never the raw MDMS code -
-        // codes are scattered arbitrarily and hardly ever match their position. Raw uploads are
-        // still matched by their true master code (uploads are tagged INSTALLATION_IMAGE-<code> by
-        // the field app), only the outgoing documentType is positional.
-        List<BomPdfDocument> groupedDocuments = new ArrayList<>();
+        List<BomPdfDocument> groupedDocuments = groupInstallationPhotos(installationImages, documents);
+        bomData.put(DOCUMENTS_KEY, groupedDocuments);
+    }
+
+    /**
+     * Groups the raw uploads (one entry per photo, tagged INSTALLATION_IMAGE-&lt;MDMS code&gt;) per question, in two forms:
+     * <ul>
+     * <li>INSTALLATION_PHOTO-&lt;code&gt;, titled with the question's short title: read by the per-solution ICC
+     * layouts, which list exactly the questions that solution asks (ticket: installation photos per solution).</li>
+     * <li>INSTALLATION_IMAGE-&lt;position&gt;, titled with the description: the older layouts read photos by position.
+     * Kept so the backend and the layouts can be deployed in either order; drop once every layout reads by code.</li>
+     * </ul>
+     * Every question gets both entries, with an empty fileStoreIds when nothing was uploaded, so a heading always
+     * resolves.
+     */
+    static List<BomPdfDocument> groupInstallationPhotos(List<InstallationImageMaster> installationImages,
+                                                        List<Map<String, Object>> documents) {
+        List<BomPdfDocument> byCode = new ArrayList<>();
+        List<BomPdfDocument> byPosition = new ArrayList<>();
         int position = 1;
         for (InstallationImageMaster installationImage : installationImages) {
             String masterDocumentType = INSTALLATION_IMAGE_DOCUMENT_TYPE_PREFIX + installationImage.getCode();
-            String positionalDocumentType = INSTALLATION_IMAGE_DOCUMENT_TYPE_PREFIX + position;
-
             List<String> fileStoreIds = documents.stream()
                     .filter(document -> masterDocumentType.equals(document.get("documentType")) && document.get(FILE_STORE_ID_KEY) != null)
                     .map(document -> String.valueOf(document.get(FILE_STORE_ID_KEY)))
                     .collect(Collectors.toList());
 
-            groupedDocuments.add(BomPdfDocument.builder()
-                    .documentType(positionalDocumentType)
-                    .documentName(installationImage.getDescription())
+            byCode.add(BomPdfDocument.builder()
+                    .documentType(INSTALLATION_PHOTO_DOCUMENT_TYPE_PREFIX + installationImage.getCode())
+                    .documentName(installationImage.getShortTitle() != null ? installationImage.getShortTitle() : installationImage.getDescription())
                     .fileStoreIds(fileStoreIds)
+                    .build());
+            byPosition.add(BomPdfDocument.builder()
+                    .documentType(INSTALLATION_IMAGE_DOCUMENT_TYPE_PREFIX + position)
+                    .documentName(installationImage.getDescription())
+                    .fileStoreIds(new ArrayList<>(fileStoreIds))
                     .build());
             position++;
         }
-
-        bomData.put(DOCUMENTS_KEY, groupedDocuments);
+        List<BomPdfDocument> grouped = new ArrayList<>(byCode);
+        grouped.addAll(byPosition);
+        return grouped;
     }
 
     /**
