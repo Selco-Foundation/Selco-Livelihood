@@ -284,9 +284,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
       add(installationLabel, context.translate(i18.common.required));
     }
     for (final requirement in draft.installationRequirements) {
-      final files = draft.installationMedia[requirement.code] ?? const [];
-      if (files.length < requirement.requiredCount ||
-          files.any((file) => !file.hasCompleteNewDocumentMetadata)) {
+      if (!draft.isInstallationImageComplete(requirement)) {
         add(
           installationLabel,
           requirement.shortTitle?.trim().isNotEmpty == true
@@ -1255,7 +1253,7 @@ class _InstallationImagesPageState extends State<InstallationImagesPage> {
                           const SizedBox(width: double.infinity),
                           Text(
                             '${index + 1}. '
-                            '${requirement.description}',
+                            '${requirement.displayDescription}',
                             style: textTheme.bodyL.copyWith(
                               color: theme.colorTheme.primary.primary2,
                             ),

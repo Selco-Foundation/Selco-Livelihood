@@ -68,6 +68,85 @@ class PendingImagesRepository extends InstallationImagesRepository {
 }
 
 void main() {
+  test('required flag defaults to mandatory and controls description and count',
+      () {
+    final raw = {
+      'code': 'image',
+      'description': 'Solar panels',
+      'required_count': 2,
+    };
+    for (final fields in [
+      raw,
+      {...raw, 'required': true}
+    ]) {
+      final item = InstallationImageRequirement.fromJson(fields);
+      expect(item.isRequired, isTrue);
+      expect(item.displayDescription, 'Solar panels');
+      expect(item.requiredLabel, 'Required: 2 images');
+    }
+    final optional =
+        InstallationImageRequirement.fromJson({...raw, 'required': false});
+    expect(optional.isRequired, isFalse);
+    expect(optional.displayDescription, 'Solar panels (optional)');
+    expect(optional.requiredLabel, 'If provided: 2 images');
+    expect(optional.allowMultiples, isTrue);
+    final single = InstallationImageRequirement.fromJson(
+        {...raw, 'required': false, 'required_count': 1});
+    expect(single.requiredLabel, 'If provided: 1 image');
+    expect(single.allowMultiples, isFalse);
+  });
+
+  test('optional categories may be skipped but must be complete once started',
+      () {
+    const optional = InstallationImageRequirement(
+      code: 'optional',
+      description: 'Panels',
+      requiredCount: 2,
+      isRequired: false,
+    );
+    const mandatory = InstallationImageRequirement(
+      code: 'mandatory',
+      description: 'Battery',
+      requiredCount: 1,
+    );
+    const file = SolarFileRef(
+      name: 'saved',
+      path: 'saved',
+      remoteId: 'saved',
+      kind: SolarFileKind.image,
+    );
+    const invalid = SolarFileRef(
+      name: 'local',
+      path: '/local.jpg',
+      kind: SolarFileKind.image,
+    );
+    final value = draft()..installationRequirements = [optional];
+    expect(value.installationImagesComplete, isTrue);
+    expect(value.isInstallationImageComplete(optional), isTrue);
+
+    value.installationMedia['optional'] = [file];
+    expect(value.installationImagesComplete, isFalse);
+    value.installationMedia['optional'] = [file, invalid];
+    expect(value.installationImagesComplete, isFalse);
+    value.installationMedia['optional'] = [file, file];
+    expect(value.installationImagesComplete, isTrue);
+    value.installationMedia['optional']!.clear();
+    expect(value.installationImagesComplete, isTrue);
+
+    value.installationRequirements = [optional, mandatory];
+    expect(value.installationImagesComplete, isFalse);
+    expect(value.isInstallationImageComplete(mandatory), isFalse);
+    value.installationMedia['mandatory'] = [invalid];
+    expect(value.installationImagesComplete, isFalse);
+    value.installationMedia['mandatory'] = [file];
+    expect(value.installationImagesComplete, isTrue);
+    value.installationMedia['optional'] = [file];
+    expect(value.installationImagesComplete, isFalse);
+
+    value.installationRequirements = [];
+    expect(value.installationImagesComplete, isFalse);
+  });
+
   test('filters active categories and preserves MDMS order for ties', () {
     final repository = mdms();
     expect(codes(repository.installationImagesFor(' dc ')),

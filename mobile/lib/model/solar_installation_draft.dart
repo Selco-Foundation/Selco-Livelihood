@@ -428,13 +428,17 @@ class SolarInstallationDraft {
   bool get allCountsEntered =>
       applicableTypes.every((type) => countFor(type) > 0);
   bool get allAssetTypesComplete => applicableTypes.every(completeFor);
+
+  bool isInstallationImageComplete(InstallationImageRequirement requirement) {
+    final files = installationMedia[requirement.code] ?? const <SolarFileRef>[];
+    if (!requirement.isRequired && files.isEmpty) return true;
+    return files.length >= requirement.requiredCount &&
+        files.every((file) => file.hasCompleteNewDocumentMetadata);
+  }
+
   bool get installationImagesComplete =>
       installationRequirements.isNotEmpty &&
-      installationRequirements.every((requirement) =>
-          (installationMedia[requirement.code]?.length ?? 0) >=
-              requirement.requiredCount &&
-          (installationMedia[requirement.code] ?? const <SolarFileRef>[])
-              .every((file) => file.hasCompleteNewDocumentMetadata));
+      installationRequirements.every(isInstallationImageComplete);
   bool get canSubmit =>
       allAssetTypesComplete &&
       installationImagesComplete &&

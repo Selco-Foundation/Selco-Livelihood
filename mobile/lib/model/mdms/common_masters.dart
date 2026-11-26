@@ -225,6 +225,7 @@ class InstallationImageRequirement {
     required this.code,
     required this.description,
     required this.requiredCount,
+    this.isRequired = true,
     this.active = true,
     this.shortTitle,
     this.systemTypes = const [],
@@ -233,6 +234,7 @@ class InstallationImageRequirement {
   final String code;
   final String description;
   final int requiredCount;
+  final bool isRequired;
   final bool active;
   final String? shortTitle;
   final List<InstallationImageSystemType> systemTypes;
@@ -242,6 +244,7 @@ class InstallationImageRequirement {
         code: (json['code'] ?? '').toString(),
         description: (json['description'] ?? '').toString(),
         requiredCount: _integer(json['required_count']).clamp(1, 100),
+        isRequired: json['required'] != false,
         active: json['active'] != false && json['isActive'] != false,
         shortTitle: json['short_title']?.toString(),
         systemTypes: _maps(json['system_types'])
@@ -252,9 +255,12 @@ class InstallationImageRequirement {
 
   bool get allowMultiples => requiredCount > 1;
 
-  String get requiredLabel => requiredCount == 1
-      ? 'Required: 1 image'
-      : 'Required: $requiredCount images';
+  String get displayDescription =>
+      isRequired ? description : '$description (optional)';
+
+  String get requiredLabel =>
+      '${isRequired ? 'Required' : 'If provided'}: $requiredCount '
+      '${requiredCount == 1 ? 'image' : 'images'}';
 
   InstallationImageSystemType? systemTypeEntry(String systemCode) {
     final normalized = systemCode.trim().toUpperCase();
