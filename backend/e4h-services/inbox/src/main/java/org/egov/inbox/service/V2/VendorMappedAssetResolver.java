@@ -44,6 +44,23 @@ public class VendorMappedAssetResolver {
         return new ArrayList<>(assetIds);
     }
 
+    /**
+     * Name of the vendor organisation the user belongs to, or null when the user is not an org
+     * member. Throws when vendor-registry fails, so the caller can tell a failure from "no org".
+     */
+    public String resolveOrganisationName(RequestInfo requestInfo, String tenantId, String userUuid) {
+        if (requestInfo == null || StringUtils.isBlank(tenantId) || StringUtils.isBlank(userUuid)
+                || StringUtils.isBlank(config.getVendorHost())) {
+            return null;
+        }
+        List<String> organisationIds = findOrganisationIdsByUserUuid(requestInfo, tenantId, userUuid.trim());
+        if (organisationIds.isEmpty()) {
+            return null;
+        }
+        Object name = findOrganisationById(requestInfo, tenantId, organisationIds.get(0)).get("name");
+        return name != null ? StringUtils.trimToNull(name.toString()) : null;
+    }
+
     private Set<String> resolveVendorOrgKeys(RequestInfo requestInfo, String tenantId, String userUuid) {
         Set<String> keys = new LinkedHashSet<>();
         keys.add(userUuid);
@@ -100,6 +117,11 @@ public class VendorMappedAssetResolver {
     }
 
     private String findOrganisationCodeById(RequestInfo requestInfo, String tenantId, String organisationId) {
+        Object code = findOrganisationById(requestInfo, tenantId, organisationId).get("code");
+        return code != null ? code.toString() : null;
+    }
+
+    private Map<String, Object> findOrganisationById(RequestInfo requestInfo, String tenantId, String organisationId) {
         String uri = config.getVendorHost() + config.getVendorOrganisationSearchPath();
 
         Map<String, Object> searchCriteria = new HashMap<>();
@@ -118,10 +140,9 @@ public class VendorMappedAssetResolver {
         Map<String, Object> response = castToMap(serviceRequestRepository.fetchResult(new StringBuilder(uri), body));
         List<Map<String, Object>> organisations = castToListOfMaps(response.get("organisations"));
         if (CollectionUtils.isEmpty(organisations)) {
-            return null;
+            return Collections.emptyMap();
         }
-        Object code = organisations.get(0).get("code");
-        return code != null ? code.toString() : null;
+        return organisations.get(0);
     }
 
     /**

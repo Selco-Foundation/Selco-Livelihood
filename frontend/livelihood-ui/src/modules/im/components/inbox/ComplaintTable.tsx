@@ -2,6 +2,7 @@ import { contextPath, translateOr, useAuthStore, useTranslate } from "@/shared";
 import { cn } from "@/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
+  OWNER_UNAVAILABLE_MARKER,
   PROGRAM_POC_OWNER_MARKER,
   SLA_OVERDUE_MARKER,
   statusFallbackLabel,
@@ -33,7 +34,10 @@ export function ComplaintTable({ data }: ComplaintTableProps) {
     : translateOr(t, "WF_INBOX_HEADER_SLA_DAYS_REMAINING", "SLA Days Remaining");
   const basePath = `/${contextPath()}/employee/im`;
   const overdueLabel = translateOr(t, "SLA_OVERDUE", "Overdue");
-  const programPocLabel = translateOr(t, "IM_PROGRAM_POC", "Program POC");
+  const ownerLabels: Record<string, string> = {
+    [PROGRAM_POC_OWNER_MARKER]: translateOr(t, "IM_PROGRAM_POC", "Program POC"),
+    [OWNER_UNAVAILABLE_MARKER]: translateOr(t, "IM_OWNER_UNAVAILABLE", "Couldn't load. Refresh"),
+  };
 
   const columns = [
     { key: "ticket", label: translateOr(t, "CS_COMMON_TICKET_NO", "Ticket No.") },
@@ -112,7 +116,7 @@ export function ComplaintTable({ data }: ComplaintTableProps) {
                     </span>
                   </td>
                   <td className="px-5 py-4 text-foreground">
-                    {row.taskOwner === PROGRAM_POC_OWNER_MARKER ? programPocLabel : row.taskOwner}
+                    {ownerLabels[row.taskOwner] ?? row.taskOwner}
                   </td>
                   <td className="px-5 py-4">
                     <SlaBadge value={row.sla} urgent={row.slaUrgent} overdueLabel={overdueLabel} />
