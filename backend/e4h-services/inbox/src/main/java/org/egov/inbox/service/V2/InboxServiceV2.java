@@ -295,7 +295,7 @@ public class InboxServiceV2 {
 
     /**
      * Adds businessObject.assigneeOrgName (the assignee's vendor organisation), looked up once per assignee.
-     * Once the time budget is spent, the remaining rows are left as they are and the UI shows the assignee's name.
+     * Rows whose lookup failed, or was skipped because the time budget is spent, get assigneeOrgUnavailable=true.
      */
     private void enrichAssigneeOrgNames(InboxRequest inboxRequest, List<Inbox> items) {
         long deadline = System.currentTimeMillis() + ASSIGNEE_ORG_LOOKUP_BUDGET_MS;
@@ -306,16 +306,22 @@ public class InboxServiceV2 {
                 continue;
             }
             if (!orgNameByUser.containsKey(assigneeUuid)) {
-                if (System.currentTimeMillis() > deadline) {
-                    log.warn("Assignee org lookup budget of {} ms spent; remaining rows show the assignee name",
-                            ASSIGNEE_ORG_LOOKUP_BUDGET_MS);
-                    return;
+                // "" = not an org member, null = lookup failed or the budget is spent
+                String lookedUp = null;
+                if (System.currentTimeMillis() <= deadline) {
+                    try {
+                        lookedUp = StringUtils.defaultString(vendorMappedAssetResolver.resolveOrganisationName(
+                                inboxRequest.getRequestInfo(), inboxRequest.getInbox().getTenantId(), assigneeUuid));
+                    } catch (Exception e) {
+                        log.warn("Could not resolve vendor organisation for assignee={}", assigneeUuid, e);
+                    }
                 }
-                orgNameByUser.put(assigneeUuid, vendorMappedAssetResolver.resolveOrganisationName(
-                        inboxRequest.getRequestInfo(), inboxRequest.getInbox().getTenantId(), assigneeUuid));
+                orgNameByUser.put(assigneeUuid, lookedUp);
             }
             String orgName = orgNameByUser.get(assigneeUuid);
-            if (StringUtils.isNotBlank(orgName)) {
+            if (orgName == null) {
+                item.getBusinessObject().put("assigneeOrgUnavailable", true);
+            } else if (!orgName.isEmpty()) {
                 item.getBusinessObject().put("assigneeOrgName", orgName);
             }
         }

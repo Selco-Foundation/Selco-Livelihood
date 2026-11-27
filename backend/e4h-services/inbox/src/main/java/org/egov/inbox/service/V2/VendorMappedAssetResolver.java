@@ -46,24 +46,19 @@ public class VendorMappedAssetResolver {
 
     /**
      * Name of the vendor organisation the user belongs to, or null when the user is not an org
-     * member. Best effort: never throws, so the inbox still loads if vendor-registry fails.
+     * member. Throws when vendor-registry fails, so the caller can tell a failure from "no org".
      */
     public String resolveOrganisationName(RequestInfo requestInfo, String tenantId, String userUuid) {
         if (requestInfo == null || StringUtils.isBlank(tenantId) || StringUtils.isBlank(userUuid)
                 || StringUtils.isBlank(config.getVendorHost())) {
             return null;
         }
-        try {
-            List<String> organisationIds = findOrganisationIdsByUserUuid(requestInfo, tenantId, userUuid.trim());
-            if (organisationIds.isEmpty()) {
-                return null;
-            }
-            Object name = findOrganisationById(requestInfo, tenantId, organisationIds.get(0)).get("name");
-            return name != null ? StringUtils.trimToNull(name.toString()) : null;
-        } catch (Exception e) {
-            log.warn("Could not resolve vendor organisation name for user={} tenantId={}", userUuid, tenantId, e);
+        List<String> organisationIds = findOrganisationIdsByUserUuid(requestInfo, tenantId, userUuid.trim());
+        if (organisationIds.isEmpty()) {
             return null;
         }
+        Object name = findOrganisationById(requestInfo, tenantId, organisationIds.get(0)).get("name");
+        return name != null ? StringUtils.trimToNull(name.toString()) : null;
     }
 
     private Set<String> resolveVendorOrgKeys(RequestInfo requestInfo, String tenantId, String userUuid) {

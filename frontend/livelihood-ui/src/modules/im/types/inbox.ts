@@ -50,6 +50,8 @@ export interface InboxItem {
     totalSlaRemaining?: number;
     /** Vendor organisation of the current assignee, added by the inbox service (Livelihood). */
     assigneeOrgName?: string;
+    /** True when the inbox could not look up the assignee's vendor organisation. */
+    assigneeOrgUnavailable?: boolean;
   };
   ProcessInstance?: {
     assignes?: Array<{ uuid?: string; name?: string }>;

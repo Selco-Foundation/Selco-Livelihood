@@ -194,12 +194,14 @@ describe("combineInboxResponses", () => {
   it.each([
     ["the vendor organisation when the inbox provides it", "PENDING_FOR_RESOLUTION", "Sunrise Solar", "Sunrise Solar"],
     ["the assignee's name when there is no vendor organisation", "PENDING_FOR_RESOLUTION", undefined, "Abhishek"],
+    ["the unavailable marker when the organisation lookup failed", "PENDING_FOR_RESOLUTION", undefined, "OWNER_UNAVAILABLE", true],
     ["the Program POC label for a POC-owned status", "OUT_OF_SCOPE_PENDING_POC", "Sunrise Solar", "PROGRAM_POC"],
-  ])("shows %s as taskOwner", (_case, applicationStatus, assigneeOrgName, expected) => {
+  ])("shows %s as taskOwner", (_case, applicationStatus, assigneeOrgName, expected, assigneeOrgUnavailable?: boolean) => {
     const item = makeItem({
       businessObject: {
         incident: { incidentId: "INC-1", incidentType: "solar_light", applicationStatus, tenantId: "tenant-1" },
         assigneeOrgName,
+        assigneeOrgUnavailable,
       },
       ProcessInstance: { assignes: [{ uuid: "vendor-1", name: "Abhishek" }] },
     });
