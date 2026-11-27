@@ -1,6 +1,7 @@
 import type { AuthUser } from "@/shared";
 import {
   BLANK_SLA_STATUSES,
+  OWNER_UNAVAILABLE_MARKER,
   POC_OWNED_STATUSES,
   PROGRAM_POC_OWNER_MARKER,
   ROLE_STATUS_MAPPING,
@@ -79,7 +80,9 @@ export function combineInboxResponses(
       status: incident.applicationStatus,
       taskOwner: (POC_OWNED_STATUSES as readonly string[]).includes(incident.applicationStatus)
         ? PROGRAM_POC_OWNER_MARKER
-        : assignee?.name || "-",
+        : businessObject?.assigneeOrgName ||
+          (businessObject?.assigneeOrgUnavailable ? OWNER_UNAVAILABLE_MARKER : assignee?.name) ||
+          "-",
       sla: `${slaValue}`,
       slaUrgent: slaValue === SLA_OVERDUE_MARKER || (typeof slaValue === "number" && slaValue <= 1),
       endUser: incident.reporter?.name || "-",
