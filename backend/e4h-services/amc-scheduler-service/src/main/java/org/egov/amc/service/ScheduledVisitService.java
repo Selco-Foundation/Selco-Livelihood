@@ -1078,7 +1078,7 @@ public class ScheduledVisitService {
         return saved[0];
     }
 
-    /** From site details, the one place that knows it (null until it has a source, P5); null = unknown system type. */
+    /** The system type of the installation's Solution, from site details; null = unknown system type. */
     private String siteSystemType(ScheduledVisit visit) {
         String row = visit.getActivityFacilityId() != null ? visit.getActivityFacilityId()
                 : (visit.getAmcConfiguration() != null ? visit.getAmcConfiguration().getActivityFacilityId() : null);

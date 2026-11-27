@@ -158,6 +158,44 @@ public class MdmsUtil {
         return Collections.emptyList();
     }
 
+    /** Active system type codes (asset-registry.SystemSchema). */
+    public Set<String> getSystemCodes(RequestInfo requestInfo, String tenantId) {
+        ModuleDetail moduleDetail = new ModuleDetail();
+        moduleDetail.setModuleName(AssetConstants.ASSET_MODULE_NAME);
+        moduleDetail.setMasterDetails(List.of(MasterDetail.builder().name(AssetConstants.SYSTEM_CODE).build()));
+        MdmsCriteria mdmsCriteria = MdmsCriteria.builder().tenantId(tenantId).moduleDetails(List.of(moduleDetail)).build();
+        MdmsCriteriaReq request = MdmsCriteriaReq.builder().requestInfo(requestInfo).mdmsCriteria(mdmsCriteria).build();
+        String uri = configuration.getMdmsHost() + configuration.getMdmsSearchEndPoint();
+
+        MdmsResponse response;
+        try {
+            response = restTemplate.postForObject(uri, request, MdmsResponse.class);
+        } catch (Exception e) {
+            log.error("Exception while fetching the system types from MDMS", e);
+            throw new CustomException(ErrorConstants.MDMS_SERVICE_ERROR_CODE, ErrorConstants.MDMS_SERVICE_ERROR_MSG);
+        }
+
+        Set<String> codes = new HashSet<>();
+        if (response == null || CollectionUtils.isEmpty(response.getMdmsRes())) {
+            return codes;
+        }
+        Object moduleData = response.getMdmsRes().get(AssetConstants.ASSET_MODULE_NAME);
+        if (!(moduleData instanceof Map<?, ?> masters) || !(masters.get(AssetConstants.SYSTEM_CODE) instanceof List<?> records)) {
+            return codes;
+        }
+        for (Object record : records) {
+            if (record instanceof Map<?, ?> row && row.get("System") instanceof List<?> systems) {
+                for (Object item : systems) {
+                    if (item instanceof Map<?, ?> system && system.get("code") != null
+                            && !Boolean.FALSE.equals(system.get("active"))) {
+                        codes.add(String.valueOf(system.get("code")).trim());
+                    }
+                }
+            }
+        }
+        return codes;
+    }
+
     public String resolveItemCodeDisplayName(RequestInfo requestInfo, String tenantId, String itemCode) {
         if (itemCode == null || itemCode.isBlank()) {
             return null;

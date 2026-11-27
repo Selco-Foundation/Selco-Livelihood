@@ -1,6 +1,6 @@
 # services/facility_service.py
 import os
-from typing import Dict, List, Any
+from typing import Any, Dict, List, Tuple
 
 import pandas as pd
 import requests
@@ -11,7 +11,8 @@ from app.schemas.boundary import Boundary
 from app.schemas.request_info import RequestInfo
 from app.schemas.vendor_ingestion_shema_response import IngestionSchemaResponse
 from app.utils.convertor import convert_json_to_boundary, format_facility_data_for_template, build_boundary_localization_map, localize_boundary_name
-from app.utils.excel_utils import add_dropdowns_to_excel, add_row_specific_dropdown_to_excel, lock_excel_columns, \
+from app.utils.excel_utils import add_dropdowns_to_excel, add_row_specific_dropdown_to_excel, \
+    add_row_specific_dependent_dropdown_to_excel, lock_excel_columns, \
     lock_cells_in_excel, add_validations_to_excel, lock_prefilled_rows_in_excel, add_non_blank_validations_to_file, \
     autofit_columns, add_facility_category_conditional_validations, add_dependent_boundary_dropdowns
 from app.utils.file_utils import create_empty_excel_file, create_excel_data_writer, remove_default_empty_sheet
@@ -78,7 +79,8 @@ class FacilityTemplateService:
                                freeze_columns: List[str] = None,
                                freeze_row_positions: List[int] = None,
                                boundary_localization_map: Dict[str, str] = None,
-                               allow_insert_rows: bool = True
+                               allow_insert_rows: bool = True,
+                               dependent_dropdowns: Dict[str, Tuple[str, Dict[int, Dict[str, List[str]]]]] = None
                                ) -> None:
         """
             Generates FacilityIngestionTemplate.xlsx with:
@@ -93,6 +95,9 @@ class FacilityTemplateService:
             row_specific_dropdowns: {column name: {0-based row position: allowed values}}
             for columns whose valid options differ per row. These columns are made
             editable, since a locked cell would make the dropdown unusable.
+            dependent_dropdowns: {column name: (parent column name, {0-based row position:
+            {parent value: allowed values}})} for columns whose options also depend on what
+            is chosen in another column of the same row. Made editable for the same reason.
             freeze_columns + freeze_row_positions: re-lock these columns on these rows
             only, after the column-level pass -- for rows that must not be edited even
             though their column is editable elsewhere.
@@ -188,6 +193,17 @@ class FacilityTemplateService:
                 row_dropdown_headers[header] = options_by_row
                 editable_columns.append(header)
 
+            dependent_headers = {}
+            for column_name, (parent_name, options_by_row) in (dependent_dropdowns or {}).items():
+                header = self._resolve_header(output_list, column_name)
+                parent_header = self._resolve_header(output_list, parent_name)
+                if not header or not parent_header:
+                    logger.warning(
+                        f"Dependent dropdown '{column_name}' by '{parent_name}' not in schema; skipping")
+                    continue
+                dependent_headers[header] = (parent_header, options_by_row)
+                editable_columns.append(header)
+
             # Add Existing Facilities Sheet (Optional)
             if boundary_localization_map is None:
                 boundary_localization_map = build_boundary_localization_map(boundary_list, localization_service_url)
@@ -242,6 +258,15 @@ class FacilityTemplateService:
                     column_header=header,
                     options_by_row=options_by_row,
                     allow_blank=allow_blank_map.get(header, True),
+                )
+
+            for header, (parent_header, options_by_row) in dependent_headers.items():
+                add_row_specific_dependent_dropdown_to_excel(
+                    file_path=output_path,
+                    sheet_name="FacilityMapping",
+                    parent_header=parent_header,
+                    column_header=header,
+                    options_by_row=options_by_row,
                 )
 
             # Add Validations (Regex + Unique) as comments/hints.

@@ -26,6 +26,9 @@ public class InstallationImageMaster {
 
     private String description;
 
+    /** MDMS short_title, the heading the client asked for; null when blank. */
+    private String shortTitle;
+
     private Boolean active;
 
     private Map<String, Double> orderBySystemType;

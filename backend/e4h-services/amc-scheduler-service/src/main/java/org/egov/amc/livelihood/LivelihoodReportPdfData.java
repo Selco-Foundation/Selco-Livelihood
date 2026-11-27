@@ -45,6 +45,7 @@ public final class LivelihoodReportPdfData {
     public static final Map<String, String> PHOTO_SLOTS = photoSlots();
 
     static final String NONE = "-";
+    private static final String NOT_APPLICABLE = "N/A";
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd-MM-yyyy");
     private static final DateTimeFormatter DAY_TIME = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
     static final DateTimeFormatter CLIENT_DAY = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH);
@@ -142,7 +143,7 @@ public final class LivelihoodReportPdfData {
             d.put(key, text);
             d.put(key + "_style", answerStyle(text));
         });
-        d.put("reading_rows", readingRows(report, answers));
+        d.put("reading_rows", readingRows(report, answers, (String) site.get("systemType")));
         d.put("vendor_remarks", clean(answers.get("vendorRemarks")));
         d.put("end_user_remarks", clean(answers.get("endUserRemarks")));
 
@@ -155,8 +156,13 @@ public final class LivelihoodReportPdfData {
         return d;
     }
 
-    /** 5.1 to 5.9 always; the grid SPD rows (AC systems) only when the report has them. */
-    static List<Map<String, Object>> readingRows(VisitReport report, Map<String, Object> a) {
+    /**
+     * 5.1 to 5.11 always. A reading that does not apply prints N/A: Grid SPD on a DC system, and specific gravity when
+     * it was not asked (not a lead acid battery). Solar SPD is asked on every system (#276): it prints its answer, "-"
+     * on a DC report without one, and N/A on any other report without one (AC reports sent before #276 never had it).
+     * For any other system type Grid SPD prints its answer, or N/A when it has neither an answer nor a photo.
+     */
+    static List<Map<String, Object>> readingRows(VisitReport report, Map<String, Object> a, String systemType) {
         List<Map<String, Object>> rows = new ArrayList<>();
         rows.add(reading(report, "5.1", "Neutral to earth voltage at PCU output (V)", volts(a.get("neVoltagePcuOutput")), "AMC_PHOTO_NE_PCU"));
         rows.add(reading(report, "5.2", "Neutral to earth voltage for grid input (V)", volts(a.get("neVoltageGridInput")), "AMC_PHOTO_NE_GRID"));
@@ -164,15 +170,38 @@ public final class LivelihoodReportPdfData {
                 volts(a.get("inverterOutputVoltage")), null));
         rows.add(reading(report, "5.4", "Earthing electrode available", value(a.get("earthingElectrodeAvailable")), null));
         rows.add(reading(report, "5.5", "Earthing wire connected to earth pit", value(a.get("earthingWireConnected")), null));
-        rows.add(reading(report, "5.6", "Battery specific gravity, measured through hydrometer", value(a.get("batterySpecificGravity")), null));
-        rows.add(reading(report, "5.7", "Action taken (for specific gravity)", a.get("batterySpecificGravityAction"), null));
-        rows.add(reading(report, "5.8", "Solar SPD", value(a.get("solarSpdStatus")), "AMC_PHOTO_SOLAR_SPD"));
-        rows.add(reading(report, "5.9", "Solar SPD action taken", a.get("solarSpdAction"), null));
-        if (a.get("gridSpdStatus") != null || firstFileStoreId(report, "AMC_PHOTO_GRID_SPD") != null) {
-            rows.add(reading(report, "5.10", "Grid input SPD", value(a.get("gridSpdStatus")), "AMC_PHOTO_GRID_SPD"));
-            rows.add(reading(report, "5.11", "Grid input SPD action taken", a.get("gridSpdAction"), null));
-        }
+        boolean gravity = answered(a.get("batterySpecificGravity"));
+        rows.add(reading(report, "5.6", "Battery specific gravity, measured through hydrometer",
+                gravity ? value(a.get("batterySpecificGravity")) : NOT_APPLICABLE, null));
+        rows.add(reading(report, "5.7", "Action taken (for specific gravity)",
+                gravity ? a.get("batterySpecificGravityAction") : NOT_APPLICABLE, null));
+        boolean solar = spdApplies("DC", null, systemType, a.get("solarSpdStatus"), report, "AMC_PHOTO_SOLAR_SPD");
+        rows.add(reading(report, "5.8", "Solar SPD", solar ? value(a.get("solarSpdStatus")) : NOT_APPLICABLE,
+                solar ? "AMC_PHOTO_SOLAR_SPD" : null));
+        rows.add(reading(report, "5.9", "Solar SPD action taken", solar ? a.get("solarSpdAction") : NOT_APPLICABLE, null));
+        boolean grid = spdApplies("AC", "DC", systemType, a.get("gridSpdStatus"), report, "AMC_PHOTO_GRID_SPD");
+        rows.add(reading(report, "5.10", "Grid input SPD", grid ? value(a.get("gridSpdStatus")) : NOT_APPLICABLE,
+                grid ? "AMC_PHOTO_GRID_SPD" : null));
+        rows.add(reading(report, "5.11", "Grid input SPD action taken", grid ? a.get("gridSpdAction") : NOT_APPLICABLE, null));
         return rows;
+    }
+
+    /**
+     * ownType: the system type this SPD is always asked on; otherType: the one it never applies to, or null.
+     * On any other type the row applies when it has a status or an uploaded photo.
+     */
+    private static boolean spdApplies(String ownType, String otherType, String systemType, Object answer,
+                                      VisitReport report, String photoType) {
+        String type = systemType == null ? "" : systemType.trim();
+        if (ownType.equalsIgnoreCase(type)) {
+            return true;
+        }
+        return (otherType == null || !otherType.equalsIgnoreCase(type))
+                && (answered(answer) || firstFileStoreId(report, photoType) != null);
+    }
+
+    private static boolean answered(Object v) {
+        return v != null && !String.valueOf(v).isBlank();
     }
 
     /** The template draws the photo whose flag is "1"; "" is false in the template. */
@@ -188,7 +217,7 @@ public final class LivelihoodReportPdfData {
 
     /** Template style: real answers are bold, "-" and "N/A" are not. */
     private static String answerStyle(String text) {
-        return NONE.equals(text) || "N/A".equals(text) ? "plain" : "ans";
+        return NONE.equals(text) || NOT_APPLICABLE.equals(text) ? "plain" : "ans";
     }
 
     private static String volts(Object v) {

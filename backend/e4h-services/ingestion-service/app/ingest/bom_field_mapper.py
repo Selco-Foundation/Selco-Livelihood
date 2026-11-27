@@ -21,6 +21,7 @@ from app.utils.icc_template_parser import ParsedTemplate, to_sections
 
 FIELD_TENDER_NUMBER = "tender_number"
 FIELD_PURCHASE_ORDER_NUMBER = "purchase_order_number"
+FIELD_SYSTEM_TYPE = "system_type"
 
 TEMPLATE_SCHEMA_VERSION = 2
 
@@ -82,6 +83,7 @@ def build_field_map(parsed: ParsedTemplate, forms: SolutionForms
     # refuses a form that names one, so this is belt and braces rather than a real contest.
     fields[FIELD_TENDER_NUMBER] = parsed.tender_number or ""
     fields[FIELD_PURCHASE_ORDER_NUMBER] = parsed.purchase_order_number or ""
+    fields[FIELD_SYSTEM_TYPE] = parsed.system_type or ""
 
     form_meta = {
         "forms": dict(forms.form_ids),

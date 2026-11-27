@@ -182,9 +182,11 @@ public class MDMSUtils {
         }
 
         Object active = image.get("active");
+        Object shortTitle = image.get("short_title");
         return InstallationImageMaster.builder()
                 .code(String.valueOf(code))
                 .description(String.valueOf(description))
+                .shortTitle(shortTitle == null || String.valueOf(shortTitle).isBlank() ? null : String.valueOf(shortTitle).trim())
                 .active(active instanceof Boolean ? (Boolean) active : Boolean.TRUE)
                 .orderBySystemType(orderBySystemType)
                 .build();

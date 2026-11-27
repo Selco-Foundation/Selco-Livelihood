@@ -122,6 +122,31 @@ describe("buildImageChecklistSections", () => {
   it("returns an empty array for no criteria", () => {
     expect(buildImageChecklistSections([])).toEqual([]);
   });
+
+  it("uses the short title as the label, the description as the hint, and marks optional photos", () => {
+    expect(
+      buildImageChecklistSections([
+        { code: "6", description: "Clear image of AJB.", shortTitle: "Array Junction Box (AJB)" },
+        { code: "15", description: "RMS site photo", shortTitle: "RMS Site Photo (Geotag)", required: false },
+      ]),
+    ).toEqual([
+      {
+        kind: "IMAGE_CHECKLIST",
+        id: "INSTALLATION_IMAGE_6",
+        label: "Array Junction Box (AJB)",
+        hint: "Clear image of AJB.",
+        images: [],
+      },
+      {
+        kind: "IMAGE_CHECKLIST",
+        id: "INSTALLATION_IMAGE_15",
+        label: "RMS Site Photo (Geotag)",
+        hint: "RMS site photo",
+        optional: true,
+        images: [],
+      },
+    ]);
+  });
 });
 
 const builtPanelSection: AssetSectionContent = {
@@ -168,6 +193,36 @@ describe("buildReviewSections", () => {
   it("ignores solarAssetSections entirely for a machine activity", () => {
     const sections = buildReviewSections("MACHINE", undefined, [builtPanelSection], emptyMachineAssetData, []);
     expect(sections.some((s) => s.id === "PANEL")).toBe(false);
+  });
+
+  it("shows only the photo questions this installation was asked, plus any with photos", () => {
+    const criteria: InstallationImageCriterion[] = [
+      { code: "1", description: "Panels", systemOrders: { AC: 1, DC: 1 }, solutionCodes: ["SEWING"] },
+      { code: "6", description: "AJB", systemOrders: { AC: 6 }, solutionCodes: ["PULVERIZER"] },
+      { code: "8", description: "Lightning", systemOrders: { AC: 8 }, solutionCodes: ["PULVERIZER"] },
+      { code: "3", description: "Inverter", systemOrders: { AC: 3 }, solutionCodes: ["SEWING"] },
+    ];
+    const bom = { solutionId: "SEWING", data: { system_type: "AC" } };
+    const sections = buildReviewSections("SOLAR", bom, [], emptyMachineAssetData, criteria, {
+      documents: [{ documentType: "INSTALLATION_IMAGE-8", fileStoreId: "f1" }],
+    });
+    expect(sections.map((s) => s.id)).toEqual([
+      "INSTALLATION_COMPLETION_REPORT",
+      "INSTALLATION_IMAGE_1",
+      "INSTALLATION_IMAGE_3",
+      "INSTALLATION_IMAGE_8",
+    ]);
+  });
+
+  it("prefers the activity's solution over the BOM's", () => {
+    const criteria: InstallationImageCriterion[] = [
+      { code: "6", description: "AJB", solutionCodes: ["PULVERIZER"] },
+    ];
+    const bom = { solutionId: "SEWING", data: { system_type: "AC" } };
+    const sections = buildReviewSections("SOLAR", bom, [], emptyMachineAssetData, criteria, {
+      solutionId: "pulverizer",
+    });
+    expect(sections.map((s) => s.id)).toContain("INSTALLATION_IMAGE_6");
   });
 
   it("treats a missing componentType as solar", () => {

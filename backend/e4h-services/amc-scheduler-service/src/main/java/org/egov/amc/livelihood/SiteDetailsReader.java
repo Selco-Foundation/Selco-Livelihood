@@ -14,14 +14,16 @@ import java.util.Map;
 
 /**
  * G1 siteDetails for visit search ({@code includeSiteDetails=true}, LLD §6.9): one batched read per page from the
- * installation, asset and BOM rows, never one call per visit. systemType stays null: no source holds it (open point P5).
+ * installation, asset and BOM rows, never one call per visit. systemType: the system type of the row's Solution, null when
+ * it has none. It is per installation row, not per end user: an end user can have Solutions of different types.
  * batteryType: the BOM's system_battery_type (e.g. TUBULAR), else the BATTERY asset's batteryType.
  */
 @Component
 public class SiteDetailsReader {
 
-    static final String ROWS_SQL = "SELECT fa.id, fa.completed_at, fa.facility_id, fa.field_plan_id, fad.pincode"
+    static final String ROWS_SQL = "SELECT fa.id, fa.completed_at, fa.facility_id, fa.field_plan_id, fad.pincode, t.system_type"
             + " FROM facility_activities fa LEFT JOIN facility f ON f.id = fa.facility_id LEFT JOIN facility_address fad ON fad.id = f.addressid"
+            + " LEFT JOIN icc_templates t ON t.tenant_id = fa.tenant_id AND t.solution_code = fa.solution_id"
             + " WHERE fa.id = ANY (?)";
     static final String ASSETS_SQL = "SELECT activity_facility_id, asset_id, asset_type_id, parent_id, name, asset_details->>'batteryType' AS battery_type"
             + " FROM asset WHERE is_active AND activity_facility_id = ANY (?) ORDER BY asset_id";
@@ -53,6 +55,7 @@ public class SiteDetailsReader {
             Map<String, Object> d = details(out, id);
             d.put("installationDate", done == 0 ? null : done);
             d.put("pinCode", blank(rs.getString("pincode")));
+            d.put("systemType", blank(rs.getString("system_type")));
             rowFacilityPlan.put(id, new String[]{rs.getString("facility_id"), rs.getString("field_plan_id")});
         });
         Map<String, String> assetBattery = new HashMap<>();
@@ -94,7 +97,7 @@ public class SiteDetailsReader {
             Map<String, Object> d = details(out, id);
             d.put("activityFacilityId", id);
             d.putIfAbsent("solarAssetId", null);
-            d.put("systemType", null);   // P5: no source yet
+            d.putIfAbsent("systemType", null);
             d.put("batteryType", bomBattery.getOrDefault(id, assetBattery.get(id)));
             components(d);
             String[] fp = rowFacilityPlan.get(id);
