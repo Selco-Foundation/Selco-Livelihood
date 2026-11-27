@@ -48,7 +48,6 @@ import 'package:livelihood/pages/submitted_save_success.dart';
 import 'package:livelihood/pages/media_viewer.dart';
 import 'package:livelihood/pages/add_new_asset.dart';
 import 'package:livelihood/pages/asset_type_detail.dart';
-import 'package:livelihood/pages/specification.dart';
 import 'package:livelihood/pages/asset_summary.dart';
 import 'package:livelihood/pages/digit_scanner_page.dart';
 import 'package:livelihood/pages/installation_images.dart';
@@ -2616,58 +2615,6 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   });
 
-  testWidgets('specification shows disabled system and solution name',
-      (tester) async {
-    setMobileViewport(tester, const Size(390, 844));
-    final draft = _filledSolarDraft(SolarWorkflowMode.newReport)
-      ..mergedBom['system_type'] = 'ac'
-      ..solutionId = 'SOL_HOME'
-      ..solutionName = 'Solar Home Lighting';
-
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: DigitTheme.instance.mobileTheme,
-        home: SpecificationPage(
-          draft: draft,
-          assetType: SolarAssetType.battery,
-        ),
-      ),
-    );
-
-    for (final (key, value) in const [
-      ('solar-specification-system', 'AC'),
-      ('solar-specification-solution', 'Solar Home Lighting'),
-    ]) {
-      final field = find.descendant(
-        of: find.byKey(ValueKey(key)),
-        matching: find.byType(DigitTextFormInput),
-      );
-      final input = tester.widget<DigitTextFormInput>(field);
-      expect(input.isDisabled, isTrue);
-      expect(input.readOnly, isTrue);
-      expect(input.initialValue, value);
-    }
-
-    draft.solutionName = null;
-    await tester.pumpWidget(
-      MaterialApp(
-        key: UniqueKey(),
-        theme: DigitTheme.instance.mobileTheme,
-        home: SpecificationPage(
-          draft: draft,
-          assetType: SolarAssetType.battery,
-        ),
-      ),
-    );
-    final fallback = tester.widget<DigitTextFormInput>(find.descendant(
-      of: find.byKey(const ValueKey('solar-specification-solution')),
-      matching: find.byType(DigitTextFormInput),
-    ));
-    expect(fallback.initialValue, 'SOL_HOME');
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump(const Duration(seconds: 1));
-  });
-
   testWidgets('asset summary shows a read-only specifications section',
       (tester) async {
     setMobileViewport(tester, const Size(390, 1600));
@@ -2704,6 +2651,48 @@ void main() {
       find.descendant(of: card, matching: find.byType(DigitButton)),
       findsNothing,
     );
+
+    // Without an MDMS solution name the solution code is shown instead.
+    draft.solutionName = null;
+    await tester.pumpWidget(
+      MaterialApp(
+        key: UniqueKey(),
+        theme: DigitTheme.instance.mobileTheme,
+        home: AssetSummaryPage(
+          draft: draft,
+          assetType: SolarAssetType.panel,
+        ),
+      ),
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('solar-summary-specifications')),
+        matching: find.text('SOL_HOME'),
+      ),
+      findsOneWidget,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('select asset type goes straight to the asset details step',
+      (tester) async {
+    setMobileViewport(tester, const Size(390, 844));
+    final draft = _filledSolarDraft(SolarWorkflowMode.newReport);
+    final router = await pumpAuthenticatedRoute(tester, const HomeRoute());
+    final inner =
+        router.innerRouterOf<StackRouter>(AuthenticatedRouteWrapper.name)!;
+    inner.push(SelectAssetTypeRoute(draft: draft));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('solar-asset-type-dropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(draft.labelFor(SolarAssetType.battery)).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(tr(i18.common.next)).last);
+    await tester.pumpAndSettle();
+
+    expect(inner.current.name, AssetTypeDetailRoute.name);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 1));
   });

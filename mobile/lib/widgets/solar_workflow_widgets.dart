@@ -83,8 +83,8 @@ class SolarWorkflowStepper extends StatelessWidget {
         height: spacer8,
         width: MediaQuery.sizeOf(context).width * .9,
         child: DigitStepper(
-          activeIndex: activeIndex.clamp(0, 5),
-          stepperList: List.generate(6, (_) => const StepperData()),
+          activeIndex: activeIndex.clamp(0, 4),
+          stepperList: List.generate(5, (_) => const StepperData()),
           stepperDirection: Axis.horizontal,
           inverted: true,
         ),
