@@ -191,53 +191,20 @@ describe("combineInboxResponses", () => {
     expect(row.taskOwner).toBe("PROGRAM_POC");
   });
 
-  it("shows the assignee's vendor organisation as taskOwner when the inbox provides it", () => {
+  it.each([
+    ["the vendor organisation when the inbox provides it", "PENDING_FOR_RESOLUTION", "Sunrise Solar", "Sunrise Solar"],
+    ["the assignee's name when there is no vendor organisation", "PENDING_FOR_RESOLUTION", undefined, "Abhishek"],
+    ["the Program POC label for a POC-owned status", "OUT_OF_SCOPE_PENDING_POC", "Sunrise Solar", "PROGRAM_POC"],
+  ])("shows %s as taskOwner", (_case, applicationStatus, assigneeOrgName, expected) => {
     const item = makeItem({
       businessObject: {
-        incident: {
-          incidentId: "INC-1",
-          incidentType: "solar_light",
-          applicationStatus: "PENDING_FOR_RESOLUTION",
-          tenantId: "tenant-1",
-        },
-        assigneeOrgName: "Sunrise Solar Services",
+        incident: { incidentId: "INC-1", incidentType: "solar_light", applicationStatus, tenantId: "tenant-1" },
+        assigneeOrgName,
       },
       ProcessInstance: { assignes: [{ uuid: "vendor-1", name: "Abhishek" }] },
     });
     const [row] = combineInboxResponses([item], undefined);
-    expect(row.taskOwner).toBe("Sunrise Solar Services");
-  });
-
-  it("falls back to the assignee's name when there is no vendor organisation", () => {
-    const item = makeItem({
-      businessObject: {
-        incident: {
-          incidentId: "INC-1",
-          incidentType: "solar_light",
-          applicationStatus: "PENDING_FOR_RESOLUTION",
-          tenantId: "tenant-1",
-        },
-      },
-      ProcessInstance: { assignes: [{ uuid: "vendor-1", name: "Abhishek" }] },
-    });
-    const [row] = combineInboxResponses([item], undefined);
-    expect(row.taskOwner).toBe("Abhishek");
-  });
-
-  it("keeps the Program POC label for a POC-owned status even when an org name is present", () => {
-    const item = makeItem({
-      businessObject: {
-        incident: {
-          incidentId: "INC-1",
-          incidentType: "solar_light",
-          applicationStatus: "OUT_OF_SCOPE_PENDING_POC",
-          tenantId: "tenant-1",
-        },
-        assigneeOrgName: "Sunrise Solar Services",
-      },
-    });
-    const [row] = combineInboxResponses([item], undefined);
-    expect(row.taskOwner).toBe("PROGRAM_POC");
+    expect(row.taskOwner).toBe(expected);
   });
 
   it("falls back to a dash for endUser when there is no reporter name", () => {

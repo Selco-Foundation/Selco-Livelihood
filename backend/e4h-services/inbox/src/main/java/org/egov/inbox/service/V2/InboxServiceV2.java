@@ -290,26 +290,45 @@ public class InboxServiceV2 {
         });
     }
 
-    /** Adds businessObject.assigneeOrgName (the assignee's vendor organisation), looked up once per assignee. */
+    /** Upper bound on the time spent looking up assignee organisations for one inbox page. */
+    private static final long ASSIGNEE_ORG_LOOKUP_BUDGET_MS = 3000;
+
+    /**
+     * Adds businessObject.assigneeOrgName (the assignee's vendor organisation), looked up once per assignee.
+     * Once the time budget is spent, the remaining rows are left as they are and the UI shows the assignee's name.
+     */
     private void enrichAssigneeOrgNames(InboxRequest inboxRequest, List<Inbox> items) {
+        long deadline = System.currentTimeMillis() + ASSIGNEE_ORG_LOOKUP_BUDGET_MS;
         Map<String, String> orgNameByUser = new HashMap<>();
         for (Inbox item : items) {
-            ProcessInstance processInstance = item.getProcessInstance();
-            if (processInstance == null || CollectionUtils.isEmpty(processInstance.getAssignes())
-                    || processInstance.getAssignes().get(0) == null || item.getBusinessObject() == null) {
+            String assigneeUuid = firstAssigneeUuid(item);
+            if (assigneeUuid == null) {
                 continue;
             }
-            String assigneeUuid = processInstance.getAssignes().get(0).getUuid();
-            if (StringUtils.isBlank(assigneeUuid)) {
-                continue;
+            if (!orgNameByUser.containsKey(assigneeUuid)) {
+                if (System.currentTimeMillis() > deadline) {
+                    log.warn("Assignee org lookup budget of {} ms spent; remaining rows show the assignee name",
+                            ASSIGNEE_ORG_LOOKUP_BUDGET_MS);
+                    return;
+                }
+                orgNameByUser.put(assigneeUuid, vendorMappedAssetResolver.resolveOrganisationName(
+                        inboxRequest.getRequestInfo(), inboxRequest.getInbox().getTenantId(), assigneeUuid));
             }
-            String orgName = orgNameByUser.computeIfAbsent(assigneeUuid, uuid ->
-                    StringUtils.defaultString(vendorMappedAssetResolver.resolveOrganisationName(
-                            inboxRequest.getRequestInfo(), inboxRequest.getInbox().getTenantId(), uuid)));
+            String orgName = orgNameByUser.get(assigneeUuid);
             if (StringUtils.isNotBlank(orgName)) {
                 item.getBusinessObject().put("assigneeOrgName", orgName);
             }
         }
+    }
+
+    private String firstAssigneeUuid(Inbox item) {
+        ProcessInstance processInstance = item.getProcessInstance();
+        if (item.getBusinessObject() == null || processInstance == null
+                || CollectionUtils.isEmpty(processInstance.getAssignes())
+                || processInstance.getAssignes().get(0) == null) {
+            return null;
+        }
+        return StringUtils.trimToNull(processInstance.getAssignes().get(0).getUuid());
     }
 
     private ProcessInstance trimRolesFromProcessInstance(ProcessInstance processInstance) {
