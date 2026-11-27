@@ -79,7 +79,7 @@ export function combineInboxResponses(
       status: incident.applicationStatus,
       taskOwner: (POC_OWNED_STATUSES as readonly string[]).includes(incident.applicationStatus)
         ? PROGRAM_POC_OWNER_MARKER
-        : assignee?.name || "-",
+        : businessObject?.assigneeOrgName || assignee?.name || "-",
       sla: `${slaValue}`,
       slaUrgent: slaValue === SLA_OVERDUE_MARKER || (typeof slaValue === "number" && slaValue <= 1),
       endUser: incident.reporter?.name || "-",

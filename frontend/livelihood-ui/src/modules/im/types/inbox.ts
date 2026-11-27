@@ -48,6 +48,8 @@ export interface InboxItem {
     incident?: InboxIncident;
     slaRemaining?: number;
     totalSlaRemaining?: number;
+    /** Vendor organisation of the current assignee, added by the inbox service (Livelihood). */
+    assigneeOrgName?: string;
   };
   ProcessInstance?: {
     assignes?: Array<{ uuid?: string; name?: string }>;

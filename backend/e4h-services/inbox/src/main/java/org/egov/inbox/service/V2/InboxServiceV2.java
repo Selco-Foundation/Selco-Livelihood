@@ -68,6 +68,7 @@ public class InboxServiceV2 {
     private VendorMappedAssetResolver vendorMappedAssetResolver;
 
 
+
     /**
      *
      * @param inboxRequest
@@ -134,6 +135,11 @@ public class InboxServiceV2 {
         // Enrichissement des items
         enrichProcessInstanceInInboxItems(items);
         log.debug("✨ Enriched inbox items with process instance details");
+
+        // Livelihood: "Current Owner" shows the assignee's vendor organisation, not the individual user.
+        if (StringUtils.equalsIgnoreCase(inboxRequest.getInbox().getTenantId(), config.getLivelihoodTenantId())) {
+            enrichAssigneeOrgNames(inboxRequest, items);
+        }
 
         // Compteurs
         Integer totalCount = getTotalApplicationCount(inboxRequest, inboxQueryConfiguration.getIndex());
@@ -282,6 +288,28 @@ public class InboxServiceV2 {
                 item.getBusinessObject().remove(CURRENT_PROCESS_INSTANCE_CONSTANT);
             }
         });
+    }
+
+    /** Adds businessObject.assigneeOrgName (the assignee's vendor organisation), looked up once per assignee. */
+    private void enrichAssigneeOrgNames(InboxRequest inboxRequest, List<Inbox> items) {
+        Map<String, String> orgNameByUser = new HashMap<>();
+        for (Inbox item : items) {
+            ProcessInstance processInstance = item.getProcessInstance();
+            if (processInstance == null || CollectionUtils.isEmpty(processInstance.getAssignes())
+                    || processInstance.getAssignes().get(0) == null || item.getBusinessObject() == null) {
+                continue;
+            }
+            String assigneeUuid = processInstance.getAssignes().get(0).getUuid();
+            if (StringUtils.isBlank(assigneeUuid)) {
+                continue;
+            }
+            String orgName = orgNameByUser.computeIfAbsent(assigneeUuid, uuid ->
+                    StringUtils.defaultString(vendorMappedAssetResolver.resolveOrganisationName(
+                            inboxRequest.getRequestInfo(), inboxRequest.getInbox().getTenantId(), uuid)));
+            if (StringUtils.isNotBlank(orgName)) {
+                item.getBusinessObject().put("assigneeOrgName", orgName);
+            }
+        }
     }
 
     private ProcessInstance trimRolesFromProcessInstance(ProcessInstance processInstance) {
