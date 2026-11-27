@@ -80,6 +80,8 @@ class AppRouter extends _$AppRouter {
             AutoRoute(
                 page: SelectAssetTypeRoute.page, path: Routes.selectAssetType),
             AutoRoute(
+                page: SpecificationRoute.page, path: Routes.specification),
+            AutoRoute(
                 page: AssetTypeDetailRoute.page, path: Routes.assetTypeDetail),
             AutoRoute(page: AddNewAssetRoute.page, path: Routes.addNewAsset),
             AutoRoute(page: MediaUploadRoute.page, path: Routes.mediaUpload),

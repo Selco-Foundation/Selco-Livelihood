@@ -287,6 +287,10 @@ class SolarInstallationDraft {
 
   String? systemCode;
   String? solutionId;
+
+  /// MDMS `Installation.Solution` name for [solutionId]; display only.
+  String? solutionName;
+  String get solutionDisplayName => solutionName ?? solutionId ?? '';
   String? remoteBomId;
   String? solarAssetId;
   String? remoteBomName;

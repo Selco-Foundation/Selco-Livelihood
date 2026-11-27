@@ -350,7 +350,7 @@ class _OverallAssetSummaryPageState extends State<OverallAssetSummaryPage> {
       ));
     }
     await context.router.push(
-      AssetTypeDetailRoute(
+      SpecificationRoute(
         draft: widget.draft,
         assetType: type,
         pickMedia: widget.pickMedia,

@@ -72,6 +72,22 @@ class PendingImagesRepository extends InstallationImagesRepository {
 }
 
 void main() {
+  test('solution name resolves from Installation.Solution by code', () {
+    final repository = AssetMdmsRepository(
+      initial: const AssetRegistryMdmsResponse(
+        installation: InstallationModule(solution: [
+          InstallationSolution(code: 'SOL_HOME', name: ' Solar Home '),
+          InstallationSolution(code: 'SOL_BLANK', name: ' '),
+        ]),
+      ),
+    );
+
+    expect(repository.solutionName(' sol_home '), 'Solar Home');
+    expect(repository.solutionName('SOL_BLANK'), isNull);
+    expect(repository.solutionName('UNKNOWN'), isNull);
+    expect(repository.solutionName(null), isNull);
+  });
+
   test('solution lists preserve legacy entries and restrict explicit matches',
       () {
     final legacy = InstallationImageRequirement.fromJson({'code': 'legacy'});

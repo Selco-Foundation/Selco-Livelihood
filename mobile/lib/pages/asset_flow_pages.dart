@@ -157,7 +157,7 @@ class _SelectAssetTypePageState extends State<SelectAssetTypePage> {
     if (selected == null) return;
     _recordAssetProgress(widget.draft, selected!, 1);
     context.router.push(
-      AssetTypeDetailRoute(
+      SpecificationRoute(
         draft: widget.draft,
         assetType: selected!,
         pickMedia: widget.pickMedia,
@@ -215,6 +215,66 @@ class _SelectAssetTypePageState extends State<SelectAssetTypePage> {
   }
 }
 
+/// Read-only step mirroring E4H's `SpecificationPage`: shows the BOM system
+/// type and the MDMS solution name. Display only — writes nothing to the draft.
+@RoutePage()
+class SpecificationPage extends StatelessWidget {
+  const SpecificationPage({
+    super.key,
+    required this.draft,
+    required this.assetType,
+    this.pickMedia,
+    this.scanSerial,
+  });
+
+  final SolarInstallationDraft draft;
+  final SolarAssetType assetType;
+  final SolarPickMedia? pickMedia;
+  final SolarScanSerial? scanSerial;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final textTheme = theme.digitTextTheme(context);
+    return SolarWorkflowScaffold(
+      pageKey: 'solar-specification-${assetType.name}',
+      stepIndex: 2,
+      footer: SolarFooterButton(
+        label: context.translate(i18.common.next),
+        onPressed: () => context.router.push(
+          AssetTypeDetailRoute(
+            draft: draft,
+            assetType: assetType,
+            pickMedia: pickMedia,
+            scanSerial: scanSerial,
+          ),
+        ),
+      ),
+      child: DigitCard(
+        key: const ValueKey('solar-specification-card'),
+        children: [
+          Text(
+            '${draft.labelFor(assetType)} ${context.translate(i18.assetFlow.specifications)}',
+            style: textTheme.headingXl.copyWith(
+              color: theme.colorTheme.primary.primary2,
+            ),
+          ),
+          _ReadOnlyField(
+            key: const ValueKey('solar-specification-system'),
+            label: context.translate(i18.assetFlow.system),
+            value: draft.installationSystemType ?? '',
+          ),
+          _ReadOnlyField(
+            key: const ValueKey('solar-specification-solution'),
+            label: context.translate(i18.assetFlow.solution),
+            value: draft.solutionDisplayName,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 @RoutePage()
 class AssetTypeDetailPage extends StatefulWidget {
   const AssetTypeDetailPage({
@@ -242,7 +302,7 @@ class _AssetTypeDetailPageState extends State<AssetTypeDetailPage> {
     final asset = widget.draft.assets[widget.assetType]!;
     return SolarWorkflowScaffold(
       pageKey: 'solar-details-${widget.assetType.name}',
-      stepIndex: 2,
+      stepIndex: 3,
       footer: SolarFooterButton(
         label: context.translate(i18.common.next),
         isDisabled: !asset.detailsComplete ||
@@ -409,7 +469,7 @@ class _AddNewAssetPageState extends State<AddNewAssetPage> {
 
     return SolarWorkflowScaffold(
       pageKey: 'solar-add-assets-${widget.assetType.name}',
-      stepIndex: 3,
+      stepIndex: 4,
       footer: SolarFooterButton(
         label: context.translate(i18.common.next),
         isDisabled: !complete,
@@ -703,7 +763,7 @@ class _MediaUploadPageState extends State<MediaUploadPage> {
     }
     return SolarWorkflowScaffold(
       pageKey: 'solar-media-${widget.assetType.name}',
-      stepIndex: 4,
+      stepIndex: 5,
       footer: SolarFooterButton(
         label: context.translate(i18.common.next),
         isDisabled: asset.images.isEmpty ||
@@ -886,6 +946,16 @@ class AssetSummaryPage extends StatelessWidget {
                     ),
           ),
           _SummaryCard(
+            key: const ValueKey('solar-summary-specifications'),
+            title: context.translate(i18.assetFlow.specifications),
+            values: {
+              context.translate(i18.assetFlow.system):
+                  draft.installationSystemType ?? '',
+              context.translate(i18.assetFlow.solution):
+                  draft.solutionDisplayName,
+            },
+          ),
+          _SummaryCard(
             title: context.translate(i18.assetFlow.details),
             values: {
               context.translate(i18.assetFlow.warrantyStartDate):
@@ -989,6 +1059,7 @@ class _ReadOnlyField extends StatelessWidget {
 
 class _SummaryCard extends StatelessWidget {
   const _SummaryCard({
+    super.key,
     required this.title,
     required this.values,
     this.onEdit,

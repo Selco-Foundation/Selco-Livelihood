@@ -222,6 +222,7 @@ class AssetFlow {
   String get selectAssetType => 'ASSET_FLOW_SELECT_ASSET_TYPE';
   String get specifications => 'ASSET_FLOW_SPECIFICATIONS';
   String get system => 'ASSET_FLOW_SYSTEM';
+  String get solution => 'ASSET_FLOW_SOLUTION';
   String get totalCapacity => 'ASSET_FLOW_TOTAL_CAPACITY';
   String get unit => 'ASSET_FLOW_UNIT';
   String get details => 'ASSET_FLOW_DETAILS';

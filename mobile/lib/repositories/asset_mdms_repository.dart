@@ -187,6 +187,19 @@ class AssetMdmsRepository {
     return null;
   }
 
+  String? solutionName(String? code) {
+    final normalizedCode = code?.trim().toUpperCase() ?? '';
+    if (normalizedCode.isEmpty) return null;
+    for (final solution in _memory?.installation?.solution ??
+        const <InstallationSolution>[]) {
+      if (solution.code.trim().toUpperCase() == normalizedCode) {
+        final name = solution.name.trim();
+        return name.isEmpty ? null : name;
+      }
+    }
+    return null;
+  }
+
   List<String> formsFor(String? solutionId) {
     if (solutionId == null) return const [];
     for (final mapping in solutionBomMappings) {

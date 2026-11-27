@@ -338,6 +338,7 @@ class InstallationDraftRepository {
   void _configureFromBom(SolarInstallationDraft draft) {
     draft.solutionId = draft.workflow.activityFacility.solutionId ??
         draft.workflow.activityFacility.billOfMaterial?.solutionId;
+    draft.solutionName = _mdmsRepository.solutionName(draft.solutionId);
     draft.systemCode = 'SOLAR';
     draft.applicableTypes = SolarAssetType.values;
 
