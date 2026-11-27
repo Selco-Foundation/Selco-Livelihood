@@ -29,6 +29,8 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.util.ObjectUtils;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.egov.inbox.util.InboxConstants.*;
@@ -306,17 +308,8 @@ public class InboxServiceV2 {
                 continue;
             }
             if (!orgNameByUser.containsKey(assigneeUuid)) {
-                // "" = not an org member, null = lookup failed or the budget is spent
-                String lookedUp = null;
-                if (System.currentTimeMillis() <= deadline) {
-                    try {
-                        lookedUp = StringUtils.defaultString(vendorMappedAssetResolver.resolveOrganisationName(
-                                inboxRequest.getRequestInfo(), inboxRequest.getInbox().getTenantId(), assigneeUuid));
-                    } catch (Exception e) {
-                        log.warn("Could not resolve vendor organisation for assignee={}", assigneeUuid, e);
-                    }
-                }
-                orgNameByUser.put(assigneeUuid, lookedUp);
+                orgNameByUser.put(assigneeUuid,
+                        lookupAssigneeOrgName(inboxRequest, assigneeUuid, deadline - System.currentTimeMillis()));
             }
             String orgName = orgNameByUser.get(assigneeUuid);
             if (orgName == null) {
@@ -325,6 +318,28 @@ public class InboxServiceV2 {
                 item.getBusinessObject().put("assigneeOrgName", orgName);
             }
         }
+    }
+
+    /**
+     * Org name of the assignee, "" when the assignee is not an org member, or null when the lookup failed or did
+     * not finish within remainingMs. Waits only for the rest of the budget, so a hung vendor-registry call cannot
+     * block the inbox.
+     */
+    private String lookupAssigneeOrgName(InboxRequest inboxRequest, String assigneeUuid, long remainingMs) {
+        if (remainingMs <= 0) {
+            return null;
+        }
+        try {
+            return StringUtils.defaultString(CompletableFuture.supplyAsync(() ->
+                    vendorMappedAssetResolver.resolveOrganisationName(inboxRequest.getRequestInfo(),
+                            inboxRequest.getInbox().getTenantId(), assigneeUuid))
+                    .get(remainingMs, TimeUnit.MILLISECONDS));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            log.warn("Could not resolve vendor organisation for assignee={}", assigneeUuid, e);
+        }
+        return null;
     }
 
     private String firstAssigneeUuid(Inbox item) {
