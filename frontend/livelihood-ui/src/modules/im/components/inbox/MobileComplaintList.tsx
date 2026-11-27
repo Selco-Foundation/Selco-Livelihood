@@ -3,6 +3,7 @@ import { Card } from "@/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { Clock } from "lucide-react";
 import {
+  OWNER_UNAVAILABLE_MARKER,
   PROGRAM_POC_OWNER_MARKER,
   SLA_OVERDUE_MARKER,
   statusFallbackLabel,
@@ -32,7 +33,10 @@ export function MobileComplaintList({ data }: MobileComplaintListProps) {
     ? translateOr(t, "WF_INBOX_HEADER_DAYS_REMAINING", "Days Remaining")
     : translateOr(t, "WF_INBOX_HEADER_SLA_DAYS_REMAINING", "SLA Days Remaining");
   const overdueLabel = translateOr(t, "SLA_OVERDUE", "Overdue");
-  const programPocLabel = translateOr(t, "IM_PROGRAM_POC", "Program POC");
+  const ownerLabels: Record<string, string> = {
+    [PROGRAM_POC_OWNER_MARKER]: translateOr(t, "IM_PROGRAM_POC", "Program POC"),
+    [OWNER_UNAVAILABLE_MARKER]: translateOr(t, "IM_OWNER_UNAVAILABLE", "Couldn't load. Refresh"),
+  };
 
   return (
     <div className="space-y-3">
@@ -72,7 +76,7 @@ export function MobileComplaintList({ data }: MobileComplaintListProps) {
             />
             <DetailRow
               label={translateOr(t, "WF_INBOX_HEADER_CURRENT_OWNER", "Current Owner")}
-              value={row.taskOwner === PROGRAM_POC_OWNER_MARKER ? programPocLabel : row.taskOwner}
+              value={ownerLabels[row.taskOwner] ?? row.taskOwner}
             />
             <p className="flex items-center gap-1.5 text-sm text-ink-600">
               <Clock className="size-4 shrink-0" />
