@@ -21,6 +21,7 @@ export interface ActivityFacilityRow {
     fieldPlan?: { name?: string; project?: { name?: string } };
     facility?: { facility_name?: string; boundary?: { district?: string; block?: string } };
     billOfMaterial?: ActivityBillOfMaterial;
+    solutionId?: string;
   };
   workflow?: ActivityWorkflowEntry[];
   transactions?: ActivityTransaction[];

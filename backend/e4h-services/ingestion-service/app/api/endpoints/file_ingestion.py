@@ -1,3 +1,4 @@
+import asyncio
 import io
 import json
 import os
@@ -35,8 +36,9 @@ from app.utils.field_plan_geography import is_under_any_boundary, plan_boundary_
 from app.utils.field_plan_locks import build_project_lock_map, solution_codes_by_name, \
     solution_names_by_code, scoped_site_plans, scoped_site_message, PLAN_STATUS_PUBLISHED
 from app.utils.icc_template_parser import annotate_worksheet, first_data_sheet, parse_worksheet, \
-    read_only_errors, to_sections, validate_line_items
+    read_only_errors, system_type_error, to_sections, validate_line_items
 from app.ingest.icc_template_service import fetch_blank_template
+from app.utils.solution_eligibility import SYSTEM_TYPE_COLUMN, system_type_labels_by_solution_name
 from app.ingest.bom_form_catalog import BomFormError, load_solution_forms, structural_errors
 from app.ingest.bom_field_mapper import build_field_map
 from fastapi import APIRouter, File, Form, UploadFile, HTTPException, BackgroundTasks, Depends
@@ -2591,6 +2593,21 @@ async def validate_facilities_excel_sheet(
                            f"{fieldplan_id}, so scope changes cannot be validated safely: {e}")
 
         solutions = mdms_client.fetch_installation_solutions(request_info_obj)
+        # Read from field-planner, not from the workbook's own lists, which can be edited.
+        system_type_label_by_solution_name = None
+        if fieldPlan_service_url and any(
+                c in df.columns for c in (SYSTEM_TYPE_COLUMN, f"{SYSTEM_TYPE_COLUMN} (Mandatory)")):
+            try:
+                system_type_label_by_solution_name = system_type_labels_by_solution_name(
+                    solutions,
+                    await asyncio.to_thread(
+                        FieldPlanServiceClient(fieldPlan_service_url).search_solution_system_types, request_info_obj))
+            except Exception as e:
+                logger.error(f"Could not read the Solutions' system types: {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=502,
+                    detail="Could not read the system types of the Solutions, so this scope sheet cannot "
+                           "be validated. Please try again.")
         state_by_facility_id, sector_by_facility_id, boundary_code_by_facility_id = (
             _facility_states_and_sectors_from_sheet(
                 df, boundary_data_df, facility_client, request_info_obj
@@ -2618,6 +2635,7 @@ async def validate_facilities_excel_sheet(
             plan_is_published=plan_is_published,
             allowed_site_ids=allowed_site_ids,
             project_site_ids=project_site_ids,
+            system_type_label_by_solution_name=system_type_label_by_solution_name,
         )
 
         # A sheet that selects nothing is a mistake, not a no-op. Frozen rows carry
@@ -3458,11 +3476,13 @@ def _check_template_upload(request_info, fieldplan_id: str, solution_code: str, 
         raise HTTPException(status_code=502 if e.retryable else 400, detail=e.message)
 
 
-def _read_only_row_errors(request_info, solution_code: str, parsed):
-    """Row errors for line items whose Sl. No. or Product no longer match the blank template.
+def _compare_with_blank(request_info, solution_code: str, parsed):
+    """(row errors for line items whose Sl. No. or Product no longer match the blank template,
+    the blank template itself).
 
     Shared by validate and create, so both fail for the same reasons. Rejects an upload whose
-    line-item count differs from the blank's, so the two lists line up position for position.
+    line-item count differs from the blank's, so the two lists line up position for position, or
+    whose System Type was changed.
     """
     workbook_bytes = fetch_blank_template(
         FieldPlanServiceClient(fieldPlan_service_url), request_info, solution_code)
@@ -3475,7 +3495,10 @@ def _read_only_row_errors(request_info, solution_code: str, parsed):
             detail=f"This IC Report has {len(parsed.line_items)} line item(s), but the blank "
                    f"template for this Solution has {len(blank.line_items)}. Download the "
                    f"template again, or ask an administrator to regenerate it.")
-    return read_only_errors(parsed, blank)
+    changed_system_type = system_type_error(parsed, blank)
+    if changed_system_type:
+        raise HTTPException(status_code=400, detail=changed_system_type)
+    return read_only_errors(parsed, blank), blank
 
 
 def _merge_row_errors(*error_maps):
@@ -3519,8 +3542,8 @@ async def validate_installation_template(
         sheet_errors = sheet_errors + structural_errors(parsed, forms)
         if sheet_errors:
             raise HTTPException(status_code=400, detail=" ".join(sheet_errors))
-        row_errors = _merge_row_errors(
-            row_errors, _read_only_row_errors(request_info_obj, solution_code, parsed))
+        read_only, _blank = _compare_with_blank(request_info_obj, solution_code, parsed)
+        row_errors = _merge_row_errors(row_errors, read_only)
 
         error_count = annotate_worksheet(sheet, parsed, row_errors)
 
@@ -3579,8 +3602,8 @@ async def create_installation_template(
         sheet_errors = sheet_errors + structural_errors(parsed, forms)
         if sheet_errors:
             raise HTTPException(status_code=400, detail=" ".join(sheet_errors))
-        row_errors = _merge_row_errors(
-            row_errors, _read_only_row_errors(request_info_obj, solution_code, parsed))
+        read_only, blank = _compare_with_blank(request_info_obj, solution_code, parsed)
+        row_errors = _merge_row_errors(row_errors, read_only)
         if row_errors:
             rows = ", ".join(str(r) for r in sorted(row_errors)[:10])
             raise HTTPException(
@@ -3588,7 +3611,9 @@ async def create_installation_template(
                 detail=f"{len(row_errors)} line item(s) still have errors (rows {rows}). "
                        f"Run the validation step and fix the flagged rows before saving.")
 
-        fields, machine_section, solar_section, form_meta = build_field_map(parsed, forms)
+        # The blank template's System Type, not the uploaded cell: an older download has no such row.
+        fields, machine_section, solar_section, form_meta = build_field_map(
+            parsed._replace(system_type=blank.system_type), forms)
 
         try:
             FieldPlanServiceClient(fieldPlan_service_url).create_field_plan_template(

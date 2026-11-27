@@ -129,13 +129,11 @@ class MDMSClient:
 
     def fetch_installation_solutions(self, request_info: RequestInfo) -> List[Dict[str, Any]]:
         """Fetch every active Installation.Solution row as a plain dict
-        ({code, name, sectorName, sunshineHrsMin, sunshineHrsMax}). MDMSData allows extra
-        fields, so these come through even though they aren't declared on the
-        ingestion-schema-shaped MDMSData model."""
-        response = self.fetch_schema_column_definitions(request_info, "Installation.Solution")
-        if not response.mdms:
-            return []
-        return [mdms.data.model_dump() for mdms in response.mdms if mdms.data]
+        ({code, name, sectorName, sunshineHrsMin, sunshineHrsMax}). An inactive Solution can carry
+        the same name as an active one, and the sheet's names are mapped back to codes, so it must
+        not get in here."""
+        records = self.fetch_mdms_records(request_info, "Installation.Solution")
+        return [record["data"] for record in records if record.get("data")]
 
     def fetch_mdms_records(self, request_info: RequestInfo, schema_code: str,
                            unique_identifiers: Optional[List[str]] = None) -> List[Dict[str, Any]]:

@@ -18,6 +18,7 @@ public class IccTemplateRowMapper implements RowMapper<IccTemplate> {
                 .solutionCode(resultSet.getString("icc_solutionCode"))
                 .solutionName(resultSet.getString("icc_solutionName"))
                 .fileStoreId(resultSet.getString("icc_fileStoreId"))
+                .systemType(resultSet.getString("icc_systemType"))
                 .build();
     }
 }

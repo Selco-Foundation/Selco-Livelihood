@@ -58,6 +58,38 @@ def eligible_solution_names(
 
 
 SOLUTION_COLUMN = "Solution"
+SYSTEM_TYPE_COLUMN = "System Type"
+
+# What the sheet shows for a Solution that has no system type. A label only: it is never stored.
+NO_SYSTEM_TYPE_LABEL = "Others"
+
+
+def system_type_labels_by_solution_name(
+    solutions: List[Dict[str, Any]],
+    system_type_by_code: Dict[str, Optional[str]],
+) -> Dict[str, str]:
+    """Solution name -> the system type the sheet shows for it. The types come from the data, so a
+    new one needs no change here."""
+    return {
+        solution["name"]: system_type_by_code.get(solution.get("code")) or NO_SYSTEM_TYPE_LABEL
+        for solution in solutions
+        if solution.get("name")
+    }
+
+
+def group_by_system_type(names: List[str], label_by_name: Dict[str, str]) -> Dict[str, List[str]]:
+    """One site's eligible Solutions, by system type.
+
+    Takes names that already passed the sector and sunshine-hours rule, so a type appears only
+    when the site can have a Solution of it. Types in alphabetical order, "Others" last.
+    """
+    groups: Dict[str, List[str]] = {}
+    for name in names:
+        groups.setdefault(label_by_name.get(name, NO_SYSTEM_TYPE_LABEL), []).append(name)
+    return {
+        label: groups[label]
+        for label in sorted(groups, key=lambda label: (label == NO_SYSTEM_TYPE_LABEL, label.casefold()))
+    }
 
 
 def clear_solution_column_dropdown(

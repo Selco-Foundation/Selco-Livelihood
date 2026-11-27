@@ -51,7 +51,7 @@ COLUMNS_PER_LINE_ITEM = len(COLUMN_LABELS)
 # Written into bom.data by the backend, never declared by MDMS. Asserted rather than assumed:
 # a collision would have MDMS quietly overwrite a Report Number.
 RESERVED_FIELD_NAMES = frozenset({
-    "report_number", "tender_number", "purchase_order_number",
+    "report_number", "tender_number", "purchase_order_number", "system_type",
 })
 
 # Error codes the endpoints turn into HTTP responses.
@@ -169,7 +169,8 @@ def _to_spec(unique_id: str, record: Dict[str, Any]) -> FormSpec:
             raise BomFormError(
                 ERROR_FORM_MALFORMED,
                 f"{unique_id} declares field name(s) {sorted(clashes)}, which the backend "
-                f"reserves for the Report Number, Tender No. and Purchase/Work Order No. "
+                f"reserves for the Report Number, Tender No., Purchase/Work Order No. and "
+                f"System Type. "
                 f"Rename them in MDMS.")
 
         sections.append(section)
