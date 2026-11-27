@@ -281,7 +281,8 @@ public class BomService {
     /**
      * Groups the raw uploads (one entry per photo, tagged INSTALLATION_IMAGE-&lt;MDMS code&gt;) per question, in two forms:
      * <ul>
-     * <li>INSTALLATION_PHOTO-&lt;code&gt;, titled with the question's short title: read by the per-solution ICC
+     * <li>INSTALLATION_PHOTO-&lt;code&gt;, titled with the question's full description (QA: the PDF keeps the long
+     * title; the review screen uses the short one): read by the per-solution ICC
      * layouts, which list exactly the questions that solution asks (ticket: installation photos per solution).</li>
      * <li>INSTALLATION_IMAGE-&lt;position&gt;, titled with the description: the older layouts read photos by position.
      * Kept so the backend and the layouts can be deployed in either order; drop once every layout reads by code.</li>
@@ -303,7 +304,7 @@ public class BomService {
 
             byCode.add(BomPdfDocument.builder()
                     .documentType(INSTALLATION_PHOTO_DOCUMENT_TYPE_PREFIX + installationImage.getCode())
-                    .documentName(installationImage.getShortTitle() != null ? installationImage.getShortTitle() : installationImage.getDescription())
+                    .documentName(installationImage.getDescription())
                     .fileStoreIds(fileStoreIds)
                     .build());
             byPosition.add(BomPdfDocument.builder()

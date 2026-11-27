@@ -20,7 +20,7 @@ class BomServiceInstallationPhotosTest {
     }
 
     @Test
-    void groupsUploadsByQuestionCodeWithShortTitlesAndKeepsThePositionalEntries() {
+    void groupsUploadsByQuestionCodeWithDescriptionsAndKeepsThePositionalEntries() {
         List<InstallationImageMaster> images = List.of(
                 image("5", "Clear image of cable routing.", "Cable Routing"),
                 image("18", "Clear image of GIPB.", null),
@@ -37,8 +37,8 @@ class BomServiceInstallationPhotosTest {
         assertEquals(List.of("INSTALLATION_PHOTO-5", "INSTALLATION_PHOTO-18", "INSTALLATION_PHOTO-15",
                         "INSTALLATION_IMAGE-1", "INSTALLATION_IMAGE-2", "INSTALLATION_IMAGE-3"),
                 grouped.stream().map(BomPdfDocument::getDocumentType).toList());
-        // By code: short title, or the description when there is none; an unanswered question keeps an empty list.
-        assertEquals(List.of("Cable Routing", "Clear image of GIPB.", "RMS Site Photo (Geotag)"),
+        // By code: the full description even when a short title exists (QA); an unanswered question keeps an empty list.
+        assertEquals(List.of("Clear image of cable routing.", "Clear image of GIPB.", "RMS site photo with geotagging."),
                 grouped.subList(0, 3).stream().map(BomPdfDocument::getDocumentName).toList());
         assertEquals(List.of("a", "c"), grouped.get(0).getFileStoreIds());
         assertEquals(List.of("b"), grouped.get(1).getFileStoreIds());
