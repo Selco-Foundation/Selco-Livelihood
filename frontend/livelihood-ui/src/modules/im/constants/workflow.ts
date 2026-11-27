@@ -19,6 +19,9 @@ export const SLA_OVERDUE_MARKER = "OVERDUE";
  */
 export const PROGRAM_POC_OWNER_MARKER = "PROGRAM_POC";
 
+/** Sentinel stored in InboxRow.taskOwner when the vendor organisation could not be loaded. */
+export const OWNER_UNAVAILABLE_MARKER = "OWNER_UNAVAILABLE";
+
 /** Statuses owned by the pooled Program POC role rather than by a named user. */
 export const POC_OWNED_STATUSES = [APPLICATION_STATUS.OUT_OF_SCOPE_PENDING_POC] as const;
 
