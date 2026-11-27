@@ -99,6 +99,23 @@ class AssetValidatorSystemTest {
         assertEquals("DC", update("DC"));
     }
 
+    @Test
+    void updatedUnitKeepsItsParentsValue() {
+        Asset stored = asset("PANEL", "AC");
+        stored.setAssetId("Ast/2");
+        stored.setParentId("Ast/1");
+        Asset parent = asset("SOLAR", "DC");
+        parent.setAssetId("Ast/1");
+        when(assets.searchAssets(any(), anyInt(), anyInt())).thenReturn(List.of(stored), List.of(parent));
+        Asset unit = Asset.builder().tenantId("livelihood").assetId("Ast/2").system("AC").build();
+        try {
+            validator.validateAsset("Ast/2", request(unit));
+        } catch (org.egov.tracer.model.CustomException ignored) {
+            // facility lookup, not under test
+        }
+        assertEquals("DC", unit.getSystem(), "a unit never moves away from its parent, even with a listed value");
+    }
+
     private String update(String sent) {
         Asset asset = Asset.builder().tenantId("livelihood").assetId("Ast/1").system(sent).build();
         try {

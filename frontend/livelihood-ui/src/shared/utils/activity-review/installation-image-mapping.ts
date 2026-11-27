@@ -112,9 +112,8 @@ export function selectInstallationImageCriteria(
         .map((criterion, index) => ({ criterion, index, order: criterion.systemOrders?.[type] }))
         .filter((entry): entry is typeof entry & { order: number } => entry.order !== undefined)
     : [];
-  const byType = matching.length
-    ? matching.sort((a, b) => a.order - b.order || a.index - b.index).map((entry) => entry.criterion)
-    : active;
+  matching.sort((a, b) => a.order - b.order || a.index - b.index);
+  const byType = matching.length ? matching.map((entry) => entry.criterion) : active;
 
   const selected = solution
     ? byType.filter((criterion) => !criterion.solutionCodes?.length || criterion.solutionCodes.includes(solution))

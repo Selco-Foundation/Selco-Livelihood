@@ -1,3 +1,4 @@
+import asyncio
 import json
 from datetime import datetime
 from typing import Optional, List
@@ -609,7 +610,8 @@ async def get_facility_ingestion_template_with_data(
             try:
                 label_by_solution_name = system_type_labels_by_solution_name(
                     solutions,
-                    FieldPlanServiceClient(fieldPlan_service_url).search_solution_system_types(request_info))
+                    await asyncio.to_thread(
+                        FieldPlanServiceClient(fieldPlan_service_url).search_solution_system_types, request_info))
             except Exception as e:
                 # Carrying on would show every Solution under "Others".
                 logger.error(f"Could not read the Solutions' system types: {e}", exc_info=True)

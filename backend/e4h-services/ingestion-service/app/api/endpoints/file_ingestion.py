@@ -1,3 +1,4 @@
+import asyncio
 import io
 import json
 import os
@@ -2599,7 +2600,8 @@ async def validate_facilities_excel_sheet(
             try:
                 system_type_label_by_solution_name = system_type_labels_by_solution_name(
                     solutions,
-                    FieldPlanServiceClient(fieldPlan_service_url).search_solution_system_types(request_info_obj))
+                    await asyncio.to_thread(
+                        FieldPlanServiceClient(fieldPlan_service_url).search_solution_system_types, request_info_obj))
             except Exception as e:
                 logger.error(f"Could not read the Solutions' system types: {e}", exc_info=True)
                 raise HTTPException(

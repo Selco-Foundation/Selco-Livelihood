@@ -235,6 +235,18 @@ class LivelihoodReportPdfDataTest {
         assertEquals("plain", ac.get(7).get("style"));
     }
 
+    @Test
+    void anUploadedSpdPhotoKeepsItsRowWithoutAStatus() {
+        VisitReport report = report();
+        report.setDocuments(List.of(VisitReportDocument.builder().documentType("AMC_PHOTO_GRID_SPD").fileStoreId(PHOTO).build()));
+        List<Map<String, Object>> unknown = LivelihoodReportPdfData.readingRows(report, report.getResponses(), null);
+        assertEquals("-", unknown.get(9).get("value"));
+        assertEquals("1", unknown.get(9).get("photo"), "the photo still prints");
+        List<Map<String, Object>> dc = LivelihoodReportPdfData.readingRows(report, report.getResponses(), "DC");
+        assertEquals("N/A", dc.get(9).get("value"), "Grid SPD never applies on DC");
+        assertEquals("", dc.get(9).get("photo"));
+    }
+
     private static List<Object> lastSix(VisitReport report, String systemType) {
         return LivelihoodReportPdfData.readingRows(report, report.getResponses(), systemType).stream().skip(5)
                 .map(r -> r.get("value")).toList();

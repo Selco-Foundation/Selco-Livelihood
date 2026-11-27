@@ -589,7 +589,7 @@ public class AssetValidator {
             if (StringUtils.isBlank(asset.getActivityFacilityID())) {
                 asset.setActivityFacilityID(existing.getActivityFacilityID());
             }
-            livelihoodSystemResolver.resolve(asset, body.getRequestInfo());
+            resolveSystemForUpdate(asset, existing, body);
             validateLivelihoodAsset(asset, errorMap);
             if (!errorMap.isEmpty()) {
                 throw new CustomException(errorMap);
@@ -600,6 +600,23 @@ public class AssetValidator {
             }
         }
         log.info("AssetValidator::validateAsset completed successfully | assetId={}", assetID);
+    }
+
+    /**
+     * A unit keeps its parent's system type, as on create (the update writes only this row, so a unit
+     * must never move away from its parent). Any other asset is resolved from its Solution.
+     */
+    private void resolveSystemForUpdate(Asset asset, Asset existing, AssetCreateRequest body) {
+        String parentId = StringUtils.isNotBlank(asset.getParentId()) ? asset.getParentId() : existing.getParentId();
+        if (StringUtils.isNotBlank(parentId)) {
+            List<Asset> parents = assetService.searchAssets(
+                    Asset.builder().tenantId(asset.getTenantId()).assetId(parentId).build(), 1, 0);
+            if (parents != null && !parents.isEmpty() && StringUtils.isNotBlank(parents.get(0).getSystem())) {
+                asset.setSystem(parents.get(0).getSystem());
+                return;
+            }
+        }
+        livelihoodSystemResolver.resolve(asset, body.getRequestInfo());
     }
 
     private void mergeMissingFieldsForUpdate(Asset asset, Asset existing) {
