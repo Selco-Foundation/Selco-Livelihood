@@ -29,6 +29,8 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.util.ObjectUtils;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.egov.inbox.util.InboxConstants.*;
@@ -66,6 +68,7 @@ public class InboxServiceV2 {
 
     @Autowired
     private VendorMappedAssetResolver vendorMappedAssetResolver;
+
 
 
     /**
@@ -134,6 +137,11 @@ public class InboxServiceV2 {
         // Enrichissement des items
         enrichProcessInstanceInInboxItems(items);
         log.debug("✨ Enriched inbox items with process instance details");
+
+        // Livelihood: "Current Owner" shows the assignee's vendor organisation, not the individual user.
+        if (StringUtils.equalsIgnoreCase(inboxRequest.getInbox().getTenantId(), config.getLivelihoodTenantId())) {
+            enrichAssigneeOrgNames(inboxRequest, items);
+        }
 
         // Compteurs
         Integer totalCount = getTotalApplicationCount(inboxRequest, inboxQueryConfiguration.getIndex());
@@ -282,6 +290,66 @@ public class InboxServiceV2 {
                 item.getBusinessObject().remove(CURRENT_PROCESS_INSTANCE_CONSTANT);
             }
         });
+    }
+
+    /** Upper bound on the time spent looking up assignee organisations for one inbox page. */
+    private static final long ASSIGNEE_ORG_LOOKUP_BUDGET_MS = 3000;
+
+    /**
+     * Adds businessObject.assigneeOrgName (the assignee's vendor organisation), looked up once per assignee.
+     * Rows whose lookup failed, or was skipped because the time budget is spent, get assigneeOrgUnavailable=true.
+     */
+    private void enrichAssigneeOrgNames(InboxRequest inboxRequest, List<Inbox> items) {
+        long deadline = System.currentTimeMillis() + ASSIGNEE_ORG_LOOKUP_BUDGET_MS;
+        Map<String, String> orgNameByUser = new HashMap<>();
+        for (Inbox item : items) {
+            String assigneeUuid = firstAssigneeUuid(item);
+            if (assigneeUuid == null) {
+                continue;
+            }
+            if (!orgNameByUser.containsKey(assigneeUuid)) {
+                orgNameByUser.put(assigneeUuid,
+                        lookupAssigneeOrgName(inboxRequest, assigneeUuid, deadline - System.currentTimeMillis()));
+            }
+            String orgName = orgNameByUser.get(assigneeUuid);
+            if (orgName == null) {
+                item.getBusinessObject().put("assigneeOrgUnavailable", true);
+            } else if (!orgName.isEmpty()) {
+                item.getBusinessObject().put("assigneeOrgName", orgName);
+            }
+        }
+    }
+
+    /**
+     * Org name of the assignee, "" when the assignee is not an org member, or null when the lookup failed or did
+     * not finish within remainingMs. Waits only for the rest of the budget, so a hung vendor-registry call cannot
+     * block the inbox.
+     */
+    private String lookupAssigneeOrgName(InboxRequest inboxRequest, String assigneeUuid, long remainingMs) {
+        if (remainingMs <= 0) {
+            return null;
+        }
+        try {
+            return StringUtils.defaultString(CompletableFuture.supplyAsync(() ->
+                    vendorMappedAssetResolver.resolveOrganisationName(inboxRequest.getRequestInfo(),
+                            inboxRequest.getInbox().getTenantId(), assigneeUuid))
+                    .get(remainingMs, TimeUnit.MILLISECONDS));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            log.warn("Could not resolve vendor organisation for assignee={}", assigneeUuid, e);
+        }
+        return null;
+    }
+
+    private String firstAssigneeUuid(Inbox item) {
+        ProcessInstance processInstance = item.getProcessInstance();
+        if (item.getBusinessObject() == null || processInstance == null
+                || CollectionUtils.isEmpty(processInstance.getAssignes())
+                || processInstance.getAssignes().get(0) == null) {
+            return null;
+        }
+        return StringUtils.trimToNull(processInstance.getAssignes().get(0).getUuid());
     }
 
     private ProcessInstance trimRolesFromProcessInstance(ProcessInstance processInstance) {
