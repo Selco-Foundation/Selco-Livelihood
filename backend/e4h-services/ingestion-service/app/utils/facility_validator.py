@@ -6,7 +6,7 @@ from fastapi import HTTPException
 
 from app.core.tenant import LIVELIHOOD_TENANT_ID
 from app.utils.field_plan_locks import scoped_site_message, site_bar_message
-from app.utils.solution_eligibility import eligible_solution_names
+from app.utils.solution_eligibility import NO_SYSTEM_TYPE_LABEL, SYSTEM_TYPE_COLUMN, eligible_solution_names
 
 # Same wording everywhere: MDMS pre-validation, API import, and Excel client hints.
 ERR_HFR_OR_NIN_REQUIRED_WHEN_HEALTH = (
@@ -270,6 +270,7 @@ def validate_installation_scope_solutions(
     plan_is_published: bool = False,
     allowed_site_ids: Optional[Set[str]] = None,
     project_site_ids: Optional[Set[str]] = None,
+    system_type_label_by_solution_name: Optional[Dict[str, str]] = None,
 ) -> List[int]:
     """Installation-scope rules for the Include/Solution pair.
 
@@ -303,6 +304,11 @@ def validate_installation_scope_solutions(
     allowed_site_ids=None to disable the check entirely (no plan context, or a published plan,
     where every row is already refused on other grounds).
 
+    system_type_label_by_solution_name, when given, makes an included row's System Type match its
+    Solution. The dropdown only narrows the list: Excel keeps a Solution when the System Type
+    beside it is changed afterwards. A sheet without the column, downloaded before it existed, is
+    not checked; nothing is stored from the column either way.
+
     A site listed on more than one row is rejected on every one of them, whenever any of those
     rows asks to include it. Such a pair is not merely redundant: the create endpoint walks the
     rows in order, so a Yes/No pair both links and unlinks the site, and unlinking hard-deletes
@@ -319,6 +325,9 @@ def validate_installation_scope_solutions(
     state_column = _find_header(df, "State")
     facility_id_column = find_site_id_column(df)
     site_name_column = _find_header(df, "End User Name")
+    system_type_column = (
+        _find_header(df, SYSTEM_TYPE_COLUMN) if system_type_label_by_solution_name is not None else None
+    )
     lock_map = lock_map or {}
     solution_name_by_code = solution_name_by_code or {}
     completed_site_ids = completed_site_ids or set()
@@ -484,6 +493,21 @@ def validate_installation_scope_solutions(
                 f"{', '.join(sorted(allowed))}.",
             )
             continue
+
+        if system_type_column:
+            chosen_type = _cell(row, system_type_column)
+            expected_type = system_type_label_by_solution_name.get(solution_value, NO_SYSTEM_TYPE_LABEL)
+            if chosen_type != expected_type:
+                problem = (
+                    f"'{solution_value}' is not a Solution of System Type '{chosen_type}'."
+                    if chosen_type else f"Select the System Type for {site_label}."
+                )
+                add_err(
+                    i,
+                    f"{problem} The System Type of '{solution_value}' is '{expected_type}': choose "
+                    f"it, or choose a different Solution.",
+                )
+                continue
 
         linkable_rows.append(i)
 

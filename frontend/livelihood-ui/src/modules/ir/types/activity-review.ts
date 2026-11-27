@@ -44,6 +44,7 @@ export interface ActivityFacilityRow {
       boundary?: { district?: string; block?: string };
     };
     billOfMaterial?: ActivityBillOfMaterial;
+    solutionId?: string;
   };
   workflow?: ActivityWorkflowEntry[];
   transactions?: ActivityTransaction[];

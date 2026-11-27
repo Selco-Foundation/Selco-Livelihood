@@ -100,6 +100,10 @@ export interface ImageChecklistSectionContent {
   kind: "IMAGE_CHECKLIST";
   id: string;
   label: string;
+  /** The long capture instruction, shown under the short-title heading. */
+  hint?: string;
+  /** The photo was optional for the field staff (MDMS `required: false`). */
+  optional?: boolean;
   images: SectionImage[];
 }
 

@@ -14,7 +14,28 @@ function makeSection(overrides: Partial<ImageChecklistSectionContent> = {}): Ima
 }
 
 describe("InstallationImageSectionBody", () => {
-  it("renders nothing when the section has no images", () => {
+  it("shows the capture hint and the optional note above the images", () => {
+    render(
+      <InstallationImageSectionBody
+        section={makeSection({
+          hint: "RMS site photo with geotagging.",
+          optional: true,
+          images: [{ url: "https://example.com/1.jpg" }],
+        })}
+      />,
+    );
+    expect(screen.getByText(/RMS site photo with geotagging\./)).toBeInTheDocument();
+    expect(screen.getByText("(Optional photo)")).toBeInTheDocument();
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+  });
+
+  it("shows the hint even when no photo was uploaded", () => {
+    render(<InstallationImageSectionBody section={makeSection({ hint: "Clear image of AJB." })} />);
+    expect(screen.getByText("Clear image of AJB.")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("renders nothing when the section has no images and no hint", () => {
     const { container } = render(<InstallationImageSectionBody section={makeSection()} />);
     expect(container).toBeEmptyDOMElement();
   });

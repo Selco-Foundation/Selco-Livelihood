@@ -172,7 +172,9 @@ class LivelihoodReportPdfDataTest {
         assertEquals("-", d.get("obs_18"), "4.18 not answered: never another question's answer");
         assertEquals("Cleaned panels (all) re-tightened (AJB)", d.get("vendor_remarks"));
         List<Map<String, Object>> rows = (List<Map<String, Object>>) d.get("reading_rows");
-        assertEquals(9, rows.size(), "no grid SPD in the report: the client's 9 rows");
+        assertEquals(11, rows.size());
+        assertEquals("N/A", rows.get(5).get("value"), "specific gravity not asked");
+        assertEquals("N/A", rows.get(9).get("value"), "no system type and no answer");
         assertEquals("3 V", rows.get(0).get("value"));
         assertEquals("1", rows.get(0).get("p_ne_pcu"));
         assertEquals("1", rows.get(0).get("photo"));
@@ -207,6 +209,47 @@ class LivelihoodReportPdfDataTest {
         assertEquals("No", d.get("obs_18"), "answer as given");
         assertEquals(11, rows.size());
         assertEquals("Failed", rows.get(9).get("value"));
+    }
+
+    @Test
+    void readingsThatDoNotApplyPrintNotApplicable() {
+        VisitReport report = report();
+        report.getResponses().put("solarSpdStatus", "WORKING");
+        report.getResponses().put("gridSpdStatus", "FAILED");
+        report.getResponses().put("batterySpecificGravity", "GOOD");
+        assertEquals(List.of("Good", "-", "Working", "-", "N/A", "N/A"), lastSix(report, "DC"));
+        assertEquals(List.of("Good", "-", "Working", "-", "Failed", "-"), lastSix(report, "ac"), "#276: Solar SPD on AC too");
+        report.getResponses().put("gridSpdStatus", "NOT_AVAILABLE");
+        assertEquals(List.of("Good", "-", "Working", "-", "Not available", "-"), lastSix(report, "AC"));
+        report.getResponses().put("gridSpdStatus", "FAILED");
+        assertEquals(List.of("Good", "-", "Working", "-", "Failed", "-"), lastSix(report, "HYBRID"));
+        report.getResponses().remove("batterySpecificGravity");
+        report.getResponses().remove("gridSpdStatus");
+        assertEquals(List.of("N/A", "N/A", "Working", "-", "N/A", "N/A"), lastSix(report, null));
+        assertEquals(List.of("N/A", "N/A", "Working", "-", "-", "-"), lastSix(report, "AC"), "Grid SPD asked but not answered");
+        report.getResponses().remove("solarSpdStatus");
+        assertEquals(List.of("N/A", "N/A", "N/A", "N/A", "-", "-"), lastSix(report, "AC"), "AC report from before #276");
+        assertEquals(List.of("N/A", "N/A", "-", "-", "N/A", "N/A"), lastSix(report, "DC"), "DC: Solar SPD asked but not answered");
+        List<Map<String, Object>> ac = LivelihoodReportPdfData.readingRows(report, report.getResponses(), "AC");
+        assertEquals("", ac.get(7).get("photo"), "no photo on a row that does not apply");
+        assertEquals("plain", ac.get(7).get("style"));
+    }
+
+    @Test
+    void anUploadedSpdPhotoKeepsItsRowWithoutAStatus() {
+        VisitReport report = report();
+        report.setDocuments(List.of(VisitReportDocument.builder().documentType("AMC_PHOTO_GRID_SPD").fileStoreId(PHOTO).build()));
+        List<Map<String, Object>> unknown = LivelihoodReportPdfData.readingRows(report, report.getResponses(), null);
+        assertEquals("-", unknown.get(9).get("value"));
+        assertEquals("1", unknown.get(9).get("photo"), "the photo still prints");
+        List<Map<String, Object>> dc = LivelihoodReportPdfData.readingRows(report, report.getResponses(), "DC");
+        assertEquals("N/A", dc.get(9).get("value"), "Grid SPD never applies on DC");
+        assertEquals("", dc.get(9).get("photo"));
+    }
+
+    private static List<Object> lastSix(VisitReport report, String systemType) {
+        return LivelihoodReportPdfData.readingRows(report, report.getResponses(), systemType).stream().skip(5)
+                .map(r -> r.get("value")).toList();
     }
 
     @Test

@@ -1,5 +1,5 @@
 import type { ActivityStatus } from "./activity-status";
-import type { InstallationImageCriterion } from "./installation-image-mapping";
+import { selectInstallationImageCriteria, type InstallationImageCriterion } from "./installation-image-mapping";
 import type { RejectionReasonOption } from "./rejection-reason-mapping";
 import type {
   ActivityAuditCheckpoint,
@@ -36,7 +36,8 @@ export interface ActivityBillOfMaterial {
   name?: string;
   reportNumber?: string;
   additionalDetails?: { vendorOrgName?: string; vendorUserName?: string };
-  data?: { components?: ActivityBomComponent[]; purchaseOrderNumber?: string };
+  solutionId?: string;
+  data?: { components?: ActivityBomComponent[]; purchaseOrderNumber?: string; system_type?: string };
 }
 
 export interface ActivityWorkflowEntry {
@@ -161,12 +162,39 @@ export function buildReportSection(bom: ActivityBillOfMaterial | undefined): Rep
 export function buildImageChecklistSections(
   criteria: InstallationImageCriterion[],
 ): ImageChecklistSectionContent[] {
-  return criteria.map((criterion) => ({
-    kind: "IMAGE_CHECKLIST",
-    id: `${INSTALLATION_IMAGE_PREFIX}_${criterion.code}`,
-    label: criterion.description,
-    images: [],
-  }));
+  return criteria.map((criterion) => {
+    const section: ImageChecklistSectionContent = {
+      kind: "IMAGE_CHECKLIST",
+      id: `${INSTALLATION_IMAGE_PREFIX}_${criterion.code}`,
+      label: criterion.shortTitle ?? criterion.description,
+      images: [],
+    };
+    if (criterion.shortTitle && criterion.description !== criterion.shortTitle) {
+      section.hint = criterion.description;
+    }
+    if (criterion.required === false) {
+      section.optional = true;
+    }
+    return section;
+  });
+}
+
+/** What decides which photo questions an installation was asked: its BOM's
+ * system type, its solution, and the photos already uploaded. */
+export interface InstallationImageContext {
+  solutionId?: string;
+  documents?: ActivityDocument[] | null;
+}
+
+function uploadedImageCodes(documents: ActivityDocument[] | null | undefined): Set<string> {
+  const codes = new Set<string>();
+  for (const document of documents ?? []) {
+    const classified = classifyDocument(document);
+    if (classified.key === INSTALLATION_IMAGE_PREFIX && classified.suffix) {
+      codes.add(classified.suffix);
+    }
+  }
+  return codes;
 }
 
 /**
@@ -174,7 +202,9 @@ export function buildImageChecklistSections(
  * sections or the single Machine section depending on componentType, always
  * followed by the Installation Completion Report section, with the
  * image-checklist sections appended only for Solar (the checklist verifies
- * a Solar installation specifically; Machine entries don't need it).
+ * a Solar installation specifically; Machine entries don't need it). With
+ * imageContext, only the photo questions this installation was asked are
+ * shown (see selectInstallationImageCriteria).
  */
 export function buildReviewSections(
   componentType: "SOLAR" | "MACHINE" | undefined,
@@ -182,6 +212,8 @@ export function buildReviewSections(
   solarAssetSections: AssetSectionContent[],
   machineAssetData: MachineAssetData,
   installationImageCriteria: InstallationImageCriterion[],
+  // Without it every active criterion is shown (old callers / tests).
+  imageContext?: InstallationImageContext,
 ): ReviewSectionContent[] {
   const isSolar = componentType !== "MACHINE";
   const sections: ReviewSectionContent[] = isSolar
@@ -189,7 +221,14 @@ export function buildReviewSections(
     : [buildMachineSection(bom, machineAssetData)];
   sections.push(buildReportSection(bom));
   if (isSolar) {
-    sections.push(...buildImageChecklistSections(installationImageCriteria));
+    const criteria = imageContext
+      ? selectInstallationImageCriteria(installationImageCriteria, {
+          systemType: bom?.data?.system_type,
+          solutionId: imageContext.solutionId ?? bom?.solutionId,
+          uploadedCodes: uploadedImageCodes(imageContext.documents),
+        })
+      : selectInstallationImageCriteria(installationImageCriteria);
+    sections.push(...buildImageChecklistSections(criteria));
   }
   return sections;
 }

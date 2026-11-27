@@ -3,6 +3,7 @@ package org.egov.asset.web.validator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.egov.asset.service.AssetService;
+import org.egov.asset.service.LivelihoodSystemResolver;
 import org.egov.asset.util.*;
 import org.egov.asset.web.models.*;
 import org.apache.commons.lang.StringUtils;
@@ -32,14 +33,18 @@ public class AssetValidator {
 
     private final AssetService assetService;
 
+    private final LivelihoodSystemResolver livelihoodSystemResolver;
+
     private ObjectMapper mapper = new ObjectMapper();
 
 
     @Autowired
-    public AssetValidator(MdmsUtil mdmsUtil, FacilityUtil facilityUtil, AssetService assetService) {
+    public AssetValidator(MdmsUtil mdmsUtil, FacilityUtil facilityUtil, AssetService assetService,
+                          LivelihoodSystemResolver livelihoodSystemResolver) {
         this.mdmsUtil = mdmsUtil;
         this.facilityUtil = facilityUtil;
         this.assetService = assetService;
+        this.livelihoodSystemResolver = livelihoodSystemResolver;
     }
 
     /**
@@ -50,6 +55,11 @@ public class AssetValidator {
      */
     public void validateCreateAsset(AssetCreateRequest request) {
         Asset asset = request.getAssetDetail().getAsset();
+        // Before the parent/child checks: a unit must have its parent's value. A unit added to an
+        // existing parent takes the parent's, in validateChildOfExistingParent.
+        if (isLivelihoodTenant(asset.getTenantId()) && StringUtils.isBlank(asset.getParentId())) {
+            livelihoodSystemResolver.resolveWithUnits(asset, request.getRequestInfo());
+        }
         if (!CollectionUtils.isEmpty(asset.getChildren())) {
             validateParentWithChildren(asset);
         } else if (StringUtils.isNotBlank(asset.getParentId())) {
@@ -104,6 +114,9 @@ public class AssetValidator {
             Asset parent = parents.get(0);
             if (StringUtils.isNotBlank(parent.getParentId())) {
                 errorMap.put(ERR_ASSET_HIERARCHY, "Parent asset " + parent.getAssetId() + " is itself a child");
+            }
+            if (isLivelihoodTenant(child.getTenantId()) && StringUtils.isNotBlank(parent.getSystem())) {
+                child.setSystem(parent.getSystem());
             }
             inheritFromParent(child, parent, errorMap);
         }
@@ -573,6 +586,10 @@ public class AssetValidator {
         Asset existing = existingAssets.get(0);
         mergeMissingFieldsForUpdate(asset, existing);
         if (isLivelihoodTenant(asset.getTenantId())) {
+            if (StringUtils.isBlank(asset.getActivityFacilityID())) {
+                asset.setActivityFacilityID(existing.getActivityFacilityID());
+            }
+            resolveSystemForUpdate(asset, existing, body);
             validateLivelihoodAsset(asset, errorMap);
             if (!errorMap.isEmpty()) {
                 throw new CustomException(errorMap);
@@ -583,6 +600,23 @@ public class AssetValidator {
             }
         }
         log.info("AssetValidator::validateAsset completed successfully | assetId={}", assetID);
+    }
+
+    /**
+     * A unit keeps its parent's system type, as on create (the update writes only this row, so a unit
+     * must never move away from its parent). Any other asset is resolved from its Solution.
+     */
+    private void resolveSystemForUpdate(Asset asset, Asset existing, AssetCreateRequest body) {
+        String parentId = StringUtils.isNotBlank(asset.getParentId()) ? asset.getParentId() : existing.getParentId();
+        if (StringUtils.isNotBlank(parentId)) {
+            List<Asset> parents = assetService.searchAssets(
+                    Asset.builder().tenantId(asset.getTenantId()).assetId(parentId).build(), 1, 0);
+            if (parents != null && !parents.isEmpty() && StringUtils.isNotBlank(parents.get(0).getSystem())) {
+                asset.setSystem(parents.get(0).getSystem());
+                return;
+            }
+        }
+        livelihoodSystemResolver.resolve(asset, body.getRequestInfo());
     }
 
     private void mergeMissingFieldsForUpdate(Asset asset, Asset existing) {
